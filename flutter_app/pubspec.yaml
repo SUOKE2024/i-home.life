@@ -1,0 +1,34 @@
+name: ihome_app
+description: "索克家居 · i-home.life"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  # 网络 & 持久化
+  http: ^1.2.0
+  shared_preferences: ^2.3.0
+  path_provider: ^2.1.4
+  # 文件选择 & 图片
+  file_picker: ^11.0.2
+  image_picker: ^1.1.0
+  # 状态管理
+  provider: ^6.1.2
+  # 工具
+  intl: ^0.20.3
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 使用系统默认字体，DM Sans 通过 CSS font-family 在 Web 端加载

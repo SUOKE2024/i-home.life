@@ -1,0 +1,30 @@
+{
+    "version-name": "2.0.0",
+    "version-code": 2,
+    "uuid": "fe686e1b-3770-4824-a938-961b140a7c98",
+    "validity": {
+        "not-before": 1719792000,
+        "not-after": 1804406400
+    },
+    "type": "debug",
+    "bundle-info": {
+        "developer-id": "OpenHarmony",
+        "development-certificate": "-----BEGIN CERTIFICATE-----\nMIICSTCCAc6gAwIBAgIEKtRAXTAKBggqhkjOPQQDAjBjMQswCQYDVQQGEwJDTjEUMBIGA1UECgwLT3Blbkhhcm1vbnkxGTAXBgNVBAsMEE9wZW5IYXJtb255IFRlYW0xIzAhBgNVBAMMGk9wZW5IYXJtb255IEFwcGxpY2F0aW9uIENBMB4XDTI2MDcwNjE3NTg0N1oXDTM2MDcwMzE3NTg0N1owaDELMAkGA1UEBhMCQ04xFDASBgNVBAoMC09wZW5IYXJtb255MRkwFwYDVQQLDBBPcGVuSGFybW9ueSBUZWFtMSgwJgYDVQQDDB9PcGVuSGFybW9ueSBBcHBsaWNhdGlvbiBSZWxlYXNlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE22DgkEKVuX3ZGBzeOb9F9wB2sddozwXRA6LBUSGdXl5sTmM0hicDH7B4VFPdBPJSNE12GZzZoDNbKL7m3kKgE6NrMGkwHQYDVR0OBBYEFPtxruhlcRBQsJdwcZqLu9oNUVgaMAkGA1UdEwQCMAAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsGAQUFBwMDMBgGDCsGAQQBj1sCgngBAwQIMAYCAQEKAQAwCgYIKoZIzj0EAwIDaQAwZgIxAJqB3IVFSnohnbXWVc0YOkqpC+rOd07qIDMIAa2t5Nz30e+rTzMrNozHFNQb9zbzcAIxAKfs+Fi8eohrGiY0b2afXnjz24sd7nGO4r1IhpuqW7zlqTnOHiL2nnWj1VhefkbYJw==\n-----END CERTIFICATE-----\n",
+        "bundle-name": "com.ihome.life",
+        "apl": "normal",
+        "app-feature": "hos_normal_app"
+    },
+    "acls": {
+        "allowed-acls": [""]
+    },
+    "permissions": {
+        "restricted-permissions": [""]
+    },
+    "debug-info": {
+        "device-ids": [
+            "EF4ACCE5C4440797E63D09E33E8A4F9593986D3D8F29AF5290E5F000B1017A3C"
+        ],
+        "device-id-type": "udid"
+    },
+    "issuer": "pki_internal"
+}

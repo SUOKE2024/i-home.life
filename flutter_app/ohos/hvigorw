@@ -1,0 +1,15 @@
+#!/bin/bash
+
+TOOL_DIR="$(cd "$(dirname "$0")" && pwd)"
+NODE="${NODE:-/Applications/DevEco-Studio.app/Contents/tools/node/bin/node}"
+HVIGOR_HOME="/Applications/DevEco-Studio.app/Contents/tools/hvigor"
+HVIGOR="${HVIGOR_HOME}/hvigor/bin/hvigor.js"
+
+if [ -f /Applications/DevEco-Studio.app/Contents/tools/node/bin/node ]; then
+  NODE=/Applications/DevEco-Studio.app/Contents/tools/node/bin/node
+elif [ -f /usr/local/bin/node ]; then
+  NODE=/usr/local/bin/node
+fi
+
+export HVIGOR_HOME
+exec "$NODE" "$HVIGOR" "$@"

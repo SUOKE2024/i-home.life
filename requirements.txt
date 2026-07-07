@@ -1,0 +1,14 @@
+fastapi>=0.136.0
+uvicorn[standard]>=0.34.0
+sqlalchemy[asyncio]>=2.0.50
+aiosqlite>=0.22.0
+paseto>=2.0.0
+cryptography>=47.0.0
+pydantic>=2.13.0
+pydantic-settings>=2.0.0
+httpx>=0.28.0
+python-dotenv>=1.2.0
+alembic>=1.18.0
+pendulum>=3.2.0
+openpyxl>=3.0.0
+python-multipart>=0.0.5

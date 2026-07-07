@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "i-home.life Smart Home Renovation" },
+    { "name": "EntryAbility_desc", "value": "i-home.life Entry" },
+    { "name": "EntryAbility_label", "value": "i-home.life" }
+  ]
+}

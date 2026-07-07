@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 · 3D 效果图</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root{--bg:#1a1a2e;--panel:#16213e;--accent:#c9973b;--text:#e0e0e0}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
+#app{display:flex;height:100vh}
+#sidebar{width:260px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;border-right:1px solid #2a2a4a}
+.sidebar-header{padding:18px;border-bottom:1px solid #2a2a4a}
+.sidebar-header h1{font-size:1.2rem;color:var(--accent)}
+.sidebar-header .sub{font-size:0.65rem;color:#888;letter-spacing:0.1em}
+.control-section{padding:14px 16px;border-bottom:1px solid #2a2a4a}
+.control-section h3{font-size:0.65rem;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px}
+.control-section label{display:block;font-size:0.7rem;color:#aaa;margin-bottom:4px}
+.control-section input[type=range]{width:100%;margin-bottom:8px;accent-color:var(--accent)}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.preset-btn{padding:10px 6px;border:1px solid #2a2a4a;border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.65rem;text-align:center;font-family:inherit;transition:all 0.15s}
+.preset-btn:hover{border-color:var(--accent);background:rgba(201,151,59,0.1)}
+.preset-btn.active{border-color:var(--accent);background:rgba(201,151,59,0.2);color:var(--accent)}
+#renderCanvas{flex:1}
+#toolbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;z-index:10}
+.tb-btn{padding:8px 14px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;background:rgba(0,0,0,0.5);color:#ccc;cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s;backdrop-filter:blur(8px)}
+.tb-btn:hover{background:rgba(201,151,59,0.2);border-color:var(--accent)}
+.tb-btn.active{background:var(--accent);color:#111;border-color:var(--accent)}
+#stats{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 16px;font-size:0.7rem;color:#888;display:flex;gap:16px;backdrop-filter:blur(8px)}
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column}
+#loading .spinner{width:40px;height:40px;border:3px solid #333;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span style="font-size:0.8rem;color:#888">正在加载 3D 引擎...</span>
+</div>
+
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div class="sidebar-header"><h1>3D 效果图</h1><div class="sub">索克家居 · i-home.life</div></div>
+
+    <div class="control-section">
+      <h3>📐 户型预设</h3>
+      <div class="preset-grid">
+        <button class="preset-btn active" data-preset="apartment_90">90㎡ 两室</button>
+        <button class="preset-btn" data-preset="apartment_126">126㎡ 三室</button>
+        <button class="preset-btn" data-preset="apartment_50">50㎡ 一室</button>
+        <button class="preset-btn" data-preset="apartment_160">160㎡ 四室</button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>💡 光照预设</h3>
+      <div class="preset-grid">
+        <button class="preset-btn active" data-light="day">☀️ 日光</button>
+        <button class="preset-btn" data-light="night">🌙 夜间</button>
+        <button class="preset-btn" data-light="warm">🔥 暖光</button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>🎨 材质</h3>
+      <div class="preset-grid" id="materialPresets">
+        <button class="preset-btn active" data-mat="white">⚪ 白墙</button>
+        <button class="preset-btn" data-mat="wood">🟤 木地板</button>
+        <button class="preset-btn" data-mat="tile">⬜ 瓷砖</button>
+        <button class="preset-btn" data-mat="concrete">🔘 水泥</button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>📏 墙高</h3>
+      <input type="range" min="2.4" max="4.0" step="0.1" value="2.8" id="wallHeight">
+      <label style="text-align:right"><span id="wallHeightVal">2.8m</span></label>
+    </div>
+
+    <div class="control-section">
+      <h3>🔍 视角</h3>
+      <div class="preset-grid" id="viewPresets">
+        <button class="preset-btn active" data-view="free">🖱 自由</button>
+        <button class="preset-btn" data-view="top">⬆ 俯视</button>
+        <button class="preset-btn" data-view="front">→ 正面</button>
+        <button class="preset-btn" data-view="iso">◈ 等距</button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <button onclick="exportScreenshot()" style="width:100%;padding:10px;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s">📷 截图导出</button>
+    </div>
+  </div>
+  <div id="renderCanvas"></div>
+</div>
+
+<div id="toolbar">
+  <button class="tb-btn active" data-mode="3d">3D 透视图</button>
+  <button class="tb-btn" data-mode="plan">平面图</button>
+  <button class="tb-btn" data-mode="elevation_n">北立面</button>
+  <button class="tb-btn" data-mode="elevation_s">南立面</button>
+  <button class="tb-btn" data-mode="elevation_e">东立面</button>
+  <button class="tb-btn" data-mode="elevation_w">西立面</button>
+</div>
+<div id="stats">
+  <span id="statFaces">面数: 0</span>
+  <span id="statFPS">FPS: --</span>
+  <span id="statArea">面积: 0㎡</span>
+</div>
+
+<script>
+let scene, camera, renderer, controls, clock;
+let walls = [], floors = [], ceilingPlanes = [];
+let wallHeight = 2.8, currentPreset = 'apartment_126';
+let currentLight = 'day', currentMaterial = 'white';
+let viewMode = '3d';
+let fpsFrames = 0, fpsLastTime = performance.now();
+
+// Material presets
+const mats = {
+  white: { wall: 0xe8e0d8, floor: 0xc8b89a, ceiling: 0xf5f5f5 },
+  wood: { wall: 0xf0e8db, floor: 0x8b6914, ceiling: 0xf5f5f0 },
+  tile: { wall: 0xe8e4dc, floor: 0xd4cfc7, ceiling: 0xf8f8f8 },
+  concrete: { wall: 0xb8b4ae, floor: 0x8a8782, ceiling: 0xd0d0d0 },
+};
+
+// Room presets (wall definitions as segments)
+const presets = {
+  apartment_50: {
+    rooms: [
+      { x: 0.5, y: 0.5, w: 4.5, h: 3, name: '卧室', color: 0xe8dcc8 },
+      { x: 0.5, y: 4, w: 2, h: 2, name: '厨房', color: 0xe0d8c8 },
+      { x: 3, y: 4, w: 2, h: 2, name: '卫生间', color: 0xd4dce8 },
+    ],
+    outerWalls: { x: 0, y: 0, w: 5.5, h: 7 },
+    interiorWalls: [
+      { x1: 0.5, y1: 3.8, x2: 5, y2: 3.8 },
+      { x1: 2.7, y1: 3.8, x2: 2.7, y2: 6.5 },
+    ]
+  },
+  apartment_90: {
+    rooms: [
+      { x: 0.5, y: 0.5, w: 4.5, h: 4, name: '客厅', color: 0xf0e0c0 },
+      { x: 5.5, y: 0.5, w: 3, h: 3, name: '餐厅', color: 0xe0dcc0 },
+      { x: 0.5, y: 5, w: 3.5, h: 3, name: '主卧', color: 0xd8d0e8 },
+      { x: 4.5, y: 5, w: 4, h: 3, name: '次卧', color: 0xd8e0d0 },
+      { x: 0.5, y: 8.5, w: 2.5, h: 2, name: '厨房', color: 0xe8d8c0 },
+      { x: 3.5, y: 8.5, w: 2, h: 2, name: '卫生间', color: 0xd0d8e8 },
+    ],
+    outerWalls: { x: 0, y: 0, w: 9, h: 11 },
+    interiorWalls: [
+      { x1: 0.5, y1: 4.8, x2: 8.5, y2: 4.8 },
+      { x1: 5.2, y1: 0.5, x2: 5.2, y2: 4.8 },
+      { x1: 4.2, y1: 4.8, x2: 4.2, y2: 8.3 },
+      { x1: 0.5, y1: 8.3, x2: 5.8, y2: 8.3 },
+    ]
+  },
+  apartment_126: {
+    rooms: [
+      { x: 0.5, y: 0.5, w: 5.5, h: 4.5, name: '客厅', color: 0xf0e0c0 },
+      { x: 6.5, y: 0.5, w: 3.5, h: 3, name: '餐厅', color: 0xe0dcc0 },
+      { x: 0.5, y: 5.5, w: 3.5, h: 3.5, name: '主卧', color: 0xd8d0e8 },
+      { x: 4.5, y: 5.5, w: 3, h: 3, name: '次卧', color: 0xd8e0d0 },
+      { x: 8, y: 4, w: 2.5, h: 2.5, name: '书房', color: 0xe0d8e0 },
+      { x: 0.5, y: 9.5, w: 3, h: 2, name: '厨房', color: 0xe8d8c0 },
+      { x: 4, y: 9, w: 2.5, h: 2.5, name: '卫生间', color: 0xd0d8e8 },
+    ],
+    outerWalls: { x: 0, y: 0, w: 11, h: 12 },
+    interiorWalls: [
+      { x1: 0.5, y1: 5.3, x2: 8.5, y2: 5.3 },
+      { x1: 6.2, y1: 0.5, x2: 6.2, y2: 5.3 },
+      { x1: 4.2, y1: 5.3, x2: 4.2, y2: 9.3 },
+      { x1: 8, y1: 3.8, x2: 3.8, y2: 3.8 },
+      { x1: 0.5, y1: 9.3, x2: 6.7, y2: 9.3 },
+    ]
+  },
+  apartment_160: {
+    rooms: [
+      { x: 0.5, y: 0.5, w: 6, h: 5, name: '客厅', color: 0xf0e0c0 },
+      { x: 7, y: 0.5, w: 4, h: 3.5, name: '餐厅', color: 0xe0dcc0 },
+      { x: 0.5, y: 6, w: 4, h: 3.5, name: '主卧', color: 0xd8d0e8 },
+      { x: 5, y: 6, w: 3, h: 3, name: '次卧A', color: 0xd8e0d0 },
+      { x: 8.5, y: 4.5, w: 3, h: 3, name: '次卧B', color: 0xd8e0d0 },
+      { x: 0.5, y: 10, w: 3, h: 2.5, name: '厨房', color: 0xe8d8c0 },
+      { x: 4, y: 9.5, w: 2.5, h: 2, name: '主卫', color: 0xd0d8e8 },
+      { x: 7, y: 8, w: 2, h: 2, name: '次卫', color: 0xd0d8e8 },
+      { x: 9.5, y: 8, w: 2, h: 2, name: '书房', color: 0xe0d8e0 },
+    ],
+    outerWalls: { x: 0, y: 0, w: 12, h: 13 },
+    interiorWalls: [
+      { x1: 0.5, y1: 5.8, x2: 8.5, y2: 5.8 },
+      { x1: 6.7, y1: 0.5, x2: 6.7, y2: 5.8 },
+      { x1: 4.7, y1: 5.8, x2: 4.7, y2: 9.3 },
+      { x1: 8.2, y1: 4.2, x2: 4.7, y2: 4.2 },
+      { x1: 0.5, y1: 9.8, x2: 6.7, y2: 9.8 },
+      { x1: 6.7, y1: 7.8, x2: 11.7, y2: 7.8 },
+    ]
+  },
+};
+
+function initScene() {
+  const container = document.getElementById('renderCanvas');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+  scene.fog = new THREE.Fog(0x1a1a2e, 15, 50);
+
+  camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 100);
+  camera.position.set(8, 6, 10);
+  camera.lookAt(5, 1.4, 5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.1;
+  controls.target.set(5, 1.4, 5);
+  controls.update();
+
+  clock = new THREE.Clock();
+  window.addEventListener('resize', () => {
+    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(container.clientWidth, container.clientHeight);
+  });
+}
+
+function setupLights(preset) {
+  scene.children = scene.children.filter(c => !c.isLight && !c.isHelper && !(c.isMesh));
+
+  const amb = new THREE.AmbientLight(0x404060, 0.6);
+  scene.add(amb);
+
+  if (preset === 'day') {
+    const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+    sun.position.set(15, 20, 5);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 50;
+    sun.shadow.camera.left = -20;
+    sun.shadow.camera.right = 20;
+    sun.shadow.camera.top = 20;
+    sun.shadow.camera.bottom = -20;
+    scene.add(sun);
+    const hem = new THREE.HemisphereLight(0x87ceeb, 0x444422, 0.4);
+    scene.add(hem);
+  } else if (preset === 'night') {
+    scene.background = new THREE.Color(0x0a0a1a);
+    scene.fog = new THREE.Fog(0x0a0a1a, 10, 40);
+    const moon = new THREE.DirectionalLight(0x4466aa, 0.5);
+    moon.position.set(-5, 15, -5);
+    scene.add(moon);
+    addRoomLights(); // interior lights at night
+  } else if (preset === 'warm') {
+    scene.background = new THREE.Color(0x1a1a2e);
+    scene.fog = new THREE.Fog(0x1a1a2e, 15, 50);
+    const warm = new THREE.DirectionalLight(0xffcc88, 0.9);
+    warm.position.set(10, 12, 5);
+    warm.castShadow = true;
+    warm.shadow.mapSize.set(1024, 1024);
+    scene.add(warm);
+    const warmHem = new THREE.HemisphereLight(0xffaa66, 0x554422, 0.5);
+    scene.add(warmHem);
+  }
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+}
+
+function addRoomLights() {
+  const mat = mats[currentMaterial];
+  presets[currentPreset].rooms.forEach(r => {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    const pt = new THREE.PointLight(0xffdd99, 0.5, 6);
+    pt.position.set(cx, wallHeight - 0.3, cy);
+    scene.add(pt);
+  });
+}
+
+function createWall(x, z, w, d, h, color, isExterior = true) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x + w / 2, h / 2, z + d / 2);
+  mesh.castShadow = isExterior;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function createFloor(x, z, w, d, color) {
+  const geo = new THREE.PlaneGeometry(w, d);
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.1 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.set(x + w / 2, 0.01, z + d / 2);
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function buildWalls(presetData) {
+  walls.forEach(w => scene.remove(w));
+  floors.forEach(f => scene.remove(f));
+  walls = []; floors = [];
+
+  const mat = mats[currentMaterial];
+  const ow = presetData.outerWalls;
+  const THK = 0.15;
+
+  // Floor
+  floors.push(createFloor(ow.x, ow.y, ow.w, ow.h, mat.floor));
+
+  // Outer walls
+  walls.push(createWall(ow.x - THK, ow.y, THK, ow.h, wallHeight, 0xcccccc)); // West
+  walls.push(createWall(ow.x + ow.w, ow.y, THK, ow.h, wallHeight, 0xcccccc)); // East
+  walls.push(createWall(ow.x, ow.y - THK, ow.w + THK, THK, wallHeight, 0xcccccc)); // North
+  walls.push(createWall(ow.x, ow.y + ow.h, ow.w + THK, THK, wallHeight, 0xcccccc)); // South
+
+  // Interior walls (thin)
+  presetData.interiorWalls.forEach(iw => {
+    const dx = Math.abs(iw.x2 - iw.x1);
+    const dy = Math.abs(iw.y2 - iw.y1);
+    const iwThk = 0.1;
+    if (dx > 0.01) {
+      walls.push(createWall(iw.x1, iw.y1 - iwThk / 2, dx, iwThk, wallHeight, 0xe0dcd0, false));
+    } else {
+      walls.push(createWall(iw.x1 - iwThk / 2, iw.y1, iwThk, dy, wallHeight, 0xe0dcd0, false));
+    }
+  });
+
+  // Room floors (slightly raised for color)
+  presetData.rooms.forEach(r => {
+    floors.push(createFloor(r.x, r.y, r.w, r.h, r.color));
+  });
+
+  // Night lights
+  if (currentLight === 'night') addRoomLights();
+
+  updateStats();
+}
+
+function updateStats() {
+  let faces = 0;
+  walls.forEach(w => faces += w.geometry.index ? w.geometry.index.count / 3 : w.geometry.attributes.position.count / 3);
+  floors.forEach(f => faces += f.geometry.index ? f.geometry.index.count / 3 : f.geometry.attributes.position.count / 3);
+  document.getElementById('statFaces').textContent = '面数: ' + Math.round(faces);
+  const data = presets[currentPreset];
+  const area = data.outerWalls.w * data.outerWalls.h;
+  document.getElementById('statArea').textContent = `面积: ${area.toFixed(0)}㎡`;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+
+  fpsFrames++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000) {
+    document.getElementById('statFPS').textContent = 'FPS: ' + fpsFrames;
+    fpsFrames = 0;
+    fpsLastTime = now;
+  }
+
+  if (viewMode === 'plan') {
+    camera.position.lerp(new THREE.Vector3(presets[currentPreset].outerWalls.w / 2, wallHeight + 8, presets[currentPreset].outerWalls.h / 2), 0.1);
+    controls.target.lerp(new THREE.Vector3(presets[currentPreset].outerWalls.w / 2, 0, presets[currentPreset].outerWalls.h / 2), 0.1);
+  }
+}
+
+function loadPreset(name) {
+  currentPreset = name;
+  document.querySelectorAll('[data-preset]').forEach(b => {
+    b.classList.toggle('active', b.dataset.preset === name);
+  });
+  buildWalls(presets[name]);
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  document.querySelectorAll('.tb-btn[data-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+
+  const ow = presets[currentPreset].outerWalls;
+  const cx = ow.w / 2, cz = ow.h / 2;
+
+  if (mode === '3d') {
+    camera.position.set(cx + 8, wallHeight + 4, cz + 8);
+    controls.target.set(cx, wallHeight / 2, cz);
+  } else if (mode === 'plan') {
+    controls.target.set(cx, 0, cz);
+  } else if (mode === 'elevation_n') {
+    camera.position.set(cx, wallHeight / 2, cz - ow.h / 2 - 5);
+    controls.target.set(cx, wallHeight / 2, cz);
+  } else if (mode === 'elevation_s') {
+    camera.position.set(cx, wallHeight / 2, cz + ow.h / 2 + 5);
+    controls.target.set(cx, wallHeight / 2, cz);
+  } else if (mode === 'elevation_e') {
+    camera.position.set(cx + ow.w / 2 + 5, wallHeight / 2, cz);
+    controls.target.set(cx, wallHeight / 2, cz);
+  } else if (mode === 'elevation_w') {
+    camera.position.set(cx - ow.w / 2 - 5, wallHeight / 2, cz);
+    controls.target.set(cx, wallHeight / 2, cz);
+  }
+  controls.update();
+}
+
+function exportScreenshot() {
+  renderer.render(scene, camera);
+  const link = document.createElement('a');
+  link.download = 'rendering.png';
+  link.href = renderer.domElement.toDataURL();
+  link.click();
+}
+
+// Init
+initScene();
+setupLights(currentLight);
+buildWalls(presets[currentPreset]);
+animate();
+
+// Events
+document.querySelectorAll('[data-preset]').forEach(b => {
+  b.onclick = () => loadPreset(b.dataset.preset);
+});
+document.querySelectorAll('[data-light]').forEach(b => {
+  b.onclick = () => {
+    currentLight = b.dataset.light;
+    document.querySelectorAll('[data-light]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    setupLights(currentLight);
+    buildWalls(presets[currentPreset]);
+  };
+});
+document.querySelectorAll('[data-mat]').forEach(b => {
+  b.onclick = () => {
+    currentMaterial = b.dataset.mat;
+    document.querySelectorAll('[data-mat]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    buildWalls(presets[currentPreset]);
+  };
+});
+document.querySelectorAll('[data-view]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    if (b.dataset.view === 'free') setViewMode('3d');
+    else if (b.dataset.view === 'top') setViewMode('plan');
+    else if (b.dataset.view === 'front') setViewMode('elevation_s');
+    else if (b.dataset.view === 'iso') { camera.position.set(12, 8, -5); controls.target.set(5, 1, 5); controls.update(); }
+  };
+});
+document.querySelectorAll('.tb-btn[data-mode]').forEach(b => {
+  b.onclick = () => setViewMode(b.dataset.mode);
+});
+document.getElementById('wallHeight').oninput = function() {
+  wallHeight = parseFloat(this.value);
+  document.getElementById('wallHeightVal').textContent = wallHeight.toFixed(1) + 'm';
+  buildWalls(presets[currentPreset]);
+};
+
+console.log('🏠 索克家居 3D 效果图引擎就绪');
+console.log('   - 4 套户型预设');
+console.log('   - 3 套光照 (Day/Night/Warm)');
+console.log('   - 4 种材质');
+console.log('   - 6 种视角 (含平立剖)');
+console.log('   - Three.js + OrbitControls');
+</script>
+</body>
+</html>

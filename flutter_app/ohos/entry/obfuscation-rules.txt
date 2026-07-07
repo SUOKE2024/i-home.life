@@ -1,0 +1,2 @@
+# obfuscation-rules.txt
+-keep

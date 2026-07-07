@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 · i-home.life</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c9973b'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>iH</text></svg>">
+<style>
+:root {
+  --bg-deep: #08080f;
+  --bg-card: #12121d;
+  --bg-card-hover: #1a1a2a;
+  --bg-input: #0d0d18;
+  --border: #1e1e32;
+  --border-active: #2a2a45;
+  --text-primary: #e8e6e1;
+  --text-secondary: #8a8894;
+  --text-muted: #5a5866;
+  --accent: #c9973b;
+  --accent-bright: #e0aa4a;
+  --accent-glow: rgba(201, 151, 59, 0.15);
+  --success: #4a9e6e;
+  --warning: #c9973b;
+  --danger: #c4554d;
+  --info: #5b8ec4;
+  --sidebar-w: 260px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px;scroll-behavior:smooth}
+body{
+  font-family:'DM Sans',-apple-system,sans-serif;
+  background:var(--bg-deep);
+  color:var(--text-primary);
+  line-height:1.6;
+  overflow:hidden;
+  height:100vh;
+}
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-active);border-radius:3px}
+
+#app{display:flex;height:100vh;position:relative;z-index:1}
+
+#sidebar{
+  width:var(--sidebar-w);
+  background:var(--bg-card);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  flex-shrink:0;
+  z-index:10;
+}
+.sidebar-header{
+  padding:24px 20px;
+  border-bottom:1px solid var(--border);
+}
+.logo-text{
+  font-family:'DM Serif Display',serif;
+  font-size:1.5rem;
+  color:var(--accent);
+  letter-spacing:0.02em;
+}
+.logo-sub{
+  font-size:0.7rem;
+  color:var(--text-muted);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+}
+.nav-list{list-style:none;padding:12px 10px;flex:1}
+.nav-item{
+  padding:11px 16px;
+  border-radius:var(--radius-sm);
+  cursor:pointer;
+  color:var(--text-secondary);
+  display:flex;
+  align-items:center;
+  gap:12px;
+  transition:all var(--transition);
+  font-size:0.9rem;
+  font-weight:450;
+  margin-bottom:2px;
+}
+.nav-item:hover{background:var(--bg-card-hover);color:var(--text-primary)}
+.nav-item.active{background:var(--accent-glow);color:var(--accent-bright);font-weight:550}
+.nav-item .nav-icon{font-size:1.15rem;width:24px;text-align:center}
+.sidebar-footer{
+  padding:16px 20px;
+  border-top:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.user-avatar{
+  width:36px;height:36px;
+  border-radius:50%;
+  background:var(--accent-glow);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:600;
+  color:var(--accent);
+  font-size:0.85rem;
+}
+.user-info{font-size:0.8rem;color:var(--text-secondary)}
+.user-info strong{display:block;color:var(--text-primary);font-size:0.85rem}
+
+#main-content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#main-content .page{display:none;flex:1;overflow-y:auto;padding:32px}
+#main-content .page.active{display:block}
+.topbar{
+  padding:18px 32px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--bg-card);
+}
+.topbar h1{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--text-primary);letter-spacing:0.02em}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block;margin-right:6px;animation:pulse 2s infinite}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:28px}
+.stat-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:24px;
+  transition:all var(--transition);
+}
+.stat-card:hover{border-color:var(--border-active);transform:translateY(-2px)}
+.stat-card .stat-label{font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
+.stat-card .stat-value{font-family:'DM Serif Display',serif;font-size:2rem;color:var(--text-primary)}
+.stat-card .stat-change{font-size:0.75rem;margin-top:6px}
+.stat-card .stat-change.up{color:var(--success)}
+.stat-card .stat-change.down{color:var(--danger)}
+
+.card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:24px;
+  margin-bottom:20px;
+}
+.card h2{font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:16px;color:var(--text-primary)}
+.card h2 .card-badge{
+  font-family:'DM Sans',sans-serif;
+  font-size:0.65rem;
+  background:var(--accent-glow);
+  color:var(--accent);
+  padding:3px 10px;
+  border-radius:100px;
+  margin-left:12px;
+  vertical-align:middle;
+  font-weight:500;
+}
+
+.btn{
+  padding:10px 22px;
+  border-radius:var(--radius-sm);
+  border:none;
+  cursor:pointer;
+  font-family:inherit;
+  font-size:0.85rem;
+  font-weight:500;
+  transition:all var(--transition);
+  display:inline-flex;align-items:center;gap:8px;
+}
+.btn-primary{background:var(--accent);color:#0a0a0f}
+.btn-primary:hover{background:var(--accent-bright);box-shadow:0 0 24px var(--accent-glow)}
+.btn-secondary{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}
+.btn-secondary:hover{border-color:var(--text-secondary);color:var(--text-primary)}
+.btn-sm{padding:6px 14px;font-size:0.75rem}
+.btn-icon{width:36px;height:36px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:50%}
+
+.input{
+  padding:11px 16px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  background:var(--bg-input);
+  color:var(--text-primary);
+  font-family:inherit;
+  font-size:0.85rem;
+  width:100%;
+  transition:border-color var(--transition);
+}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+
+table{width:100%;border-collapse:collapse;font-size:0.85rem}
+thead th{
+  text-align:left;
+  padding:12px 16px;
+  color:var(--text-muted);
+  font-weight:500;
+  font-size:0.7rem;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  border-bottom:1px solid var(--border)
+}
+tbody td{
+  padding:12px 16px;
+  border-bottom:1px solid rgba(255,255,255,0.03);
+  color:var(--text-secondary)
+}
+tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
+
+.tag{
+  display:inline-block;
+  padding:3px 10px;
+  border-radius:100px;
+  font-size:0.7rem;
+  font-weight:500;
+}
+.tag-draft{background:rgba(138,136,148,0.12);color:var(--text-muted)}
+.tag-active{background:rgba(74,158,110,0.12);color:var(--success)}
+.tag-pending{background:rgba(201,151,59,0.12);color:var(--warning)}
+.tag-completed{background:rgba(91,142,196,0.12);color:var(--info)}
+
+.login-container{
+  position:fixed;inset:0;z-index:100;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bg-deep);
+}
+.login-container::before{
+  content:'';
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(201,151,59,0.06) 0%,transparent 60%);
+}
+.login-box{
+  width:420px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:40px;
+  position:relative;z-index:1;
+  animation:fadeUp 0.5s ease
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.login-box h1{font-family:'DM Serif Display',serif;font-size:1.8rem;color:var(--accent);text-align:center;margin-bottom:8px}
+.login-box .subtitle{text-align:center;color:var(--text-muted);font-size:0.8rem;margin-bottom:28px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em}
+.form-actions{display:flex;gap:12px;margin-top:24px}
+.form-actions .btn{flex:1;justify-content:center}
+.login-toggle{text-align:center;margin-top:16px;font-size:0.8rem;color:var(--text-muted)}
+.login-toggle a{color:var(--accent);cursor:pointer;text-decoration:none}
+
+.chat-container{display:flex;flex-direction:column;height:calc(100vh - 150px)}
+.chat-messages{flex:1;overflow-y:auto;padding:16px 0}
+.chat-msg{display:flex;gap:12px;margin-bottom:16px;animation:fadeUp 0.3s ease}
+.chat-msg.user{flex-direction:row-reverse}
+.chat-msg .msg-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.8rem}
+.chat-msg.agent .msg-avatar{background:var(--accent-glow);color:var(--accent)}
+.chat-msg.user .msg-avatar{background:rgba(91,142,196,0.15);color:var(--info)}
+.chat-msg .msg-bubble{
+  max-width:70%;
+  padding:12px 18px;
+  border-radius:16px;
+  font-size:0.85rem;
+  line-height:1.55;
+  white-space:pre-wrap;
+}
+.chat-msg.agent .msg-bubble{background:var(--bg-card-hover);border:1px solid var(--border);border-bottom-left-radius:4px}
+.chat-msg.user .msg-bubble{background:var(--accent-glow);border:1px solid rgba(201,151,59,0.2);border-bottom-right-radius:4px;color:var(--text-primary)}
+.chat-input-wrap{display:flex;gap:12px;padding-top:16px;border-top:1px solid var(--border)}
+.agent-selector{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.agent-chip{
+  padding:6px 14px;
+  border-radius:100px;
+  border:1px solid var(--border);
+  font-size:0.75rem;
+  cursor:pointer;
+  transition:all var(--transition);
+  color:var(--text-muted);
+  background:transparent;
+  font-family:inherit;
+}
+.agent-chip:hover{border-color:var(--text-secondary);color:var(--text-secondary)}
+.agent-chip.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+
+.material-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.material-card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px;
+  transition:all var(--transition);
+  cursor:pointer;
+}
+.material-card:hover{border-color:var(--border-active);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+.material-card .mat-brand{font-size:0.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px}
+.material-card .mat-name{font-weight:500;color:var(--text-primary);margin-bottom:4px}
+.material-card .mat-spec{font-size:0.75rem;color:var(--text-muted);margin-bottom:12px}
+.material-card .mat-footer{display:flex;justify-content:space-between;align-items:center}
+.material-card .mat-price{font-family:'DM Serif Display',serif;font-size:1.3rem;color:var(--accent-bright)}
+.material-card .mat-unit{font-size:0.7rem;color:var(--text-muted)}
+
+.search-bar{display:flex;gap:12px;margin-bottom:20px}
+.search-bar .input{max-width:320px}
+
+.budget-summary{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+.budget-pie{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.budget-pie canvas{width:200px;height:200px}
+
+.empty-state{
+  text-align:center;
+  padding:60px 20px;
+  color:var(--text-muted);
+}
+.empty-state .empty-icon{font-size:3rem;margin-bottom:16px;opacity:0.6}
+.empty-state p{font-size:0.9rem}
+
+.timeline{margin-left:24px;border-left:2px solid var(--border);padding-left:24px}
+.timeline-item{position:relative;padding-bottom:24px}
+.timeline-item::before{
+  content:'';
+  position:absolute;
+  left:-30px;
+  top:4px;
+  width:12px;height:12px;
+  border-radius:50%;
+  background:var(--border-active);
+  border:2px solid var(--bg-deep);
+}
+.timeline-item.done::before{background:var(--success)}
+.timeline-item.active::before{background:var(--accent);box-shadow:0 0 12px var(--accent-glow)}
+.timeline-item .tl-date{font-size:0.7rem;color:var(--text-muted)}
+.timeline-item .tl-title{font-weight:500;margin:4px 0}
+
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.text-muted{color:var(--text-muted)}
+.mt-12{margin-top:12px}
+.mb-12{margin-bottom:12px}
+.mb-20{margin-bottom:20px}
+</style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-container">
+  <div class="login-box">
+    <h1>i-home.life</h1>
+    <div class="subtitle">索克家居 · AI 智能装修平台</div>
+    <div class="form-group"><label>手机号</label><input class="input" id="loginPhone" type="tel" placeholder="请输入手机号" value="13800138000"></div>
+    <div class="form-group"><label>密码</label><input class="input" id="loginPass" type="password" placeholder="请输入密码" value="123456"></div>
+    <div class="form-group" id="regNameGroup" style="display:none"><label>姓名</label><input class="input" id="regName" placeholder="请输入姓名"></div>
+    <div class="form-actions">
+      <button id="loginBtn" class="btn btn-primary">登 录</button>
+    </div>
+    <div class="login-toggle"><a id="toggleMode">还没有账号？立即注册</a></div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-text">i-home.life</div>
+      <div class="logo-sub">索克家居</div>
+    </div>
+    <ul class="nav-list">
+      <li class="nav-item active" data-page="dashboard"><span class="nav-icon">◈</span> 工作台</li>
+      <li class="nav-item" data-page="projects"><span class="nav-icon">◫</span> 项目</li>
+      <li class="nav-item" data-page="surveys"><span class="nav-icon">📐</span> 测量</li>
+      <li class="nav-item" data-page="studio"><span class="nav-icon">✧</span> 设计台</li>
+      <li class="nav-item" data-page="ai-chat"><span class="nav-icon">✦</span> AI 助手</li>
+      <li class="nav-item" data-page="materials"><span class="nav-icon">▦</span> 物料库</li>
+      <li class="nav-item" data-page="budget"><span class="nav-icon">◎</span> 预算管理</li>
+      <li class="nav-item" data-page="construction"><span class="nav-icon">▥</span> 施工进度</li>
+      <li class="nav-item" data-page="settlement"><span class="nav-icon">⏣</span> 结算管理</li>
+      <li class="nav-item" data-page="suppliers"><span class="nav-icon">⌘</span> 供应商</li>
+      <li class="nav-item" data-page="files"><span class="nav-icon">▤</span> 工程文件</li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="user-avatar" id="sidebarAvatar">张</div>
+      <div class="user-info"><strong id="sidebarName">张先生</strong>业主</div>
+      <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="margin-left:auto;font-size:0.7rem" title="退出登录">退出</button>
+    </div>
+  </div>
+  <div id="main-content">
+    <div class="topbar"><h1 id="pageTitle">工作台</h1><div><span class="status-dot"></span><span class="text-muted" style="font-size:0.75rem">已连接到服务器</span></div></div>
+
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid" id="dashStats"></div>
+      <div class="card"><h2>最近项目</h2><table><thead><tr><th>项目名称</th><th>地址</th><th>面积</th><th>状态</th><th>更新时间</th></tr></thead><tbody id="dashProjects"></tbody></table></div>
+    </div>
+
+    <div class="page" id="page-projects">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">我的项目</h2><button class="btn btn-primary btn-sm" onclick="showCreateProject()">+ 新建项目</button></div>
+      <div id="projectCreateForm" class="card" style="display:none">
+        <h3>新建装修项目</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+          <div class="form-group"><label>项目名称</label><input class="input" id="projName" placeholder="例如：朝阳小区"></div>
+          <div class="form-group" style="position:relative"><label>地址 <span style="font-size:0.65rem;color:var(--accent)">📍 输入小区名自动补全</span></label><input class="input" id="projAddr" placeholder="输入小区名称..." autocomplete="off" oninput="searchAddress(this.value)"><div id="addrSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:99;background:var(--bg-card);border:1px solid var(--border);border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.4)"></div></div>
+          <div class="form-group"><label>面积 (㎡)</label><input class="input" id="projArea" type="number" placeholder="126"></div>
+          <div class="form-group"><label>楼层数</label><input class="input" id="projFloors" type="number" value="1"></div>
+        </div>
+        <div class="mt-12"><button class="btn btn-primary btn-sm" onclick="createProject()">创建项目</button> <button class="btn btn-secondary btn-sm" onclick="hideCreateProject()">取消</button></div>
+      </div>
+      <div id="projectList" class="stats-grid"></div>
+    </div>
+
+    <div class="page" id="page-surveys">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">现场测量</h2><div><select class="input" id="surveyProjectSelect" onchange="loadSurveys()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="showSurveyForm()">+ 新建测量</button> <button class="btn btn-secondary btn-sm" onclick="toggleDevicePanel()">📱 设备检测</button> <button class="btn btn-secondary btn-sm" id="voiceGuideBtn" onclick="startVoiceGuide()" title="语音引导测量">🎤 语音引导</button></div></div>
+      <div id="devicePanel" class="card" style="display:none">
+        <div class="flex-between" style="margin-bottom:12px"><h3>设备能力检测</h3><button class="btn btn-secondary btn-sm" onclick="toggleDevicePanel()">关闭</button></div>
+        <div id="deviceCapabilities" class="text-muted">正在检测...</div>
+      </div>
+      <div id="voiceGuidePanel" class="card" style="display:none;border-color:var(--accent)">
+        <div class="flex-between" style="margin-bottom:8px"><h3>🎤 语音引导测量</h3><div><button class="btn btn-secondary btn-sm" id="voiceStatusBtn" onclick="stopVoiceGuide()">停止</button></div></div>
+        <div id="voiceTranscript" style="min-height:40px;padding:8px;background:var(--bg-input);border-radius:8px;font-size:0.85rem;margin-bottom:8px">点击"语音引导"开始，对着麦克风说出房间尺寸...</div>
+        <div id="voiceActions" class="text-muted" style="font-size:0.75rem">💡 试试说：「客厅 6米×7米」「主卧 4×5」「下一个」「完成测量」</div>
+      </div>
+      <div id="cameraPanel" class="card" style="display:none">
+        <h3>📷 摄像头辅助测量</h3>
+        <video id="cameraPreview" style="width:100%;max-width:400px;background:var(--bg-input);border-radius:8px;margin:8px 0" autoplay playsinline></video>
+        <canvas id="cameraCanvas" style="display:none"></canvas>
+        <div><button class="btn btn-primary btn-sm" onclick="startCamera()">打开摄像头</button> <button class="btn btn-secondary btn-sm" onclick="capturePhoto()">📸 拍照</button> <button class="btn btn-secondary btn-sm" onclick="stopCamera()">关闭</button></div>
+        <div id="photoPreview" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
+      </div>
+      <div id="surveyCreateForm" class="card" style="display:none">
+        <h3>新建测量任务</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+          <div class="form-group"><label>测量名称</label><input class="input" id="surveyName" placeholder="例如：客厅实测" value="现场测量"></div>
+          <div class="form-group"><label>测量人员</label><input class="input" id="surveyPerson" placeholder="测量员姓名"></div>
+          <div class="form-group"><label>测量方式</label><select class="input" id="surveyMethod"><option value="manual">手动测量 (卷尺/测距仪)</option><option value="lidar">LiDAR 扫描</option><option value="visual">视觉测距</option><option value="photo">拍照建模</option><option value="voice_guided">语音引导</option></select></div>
+          <div class="form-group"><label>层高 (m)</label><input class="input" id="surveyWallHeight" type="number" value="2.8" step="0.1" min="2.0" max="5.0"></div>
+          <div class="form-group"><label>场景类型</label><select class="input" id="surveySceneType"><option value="indoor">室内</option><option value="outdoor">室外</option><option value="balcony">阳台/露台</option></select></div>
+        </div>
+        <div class="mt-12" style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-secondary btn-sm" onclick="toggleCameraPanel()">📷 拍照测量</button>
+          <button class="btn btn-secondary btn-sm" onclick="startVoiceGuideForForm()">🎤 语音录入</button>
+        <div class="mt-12"><strong>房间测量数据</strong></div>
+        <div id="surveyRooms"></div>
+        <button class="btn btn-secondary btn-sm mt-12" onclick="addSurveyRoom()">+ 添加房间</button>
+        <div class="form-group mt-12"><label>备注</label><input class="input" id="surveyNotes" placeholder="测量备注"></div>
+        <div class="mt-12"><button class="btn btn-primary btn-sm" onclick="createSurvey()">保存测量</button> <button class="btn btn-secondary btn-sm" onclick="hideSurveyForm()">取消</button></div>
+      </div>
+      <div id="surveyList"></div>
+    </div>
+
+    <div class="page" id="page-project-detail">
+      <div class="flex-between mb-20">
+        <div><button class="btn btn-secondary btn-sm" onclick="backToProjects()" style="margin-right:12px">← 返回</button><span id="detailTitle" style="font-family:'DM Serif Display',serif;font-size:1.3rem">项目详情</span></div>
+        <div><button class="btn btn-primary btn-sm" onclick="generateBudgetFromDetail()">生成预算</button> <button class="btn btn-secondary btn-sm" onclick="generateSettlementFromDetail()">生成结算</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteProject()">删除项目</button></div>
+      </div>
+      <div id="detailStats" class="stats-grid"></div>
+      <div class="card" id="floorRoomsCard">
+        <div class="flex-between" style="margin-bottom:16px"><h2>楼层与房间</h2><button class="btn btn-primary btn-sm" onclick="addRoomForm()">+ 添加房间</button></div>
+        <div id="floorRoomsContent"></div>
+      </div>
+      <div class="card"><div class="flex-between" style="margin-bottom:16px"><h2>物料清单 (BOM)</h2><button class="btn btn-primary btn-sm" onclick="addBOMForm()">+ 添加物料</button></div>
+        <table><thead><tr><th>物料</th><th>房间</th><th>数量</th><th>单价</th><th>总价</th><th>操作</th></tr></thead><tbody id="detailBOM"></tbody></table>
+      </div>
+    </div>
+
+    <div class="page" id="page-ai-chat">
+      <div class="chat-container">
+        <div class="agent-selector" id="agentSelector">
+          <button class="agent-chip active" data-agent="orchestrator">◈ 总控</button>
+          <button class="agent-chip" data-agent="designer">✦ 设计</button>
+          <button class="agent-chip" data-agent="budget">◎ 预算</button>
+          <button class="agent-chip" data-agent="procurement">▦ 采购</button>
+          <button class="agent-chip" data-agent="construction">▥ 施工</button>
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-wrap">
+          <input class="input" id="chatInput" placeholder="输入你的装修需求..." onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="btn btn-primary" onclick="sendChat()">发送</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-materials">
+      <div class="search-bar">
+        <input class="input" id="matSearch" placeholder="搜索物料..." oninput="filterMaterials()">
+        <select class="input" id="matCategoryFilter" onchange="filterMaterials()" style="max-width:200px">
+          <option value="">全部分类</option>
+          <option value="flooring">地面材料</option>
+          <option value="wall">墙面材料</option>
+          <option value="ceiling">顶面材料</option>
+          <option value="kitchen_bath">厨卫设备</option>
+          <option value="doors_windows">门窗</option>
+          <option value="mep">水电材料</option>
+          <option value="custom_furniture">定制家具</option>
+          <option value="soft_decor">软装</option>
+          <option value="appliances">家电</option>
+        </select>
+      </div>
+      <div class="material-grid" id="materialGrid"></div>
+    </div>
+
+    <div class="page" id="page-budget">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">预算总览</h2><div><select class="input" id="budgetProjectSelect" onchange="onBudgetProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="loadBudget()">刷新预算</button></div></div>
+      <div id="budgetContent" class="empty-state"><div class="empty-icon">◎</div><p>请先选择项目查看预算</p></div>
+    </div>
+
+    <div class="page" id="page-construction">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">施工进度</h2><div><select class="input" id="constructionProjectSelect" onchange="onConstructionProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="loadConstruction()">刷新</button></div></div>
+      <div id="constructionContent" class="empty-state"><div class="empty-icon">▥</div><p>请先选择项目查看施工进度</p></div>
+    </div>
+
+    <div class="page" id="page-studio">
+      <iframe src="studio.html" style="width:100%;height:calc(100vh - 120px);border:none;border-radius:8px"></iframe>
+    </div>
+
+    <div class="page" id="page-settlement">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">结算管理</h2><div><select class="input" id="settlementProjectSelect" onchange="onSettlementProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="loadSettlement()">刷新</button></div></div>
+      <div id="settlementContent" class="empty-state"><div class="empty-icon">⏣</div><p>请先选择项目查看结算</p></div>
+    </div>
+
+    <div class="page" id="page-suppliers">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">供应商管理</h2><button class="btn btn-primary btn-sm" onclick="loadSuppliers()">刷新</button></div>
+      <div id="suppliersContent" class="empty-state"><div class="empty-icon">⌘</div><p>加载中...</p></div>
+    </div>
+
+    <div class="page" id="page-files">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">工程文件</h2><div><select class="input" id="filesProjectSelect" onchange="onFilesProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="document.getElementById('fileInput').click()">+ 上传文件</button></div></div>
+      <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)" multiple accept="image/*,.pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx">
+      <div id="filesContent" class="empty-state"><div class="empty-icon">▤</div><p>请先选择项目查看文件</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// API 基地址检测: HTTP 访问时用相对路径, file:// 时回退到服务器地址
+const API_BASE = (function() {
+  if (window.location.protocol === 'file:') {
+    return 'http://118.31.223.213:8081/api';
+  }
+  return window.location.origin + '/api';
+})();
+let token = '', user = null, projects = [], materials = [], currentAgent = 'orchestrator';
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...opts.headers };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const url = `${API_BASE}${path}`;
+  try {
+    const res = await fetch(url, { ...opts, headers });
+    if (res.status === 204) return null;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '请求失败');
+    return data;
+  } catch (e) {
+    if (e.message === 'Failed to fetch') {
+      throw new Error('无法连接到服务器。请确保服务已启动: bash scripts/deploy.sh start');
+    }
+    throw e;
+  }
+}
+
+document.getElementById('toggleMode').onclick = function() {
+  const isReg = document.getElementById('regNameGroup').style.display !== 'none';
+  document.getElementById('regNameGroup').style.display = isReg ? 'none' : 'block';
+  document.getElementById('loginBtn').textContent = isReg ? '登 录' : '注 册';
+  this.textContent = isReg ? '还没有账号？立即注册' : '已有账号？直接登录';
+};
+
+document.getElementById('loginBtn').onclick = async function() {
+  const phone = document.getElementById('loginPhone').value;
+  const pass = document.getElementById('loginPass').value;
+  const isReg = document.getElementById('regNameGroup').style.display !== 'none';
+  try {
+    let res;
+    if (isReg) {
+      const name = document.getElementById('regName').value || '新用户';
+      res = await api('/auth/register', { method: 'POST', body: JSON.stringify({ phone, name, password: pass, role: 'homeowner' }) });
+    } else {
+      res = await api('/auth/login', { method: 'POST', body: JSON.stringify({ phone, password: pass }) });
+    }
+    token = res.access_token;
+    user = res.user;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('sidebarAvatar').textContent = user.name[0];
+    document.getElementById('sidebarName').textContent = user.name;
+    initApp();
+  } catch (e) { alert('操作失败: ' + e.message); }
+};
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.onclick = function() {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    this.classList.add('active');
+    const page = this.dataset.page;
+    document.getElementById('pageTitle').textContent = this.textContent.trim();
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'projects') loadProjects();
+    if (page === 'materials') loadMaterials();
+    if (page === 'budget') loadBudget();
+    if (page === 'construction') loadConstruction();
+    if (page === 'surveys') loadSurveys();
+    if (page === 'studio') document.getElementById('pageTitle').textContent = '设计台';
+    if (page === 'settlement') loadSettlement();
+    if (page === 'suppliers') loadSuppliers();
+    if (page === 'files') loadFiles();
+    if (page === 'ai-chat') initChat();
+  };
+});
+
+document.querySelectorAll('.agent-chip').forEach(chip => {
+  chip.onclick = function() {
+    document.querySelectorAll('.agent-chip').forEach(c => c.classList.remove('active'));
+    this.classList.add('active');
+    currentAgent = this.dataset.agent;
+  };
+});
+
+async function initApp() {
+  await loadDashboard();
+  await loadProjects();
+  await loadMaterials();
+}
+
+async function loadDashboard() {
+  try {
+    projects = await api('/projects');
+    const totalArea = projects.reduce((s, p) => s + (p.total_area || 0), 0);
+    const inProgress = projects.filter(p => p.status === 'in_progress').length;
+    document.getElementById('dashStats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">项目总数</div><div class="stat-value">${projects.length}</div><div class="stat-change up">装修项目</div></div>
+      <div class="stat-card"><div class="stat-label">施工中</div><div class="stat-value">${inProgress}</div><div class="stat-change up">进行中</div></div>
+      <div class="stat-card"><div class="stat-label">总面积</div><div class="stat-value">${totalArea}</div><div class="stat-change">平方米</div></div>
+      <div class="stat-card"><div class="stat-label">AI Agent</div><div class="stat-value">5</div><div class="stat-change up">7×24 在线</div></div>
+    `;
+    document.getElementById('dashProjects').innerHTML = projects.slice(0, 5).map(p => `
+      <tr><td>${p.name}</td><td>${p.address || '-'}</td><td>${p.total_area || '-'}㎡</td><td><span class="tag tag-${p.status === 'draft' ? 'draft' : 'active'}">${p.status === 'draft' ? '草稿' : '进行中'}</span></td><td>${new Date(p.updated_at).toLocaleDateString('zh-CN')}</td></tr>
+    `).join('') || '<tr><td colspan="5" class="text-muted">暂无项目</td></tr>';
+  } catch (e) { console.error(e); }
+}
+
+async function loadProjects() {
+  try {
+    projects = await api('/projects');
+    document.getElementById('projectList').innerHTML = projects.map(p => `
+      <div class="stat-card" style="cursor:pointer" onclick="selectProject('${p.id}')">
+        <div style="font-size:0.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">${p.id.slice(0,8)}</div>
+        <div class="stat-value" style="font-size:1.2rem">${p.name}</div>
+        <div class="stat-label">${p.address || '未填写地址'} · ${p.total_area || '-'}㎡</div>
+        <div class="mt-12"><span class="tag tag-${p.status === 'draft' ? 'draft' : p.status === 'in_progress' ? 'active' : 'completed'}">${p.status === 'draft' ? '草稿' : p.status === 'in_progress' ? '施工中' : '已完成'}</span></div>
+      </div>
+    `).join('') || '<div class="empty-state"><div class="empty-icon">◫</div><p>还没有项目，点击上方按钮创建一个吧</p></div>';
+  } catch (e) { console.error(e); }
+}
+
+function showCreateProject() { document.getElementById('projectCreateForm').style.display = 'block'; loadNearbyBuildings(); }
+function hideCreateProject() { document.getElementById('projectCreateForm').style.display = 'none'; }
+
+// ── 地址智能补全 (高德地图) ──
+let _addrTimer = null;
+let _nearbyLoaded = false;
+
+async function loadNearbyBuildings() {
+  if (_nearbyLoaded) return;
+  _nearbyLoaded = true;
+  try {
+    const res = await api('/location/nearby');
+    const container = document.getElementById('addrSuggestions');
+    const buildings = res.buildings || [];
+    const districts = res.districts || [];
+    const city = res.city || '北京';
+    
+    let html = `<div style="padding:8px 12px;font-size:0.7rem;color:var(--accent);border-bottom:1px solid var(--border)">📍 当前城市: ${city}（点击选择附近楼盘）</div>`;
+    
+    if (buildings.length > 0) {
+      buildings.forEach(b => {
+        html += `<div onclick="selectAddress('${escapeHtml(b.name)}', '${escapeHtml(b.address || '')}', '${b.location || ''}')"
+          style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.8rem;transition:all 0.15s"
+          onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background=''">
+          <div style="color:var(--text-primary);font-weight:500">🏠 ${b.name}</div>
+          <div style="color:var(--text-muted);font-size:0.7rem">${b.address || ''}${b.distance ? ' · ' + b.distance + 'm' : ''}</div>
+        </div>`;
+      });
+    }
+    
+    if (districts.length > 0) {
+      html += `<div style="padding:6px 12px;font-size:0.65rem;color:var(--text-muted);border-bottom:1px solid var(--border)">或选择区域:</div>`;
+      html += `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px">`;
+      districts.forEach(d => {
+        html += `<span onclick="searchNearbyDistrict('${escapeHtml(d.name)}')" style="padding:4px 10px;background:var(--bg-input);border-radius:4px;cursor:pointer;font-size:0.7rem">${d.name}</span>`;
+      });
+      html += `</div>`;
+    }
+    
+    container.innerHTML = html;
+    container.style.display = 'block';
+  } catch (e) {
+    document.getElementById('addrSuggestions').innerHTML = '<div style="padding:12px;font-size:0.8rem;color:var(--text-muted)">请直接输入小区名称搜索</div>';
+  }
+}
+
+async function searchNearbyDistrict(district) {
+  document.getElementById('projAddr').value = district;
+  document.getElementById('addrSuggestions').style.display = 'none';
+  // 搜索该区域的楼盘
+  try {
+    const res = await api(`/location/search?keywords=${encodeURIComponent(district)}&city=&limit=8`);
+    const container = document.getElementById('addrSuggestions');
+    const pois = res.pois || [];
+    if (pois.length > 0) {
+      container.innerHTML = pois.map(p => `
+        <div onclick="selectAddress('${escapeHtml(p.name)}', '${escapeHtml(p.address || '')}', '${p.location || ''}')"
+          style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.8rem"
+          onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background=''">
+          <div style="color:var(--text-primary)">🏠 ${p.name}</div>
+          <div style="color:var(--text-muted);font-size:0.7rem">${p.address || ''}</div>
+        </div>
+      `).join('');
+      container.style.display = 'block';
+    }
+  } catch(e) {}
+}
+async function searchAddress(keywords) {
+  clearTimeout(_addrTimer);
+  const container = document.getElementById('addrSuggestions');
+  if (!keywords || keywords.length < 2) { container.style.display = 'none'; return; }
+  
+  _addrTimer = setTimeout(async () => {
+    try {
+      const res = await api(`/location/autocomplete?keywords=${encodeURIComponent(keywords)}&city=`);
+      const pois = res.pois || [];
+      if (pois.length === 0) {
+        container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.8rem">未找到匹配的小区，请继续输入完整地址</div>';
+        container.style.display = 'block';
+        return;
+      }
+      container.innerHTML = pois.map(p => `
+        <div onclick="selectAddress('${escapeHtml(p.name)}', '${escapeHtml(p.address || '')}', '${p.location || ''}')" 
+             style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.8rem;transition:all 0.15s"
+             onmouseover="this.style.background='var(--bg-card-hover)'" 
+             onmouseout="this.style.background=''">
+          <div style="color:var(--text-primary);font-weight:500">📍 ${p.name}</div>
+          <div style="color:var(--text-muted);font-size:0.7rem;margin-top:2px">${p.address || ''}</div>
+        </div>
+      `).join('');
+      container.style.display = 'block';
+    } catch (e) {
+      container.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.8rem">搜索服务暂不可用，请手动输入地址</div>';
+      container.style.display = 'block';
+    }
+  }, 300);
+}
+
+function escapeHtml(str) { return (str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+function selectAddress(name, address, location) {
+  document.getElementById('projAddr').value = address || name;
+  document.getElementById('addrSuggestions').style.display = 'none';
+}
+
+// 点击外部关闭建议列表
+document.addEventListener('click', function(e) {
+  const container = document.getElementById('addrSuggestions');
+  const input = document.getElementById('projAddr');
+  if (container && input && e.target !== input && !container.contains(e.target)) {
+    container.style.display = 'none';
+  }
+});
+
+async function createProject() {
+  const name = document.getElementById('projName').value;
+  const address = document.getElementById('projAddr').value;
+  const area = parseFloat(document.getElementById('projArea').value) || null;
+  const floors = parseInt(document.getElementById('projFloors').value) || 1;
+  const floorList = Array.from({ length: floors }, (_, i) => ({
+    name: `${i + 1}层`, floor_number: i + 1, area: area ? area / floors : null, rooms: []
+  }));
+  try {
+    await api('/projects', { method: 'POST', body: JSON.stringify({ name, address, total_area: area, floors: floorList }) });
+    hideCreateProject();
+    await loadProjects();
+    await loadDashboard();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+
+async function loadMaterials() {
+  try {
+    const data = await api('/materials?limit=200');
+    materials = data;
+    renderMaterials(data);
+    const cats = await api('/materials/categories');
+    const sel = document.getElementById('matCategoryFilter');
+    sel.innerHTML = '<option value="">全部分类</option>' + cats.map(c => `<option value="${c.code}">${c.name}</option>`).join('');
+  } catch (e) { console.error(e); }
+}
+
+function renderMaterials(list) {
+  document.getElementById('materialGrid').innerHTML = list.map(m => `
+    <div class="material-card">
+      <div class="mat-brand">${m.brand || '无品牌'}</div>
+      <div class="mat-name">${m.name}</div>
+      <div class="mat-spec">${m.spec || ''} · SKU: ${m.sku}</div>
+      <div class="mat-footer"><span class="mat-price">¥${m.unit_price.toLocaleString()}</span><span class="mat-unit">/${m.unit}</span></div>
+    </div>
+  `).join('') || '<div class="empty-state"><div class="empty-icon">▦</div><p>暂无物料数据</p></div>';
+}
+
+function filterMaterials() {
+  const search = document.getElementById('matSearch').value.toLowerCase();
+  const cat = document.getElementById('matCategoryFilter').value;
+  const filtered = materials.filter(m => {
+    const matchesSearch = !search || m.name.includes(search) || m.sku.toLowerCase().includes(search) || (m.brand && m.brand.includes(search));
+    const matchesCat = !cat || (m.category && m.category.code === cat);
+    return matchesSearch && matchesCat;
+  });
+  renderMaterials(filtered);
+}
+
+let selectedProjectId = null;
+
+function selectProject(pid) {
+  selectedProjectId = pid;
+  viewProjectDetail(pid);
+}
+
+async function viewProjectDetail(pid) {
+  try {
+    const p = await api(`/projects/${pid}`);
+    selectedProjectId = pid;
+    document.getElementById('detailTitle').textContent = p.name;
+
+    const floors = p.floors || [];
+    const allRooms = floors.flatMap(f => (f.rooms || []).map(r => ({ ...r, floorName: f.name })));
+
+    document.getElementById('detailStats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">总面积</div><div class="stat-value">${p.total_area || '-'}㎡</div></div>
+      <div class="stat-card"><div class="stat-label">楼层数</div><div class="stat-value">${floors.length}</div></div>
+      <div class="stat-card"><div class="stat-label">房间数</div><div class="stat-value">${allRooms.length}</div></div>
+      <div class="stat-card"><div class="stat-label">状态</div><div class="stat-value">${p.status === 'draft' ? '草稿' : p.status === 'in_progress' ? '施工中' : '已完成'}</div></div>
+    `;
+
+    document.getElementById('floorRoomsContent').innerHTML = floors.map(f => `
+      <div style="margin-bottom:20px">
+        <div style="font-weight:600;color:var(--accent);margin-bottom:8px">🏠 ${f.name} (${f.area || '-'}㎡)</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+          ${(f.rooms || []).map(r => `
+            <div style="background:var(--bg-card-hover);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.8rem">
+              <div style="color:var(--text-primary);font-weight:500">${r.name}</div>
+              <div style="color:var(--text-muted)">${r.room_type} · ${r.area || '-'}㎡</div>
+            </div>
+          `).join('') || '<div style="color:var(--text-muted);font-size:0.8rem;padding:8px">暂无房间</div>'}
+        </div>
+      </div>
+    `).join('') || '<div class="text-muted">暂无楼层数据</div>';
+
+    const bomItems = await api(`/materials/bom/${pid}`);
+    document.getElementById('detailBOM').innerHTML = bomItems.map(b => `
+      <tr>
+        <td>${b.material ? b.material.name : '-'}</td>
+        <td>${b.room_id ? b.room_id.slice(0,6) : '-'}</td>
+        <td>${b.quantity}</td>
+        <td>¥${b.unit_price.toLocaleString()}</td>
+        <td style="color:var(--accent-bright)">¥${b.total_price.toLocaleString()}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="deleteBOM('${b.id}')">删除</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="6" class="text-muted">暂无物料，请添加</td></tr>';
+
+    navigateToPage('project-detail');
+  } catch (e) { alert('加载项目详情失败: ' + e.message); }
+}
+
+function navigateToPage(page) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  const titles = { dashboard: '工作台', projects: '我的项目', surveys: '现场测量', 'project-detail': document.getElementById('detailTitle').textContent, studio: '设计台', 'ai-chat': 'AI 助手', materials: '物料库', budget: '预算管理', construction: '施工进度', settlement: '结算管理', suppliers: '供应商管理', files: '工程文件' };
+  document.getElementById('pageTitle').textContent = titles[page] || '';
+}
+
+function backToProjects() {
+  navigateToPage('projects');
+  loadProjects();
+}
+
+async function addBOMForm() {
+  const matId = prompt('请输入物料 ID（在物料库页面复制，如找不到可输入任意 36 位 UUID 格式）：');
+  if (!matId) return;
+  const qty = parseFloat(prompt('数量：', '1'));
+  if (!qty) return;
+  try {
+    await api('/materials/bom', { method: 'POST', body: JSON.stringify({
+      project_id: selectedProjectId, material_id: matId, quantity: qty, unit_price: 0
+    })});
+    viewProjectDetail(selectedProjectId);
+  } catch (e) { alert('添加失败: ' + e.message); }
+}
+
+async function deleteBOM(bomId) {
+  if (!confirm('确认删除？')) return;
+  try {
+    await api(`/materials/bom/${bomId}`, { method: 'DELETE' });
+    viewProjectDetail(selectedProjectId);
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+
+async function generateBudgetFromDetail() {
+  if (!selectedProjectId) return alert('请选择项目');
+  try {
+    await api(`/budgets/generate-from-bom/${selectedProjectId}`, { method: 'POST' });
+    alert('预算已从 BOM 生成！切换到预算页面查看');
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+
+async function generateSettlementFromDetail() {
+  if (!selectedProjectId) return alert('请选择项目');
+  try {
+    await api(`/settlements/generate-from-budget/${selectedProjectId}`, { method: 'POST' });
+    alert('结算单已从预算生成！');
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+
+let selectedFloorForRoom = null;
+
+function addRoomForm() {
+  if (!selectedProjectId) return alert('请先选择项目');
+  const floors = [];
+  const floorCards = document.querySelectorAll('#floorRoomsContent > div');
+  floorCards.forEach(card => {
+    const floorName = card.querySelector('div:first-child')?.textContent?.replace('🏠 ', '') || '';
+    floors.push(floorName);
+  });
+  if (floors.length === 0) return alert('暂无楼层数据');
+
+  const floor = prompt('选择楼层:\n' + floors.map((f, i) => `${i + 1}. ${f}`).join('\n'), '1');
+  if (!floor) return;
+  const floorIdx = parseInt(floor) - 1;
+  if (isNaN(floorIdx) || floorIdx < 0 || floorIdx >= floors.length) return alert('无效选择');
+
+  const typeMap = {living_room: '客厅', bedroom: '卧室', kitchen: '厨房', bathroom: '卫生间', study: '书房', balcony: '阳台', dining_room: '餐厅', hallway: '走廊'};
+  const types = Object.entries(typeMap);
+  const typeChoice = prompt('选择房间类型:\n' + types.map(([k, v], i) => `${i + 1}. ${v}`).join('\n'), '1');
+  if (!typeChoice) return;
+  const tidx = parseInt(typeChoice) - 1;
+  if (isNaN(tidx) || tidx < 0 || tidx >= types.length) return;
+
+  const name = prompt('房间名称（可选，默认使用类型名）:', types[tidx][1]);
+  if (name === null) return;
+
+  const area = prompt('面积 (㎡):', '20');
+  if (!area) return;
+  const areaNum = parseFloat(area);
+  if (isNaN(areaNum) || areaNum <= 0) return alert('无效面积');
+
+  api(`/projects/${selectedProjectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      floors: [
+        {
+          floor_number: floorIdx + 1,
+          rooms: [{
+            name: name || types[tidx][1],
+            room_type: types[tidx][0],
+            area: areaNum
+          }]
+        }
+      ]
+    })
+  }).then(() => {
+    viewProjectDetail(selectedProjectId);
+  }).catch(e => alert('添加失败: ' + e.message));
+}
+
+async function loadBudget() {
+  // sync from selector if set
+  const sel = document.getElementById('budgetProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  if (!selectedProjectId) {
+    document.getElementById('budgetContent').innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><p>请先在项目页面选择一个项目</p></div>';
+    return;
+  }
+  try {
+    const budget = await api(`/budgets/project/${selectedProjectId}`);
+    const linesHtml = budget.lines.map(l => `
+      <tr><td>${l.category}</td><td>${l.name}</td><td>${l.quantity} ${l.unit}</td><td>¥${l.unit_price.toLocaleString()}</td><td style="color:var(--accent-bright)">¥${l.estimated_amount.toLocaleString()}</td></tr>
+    `).join('');
+    document.getElementById('budgetContent').innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">总预估</div><div class="stat-value">¥${budget.total_estimated.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">总实际</div><div class="stat-value">¥${budget.total_actual.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">预算行数</div><div class="stat-value">${budget.lines.length}</div></div>
+        <div class="stat-card"><div class="stat-label">状态</div><div class="stat-value">${budget.status === 'draft' ? '草稿' : '已确认'}</div></div>
+      </div>
+      <div class="card"><h2>预算明细</h2><table><thead><tr><th>类别</th><th>名称</th><th>数量</th><th>单价</th><th>金额</th></tr></thead><tbody>${linesHtml || '<tr><td colspan="5" class="text-muted">暂无明细</td></tr>'}</tbody></table></div>
+    `;
+  } catch (e) {
+    document.getElementById('budgetContent').innerHTML = `<div class="empty-state"><div class="empty-icon">◎</div><p>暂未创建预算。请先添加物料清单，然后点击"生成预算"</p><button class="btn btn-primary btn-sm mt-12" onclick="generateBudget()">从 BOM 生成预算</button></div>`;
+  }
+}
+
+async function generateBudget() {
+  if (!selectedProjectId) return alert('请先选择项目');
+  try {
+    await api(`/budgets/generate-from-bom/${selectedProjectId}`, { method: 'POST' });
+    loadBudget();
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+
+async function loadConstruction() {
+  // sync from selector if set
+  const sel = document.getElementById('constructionProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  if (!selectedProjectId) {
+    document.getElementById('constructionContent').innerHTML = '<div class="empty-state"><div class="empty-icon">▥</div><p>请先在项目页面选择一个项目</p></div>';
+    return;
+  }
+  try {
+    const tasks = await api(`/construction/tasks/${selectedProjectId}`);
+    const phases = ['preparation', 'demolition', 'mep', 'masonry', 'carpentry', 'painting', 'installation', 'acceptance'];
+    const phaseNames = { preparation: '准备', demolition: '拆改', mep: '水电', masonry: '泥瓦', carpentry: '木工', painting: '油漆', installation: '安装', acceptance: '验收' };
+    const timelineHtml = phases.map((p, i) => {
+      const t = tasks.find(t => t.phase === p);
+      const cls = t ? (t.status === 'completed' ? 'done' : 'active') : '';
+      return `<div class="timeline-item ${cls}"><div class="tl-date">阶段 ${i + 1}</div><div class="tl-title">${phaseNames[p]}${t ? ' - ' + t.name : ''}</div><div class="text-muted" style="font-size:0.75rem">${t ? t.status : '未开始'}</div></div>`;
+    }).join('');
+    document.getElementById('constructionContent').innerHTML = `
+      <div class="card"><h2>施工进度 · 时间线</h2><div class="timeline">${timelineHtml}</div></div>
+      <div class="card"><h2>任务列表</h2><table><thead><tr><th>任务</th><th>阶段</th><th>负责人</th><th>状态</th></tr></thead><tbody>${tasks.map(t => `<tr><td>${t.name}</td><td>${phaseNames[t.phase] || t.phase}</td><td>${t.assigned_to || '-'}</td><td><span class="tag tag-${t.status === 'completed' ? 'completed' : t.status === 'pending' ? 'pending' : 'active'}">${t.status}</span></td></tr>`).join('') || '<tr><td colspan="4" class="text-muted">暂无任务</td></tr>'}</tbody></table></div>
+    `;
+  } catch (e) {
+    document.getElementById('constructionContent').innerHTML = '<div class="empty-state"><div class="empty-icon">▥</div><p>暂无施工进度数据</p></div>';
+  }
+}
+
+function initChat() {
+  if (document.getElementById('chatMessages').children.length === 0) {
+    addChatMsg('agent', '您好！我是索克家居 AI 总控 Agent。我可以帮您进行设计规划、预算管理、物料采购、施工管理。请告诉我您的需求。');
+  }
+}
+
+function addChatMsg(type, text) {
+  const el = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `chat-msg ${type}`;
+  div.innerHTML = `<div class="msg-avatar">${type === 'agent' ? '✦' : 'U'}</div><div class="msg-bubble">${text}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  addChatMsg('user', msg);
+  input.value = '';
+
+  try {
+    const agentMap = { designer: 'design', procurator: 'procurement', construction: 'construction' };
+    let endpoint, body;
+    if (currentAgent === 'designer') {
+      endpoint = '/agents/design';
+      body = JSON.stringify({ message: msg });
+    } else if (currentAgent === 'budget') {
+      endpoint = '/agents/budget';
+      body = JSON.stringify({ message: msg, agent_type: 'budget' });
+    } else if (currentAgent === 'procurement') {
+      endpoint = '/agents/procurement';
+      body = JSON.stringify({ message: msg, agent_type: 'procurement' });
+    } else if (currentAgent === 'construction') {
+      endpoint = '/agents/construction';
+      body = JSON.stringify({ message: msg, agent_type: 'construction' });
+    } else {
+      endpoint = '/agents/chat';
+      body = JSON.stringify({ message: msg, agent_type: currentAgent });
+    }
+
+    const res = await api(endpoint, { method: 'POST', body });
+    const reply = res.reply || res.full_reply || res.summary || JSON.stringify(res);
+    addChatMsg('agent', reply);
+  } catch (e) {
+    addChatMsg('agent', '抱歉，AI 服务暂时不可用。请稍后再试。\n\n💡 提示：未配置 DeepSeek API Key 时使用 Mock 模式，部分功能受限。');
+  }
+}
+
+// === SETTLEMENT ===
+async function loadSettlement() {
+  // sync from selector if set
+  const sel = document.getElementById('settlementProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  if (!selectedProjectId) {
+    document.getElementById('settlementContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⏣</div><p>请先在项目页面选择一个项目</p></div>';
+    return;
+  }
+  try {
+    const s = await api(`/settlements/project/${selectedProjectId}`);
+    const linesHtml = (s.lines || []).map(l => `
+      <tr><td>${l.category}</td><td>${l.name}</td><td>¥${l.contract_amount.toLocaleString()}</td><td>¥${l.change_amount.toLocaleString()}</td><td style="color:var(--accent-bright)">¥${l.actual_amount.toLocaleString()}</td><td><span class="tag tag-${l.status === 'pending' ? 'pending' : 'completed'}">${l.status}</span></td></tr>
+    `).join('');
+    document.getElementById('settlementContent').innerHTML = `
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">合同金额</div><div class="stat-value">¥${s.contract_amount.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">实际金额</div><div class="stat-value">¥${s.actual_amount.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">应付金额</div><div class="stat-value" style="color:var(--accent-bright)">¥${s.payable_amount.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-label">状态</div><div class="stat-value">${s.status === 'draft' ? '草稿' : '已确认'}</div></div>
+      </div>
+      <div class="card"><h2>结算明细<span class="card-badge">${s.milestone || '竣工结算'}</span></h2><table><thead><tr><th>类别</th><th>名称</th><th>合同金额</th><th>变更</th><th>实际金额</th><th>状态</th></tr></thead><tbody>${linesHtml || '<tr><td colspan="6" class="text-muted">暂无明细</td></tr>'}</tbody></table></div>
+      <div class="mt-12"><button class="btn btn-primary btn-sm" onclick="confirmSettlement()">确认结算</button></div>
+    </div>
+    `;
+  } catch (e) {
+    document.getElementById('settlementContent').innerHTML = `<div class="empty-state"><div class="empty-icon">⏣</div><p>暂未创建结算单</p><button class="btn btn-primary btn-sm mt-12" onclick="generateSettlement()">从预算生成结算</button></div>`;
+  }
+}
+
+async function generateSettlement() {
+  if (!selectedProjectId) return alert('请先选择项目');
+  try {
+    await api(`/settlements/generate-from-budget/${selectedProjectId}`, { method: 'POST' });
+    loadSettlement();
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+
+// === FILES ===
+async function loadFiles() {
+  // sync from selector if set
+  const sel = document.getElementById('filesProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  if (!selectedProjectId) {
+    document.getElementById('filesContent').innerHTML = '<div class="empty-state"><div class="empty-icon">▤</div><p>请先在项目页面选择一个项目</p></div>';
+    return;
+  }
+  try {
+    const files = await api(`/files/project/${selectedProjectId}`);
+    document.getElementById('filesContent').innerHTML = files.length === 0 ? '<div class="empty-state"><div class="empty-icon">▤</div><p>暂无文件</p></div>'
+      : `<table><thead><tr><th>文件名</th><th>类型</th><th>大小</th><th>分类</th><th>上传时间</th><th>操作</th></tr></thead><tbody>${files.map(f => `
+        <tr>
+          <td>${f.filename}</td>
+          <td>${f.content_type}</td>
+          <td>${(f.file_size / 1024).toFixed(1)}KB</td>
+          <td>${f.category}</td>
+          <td>${new Date(f.created_at).toLocaleDateString('zh-CN')}</td>
+          <td>
+            <a href="${API_BASE}/files/download/${f.id}" target="_blank" class="btn btn-secondary btn-sm">查看</a>
+            <button class="btn btn-secondary btn-sm" onclick="deleteFile('${f.id}')">删除</button>
+          </td>
+        </tr>
+      `).join('')}</tbody></table>`;
+  } catch (e) {
+    document.getElementById('filesContent').innerHTML = '<div class="empty-state"><div class="empty-icon">▤</div><p>暂无文件</p></div>';
+  }
+}
+
+async function uploadFile(input) {
+  for (const file of input.files) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('project_id', selectedProjectId);
+    form.append('category', prompt('文件分类 (floorplan/rendering/construction/other):', 'floorplan') || 'other');
+    try {
+      await fetch(`${API_BASE}/files/upload`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: form });
+    } catch (e) { alert('上传失败: ' + e.message); }
+  }
+  input.value = '';
+  loadFiles();
+}
+
+async function deleteFile(fid) {
+  if (!confirm('确认删除？')) return;
+  try {
+    await api(`/files/${fid}`, { method: 'DELETE' });
+    loadFiles();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// === LOGOUT ===
+function doLogout() {
+  token = ''; user = null; projects = []; materials = []; selectedProjectId = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// === DELETE PROJECT ===
+async function deleteProject() {
+  if (!selectedProjectId) return alert('请先选择项目');
+  if (!confirm('确认删除该项目？此操作不可恢复。')) return;
+  try {
+    await api(`/projects/${selectedProjectId}`, { method: 'DELETE' });
+    alert('项目已删除');
+    selectedProjectId = null;
+    backToProjects();
+    loadDashboard();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// === SUPPLIERS ===
+async function loadSuppliers() {
+  try {
+    const suppliers = await api('/procurement/suppliers');
+    document.getElementById('suppliersContent').innerHTML = suppliers.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">⌘</div><p>暂无供应商数据</p></div>'
+      : `<table><thead><tr><th>供应商</th><th>联系人</th><th>电话</th><th>主营品类</th><th>评分</th></tr></thead><tbody>${suppliers.map(s => `
+        <tr>
+          <td style="color:var(--text-primary);font-weight:500">${s.name}</td>
+          <td>${s.contact_name || '-'}</td>
+          <td>${s.phone || '-'}</td>
+          <td><span class="tag tag-active">${s.category || '-'}</span></td>
+          <td>${'⭐'.repeat(Math.round(s.rating || 0))} ${(s.rating || 0).toFixed(1)}</td>
+        </tr>
+      `).join('')}</tbody></table>`;
+  } catch (e) {
+    document.getElementById('suppliersContent').innerHTML = '<div class="empty-state"><div class="empty-icon">⌘</div><p>供应商数据加载失败</p></div>';
+  }
+}
+
+// === PROJECT SELECTOR helpers ===
+function populateProjectSelects() {
+  const selects = ['budgetProjectSelect', 'constructionProjectSelect', 'settlementProjectSelect', 'filesProjectSelect'];
+  selects.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">选择项目...</option>' + projects.map(p => `<option value="${p.id}" ${p.id === currentVal ? 'selected' : ''}>${p.name} (${p.total_area || '-'}㎡)</option>`).join('');
+  });
+}
+
+function onBudgetProjectChange() {
+  selectedProjectId = document.getElementById('budgetProjectSelect').value;
+  if (selectedProjectId) loadBudget();
+}
+function onConstructionProjectChange() {
+  selectedProjectId = document.getElementById('constructionProjectSelect').value;
+  if (selectedProjectId) loadConstruction();
+}
+function onSettlementProjectChange() {
+  selectedProjectId = document.getElementById('settlementProjectSelect').value;
+  if (selectedProjectId) loadSettlement();
+}
+function onFilesProjectChange() {
+  selectedProjectId = document.getElementById('filesProjectSelect').value;
+  if (selectedProjectId) loadFiles();
+}
+
+// Refresh project selects whenever projects list changes (call after loadProjects)
+const _origLoadProjects = loadProjects;
+loadProjects = async function() {
+  await _origLoadProjects();
+  populateProjectSelects();
+};
+
+const _origLoadDashboard = loadDashboard;
+loadDashboard = async function() {
+  await _origLoadDashboard();
+  populateProjectSelects();
+};
+
+// === SURVEYS (测量) ===
+let surveyRoomCount = 0;
+
+function addSurveyRoom() {
+  surveyRoomCount++;
+  const types = {living_room:'客厅',bedroom:'卧室',kitchen:'厨房',bathroom:'卫生间',study:'书房',balcony:'阳台',dining_room:'餐厅',hallway:'走廊'};
+  const opts = Object.entries(types).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.style.marginTop = '8px';
+  div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span style="font-weight:600">#${surveyRoomCount}</span>
+    <input class="input" style="max-width:120px" placeholder="房间名" id="sroom_name_${surveyRoomCount}" value="${['','客厅','主卧','次卧','厨房','卫生间','书房','阳台'][surveyRoomCount] || ''}">
+    <select class="input" style="max-width:100px" id="sroom_type_${surveyRoomCount}">${opts}</select>
+    <input class="input" style="max-width:80px" type="number" placeholder="宽(m)" id="sroom_w_${surveyRoomCount}" step="0.1" min="0.5">
+    <input class="input" style="max-width:80px" type="number" placeholder="长(m)" id="sroom_l_${surveyRoomCount}" step="0.1" min="0.5">
+    <input class="input" style="max-width:200px" placeholder="备注" id="sroom_notes_${surveyRoomCount}">
+    <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="this.parentElement.parentElement.remove();surveyRoomCount--">✕</button>
+  </div>`;
+  document.getElementById('surveyRooms').appendChild(div);
+}
+
+function showSurveyForm() {
+  document.getElementById('surveyCreateForm').style.display = 'block';
+  document.getElementById('surveyRooms').innerHTML = '';
+  surveyRoomCount = 0;
+  autoAddDefaultRooms();
+}
+
+function autoAddDefaultRooms() {
+  const defaults = [
+    {name:'客厅',type:'living_room',w:6,l:6},
+    {name:'主卧',type:'bedroom',w:4,l:5},
+    {name:'次卧',type:'bedroom',w:3,l:5},
+    {name:'厨房',type:'kitchen',w:2.5,l:4},
+    {name:'卫生间',type:'bathroom',w:2,l:3},
+  ];
+  defaults.forEach(d => {
+    surveyRoomCount++;
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.marginTop = '8px';
+    const types = {living_room:'客厅',bedroom:'卧室',kitchen:'厨房',bathroom:'卫生间',study:'书房',balcony:'阳台'};
+    const opts = Object.entries(types).map(([k,v]) => `<option value="${k}" ${k === d.type ? 'selected' : ''}>${v}</option>`).join('');
+    div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-weight:600">#${surveyRoomCount}</span>
+      <input class="input" style="max-width:120px" placeholder="房间名" id="sroom_name_${surveyRoomCount}" value="${d.name}">
+      <select class="input" style="max-width:100px" id="sroom_type_${surveyRoomCount}">${opts}</select>
+      <input class="input" style="max-width:80px" type="number" placeholder="宽(m)" id="sroom_w_${surveyRoomCount}" step="0.1" min="0.5" value="${d.w}">
+      <input class="input" style="max-width:80px" type="number" placeholder="长(m)" id="sroom_l_${surveyRoomCount}" step="0.1" min="0.5" value="${d.l}">
+      <input class="input" style="max-width:200px" placeholder="备注" id="sroom_notes_${surveyRoomCount}">
+      <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="this.parentElement.parentElement.remove();surveyRoomCount--">✕</button>
+    </div>`;
+    document.getElementById('surveyRooms').appendChild(div);
+  });
+}
+
+function hideSurveyForm() { document.getElementById('surveyCreateForm').style.display = 'none'; }
+
+async function createSurvey() {
+  const pid = document.getElementById('surveyProjectSelect').value;
+  if (!pid) return alert('请先选择项目');
+  const rooms = [];
+  for (let i = 1; i <= surveyRoomCount; i++) {
+    const name = document.getElementById('sroom_name_' + i);
+    const type = document.getElementById('sroom_type_' + i);
+    const w = document.getElementById('sroom_w_' + i);
+    const l = document.getElementById('sroom_l_' + i);
+    if (!name || !type || !w || !l) continue;
+    if (!name.value || !w.value || !l.value) continue;
+    rooms.push({ name: name.value, room_type: type.value, width: parseFloat(w.value), length: parseFloat(l.value), notes: document.getElementById('sroom_notes_' + i)?.value || '' });
+  }
+  if (rooms.length === 0) return alert('请至少添加一个房间');
+  try {
+    const body = JSON.stringify({
+      project_id: pid,
+      name: document.getElementById('surveyName').value || '现场测量',
+      surveyor: document.getElementById('surveyPerson').value || null,
+      method: document.getElementById('surveyMethod').value,
+      scene_type: document.getElementById('surveySceneType').value,
+      wall_height: parseFloat(document.getElementById('surveyWallHeight').value) || 2.8,
+      notes: document.getElementById('surveyNotes').value || null,
+      device_info: JSON.stringify(window._deviceInfo || {}),
+      voice_transcript: window._voiceHistory || null,
+      rooms
+    });
+    await api('/surveys', { method: 'POST', body });
+    hideSurveyForm();
+    loadSurveys();
+  } catch (e) { alert('保存失败: ' + e.message); }
+}
+
+async function loadSurveys() {
+  const sel = document.getElementById('surveyProjectSelect');
+  if (projects.length > 0 && !sel.value) sel.value = projects[0].id;
+  if (sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId) {
+    document.getElementById('surveyList').innerHTML = '<div class="empty-state"><div class="empty-icon">📐</div><p>请先创建或选择一个项目</p></div>';
+    return;
+  }
+  try {
+    const surveys = await api(`/surveys/project/${selectedProjectId}`);
+    document.getElementById('surveyList').innerHTML = surveys.length === 0
+      ? '<div class="empty-state"><div class="empty-icon">📐</div><p>暂无测量记录，点击"新建测量"开始</p></div>'
+      : surveys.map(s => `
+        <div class="card" style="cursor:pointer" onclick="viewSurveyDetail('${s.id}')">
+          <div class="flex-between">
+            <div>
+              <div style="font-weight:500">${s.name} <span class="tag tag-${s.status === 'completed' ? 'completed' : 'pending'}">${s.status === 'completed' ? '已完成' : '草稿'}</span></div>
+              <div class="text-muted" style="font-size:0.75rem;margin-top:4px">${s.surveyor || '未指定'} · ${s.method === 'manual' ? '手动测量' : s.method === 'lidar' ? 'LiDAR扫描' : s.method === 'visual' ? '视觉测距' : s.method} · ${s.wall_height}m层高</div>
+            </div>
+            <div style="text-align:right">
+              <div class="stat-value" style="font-size:1.2rem">${s.total_area}㎡</div>
+              <div class="text-muted" style="font-size:0.7rem">${new Date(s.created_at).toLocaleDateString('zh-CN')}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    populateProjectSelects();
+    // also populate survey project selector
+    const sSel = document.getElementById('surveyProjectSelect');
+    if (sSel) {
+      sSel.innerHTML = '<option value="">选择项目...</option>' + projects.map(p => `<option value="${p.id}">${p.name} (${p.total_area || '-'}㎡)</option>`).join('');
+    }
+  } catch (e) {
+    document.getElementById('surveyList').innerHTML = '<div class="empty-state"><div class="empty-icon">📐</div><p>加载失败: ' + e.message + '</p></div>';
+  }
+}
+
+async function viewSurveyDetail(sid) {
+  try {
+    const s = await api(`/surveys/${sid}`);
+    const rooms = JSON.parse(s.rooms_data || '[]');
+    let html = `<div class="card">
+      <div class="flex-between" style="margin-bottom:16px">
+        <div><h2>${s.name} <span class="tag tag-${s.status === 'completed' ? 'completed' : 'pending'}">${s.status === 'completed' ? '已完成' : '草稿'}</span></h2><div class="text-muted" style="font-size:0.75rem">${s.surveyor || '未指定'} · ${s.method} · ${s.wall_height}m层高</div></div>
+        <div><button class="btn btn-primary btn-sm" onclick="applySurveyToProject('${s.id}')">应用到项目</button> <button class="btn btn-secondary btn-sm" onclick="deleteSurvey('${s.id}')">删除</button></div>
+      </div>
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="stat-label">实测总面积</div><div class="stat-value">${s.total_area}㎡</div></div>
+        <div class="stat-card"><div class="stat-label">房间数</div><div class="stat-value">${rooms.length}</div></div>
+        <div class="stat-card"><div class="stat-label">层高</div><div class="stat-value">${s.wall_height}m</div></div>
+        <div class="stat-card"><div class="stat-label">备注</div><div class="stat-value" style="font-size:0.85rem">${s.notes || '-'}</div></div>
+      </div>
+      <table><thead><tr><th>房间</th><th>类型</th><th>宽(m)</th><th>长(m)</th><th>面积(㎡)</th><th>备注</th></tr></thead><tbody>
+      ${rooms.map(r => `<tr><td style="font-weight:500">${r.name}</td><td>${r.room_type}</td><td>${r.width}</td><td>${r.length}</td><td style="color:var(--accent-bright)">${r.area || (r.width * r.length).toFixed(2)}</td><td>${r.notes || '-'}</td></tr>`).join('')}
+      </tbody></table>
+    </div>`;
+    document.getElementById('surveyList').innerHTML = html + '<button class="btn btn-secondary btn-sm mt-12" onclick="loadSurveys()">← 返回列表</button>';
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+
+async function applySurveyToProject(sid) {
+  if (!confirm('将测量数据应用到项目楼层和房间？')) return;
+  try {
+    const res = await api(`/surveys/${sid}/apply`, { method: 'POST' });
+    alert(`已应用: 新增 ${res.added} 个房间, 更新 ${res.updated} 个, 总面积 ${res.total_area}㎡`);
+    loadSurveys();
+  } catch (e) { alert('应用失败: ' + e.message); }
+}
+
+async function deleteSurvey(sid) {
+  if (!confirm('确认删除该测量记录？')) return;
+  try {
+    await api(`/surveys/${sid}`, { method: 'DELETE' });
+    loadSurveys();
+  } catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// === VOICE GUIDE, DEVICE CHECK, CAMERA ===
+let voiceRecognition = null;
+let voiceIsActive = false;
+window._voiceHistory = '';
+let cameraStream = null;
+
+// ── Device Capability Detection ──
+async function toggleDevicePanel() {
+  const panel = document.getElementById('devicePanel');
+  if (panel.style.display === 'none' || !panel.style.display) {
+    panel.style.display = 'block';
+    await detectDeviceCapabilities();
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+async function detectDeviceCapabilities() {
+  const caps = [];
+  // browser info
+  caps.push(`<strong>🖥 浏览器:</strong> ${navigator.userAgentData?.platform || navigator.platform} · ${navigator.language}`);
+  
+  // touch support
+  caps.push(`<strong>👆 触控:</strong> ${('ontouchstart' in window || navigator.maxTouchPoints > 0) ? '✅ 支持 (多点触控)' : '❌ 不支持'}`);
+  
+  // screen
+  caps.push(`<strong>📐 屏幕:</strong> ${window.screen.width}×${window.screen.height} (${(window.devicePixelRatio || 1).toFixed(1)}x)`);
+  
+  // camera
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter(d => d.kind === 'videoinput');
+    caps.push(`<strong>📷 摄像头:</strong> ${cameras.length > 0 ? `✅ ${cameras.length}个可用` : '❌ 未检测到'}`);
+    // LiDAR-like: check for depth-capable cameras on mobile
+    const hasBackCamera = cameras.some(d => d.label.toLowerCase().includes('back') || d.label.includes('后'));
+    const isMobile = /iPhone|iPad|Android/.test(navigator.userAgent);
+    if (hasBackCamera && isMobile) {
+      caps.push(`<strong>🔬 LiDAR:</strong> ${/iPhone.*Pro|iPad.*Pro/.test(navigator.userAgent) ? '✅ 可能支持 (Pro 设备)' : '⚠️ 非 Pro 设备，可能需要手动测量'}`);
+    } else {
+      caps.push(`<strong>🔬 LiDAR:</strong> ❌ 桌面浏览器不支持 (需 iPad Pro / iPhone Pro)`);
+    }
+  } catch (e) {
+    caps.push(`<strong>📷 摄像头:</strong> ❌ 无权限或不可用`);
+    caps.push(`<strong>🔬 LiDAR:</strong> ❌ 未检测到`);
+  }
+  
+  // speech
+  const hasSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  caps.push(`<strong>🎤 语音:</strong> ${hasSpeech ? '✅ Web Speech API 可用' : '⚠️ 浏览器不支持 (推荐 Chrome/Edge)'}`);
+  
+  // orientation
+  caps.push(`<strong>📳 陀螺仪:</strong> ${window.DeviceOrientationEvent ? '✅ 支持方向检测' : '❌ 不支持'}`);
+  
+  // online
+  caps.push(`<strong>🌐 网络:</strong> ${navigator.onLine ? '✅ 在线' : '⚠️ 离线模式'}`);
+  
+  // get api device check supplement
+  try {
+    const devCheck = await api('/surveys/device-check');
+    window._deviceInfo = {
+      browser: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      cameras: (await navigator.mediaDevices?.enumerateDevices?.() || []).filter(d => d.kind === 'videoinput').length,
+      speech: hasSpeech,
+      touch: ('ontouchstart' in window),
+      timestamp: new Date().toISOString(),
+      api_info: devCheck
+    };
+  } catch (e) {
+    window._deviceInfo = { error: e.message };
+  }
+  
+  document.getElementById('deviceCapabilities').innerHTML = caps.join('<br>');
+}
+
+// ── Voice Guidance ──
+function startVoiceGuide() {
+  const panel = document.getElementById('voiceGuidePanel');
+  panel.style.display = 'block';
+  document.getElementById('voiceGuideBtn').textContent = '🔴 语音引导';
+  document.getElementById('voiceGuideBtn').style.color = 'var(--danger)';
+  initSpeechRecognition();
+}
+
+function stopVoiceGuide() {
+  voiceIsActive = false;
+  if (voiceRecognition) { voiceRecognition.stop(); voiceRecognition = null; }
+  document.getElementById('voiceGuidePanel').style.display = 'none';
+  document.getElementById('voiceGuideBtn').textContent = '🎤 语音引导';
+  document.getElementById('voiceGuideBtn').style.color = '';
+}
+
+function startVoiceGuideForForm() {
+  const panel = document.getElementById('voiceGuidePanel');
+  panel.style.display = 'block';
+  initSpeechRecognition();
+  measurementAgent.start();
+}
+
+function initSpeechRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('voiceTranscript').innerHTML = '<span style="color:var(--danger)">❌ 您的浏览器不支持语音识别，请使用 Chrome 或 Edge。</span>';
+    return;
+  }
+  voiceRecognition = new SR();
+  voiceRecognition.lang = 'zh-CN';
+  voiceRecognition.interimResults = false;
+  voiceRecognition.continuous = false;
+  voiceIsActive = true;
+  
+  voiceRecognition.onresult = function(event) {
+    const transcript = event.results[0][0].transcript.trim();
+    document.getElementById('voiceTranscript').innerHTML = `<strong>你说:</strong> "${transcript}"`;
+    measurementAgent.processInput(transcript);
+  };
+  
+  voiceRecognition.onerror = function(event) {
+    document.getElementById('voiceTranscript').innerHTML = `<span style="color:var(--danger)">语音错误: ${event.error}</span>`;
+    if (voiceIsActive) setTimeout(() => { try { voiceRecognition.start(); } catch(e) {} }, 1000);
+  };
+  
+  voiceRecognition.onend = function() {
+    // Agent 控制下一轮
+    if (voiceIsActive && measurementAgent._waitingForInput) {
+      setTimeout(() => { try { voiceRecognition.start(); } catch(e) {} }, 500);
+    }
+  };
+  
+  try { voiceRecognition.start(); } catch(e) {
+    document.getElementById('voiceTranscript').innerHTML = `<span style="color:var(--danger)">启动失败: ${e.message}</span>`;
+  }
+}
+
+// ── 测量智能体 (Measurement Agent) ──
+const measurementAgent = {
+  _step: 0,
+  _rooms: [],
+  _waitingForInput: false,
+  _expectedInput: 'greeting',
+  
+  speak(text) {
+    document.getElementById('voiceTranscript').innerHTML = `<strong>🤖 Agent:</strong> ${text}`;
+    // TTS 语音输出
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'zh-CN';
+      u.rate = 1.0;
+      u.pitch = 1.0;
+      window.speechSynthesis.speak(u);
+    }
+  },
+  
+  start() {
+    this._step = 0;
+    this._rooms = [];
+    showSurveyForm();
+    document.getElementById('surveyMethod').value = 'voice_guided';
+    document.getElementById('surveyRooms').innerHTML = '';
+    surveyRoomCount = 0;
+    this.greet();
+  },
+  
+  greet() {
+    this._waitingForInput = true;
+    this._expectedInput = 'greeting';
+    this.speak('你好！我是索克家居测量助手。我会引导你完成房间测量。准备好了吗？请说「开始」或者「准备好了」。');
+    if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+  },
+  
+  processInput(text) {
+    if (!text) return;
+    window._voiceHistory = (window._voiceHistory || '') + `\n${new Date().toLocaleTimeString()}: ${text}`;
+    
+    switch (this._expectedInput) {
+      case 'greeting':
+        if (/开始|好|是|嗯|OK|ok|ready|可以/.test(text)) {
+          this._waitingForInput = false;
+          this.askRoomName();
+        } else {
+          this.speak('请说「开始」来启动测量流程。');
+        }
+        break;
+        
+      case 'room_name':
+        this._waitingForInput = false;
+        this._currentRoom = this._parseRoomFromText(text);
+        if (this._currentRoom) {
+          this.addRoomToForm(this._currentRoom);
+          this.speak(`好的，${this._currentRoom.name} ${this._currentRoom.width}米×${this._currentRoom.length}米，面积${this._currentRoom.area}平方米。还有下一个房间吗？请说「下一个」继续或「完成」结束。`);
+          this._expectedInput = 'next_room';
+          this._waitingForInput = true;
+          if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+        } else {
+          this.speak(`我没有听清房间信息。请说出房间名称和尺寸，例如：「客厅 6米×7米」。`);
+          this._expectedInput = 'room_name';
+          this._waitingForInput = true;
+          if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+        }
+        return;
+        
+      case 'next_room':
+        if (/完成|结束|好了|没有了|保存|提交|完/.test(text)) {
+          this._waitingForInput = false;
+          this.completeSurvey();
+        } else if (/下一个|继续|还有|有|是|嗯|加/.test(text)) {
+          this._waitingForInput = false;
+          this.askRoomName();
+        } else {
+          // 可能是直接说了房间名
+          const room = this._parseRoomFromText(text);
+          if (room) {
+            this.addRoomToForm(room);
+            this.speak(`已添加${room.name}，${room.area}平方米。继续下一个？请说「完成」结束。`);
+            this._waitingForInput = true;
+            if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+          } else {
+            this.speak('请说「下一个」继续添加房间，或「完成」保存测量结果。');
+            this._waitingForInput = true;
+            if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+          }
+        }
+        break;
+    }
+  },
+  
+  _parseRoomFromText(text) {
+    const pattern = /(客厅|主卧|次卧|卧室|厨房|卫生间|书房|阳台|餐厅|走廊|玄关|储物间)[^\d]*(\d+(?:\.\d+)?)[^\d]*[×xX\*][^\d]*(\d+(?:\.\d+)?)/;
+    const m = text.match(pattern);
+    if (!m) return null;
+    const name = m[1], w = parseFloat(m[2]), l = parseFloat(m[3]);
+    const typeMap = {客厅:'living_room',主卧:'bedroom',次卧:'bedroom',卧室:'bedroom',厨房:'kitchen',卫生间:'bathroom',书房:'study',阳台:'balcony',餐厅:'dining_room',走廊:'hallway',玄关:'hallway',储物间:'study'};
+    return { name, room_type: typeMap[name] || 'bedroom', width: w, length: l, area: Math.round(w * l * 100) / 100 };
+  },
+  
+  addRoomToForm(room) {
+    surveyRoomCount++;
+    this._rooms.push(room);
+    const types = {living_room:'客厅',bedroom:'卧室',kitchen:'厨房',bathroom:'卫生间',study:'书房',balcony:'阳台'};
+    const opts = Object.entries(types).map(([k,v]) => `<option value="${k}" ${k === room.room_type ? 'selected' : ''}>${v}</option>`).join('');
+    const div = document.createElement('div');
+    div.className = 'card'; div.style.marginTop = '8px'; div.style.borderColor = 'var(--accent)';
+    div.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-weight:600">#${surveyRoomCount}</span>
+      <input class="input" style="max-width:100px" id="sroom_name_${surveyRoomCount}" value="${room.name}" readonly>
+      <select class="input" style="max-width:100px" id="sroom_type_${surveyRoomCount}">${opts}</select>
+      <input class="input" style="max-width:70px" type="number" id="sroom_w_${surveyRoomCount}" value="${room.width}" step="0.1" min="0.5" readonly>
+      <input class="input" style="max-width:70px" type="number" id="sroom_l_${surveyRoomCount}" value="${room.length}" step="0.1" min="0.5" readonly>
+      <span style="color:var(--accent-bright);font-weight:600">${room.area}㎡</span>
+      <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="this.parentElement.parentElement.remove()">✕</button>
+    </div>`;
+    document.getElementById('surveyRooms').appendChild(div);
+  },
+  
+  askRoomName() {
+    this._expectedInput = 'room_name';
+    this._waitingForInput = true;
+    const idx = this._rooms.length + 1;
+    this.speak(`第${idx}个房间。请说出房间名称和尺寸，例如「客厅 6米×7米」。`);
+    if (voiceRecognition) try { voiceRecognition.start(); } catch(e) {}
+  },
+  
+  completeSurvey() {
+    this._waitingForInput = false;
+    voiceIsActive = false;
+    if (voiceRecognition) { voiceRecognition.stop(); voiceRecognition = null; }
+    document.getElementById('voiceGuidePanel').style.display = 'none';
+    document.getElementById('voiceGuideBtn').textContent = '🎤 语音引导';
+    document.getElementById('voiceGuideBtn').style.color = '';
+    
+    const total = this._rooms.reduce((s, r) => s + r.area, 0);
+    this.speak(`测量完成！共${this._rooms.length}个房间，总面积${Math.round(total * 100) / 100}平方米。请检查并点击保存。`);
+    
+    // 延迟关闭 TTS，显示结果摘要
+    setTimeout(() => {
+      document.getElementById('voiceTranscript').innerHTML = `
+        <div style="color:var(--success);font-weight:600">✅ 测量完成</div>
+        <div>${this._rooms.length}个房间 · 总面积 ${Math.round(total * 100) / 100}㎡</div>
+        <div style="font-size:0.75rem;margin-top:4px">${this._rooms.map(r => `${r.name} ${r.width}×${r.length}=${r.area}㎡`).join(' | ')}</div>
+        <div class="mt-12"><button class="btn btn-primary btn-sm" onclick="createSurvey()">保存测量</button></div>
+      `;
+    }, 3000);
+  }
+};
+
+function startVoiceGuide() {
+  const panel = document.getElementById('voiceGuidePanel');
+  panel.style.display = 'block';
+  document.getElementById('voiceGuideBtn').textContent = '🔴 语音引导';
+  document.getElementById('voiceGuideBtn').style.color = 'var(--danger)';
+  initSpeechRecognition();
+  measurementAgent.start();
+}
+
+// ── Camera ──
+function toggleCameraPanel() {
+  const panel = document.getElementById('cameraPanel');
+  panel.style.display = panel.style.display === 'none' || !panel.style.display ? 'block' : 'none';
+  if (panel.style.display === 'block') startCamera();
+}
+
+async function startCamera() {
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    document.getElementById('cameraPreview').srcObject = cameraStream;
+  } catch (e) {
+    alert('无法打开摄像头: ' + e.message);
+  }
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraPreview');
+  const canvas = document.getElementById('cameraCanvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.style.width = '120px';
+  img.style.height = '90px';
+  img.style.objectFit = 'cover';
+  img.style.borderRadius = '4px';
+  document.getElementById('photoPreview').appendChild(img);
+  document.getElementById('voiceTranscript').innerHTML += '<br>📸 照片已拍摄，可作为测量参考';
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  document.getElementById('cameraPanel').style.display = 'none';
+}
+async function confirmSettlement() {
+  if (!selectedProjectId) return alert('请先选择项目');
+  if (!confirm('确认结算？')) return;
+  try {
+    await api(`/settlements/confirm/${selectedProjectId}`, { method: 'POST' });
+    loadSettlement();
+  } catch (e) { alert('确认失败: ' + e.message); }
+}
+</script>
+</body>
+</html>

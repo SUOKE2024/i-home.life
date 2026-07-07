@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "i-home.life 智能装修平台" },
+    { "name": "EntryAbility_desc", "value": "i-home.life 主入口" },
+    { "name": "EntryAbility_label", "value": "索克家居" }
+  ]
+}

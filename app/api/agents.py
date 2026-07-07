@@ -1,0 +1,537 @@
+import json
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.models.user import User
+from app.auth import get_current_user
+from app.agents.orchestrator import OrchestratorAgent
+from app.agents.designer import DesignerAgent
+from app.agents.budget import BudgetAgent
+from app.agents.procurement import ProcurementAgent
+from app.agents.construction import ConstructionAgent
+from app.agents.settlement import SettlementAgent
+from app.config import get_settings
+
+router = APIRouter(prefix="/agents", tags=["AI Agent"])
+
+
+class AgentMessage(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    agent_type: str = Field(default="orchestrator")
+    project_id: str | None = None
+
+
+class DesignRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    project_id: str | None = None
+    room_info: str | None = Field(None, description="房间信息（户型、面积等）")
+
+
+class CirculationAnalysisRequest(BaseModel):
+    rooms: list[dict] = Field(..., description="房间布局列表，含 name/type/x/y/w/h")
+
+
+class AgentResponse(BaseModel):
+    agent_type: str
+    reply: str
+    suggestions: list[str] = []
+
+
+class DesignPlanResponse(BaseModel):
+    agent_type: str = "designer"
+    space_planning: str = ""
+    style_suggestion: str = ""
+    circulation_analysis: str = ""
+    material_plan: str = ""
+    full_reply: str = ""
+
+
+class BudgetAnalysisResponse(BaseModel):
+    agent_type: str = "budget"
+    summary: str = ""
+    category_breakdown: str = ""
+    cost_saving_tips: str = ""
+    full_reply: str = ""
+
+
+class ProcurementAnalysisResponse(BaseModel):
+    agent_type: str = "procurement"
+    purchase_plan: str = ""
+    supplier_recommendation: str = ""
+    timeline: str = ""
+    full_reply: str = ""
+
+
+class ConstructionPlanResponse(BaseModel):
+    agent_type: str = "construction"
+    phases: str = ""
+    schedule: str = ""
+    quality_checklist: str = ""
+    full_reply: str = ""
+
+
+settings = get_settings()
+
+MOCK_MODE = not settings.deepseek_api_key
+
+
+@router.post("/chat", response_model=AgentResponse)
+async def chat_with_agent(
+    data: AgentMessage,
+    current_user: User = Depends(get_current_user),
+):
+    # Hybrid routing: LLM classify (with API key) or rule-based (mock mode)
+    agent = OrchestratorAgent()
+    try:
+        if MOCK_MODE:
+            classification = OrchestratorAgent.fallback_classify(data.message)
+        else:
+            classification = await agent.classify_intent(data.message)
+
+        intent = classification.get("intent", "general")
+        reasoning = classification.get("reasoning", "")
+
+        # Route to specialized agent based on intent
+        suggestions_map = {
+            "designer": ["调整方案", "查看材料清单", "不同风格对比"],
+            "budget": ["查看明细", "调整预算", "导出报表"],
+            "procurement": ["查看供应商", "发起询价", "生成订单"],
+            "construction": ["查看进度", "上传日志", "发起验收"],
+            "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
+        }
+
+        if intent in ("design",):
+            des_agent = DesignerAgent()
+            try:
+                if MOCK_MODE:
+                    layouts = await des_agent.generate_layouts(data.message)
+                    reply = layouts["reply"]
+                else:
+                    reply = await des_agent.think(data.message, f"用户: {current_user.name}")
+                return AgentResponse(agent_type="designer", reply=reply, suggestions=suggestions_map["designer"])
+            finally:
+                await des_agent.close()
+
+        elif intent in ("budget",):
+            bud_agent = BudgetAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_budget_summary(data.message) + "\n\n" + _mock_budget_breakdown() + "\n\n" + _mock_cost_saving()
+                else:
+                    reply = await bud_agent.think(data.message, f"{current_user.name}")
+                return AgentResponse(agent_type="budget", reply=reply, suggestions=suggestions_map["budget"])
+            finally:
+                await bud_agent.close()
+
+        elif intent in ("procurement",):
+            proc_agent = ProcurementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_purchase_plan() + "\n\n" + _mock_supplier_rec() + "\n\n" + _mock_procurement_timeline()
+                else:
+                    reply = await proc_agent.think(data.message, f"{current_user.name}")
+                return AgentResponse(agent_type="procurement", reply=reply, suggestions=suggestions_map["procurement"])
+            finally:
+                await proc_agent.close()
+
+        elif intent in ("construction",):
+            cons_agent = ConstructionAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
+                else:
+                    reply = await cons_agent.think(data.message, f"{current_user.name}")
+                return AgentResponse(agent_type="construction", reply=reply, suggestions=suggestions_map["construction"])
+            finally:
+                await cons_agent.close()
+
+        elif intent in ("settlement",):
+            sett_agent = SettlementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_settlement()
+                else:
+                    reply = await sett_agent.think(data.message, f"{current_user.name}")
+                return AgentResponse(agent_type="settlement", reply=reply, suggestions=["查看结算明细", "确认结算", "导出报表"])
+            finally:
+                await sett_agent.close()
+
+        else:
+            reply, suggestions = _mock_agent_reply(data.message, "orchestrator")
+            return AgentResponse(agent_type="orchestrator", reply=reply, suggestions=suggestions)
+    finally:
+        await agent.close()
+
+
+
+@router.post("/design", response_model=DesignPlanResponse)
+async def request_design(
+    data: DesignRequest,
+    current_user: User = Depends(get_current_user),
+):
+    agent = DesignerAgent()
+    try:
+        msg = data.message
+        if data.room_info:
+            msg = f"户型信息: {data.room_info}\n\n用户需求: {data.message}"
+
+        layouts = await agent.generate_layouts(msg)
+
+        return DesignPlanResponse(
+            space_planning=layouts["reply"],
+            style_suggestion=layouts["recommendation"],
+            circulation_analysis=" | ".join(layouts["materials"][:2]),
+            material_plan="\n".join(layouts["materials"]),
+            full_reply=json.dumps(layouts, ensure_ascii=False, indent=2),
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/design/circulation")
+async def analyze_circulation(
+    data: CirculationAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """F28 智能布局动线分析：访客/家务/居住三条动线评分 + 冲突检测 + 优化建议"""
+    agent = DesignerAgent()
+    try:
+        return agent.analyze_circulation(data.rooms)
+    finally:
+        await agent.close()
+
+
+@router.post("/budget", response_model=BudgetAnalysisResponse)
+async def analyze_budget(
+    data: AgentMessage,
+    current_user: User = Depends(get_current_user),
+):
+    if MOCK_MODE:
+        return BudgetAnalysisResponse(
+            summary=_mock_budget_summary(data.message),
+            category_breakdown=_mock_budget_breakdown(),
+            cost_saving_tips=_mock_cost_saving(),
+            full_reply="预算分析完成，请注意查看各项明细。",
+        )
+
+    agent = BudgetAgent()
+    try:
+        try:
+            reply = await agent.think(data.message, f"业主: {current_user.name}")
+        except Exception:
+            return BudgetAnalysisResponse(
+                summary=_mock_budget_summary(data.message),
+                category_breakdown=_mock_budget_breakdown(),
+                cost_saving_tips=_mock_cost_saving(),
+                full_reply="预算分析完成（LLM 不可用，使用预置模板）。",
+            )
+        return BudgetAnalysisResponse(
+            summary=reply,
+            category_breakdown=reply,
+            cost_saving_tips=reply,
+            full_reply=reply,
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/procurement", response_model=ProcurementAnalysisResponse)
+async def analyze_procurement(
+    data: AgentMessage,
+    current_user: User = Depends(get_current_user),
+):
+    if MOCK_MODE:
+        return ProcurementAnalysisResponse(
+            purchase_plan=_mock_purchase_plan(),
+            supplier_recommendation=_mock_supplier_rec(),
+            timeline=_mock_procurement_timeline(),
+            full_reply="采购分析完成，请查看推荐方案。",
+        )
+
+    agent = ProcurementAgent()
+    try:
+        try:
+            reply = await agent.think(data.message, f"采购经理: {current_user.name}")
+        except Exception:
+            return ProcurementAnalysisResponse(
+                purchase_plan=_mock_purchase_plan(),
+                supplier_recommendation=_mock_supplier_rec(),
+                timeline=_mock_procurement_timeline(),
+                full_reply="采购分析完成（LLM 不可用，使用预置模板）。",
+            )
+        return ProcurementAnalysisResponse(
+            purchase_plan=reply,
+            supplier_recommendation=reply,
+            timeline=reply,
+            full_reply=reply,
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/construction", response_model=ConstructionPlanResponse)
+async def plan_construction(
+    data: AgentMessage,
+    current_user: User = Depends(get_current_user),
+):
+    if MOCK_MODE:
+        return ConstructionPlanResponse(
+            phases=_mock_phases(),
+            schedule=_mock_schedule(),
+            quality_checklist=_mock_quality(),
+            full_reply="施工计划已生成，请查看各阶段详情。",
+        )
+
+    agent = ConstructionAgent()
+    try:
+        try:
+            reply = await agent.think(data.message, f"工长: {current_user.name}")
+        except Exception:
+            return ConstructionPlanResponse(
+                phases=_mock_phases(),
+                schedule=_mock_schedule(),
+                quality_checklist=_mock_quality(),
+                full_reply="施工计划已生成（LLM 不可用，使用预置模板）。",
+            )
+        return ConstructionPlanResponse(
+            phases=reply,
+            schedule=reply,
+            quality_checklist=reply,
+            full_reply=reply,
+        )
+    finally:
+        await agent.close()
+
+
+def _mock_agent_reply(message: str, agent_type: str) -> tuple[str, list[str]]:
+    kw_map = {
+        "设计": "orchestrator",
+        "布局": "orchestrator",
+        "方案": "orchestrator",
+        "户型": "orchestrator",
+        "预算": "budget",
+        "价格": "budget",
+        "费用": "budget",
+        "成本": "budget",
+        "采购": "procurement",
+        "材料": "procurement",
+        "建材": "procurement",
+        "供应商": "procurement",
+        "施工": "construction",
+        "进度": "construction",
+        "验收": "construction",
+        "质检": "construction",
+    }
+    matched = agent_type
+    for kw, at in kw_map.items():
+        if kw in message:
+            matched = at
+            break
+
+    replies = {
+        "budget": (
+            "💰 **预算分析**\n\n"
+            "根据您提供的项目信息，我来帮您做个预算框架：\n\n"
+            "**装修等级估算**\n"
+            "- 经济型（800-1200/㎡）：适合出租/简装\n"
+            "- 舒适型（1200-2000/㎡）：推荐自住选择\n"
+            "- 品质型（2000-3500/㎡）：品牌材料、定制化\n\n"
+            "**分项预算参考**\n"
+            "- 硬装（水电+墙面+地面）：约 40-50%\n"
+            "- 定制柜体：约 15-20%\n"
+            "- 软装+家电：约 30-40%\n\n"
+            "建议您先确定装修等级，我可以帮您细化每个分项。"
+        ),
+        "procurement": (
+            "🛒 **采购分析**\n\n"
+            "根据项目物料清单，为您规划采购方案：\n\n"
+            "**第一阶段（开工前）**\n"
+            "- 水电材料：电线、水管、开关暗盒\n"
+            "- 防水材料：防水涂料\n\n"
+            "**第二阶段（水电后）**\n"
+            "- 瓷砖/地板：确认花色和用量\n"
+            "- 橱柜方案：复尺后下单\n\n"
+            "**第三阶段（油漆后）**\n"
+            "- 卫浴洁具安装\n"
+            "- 灯具/开关面板安装\n\n"
+            "建议按施工进度分批采购，避免过早采购占用资金和空间。"
+        ),
+        "construction": (
+            "🔨 **施工计划**\n\n"
+            "标准施工流程共 8 个阶段：\n\n"
+            "1. **准备阶段**（2-5天）：办理许可、材料进场\n"
+            "2. **拆改阶段**（3-7天）：墙体拆改\n"
+            "3. **水电阶段**（5-10天）：管线敷设\n"
+            "4. **泥瓦阶段**（7-15天）：防水、贴砖\n"
+            "5. **木工阶段**（5-10天）：吊顶、柜体\n"
+            "6. **油漆阶段**（7-10天）：墙面处理\n"
+            "7. **安装阶段**（5-7天）：灯具、卫浴\n"
+            "8. **验收阶段**（2-3天）：全面验收\n\n"
+            "预计总工期约 40-60 天。需要我为您的项目生成详细排期吗？"
+        ),
+        "orchestrator": (
+            "您好！我是索克家居的 AI 总控 Agent。\n\n"
+            "我可以帮您：\n"
+            "🏠 **设计规划** - 智能生成平面布局和效果图\n"
+            "💰 **预算管理** - 成本估算和预算跟踪\n"
+            "🛒 **物料采购** - BOM 生成、供应商匹配\n"
+            "🔨 **施工管理** - 进度跟踪、质检报告\n\n"
+            "请告诉我您需要什么帮助？"
+        ),
+    }
+
+    suggestions = {
+        "budget": ["查看明细", "调整预算", "导出报表"],
+        "procurement": ["查看供应商", "发起询价", "生成订单"],
+        "construction": ["查看进度", "上传日志", "发起验收"],
+        "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
+    }
+    return replies.get(matched, replies["orchestrator"]), suggestions.get(matched, suggestions["orchestrator"])
+
+
+def _mock_design_plan(message: str, room_info: str | None) -> dict:
+    return {
+        "space_planning": (
+            "**空间规划建议**\n\n"
+            "1. 客厅区域：建议采用客餐厅一体化设计，增加空间通透感。\n"
+            "2. 卧室布局：主卧配备独立衣帽间，次卧可考虑多功能房设计。\n"
+            "3. 厨房规划：推荐 L 型或 U 型布局，最大化操作台面。\n"
+            "4. 卫生间：干湿分离是现在的标配，建议三分离设计。"
+        ),
+        "style_suggestion": (
+            "**风格建议**\n\n"
+            "当代主流装修风格对比：\n"
+            "- **现代简约**：简洁线条、中性色调，适合小户型\n"
+            "- **北欧风**：温暖木材、柔和色彩，性价比高\n"
+            "- **日式侘寂**：原木、白墙、留白艺术\n"
+            "- **轻奢风**：金属点缀、大理石、深色系\n\n"
+            "推荐：现代简约 + 原木点缀，兼顾美观与预算。"
+        ),
+        "circulation_analysis": (
+            "**动线分析**\n\n"
+            "1. 访客动线：玄关 → 客厅 → 餐厅 → 客卫，避免经过卧室区\n"
+            "2. 家务动线：厨房 → 餐厅，洗衣 → 晾晒，路径最短\n"
+            "3. 卧室动线：卧室 → 卫生间 → 衣帽间，形成便捷三角\n\n"
+            "优化建议：客餐厅之间避免隔断，保持视线和动线通畅。"
+        ),
+        "material_plan": (
+            "**材料清单推荐**\n\n"
+            "| 区域 | 地面 | 墙面 | 顶面 |\n"
+            "|------|------|------|------|\n"
+            "| 客厅 | 750×1500 大板砖 | 乳胶漆/艺术漆 | 无主灯吊顶 |\n"
+            "| 卧室 | 木地板 | 乳胶漆/墙布 | 石膏线 |\n"
+            "| 厨房 | 防滑砖 | 400×800 墙砖 | 铝扣板 |\n"
+            "| 卫生间 | 防滑砖 | 300×600 墙砖 | 铝扣板 |"
+        ),
+        "full_reply": "设计方案已生成，请查看各板块详情。如需调整，请随时告诉我。",
+    }
+
+
+def _mock_budget_summary(message: str) -> str:
+    return "根据您的项目信息，预估总预算约 18-25 万元（舒适型装修）。详细分项如下："
+
+
+def _mock_budget_breakdown() -> str:
+    return (
+        "**分项预算明细**\n\n"
+        "| 项目 | 预估金额 |\n"
+        "|------|---------|\n"
+        "| 硬装（水电+墙面+地面） | 90,000-110,000 |\n"
+        "| 定制柜体（橱柜+衣柜） | 35,000-45,000 |\n"
+        "| 软装（家具+窗帘+灯具） | 40,000-50,000 |\n"
+        "| 家电设备 | 25,000-35,000 |\n"
+        "| 管理费+其他 | 10,000-15,000 |"
+    )
+
+
+def _mock_cost_saving() -> str:
+    return (
+        "**省钱技巧**\n"
+        "1. 瓷砖/地板：工厂直购省 15-20%\n"
+        "2. 灯具：线上采购省 30%+\n"
+        "3. 窗帘：辅材配件费用容易忽视，注意对比\n"
+        "4. 家电：618/双11 批量采购，一套省 3000-5000"
+    )
+
+
+def _mock_purchase_plan() -> str:
+    return (
+        "**采购计划**\n\n"
+        "按施工阶段分批采购，避免资金积压和材料损耗。\n"
+        "第一阶段（开工）→ 水电材料\n"
+        "第二阶段（水电后）→ 瓷砖、防水\n"
+        "第三阶段（泥瓦后）→ 定制柜、门\n"
+        "第四阶段（油漆后）→ 卫浴、灯具、家电"
+    )
+
+
+def _mock_supplier_rec() -> str:
+    return (
+        "**推荐供应商**\n\n"
+        "- 瓷砖：东鹏、马可波罗（工厂直发）\n"
+        "- 地板：圣象、大自然\n"
+        "- 橱柜：欧派、索菲亚\n"
+        "- 卫浴：科勒、TOTO\n"
+        "- 家电：京东自营/天猫旗舰"
+    )
+
+
+def _mock_procurement_timeline() -> str:
+    return "采购周期预计 30-45 天，关键节点：开工前 7 天确认水电材料，开工后 10 天确认瓷砖花色，开工后 20 天橱柜复尺下单。"
+
+
+def _mock_phases() -> str:
+    return (
+        "**施工阶段**（总工期约 45 天）\n\n"
+        "1. 准备阶段：Day 1-3\n"
+        "2. 拆改阶段：Day 4-8\n"
+        "3. 水电阶段：Day 9-18\n"
+        "4. 泥瓦阶段：Day 19-32\n"
+        "5. 木工阶段：Day 26-35（可与泥瓦交叉）\n"
+        "6. 油漆阶段：Day 33-40\n"
+        "7. 安装阶段：Day 40-43\n"
+        "8. 验收阶段：Day 44-45"
+    )
+
+
+def _mock_schedule() -> str:
+    return (
+        "**关键里程碑**\n\n"
+        "✅ Day 3：装修许可 & 材料进场\n"
+        "✅ Day 8：拆改完成，垃圾清运\n"
+        "✅ Day 18：水电验收（打压测试+线路测试）\n"
+        "✅ Day 32：防水闭水试验 & 瓷砖铺贴完成\n"
+        "✅ Day 40：油漆完成，等待安装\n"
+        "✅ Day 45：竣工验收"
+    )
+
+
+def _mock_settlement() -> str:
+    return (
+        "⏣ **结算分析**\n\n"
+        "根据项目进度，为您梳理结算情况：\n\n"
+        "**结算公式**\n"
+        "应付金额 = 合同金额 + 变更金额 - 扣款金额 - 已付金额\n\n"
+        "**结算里程碑**\n"
+        "1. 交房节点：支付 30%（约 50,000-75,000 元）\n"
+        "2. 水电验收：支付 20%（约 35,000-50,000 元）\n"
+        "3. 泥瓦验收：支付 25%（约 45,000-65,000 元）\n"
+        "4. 竣工验收：支付 20%（约 35,000-50,000 元）\n"
+        "5. 保修期满：支付 5%（约 8,000-12,500 元）\n\n"
+        "建议每阶段验收合格后再付款，保留尾款作为质量保障。"
+    )
+
+
+def _mock_quality() -> str:
+    return (
+        "**质检检查清单**\n\n"
+        "- 水电：水管打压 0.8MPa 半小时不掉压\n"
+        "- 防水：闭水试验 48h 无渗漏\n"
+        "- 瓷砖：空鼓率 < 5%\n"
+        "- 墙面：平整度 2m 靠尺 ≤ 3mm\n"
+        "- 木工：柜体对角线偏差 ≤ 2mm\n"
+        "- 油漆：无色差、无流坠、无漏刷"
+    )

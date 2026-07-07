@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 · 统一设计台</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root{--bg:#12121d;--panel:#1a1a2e;--border:#2a2a45;--text:#e0e0e0;--accent:#c9973b;--muted:#5a5866}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh;font-size:14px}
+#app{display:flex;height:100vh}
+#sidebar{width:240px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sh{padding:14px 14px;border-bottom:1px solid var(--border)}
+.sh h1{font-size:1.1rem;color:var(--accent)}
+.sh .sub{font-size:0.6rem;color:var(--muted);letter-spacing:0.1em;margin-top:2px}
+.sc{padding:12px 14px;border-bottom:1px solid var(--border)}
+.sc h3{font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
+.tg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+.tb{padding:8px 4px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--text);cursor:pointer;font-size:0.6rem;text-align:center;font-family:inherit;transition:all 0.12s}
+.tb:hover{border-color:var(--accent);background:rgba(201,151,59,0.08)}
+.tb.active{border-color:var(--accent);background:rgba(201,151,59,0.15);color:var(--accent)}
+.vg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.lg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+#main{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
+#toolbar{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--panel);flex-wrap:wrap}
+#toolbar button{padding:6px 12px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--text);cursor:pointer;font-size:0.7rem;font-family:inherit}
+#toolbar button.active{background:var(--accent);color:#111;border-color:var(--accent)}
+#canvas-area{flex:1;display:flex}
+#canvas-2d-wrap{flex:1;position:relative;border-right:1px solid var(--border)}
+#canvas-3d-wrap{flex:1;position:relative}
+#canvas-2d-wrap canvas,#canvas-3d-wrap canvas{display:block;width:100%;height:100%}
+#status{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:6px;font-size:0.65rem;color:var(--muted);z-index:5}
+#ai-input{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;width:420px;max-width:90%}
+#ai-input input{flex:1;padding:8px 12px;border:1px solid var(--accent);border-radius:6px;background:rgba(18,18,29,0.95);color:var(--text);font-size:0.75rem;font-family:inherit}
+#ai-input button{padding:8px 14px;border:none;border-radius:6px;background:var(--accent);color:#111;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit}
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column}
+.spinner{width:32px;height:32px;border:2px solid #333;border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="loading"><div class="spinner"></div><span style="font-size:0.7rem;color:var(--muted)">加载中...</span></div>
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div class="sh"><h1>设计台</h1><div class="sub">2D CAD + 实时 3D</div></div>
+    <div class="sc"><h3>📐 工具</h3><div class="tg" id="cadTools"></div></div>
+    <div class="sc"><h3>💡 光照</h3><div class="vg" id="lightBtns"></div></div>
+    <div class="sc"><h3>🎨 材质</h3><div class="vg" id="matBtns"></div></div>
+    <div class="sc"><h3>🔍 3D 视角</h3><div class="vg" id="viewBtns"></div></div>
+    <div class="sc"><h3>📏 参数</h3>
+      <label style="font-size:0.6rem;color:var(--muted)">墙高 <span id="whVal">2.8m</span></label>
+      <input type="range" min="2.4" max="4.0" step="0.1" value="2.8" id="wallH">
+      <label style="font-size:0.6rem;color:var(--muted);margin-top:4px">网格吸附 <span id="gridVal">0.5m</span></label>
+      <input type="range" min="0.1" max="1.0" step="0.1" value="0.5" id="gridSnap">
+    </div>
+    <div class="sc">
+      <button onclick="savePlan()" style="width:100%;padding:8px;border:1px solid var(--accent);border-radius:4px;background:0;color:var(--accent);cursor:pointer;font-size:0.65rem;font-family:inherit">💾 保存户型</button>
+      <button onclick="loadPlan()" style="width:100%;padding:6px;margin-top:4px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--muted);cursor:pointer;font-size:0.65rem;font-family:inherit">📂 加载方案</button>
+      <button onclick="exportData()" style="width:100%;padding:6px;margin-top:4px;border:1px solid var(--accent);border-radius:4px;background:0;color:var(--accent);cursor:pointer;font-size:0.65rem;font-family:inherit">📤 导出 JSON + DXF</button>
+      <button onclick="resetAll()" style="width:100%;padding:6px;margin-top:4px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--muted);cursor:pointer;font-size:0.65rem;font-family:inherit">🔄 重置</button>
+    </div>
+  </div>
+  <div id="main">
+    <div id="toolbar">
+      <button class="active" data-mode="split">◫ 2D | 3D</button>
+      <button data-mode="2d">◫ 2D 全屏</button>
+      <button data-mode="3d">◫ 3D 全屏</button>
+      <span style="color:var(--muted);font-size:0.65rem;margin-left:8px;display:flex;align-items:center">正交:<span id="orthoBadge" style="color:var(--accent)">ON</span></span>
+      <span style="color:var(--muted);font-size:0.65rem;margin-left:4px;display:flex;align-items:center">捕捉:<span id="snapBadge" style="color:var(--accent)">ON</span></span>
+    </div>
+    <div id="canvas-area">
+      <div id="canvas-2d-wrap"><canvas id="c2d"></canvas><div id="status"></div></div>
+      <div id="canvas-3d-wrap"><canvas id="c3d" style="display:block"></canvas></div>
+    </div>
+    <div id="ai-input">
+      <button onclick="startVoice()" style="padding:8px 10px;border:none;border-radius:6px;background:var(--accent);color:#111;cursor:pointer;font-size:0.7rem;font-weight:600;font-family:inherit" title="语音输入">🎤</button>
+      <input id="aiCmd" placeholder="AI: 添加客厅 5×4 / 删除墙 / 生成户型 / 保存...">
+      <button onclick="execAI()">✨</button>
+    </div>
+  </div>
+</div>
+<script>
+// === DATA MODEL ===
+const PX_PER_M = 40;
+let elements = [];
+let rooms = [];
+let tool = 'rect';
+let orthoLock = true, snapGrid = 0.5;
+let wallHeight = 2.8;
+let currentLight = 'day', currentMat = 'white';
+let scale2d = 1, offset2d = {x:250,y:80};
+
+// === 2D CANVAS ===
+const c2d = document.getElementById('c2d');
+const ctx = c2d.getContext('2d');
+let drawing = null, dragTarget = null, dragStart = null;
+let panStart2d = null, panOrig = null;
+
+const roomColors = {living_room:'#f5e6d3',dining_room:'#e8f0e3',bedroom:'#e3e8f0',kitchen:'#f0e8e0',bathroom:'#d8e8f0',study:'#e8e0f0',balcony:'#e0f0e0',hallway:'#f0f0f0'};
+
+function resize2D(){
+  const w = document.getElementById('canvas-2d-wrap').clientWidth;
+  const h = document.getElementById('canvas-2d-wrap').clientHeight;
+  c2d.width = w; c2d.height = h;
+  draw2D();
+}
+
+function toWorld(cx,cy){return{x:(cx/scale2d-offset2d.x)/PX_PER_M,y:(cy/scale2d-offset2d.y)/PX_PER_M};}
+function snap(v){return snapGrid>0?Math.round(v/snapGrid)*snapGrid:v;}
+function snapPoint(wp){
+  if(snapGrid<=0)return wp;
+  let sx=snap(wp.x),sy=snap(wp.y);
+  for(const el of elements){
+    for(const sp of snapPoints(el)){
+      if(Math.abs(sp.x-sx)<0.4&&Math.abs(sp.y-sy)<0.4)return sp;
+    }
+  }
+  return {x:sx,y:sy};
+}
+function snapPoints(el){
+  if(el.type==='rect')return[{x:el.x,y:el.y},{x:el.x+el.w,y:el.y},{x:el.x+el.w,y:el.y+el.h},{x:el.x,y:el.y+el.h},{x:el.x+el.w/2,y:el.y+el.h/2}];
+  return [{x:el.x1,y:el.y1},{x:el.x2,y:el.y2},{x:(el.x1+el.x2)/2,y:(el.y1+el.y2)/2}];
+}
+
+function hitTest(wx,wy){
+  for(let i=elements.length-1;i>=0;i--){
+    const e=elements[i];
+    if(e.type==='rect'){if(wx>=e.x&&wx<=e.x+e.w&&wy>=e.y&&wy<=e.y+e.h)return i;}
+    if(e.type==='line'){const d=distToSeg(wx,wy,e.x1,e.y1,e.x2,e.y2);if(d<0.3)return i;}
+  }
+  return -1;
+}
+function distToSeg(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,len2=dx*dx+dy*dy;
+  if(len2===0)return Math.hypot(px-ax,py-ay);
+  let t=((px-ax)*dx+(py-ay)*dy)/len2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+function draw2D(){
+  ctx.clearRect(0,0,c2d.width,c2d.height);
+  ctx.save();
+  ctx.translate(offset2d.x*scale2d,offset2d.y*scale2d);
+  const gs=PX_PER_M*scale2d;
+  ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=0.5;
+  for(let x=-20*gs;x<c2d.width*2;x+=gs){ctx.beginPath();ctx.moveTo(x,-2000);ctx.lineTo(x,10000);ctx.stroke();}
+  for(let y=-20*gs;y<c2d.height*2;y+=gs){ctx.beginPath();ctx.moveTo(-2000,y);ctx.lineTo(10000,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
+  for(let x=-20*gs;x<c2d.width*2;x+=gs*5){ctx.beginPath();ctx.moveTo(x,-2000);ctx.lineTo(x,10000);ctx.stroke();}
+  for(let y=-20*gs;y<c2d.height*2;y+=gs*5){ctx.beginPath();ctx.moveTo(-2000,y);ctx.lineTo(10000,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(0,-2000);ctx.lineTo(0,10000);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-2000,0);ctx.lineTo(10000,0);ctx.stroke();
+
+  elements.forEach(e=>{
+    if(e.type==='rect'){
+      const x=e.x*PX_PER_M,y=e.y*PX_PER_M,w=e.w*PX_PER_M,h=e.h*PX_PER_M;
+      ctx.fillStyle=roomColors[e.roomType]||'rgba(240,236,230,0.6)';
+      ctx.fillRect(x,y,w,h);
+      ctx.strokeStyle='#2c2416';ctx.lineWidth=2*scale2d;
+      ctx.strokeRect(x,y,w,h);
+      ctx.fillStyle='#2c2416';ctx.font=`${11*scale2d}px 'DM Sans',sans-serif`;ctx.textAlign='center';
+      ctx.fillText(e.name||'',x+w/2,y+h/2);
+      ctx.fillStyle='#888';ctx.font=`${8*scale2d}px 'DM Sans',sans-serif`;
+      ctx.fillText((e.w*e.h).toFixed(1)+'㎡',x+w/2,y+h/2+12*scale2d);
+
+      // Snap indicators
+      const pts=snapPoints(e);
+      pts.forEach(p=>{ctx.fillStyle='#c9973b';ctx.beginPath();ctx.arc(p.x*PX_PER_M,p.y*PX_PER_M,3*scale2d,0,Math.PI*2);ctx.fill();});
+    }
+    if(e.type==='line'){
+      ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=2*scale2d;
+      ctx.beginPath();ctx.moveTo(e.x1*PX_PER_M,e.y1*PX_PER_M);ctx.lineTo(e.x2*PX_PER_M,e.y2*PX_PER_M);ctx.stroke();
+    }
+  });
+
+  if(drawing&&drawing.type==='rect'){
+    const x=Math.min(drawing.x1,drawing.x2)*PX_PER_M,y=Math.min(drawing.y1,drawing.y2)*PX_PER_M;
+    const w=Math.abs(drawing.x2-drawing.x1)*PX_PER_M,h=Math.abs(drawing.y2-drawing.y1)*PX_PER_M;
+    ctx.strokeStyle='rgba(201,151,59,0.7)';ctx.lineWidth=1.5*scale2d;ctx.setLineDash([4*scale2d,4*scale2d]);
+    ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);
+    ctx.fillStyle='rgba(201,151,59,0.1)';ctx.fillRect(x,y,w,h);
+  }
+  if(drawing&&drawing.type==='line'){
+    ctx.strokeStyle='rgba(201,151,59,0.8)';ctx.lineWidth=2*scale2d;ctx.setLineDash([4*scale2d,4*scale2d]);
+    ctx.beginPath();ctx.moveTo(drawing.x1*PX_PER_M,drawing.y1*PX_PER_M);
+    ctx.lineTo(drawing.x2*PX_PER_M,drawing.y2*PX_PER_M);ctx.stroke();ctx.setLineDash([]);
+  }
+  ctx.restore();
+  document.getElementById('status').textContent=`${elements.length} 元素 | 正交:${orthoLock?'ON':'OFF'} | 捕捉:${snapGrid}m | 缩放:${(scale2d*100).toFixed(0)}%`;
+}
+
+// 2D Events
+c2d.addEventListener('mousedown',e=>{
+  const rect=c2d.getBoundingClientRect();
+  const wp=snapPoint(toWorld(e.clientX-rect.left,e.clientY-rect.top));
+  if(tool==='rect'){drawing={type:'rect',x1:wp.x,y1:wp.y,x2:wp.x,y2:wp.y};}
+  else if(tool==='line'){drawing={type:'line',x1:wp.x,y1:wp.y,x2:wp.x,y2:wp.y};}
+  else if(tool==='delete'){const hit=hitTest(wp.x,wp.y);if(hit>=0){elements.splice(hit,1);sync3D();draw2D();}}
+  else if(tool==='move'){const hit=hitTest(wp.x,wp.y);if(hit>=0){dragTarget=elements[hit];dragStart=wp;dragOrig={x:dragTarget.x,y:dragTarget.y};}}
+});
+c2d.addEventListener('mousemove',e=>{
+  const rect=c2d.getBoundingClientRect();
+  const wp=toWorld(e.clientX-rect.left,e.clientY-rect.top);
+  if(dragTarget&&tool==='move'){
+    const dx=snap(wp.x-dragStart.x),dy=snap(wp.y-dragStart.y);
+    dragTarget.x=dragOrig.x+dx;dragTarget.y=dragOrig.y+dy;
+    if(dragTarget.type==='rect'){dragTarget.x1=dragTarget.x;dragTarget.y1=dragTarget.y;dragTarget.x2=dragTarget.x+dragTarget.w;dragTarget.y2=dragTarget.y+dragTarget.h;}
+    draw2D();
+  }else if(drawing){
+    if(orthoLock){
+      const dx=wp.x-drawing.x1,dy=wp.y-drawing.y1;
+      if(Math.abs(dx)>Math.abs(dy)*2)wp.y=drawing.y1;
+      else if(Math.abs(dy)>Math.abs(dx)*2)wp.x=drawing.x1;
+    }
+    drawing.x2=snap(wp.x);drawing.y2=snap(wp.y);
+    draw2D();
+  }
+});
+c2d.addEventListener('mouseup',()=>{
+  if(dragTarget){dragTarget=null;dragStart=null;draw2D();sync3D();return;}
+  if(!drawing)return;
+  if(drawing.type==='rect'){
+    const x=Math.min(drawing.x1,drawing.x2),y=Math.min(drawing.y1,drawing.y2);
+    const w=Math.abs(drawing.x2-drawing.x1),h=Math.abs(drawing.y2-drawing.y1);
+    if(w>0.3&&h>0.3){
+      const el={type:'rect',x,y,w,h,name:'房间',roomType:'living_room',x1:x,y1:y,x2:x+w,y2:y+h};
+      elements.push(el);rooms.push({name:'房间',type:'living_room',w,h,area:w*h});
+    }
+  }
+  if(drawing.type==='line'){
+    const dx=Math.abs(drawing.x2-drawing.x1),dy=Math.abs(drawing.y2-drawing.y1);
+    if(dx>0.1||dy>0.1){
+      elements.push({type:'line',x1:drawing.x1,y1:drawing.y1,x2:drawing.x2,y2:drawing.y2,
+        x:Math.min(drawing.x1,drawing.x2),y:Math.min(drawing.y1,drawing.y2),
+        w:Math.abs(drawing.x2-drawing.x1),h:Math.abs(drawing.y2-drawing.y1),name:'隔墙',isWall:true});
+    }
+  }
+  drawing=null;draw2D();sync3D();
+});
+c2d.addEventListener('wheel',e=>{e.preventDefault();scale2d=Math.max(0.2,Math.min(4,scale2d+e.deltaY*-0.001));draw2D();});
+c2d.addEventListener('contextmenu',e=>e.preventDefault());
+c2d.addEventListener('mousedown',function(e){if(e.button===2){panStart2d={x:e.clientX,y:e.clientY};panOrig={x:offset2d.x,y:offset2d.y};}});
+window.addEventListener('mousemove',function(e){if(panStart2d){offset2d.x=panOrig.x+(e.clientX-panStart2d.x)/scale2d;offset2d.y=panOrig.y+(e.clientY-panStart2d.y)/scale2d;draw2D();}});
+window.addEventListener('mouseup',function(){panStart2d=null;});
+
+// === 3D ENGINE ===
+let scene,camera,renderer3d,controls3d,clock3d;
+let meshWalls=[],meshFloors=[];
+let fpsFrames=0,fpsLast=performance.now();
+
+function init3D(){
+  const wrap=document.getElementById('canvas-3d-wrap');
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x1a1a2e);
+  camera=new THREE.PerspectiveCamera(60,wrap.clientWidth/wrap.clientHeight,0.1,100);
+  camera.position.set(10,8,12);camera.lookAt(5,1.4,5);
+  renderer3d=new THREE.WebGLRenderer({antialias:true,canvas:document.getElementById('c3d')});
+  renderer3d.setSize(wrap.clientWidth,wrap.clientHeight);renderer3d.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer3d.shadowMap.enabled=true;
+  controls3d=new THREE.OrbitControls(camera,renderer3d.domElement);
+  controls3d.enableDamping=true;controls3d.dampingFactor=0.1;controls3d.target.set(5,1.4,5);controls3d.update();
+  clock3d=new THREE.Clock();
+  window.addEventListener('resize',()=>{resize2D();resize3D();});
+  setupLights('day');
+  animate3D();
+}
+function resize3D(){
+  const wrap=document.getElementById('canvas-3d-wrap');
+  camera.aspect=wrap.clientWidth/wrap.clientHeight;camera.updateProjectionMatrix();
+  renderer3d.setSize(wrap.clientWidth,wrap.clientHeight);
+}
+function setupLights(preset){
+  scene.children=scene.children.filter(c=>!c.isLight);
+  scene.background=new THREE.Color(preset==='night'?0x0a0a1a:0x1a1a2e);
+  const amb=new THREE.AmbientLight(0x404060,preset==='night'?0.3:0.6);scene.add(amb);
+  if(preset==='day'){
+    const sun=new THREE.DirectionalLight(0xffeedd,1.2);sun.position.set(15,20,5);
+    sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+    scene.add(sun);scene.add(new THREE.HemisphereLight(0x87ceeb,0x444422,0.4));
+  }else if(preset==='night'){
+    scene.add(new THREE.DirectionalLight(0x4466aa,0.4).position.set(-5,15,-5));
+  }else if(preset==='warm'){
+    scene.add(new THREE.DirectionalLight(0xffcc88,0.9).position.set(10,12,5));
+    scene.add(new THREE.HemisphereLight(0xffaa66,0x554422,0.5));
+  }
+}
+function sync3D(){
+  meshWalls.forEach(w=>scene.remove(w));meshFloors.forEach(f=>scene.remove(f));
+  meshWalls=[];meshFloors=[];
+  const mat={wall:currentMat==='wood'?0xd4b896:currentMat==='tile'?0xd8d4ce:currentMat==='concrete'?0xb0aca8:0xe8e0d8,
+             floor:currentMat==='wood'?0x8b6914:currentMat==='tile'?0xd0ccc6:currentMat==='concrete'?0x8a8782:0xc8b89a};
+  elements.forEach((el,i)=>{
+    if(el.type!=='rect')return;
+    const x=el.x,y=el.y,w=el.w,d=el.h;
+    // Floor
+    const fg=new THREE.PlaneGeometry(w,d);
+    const fm=new THREE.MeshStandardMaterial({color:mat.floor,roughness:0.6});
+    const floor=new THREE.Mesh(fg,fm);floor.rotation.x=-Math.PI/2;
+    floor.position.set(x+w/2,0.01,y+d/2);floor.receiveShadow=true;
+    scene.add(floor);meshFloors.push(floor);
+
+    // Room floor colors
+    const rg=new THREE.PlaneGeometry(w-0.02,d-0.02);
+    const rm=new THREE.MeshStandardMaterial({color:roomColors[el.roomType]||0xf0ece6,roughness:0.5});
+    const roomFloor=new THREE.Mesh(rg,rm);roomFloor.rotation.x=-Math.PI/2;
+    roomFloor.position.set(x+w/2,0.02,y+d/2);
+    scene.add(roomFloor);meshFloors.push(roomFloor);
+
+    // Walls (4 sides, with gaps for openings)
+    const THK=0.12;
+    const walls=[[x,0,y,d,THK],[x+w-THK,0,y,d,THK],[x,0,y,THK,w],[x,0,y+d-THK,THK,w]];
+    walls.forEach(([wx,wy,wz,wd,ww])=>{
+      const wg=new THREE.BoxGeometry(ww,wallHeight,wd);
+      const wm=new THREE.MeshStandardMaterial({color:mat.wall,roughness:0.7});
+      const wall=new THREE.Mesh(wg,wm);
+      wall.position.set(wx+ww/2,wallHeight/2,wz+wd/2);wall.castShadow=true;wall.receiveShadow=true;
+      scene.add(wall);meshWalls.push(wall);
+    });
+    // Label
+    const label=el.name||'';
+  });
+  // Night lights
+  if(currentLight==='night'){
+    elements.forEach(el=>{
+      if(el.type==='rect'){
+        const pt=new THREE.PointLight(0xffdd99,0.4,5);
+        pt.position.set(el.x+el.w/2,wallHeight-0.3,el.y+el.h/2);scene.add(pt);meshWalls.push(pt);
+      }
+    });
+  }
+  updateStats3D();
+}
+function updateStats3D(){
+  let faces=0;meshWalls.forEach(w=>{if(w.geometry){const idx=w.geometry.index;faces+=idx?idx.count/3:w.geometry.attributes.position.count/3;}});
+  const totalArea=elements.filter(e=>e.type==='rect').reduce((s,e)=>s+e.w*e.h,0);
+  document.getElementById('status').textContent=`${elements.length} 元素 | ${faces.toFixed(0)} 面 | ${totalArea.toFixed(1)}㎡ | 墙高${wallHeight}m | ${currentLight}`;
+}
+function animate3D(){
+  requestAnimationFrame(animate3D);
+  controls3d.update();
+  renderer3d.render(scene,camera);
+  fpsFrames++;const now=performance.now();
+  if(now-fpsLast>=1000){document.getElementById('status').textContent+=' | FPS:'+fpsFrames;fpsFrames=0;fpsLast=now;}
+}
+
+// === UI ===
+document.getElementById('wallH').oninput=function(){wallHeight=parseFloat(this.value);document.getElementById('whVal').textContent=wallHeight.toFixed(1)+'m';sync3D();};
+document.getElementById('gridSnap').oninput=function(){snapGrid=parseFloat(this.value);document.getElementById('gridVal').textContent=snapGrid.toFixed(1)+'m';};
+
+document.querySelectorAll('#toolbar button[data-mode]').forEach(b=>{b.onclick=()=>{
+  document.querySelectorAll('#toolbar button[data-mode]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('canvas-2d-wrap').style.flex=b.dataset.mode==='3d'?'0':'1';
+  document.getElementById('canvas-3d-wrap').style.flex=b.dataset.mode==='2d'?'0':'1';
+  setTimeout(()=>{resize2D();resize3D();},100);
+};});
+
+// Tools
+const tools=['select','rect','line','delete','move'];
+document.getElementById('cadTools').innerHTML=tools.map(t=>`<button class="tb${t===tool?' active':''}" data-tool="${t}">${t==='select'?'✋选择':t==='rect'?'◫矩形':t==='line'?'╱直线':t==='delete'?'✕删除':'↗移动'}</button>`).join('');
+document.querySelectorAll('#cadTools .tb').forEach(b=>{b.onclick=()=>{tool=b.dataset.tool;document.querySelectorAll('#cadTools .tb').forEach(x=>x.classList.remove('active'));b.classList.add('active');};});
+document.querySelector('#cadTools .tb[data-tool=rect]')?.classList.add('active');
+
+// Lights
+['day','night','warm'].forEach(l=>{document.getElementById('lightBtns').innerHTML+=`<button class="tb${currentLight===l?' active':''}" data-light="${l}">${l==='day'?'☀日光':l==='night'?'🌙夜间':'🔥暖光'}</button>`;});
+document.querySelectorAll('#lightBtns .tb').forEach(b=>{b.onclick=()=>{currentLight=b.dataset.light;document.querySelectorAll('#lightBtns .tb').forEach(x=>x.classList.remove('active'));b.classList.add('active');setupLights(currentLight);sync3D();};});
+
+// Materials
+['white','wood','tile','concrete'].forEach(m=>{document.getElementById('matBtns').innerHTML+=`<button class="tb${currentMat===m?' active':''}" data-mat="${m}">${m==='white'?'⚪白墙':m==='wood'?'🟤木地':m==='tile'?'⬜瓷砖':'🔘水泥'}</button>`;});
+document.querySelectorAll('#matBtns .tb').forEach(b=>{b.onclick=()=>{currentMat=b.dataset.mat;document.querySelectorAll('#matBtns .tb').forEach(x=>x.classList.remove('active'));b.classList.add('active');sync3D();};});
+
+// Views
+['free','top','front','side'].forEach(v=>{document.getElementById('viewBtns').innerHTML+=`<button class="tb" data-view="${v}">${v==='free'?'🖱自由':v==='top'?'⬆俯视':v==='front'?'→正面':'◈侧面'}</button>`;});
+document.querySelectorAll('#viewBtns .tb').forEach(b=>{b.onclick=()=>{
+  const cx=elements.reduce((s,e)=>s+(e.x||0)+(e.w||0)/2,0)/Math.max(1,elements.length);
+  const cz=elements.reduce((s,e)=>s+(e.y||0)+(e.h||0)/2,0)/Math.max(1,elements.length);
+  if(b.dataset.view==='free'){camera.position.set(cx+8,wallHeight+4,cz+8);controls3d.target.set(cx,wallHeight/2,cz);}
+  else if(b.dataset.view==='top'){camera.position.set(cx,wallHeight+10,cz);controls3d.target.set(cx,0,cz);}
+  else if(b.dataset.view==='front'){camera.position.set(cx,wallHeight/2,cz-12);controls3d.target.set(cx,wallHeight/2,cz);}
+  else if(b.dataset.view==='side'){camera.position.set(cx+12,wallHeight/2,cz);controls3d.target.set(cx,wallHeight/2,cz);}
+  controls3d.update();
+};});
+
+// AI Commands
+async function execAI(){
+  const cmd=document.getElementById('aiCmd').value.trim();
+  if(!cmd)return;
+  document.getElementById('aiCmd').value='';
+  const ctx=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,name:e.name,roomType:e.roomType})),rooms});
+  const prompt=`户型数据: ${ctx}\n\n用户指令: ${cmd}\n\n请用JSON回复: {"reply":"文字解释","actions":[{"action":"add_room|delete_room|move_room","x":0,"y":0,"w":0,"h":0,"name":"","roomType":"","oldName":""}]}\n无需调用API,直接按格式输出。`;
+  try{
+    const res=await callAI(prompt);
+    if(res&&res.actions)applyActions(res.actions,res.reply);
+  }catch(e){applyLocalAI(cmd);}
+}
+
+async function callAI(prompt){
+  try{
+    const resp=await fetch('http://localhost:8000/agents/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:prompt,agent_type:'designer'})});
+    if(!resp.ok)throw new Error('API not available');
+    const data=await resp.json();
+    const reply=data.reply||data.full_reply||'';
+    const match=reply.match(/\{[\s\S]*"actions"[\s\S]*\}/);
+    if(match)return JSON.parse(match[0]);
+  }catch(e){}
+  return null;
+}
+
+function applyLocalAI(cmd){
+  const reply=[];
+  if(cmd.includes('添加')||cmd.includes('加')||cmd.includes('建')){
+    const nameMatch=cmd.match(/(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊)/);
+    const sizeMatch=cmd.match(/(\d+(\.\d+)?)[×xX](\d+(\.\d+)?)/);
+    const w=sizeMatch?parseFloat(sizeMatch[1]):4;
+    const h=sizeMatch?parseFloat(sizeMatch[3]):3;
+    const name=nameMatch?nameMatch[1]:'房间';
+    const typeMap={客厅:'living_room',卧室:'bedroom',厨房:'kitchen',卫生间:'bathroom',书房:'study',阳台:'balcony',餐厅:'dining_room',走廊:'hallway'};
+    const el={type:'rect',x:0,y:elements.length*0.5,w,h,name,roomType:typeMap[name]||'living_room',x1:0,y1:elements.length*0.5,x2:w,y2:elements.length*0.5+h};
+    elements.push(el);rooms.push({name,type:el.roomType,w,h,area:w*h});
+    reply.push(`已添加${name}(${w}×${h}m)`);
+  }
+  if(cmd.includes('删除')||cmd.includes('移除')){
+    const nameMatch=cmd.match(/(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊|\d+)/);
+    const name=nameMatch?nameMatch[1]:'';
+    const idx=elements.findIndex(e=>e.name===name||name&&e.name&&e.name.includes(name));
+    if(idx>=0){const n=elements[idx].name;elements.splice(idx,1);reply.push(`已删除${n}`);}
+    else reply.push('未找到匹配的房间');
+  }
+  if(cmd.includes('生成')||cmd.includes('户型')||cmd.includes('布局')){
+    if(cmd.includes('90')||cmd.includes('小')){
+      loadPreset('apartment_90');reply.push('已生成90㎡两室户型');
+    }else if(cmd.includes('160')||cmd.includes('大')){
+      loadPreset('apartment_160');reply.push('已生成160㎡四室户型');
+    }else{
+      loadPreset('apartment_126');reply.push('已生成126㎡三室户型');
+    }
+  }
+  alert('🤖 AI: '+(reply.join('; ')||'未识别的指令。试试: 添加客厅 5×4 / 生成户型 / 删除卧室'));
+}
+
+function applyActions(actions,reply){
+  actions.forEach(a=>{
+    if(a.action==='add_room'){
+      elements.push({type:'rect',x:a.x||0,y:a.y||elements.length*0.5,w:a.w||4,h:a.h||3,name:a.name||'房间',roomType:a.roomType||'living_room',x1:a.x||0,y1:a.y||0,x2:(a.x||0)+(a.w||4),y2:(a.y||0)+(a.h||3)});
+    }else if(a.action==='delete_room'){
+      const idx=elements.findIndex(e=>e.name===a.oldName);
+      if(idx>=0)elements.splice(idx,1);
+    }
+  });
+  draw2D();sync3D();
+  alert('🤖 AI: '+reply);
+}
+
+// Presets
+const presets={
+  apartment_90:[{x:0.5,y:0.5,w:5,h:4,name:'客厅',roomType:'living_room'},{x:6,y:0.5,w:3,h:3,name:'餐厅',roomType:'dining_room'},{x:0.5,y:5,w:3.5,h:3,name:'主卧',roomType:'bedroom'},{x:4.5,y:5,w:4.5,h:3,name:'次卧',roomType:'bedroom'},{x:0.5,y:8.5,w:2.5,h:2,name:'厨房',roomType:'kitchen'},{x:3.5,y:8.5,w:2,h:2,name:'卫生间',roomType:'bathroom'}],
+  apartment_126:[{x:0.5,y:0.5,w:6,h:4.5,name:'客厅',roomType:'living_room'},{x:7,y:0.5,w:3.5,h:3,name:'餐厅',roomType:'dining_room'},{x:0.5,y:5.5,w:3.5,h:3.5,name:'主卧',roomType:'bedroom'},{x:4.5,y:5.5,w:3,h:3,name:'次卧',roomType:'bedroom'},{x:8,y:4.5,w:3,h:3,name:'书房',roomType:'study'},{x:0.5,y:9.5,w:3,h:2,name:'厨房',roomType:'kitchen'},{x:4,y:9.5,w:2.5,h:2,name:'卫生间',roomType:'bathroom'}],
+  apartment_160:[{x:0.5,y:0.5,w:6,h:5,name:'客厅',roomType:'living_room'},{x:7,y:0.5,w:4,h:3.5,name:'餐厅',roomType:'dining_room'},{x:0.5,y:6,w:4,h:3.5,name:'主卧',roomType:'bedroom'},{x:5,y:6,w:3,h:3,name:'次卧A',roomType:'bedroom'},{x:8.5,y:4.5,w:3,h:3,name:'次卧B',roomType:'bedroom'},{x:0.5,y:10,w:3,h:2.5,name:'厨房',roomType:'kitchen'},{x:4,y:10,w:2.5,h:2,name:'主卫',roomType:'bathroom'},{x:7,y:8,w:2,h:2,name:'次卫',roomType:'bathroom'},{x:9.5,y:8,w:2,h:2,name:'书房',roomType:'study'}],
+};
+function loadPreset(name){
+  const data=presets[name];if(!data)return;
+  elements=data.map((r,i)=>({...r,x1:r.x,y1:r.y,x2:r.x+r.w,y2:r.y+r.h,type:'rect'}));
+  rooms=data.map(r=>({name:r.name,type:r.roomType,w:r.w,h:r.h,area:r.w*r.h}));
+  draw2D();sync3D();
+}
+
+function exportData(){
+  const json=JSON.stringify({type:'floorplan',version:'1.0',rooms,elements},null,2);
+  let dxf='  0\nSECTION\n  2\nHEADER\n  0\nENDSEC\n  0\nSECTION\n  2\nENTITIES\n';
+  elements.forEach((e,i)=>{
+    if(e.type==='rect'){
+      const x0=(e.x*1000).toFixed(0),y0=(e.y*1000).toFixed(0);
+      dxf+=`  0\nPOLYLINE\n  8\n${e.name||'ROOM_'+i}\n 66\n1\n 70\n1\n`;
+      dxf+=`  0\nVERTEX\n  8\n${e.name||'ROOM_'+i}\n 10\n${x0}\n 20\n${y0}\n`;
+      dxf+=`  0\nVERTEX\n  8\n${e.name||'ROOM_'+i}\n 10\n${((e.x+e.w)*1000).toFixed(0)}\n 20\n${y0}\n`;
+      dxf+=`  0\nVERTEX\n  8\n${e.name||'ROOM_'+i}\n 10\n${((e.x+e.w)*1000).toFixed(0)}\n 20\n${((e.y+e.h)*1000).toFixed(0)}\n`;
+      dxf+=`  0\nVERTEX\n  8\n${e.name||'ROOM_'+i}\n 10\n${x0}\n 20\n${((e.y+e.h)*1000).toFixed(0)}\n`;
+      dxf+='  0\nSEQEND\n';
+    }
+  });
+  dxf+='  0\nENDSEC\n  0\nEOF\n';
+  const blob=new Blob([dxf],{type:'application/dxf'});
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=u;a.download='floorplan.dxf';a.click();URL.revokeObjectURL(u);
+  console.log('DXF exported');
+}
+
+function resetAll(){elements=[];rooms=[];drawing=null;draw2D();sync3D();}
+
+// === PERSISTENCE ===
+const API = 'http://localhost:8000';
+let authToken = '';
+let savedPlanId = null;
+
+async function apiLogin(){
+  try{
+    const resp = await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'13800138000',password:'123456'})});
+    if(!resp.ok) return false;
+    const data = await resp.json();
+    authToken = data.access_token;
+    return true;
+  }catch(e){return false;}
+}
+
+async function createProjectIfNeeded(){
+  try{
+    const resp = await fetch(API+'/projects',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},body:JSON.stringify({name:'设计台项目',total_area:126,floors:[{name:'1层',floor_number:1,area:126,rooms:[]}]})});
+    const data = await resp.json();
+    return data.id;
+  }catch(e){return null;}
+}
+
+let projectId = null;
+
+async function savePlan(){
+  if(!authToken && !(await apiLogin())){alert('请先启动后端服务');return;}
+  if(!projectId){projectId=await createProjectIfNeeded();if(!projectId){alert('创建项目失败');return;}}
+  const totalArea = elements.filter(e=>e.type==='rect').reduce((s,e)=>s+e.w*e.h,0);
+  const planData = {elements: elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,name:e.name,roomType:e.roomType})), rooms: rooms.map(r=>({name:r.name,type:r.type,w:r.w,h:r.h,area:r.area}))};
+  const name = prompt('方案名称:', '设计台户型 ' + new Date().toLocaleDateString('zh-CN'));
+  if(!name) return;
+  try{
+    const method = savedPlanId ? 'PUT' : 'POST';
+    const url = savedPlanId ? API+'/floorplans/'+savedPlanId : API+'/floorplans';
+    const resp = await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},body:JSON.stringify({project_id:projectId,name,data:JSON.stringify(planData),wall_height:wallHeight,total_area:totalArea,room_count:rooms.length})});
+    if(!resp.ok){const err=await resp.json();throw new Error(err.detail||'保存失败');}
+    const data = await resp.json();
+    savedPlanId = data.id;
+    alert('✅ 户型已保存: '+name+' ('+rooms.length+'间, '+totalArea.toFixed(1)+'㎡)');
+  }catch(e){alert('❌ 保存失败: '+e.message);}
+}
+
+async function loadPlan(){
+  if(!authToken && !(await apiLogin())){alert('请先启动后端服务');return;}
+  if(!projectId){projectId=await createProjectIfNeeded();if(!projectId){alert('创建项目失败');return;}}
+  try{
+    const resp = await fetch(API+'/floorplans/project/'+projectId,{headers:{'Authorization':'Bearer '+authToken}});
+    if(!resp.ok) throw new Error('加载失败');
+    const list = await resp.json();
+    if(!list.length){alert('暂无保存的方案，请先保存');return;}
+    const labels = list.map((p,i)=>`${i+1}. ${p.name} (${p.room_count}间 ${p.total_area.toFixed(1)}㎡  ${new Date(p.updated_at).toLocaleDateString('zh-CN')})`).join('\n');
+    const choice = parseInt(prompt('选择方案:\n'+labels, '1'));
+    if(isNaN(choice)||choice<1||choice>list.length)return;
+    const fullResp = await fetch(API+'/floorplans/'+list[choice-1].id,{headers:{'Authorization':'Bearer '+authToken}});
+    const plan = await fullResp.json();
+    const planData = JSON.parse(plan.data);
+    if(planData.elements){elements=planData.elements.slice();}
+    if(planData.rooms){rooms=planData.rooms.slice();}
+    wallHeight = plan.wall_height || 2.8;
+    savedPlanId = plan.id;
+    document.getElementById('wallH').value = wallHeight;
+    document.getElementById('whVal').textContent = wallHeight.toFixed(1)+'m';
+    draw2D();sync3D();
+    alert('✅ 已加载: '+plan.name+' ('+rooms.length+'间)');
+  }catch(e){alert('❌ 加载失败: '+e.message);}
+}
+
+// === VOICE ===
+let recognition = null;
+function startVoice(){
+  if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){
+    alert('此浏览器不支持语音输入。请使用Chrome。');
+    return;
+  }
+  if(!recognition){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SR();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.onresult = function(event){
+      const text = event.results[0][0].transcript;
+      document.getElementById('aiCmd').value = text;
+      execAI();
+    };
+    recognition.onerror = function(e){alert('语音识别失败: '+e.error);};
+  }
+  recognition.start();
+  alert('🎤 正在聆听...请说话');
+}
+
+// Init
+(async function(){
+  init3D();resize2D();resize3D();
+  loadPreset('apartment_126');
+  document.getElementById('loading').style.display='none';
+  document.getElementById('app').style.display='flex';
+  apiLogin().then(ok=>ok?console.log('🔑 已连接后端'):console.log('💡 离线模式'));
+})();
+</script>
+</body>
+</html>

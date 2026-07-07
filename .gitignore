@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.local
+
+# Flutter
+.dart_tool/
+.packages
+build/
+*.jlink
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Serverless
+.s/
+
+# Data
+data/
+reports/
+
+# Flutter OHOS SDK 副本（外部仓库，不应入库）
+flutter_flutter/
+
+# Flutter iOS
+ios/Pods/
+ios/.symlinks/
+
+# HarmonyOS build
+ohos/.hvigor/
+ohos/build/
