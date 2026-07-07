@@ -28,6 +28,9 @@ build/
 
 # OS
 .DS_Store
+
+# TRAE IDE
+.trae-html-share-packages/
 Thumbs.db
 
 # Serverless

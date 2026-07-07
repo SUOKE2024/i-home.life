@@ -2,8 +2,9 @@
   "app": {
     "bundleName": "com.ihome.life",
     "vendor": "i-home.life",
-    "versionCode": 1000000,
+    "versionCode": 1001000,
     "versionName": "1.0.0",
+    "minAPIVersion": 23,
     "icon": "$media:app_icon",
     "label": "$string:app_name"
   }

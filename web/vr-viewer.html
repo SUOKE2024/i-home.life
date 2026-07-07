@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 · VR 全景查看器</title>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+:root{--bg:#0f1419;--panel:#1a1f2e;--accent:#c9973b;--accent-dim:rgba(201,151,59,0.15);--text:#e0e0e0;--muted:#888;--border:#2a2f3e}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text)}
+#app{display:flex;height:100vh}
+
+/* 侧边栏 */
+#sidebar{width:280px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto}
+.sidebar-header{padding:20px;border-bottom:1px solid var(--border)}
+.sidebar-header h1{font-size:1.15rem;color:var(--accent);font-weight:600}
+.sidebar-header .sub{font-size:0.65rem;color:var(--muted);letter-spacing:0.12em;margin-top:4px;text-transform:uppercase}
+.section{padding:16px 20px;border-bottom:1px solid var(--border)}
+.section h3{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;font-weight:600}
+
+/* 房间列表 */
+.room-list{display:flex;flex-direction:column;gap:6px}
+.room-btn{padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#ccc;cursor:pointer;font-size:0.8rem;text-align:left;font-family:inherit;transition:all 0.2s;display:flex;align-items:center;justify-content:space-between}
+.room-btn:hover{border-color:var(--accent);background:var(--accent-dim)}
+.room-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.room-btn .badge{font-size:0.6rem;padding:2px 6px;background:rgba(255,255,255,0.08);border-radius:4px;color:var(--muted)}
+.room-btn.active .badge{background:var(--accent);color:#111}
+
+/* 视角控制 */
+.view-control{display:flex;flex-direction:column;gap:10px}
+.view-control label{font-size:0.7rem;color:var(--muted);display:flex;justify-content:space-between}
+.view-control input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+.btn-row{display:flex;gap:6px}
+.btn-row button{flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s}
+.btn-row button:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 主画布 */
+#main{flex:1;position:relative;background:#000}
+#canvas{display:block;width:100%;height:100%}
+
+/* 热点叠加层 */
+#hotspot-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.hotspot{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-50%,-50%);transition:transform 0.15s}
+.hotspot:hover{transform:translate(-50%,-50%) scale(1.15)}
+.hotspot-dot{width:32px;height:32px;border-radius:50%;background:rgba(201,151,59,0.85);border:2px solid #fff;box-shadow:0 0 12px rgba(201,151,59,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold}
+.hotspot-label{position:absolute;top:38px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:4px 10px;border-radius:4px;font-size:0.7rem;white-space:nowrap;border:1px solid var(--accent)}
+
+/* 顶部工具栏 */
+#toolbar{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;background:rgba(0,0,0,0.5);padding:6px;border-radius:10px;border:1px solid var(--border);backdrop-filter:blur(8px)}
+.tb-btn{padding:8px 14px;border:none;border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.75rem;font-family:inherit;transition:all 0.15s}
+.tb-btn:hover{background:var(--accent-dim);color:var(--accent)}
+.tb-btn.active{background:var(--accent);color:#111}
+
+/* 状态栏 */
+#stats{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:0.7rem;color:var(--muted);display:flex;gap:18px;backdrop-filter:blur(8px);z-index:10}
+#stats span strong{color:var(--text);font-weight:500}
+
+/* 加载 */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column}
+#loading .spinner{width:42px;height:42px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:14px}
+#loading .text{font-size:0.8rem;color:var(--muted)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 提示框 */
+#toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:var(--accent);padding:10px 20px;border-radius:8px;font-size:0.75rem;border:1px solid var(--accent);opacity:0;transition:opacity 0.3s;z-index:20;pointer-events:none}
+#toast.show{opacity:1}
+
+/* 响应式 */
+@media (max-width:768px){
+  #sidebar{width:200px}
+  .sidebar-header h1{font-size:1rem}
+  #stats{font-size:0.65rem;padding:6px 12px;gap:10px}
+  .tb-btn{padding:6px 10px;font-size:0.7rem}
+}
+@media (max-width:480px){
+  #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:30;transform:translateX(-100%);transition:transform 0.3s}
+  #sidebar.open{transform:translateX(0)}
+  #mobile-toggle{display:block !important}
+}
+#mobile-toggle{display:none;position:absolute;top:14px;left:14px;z-index:11;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:#ccc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;backdrop-filter:blur(8px)}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span class="text">正在加载 VR 全景引擎...</span>
+</div>
+
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <h1>VR 全景查看器</h1>
+      <div class="sub">索克家居 · i-home.life</div>
+    </div>
+
+    <div class="section">
+      <h3>🛋 房间列表</h3>
+      <div class="room-list" id="roomList"></div>
+    </div>
+
+    <div class="section">
+      <h3>📐 视角控制</h3>
+      <div class="view-control">
+        <label>视野 (FOV) <span id="fovValue">75°</span></label>
+        <input type="range" id="fovSlider" min="30" max="110" value="75" step="1">
+        <div class="btn-row">
+          <button id="resetView">重置视角</button>
+          <button id="autoRotate">自动旋转</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>ℹ 全景信息</h3>
+      <div style="font-size:0.7rem;color:#aaa;line-height:1.7">
+        <div>房间: <strong id="infoRoom" style="color:var(--accent)">—</strong></div>
+        <div>分辨率: <strong id="infoRes" style="color:var(--accent)">4K</strong></div>
+        <div>投影: <strong id="infoProj" style="color:var(--accent)">equirectangular</strong></div>
+        <div>热点数: <strong id="infoHotspots" style="color:var(--accent)">0</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="main">
+    <button id="mobile-toggle">☰ 菜单</button>
+    <canvas id="canvas"></canvas>
+    <div id="hotspot-layer"></div>
+    <div id="toolbar">
+      <button class="tb-btn active" data-mode="pan">🚶 漫游</button>
+      <button class="tb-btn" data-mode="info">📍 热点</button>
+      <button class="tb-btn" id="fullscreenBtn">⛶ 全屏</button>
+    </div>
+    <div id="stats">
+      <span>当前房间: <strong id="statRoom">—</strong></span>
+      <span>视角: <strong id="statView">0° / 0°</strong></span>
+      <span>FPS: <strong id="statFps">0</strong></span>
+    </div>
+    <div id="toast"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// Demo 数据 — 3 个房间全景图 (使用 picsum 占位图)
+// 实际生产环境从 /api/vr/panoramas 加载
+// ════════════════════════════════════════════════════════════
+const DEMO_PANORAMAS = [
+  {
+    id: 'pano-1',
+    room_name: '客厅',
+    panorama_type: 'equirectangular',
+    resolution: '4K',
+    image_url: 'https://picsum.photos/seed/livingroom-vr/4096/2048',
+    thumbnail_url: 'https://picsum.photos/seed/livingroom-vr/200/100',
+    initial_view: { heading: 0, pitch: 0, fov: 75 },
+    hotspots: [
+      { id: 'h1', type: 'panorama', position: { yaw: 60, pitch: 0 }, label: '前往主卧', target_panorama_id: 'pano-2' },
+      { id: 'h2', type: 'panorama', position: { yaw: -90, pitch: 0 }, label: '前往厨房', target_panorama_id: 'pano-3' },
+    ],
+  },
+  {
+    id: 'pano-2',
+    room_name: '主卧',
+    panorama_type: 'equirectangular',
+    resolution: '4K',
+    image_url: 'https://picsum.photos/seed/bedroom-vr/4096/2048',
+    thumbnail_url: 'https://picsum.photos/seed/bedroom-vr/200/100',
+    initial_view: { heading: 180, pitch: 0, fov: 75 },
+    hotspots: [
+      { id: 'h3', type: 'panorama', position: { yaw: 180, pitch: 0 }, label: '返回客厅', target_panorama_id: 'pano-1' },
+    ],
+  },
+  {
+    id: 'pano-3',
+    room_name: '厨房',
+    panorama_type: 'equirectangular',
+    resolution: '4K',
+    image_url: 'https://picsum.photos/seed/kitchen-vr/4096/2048',
+    thumbnail_url: 'https://picsum.photos/seed/kitchen-vr/200/100',
+    initial_view: { heading: 0, pitch: 0, fov: 75 },
+    hotspots: [
+      { id: 'h4', type: 'panorama', position: { yaw: 90, pitch: 0 }, label: '返回客厅', target_panorama_id: 'pano-1' },
+    ],
+  },
+];
+
+// ════════════════════════════════════════════════════════════
+// Three.js 全景查看器
+// ════════════════════════════════════════════════════════════
+
+let scene, camera, renderer, controls, sphere, texture;
+let currentPanorama = null;
+let autoRotate = false;
+let hotspotElements = [];
+let lastTime = performance.now();
+let frameCount = 0;
+let fpsTime = performance.now();
+
+const canvas = document.getElementById('canvas');
+const hotspotLayer = document.getElementById('hotspot-layer');
+
+function initThree() {
+  // 场景
+  scene = new THREE.Scene();
+
+  // 相机 — 透视相机,初始 fov 75
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 0.1);  // 球心位置
+
+  // 渲染器
+  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // 球面几何体 (半径 500, 水平/垂直分段 64)
+  const geometry = new THREE.SphereGeometry(500, 64, 64);
+  // 球面内贴图 — 水平翻转使贴图在球内侧正确显示
+  geometry.scale(-1, 1, 1);
+
+  // 占位材质 (加载纹理前)
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x1a1f2e,
+  });
+  sphere = new THREE.Mesh(geometry, material);
+  scene.add(sphere);
+
+  // OrbitControls — 拖动旋转 (相机固定在球心,通过控制相机朝向浏览)
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0, 0);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.1;
+  controls.enableZoom = true;
+  controls.enablePan = false;
+  controls.rotateSpeed = -0.35;  // 反向,使拖动方向与视野一致
+  controls.minDistance = 0.1;
+  controls.maxDistance = 0.1;  // 锁定相机在球心
+
+  // 监听窗口缩放
+  window.addEventListener('resize', onResize);
+
+  // 加载 demo 数据
+  loadPanorama(DEMO_PANORAMAS[0]);
+  renderRoomList();
+}
+
+function onResize() {
+  const w = document.getElementById('main').clientWidth;
+  const h = document.getElementById('main').clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  updateHotspotPositions();
+}
+
+// 加载全景图
+function loadPanorama(pano) {
+  currentPanorama = pano;
+
+  // 显示加载提示
+  showToast(`正在加载 ${pano.room_name} ...`);
+
+  // 加载纹理
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin('anonymous');
+  loader.load(
+    pano.image_url,
+    (tex) => {
+      tex.encoding = THREE.sRGBEncoding;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      sphere.material = new THREE.MeshBasicMaterial({ map: tex });
+
+      // 设置初始视角
+      const iv = pano.initial_view || { heading: 0, pitch: 0, fov: 75 };
+      // heading: 0-360 度,转为相机 yaw
+      const headingRad = (iv.heading || 0) * Math.PI / 180;
+      const pitchRad = (iv.pitch || 0) * Math.PI / 180;
+      // 设置相机朝向 (OrbitControls 通过 target 控制朝向,这里直接旋转相机)
+      camera.position.set(
+        0.1 * Math.sin(headingRad) * Math.cos(pitchRad),
+        0.1 * Math.sin(pitchRad),
+        0.1 * Math.cos(headingRad) * Math.cos(pitchRad)
+      );
+      camera.lookAt(0, 0, 0);
+
+      // 设置 FOV
+      const fov = iv.fov || 75;
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+      document.getElementById('fovSlider').value = fov;
+      document.getElementById('fovValue').textContent = `${fov}°`;
+
+      // 渲染热点
+      renderHotspots(pano);
+
+      // 更新信息面板
+      updateInfoPanel(pano);
+
+      showToast(`${pano.room_name} 已加载`);
+    },
+    undefined,
+    () => {
+      // 加载失败 — 使用纯色材质
+      sphere.material = new THREE.MeshBasicMaterial({ color: 0x2a2f3e });
+      showToast(`加载失败,使用占位材质`);
+    }
+  );
+}
+
+// 渲染热点 (CSS2D 风格的 DOM 叠加)
+function renderHotspots(pano) {
+  // 清除旧热点
+  hotspotLayer.innerHTML = '';
+  hotspotElements = [];
+
+  (pano.hotspots || []).forEach((hs, idx) => {
+    const el = document.createElement('div');
+    el.className = 'hotspot';
+    el.dataset.idx = idx;
+    el.innerHTML = `
+      <div class="hotspot-dot">→</div>
+      <div class="hotspot-label">${hs.label}</div>
+    `;
+    el.addEventListener('click', () => onHotspotClick(hs));
+    hotspotLayer.appendChild(el);
+    hotspotElements.push({ el, data: hs });
+  });
+
+  updateHotspotPositions();
+  document.getElementById('infoHotspots').textContent = (pano.hotspots || []).length;
+}
+
+// 更新热点位置 (将球面坐标投影到屏幕)
+function updateHotspotPositions() {
+  if (!currentPanorama) return;
+  const w = document.getElementById('main').clientWidth;
+  const h = document.getElementById('main').clientHeight;
+
+  hotspotElements.forEach(({ el, data }) => {
+    // position 是 {yaw, pitch} 度数
+    const pos = data.position || { yaw: 0, pitch: 0 };
+    const yawRad = (pos.yaw || 0) * Math.PI / 180;
+    const pitchRad = (pos.pitch || 0) * Math.PI / 180;
+
+    // 将球面坐标转为 3D 向量 (球心位于原点)
+    // 注意: Three.js OrbitControls 中,相机朝向 target(0,0,0),
+    // 我们需要把热点 3D 位置投影到屏幕
+    const radius = 100;
+    const x = radius * Math.cos(pitchRad) * Math.sin(yawRad);
+    const y = radius * Math.sin(pitchRad);
+    const z = -radius * Math.cos(pitchRad) * Math.cos(yawRad);
+
+    const vec = new THREE.Vector3(x, y, z);
+    // 通过相机变换到屏幕坐标
+    const projected = vec.clone().project(camera);
+
+    // projected.x/y 是 NDC (-1 到 1),z < 1 表示在相机前方
+    const screenX = (projected.x * 0.5 + 0.5) * w;
+    const screenY = (-projected.y * 0.5 + 0.5) * h;
+
+    // z > 1 表示在相机背后,隐藏热点
+    if (projected.z > 1) {
+      el.style.display = 'none';
+    } else {
+      el.style.display = 'block';
+      el.style.left = `${screenX}px`;
+      el.style.top = `${screenY}px`;
+    }
+  });
+}
+
+// 热点点击 — 切换房间
+function onHotspotClick(hs) {
+  if (hs.type === 'panorama' && hs.target_panorama_id) {
+    const target = DEMO_PANORAMAS.find(p => p.id === hs.target_panorama_id);
+    if (target) {
+      loadPanorama(target);
+      renderRoomList();
+    } else {
+      showToast(`目标全景图不存在: ${hs.target_panorama_id}`);
+    }
+  } else if (hs.type === 'info') {
+    showToast(hs.label);
+  } else if (hs.type === 'link' && hs.url) {
+    window.open(hs.url, '_blank');
+  }
+}
+
+// 渲染房间列表
+function renderRoomList() {
+  const list = document.getElementById('roomList');
+  list.innerHTML = '';
+  DEMO_PANORAMAS.forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'room-btn' + (currentPanorama && p.id === currentPanorama.id ? ' active' : '');
+    btn.innerHTML = `${p.room_name} <span class="badge">${p.hotspots.length} 热点</span>`;
+    btn.addEventListener('click', () => {
+      loadPanorama(p);
+      renderRoomList();
+    });
+    list.appendChild(btn);
+  });
+}
+
+// 更新信息面板
+function updateInfoPanel(pano) {
+  document.getElementById('infoRoom').textContent = pano.room_name;
+  document.getElementById('infoRes').textContent = pano.resolution || '4K';
+  document.getElementById('infoProj').textContent = pano.panorama_type || 'equirectangular';
+  document.getElementById('infoHotspots').textContent = (pano.hotspots || []).length;
+  document.getElementById('statRoom').textContent = pano.room_name;
+}
+
+// Toast 提示
+let toastTimer;
+function showToast(text) {
+  const toast = document.getElementById('toast');
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// 动画循环
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (autoRotate) {
+    // 自动旋转 — 通过 OrbitControls 的 autoRotate 实现
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+  } else {
+    controls.autoRotate = false;
+  }
+
+  controls.update();
+
+  // 更新热点位置
+  updateHotspotPositions();
+
+  // 更新视角统计
+  const azim = controls.getAzimuthalAngle() * 180 / Math.PI;
+  const polar = controls.getPolarAngle() * 180 / Math.PI;
+  const pitch = 90 - polar;  // 转换为 pitch (-90 到 90)
+  document.getElementById('statView').textContent = `${azim.toFixed(0)}° / ${pitch.toFixed(0)}°`;
+
+  // FPS 统计
+  frameCount++;
+  const now = performance.now();
+  if (now - fpsTime >= 1000) {
+    document.getElementById('statFps').textContent = frameCount;
+    frameCount = 0;
+    fpsTime = now;
+  }
+
+  renderer.render(scene, camera);
+}
+
+// ════════════════════════════════════════════════════════════
+// UI 事件绑定
+// ════════════════════════════════════════════════════════════
+
+document.getElementById('fovSlider').addEventListener('input', (e) => {
+  const fov = parseInt(e.target.value);
+  camera.fov = fov;
+  camera.updateProjectionMatrix();
+  document.getElementById('fovValue').textContent = `${fov}°`;
+});
+
+document.getElementById('resetView').addEventListener('click', () => {
+  if (!currentPanorama) return;
+  const iv = currentPanorama.initial_view || { heading: 0, pitch: 0, fov: 75 };
+  const headingRad = (iv.heading || 0) * Math.PI / 180;
+  const pitchRad = (iv.pitch || 0) * Math.PI / 180;
+  camera.position.set(
+    0.1 * Math.sin(headingRad) * Math.cos(pitchRad),
+    0.1 * Math.sin(pitchRad),
+    0.1 * Math.cos(headingRad) * Math.cos(pitchRad)
+  );
+  camera.lookAt(0, 0, 0);
+  camera.fov = iv.fov || 75;
+  camera.updateProjectionMatrix();
+  document.getElementById('fovSlider').value = iv.fov || 75;
+  document.getElementById('fovValue').textContent = `${iv.fov || 75}°`;
+  controls.update();
+  showToast('视角已重置');
+});
+
+document.getElementById('autoRotate').addEventListener('click', (e) => {
+  autoRotate = !autoRotate;
+  e.target.style.color = autoRotate ? 'var(--accent)' : '';
+  e.target.style.borderColor = autoRotate ? 'var(--accent)' : '';
+  showToast(autoRotate ? '已开启自动旋转' : '已停止自动旋转');
+});
+
+document.getElementById('fullscreenBtn').addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+document.getElementById('mobile-toggle').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('open');
+});
+
+// 工具栏模式切换 (热点显示/隐藏)
+document.querySelectorAll('.tb-btn[data-mode]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tb-btn[data-mode]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+    if (mode === 'info') {
+      hotspotLayer.style.display = 'block';
+    } else {
+      hotspotLayer.style.display = 'block';  // 漫游模式也显示热点
+    }
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+// 启动
+// ════════════════════════════════════════════════════════════
+
+window.addEventListener('load', () => {
+  initThree();
+  animate();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  onResize();
+});
+</script>
+</body>
+</html>

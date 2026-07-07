@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>索克家居 · 统一设计台</title>
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
@@ -401,7 +403,7 @@ async function execAI(){
 
 async function callAI(prompt){
   try{
-    const resp=await fetch('http://localhost:8000/agents/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+    const resp=await fetch('/api/agents/chat',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({message:prompt,agent_type:'designer'})});
     if(!resp.ok)throw new Error('API not available');
     const data=await resp.json();
@@ -494,13 +496,13 @@ function exportData(){
 function resetAll(){elements=[];rooms=[];drawing=null;draw2D();sync3D();}
 
 // === PERSISTENCE ===
-const API = 'http://localhost:8000';
+const API = '';  // 相对路径，生产环境经 Nginx /api 反代，本地 file:// 需手动设置
 let authToken = '';
 let savedPlanId = null;
 
 async function apiLogin(){
   try{
-    const resp = await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'13800138000',password:'123456'})});
+    const resp = await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'13800138000',password:'123456'})});
     if(!resp.ok) return false;
     const data = await resp.json();
     authToken = data.access_token;
@@ -510,7 +512,7 @@ async function apiLogin(){
 
 async function createProjectIfNeeded(){
   try{
-    const resp = await fetch(API+'/projects',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},body:JSON.stringify({name:'设计台项目',total_area:126,floors:[{name:'1层',floor_number:1,area:126,rooms:[]}]})});
+    const resp = await fetch(API+'/api/projects',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+authToken},body:JSON.stringify({name:'设计台项目',total_area:126,floors:[{name:'1层',floor_number:1,area:126,rooms:[]}]})});
     const data = await resp.json();
     return data.id;
   }catch(e){return null;}
@@ -540,14 +542,14 @@ async function loadPlan(){
   if(!authToken && !(await apiLogin())){alert('请先启动后端服务');return;}
   if(!projectId){projectId=await createProjectIfNeeded();if(!projectId){alert('创建项目失败');return;}}
   try{
-    const resp = await fetch(API+'/floorplans/project/'+projectId,{headers:{'Authorization':'Bearer '+authToken}});
+    const resp = await fetch(API+'/api/floorplans/project/'+projectId,{headers:{'Authorization':'Bearer '+authToken}});
     if(!resp.ok) throw new Error('加载失败');
     const list = await resp.json();
     if(!list.length){alert('暂无保存的方案，请先保存');return;}
     const labels = list.map((p,i)=>`${i+1}. ${p.name} (${p.room_count}间 ${p.total_area.toFixed(1)}㎡  ${new Date(p.updated_at).toLocaleDateString('zh-CN')})`).join('\n');
     const choice = parseInt(prompt('选择方案:\n'+labels, '1'));
     if(isNaN(choice)||choice<1||choice>list.length)return;
-    const fullResp = await fetch(API+'/floorplans/'+list[choice-1].id,{headers:{'Authorization':'Bearer '+authToken}});
+    const fullResp = await fetch(API+'/api/floorplans/'+list[choice-1].id,{headers:{'Authorization':'Bearer '+authToken}});
     const plan = await fullResp.json();
     const planData = JSON.parse(plan.data);
     if(planData.elements){elements=planData.elements.slice();}

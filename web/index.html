@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>索克家居 · i-home.life</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c9973b'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>iH</text></svg>">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <style>
 :root {
   --bg-deep: #08080f;
@@ -292,6 +293,8 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
 }
 .agent-chip:hover{border-color:var(--text-secondary);color:var(--text-secondary)}
 .agent-chip.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+.chat-quick-chip{padding:5px 12px;font-size:0.72rem;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;cursor:pointer;transition:all 0.12s;white-space:nowrap;color:var(--text-secondary)}
+.chat-quick-chip:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-card-hover)}
 
 .material-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
 .material-card{
@@ -347,12 +350,43 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
 .mt-12{margin-top:12px}
 .mb-12{margin-bottom:12px}
 .mb-20{margin-bottom:20px}
+
+.sub-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.sub-tab{
+  padding:8px 16px;
+  border-radius:100px;
+  border:1px solid var(--border);
+  font-size:0.8rem;
+  cursor:pointer;
+  transition:all var(--transition);
+  color:var(--text-muted);
+  background:transparent;
+  font-family:inherit;
+}
+.sub-tab:hover{border-color:var(--text-secondary);color:var(--text-secondary)}
+.sub-tab.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent-bright)}
+.sub-pane{display:none}
+.sub-pane.active{display:block;animation:fadeUp 0.3s ease}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.detail-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+.detail-row .detail-item{flex:1;min-width:180px}
+.detail-row .detail-item label{display:block;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px}
+.detail-row .detail-item .val{font-size:0.9rem;color:var(--text-primary)}
+.action-bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;animation:fadeUp 0.2s ease}
+.modal-box{width:560px;max-width:92vw;max-height:86vh;overflow-y:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;position:relative;z-index:1}
+.modal-box h2{font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:16px}
+.modal-box .close-x{position:absolute;top:14px;right:18px;cursor:pointer;color:var(--text-muted);font-size:1.2rem;background:none;border:none;font-family:inherit}
+.modal-box .close-x:hover{color:var(--danger)}
+.code-block{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:0.75rem;color:var(--text-secondary);white-space:pre-wrap;word-break:break-all;max-height:240px;overflow-y:auto;font-family:'DM Sans',monospace}
 </style>
 </head>
 <body>
 
 <div id="loginScreen" class="login-container">
   <div class="login-box">
+    <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居" style="width:64px;height:64px;border-radius:14px;margin:0 auto 16px;display:block;">
     <h1>i-home.life</h1>
     <div class="subtitle">索克家居 · AI 智能装修平台</div>
     <div class="form-group"><label>手机号</label><input class="input" id="loginPhone" type="tel" placeholder="请输入手机号" value="13800138000"></div>
@@ -368,7 +402,8 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
 <div id="app" style="display:none">
   <div id="sidebar">
     <div class="sidebar-header">
-      <div class="logo-text">i-home.life</div>
+      <img src="assets/images/icons/desktop/suoke-favicon-32.png" alt="LOGO" style="width:28px;height:28px;border-radius:6px;vertical-align:middle;margin-right:8px;">
+      <span class="logo-text">i-home.life</span>
       <div class="logo-sub">索克家居</div>
     </div>
     <ul class="nav-list">
@@ -383,6 +418,8 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
       <li class="nav-item" data-page="settlement"><span class="nav-icon">⏣</span> 结算管理</li>
       <li class="nav-item" data-page="suppliers"><span class="nav-icon">⌘</span> 供应商</li>
       <li class="nav-item" data-page="files"><span class="nav-icon">▤</span> 工程文件</li>
+      <li class="nav-item" data-page="design-deepening"><span class="nav-icon">◆</span> 设计深化</li>
+      <li class="nav-item" data-page="procurement-enhanced"><span class="nav-icon">⇄</span> 采购增强</li>
     </ul>
     <div class="sidebar-footer">
       <div class="user-avatar" id="sidebarAvatar">张</div>
@@ -468,17 +505,29 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
     </div>
 
     <div class="page" id="page-ai-chat">
-      <div class="chat-container">
-        <div class="agent-selector" id="agentSelector">
-          <button class="agent-chip active" data-agent="orchestrator">◈ 总控</button>
-          <button class="agent-chip" data-agent="designer">✦ 设计</button>
-          <button class="agent-chip" data-agent="budget">◎ 预算</button>
-          <button class="agent-chip" data-agent="procurement">▦ 采购</button>
-          <button class="agent-chip" data-agent="construction">▥ 施工</button>
+      <div class="chat-container" style="max-width:800px;margin:0 auto">
+        <div class="flex-between mb-12">
+          <h3 style="font-family:'DM Serif Display',serif">AI 助手</h3>
+          <a href="/interactive-demo.html#demo" target="_blank" class="btn btn-secondary btn-sm" style="margin-left:auto">🖥️ 打开完整 Demo</a>
         </div>
-        <div class="chat-messages" id="chatMessages"></div>
-        <div class="chat-input-wrap">
-          <input class="input" id="chatInput" placeholder="输入你的装修需求..." onkeydown="if(event.key==='Enter')sendChat()">
+        <div class="agent-selector" id="agentSelector">
+          <button class="agent-chip active" data-agent="orchestrator" onclick="selectAgent('orchestrator')">◈ 总控</button>
+          <button class="agent-chip" data-agent="designer" onclick="selectAgent('designer')">✦ 设计</button>
+          <button class="agent-chip" data-agent="budget" onclick="selectAgent('budget')">◎ 预算</button>
+          <button class="agent-chip" data-agent="procurement" onclick="selectAgent('procurement')">▦ 采购</button>
+          <button class="agent-chip" data-agent="construction" onclick="selectAgent('construction')">▥ 施工</button>
+          <button class="agent-chip" data-agent="settlement" onclick="selectAgent('settlement')">⏣ 结算</button>
+        </div>
+        <div class="chat-messages" id="chatMessages" style="min-height:380px;max-height:60vh;overflow-y:auto;padding:16px;background:var(--bg-input);border-radius:12px;margin-bottom:12px"></div>
+        <div class="chat-quick-actions" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <span class="chat-quick-chip" onclick="quickChat('帮我设计一套三房两厅现代简约方案，126㎡')">📐 AI 设计</span>
+          <span class="chat-quick-chip" onclick="quickChat('帮我分析当前方案的预算明细')">💰 预算分析</span>
+          <span class="chat-quick-chip" onclick="quickChat('推荐5家适合的建材供应商')">🛒 找供应商</span>
+          <span class="chat-quick-chip" onclick="quickChat('帮我制定详细的施工计划')">🔨 施工计划</span>
+          <span class="chat-quick-chip" onclick="quickChat('生成当前项目的结算报告')">📋 结算报告</span>
+        </div>
+        <div class="chat-input-wrap" style="display:flex;gap:8px">
+          <input class="input" id="chatInput" placeholder="输入你的装修需求..." onkeydown="if(event.key==='Enter')sendChat()" style="flex:1">
           <button class="btn btn-primary" onclick="sendChat()">发送</button>
         </div>
       </div>
@@ -514,7 +563,12 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
     </div>
 
     <div class="page" id="page-studio">
-      <iframe src="studio.html" style="width:100%;height:calc(100vh - 120px);border:none;border-radius:8px"></iframe>
+      <div class="sub-tabs" id="studioSubTabs">
+        <button class="sub-tab active" data-src="studio.html">2D 设计台</button>
+        <button class="sub-tab" data-src="3d-viewer.html">3D 效果图</button>
+        <button class="sub-tab" data-src="vr-viewer.html">VR 全景</button>
+      </div>
+      <iframe id="studioFrame" src="studio.html" style="width:100%;height:calc(100vh - 160px);border:none;border-radius:8px"></iframe>
     </div>
 
     <div class="page" id="page-settlement">
@@ -531,6 +585,36 @@ tbody tr:hover td{background:var(--bg-card-hover);color:var(--text-primary)}
       <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">工程文件</h2><div><select class="input" id="filesProjectSelect" onchange="onFilesProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="document.getElementById('fileInput').click()">+ 上传文件</button></div></div>
       <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)" multiple accept="image/*,.pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx">
       <div id="filesContent" class="empty-state"><div class="empty-icon">▤</div><p>请先选择项目查看文件</p></div>
+    </div>
+
+    <div class="page" id="page-design-deepening">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">设计深化</h2><div><select class="input" id="designProjectSelect" onchange="onDesignProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="loadDesignDeepening()">刷新</button></div></div>
+      <div class="sub-tabs" id="designSubTabs">
+        <button class="sub-tab active" data-sub="mep-kb">F18 厨卫水电</button>
+        <button class="sub-tab" data-sub="hard-decoration">F21 硬装</button>
+        <button class="sub-tab" data-sub="door-window-waterproof">F23 门窗防水</button>
+        <button class="sub-tab" data-sub="smart-home">F31 智能家居</button>
+        <button class="sub-tab" data-sub="scene-automation">F32 场景编辑</button>
+      </div>
+      <div class="sub-pane active" id="design-pane-mep-kb"><div class="empty-state"><div class="empty-icon">◆</div><p>请先选择项目查看厨卫水电方案</p></div></div>
+      <div class="sub-pane" id="design-pane-hard-decoration"><div class="empty-state"><div class="empty-icon">◆</div><p>请先选择项目查看硬装方案</p></div></div>
+      <div class="sub-pane" id="design-pane-door-window-waterproof"><div class="empty-state"><div class="empty-icon">◆</div><p>请先选择项目查看门窗防水方案</p></div></div>
+      <div class="sub-pane" id="design-pane-smart-home"><div class="empty-state"><div class="empty-icon">◆</div><p>请先选择项目查看智能家居方案</p></div></div>
+      <div class="sub-pane" id="design-pane-scene-automation"><div class="empty-state"><div class="empty-icon">◆</div><p>请先选择项目查看场景自动化</p></div></div>
+    </div>
+
+    <div class="page" id="page-procurement-enhanced">
+      <div class="flex-between mb-20"><h2 style="font-family:'DM Serif Display',serif">采购增强</h2><div><select class="input" id="procEnhancedProjectSelect" onchange="onProcEnhancedProjectChange()" style="max-width:200px;margin-right:8px"><option value="">选择项目...</option></select><button class="btn btn-primary btn-sm" onclick="loadProcurementEnhanced()">刷新</button></div></div>
+      <div class="sub-tabs" id="procEnhancedSubTabs">
+        <button class="sub-tab active" data-sub="comparisons">F33 比价报告</button>
+        <button class="sub-tab" data-sub="escrow">F34 担保支付</button>
+        <button class="sub-tab" data-sub="logistics">F34 物流追踪</button>
+        <button class="sub-tab" data-sub="samples">F34 样品索要</button>
+      </div>
+      <div class="sub-pane active" id="proc-pane-comparisons"><div class="empty-state"><div class="empty-icon">⇄</div><p>请先选择项目查看比价报告</p></div></div>
+      <div class="sub-pane" id="proc-pane-escrow"><div class="empty-state"><div class="empty-icon">⇄</div><p>请先选择项目查看担保支付</p></div></div>
+      <div class="sub-pane" id="proc-pane-logistics"><div class="empty-state"><div class="empty-icon">⇄</div><p>请先选择项目查看物流追踪</p></div></div>
+      <div class="sub-pane" id="proc-pane-samples"><div class="empty-state"><div class="empty-icon">⇄</div><p>请先选择项目查看样品索要</p></div></div>
     </div>
   </div>
 </div>
@@ -611,6 +695,8 @@ document.querySelectorAll('.nav-item').forEach(item => {
     if (page === 'suppliers') loadSuppliers();
     if (page === 'files') loadFiles();
     if (page === 'ai-chat') initChat();
+    if (page === 'design-deepening') loadDesignDeepening();
+    if (page === 'procurement-enhanced') loadProcurementEnhanced();
   };
 });
 
@@ -1049,9 +1135,22 @@ function addChatMsg(type, text) {
   const el = document.getElementById('chatMessages');
   const div = document.createElement('div');
   div.className = `chat-msg ${type}`;
-  div.innerHTML = `<div class="msg-avatar">${type === 'agent' ? '✦' : 'U'}</div><div class="msg-bubble">${text}</div>`;
+  div.innerHTML = `<div class="msg-avatar">${type === 'agent' ? '✦' : 'U'}</div><div class="msg-bubble">${text.replace(/\n/g, '<br>')}</div>`;
   el.appendChild(div);
   el.scrollTop = el.scrollHeight;
+}
+
+function selectAgent(agent) {
+  currentAgent = agent;
+  document.querySelectorAll('.agent-chip').forEach(c => c.classList.remove('active'));
+  document.querySelector(`.agent-chip[data-agent="${agent}"]`)?.classList.add('active');
+  const names = { orchestrator: '总控', designer: '设计', budget: '预算', procurement: '采购', construction: '施工', settlement: '结算' };
+  addChatMsg('agent', `已切换到 <strong>${names[agent] || agent}</strong> Agent。请告诉我您的需求。`);
+}
+
+function quickChat(msg) {
+  document.getElementById('chatInput').value = msg;
+  sendChat();
 }
 
 async function sendChat() {
@@ -1076,6 +1175,9 @@ async function sendChat() {
     } else if (currentAgent === 'construction') {
       endpoint = '/agents/construction';
       body = JSON.stringify({ message: msg, agent_type: 'construction' });
+    } else if (currentAgent === 'settlement') {
+      endpoint = '/agents/settlement';
+      body = JSON.stringify({ message: msg, agent_type: 'settlement' });
     } else {
       endpoint = '/agents/chat';
       body = JSON.stringify({ message: msg, agent_type: currentAgent });
@@ -1223,7 +1325,7 @@ async function loadSuppliers() {
 
 // === PROJECT SELECTOR helpers ===
 function populateProjectSelects() {
-  const selects = ['budgetProjectSelect', 'constructionProjectSelect', 'settlementProjectSelect', 'filesProjectSelect'];
+  const selects = ['budgetProjectSelect', 'constructionProjectSelect', 'settlementProjectSelect', 'filesProjectSelect', 'designProjectSelect', 'procEnhancedProjectSelect'];
   selects.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -1247,6 +1349,14 @@ function onSettlementProjectChange() {
 function onFilesProjectChange() {
   selectedProjectId = document.getElementById('filesProjectSelect').value;
   if (selectedProjectId) loadFiles();
+}
+function onDesignProjectChange() {
+  selectedProjectId = document.getElementById('designProjectSelect').value;
+  if (selectedProjectId) loadDesignDeepening();
+}
+function onProcEnhancedProjectChange() {
+  selectedProjectId = document.getElementById('procEnhancedProjectSelect').value;
+  if (selectedProjectId) loadProcurementEnhanced();
 }
 
 // Refresh project selects whenever projects list changes (call after loadProjects)
@@ -1774,6 +1884,1223 @@ async function confirmSettlement() {
     await api(`/settlements/confirm/${selectedProjectId}`, { method: 'POST' });
     loadSettlement();
   } catch (e) { alert('确认失败: ' + e.message); }
+}
+
+// ============================================================
+// Phase 4: 设计深化 Tab (F18/F21/F23/F31/F32) + 采购增强 Tab (F33/F34)
+// ============================================================
+
+// ── 共用：模态弹窗 ──
+function openModal(title, bodyHtml) {
+  closeModal();
+  const mask = document.createElement('div');
+  mask.className = 'modal-mask';
+  mask.id = '_phase4Modal';
+  mask.innerHTML = `<div class="modal-box"><button class="close-x" onclick="closeModal()">✕</button><h2>${title}</h2>${bodyHtml}</div>`;
+  mask.addEventListener('click', e => { if (e.target === mask) closeModal(); });
+  document.body.appendChild(mask);
+}
+function closeModal() {
+  const m = document.getElementById('_phase4Modal');
+  if (m) m.remove();
+}
+
+// ── 共用：子 Tab 切换 ──
+function bindSubTabs(containerId, panePrefix, onChange) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll('.sub-tab').forEach(tab => {
+    tab.onclick = function() {
+      container.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      const sub = this.dataset.sub;
+      const parent = this.closest('.page');
+      parent.querySelectorAll('.sub-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(panePrefix + sub);
+      if (pane) pane.classList.add('active');
+      if (onChange) onChange(sub);
+    };
+  });
+}
+
+// ── 设计台子页面切换 (2D/3D/VR) ──
+(function() {
+  const tabs = document.querySelectorAll('#studioSubTabs .sub-tab');
+  const frame = document.getElementById('studioFrame');
+  if (!tabs.length || !frame) return;
+  tabs.forEach(tab => {
+    tab.onclick = function() {
+      tabs.forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      const src = this.dataset.src;
+      if (src && frame.src.indexOf(src) === -1) frame.src = src;
+    };
+  });
+})();
+
+// ── 共用：同步 selectedProjectId ──
+function syncDesignProject() {
+  const sel = document.getElementById('designProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  return selectedProjectId;
+}
+function syncProcProject() {
+  const sel = document.getElementById('procEnhancedProjectSelect');
+  if (sel && sel.value) selectedProjectId = sel.value;
+  if (!selectedProjectId && projects.length > 0) { selectedProjectId = projects[0].id; if (sel) sel.value = selectedProjectId; }
+  return selectedProjectId;
+}
+
+function emptyState(icon, msg) {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><p>${msg}</p></div>`;
+}
+function fmtDate(s) { return s ? new Date(s).toLocaleString('zh-CN') : '-'; }
+function fmtMoney(n) { return '¥' + (Number(n) || 0).toLocaleString(); }
+function jsonBlock(obj) {
+  try { return `<div class="code-block">${escapeHtml(JSON.stringify(obj, null, 2))}</div>`; }
+  catch (e) { return '<div class="code-block">-</div>'; }
+}
+
+// ============================================================
+// 设计深化 Tab
+// ============================================================
+
+let _designActiveSub = 'mep-kb';
+function loadDesignDeepening() {
+  bindSubTabs('designSubTabs', 'design-pane-', sub => { _designActiveSub = sub; loadDesignSub(sub); });
+  const pid = syncDesignProject();
+  if (!pid) {
+    ['mep-kb','hard-decoration','door-window-waterproof','smart-home','scene-automation'].forEach(s => {
+      document.getElementById('design-pane-' + s).innerHTML = emptyState('◆', '请先选择项目查看方案');
+    });
+    return;
+  }
+  loadDesignSub(_designActiveSub);
+}
+function loadDesignSub(sub) {
+  _designActiveSub = sub;
+  if (sub === 'mep-kb') loadMepKbPlans();
+  else if (sub === 'hard-decoration') loadHardDecorationSchemes();
+  else if (sub === 'door-window-waterproof') loadDoorWindowWaterproof();
+  else if (sub === 'smart-home') loadSmartHomeSchemes();
+  else if (sub === 'scene-automation') loadSceneAutomations();
+}
+
+// ── F18 厨卫水电 ──
+const MEP_ROOM_TYPES = { kitchen: '厨房', bathroom: '卫生间', laundry: '洗衣房', balcony: '阳台' };
+async function loadMepKbPlans() {
+  const pid = syncDesignProject();
+  const pane = document.getElementById('design-pane-mep-kb');
+  if (!pid) { pane.innerHTML = emptyState('◆', '请先选择项目'); return; }
+  try {
+    const plans = await api(`/mep-kb/plans/project/${pid}`);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">厨卫水电方案 <span class="card-badge">F18</span></h3><button class="btn btn-primary btn-sm" onclick="showMepKbCreateForm()">+ 新建方案</button></div>
+      ${plans.length === 0 ? emptyState('◆', '暂无厨卫水电方案') : `<table><thead><tr><th>房间</th><th>类型</th><th>热水器</th><th>等电位</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>
+      ${plans.map(p => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${escapeHtml(p.room_name)}</td>
+        <td>${MEP_ROOM_TYPES[p.room_type] || p.room_type}</td>
+        <td>${p.water_heater_type || '-'}${p.water_heater_capacity_l ? ' ' + p.water_heater_capacity_l + 'L' : ''}</td>
+        <td>${p.equipotential_bonding ? '<span class="tag tag-active">已设</span>' : '<span class="tag tag-draft">未设</span>'}</td>
+        <td><span class="tag tag-${p.status === 'draft' ? 'draft' : 'active'}">${p.status === 'draft' ? '草稿' : '已确认'}</span></td>
+        <td>${fmtDate(p.updated_at)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewMepKbPlan('${p.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteMepKbPlan('${p.id}')">删除</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('◆', '加载失败: ' + e.message); }
+}
+function showMepKbCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const opts = Object.entries(MEP_ROOM_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建厨卫水电方案', `
+    <div class="form-grid">
+      <div class="form-group"><label>房间名称</label><input class="input" id="mk_room_name" placeholder="如：主卫" value="厨房"></div>
+      <div class="form-group"><label>房间类型</label><select class="input" id="mk_room_type">${opts}</select></div>
+      <div class="form-group"><label>热水器类型</label><input class="input" id="mk_water_heater_type" placeholder="如：燃气/电/空气能"></div>
+      <div class="form-group"><label>热水器容量 (L)</label><input class="input" id="mk_water_heater_capacity_l" type="number" value="60"></div>
+      <div class="form-group full"><label>备注</label><input class="input" id="mk_notes" placeholder="方案备注"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createMepKbPlan()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createMepKbPlan() {
+  const pid = syncDesignProject();
+  try {
+    await api('/mep-kb/plans', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      room_name: document.getElementById('mk_room_name').value,
+      room_type: document.getElementById('mk_room_type').value,
+      water_heater_type: document.getElementById('mk_water_heater_type').value || null,
+      water_heater_capacity_l: parseInt(document.getElementById('mk_water_heater_capacity_l').value) || null,
+      notes: document.getElementById('mk_notes').value || null,
+    }) });
+    closeModal(); loadMepKbPlans();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewMepKbPlan(id) {
+  try {
+    const p = await api(`/mep-kb/plans/${id}`);
+    const points = await api(`/mep-kb/plans/${id}/points`);
+    openModal(`${escapeHtml(p.room_name)} · 厨卫水电方案详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>房间类型</label><div class="val">${MEP_ROOM_TYPES[p.room_type] || p.room_type}</div></div>
+        <div class="detail-item"><label>热水器</label><div class="val">${p.water_heater_type || '-'} ${p.water_heater_capacity_l ? p.water_heater_capacity_l + 'L' : ''}</div></div>
+        <div class="detail-item"><label>等电位</label><div class="val">${p.equipotential_bonding ? '✓ 已设' : '✗ 未设'}</div></div>
+        <div class="detail-item"><label>状态</label><div class="val"><span class="tag tag-${p.status === 'draft' ? 'draft' : 'active'}">${p.status === 'draft' ? '草稿' : '已确认'}</span></div></div>
+      </div>
+      <div class="detail-row">
+        <div class="detail-item"><label>给水点位</label><div class="val">${(p.water_inlets||[]).length} 个</div></div>
+        <div class="detail-item"><label>排水点位</label><div class="val">${(p.drains||[]).length} 个</div></div>
+        <div class="detail-item"><label>燃气布局</label><div class="val">${(p.gas_pipe_layout||[]).length} 段</div></div>
+        <div class="detail-item"><label>回路</label><div class="val">${(p.electrical_circuits||[]).length} 路</div></div>
+      </div>
+      ${p.notes ? `<div class="mb-12"><strong>备注：</strong>${escapeHtml(p.notes)}</div>` : ''}
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="autoGenMepKb('${p.id}')">⚡ 自动生成点位</button>
+        <button class="btn btn-secondary btn-sm" onclick="mepKbCircuits('${p.id}')">🔌 回路设计</button>
+        <button class="btn btn-secondary btn-sm" onclick="mepKbGas('${p.id}')">🔥 燃气规划</button>
+        <button class="btn btn-secondary btn-sm" onclick="mepKbEquipotential('${p.id}')">⚡ 等电位校验</button>
+      </div>
+      <div class="card mt-12" style="margin-bottom:0"><h2>点位列表 (${points.length})</h2>
+        <table><thead><tr><th>类型</th><th>设备</th><th>规格</th><th>位置(X,Y,Z)</th><th>电压/功率</th></tr></thead><tbody>
+        ${points.length === 0 ? '<tr><td colspan="5" class="text-muted">暂无点位，可点击"自动生成点位"</td></tr>' : points.map(pt => `<tr>
+          <td><span class="tag tag-active">${pt.point_type}</span></td>
+          <td>${escapeHtml(pt.device || '-')}</td>
+          <td>${escapeHtml(pt.spec || '-')}</td>
+          <td>${pt.position_x}, ${pt.position_y}, ${pt.position_z}</td>
+          <td>${pt.voltage || '-'} ${pt.power_w ? pt.power_w + 'W' : ''}</td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function autoGenMepKb(id) {
+  const devices = prompt('输入设备清单(逗号分隔)，如：热水器,洗碗机,净水器,智能马桶', '热水器,洗碗机,净水器,智能马桶');
+  if (devices === null) return;
+  try {
+    const res = await api(`/mep-kb/plans/${id}/auto-generate`, { method: 'POST', body: JSON.stringify({ devices: devices.split(',').map(s => s.trim()).filter(Boolean) }) });
+    alert(`已生成 ${res.total} 个点位`);
+    viewMepKbPlan(id);
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+async function mepKbCircuits(id) {
+  try {
+    const res = await api(`/mep-kb/plans/${id}/circuits`);
+    openModal('厨房回路设计', `<p class="mb-12">回路数：${(res.circuits||[]).length}</p>${jsonBlock(res)}`);
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function mepKbGas(id) {
+  try {
+    const res = await api(`/mep-kb/plans/${id}/gas`);
+    openModal('燃气管道规划', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function mepKbEquipotential(id) {
+  try {
+    const res = await api(`/mep-kb/plans/${id}/equipotential`);
+    openModal('等电位校验', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function deleteMepKbPlan(id) {
+  if (!confirm('确认删除该厨卫水电方案？')) return;
+  try { await api(`/mep-kb/plans/${id}`, { method: 'DELETE' }); loadMepKbPlans(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ── F21 硬装 ──
+const HARD_SCHEME_TYPES = { floor: '地面', wall: '墙面', ceiling: '吊顶' };
+async function loadHardDecorationSchemes() {
+  const pid = syncDesignProject();
+  const pane = document.getElementById('design-pane-hard-decoration');
+  if (!pid) { pane.innerHTML = emptyState('◆', '请先选择项目'); return; }
+  try {
+    const schemes = await api(`/hard-decoration/schemes/project/${pid}`);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">硬装方案 <span class="card-badge">F21</span></h3><button class="btn btn-primary btn-sm" onclick="showHardDecCreateForm()">+ 新建方案</button></div>
+      ${schemes.length === 0 ? emptyState('◆', '暂无硬装方案') : `<table><thead><tr><th>房间</th><th>类型</th><th>地面面积</th><th>墙面面积</th><th>顶面面积</th><th>预算</th><th>状态</th><th>操作</th></tr></thead><tbody>
+      ${schemes.map(s => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${escapeHtml(s.room_name)}</td>
+        <td>${HARD_SCHEME_TYPES[s.scheme_type] || s.scheme_type}</td>
+        <td>${s.floor_area}㎡</td>
+        <td>${s.wall_area}㎡</td>
+        <td>${s.ceiling_area}㎡</td>
+        <td style="color:var(--accent-bright)">${fmtMoney(s.total_budget)}</td>
+        <td><span class="tag tag-${s.status === 'draft' ? 'draft' : 'active'}">${s.status === 'draft' ? '草稿' : '已确认'}</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewHardDecScheme('${s.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteHardDecScheme('${s.id}')">删除</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('◆', '加载失败: ' + e.message); }
+}
+function showHardDecCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const opts = Object.entries(HARD_SCHEME_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建硬装方案', `
+    <div class="form-grid">
+      <div class="form-group"><label>房间名称</label><input class="input" id="hd_room_name" value="客厅"></div>
+      <div class="form-group"><label>方案类型</label><select class="input" id="hd_scheme_type">${opts}</select></div>
+      <div class="form-group"><label>地面面积 (㎡)</label><input class="input" id="hd_floor_area" type="number" step="0.1" value="20"></div>
+      <div class="form-group"><label>墙面面积 (㎡)</label><input class="input" id="hd_wall_area" type="number" step="0.1" value="40"></div>
+      <div class="form-group"><label>顶面面积 (㎡)</label><input class="input" id="hd_ceiling_area" type="number" step="0.1" value="20"></div>
+      <div class="form-group"><label>预算 (元)</label><input class="input" id="hd_total_budget" type="number" value="30000"></div>
+      <div class="form-group full"><label>备注</label><input class="input" id="hd_notes" placeholder="方案备注"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createHardDecScheme()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createHardDecScheme() {
+  const pid = syncDesignProject();
+  try {
+    await api('/hard-decoration/schemes', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      room_name: document.getElementById('hd_room_name').value,
+      scheme_type: document.getElementById('hd_scheme_type').value,
+      floor_area: parseFloat(document.getElementById('hd_floor_area').value) || 0,
+      wall_area: parseFloat(document.getElementById('hd_wall_area').value) || 0,
+      ceiling_area: parseFloat(document.getElementById('hd_ceiling_area').value) || 0,
+      total_budget: parseFloat(document.getElementById('hd_total_budget').value) || 0,
+      notes: document.getElementById('hd_notes').value || null,
+    }) });
+    closeModal(); loadHardDecorationSchemes();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewHardDecScheme(id) {
+  try {
+    const s = await api(`/hard-decoration/schemes/${id}`);
+    openModal(`${escapeHtml(s.room_name)} · 硬装方案详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>方案类型</label><div class="val">${HARD_SCHEME_TYPES[s.scheme_type] || s.scheme_type}</div></div>
+        <div class="detail-item"><label>地面面积</label><div class="val">${s.floor_area}㎡</div></div>
+        <div class="detail-item"><label>墙面面积</label><div class="val">${s.wall_area}㎡</div></div>
+        <div class="detail-item"><label>顶面面积</label><div class="val">${s.ceiling_area}㎡</div></div>
+        <div class="detail-item"><label>预算</label><div class="val" style="color:var(--accent-bright)">${fmtMoney(s.total_budget)}</div></div>
+        <div class="detail-item"><label>状态</label><div class="val"><span class="tag tag-${s.status === 'draft' ? 'draft' : 'active'}">${s.status === 'draft' ? '草稿' : '已确认'}</span></div></div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="hardDecTileLayout('${s.id}')">📐 瓷砖排版</button>
+        <button class="btn btn-secondary btn-sm" onclick="hardDecPaintUsage('${s.id}')">🎨 涂料用量</button>
+        <button class="btn btn-secondary btn-sm" onclick="hardDecCeilingDesign('${s.id}')">▫ 吊顶设计</button>
+        <button class="btn btn-secondary btn-sm" onclick="hardDecBudget('${s.id}')">💰 预算汇总</button>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-secondary btn-sm" onclick="hardDecAddFloor('${s.id}')">+ 地面方案</button>
+        <button class="btn btn-secondary btn-sm" onclick="hardDecAddWall('${s.id}')">+ 墙面方案</button>
+        <button class="btn btn-secondary btn-sm" onclick="hardDecAddCeiling('${s.id}')">+ 吊顶方案</button>
+      </div>
+      ${s.notes ? `<div class="mt-12"><strong>备注：</strong>${escapeHtml(s.notes)}</div>` : ''}
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function hardDecTileLayout(id) {
+  const rw = prompt('房间宽 (m)：', '4'); if (!rw) return;
+  const rl = prompt('房间长 (m)：', '5'); if (!rl) return;
+  const tw = prompt('瓷砖宽 (mm)：', '800'); if (!tw) return;
+  const tl = prompt('瓷砖长 (mm)：', '800'); if (!tl) return;
+  const pattern = prompt('铺贴方式 (直铺/工字/人字)：', '直铺') || '直铺';
+  try {
+    const res = await api(`/hard-decoration/schemes/${id}/tile-layout`, { method: 'POST', body: JSON.stringify({ room_width: +rw, room_length: +rl, tile_width: +tw, tile_length: +tl, pattern }) });
+    openModal('瓷砖排版结果', jsonBlock(res));
+  } catch (e) { alert('计算失败: ' + e.message); }
+}
+async function hardDecPaintUsage(id) {
+  const wa = prompt('墙面面积 (㎡)：', '40'); if (!wa) return;
+  const coats = prompt('涂刷遍数：', '2'); if (!coats) return;
+  const cov = prompt('每升单遍涂刷面积 (㎡/L)：', '9'); if (!cov) return;
+  try {
+    const res = await api(`/hard-decoration/schemes/${id}/paint-usage`, { method: 'POST', body: JSON.stringify({ wall_area: +wa, coats: +coats, coverage_per_l: +cov }) });
+    openModal('涂料用量计算', jsonBlock(res));
+  } catch (e) { alert('计算失败: ' + e.message); }
+}
+async function hardDecCeilingDesign(id) {
+  const rt = prompt('房间类型 (living_room/bedroom/kitchen/bathroom)：', 'living_room'); if (!rt) return;
+  const h = prompt('层高 (m)：', '2.8'); if (!h) return;
+  try {
+    const res = await api(`/hard-decoration/schemes/${id}/ceiling-design`, { method: 'POST', body: JSON.stringify({ room_type: rt, height: +h }) });
+    openModal('吊顶设计结果', jsonBlock(res));
+  } catch (e) { alert('计算失败: ' + e.message); }
+}
+async function hardDecBudget(id) {
+  try {
+    const res = await api(`/hard-decoration/schemes/${id}/budget`);
+    openModal('硬装预算汇总', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function hardDecAddFloor(id) {
+  const mt = prompt('材料类型 (如：瓷砖/木地板/石材)：', '瓷砖'); if (!mt) return;
+  const ca = prompt('覆盖面积 (㎡)：', '20'); if (!ca) return;
+  const up = prompt('单价 (元)：', '200'); if (!up) return;
+  try {
+    await api(`/hard-decoration/schemes/${id}/floors`, { method: 'POST', body: JSON.stringify({ scheme_id: id, material_type: mt, coverage_area: +ca, unit_price: +up, total_price: +ca * +up }) });
+    alert('已添加地面方案'); 
+  } catch (e) { alert('添加失败: ' + e.message); }
+}
+async function hardDecAddWall(id) {
+  const ft = prompt('饰面类型 (如：乳胶漆/壁纸/硅藻泥)：', '乳胶漆'); if (!ft) return;
+  const ca = prompt('覆盖面积 (㎡)：', '40'); if (!ca) return;
+  const up = prompt('单价 (元)：', '50'); if (!up) return;
+  try {
+    await api(`/hard-decoration/schemes/${id}/walls`, { method: 'POST', body: JSON.stringify({ scheme_id: id, finish_type: ft, coverage_area: +ca, unit_price: +up, total_price: +ca * +up }) });
+    alert('已添加墙面方案');
+  } catch (e) { alert('添加失败: ' + e.message); }
+}
+async function hardDecAddCeiling(id) {
+  const ct = prompt('吊顶类型 (flat/drop/strip/suspended)：', 'flat'); if (!ct) return;
+  const ta = prompt('总面积 (㎡)：', '20'); if (!ta) return;
+  const up = prompt('单价 (元)：', '300'); if (!up) return;
+  try {
+    await api(`/hard-decoration/schemes/${id}/ceilings`, { method: 'POST', body: JSON.stringify({ scheme_id: id, ceiling_type: ct, total_area: +ta, unit_price: +up, total_price: +ta * +up }) });
+    alert('已添加吊顶方案');
+  } catch (e) { alert('添加失败: ' + e.message); }
+}
+async function deleteHardDecScheme(id) {
+  if (!confirm('确认删除该硬装方案？')) return;
+  try { await api(`/hard-decoration/schemes/${id}`, { method: 'DELETE' }); loadHardDecorationSchemes(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ── F23 门窗防水 ──
+const DW_SPEC_TYPES = { entry_door: '入户门', interior_door: '室内门', window: '窗', sliding_door: '推拉门', french_window: '落地窗' };
+const DW_MATERIALS = { solid_wood: '实木', wood_composite: '复合木', aluminum: '铝合金', pvc: 'PVC', steel: '钢' };
+const DW_OPENING = { inward: '内开', outward: '外开', sliding: '推拉', folding: '折叠' };
+const WP_MATERIALS = { polyurethane: '聚氨酯', JS: 'JS', cement_based: '水泥基', SBS: 'SBS' };
+const WP_ROOM_TYPES = { bathroom: '卫生间', kitchen: '厨房', balcony: '阳台', terrace: '露台', laundry: '洗衣房' };
+async function loadDoorWindowWaterproof() {
+  const pid = syncDesignProject();
+  const pane = document.getElementById('design-pane-door-window-waterproof');
+  if (!pid) { pane.innerHTML = emptyState('◆', '请先选择项目'); return; }
+  try {
+    const [doors, wps] = await Promise.all([
+      api(`/door-window-waterproof/door-windows/project/${pid}`),
+      api(`/door-window-waterproof/waterproof/project/${pid}`),
+    ]);
+    pane.innerHTML = `
+      <div class="card">
+        <div class="flex-between mb-12"><h3>门窗选型 <span class="card-badge">F23</span></h3><div><button class="btn btn-secondary btn-sm" onclick="recommendDoorWindow()">推荐选型</button> <button class="btn btn-primary btn-sm" onclick="showDoorWindowCreateForm()">+ 新建门窗</button></div></div>
+        ${doors.length === 0 ? emptyState('◆', '暂无门窗选型') : `<table><thead><tr><th>房间</th><th>类型</th><th>材质</th><th>尺寸(W×H)</th><th>开启</th><th>价格</th><th>操作</th></tr></thead><tbody>
+        ${doors.map(d => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(d.room_name)}</td>
+          <td>${DW_SPEC_TYPES[d.spec_type] || d.spec_type}</td>
+          <td>${DW_MATERIALS[d.material] || d.material}</td>
+          <td>${d.width}×${d.height}mm</td>
+          <td>${DW_OPENING[d.opening_direction] || d.opening_direction}</td>
+          <td style="color:var(--accent-bright)">${fmtMoney(d.price)}</td>
+          <td><button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteDoorWindow('${d.id}')">删除</button></td>
+        </tr>`).join('')}</tbody></table>`}
+      </div>
+      <div class="card">
+        <div class="flex-between mb-12"><h3>防水方案 <span class="card-badge">F23</span></h3><button class="btn btn-primary btn-sm" onclick="showWaterproofCreateForm()">+ 新建防水</button></div>
+        ${wps.length === 0 ? emptyState('◆', '暂无防水方案') : `<table><thead><tr><th>房间</th><th>类型</th><th>材料</th><th>涂刷层数</th><th>厚度</th><th>闭水试验</th><th>总价</th><th>操作</th></tr></thead><tbody>
+        ${wps.map(w => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(w.room_name)}</td>
+          <td>${WP_ROOM_TYPES[w.room_type] || w.room_type}</td>
+          <td>${WP_MATERIALS[w.waterproof_material] || w.waterproof_material}</td>
+          <td>${w.coating_layers} 层</td>
+          <td>${w.thickness_mm}mm</td>
+          <td>${w.closure_test_hours}h</td>
+          <td style="color:var(--accent-bright)">${fmtMoney(w.total_price)}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewWaterproof('${w.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteWaterproof('${w.id}')">删除</button></td>
+        </tr>`).join('')}</tbody></table>`}
+      </div>
+    `;
+  } catch (e) { pane.innerHTML = emptyState('◆', '加载失败: ' + e.message); }
+}
+function showDoorWindowCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const stOpts = Object.entries(DW_SPEC_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  const matOpts = Object.entries(DW_MATERIALS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  const opOpts = Object.entries(DW_OPENING).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建门窗选型', `
+    <div class="form-grid">
+      <div class="form-group"><label>房间名称</label><input class="input" id="dw_room_name" value="客厅"></div>
+      <div class="form-group"><label>位置</label><input class="input" id="dw_location" placeholder="如：南向"></div>
+      <div class="form-group"><label>类型</label><select class="input" id="dw_spec_type">${stOpts}</select></div>
+      <div class="form-group"><label>材质</label><select class="input" id="dw_material">${matOpts}</select></div>
+      <div class="form-group"><label>宽 (mm)</label><input class="input" id="dw_width" type="number" value="900"></div>
+      <div class="form-group"><label>高 (mm)</label><input class="input" id="dw_height" type="number" value="2100"></div>
+      <div class="form-group"><label>开启方向</label><select class="input" id="dw_opening_direction">${opOpts}</select></div>
+      <div class="form-group"><label>价格 (元)</label><input class="input" id="dw_price" type="number" value="1500"></div>
+      <div class="form-group full"><label>备注</label><input class="input" id="dw_notes"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createDoorWindow()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createDoorWindow() {
+  const pid = syncDesignProject();
+  try {
+    await api('/door-window-waterproof/door-windows', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      room_name: document.getElementById('dw_room_name').value,
+      location: document.getElementById('dw_location').value || null,
+      spec_type: document.getElementById('dw_spec_type').value,
+      material: document.getElementById('dw_material').value,
+      width: parseFloat(document.getElementById('dw_width').value) || 800,
+      height: parseFloat(document.getElementById('dw_height').value) || 2000,
+      opening_direction: document.getElementById('dw_opening_direction').value,
+      price: parseFloat(document.getElementById('dw_price').value) || 0,
+      notes: document.getElementById('dw_notes').value || null,
+    }) });
+    closeModal(); loadDoorWindowWaterproof();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function deleteDoorWindow(id) {
+  if (!confirm('确认删除该门窗选型？')) return;
+  try { await api(`/door-window-waterproof/door-windows/${id}`, { method: 'DELETE' }); loadDoorWindowWaterproof(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+async function recommendDoorWindow() {
+  const st = prompt('类型 (entry_door/interior_door/window/sliding_door/french_window)：', 'window'); if (!st) return;
+  const rt = prompt('房间类型 (可选)：', 'living_room');
+  const od = prompt('开启方向 (可选)：', 'inward');
+  try {
+    const res = await api('/door-window-waterproof/door-windows/recommend', { method: 'POST', body: JSON.stringify({ spec_type: st, room_type: rt || null, opening_direction: od || null }) });
+    openModal('门窗推荐结果', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+function showWaterproofCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const rtOpts = Object.entries(WP_ROOM_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  const matOpts = Object.entries(WP_MATERIALS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建防水方案', `
+    <div class="form-grid">
+      <div class="form-group"><label>房间名称</label><input class="input" id="wp_room_name" value="卫生间"></div>
+      <div class="form-group"><label>房间类型</label><select class="input" id="wp_room_type">${rtOpts}</select></div>
+      <div class="form-group"><label>防水材料</label><select class="input" id="wp_waterproof_material">${matOpts}</select></div>
+      <div class="form-group"><label>墙面高度 (mm)</label><input class="input" id="wp_wall_height_mm" type="number" value="1800"></div>
+      <div class="form-group"><label>地面面积 (㎡)</label><input class="input" id="wp_floor_area" type="number" step="0.1" value="6"></div>
+      <div class="form-group"><label>墙面面积 (㎡)</label><input class="input" id="wp_wall_area" type="number" step="0.1" value="15"></div>
+      <div class="form-group"><label>涂刷层数</label><input class="input" id="wp_coating_layers" type="number" value="2"></div>
+      <div class="form-group"><label>厚度 (mm)</label><input class="input" id="wp_thickness_mm" type="number" step="0.1" value="1.5"></div>
+      <div class="form-group"><label>闭水试验 (h)</label><input class="input" id="wp_closure_test_hours" type="number" value="24"></div>
+      <div class="form-group"><label>单价 (元)</label><input class="input" id="wp_unit_price" type="number" value="80"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createWaterproof()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createWaterproof() {
+  const pid = syncDesignProject();
+  try {
+    await api('/door-window-waterproof/waterproof', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      room_name: document.getElementById('wp_room_name').value,
+      room_type: document.getElementById('wp_room_type').value,
+      waterproof_material: document.getElementById('wp_waterproof_material').value,
+      wall_height_mm: parseInt(document.getElementById('wp_wall_height_mm').value) || 1800,
+      floor_area: parseFloat(document.getElementById('wp_floor_area').value) || 0,
+      wall_area: parseFloat(document.getElementById('wp_wall_area').value) || 0,
+      coating_layers: parseInt(document.getElementById('wp_coating_layers').value) || 2,
+      thickness_mm: parseFloat(document.getElementById('wp_thickness_mm').value) || 1.5,
+      closure_test_hours: parseInt(document.getElementById('wp_closure_test_hours').value) || 24,
+      unit_price: parseFloat(document.getElementById('wp_unit_price').value) || 0,
+    }) });
+    closeModal(); loadDoorWindowWaterproof();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewWaterproof(id) {
+  try {
+    const w = await api(`/door-window-waterproof/waterproof/${id}`);
+    openModal(`${escapeHtml(w.room_name)} · 防水方案详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>房间类型</label><div class="val">${WP_ROOM_TYPES[w.room_type] || w.room_type}</div></div>
+        <div class="detail-item"><label>材料</label><div class="val">${WP_MATERIALS[w.waterproof_material] || w.waterproof_material}</div></div>
+        <div class="detail-item"><label>墙面高度</label><div class="val">${w.wall_height_mm}mm</div></div>
+        <div class="detail-item"><label>涂刷层数</label><div class="val">${w.coating_layers} 层</div></div>
+        <div class="detail-item"><label>厚度</label><div class="val">${w.thickness_mm}mm</div></div>
+        <div class="detail-item"><label>闭水试验</label><div class="val">${w.closure_test_hours}h</div></div>
+        <div class="detail-item"><label>地面面积</label><div class="val">${w.floor_area}㎡</div></div>
+        <div class="detail-item"><label>墙面面积</label><div class="val">${w.wall_area}㎡</div></div>
+        <div class="detail-item"><label>材料用量</label><div class="val">${w.material_quantity}</div></div>
+        <div class="detail-item"><label>总价</label><div class="val" style="color:var(--accent-bright)">${fmtMoney(w.total_price)}</div></div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="computeWaterproofArea('${w.id}')">📐 面积计算</button>
+        <button class="btn btn-secondary btn-sm" onclick="validateWaterproof('${w.id}')">✓ 规范校验</button>
+      </div>
+      ${w.notes ? `<div class="mt-12"><strong>备注：</strong>${escapeHtml(w.notes)}</div>` : ''}
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function computeWaterproofArea(id) {
+  const rw = prompt('房间宽 (m)：', '2.5'); if (!rw) return;
+  const rl = prompt('房间长 (m)：', '3'); if (!rl) return;
+  const wh = prompt('墙面高度 (mm)：', '1800'); if (!wh) return;
+  try {
+    const res = await api(`/door-window-waterproof/waterproof/${id}/compute-area`, { method: 'POST', body: JSON.stringify({ room_width: +rw, room_length: +rl, wall_height_mm: +wh }) });
+    openModal('防水面积计算', jsonBlock(res));
+  } catch (e) { alert('计算失败: ' + e.message); }
+}
+async function validateWaterproof(id) {
+  try {
+    const res = await api(`/door-window-waterproof/waterproof/${id}/validation`);
+    openModal('防水规范校验', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function deleteWaterproof(id) {
+  if (!confirm('确认删除该防水方案？')) return;
+  try { await api(`/door-window-waterproof/waterproof/${id}`, { method: 'DELETE' }); loadDoorWindowWaterproof(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ── F31 智能家居 ──
+const SH_PROTOCOLS = { zigbee: 'Zigbee', wifi: 'WiFi', bluetooth: '蓝牙', matter: 'Matter', zwave: 'Z-Wave' };
+const SH_HUB_BRANDS = { xiaomi: '小米', huawei: '华为', aqara: 'Aqara', tuya: '涂鸦', homekit: 'Apple HomeKit' };
+async function loadSmartHomeSchemes() {
+  const pid = syncDesignProject();
+  const pane = document.getElementById('design-pane-smart-home');
+  if (!pid) { pane.innerHTML = emptyState('◆', '请先选择项目'); return; }
+  try {
+    const schemes = await api(`/smart-home/schemes/project/${pid}`);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">智能家居方案 <span class="card-badge">F31</span></h3><button class="btn btn-primary btn-sm" onclick="showSmartHomeCreateForm()">+ 新建方案</button></div>
+      ${schemes.length === 0 ? emptyState('◆', '暂无智能家居方案') : `<table><thead><tr><th>房间</th><th>协议</th><th>网关品牌</th><th>设备数</th><th>总价</th><th>状态</th><th>操作</th></tr></thead><tbody>
+      ${schemes.map(s => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${escapeHtml(s.room_name)}</td>
+        <td>${SH_PROTOCOLS[s.protocol] || s.protocol}</td>
+        <td>${SH_HUB_BRANDS[s.hub_brand] || s.hub_brand}</td>
+        <td>${s.device_count}</td>
+        <td style="color:var(--accent-bright)">${fmtMoney(s.total_price)}</td>
+        <td><span class="tag tag-${s.status === 'draft' ? 'draft' : 'active'}">${s.status === 'draft' ? '草稿' : '已确认'}</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewSmartHomeScheme('${s.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteSmartHomeScheme('${s.id}')">删除</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('◆', '加载失败: ' + e.message); }
+}
+function showSmartHomeCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const pOpts = Object.entries(SH_PROTOCOLS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  const bOpts = Object.entries(SH_HUB_BRANDS).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建智能家居方案', `
+    <div class="form-grid">
+      <div class="form-group"><label>房间名称</label><input class="input" id="sh_room_name" value="客厅"></div>
+      <div class="form-group"><label>房间类型</label><input class="input" id="sh_room_type" value="living_room"></div>
+      <div class="form-group"><label>协议</label><select class="input" id="sh_protocol">${pOpts}</select></div>
+      <div class="form-group"><label>网关品牌</label><select class="input" id="sh_hub_brand">${bOpts}</select></div>
+      <div class="form-group full"><label>备注</label><input class="input" id="sh_notes"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createSmartHomeScheme()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createSmartHomeScheme() {
+  const pid = syncDesignProject();
+  try {
+    await api('/smart-home/schemes', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      room_name: document.getElementById('sh_room_name').value,
+      room_type: document.getElementById('sh_room_type').value || 'living_room',
+      protocol: document.getElementById('sh_protocol').value,
+      hub_brand: document.getElementById('sh_hub_brand').value,
+      notes: document.getElementById('sh_notes').value || null,
+    }) });
+    closeModal(); loadSmartHomeSchemes();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewSmartHomeScheme(id) {
+  try {
+    const [s, devices] = await Promise.all([
+      api(`/smart-home/schemes/${id}`),
+      api(`/smart-home/schemes/${id}/devices`),
+    ]);
+    openModal(`${escapeHtml(s.room_name)} · 智能家居方案详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>协议</label><div class="val">${SH_PROTOCOLS[s.protocol] || s.protocol}</div></div>
+        <div class="detail-item"><label>网关品牌</label><div class="val">${SH_HUB_BRANDS[s.hub_brand] || s.hub_brand}</div></div>
+        <div class="detail-item"><label>设备数</label><div class="val">${s.device_count}</div></div>
+        <div class="detail-item"><label>总价</label><div class="val" style="color:var(--accent-bright)">${fmtMoney(s.total_price)}</div></div>
+      </div>
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="smartHomeAutoRecommend('${s.id}')">⚡ 自动推荐设备</button>
+        <button class="btn btn-secondary btn-sm" onclick="smartHomeWiring('${s.id}')">🔌 布线规划</button>
+        <button class="btn btn-secondary btn-sm" onclick="smartHomeProtocolAdvice('${s.id}')">📡 协议建议</button>
+        <button class="btn btn-secondary btn-sm" onclick="smartHomePrice('${s.id}')">💰 方案总价</button>
+        <button class="btn btn-secondary btn-sm" onclick="showAddSmartDeviceForm('${s.id}')">+ 添加设备</button>
+      </div>
+      <div class="card mt-12" style="margin-bottom:0"><h2>设备列表 (${devices.length})</h2>
+        <table><thead><tr><th>设备名称</th><th>类型</th><th>品牌型号</th><th>协议</th><th>价格</th><th>状态</th></tr></thead><tbody>
+        ${devices.length === 0 ? '<tr><td colspan="6" class="text-muted">暂无设备，可点击"自动推荐设备"或"添加设备"</td></tr>' : devices.map(d => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(d.device_name)}</td>
+          <td>${d.device_type}</td>
+          <td>${escapeHtml(d.brand || '-')} ${escapeHtml(d.model || '')}</td>
+          <td>${SH_PROTOCOLS[d.protocol] || d.protocol}</td>
+          <td style="color:var(--accent-bright)">${fmtMoney(d.price)}</td>
+          <td><span class="tag tag-${d.status === 'planned' ? 'draft' : 'active'}">${d.status}</span></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+      ${s.notes ? `<div class="mt-12"><strong>备注：</strong>${escapeHtml(s.notes)}</div>` : ''}
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function smartHomeAutoRecommend(id) {
+  const rt = prompt('房间类型：', 'living_room'); if (!rt) return;
+  const ra = prompt('房间面积 (㎡)：', '20'); if (!ra) return;
+  const proto = prompt('协议：', 'zigbee'); if (!proto) return;
+  const hub = prompt('网关品牌：', 'xiaomi'); if (!hub) return;
+  try {
+    const res = await api(`/smart-home/schemes/${id}/auto-recommend`, { method: 'POST', body: JSON.stringify({ room_type: rt, room_area: +ra, protocol: proto, hub_brand: hub }) });
+    openModal('自动推荐设备结果', `<p class="mb-12">推荐 ${res.recommended_devices.length} 个设备，估价 ${fmtMoney(res.total_estimate)}</p>${jsonBlock(res)}`);
+  } catch (e) { alert('推荐失败: ' + e.message); }
+}
+async function smartHomeWiring(id) {
+  try {
+    const res = await api(`/smart-home/schemes/${id}/wiring`);
+    openModal('布线规划', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function smartHomeProtocolAdvice(id) {
+  try {
+    const res = await api(`/smart-home/schemes/${id}/protocol-advice`);
+    openModal('协议选型建议', jsonBlock(res));
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function smartHomePrice(id) {
+  try {
+    const res = await api(`/smart-home/schemes/${id}/price`);
+    openModal('方案总价', `<p class="mb-12">设备 ${res.device_count} 台，设备总价 ${fmtMoney(res.device_total)}，网关估价 ${fmtMoney(res.hub_estimate)}，方案总价 <strong style="color:var(--accent-bright)">${fmtMoney(res.total_price)}</strong></p>`);
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+function showAddSmartDeviceForm(id) {
+  openModal('添加智能设备', `
+    <div class="form-grid">
+      <div class="form-group"><label>设备名称</label><input class="input" id="sd_device_name" value="智能灯"></div>
+      <div class="form-group"><label>设备类型</label><input class="input" id="sd_device_type" value="light" placeholder="light/switch/socket/sensor/camera/lock/curtain"></div>
+      <div class="form-group"><label>品牌</label><input class="input" id="sd_brand" value="小米"></div>
+      <div class="form-group"><label>型号</label><input class="input" id="sd_model"></div>
+      <div class="form-group"><label>房间名称</label><input class="input" id="sd_room_name" value="客厅"></div>
+      <div class="form-group"><label>协议</label><input class="input" id="sd_protocol" value="zigbee"></div>
+      <div class="form-group"><label>功率 (W)</label><input class="input" id="sd_power_w" type="number" value="12"></div>
+      <div class="form-group"><label>价格 (元)</label><input class="input" id="sd_price" type="number" value="199"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="addSmartDevice('${id}')">添加</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function addSmartDevice(schemeId) {
+  try {
+    await api(`/smart-home/schemes/${schemeId}/devices`, { method: 'POST', body: JSON.stringify({
+      device_name: document.getElementById('sd_device_name').value,
+      device_type: document.getElementById('sd_device_type').value,
+      brand: document.getElementById('sd_brand').value || null,
+      model: document.getElementById('sd_model').value || null,
+      room_name: document.getElementById('sd_room_name').value || null,
+      protocol: document.getElementById('sd_protocol').value || 'zigbee',
+      power_w: parseFloat(document.getElementById('sd_power_w').value) || null,
+      price: parseFloat(document.getElementById('sd_price').value) || 0,
+    }) });
+    closeModal(); viewSmartHomeScheme(schemeId);
+  } catch (e) { alert('添加失败: ' + e.message); }
+}
+async function deleteSmartHomeScheme(id) {
+  if (!confirm('确认删除该智能家居方案？')) return;
+  try { await api(`/smart-home/schemes/${id}`, { method: 'DELETE' }); loadSmartHomeSchemes(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ── F32 场景编辑 ──
+const SCENE_TYPES = { manual: '手动', scheduled: '定时', triggered: '触发', geo: '地理围栏' };
+async function loadSceneAutomations() {
+  const pid = syncDesignProject();
+  const pane = document.getElementById('design-pane-scene-automation');
+  if (!pid) { pane.innerHTML = emptyState('◆', '请先选择项目'); return; }
+  try {
+    const [scenes, ecos] = await Promise.all([
+      api(`/scene-automation/scenes/project/${pid}`),
+      api(`/scene-automation/ecosystems/project/${pid}`),
+    ]);
+    pane.innerHTML = `
+      <div class="card">
+        <div class="flex-between mb-12"><h3>场景自动化 <span class="card-badge">F32</span></h3><div><button class="btn btn-secondary btn-sm" onclick="recommendScenes()">推荐场景</button> <button class="btn btn-secondary btn-sm" onclick="parseSceneNl()">自然语言解析</button> <button class="btn btn-primary btn-sm" onclick="showSceneCreateForm()">+ 新建场景</button></div></div>
+        ${scenes.length === 0 ? emptyState('◆', '暂无场景') : `<table><thead><tr><th>场景名称</th><th>类型</th><th>启用</th><th>优先级</th><th>动作数</th><th>更新时间</th><th>操作</th></tr></thead><tbody>
+        ${scenes.map(s => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(s.scene_name)}</td>
+          <td>${SCENE_TYPES[s.scene_type] || s.scene_type}</td>
+          <td>${s.enabled ? '<span class="tag tag-active">启用</span>' : '<span class="tag tag-draft">禁用</span>'}</td>
+          <td>${s.priority}</td>
+          <td>${(s.actions||[]).length}</td>
+          <td>${fmtDate(s.updated_at)}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewScene('${s.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteScene('${s.id}')">删除</button></td>
+        </tr>`).join('')}</tbody></table>`}
+      </div>
+      <div class="card">
+        <div class="flex-between mb-12"><h3>生态对接 <span class="card-badge">F32</span></h3><button class="btn btn-primary btn-sm" onclick="showEcosystemCreateForm()">+ 接入生态</button></div>
+        ${ecos.length === 0 ? emptyState('◆', '暂无生态对接') : `<table><thead><tr><th>生态</th><th>授权状态</th><th>设备数</th><th>最近同步</th><th>操作</th></tr></thead><tbody>
+        ${ecos.map(e => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${e.ecosystem}</td>
+          <td><span class="tag tag-${e.auth_status === 'connected' ? 'active' : 'draft'}">${e.auth_status}</span></td>
+          <td>${e.device_count}</td>
+          <td>${fmtDate(e.last_synced_at)}</td>
+          <td><button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteEcosystem('${e.id}')">删除</button></td>
+        </tr>`).join('')}</tbody></table>`}
+      </div>
+    `;
+  } catch (e) { pane.innerHTML = emptyState('◆', '加载失败: ' + e.message); }
+}
+function showSceneCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  const tOpts = Object.entries(SCENE_TYPES).map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+  openModal('新建场景自动化', `
+    <div class="form-grid">
+      <div class="form-group"><label>场景名称</label><input class="input" id="sc_scene_name" value="回家模式"></div>
+      <div class="form-group"><label>场景类型</label><select class="input" id="sc_scene_type">${tOpts}</select></div>
+      <div class="form-group"><label>优先级</label><input class="input" id="sc_priority" type="number" value="0"></div>
+      <div class="form-group"><label>启用</label><select class="input" id="sc_enabled"><option value="true">启用</option><option value="false">禁用</option></select></div>
+      <div class="form-group full"><label>触发条件 (JSON)</label><input class="input" id="sc_trigger" placeholder='{"time":"18:00"}' value='{"time":"18:00"}'></div>
+      <div class="form-group full"><label>动作 (JSON 数组)</label><input class="input" id="sc_actions" placeholder='[{"device":"light","action":"on"}]' value='[{"device":"light","action":"on","brightness":80}]'></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createScene()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createScene() {
+  const pid = syncDesignProject();
+  let trigger = null, actions = null;
+  try { trigger = JSON.parse(document.getElementById('sc_trigger').value || 'null'); } catch (e) { return alert('触发条件 JSON 格式错误'); }
+  try { actions = JSON.parse(document.getElementById('sc_actions').value || 'null'); } catch (e) { return alert('动作 JSON 格式错误'); }
+  try {
+    await api('/scene-automation/scenes', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      scene_name: document.getElementById('sc_scene_name').value,
+      scene_type: document.getElementById('sc_scene_type').value,
+      trigger_condition: trigger,
+      actions: actions,
+      enabled: document.getElementById('sc_enabled').value === 'true',
+      priority: parseInt(document.getElementById('sc_priority').value) || 0,
+    }) });
+    closeModal(); loadSceneAutomations();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewScene(id) {
+  try {
+    const s = await api(`/scene-automation/scenes/${id}`);
+    openModal(`${escapeHtml(s.scene_name)} · 场景详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>场景类型</label><div class="val">${SCENE_TYPES[s.scene_type] || s.scene_type}</div></div>
+        <div class="detail-item"><label>启用状态</label><div class="val">${s.enabled ? '启用' : '禁用'}</div></div>
+        <div class="detail-item"><label>优先级</label><div class="val">${s.priority}</div></div>
+        <div class="detail-item"><label>动作数</label><div class="val">${(s.actions||[]).length}</div></div>
+      </div>
+      <div class="mb-12"><strong>触发条件：</strong></div>${jsonBlock(s.trigger_condition)}
+      <div class="mt-12 mb-12"><strong>动作列表：</strong></div>${jsonBlock(s.actions)}
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="simulateScene('${s.id}')">▶ 模拟执行</button>
+        <button class="btn btn-secondary btn-sm" onclick="syncScene('${s.id}')">🔄 同步到生态</button>
+      </div>
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function simulateScene(id) {
+  try {
+    const res = await api(`/scene-automation/scenes/${id}/simulate`, { method: 'POST' });
+    openModal('场景模拟执行结果', `<p class="mb-12">${res.would_execute ? '✓ 满足触发条件' : '✗ 不满足触发条件'}</p>${jsonBlock(res)}`);
+  } catch (e) { alert('模拟失败: ' + e.message); }
+}
+async function syncScene(id) {
+  const eco = prompt('目标生态 (homekit/mijia/harmonyos/alexa/google_home/tuya)：', 'mijia'); if (!eco) return;
+  try {
+    const res = await api(`/scene-automation/scenes/${id}/sync`, { method: 'POST', body: JSON.stringify({ ecosystem: eco }) });
+    alert(`${res.synced ? '同步成功' : '同步失败'}: ${res.message}`);
+  } catch (e) { alert('同步失败: ' + e.message); }
+}
+async function recommendScenes() {
+  const rt = prompt('房间类型：', 'living_room'); if (!rt) return;
+  const lf = prompt('生活方式偏好 (可选)：', '');
+  try {
+    const res = await api(`/scene-automation/scenes/recommend?room_type=${encodeURIComponent(rt)}&lifestyle=${encodeURIComponent(lf || '')}`);
+    openModal('场景推荐结果', `<p class="mb-12">推荐 ${res.recommended_scenes.length} 个场景</p>${jsonBlock(res)}`);
+  } catch (e) { alert('查询失败: ' + e.message); }
+}
+async function parseSceneNl() {
+  const text = prompt('输入自然语言描述，如"每天晚上8点关闭所有灯"：', '每天晚上8点关闭所有灯');
+  if (!text) return;
+  try {
+    const res = await api('/scene-automation/scenes/parse', { method: 'POST', body: JSON.stringify({ text }) });
+    openModal('自然语言解析结果', `<p class="mb-12">${res.parsed ? '✓ 解析成功' : '✗ 解析失败'}</p>${jsonBlock(res)}`);
+  } catch (e) { alert('解析失败: ' + e.message); }
+}
+function showEcosystemCreateForm() {
+  const pid = syncDesignProject();
+  if (!pid) return alert('请先选择项目');
+  openModal('接入生态平台', `
+    <div class="form-grid">
+      <div class="form-group"><label>生态</label><input class="input" id="eco_ecosystem" value="mijia" placeholder="homekit/mijia/harmonyos/alexa/google_home/tuya"></div>
+      <div class="form-group"><label>设备数</label><input class="input" id="eco_device_count" type="number" value="0"></div>
+      <div class="form-group full"><label>备注</label><input class="input" id="eco_notes"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createEcosystem()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createEcosystem() {
+  const pid = syncDesignProject();
+  try {
+    await api('/scene-automation/ecosystems', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      ecosystem: document.getElementById('eco_ecosystem').value,
+      device_count: parseInt(document.getElementById('eco_device_count').value) || 0,
+      notes: document.getElementById('eco_notes').value || null,
+    }) });
+    closeModal(); loadSceneAutomations();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function deleteEcosystem(id) {
+  if (!confirm('确认删除该生态对接？')) return;
+  try { await api(`/scene-automation/ecosystems/${id}`, { method: 'DELETE' }); loadSceneAutomations(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+async function deleteScene(id) {
+  if (!confirm('确认删除该场景？')) return;
+  try { await api(`/scene-automation/scenes/${id}`, { method: 'DELETE' }); loadSceneAutomations(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ============================================================
+// 采购增强 Tab (F33/F34)
+// ============================================================
+
+let _procActiveSub = 'comparisons';
+function loadProcurementEnhanced() {
+  bindSubTabs('procEnhancedSubTabs', 'proc-pane-', sub => { _procActiveSub = sub; loadProcSub(sub); });
+  const pid = syncProcProject();
+  if (!pid) {
+    ['comparisons','escrow','logistics','samples'].forEach(s => {
+      document.getElementById('proc-pane-' + s).innerHTML = emptyState('⇄', '请先选择项目查看数据');
+    });
+    return;
+  }
+  loadProcSub(_procActiveSub);
+}
+function loadProcSub(sub) {
+  _procActiveSub = sub;
+  if (sub === 'comparisons') loadComparisons();
+  else if (sub === 'escrow') loadEscrowPayments();
+  else if (sub === 'logistics') loadLogistics();
+  else if (sub === 'samples') loadSamples();
+}
+
+// ── F33 比价报告 ──
+async function loadComparisons() {
+  const pid = syncProcProject();
+  const pane = document.getElementById('proc-pane-comparisons');
+  if (!pid) { pane.innerHTML = emptyState('⇄', '请先选择项目'); return; }
+  try {
+    const list = await api(`/procurement-enhanced/comparisons/project/${pid}`);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">比价报告 <span class="card-badge">F33</span></h3><button class="btn btn-primary btn-sm" onclick="showComparisonCreateForm()">+ 从 BOM 生成</button></div>
+      ${list.length === 0 ? emptyState('⇄', '暂无比价报告') : `<table><thead><tr><th>报告编号</th><th>物料数</th><th>供应商数</th><th>报价数</th><th>节省金额</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead><tbody>
+      ${list.map(c => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${escapeHtml(c.report_no)}</td>
+        <td>${c.item_count}</td>
+        <td>${c.supplier_count}</td>
+        <td>${c.total_quotes}</td>
+        <td style="color:var(--success)">${fmtMoney(c.total_savings)}</td>
+        <td><span class="tag tag-${c.status === 'draft' ? 'draft' : 'active'}">${c.status}</span></td>
+        <td>${fmtDate(c.created_at)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewComparison('${c.id}')">详情</button> <button class="btn btn-secondary btn-sm" style="color:var(--danger)" onclick="deleteComparison('${c.id}')">删除</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('⇄', '加载失败: ' + e.message); }
+}
+function showComparisonCreateForm() {
+  const pid = syncProcProject();
+  if (!pid) return alert('请先选择项目');
+  openModal('从 BOM 生成比价报告', `
+    <div class="form-group"><label>BOM ID (可选，留空使用项目默认 BOM)</label><input class="input" id="cp_bom_id" placeholder="留空使用默认"></div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createComparison()">生成</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createComparison() {
+  const pid = syncProcProject();
+  const bomId = document.getElementById('cp_bom_id').value.trim() || null;
+  try {
+    await api('/procurement-enhanced/comparisons', { method: 'POST', body: JSON.stringify({ project_id: pid, bom_id: bomId }) });
+    closeModal(); loadComparisons();
+  } catch (e) { alert('生成失败: ' + e.message); }
+}
+async function viewComparison(id) {
+  try {
+    const [c, items] = await Promise.all([
+      api(`/procurement-enhanced/comparisons/${id}`),
+      api(`/procurement-enhanced/comparisons/${id}/items`),
+    ]);
+    openModal(`${escapeHtml(c.report_no)} · 比价报告详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>物料数</label><div class="val">${c.item_count}</div></div>
+        <div class="detail-item"><label>供应商数</label><div class="val">${c.supplier_count}</div></div>
+        <div class="detail-item"><label>报价数</label><div class="val">${c.total_quotes}</div></div>
+        <div class="detail-item"><label>节省金额</label><div class="val" style="color:var(--success)">${fmtMoney(c.total_savings)}</div></div>
+        <div class="detail-item"><label>状态</label><div class="val"><span class="tag tag-${c.status === 'draft' ? 'draft' : 'active'}">${c.status}</span></div></div>
+      </div>
+      <div class="card mt-12" style="margin-bottom:0"><h2>比价明细 (${items.length})</h2>
+        <table><thead><tr><th>物料</th><th>规格</th><th>数量</th><th>推荐单价</th><th>节省</th><th>报价数</th><th>操作</th></tr></thead><tbody>
+        ${items.length === 0 ? '<tr><td colspan="7" class="text-muted">暂无明细</td></tr>' : items.map(it => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(it.material_name)}</td>
+          <td>${escapeHtml(it.spec || '-')}</td>
+          <td>${it.quantity} ${it.unit}</td>
+          <td style="color:var(--accent-bright)">${fmtMoney(it.recommended_price)}</td>
+          <td style="color:var(--success)">${fmtMoney(it.savings_per_item)}</td>
+          <td>${(it.quotations||[]).length}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="aiMatchSupplier('${it.bom_item_id || ''}')">AI 匹配</button></td>
+        </tr>`).join('')}</tbody></table>
+      </div>
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function aiMatchSupplier(bomItemId) {
+  if (!bomItemId) return alert('该明细缺少 BOM 物料 ID');
+  const loc = prompt('所在地区 (可选)：', '');
+  try {
+    const res = await api('/procurement-enhanced/ai-match', { method: 'POST', body: JSON.stringify({ bom_item_id: bomItemId, location: loc || null }) });
+    openModal('AI 供应商匹配', `<p class="mb-12">物料：${escapeHtml(res.material_name)}</p><p class="mb-12">推荐供应商：${res.recommended_supplier_id || '-'}</p>${res.reason ? `<p class="mb-12">${escapeHtml(res.reason)}</p>` : ''}${jsonBlock(res.matched_suppliers)}`);
+  } catch (e) { alert('匹配失败: ' + e.message); }
+}
+async function deleteComparison(id) {
+  if (!confirm('确认删除该比价报告？')) return;
+  try { await api(`/procurement-enhanced/comparisons/${id}`, { method: 'DELETE' }); loadComparisons(); }
+  catch (e) { alert('删除失败: ' + e.message); }
+}
+
+// ── F34 担保支付 ──
+const ESCROW_STATUS = { created: '已创建', buyer_paid: '已付款', released: '已放款', refunded: '已退款', disputed: '争议中', resolved: '已解决' };
+async function loadEscrowPayments() {
+  const pid = syncProcProject();
+  const pane = document.getElementById('proc-pane-escrow');
+  if (!pid) { pane.innerHTML = emptyState('⇄', '请先选择项目'); return; }
+  try {
+    // 担保支付无 project 列表端点，列出项目采购订单便于创建担保支付
+    const orders = await api(`/procurement/orders/${pid}`).catch(() => []);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">担保支付 <span class="card-badge">F34</span></h3><div><input class="input" id="escrowLookupId" placeholder="输入担保单 ID 查询" style="max-width:220px;margin-right:8px"><button class="btn btn-secondary btn-sm" onclick="lookupEscrow()">查询</button> <button class="btn btn-primary btn-sm" onclick="showEscrowCreateForm()">+ 创建担保支付</button></div></div>
+      <div class="card">
+        <h3>采购订单 (可创建担保支付)</h3>
+        ${orders.length === 0 ? emptyState('⇄', '该项目暂无采购订单') : `<table><thead><tr><th>订单号</th><th>供应商</th><th>金额</th><th>状态</th><th>操作</th></tr></thead><tbody>
+        ${orders.map(o => `<tr>
+          <td style="color:var(--text-primary);font-weight:500">${escapeHtml(o.order_no || o.id.slice(0,8))}</td>
+          <td>${escapeHtml(o.supplier_name || o.supplier_id || '-')}</td>
+          <td style="color:var(--accent-bright)">${fmtMoney(o.total_amount)}</td>
+          <td><span class="tag tag-active">${o.status || '-'}</span></td>
+          <td><button class="btn btn-primary btn-sm" onclick="createEscrowFromOrder('${o.id}')">创建担保支付</button></td>
+        </tr>`).join('')}</tbody></table>`}
+      </div>
+      <p class="text-muted mt-12" style="font-size:0.75rem">💡 担保支付创建后会返回担保单 ID，可在上方输入 ID 查询详情与操作（付款/放款/退款/争议）。</p>
+    `;
+  } catch (e) { pane.innerHTML = emptyState('⇄', '加载失败: ' + e.message); }
+}
+async function lookupEscrow() {
+  const id = document.getElementById('escrowLookupId').value.trim();
+  if (!id) return alert('请输入担保单 ID');
+  viewEscrow(id);
+}
+async function createEscrowFromOrder(orderId) {
+  if (!confirm('确认为该订单创建担保支付？')) return;
+  try {
+    const res = await api('/procurement-enhanced/escrow', { method: 'POST', body: JSON.stringify({ order_id: orderId }) });
+    alert(`担保支付已创建，单号：${res.escrow_no}\n担保单 ID：${res.id}\n请保存 ID 以便后续查询。`);
+    viewEscrow(res.id);
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+function showEscrowCreateForm() {
+  openModal('创建担保支付', `
+    <div class="form-group"><label>采购订单 ID</label><input class="input" id="es_order_id" placeholder="输入采购订单 ID"></div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createEscrow()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createEscrow() {
+  const orderId = document.getElementById('es_order_id').value.trim();
+  if (!orderId) return alert('请输入订单 ID');
+  try {
+    await api('/procurement-enhanced/escrow', { method: 'POST', body: JSON.stringify({ order_id: orderId }) });
+    closeModal(); loadEscrowPayments();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewEscrow(id) {
+  try {
+    const e = await api(`/procurement-enhanced/escrow/${id}`);
+    openModal(`${escapeHtml(e.escrow_no)} · 担保支付详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>订单 ID</label><div class="val">${e.order_id}</div></div>
+        <div class="detail-item"><label>金额</label><div class="val" style="color:var(--accent-bright)">${fmtMoney(e.total_amount)}</div></div>
+        <div class="detail-item"><label>担保手续费</label><div class="val">${fmtMoney(e.escrow_fee)}</div></div>
+        <div class="detail-item"><label>状态</label><div class="val"><span class="tag tag-active">${ESCROW_STATUS[e.status] || e.status}</span></div></div>
+        <div class="detail-item"><label>买家付款</label><div class="val">${e.buyer_paid ? '✓ ' + fmtDate(e.buyer_paid_at) : '✗ 未付款'}</div></div>
+        <div class="detail-item"><label>供应商收款</label><div class="val">${e.supplier_received ? '✓ ' + fmtDate(e.supplier_received_at) : '✗ 未放款'}</div></div>
+      </div>
+      ${e.dispute_reason ? `<div class="mb-12"><strong>争议原因：</strong>${escapeHtml(e.dispute_reason)}</div>` : ''}
+      <div class="action-bar">
+        ${!e.buyer_paid ? `<button class="btn btn-primary btn-sm" onclick="escrowPay('${e.id}')">💰 买家付款</button>` : ''}
+        ${e.buyer_paid && !e.supplier_received ? `<button class="btn btn-primary btn-sm" onclick="escrowRelease('${e.id}')">✓ 确认收货放款</button>` : ''}
+        ${e.buyer_paid && !e.supplier_received && e.status !== 'disputed' ? `<button class="btn btn-secondary btn-sm" onclick="escrowRefund('${e.id}')">↩ 申请退款</button>` : ''}
+        ${e.status !== 'disputed' ? `<button class="btn btn-secondary btn-sm" onclick="escrowDispute('${e.id}')">⚠ 发起争议</button>` : ''}
+        ${e.status === 'disputed' ? `<button class="btn btn-primary btn-sm" onclick="escrowResolve('${e.id}')">✓ 解决争议</button>` : ''}
+      </div>
+    `);
+  } catch (err) { alert('加载详情失败: ' + err.message); }
+}
+async function escrowPay(id) {
+  if (!confirm('确认付款？资金将进入平台担保账户。')) return;
+  try { await api(`/procurement-enhanced/escrow/${id}/pay`, { method: 'POST' }); alert('付款成功'); viewEscrow(id); loadEscrowPayments(); }
+  catch (e) { alert('付款失败: ' + e.message); }
+}
+async function escrowRelease(id) {
+  if (!confirm('确认收货并释放资金给供应商？')) return;
+  try { await api(`/procurement-enhanced/escrow/${id}/release`, { method: 'POST' }); alert('已放款'); viewEscrow(id); loadEscrowPayments(); }
+  catch (e) { alert('放款失败: ' + e.message); }
+}
+async function escrowRefund(id) {
+  const reason = prompt('请输入退款原因：'); if (!reason) return;
+  try { await api(`/procurement-enhanced/escrow/${id}/refund`, { method: 'POST', body: JSON.stringify({ reason }) }); alert('退款申请已提交'); viewEscrow(id); loadEscrowPayments(); }
+  catch (e) { alert('申请失败: ' + e.message); }
+}
+async function escrowDispute(id) {
+  const reason = prompt('请输入争议原因：'); if (!reason) return;
+  try { await api(`/procurement-enhanced/escrow/${id}/dispute`, { method: 'POST', body: JSON.stringify({ reason }) }); alert('争议已发起'); viewEscrow(id); loadEscrowPayments(); }
+  catch (e) { alert('发起失败: ' + e.message); }
+}
+async function escrowResolve(id) {
+  const resolution = prompt('解决方式 (refunded 退款 / supplier_received 放款)：', 'supplier_received');
+  if (!resolution || !['refunded','supplier_received'].includes(resolution)) return alert('请输入 refunded 或 supplier_received');
+  try { await api(`/procurement-enhanced/escrow/${id}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }); alert('争议已解决'); viewEscrow(id); loadEscrowPayments(); }
+  catch (e) { alert('解决失败: ' + e.message); }
+}
+
+// ── F34 物流追踪 ──
+const LOGISTICS_STATUS = { pending: '待发货', shipped: '已发货', in_transit: '运输中', delivered: '已送达', exception: '异常' };
+async function loadLogistics() {
+  const pid = syncProcProject();
+  const pane = document.getElementById('proc-pane-logistics');
+  if (!pid) { pane.innerHTML = emptyState('⇄', '请先选择项目'); return; }
+  try {
+    const orders = await api(`/procurement/orders/${pid}`).catch(() => []);
+    const trackings = [];
+    for (const o of orders) {
+      try {
+        const list = await api(`/procurement-enhanced/logistics/order/${o.id}`);
+        if (Array.isArray(list)) trackings.push(...list);
+      } catch (e) { /* 单订单可能无物流 */ }
+    }
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">物流追踪 <span class="card-badge">F34</span></h3><button class="btn btn-primary btn-sm" onclick="showLogisticsCreateForm()">+ 创建物流单</button></div>
+      ${trackings.length === 0 ? emptyState('⇄', '暂无物流追踪记录') : `<table><thead><tr><th>运单号</th><th>承运商</th><th>起点 → 终点</th><th>状态</th><th>预计到达</th><th>实际到达</th><th>操作</th></tr></thead><tbody>
+      ${trackings.map(t => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${escapeHtml(t.tracking_no)}</td>
+        <td>${escapeHtml(t.carrier)}</td>
+        <td>${escapeHtml(t.ship_from || '-')} → ${escapeHtml(t.ship_to || '-')}</td>
+        <td><span class="tag tag-${t.status === 'delivered' ? 'completed' : t.status === 'exception' ? 'pending' : 'active'}">${LOGISTICS_STATUS[t.status] || t.status}</span></td>
+        <td>${fmtDate(t.estimated_arrival)}</td>
+        <td>${fmtDate(t.actual_arrival)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="viewLogistics('${t.id}')">详情</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('⇄', '加载失败: ' + e.message); }
+}
+function showLogisticsCreateForm() {
+  openModal('创建物流单', `
+    <div class="form-grid">
+      <div class="form-group full"><label>采购订单 ID</label><input class="input" id="lo_order_id" placeholder="输入采购订单 ID"></div>
+      <div class="form-group"><label>承运商</label><input class="input" id="lo_carrier" value="顺丰速运"></div>
+      <div class="form-group"><label>起点</label><input class="input" id="lo_ship_from" placeholder="发货地"></div>
+      <div class="form-group"><label>终点</label><input class="input" id="lo_ship_to" placeholder="收货地"></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createLogistics()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createLogistics() {
+  const orderId = document.getElementById('lo_order_id').value.trim();
+  if (!orderId) return alert('请输入订单 ID');
+  try {
+    await api('/procurement-enhanced/logistics', { method: 'POST', body: JSON.stringify({
+      order_id: orderId,
+      carrier: document.getElementById('lo_carrier').value,
+      ship_from: document.getElementById('lo_ship_from').value || null,
+      ship_to: document.getElementById('lo_ship_to').value || null,
+    }) });
+    closeModal(); loadLogistics();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function viewLogistics(id) {
+  try {
+    const t = await api(`/procurement-enhanced/logistics/${id}`);
+    openModal(`${escapeHtml(t.tracking_no)} · 物流详情`, `
+      <div class="detail-row">
+        <div class="detail-item"><label>承运商</label><div class="val">${escapeHtml(t.carrier)}</div></div>
+        <div class="detail-item"><label>状态</label><div class="val"><span class="tag tag-active">${LOGISTICS_STATUS[t.status] || t.status}</span></div></div>
+        <div class="detail-item"><label>起点</label><div class="val">${escapeHtml(t.ship_from || '-')}</div></div>
+        <div class="detail-item"><label>终点</label><div class="val">${escapeHtml(t.ship_to || '-')}</div></div>
+        <div class="detail-item"><label>预计到达</label><div class="val">${fmtDate(t.estimated_arrival)}</div></div>
+        <div class="detail-item"><label>实际到达</label><div class="val">${fmtDate(t.actual_arrival)}</div></div>
+      </div>
+      <div class="mb-12"><strong>物流轨迹：</strong></div>${jsonBlock(t.tracking_history)}
+      <div class="action-bar">
+        <button class="btn btn-primary btn-sm" onclick="updateLogistics('${t.id}')">更新轨迹</button>
+      </div>
+    `);
+  } catch (e) { alert('加载详情失败: ' + e.message); }
+}
+async function updateLogistics(id) {
+  const status = prompt('状态 (pending/shipped/in_transit/delivered/exception)：', 'in_transit'); if (!status) return;
+  const location = prompt('当前位置：', ''); 
+  const description = prompt('描述：', '');
+  try {
+    await api(`/procurement-enhanced/logistics/${id}`, { method: 'PATCH', body: JSON.stringify({ status, location: location || null, description: description || null }) });
+    alert('已更新'); viewLogistics(id); loadLogistics();
+  } catch (e) { alert('更新失败: ' + e.message); }
+}
+
+// ── F34 样品索要 ──
+const SAMPLE_STATUS = { requested: '已申请', shipped: '已寄出', received: '已收到', rejected: '已拒绝' };
+async function loadSamples() {
+  const pid = syncProcProject();
+  const pane = document.getElementById('proc-pane-samples');
+  if (!pid) { pane.innerHTML = emptyState('⇄', '请先选择项目'); return; }
+  try {
+    const list = await api(`/procurement-enhanced/samples/project/${pid}`);
+    pane.innerHTML = `
+      <div class="flex-between mb-12"><h3 style="font-family:'DM Serif Display',serif">样品索要 <span class="card-badge">F34</span></h3><button class="btn btn-primary btn-sm" onclick="showSampleCreateForm()">+ 索要样品</button></div>
+      ${list.length === 0 ? emptyState('⇄', '暂无样品索要记录') : `<table><thead><tr><th>供应商ID</th><th>物料ID</th><th>样品类型</th><th>状态</th><th>寄出时间</th><th>收到时间</th><th>操作</th></tr></thead><tbody>
+      ${list.map(s => `<tr>
+        <td style="color:var(--text-primary);font-weight:500">${s.supplier_id.slice(0,8)}...</td>
+        <td>${s.material_id ? s.material_id.slice(0,8) + '...' : '-'}</td>
+        <td>${escapeHtml(s.sample_type)}</td>
+        <td><span class="tag tag-${s.status === 'received' ? 'completed' : s.status === 'rejected' ? 'pending' : 'active'}">${SAMPLE_STATUS[s.status] || s.status}</span></td>
+        <td>${fmtDate(s.shipped_at)}</td>
+        <td>${fmtDate(s.received_at)}</td>
+        <td><button class="btn btn-secondary btn-sm" onclick="updateSample('${s.id}')">更新状态</button></td>
+      </tr>`).join('')}</tbody></table>`}
+    `;
+  } catch (e) { pane.innerHTML = emptyState('⇄', '加载失败: ' + e.message); }
+}
+function showSampleCreateForm() {
+  const pid = syncProcProject();
+  if (!pid) return alert('请先选择项目');
+  openModal('索要样品', `
+    <div class="form-grid">
+      <div class="form-group"><label>供应商 ID</label><input class="input" id="sa_supplier_id" placeholder="输入供应商 ID"></div>
+      <div class="form-group"><label>物料 ID (可选)</label><input class="input" id="sa_material_id" placeholder="物料 ID"></div>
+      <div class="form-group full"><label>样品类型</label><select class="input" id="sa_sample_type"><option value="实物">实物样品</option><option value="图片">图片样品</option><option value="色卡">色卡</option><option value="小样">小样</option></select></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" onclick="createSample()">创建</button><button class="btn btn-secondary" onclick="closeModal()">取消</button></div>
+  `);
+}
+async function createSample() {
+  const pid = syncProcProject();
+  const supplierId = document.getElementById('sa_supplier_id').value.trim();
+  if (!supplierId) return alert('请输入供应商 ID');
+  try {
+    await api('/procurement-enhanced/samples', { method: 'POST', body: JSON.stringify({
+      project_id: pid,
+      supplier_id: supplierId,
+      material_id: document.getElementById('sa_material_id').value.trim() || null,
+      sample_type: document.getElementById('sa_sample_type').value,
+    }) });
+    closeModal(); loadSamples();
+  } catch (e) { alert('创建失败: ' + e.message); }
+}
+async function updateSample(id) {
+  const status = prompt('状态 (requested/shipped/received/rejected)：', 'shipped'); if (!status) return;
+  const notes = prompt('备注 (可选)：', '');
+  try {
+    await api(`/procurement-enhanced/samples/${id}`, { method: 'PATCH', body: JSON.stringify({ status, notes: notes || null }) });
+    loadSamples();
+  } catch (e) { alert('更新失败: ' + e.message); }
 }
 </script>
 </body>

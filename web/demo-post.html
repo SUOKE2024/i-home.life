@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>索克家居 · i-home.life — 初赛 Demo 作品帖</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c9973b'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>iH</text></svg>">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -165,6 +166,49 @@ tr:hover td { background: rgba(201,151,59,0.02); }
 }
 .sid-table td:nth-child(1) { font-weight: 700; text-align: center; }
 
+/* ═══ Process Timeline (截图 + Session ID 合并) ═══ */
+.process-timeline { margin: 20px 0; }
+.process-step {
+  display: flex; gap: 16px; padding: 20px; border-radius: var(--radius);
+  margin-bottom: 16px; background: var(--white); border: 1px solid var(--border);
+  border-left: 4px solid var(--gold); transition: all 0.25s var(--ease);
+}
+.process-step:hover { box-shadow: var(--shadow-md); transform: translateX(4px); }
+.process-step .step-num {
+  width: 36px; height: 36px; border-radius: 50%; background: var(--gold);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.95rem; flex-shrink: 0;
+}
+.process-step .step-content { flex: 1; min-width: 0; }
+.process-step .step-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; color: var(--ink); }
+.process-step .step-desc { font-size: 0.84rem; color: #6b6760; line-height: 1.65; margin-bottom: 10px; }
+.process-step .step-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.process-step .step-tag {
+  padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600;
+}
+.process-step .step-tag.tool { background: rgba(196,113,59,0.1); color: var(--terracotta); }
+.process-step .step-tag.feature { background: rgba(61,123,82,0.1); color: var(--pine); }
+.process-step .step-tag.date { background: rgba(45,90,123,0.1); color: var(--slate); }
+.process-step .step-session {
+  margin-bottom: 10px; padding: 8px 12px; background: var(--gold-soft);
+  border-radius: var(--radius-sm); border-left: 3px solid var(--gold);
+  font-size: 0.72rem; line-height: 1.5;
+}
+.process-step .step-session strong { color: var(--ink); }
+.process-step .step-session code {
+  font-family: var(--font-mono); font-size: 0.68rem; color: var(--terracotta);
+  background: transparent; padding: 0; word-break: break-all;
+}
+.process-step .step-screenshot { border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
+.process-step .step-screenshot img { width: 100%; display: block; }
+.process-step .step-prompt {
+  margin-bottom: 10px; padding: 10px 14px; background: #f8f7f4;
+  border-radius: var(--radius-sm); border-left: 3px solid var(--slate);
+  font-size: 0.76rem; line-height: 1.65; color: var(--ink-soft);
+}
+.process-step .step-prompt strong { color: var(--ink); }
+.process-step .step-prompt .pitfall { color: var(--crimson); }
+
 /* ═══ Callout ═══ */
 .callout {
   background: var(--gold-soft); border-left: 3px solid var(--gold);
@@ -223,6 +267,19 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 .footer-links a { font-size: 0.78rem; color: var(--ink-soft); text-decoration: none; }
 .footer-links a:hover { color: var(--gold); }
 
+/* ═══ Sources ═══ */
+.sources { font-size: 0.82rem; text-align: left; max-width: 720px; margin: 0 auto 32px; }
+.sources h3 { font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 12px; color: var(--ink); }
+.sources ol { padding-left: 1.4rem; color: #8a8680; line-height: 1.6; }
+.sources li { margin-bottom: 8px; overflow-wrap: break-word; }
+.sources .src-title { color: var(--ink-soft); }
+.sources .src-url { display: block; margin-top: 2px; font-size: 0.76rem; color: var(--slate); word-break: break-all; text-decoration: none; }
+.sources .src-url:hover { color: var(--gold); }
+
+/* Inline citation markers */
+sup a { color: var(--terracotta); text-decoration: none; font-weight: 600; font-size: 0.7em; }
+sup a:hover { color: var(--gold); }
+
 /* ═══ Responsive ═══ */
 @media (max-width: 640px) {
   .card-grid, .module-grid { grid-template-columns: 1fr; }
@@ -237,6 +294,7 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 
 <!-- ═══ HEADER ═══ -->
 <header>
+  <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:72px;height:72px;border-radius:16px;margin-bottom:16px;">
   <div class="header-tag">TRAE AI 创造力大赛 · 社会服务赛道 · 初赛 Demo</div>
   <h1>索克家居 · <em>i-home.life</em><br>AI 驱动的全链路智能家居建造平台</h1>
   <p class="subtitle">7 个专业 AI Agent 协同，打通测量→设计→采购→施工→结算全流程。让装修像打车一样简单。</p>
@@ -249,7 +307,7 @@ footer p { font-size: 0.8rem; color: #8a8680; }
   </div>
   <div class="header-links">
     <a href="http://118.31.223.213:8081/demo/" target="_blank" class="btn btn-gold">🚀 体验 Demo</a>
-    <a href="http://118.31.223.213:8081/docs" target="_blank" class="btn btn-dark">📖 API 文档</a>
+    <a href="http://118.31.223.213:8081/api/docs" target="_blank" class="btn btn-dark">📖 API 文档</a>
     <a href="https://github.com/SUOKE2024/i-home.life" target="_blank" class="btn btn-outline">GitHub</a>
   </div>
 </header>
@@ -291,9 +349,9 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 
   <h3>主要功能（已实现）</h3>
   <ol>
-    <li><strong>AI Agent 全链路自治</strong>：7 个专业 Agent 混合路由（关键词匹配 + DeepSeek LLM），覆盖设计→预算→采购→施工→结算全流程，LLM 不可用时自动 fallback mock 模式</li>
+    <li><strong>AI Agent 全链路自治</strong>：8 个专业 Agent 混合路由（关键词匹配 + DeepSeek LLM），覆盖设计→预算→采购→施工→质检→结算→客服全流程，LLM 不可用时自动 fallback mock 模式</li>
     <li><strong>交互式 Demo 页面</strong>：户型平面图动态渲染 + AI 对话（6 Agent 切换）+ 预算可视化仪表盘 + E2E 一键全链路验证</li>
-    <li><strong>完整后端 API</strong>：11 个路由模块 54+ 端点，PASETO v4 认证，SQLAlchemy 2.0 异步 ORM，WebSocket 实时推送</li>
+    <li><strong>完整后端 API</strong>：21 个路由模块 154 端点，PASETO v4 认证，SQLAlchemy 2.0 异步 ORM，WebSocket 实时推送</li>
     <li><strong>多端覆盖</strong>：Web 管理后台（10 Tab SPA）+ 统一设计台（2D CAD + Three.js 3D）+ Flutter 移动端 App</li>
   </ol>
 </section>
@@ -305,8 +363,8 @@ footer p { font-size: 0.8rem; color: #8a8680; }
   <p class="section-lead">灵感来源 · 痛点 · 方向判断 · 关键取舍</p>
 
   <h3>灵感来源</h3>
-  <p>中国住宅装修市场 4 万亿规模，但数字化程度极低。业主从毛坯到入住经历六个完全断裂的环节：测量（手动卷尺+草图）→ 设计（AutoCAD/SketchUp/3ds Max 碎片化）→ 选材（跑建材市场）→ 采购（人工比价）→ 施工（微信群沟通）→ 验收（凭经验无标准），预算常超 20–40%。</p>
-  <p>三项技术在过去 3 年集中突破：Apple RoomPlan（LiDAR 空间扫描）、OpenCascade.js（WASM 几何引擎移动端可用）、LLM Agent 框架（AI 自主运营替代人工）。<strong>这是用 AI 重构装修行业的窗口期。</strong></p>
+  <p>中国住宅装修市场 4 万亿规模<sup><a href="#src-1">[1]</a></sup>，但数字化程度极低。业主从毛坯到入住经历六个完全断裂的环节：测量（手动卷尺+草图）→ 设计（AutoCAD/SketchUp/3ds Max 碎片化）→ 选材（跑建材市场）→ 采购（人工比价）→ 施工（微信群沟通）→ 验收（凭经验无标准），预算常超 20–40%。</p>
+  <p>三项技术在过去 3 年集中突破：Apple RoomPlan（LiDAR 空间扫描）<sup><a href="#src-2">[2]</a></sup>、OpenCascade.js（WASM 几何引擎移动端可用）<sup><a href="#src-3">[3]</a></sup>、LLM Agent 框架（AI 自主运营替代人工）。<strong>这是用 AI 重构装修行业的窗口期。</strong></p>
 
   <h3>想解决的问题</h3>
   <div class="card-grid">
@@ -338,8 +396,8 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 
   <h3>为什么做这个方向</h3>
   <ul>
-    <li><strong>市场空白明确</strong>：23 维度竞品对比显示，无一竞品覆盖超过 40%，AI Agent 自治运营是所有人缺失的能力</li>
-    <li><strong>技术可行性已达标</strong>：WASM 几何引擎、多模态 LLM、WebSocket 实时推送 — 三项关键依赖已成熟</li>
+    <li><strong>市场空白明确</strong>：23 维度竞品对比<sup><a href="#src-5">[5]</a></sup><sup><a href="#src-6">[6]</a></sup><sup><a href="#src-7">[7]</a></sup><sup><a href="#src-8">[8]</a></sup><sup><a href="#src-10">[10]</a></sup><sup><a href="#src-11">[11]</a></sup>显示，无一竞品覆盖超过 40%，AI Agent 自治运营是所有人缺失的能力</li>
+    <li><strong>技术可行性已达标</strong>：WASM 几何引擎<sup><a href="#src-3">[3]</a></sup>、多模态 LLM<sup><a href="#src-9">[9]</a></sup>、WebSocket 实时推送 — 三项关键依赖已成熟</li>
     <li><strong>社会价值巨大</strong>：每 1% 行业效率提升，对应约 400 亿社会成本节约；AI 质检+透明比价可减少 70% 装修纠纷</li>
   </ul>
 </section>
@@ -352,7 +410,7 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 
   <div class="callout">
     <p>👉 <strong>公开体验链接</strong>：<a href="http://118.31.223.213:8081/demo/" target="_blank">http://118.31.223.213:8081/demo/</a></p>
-    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a href="http://118.31.223.213:8081/docs" target="_blank">http://118.31.223.213:8081/docs</a></p>
+    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a href="http://118.31.223.213:8081/api/docs" target="_blank">http://118.31.223.213:8081/api/docs</a></p>
     <p style="margin-top:8px">🔑 <strong>演示账号</strong>：手机号 <code>13800138000</code>，密码 <code>123456</code></p>
   </div>
 
@@ -371,7 +429,7 @@ footer p { font-size: 0.8rem; color: #8a8680; }
   <div class="module-grid">
     <div class="module-item"><strong>🔐 用户认证</strong><span>PASETO v4 Token（非 JWT）</span></div>
     <div class="module-item"><strong>📁 项目管理</strong><span>CRUD + 楼层/房间 + 状态流转</span></div>
-    <div class="module-item"><strong>📦 物料管理</strong><span>9 大分类 215 SKU + BOM 自动生成</span></div>
+    <div class="module-item"><strong>📦 物料管理</strong><span>9 大分类 225 SKU + BOM 自动生成</span></div>
     <div class="module-item"><strong>💰 预算管理</strong><span>AI 分项估算 + 偏差预警 ±5%</span></div>
     <div class="module-item"><strong>🛒 采购管理</strong><span>12 家供应商 + 报价比价 + 订单</span></div>
     <div class="module-item"><strong>🔨 施工管理</strong><span>8 阶段标准化排期 + AI 质检</span></div>
@@ -388,7 +446,7 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 <section>
   <div class="section-num">04</div>
   <div class="section-title">TRAE 实践过程</div>
-  <p class="section-lead">技术栈 · 开发流程 · 关键截图 · Session ID · 开发心得</p>
+  <p class="section-lead">技术栈 · 开发流程 · 关键步骤截图与 Session ID · 开发心得</p>
 
   <h3>开发流程总览</h3>
   <div class="code-block">
@@ -400,86 +458,158 @@ footer p { font-size: 0.8rem; color: #8a8680; }
     <div class="tech-item"><div class="ti-name">FastAPI</div><div class="ti-role">后端框架</div></div>
     <div class="tech-item"><div class="ti-name">SQLAlchemy 2.0</div><div class="ti-role">异步 ORM</div></div>
     <div class="tech-item"><div class="ti-name">PASETO v4</div><div class="ti-role">Token 认证</div></div>
-    <div class="tech-item"><div class="ti-name">DeepSeek</div><div class="ti-role">LLM 引擎</div></div>
-    <div class="tech-item"><div class="ti-name">Flutter 3.x</div><div class="ti-role">跨平台 App</div></div>
+    <div class="tech-item"><div class="ti-name">DeepSeek<sup><a href="#src-9">[9]</a></sup></div><div class="ti-role">LLM 引擎</div></div>
+    <div class="tech-item"><div class="ti-name">Flutter 3.x<sup><a href="#src-4">[4]</a></sup></div><div class="ti-role">跨平台 App</div></div>
     <div class="tech-item"><div class="ti-name">WebSocket</div><div class="ti-role">实时通信</div></div>
     <div class="tech-item"><div class="ti-name">Pydantic v2</div><div class="ti-role">数据验证</div></div>
     <div class="tech-item"><div class="ti-name">Alembic</div><div class="ti-role">数据库迁移</div></div>
-    <div class="tech-item"><div class="ti-name">pytest</div><div class="ti-role">43 测试通过</div></div>
+    <div class="tech-item"><div class="ti-name">pytest</div><div class="ti-role">163 测试通过</div></div>
   </div>
 
-  <h3>关键步骤截图（6 张）</h3>
+  <h3>关键步骤截图与 Session ID（6 步）</h3>
+  <p style="font-size:0.84rem;color:#6b6760;margin-bottom:16px">以下 6 个步骤按时间顺序记录 TRAE 开发全过程，每步包含任务说明、Session ID（在 TRAE 中双击对话头像即可复制）与关键截图。</p>
 
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/01-competitor-research.png" alt="截图1：移动端CAD架构方案设计">
-    <p class="screenshot-caption">截图 1：使用 TRAE Work 探索手机 CAD 制图 APP 可行性，生成六层技术架构方案（移动端 → UI 层 → 业务层 → 算法层 → 渲染层 → 数据层）</p>
+  <div class="process-timeline">
+
+    <div class="process-step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <div class="step-title">移动端 CAD 架构方案设计</div>
+        <div class="step-desc">使用 TRAE Work 探索手机 CAD 制图 APP 可行性，生成六层技术架构方案（移动端 → UI 层 → 业务层 → 算法层 → 渲染层 → 数据层）。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE Work</span>
+          <span class="step-tag feature">六层技术架构</span>
+          <span class="step-tag date">2026/7/6 14:33</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:dde6b03233fdfdab01b01d3b6cf9a6d9_6a4b4c445543a214d2f64d4e.6a4b4c445543a214d2f64d51.6a4b4c445543a214d2f64d4f:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 14:33:41)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「探索手机 CAD 制图 APP 的技术可行性，设计移动端 CAD 应用的完整六层技术架构方案（移动端 → UI 层 → 业务层 → 算法层 → 渲染层 → 数据层）」<br>
+          <strong class="pitfall">踩坑:</strong> 移动端 CAD 需考虑 WASM 几何引擎加载性能，OpenCascade.js 首次加载 8MB+ 需做分包懒加载；Apple Pencil 悬停预览与 Android S Pen 事件模型差异较大，需设计统一的手写笔抽象层
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/01-competitor-research.png" alt="截图1：移动端CAD架构方案设计">
+        </div>
+      </div>
+    </div>
+
+    <div class="process-step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <div class="step-title">竞品调研与 PRD 生成</div>
+        <div class="step-desc">TRAE Work 搜索 6 款竞品（酷家乐<sup><a href="#src-5">[5]</a></sup> / 住小帮<sup><a href="#src-6">[6]</a></sup> / Shapr3D<sup><a href="#src-7">[7]</a></sup> / Planner 5D<sup><a href="#src-10">[10]</a></sup> / MagicPlan<sup><a href="#src-11">[11]</a></sup> / Procore<sup><a href="#src-8">[8]</a></sup>）对比 23 个维度，生成完整 PRD 文档。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE Work</span>
+          <span class="step-tag feature">6 竞品对比 + PRD</span>
+          <span class="step-tag date">2026/7/6 15:03</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:f72f53ccc562d9ac780d2fb48fc5fd03_6a4b4c445543a214d2f64d4e.6a4b53265543a214d2f64d90.6a4b53265543a214d2f64d8e:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 15:03:02)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「搜索 6 款家居装修竞品（酷家乐/住小帮/Shapr3D/Planner 5D/MagicPlan/Procore），从 23 个维度对比功能覆盖度，生成完整 PRD 文档」<br>
+          <strong class="pitfall">踩坑:</strong> 竞品功能对比维度需对齐自身产品实际能力边界，避免过度宣传；酷家乐 3.6 亿模型库等数据需从官方资料交叉验证，非官方来源存在数量级偏差；竞品 AI 化程度判断需区分「AI 辅助」与「AI Agent 自治」
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/02-prd-architecture.png" alt="截图2：竞品调研与PRD生成">
+        </div>
+      </div>
+    </div>
+
+    <div class="process-step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <div class="step-title">PRD v2.0 迭代更新</div>
+        <div class="step-desc">PRD v2.0 迭代 — 品牌升级为「索克家居」+ 鸿蒙平板适配 + 新增预算/结算/厨卫/电器 4 大模块（F10–F20，共 40 项功能）。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE Work</span>
+          <span class="step-tag feature">品牌升级 + 4 大模块</span>
+          <span class="step-tag date">2026/7/6 15:35</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:6d1b9e290f5b0c391846a0c1d1456828_6a4b4c445543a214d2f64d4e.6a4b5add5543a214d2f64dfd.6a4b5adc5543a214d2f64dfb:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 15:35:57)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「PRD v2.0 迭代 — 品牌升级为「索克家居」，新增鸿蒙平板适配，补充预算/结算/厨卫/电器 4 大模块（F10-F20，共 40 项功能）」<br>
+          <strong class="pitfall">踩坑:</strong> 鸿蒙平板适配需用 DevEco Studio 编译 HAP，标准 Flutter CLI 不支持 HarmonyOS 构建，克隆 flutter_flutter 仓库直接 flutter build hap 会导致项目根检测失败；ohpm 包 @ohos/hvigor 和 @ohos/hvigor-ohos-plugin 是 DevEco 内置工具，不可放入 devDependencies；ohpm install 需加 --strict_ssl false 避免 OpenHarmony 仓库证书问题
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/03-interactive-demo.png" alt="截图3：PRD v2.0更新">
+        </div>
+      </div>
+    </div>
+
+    <div class="process-step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <div class="step-title">项目深化设计与 Demo 实现</div>
+        <div class="step-desc">TRAE IDE 探索项目结构、获取报名帖/Demo 帖要求，实现交互式 Demo 页面（真实 API / Simulated Mode 双模式切换）。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE IDE</span>
+          <span class="step-tag feature">双模式 Demo 页面</span>
+          <span class="step-tag date">2026/7/7 19:48</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:f7800da69fe5901ab3677dbb6b6c085f_6a4ce78d20281a6181577c45.6a4ce78d20281a6181577c48.6a4ce78d20281a6181577c46:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 19:48:29)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「探索 i-home.life 项目结构，获取报名帖/Demo 帖要求，实现交互式 Demo 页面支持真实 API 与 Simulated Mode 双模式自动切换」<br>
+          <strong class="pitfall">踩坑:</strong> web/index.html 在 file:// 协议下无法解析相对路径 API，出现 Failed to fetch 错误；需检测协议类型，file:// 时使用绝对路径 http://192.168.31.69:8081/api，HTTP 访问时使用相对路径；DeepSeek API key 为空时必须跳过 LLM 调用直接走 mock，否则请求 401
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/04.png" alt="截图4：项目深化设计与Demo实现">
+        </div>
+      </div>
+    </div>
+
+    <div class="process-step">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <div class="step-title">全链路开发进度评估</div>
+        <div class="step-desc">TRAE IDE 全量评估 — 后端 API（21 路由 154 端点）/ Web 前端 / Flutter 移动端 / AI Agent / 测试覆盖率 / 技术债。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE IDE</span>
+          <span class="step-tag feature">全量进度评估</span>
+          <span class="step-tag date">2026/7/7 19:26</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:b0703422ff8c3c2d41b368f42d765d4c_6a4ce25f20281a61815776a0.6a4ce25f20281a61815776a3.6a4ce25f20281a61815776a1:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 19:26:23)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「全量评估 i-home.life 项目开发进度 — 后端 API（21 路由 154 端点）/ Web 前端 / Flutter 移动端 / AI Agent / 测试覆盖率 / 技术债」<br>
+          <strong class="pitfall">踩坑:</strong> selectinload(BOMItem.material).selectinload(Material.category) 链式预加载语法容易写错（误写为 BOMItem.material.category），导致 AttributeError；21 个 WebSocket 变更端点的 project_id 获取策略不统一 — create 端点从请求体取、有参数的直接用、子资源需通过父资源查询，最终统一广播模式并通过 monkeypatch mock 验证全部端点
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/05.png" alt="截图5：全链路开发进度评估">
+        </div>
+      </div>
+    </div>
+
+    <div class="process-step">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <div class="step-title">Apple 风格设计系统调整</div>
+        <div class="step-desc">TRAE IDE 读取 Apple Design Library 规范，分析现有页面风格差异，生成完整设计 Token 系统（颜色/字体/间距/圆角/阴影）。</div>
+        <div class="step-tags">
+          <span class="step-tag tool">TRAE IDE</span>
+          <span class="step-tag feature">设计 Token 系统</span>
+          <span class="step-tag date">2026/7/7 17:21</span>
+        </div>
+        <div class="step-session">
+          <strong>Session ID:</strong> <code>3604669475856748:7f2f62037ae970bc82550bb154e389f7_6a4cc50b20281a61815773df.6a4cc50b20281a61815773e2.6a4cc50b20281a61815773e0:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 17:21:15)</code>
+        </div>
+        <div class="step-prompt">
+          <strong>关键 Prompt:</strong> 「读取 Apple Design Library 规范，分析现有页面风格差异，生成完整设计 Token 系统（颜色/字体/间距/圆角/阴影）」<br>
+          <strong class="pitfall">踩坑:</strong> Apple Design Library 的字重体系与 Google Fonts 不完全对齐，Playfair Display 的 800 字重需单独引入 @import；设计 Token 的 CSS 变量命名需与现有代码库 --gold/--stone 体系兼容，避免大面积变量名替换导致回归；噪点纹理 SVG 需控制 opacity 在 0.018 以下，过高会干扰浅色背景可读性
+        </div>
+        <div class="step-screenshot">
+          <img src="assets/images/screenshots/06.png" alt="截图6：Apple风格设计系统调整">
+        </div>
+      </div>
+    </div>
+
   </div>
-
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/02-prd-architecture.png" alt="截图2：竞品调研与PRD生成">
-    <p class="screenshot-caption">截图 2：TRAE Work 搜索 6 款竞品（酷家乐/住小帮/Shapr3D/Planner 5D/MagicPlan/Procore）对比 23 个维度，生成完整 PRD 文档</p>
-  </div>
-
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/03-interactive-demo.png" alt="截图3：PRD v2.0更新">
-    <p class="screenshot-caption">截图 3：PRD v2.0 迭代 — 品牌升级为「索克家居」+ 鸿蒙平板适配 + 新增预算/结算/厨卫/电器 4 大模块（F10–F20，共 40 项功能）</p>
-  </div>
-
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/04.png" alt="截图4：项目深化设计与Demo实现">
-    <p class="screenshot-caption">截图 4：TRAE IDE 探索项目结构、获取报名帖/Demo 帖要求，实现交互式 Demo 页面（真实 API / Simulated Mode 双模式切换）</p>
-  </div>
-
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/05.png" alt="截图5：全链路开发进度评估">
-    <p class="screenshot-caption">截图 5：TRAE IDE 全量评估 — 后端 API（11 路由 54 端点）/ Web 前端 / Flutter 移动端 / AI Agent / 测试覆盖率 / 技术债</p>
-  </div>
-
-  <div class="screenshot">
-    <img src="../assets/images/screenshots/06.png" alt="截图6：Apple风格设计系统调整">
-    <p class="screenshot-caption">截图 6：TRAE IDE 读取 Apple Design Library 规范，分析现有页面风格差异，生成完整设计 Token 系统（颜色/字体/间距/圆角/阴影）</p>
-  </div>
-
-  <h3>关键 Session ID</h3>
-  <p>在 TRAE 中双击对应对话的头像即可复制 Session ID。以下 6 个 Session ID 对应截图 01–06 的开发任务。</p>
-
-  <table class="sid-table">
-    <thead>
-      <tr><th style="width:32px">#</th><th style="width:100px">截图</th><th>任务描述</th><th>Session ID</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>1</td><td>01</td>
-        <td>移动端 CAD 架构方案：六层技术架构设计（移动端/UI层/业务层/算法层/渲染层/数据层）</td>
-        <td><code>3604669475856748:dde6b03233fdfdab01b01d3b6cf9a6d9_6a4b4c445543a214d2f64d4e.6a4b4c445543a214d2f64d51.6a4b4c445543a214d2f64d4f:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 14:33:41)</code></td>
-      </tr>
-      <tr>
-        <td>2</td><td>02</td>
-        <td>竞品调研 + PRD 生成：6 款竞品功能对比，生成完整 PRD 文档</td>
-        <td><code>3604669475856748:f72f53ccc562d9ac780d2fb48fc5fd03_6a4b4c445543a214d2f64d4e.6a4b53265543a214d2f64d90.6a4b53265543a214d2f64d8e:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 15:03:02)</code></td>
-      </tr>
-      <tr>
-        <td>3</td><td>03</td>
-        <td>PRD v2.0 更新：品牌升级 + 鸿蒙适配 + 预算/结算/厨卫/电器 4 大模块</td>
-        <td><code>3604669475856748:6d1b9e290f5b0c391846a0c1d1456828_6a4b4c445543a214d2f64d4e.6a4b5add5543a214d2f64dfd.6a4b5adc5543a214d2f64dfb:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/6 15:35:57)</code></td>
-      </tr>
-      <tr>
-        <td>4</td><td>04</td>
-        <td>项目深化设计：结构探索 + 报名帖/Demo 帖要求 + 交互 Demo 页面实现</td>
-        <td><code>3604669475856748:f7800da69fe5901ab3677dbb6b6c085f_6a4ce78d20281a6181577c45.6a4ce78d20281a6181577c48.6a4ce78d20281a6181577c46:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 19:48:29)</code></td>
-      </tr>
-      <tr>
-        <td>5</td><td>05</td>
-        <td>全链路开发进度评估：后端 API / Web / Flutter / AI Agent / 测试 / 技术债</td>
-        <td><code>3604669475856748:b0703422ff8c3c2d41b368f42d765d4c_6a4ce25f20281a61815776a0.6a4ce25f20281a61815776a3.6a4ce25f20281a61815776a1:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 19:26:23)</code></td>
-      </tr>
-      <tr>
-        <td>6</td><td>06</td>
-        <td>设计系统 Apple 风格调整：读取 Apple Design Library + 生成 Token 系统</td>
-        <td><code>3604669475856748:7f2f62037ae970bc82550bb154e389f7_6a4cc50b20281a61815773df.6a4cc50b20281a61815773e2.6a4cc50b20281a61815773e0:TRAE Work CN.0.1.30.no_sid.no_ppe.T(2026/7/7 17:21:15)</code></td>
-      </tr>
-    </tbody>
-  </table>
 
   <h3>开发心得</h3>
 
@@ -528,12 +658,63 @@ footer p { font-size: 0.8rem; color: #8a8680; }
 
 <!-- ═══ FOOTER ═══ -->
 <footer>
+  <div class="sources">
+    <h3>Sources</h3>
+    <ol>
+      <li id="src-1">
+        <span class="src-title">艾瑞咨询《2023 年中国家装行业研究报告》— 预计 2025 年中国家装行业市场规模达到约 3.78 万亿元，行业增长动力充足。</span>
+        <a class="src-url" href="https://www.iresearch.com.cn/Detail/report?id=4268" target="_blank" rel="noopener">https://www.iresearch.com.cn/Detail/report?id=4268</a>
+      </li>
+      <li id="src-2">
+        <span class="src-title">Apple Inc. RoomPlan API — ARKit 框架内室内 3D 扫描 API，利用 LiDAR 快速生成三维平面图与 USDZ 模型。</span>
+        <a class="src-url" href="https://developer.apple.com/augmented-reality/roomplan/" target="_blank" rel="noopener">https://developer.apple.com/augmented-reality/roomplan/</a>
+      </li>
+      <li id="src-3">
+        <span class="src-title">OpenCascade.js — 将 OpenCascade CAD 几何内核编译为 WebAssembly，使浏览器和移动端可直接运行工业级 CAD 功能。</span>
+        <a class="src-url" href="https://github.com/donalffons/opencascade.js" target="_blank" rel="noopener">https://github.com/donalffons/opencascade.js</a>
+      </li>
+      <li id="src-4">
+        <span class="src-title">Flutter — Google 跨平台 UI 框架，Impeller 渲染引擎全量落地，单代码库覆盖 iOS / Android / HarmonyOS。</span>
+        <a class="src-url" href="https://flutter.dev" target="_blank" rel="noopener">https://flutter.dev</a>
+      </li>
+      <li id="src-5">
+        <span class="src-title">酷家乐（群核科技）— 全场景在线 3D 云设计平台，3.6 亿+ 素材模型，10 秒极速渲染。</span>
+        <a class="src-url" href="https://www.kujiale.com" target="_blank" rel="noopener">https://www.kujiale.com</a>
+      </li>
+      <li id="src-6">
+        <span class="src-title">住小帮 — 字节跳动旗下装修家居生活资讯服务平台，涵盖装修案例、家装知识、设计师/装企匹配。</span>
+        <a class="src-url" href="https://www.zhuxiaobang.com" target="_blank" rel="noopener">https://www.zhuxiaobang.com</a>
+      </li>
+      <li id="src-7">
+        <span class="src-title">Shapr3D — iPad Pro 专业 3D CAD 建模应用，基于 Siemens Parasolid 内核，Apple Pencil 深度适配。</span>
+        <a class="src-url" href="https://www.shapr3d.com" target="_blank" rel="noopener">https://www.shapr3d.com</a>
+      </li>
+      <li id="src-8">
+        <span class="src-title">Procore — 全球主流施工项目管理平台，覆盖进度/预算/质量/文档管理，面向大型工程。</span>
+        <a class="src-url" href="https://www.procore.com" target="_blank" rel="noopener">https://www.procore.com</a>
+      </li>
+      <li id="src-10">
+        <span class="src-title">Planner 5D — 跨平台 2D/3D 家居设计工具，支持 iOS/Android/Web，2D/3D 无缝切换 + 照片级渲染，推出基于 Stable Diffusion 的 AI Design Generator。</span>
+        <a class="src-url" href="https://planner5d.com" target="_blank" rel="noopener">https://planner5d.com</a>
+      </li>
+      <li id="src-11">
+        <span class="src-title">MagicPlan — 使用手机摄像头扫描室内空间并自动生成平面图，支持导出 DXF/PDF/JPEG 等格式，提供基础造价估算。</span>
+        <a class="src-url" href="https://www.sensopia.com" target="_blank" rel="noopener">https://www.sensopia.com</a>
+      </li>
+      <li id="src-9">
+        <span class="src-title">DeepSeek — 深度求索自主研发的开源大语言模型，支持多场景推理与工具调用，具备高性价比 API 服务。</span>
+        <a class="src-url" href="https://www.deepseek.com" target="_blank" rel="noopener">https://www.deepseek.com</a>
+      </li>
+    </ol>
+  </div>
+
+  <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:56px;height:56px;border-radius:12px;margin-bottom:12px;">
   <h3>索克家居 · i-home.life</h3>
   <p>AI 驱动的全链路智能家居建造平台 · Phase 1 MVP</p>
-  <p style="margin-top:4px;font-size:0.75rem">FastAPI + DeepSeek · 7 AI Agent · WebSocket · 54+ API · 43 单元测试 · 100% 由 TRAE 开发</p>
+  <p style="margin-top:4px;font-size:0.75rem">FastAPI + DeepSeek · 8 AI Agent · WebSocket · 154 API · 163 单元测试 · 100% 由 TRAE 开发</p>
   <div class="footer-links">
     <a href="http://118.31.223.213:8081/demo/" target="_blank">体验 Demo</a>
-    <a href="http://118.31.223.213:8081/docs" target="_blank">API 文档</a>
+    <a href="http://118.31.223.213:8081/api/docs" target="_blank">API 文档</a>
     <a href="https://forum.trae.cn/t/topic/73483" target="_blank">报名帖</a>
     <a href="https://github.com/SUOKE2024/i-home.life" target="_blank">GitHub</a>
   </div>

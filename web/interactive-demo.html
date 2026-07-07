@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>索克家居 MVP · AI 全链路智能装修</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c4713b'/><text x='16' y='22' text-anchor='middle' fill='white' font-size='18' font-weight='bold'>iH</text></svg>">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <style>
 :root {
   --bg: #F9F7F3; --surface: #FFFFFF; --ink: #1A1814; --muted: #6B6862;
@@ -487,7 +488,14 @@ a:hover { text-decoration: underline; }
 // ═══════════════════════════════════════════
 (function() {'use strict';
 
-var API = '/api';
+// ═══ API Base Detection ═══
+var API_BASE = (function() {
+  if (window.location.protocol === 'file:') {
+    return 'http://118.31.223.213:8081/api';
+  }
+  return window.location.origin + '/api';
+})();
+
 var token = '', user = null, currentAgent = 'chat';
 var state = { budget: 186500, modifications: [], e2eStep: 0, isProcessing: false };
 
@@ -498,7 +506,7 @@ async function apiCall(path, opts) {
   opts = opts || {};
   var headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
   if (token) headers['Authorization'] = 'Bearer ' + token;
-  var res = await fetch(API + path, Object.assign({}, opts, { headers: headers }));
+  var res = await fetch(API_BASE + path, Object.assign({}, opts, { headers: headers }));
   if (res.status === 204) return null;
   var data = await res.json().catch(function() { return null; });
   if (!res.ok) throw new Error((data && data.detail) || res.statusText);
@@ -507,7 +515,7 @@ async function apiCall(path, opts) {
 
 // ═══ API Status Check ═══
 function checkAPIStatus() {
-  fetch(API + '/auth/login', {
+  fetch(API_BASE + '/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone: '13800138000', password: '123456' })

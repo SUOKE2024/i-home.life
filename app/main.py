@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db
-from app.api import auth, projects, materials, budgets, procurement, construction, settlements, floorplans, voice, files, agents, surveys, location, change_orders, takeoff, mep, payments, chat, crews, workers
+from app.api import auth, projects, materials, budgets, procurement, construction, settlements, floorplans, voice, files, agents, surveys, location, change_orders, takeoff, mep, payments, chat, crews, workers, lighting, kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog, smart_home, scene_automation, procurement_enhanced
 
 settings = get_settings()
 
@@ -22,6 +22,10 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     lifespan=lifespan,
+    # 将 docs/openapi 路径置于 /api/ 前缀下，避免被根路径 StaticFiles 拦截
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 # CORS: 生产环境从 .env 读取白名单; DEBUG 模式下放开以方便本地联调
@@ -58,6 +62,20 @@ api_router.include_router(payments.router)      # /api/payments/*
 api_router.include_router(chat.router)          # /api/chat/*
 api_router.include_router(crews.router)         # /api/crews/*
 api_router.include_router(workers.router)       # /api/workers/*
+api_router.include_router(lighting.router)     # /api/lighting/*
+api_router.include_router(kitchen.router)      # /api/kitchen/*
+api_router.include_router(bathroom.router)     # /api/bathroom/*
+api_router.include_router(custom_furniture.router)  # /api/custom-furniture/*
+api_router.include_router(soft_furnishing.router)   # /api/soft-furnishing/*
+api_router.include_router(vr_panorama.router)  # /api/vr/*
+api_router.include_router(ai_image.router)     # /api/ai-image/*
+api_router.include_router(kitchen_bath_mep.router)        # /api/mep-kb/* (F18)
+api_router.include_router(hard_decoration.router)         # /api/hard-decoration/* (F21)
+api_router.include_router(door_window_waterproof.router)  # /api/door-window-waterproof/* (F23)
+api_router.include_router(furniture_catalog.router)       # /api/furniture-catalog/* (F26)
+api_router.include_router(smart_home.router)              # /api/smart-home/* (F31)
+api_router.include_router(scene_automation.router)        # /api/scene-automation/* (F32)
+api_router.include_router(procurement_enhanced.router)    # /api/procurement-enhanced/* (F33/F34)
 app.include_router(api_router)
 
 

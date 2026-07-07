@@ -3,6 +3,8 @@ import '../services/api.dart';
 import 'budget_page.dart';
 import 'construction_page.dart';
 import 'settlement_page.dart';
+import 'design_deepening_page.dart';
+import 'procurement_enhanced_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final String projectId;
@@ -221,6 +223,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         _buildFloors(),
                         const SizedBox(height: 16),
                         _buildBom(),
+                        const SizedBox(height: 16),
+                        _buildDesignDeepeningEntry(),
+                        const SizedBox(height: 12),
+                        _buildProcurementEnhancedEntry(),
                         const SizedBox(height: 16),
                         _buildActions(),
                         const SizedBox(height: 12),
@@ -496,6 +502,100 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         style: const TextStyle(
             color: Color(0xFFE0AA4A), fontWeight: FontWeight.bold, fontSize: 14),
       ),
+    );
+  }
+
+  Widget _buildDesignDeepeningEntry() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('设计深化'),
+        Card(
+          color: _card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF1E1E32)),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            leading: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _brand.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.design_services_outlined,
+                  color: _brand, size: 22),
+            ),
+            title: const Text('设计深化（厨卫水电/硬装/门窗防水/智家/场景）',
+                style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+            subtitle: const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('F18 / F21 / F23 / F31 / F32',
+                  style: TextStyle(color: _textSecondary, fontSize: 11)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: _textSecondary),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      DesignDeepeningPage(projectId: widget.projectId)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProcurementEnhancedEntry() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('采购增强'),
+        Card(
+          color: _card,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF1E1E32)),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            leading: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _brand.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.shopping_cart_checkout,
+                  color: _brand, size: 22),
+            ),
+            title: const Text('采购增强（比价/托管支付/物流/样品）',
+                style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600)),
+            subtitle: const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text('F33 / F34',
+                  style: TextStyle(color: _textSecondary, fontSize: 11)),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: _textSecondary),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) =>
+                      ProcurementEnhancedPage(projectId: widget.projectId)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

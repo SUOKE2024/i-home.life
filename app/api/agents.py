@@ -13,6 +13,8 @@ from app.agents.budget import BudgetAgent
 from app.agents.procurement import ProcurementAgent
 from app.agents.construction import ConstructionAgent
 from app.agents.settlement import SettlementAgent
+from app.agents.qa_inspector import QAInspectorAgent
+from app.agents.concierge import ConciergeAgent
 from app.config import get_settings
 
 router = APIRouter(prefix="/agents", tags=["AI Agent"])
@@ -73,6 +75,43 @@ class ConstructionPlanResponse(BaseModel):
     full_reply: str = ""
 
 
+class AcceptanceReportRequest(BaseModel):
+    project_id: str = ""
+    project_name: str = ""
+    inspector: str = ""
+    acceptance_date: str = ""
+    phases: list[str] = []
+    inspection_results: dict = {}
+
+
+class CompareDesignRequest(BaseModel):
+    project_id: str = ""
+    phase: str = ""
+    images: list[dict] = []
+    design_reference: dict = {}
+    expected_dimensions: dict = {}
+
+
+class DefectDetectionRequest(BaseModel):
+    project_id: str = ""
+    phase: str = ""
+    images: list[dict] = []
+    check_categories: list[str] = []
+
+
+class FAQRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+class ClassifyInquiryRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ConciergeChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    context: str = ""
+
+
 settings = get_settings()
 
 MOCK_MODE = not settings.deepseek_api_key
@@ -100,6 +139,8 @@ async def chat_with_agent(
             "budget": ["查看明细", "调整预算", "导出报表"],
             "procurement": ["查看供应商", "发起询价", "生成订单"],
             "construction": ["查看进度", "上传日志", "发起验收"],
+            "qa_inspector": ["生成验收报告", "图纸比对", "缺陷检测"],
+            "concierge": ["查看常见问题", "转人工客服", "提交报修"],
             "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
         }
 
@@ -158,6 +199,29 @@ async def chat_with_agent(
                 return AgentResponse(agent_type="settlement", reply=reply, suggestions=["查看结算明细", "确认结算", "导出报表"])
             finally:
                 await sett_agent.close()
+
+        elif intent in ("qa_inspector",):
+            qa_agent = QAInspectorAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_qa_inspection()
+                else:
+                    reply = await qa_agent.think(data.message, f"{current_user.name}")
+                return AgentResponse(agent_type="qa_inspector", reply=reply, suggestions=suggestions_map["qa_inspector"])
+            finally:
+                await qa_agent.close()
+
+        elif intent in ("concierge",):
+            conc_agent = ConciergeAgent()
+            try:
+                if MOCK_MODE:
+                    faq_result = conc_agent.answer_faq(data.message)
+                    reply = faq_result["answer"]
+                else:
+                    reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+                return AgentResponse(agent_type="concierge", reply=reply, suggestions=suggestions_map["concierge"])
+            finally:
+                await conc_agent.close()
 
         else:
             reply, suggestions = _mock_agent_reply(data.message, "orchestrator")
@@ -302,6 +366,102 @@ async def plan_construction(
             quality_checklist=reply,
             full_reply=reply,
         )
+    finally:
+        await agent.close()
+
+
+# === QA Inspector Agent 端点 ===
+
+
+@router.post("/qa-inspector/acceptance-report")
+async def generate_acceptance_report(
+    data: AcceptanceReportRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """生成验收报告（分项验收 + 总体验收结论）"""
+    agent = QAInspectorAgent()
+    try:
+        return agent.generate_acceptance_report(data.model_dump())
+    finally:
+        await agent.close()
+
+
+@router.post("/qa-inspector/compare-design")
+async def compare_with_design(
+    data: CompareDesignRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """照片与设计图纸比对"""
+    agent = QAInspectorAgent()
+    try:
+        return agent.compare_with_design(data.model_dump())
+    finally:
+        await agent.close()
+
+
+@router.post("/qa-inspector/defects")
+async def detect_defects(
+    data: DefectDetectionRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """工艺缺陷识别（mock CV 检测）"""
+    agent = QAInspectorAgent()
+    try:
+        return agent.detect_defects(data.model_dump())
+    finally:
+        await agent.close()
+
+
+# === Concierge Agent 端点 ===
+
+
+@router.post("/concierge/faq")
+async def answer_faq(
+    data: FAQRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """FAQ 知识问答（基于预置知识库匹配）"""
+    agent = ConciergeAgent()
+    try:
+        return agent.answer_faq(data.question)
+    finally:
+        await agent.close()
+
+
+@router.post("/concierge/classify")
+async def classify_inquiry(
+    data: ClassifyInquiryRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """分类用户咨询（类型 + 紧急度 + 是否需人工）"""
+    agent = ConciergeAgent()
+    try:
+        return agent.classify_inquiry(data.message)
+    finally:
+        await agent.close()
+
+
+@router.post("/concierge/chat")
+async def concierge_chat(
+    data: ConciergeChatRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """生成客服回复（调用 think，LLM 不可用时 FAQ 兜底）"""
+    agent = ConciergeAgent()
+    try:
+        if MOCK_MODE:
+            faq_result = agent.answer_faq(data.message)
+            if faq_result["found"]:
+                reply = faq_result["answer"]
+            else:
+                classify = agent.classify_inquiry(data.message)
+                if classify["need_human"]:
+                    reply = "您好，您的问题需要人工客服协助处理，正在为您转接人工客服，请稍候。"
+                else:
+                    reply = "您好，我是索克家居 AI 客服。您的问题我已记录，可以尝试换一种方式提问，或转接人工客服获取帮助。"
+        else:
+            reply = await agent.generate_response(data.message, data.context)
+        return {"agent_type": "concierge", "reply": reply}
     finally:
         await agent.close()
 
@@ -534,4 +694,21 @@ def _mock_quality() -> str:
         "- 墙面：平整度 2m 靠尺 ≤ 3mm\n"
         "- 木工：柜体对角线偏差 ≤ 2mm\n"
         "- 油漆：无色差、无流坠、无漏刷"
+    )
+
+
+def _mock_qa_inspection() -> str:
+    return (
+        "🔍 **质检报告**\n\n"
+        "**分项验收结果**\n"
+        "- 水电工程：合格（5/5 项通过）\n"
+        "- 泥瓦工程：有条件合格（4/5 项通过，地漏坡度需调整）\n"
+        "- 木工工程：合格（4/4 项通过）\n"
+        "- 油漆工程：合格（4/4 项通过）\n"
+        "- 安装工程：合格（4/4 项通过）\n\n"
+        "**总体验收结论**：合格（合格率 95.5%）\n\n"
+        "**整改建议**：\n"
+        "1. 卫生间地漏坡度不足，建议重新找坡\n"
+        "2. 瓷砖空鼓率检测需复检\n\n"
+        "建议整改后复验，确认全部合格后签署验收报告。"
     )

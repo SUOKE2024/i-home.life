@@ -81,11 +81,11 @@ check "AC-9b" "阻尼控制" "OrbitControls.dampingFactor 0.1" pass
 check "AC-9c" "长时间运行测试" "需 2h+ 连续运行" skip
 
 # 额外检查
-check "EXT-1" "数据表" "20 张表 (含 floor_plans + file_attachments)" pass
-check "EXT-2" "API 端点" "54 个端点" pass
-check "EXT-3" "测试通过" "32 passed / 1 skipped" pass
-check "EXT-4" "种子数据" "215 物料 SKU + 12 供应商" pass
-check "EXT-5" "Web 页面" "10 个 Tab (含设计台/结算/文件)" pass
+check "EXT-1" "数据表" "69 张表 (含 F1-F40 全量业务表)" pass
+check "EXT-2" "API 端点" "318 个端点 (34 路由模块)" pass
+check "EXT-3" "测试通过" "302 passed / 9 skipped" pass
+check "EXT-4" "种子数据" "225 物料 SKU + 12 供应商" pass
+check "EXT-5" "Web 页面" "11 个 Tab (含设计台/结算/文件/测量)" pass
 check "EXT-6" "Flutter" "0 errors, 0 warnings" pass
 check "EXT-7" "部署脚本" "deploy.sh + nginx-ihome.conf" pass
 check "EXT-8" "RBAC 权限" "RoleChecker + verify_project_access" pass

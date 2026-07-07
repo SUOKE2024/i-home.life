@@ -15,6 +15,21 @@ from app.models.construction_crew import ConstructionCrew, CrewMatch
 from app.models.progress_alert import ProgressAlert, MilestoneTracker
 from app.models.quality import QualityIssue, RectificationOrder, QualityAssessment
 from app.models.service_worker import ServiceWorker, ServiceWorkerMatch
+from app.models.ar_scan import ScanSession, WallFeature, MeasurementPoint
+from app.models.lighting import LightingScheme, LightingFixture
+from app.models.kitchen import KitchenDesign, KitchenComponent
+from app.models.bathroom import BathroomDesign, BathroomFixture
+from app.models.custom_furniture import CustomFurnitureDesign, FurnitureModule, FurnitureBOM
+from app.models.soft_furnishing import SoftFurnishingScheme, SoftFurnishingItem, StorageSystem
+from app.models.vr_panorama import VRPanorama, VRScene
+from app.models.ai_image import AIImageJob, AIImagePreset
+from app.models.kitchen_bath_mep import KitchenBathMEPPlan, MEPPoint
+from app.models.hard_decoration import HardDecorationScheme, HardDecorationFloor, WallFinish, CeilingDesign
+from app.models.door_window_waterproof import DoorWindowSpec, WaterproofPlan
+from app.models.furniture_catalog import FurnitureCatalogItem
+from app.models.smart_home import SmartHomeScheme, SmartDevice
+from app.models.scene_automation import SceneAutomation, EcosystemIntegration
+from app.models.procurement_enhanced import PriceComparison, PriceComparisonItem, EscrowPayment, LogisticsTracking, SampleRequest
 
 __all__ = [
     "User",
@@ -52,4 +67,41 @@ __all__ = [
     "QualityAssessment",
     "ServiceWorker",
     "ServiceWorkerMatch",
+    "ScanSession",
+    "WallFeature",
+    "MeasurementPoint",
+    "LightingScheme",
+    "LightingFixture",
+    "KitchenDesign",
+    "KitchenComponent",
+    "BathroomDesign",
+    "BathroomFixture",
+    "CustomFurnitureDesign",
+    "FurnitureModule",
+    "FurnitureBOM",
+    "SoftFurnishingScheme",
+    "SoftFurnishingItem",
+    "StorageSystem",
+    "VRPanorama",
+    "VRScene",
+    "AIImageJob",
+    "AIImagePreset",
+    "KitchenBathMEPPlan",
+    "MEPPoint",
+    "HardDecorationScheme",
+    "HardDecorationFloor",
+    "WallFinish",
+    "CeilingDesign",
+    "DoorWindowSpec",
+    "WaterproofPlan",
+    "FurnitureCatalogItem",
+    "SmartHomeScheme",
+    "SmartDevice",
+    "SceneAutomation",
+    "EcosystemIntegration",
+    "PriceComparison",
+    "PriceComparisonItem",
+    "EscrowPayment",
+    "LogisticsTracking",
+    "SampleRequest",
 ]

@@ -3,8 +3,12 @@ description: "索克家居 · i-home.life"
 publish_to: 'none'
 version: 1.0.0+1
 
+# 鸿蒙适配版本: Flutter-OH 3.35.7-ohos-0.0.3
+# 对应上游 Flutter 3.35.7 / Dart 3.9.2
+# 仓库: https://atomgit.com/openharmony-tpc/flutter_flutter (分支 oh-3.35.7-dev)
+# 配套: DevEco Studio 6.0.2 Release / Java 17 / OpenHarmony API 23+
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.9.2
 
 dependencies:
   flutter:
@@ -30,5 +34,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/
 
   # 使用系统默认字体，DM Sans 通过 CSS font-family 在 Web 端加载

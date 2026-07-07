@@ -5,6 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>索克家居（i-home.life）— 产品需求文档 (PRD) v3.0</title>
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <style>
 :root {
   --bg: #fbfaf7;
@@ -114,6 +116,18 @@ tbody td:first-child { font-weight: 600; color: var(--accent); white-space: nowr
 .chart-container.short { min-height: 320px; }
 .chart-container.medium { min-height: 400px; }
 .chart-container.tall { min-height: 560px; }
+
+/* Capability coverage matrix */
+table.matrix thead th { text-align: center; }
+table.matrix thead th:first-child { text-align: left; }
+table.matrix tbody td { text-align: center; font-size: 1rem; }
+table.matrix tbody td:first-child {
+  text-align: left; color: var(--ink); font-weight: 600; white-space: normal;
+}
+table.matrix tbody td.own { color: var(--accent); font-weight: 800; }
+table.matrix .sym-full { color: #2e7d32; font-weight: 700; }
+table.matrix .sym-part { color: var(--accent2); font-weight: 700; }
+table.matrix .sym-none { color: #b04a4a; font-weight: 700; }
 
 /* Demo / Prototype */
 .phone-mockup {
@@ -245,7 +259,7 @@ mark.key { background: none; color: var(--accent); font-weight: 600; }
   <div class="container">
     <div class="tag">Product Requirements Document v3.0</div>
     <div class="brand-row">
-      <div class="logo-placeholder">iH</div>
+      <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:64px;height:64px;border-radius:14px;flex-shrink:0;">
       <div>
         <h1>索克家居</h1>
         <div class="product-domain">i-home.life — AI 驱动的全链路智能家居建造平台</div>
@@ -272,7 +286,7 @@ mark.key { background: none; color: var(--accent); font-weight: 600; }
 
 <h3>1.1 行业痛点</h3>
 
-<p>中国的住宅装修与自建房市场规模超过 <strong>4 万亿人民币</strong>，但整个行业的数字化程度极低。一个典型的业主从拿到毛坯房到装修完工，需要面对碎片化工具链和极高的信息不对称成本：</p>
+<p>中国的住宅装修与自建房市场规模超过 <strong>5 万亿人民币</strong><sup><a href="#cite-11">[11]</a></sup>，但整个行业的数字化程度极低。一个典型的业主从拿到毛坯房到装修完工，需要面对碎片化工具链和极高的信息不对称成本：</p>
 
 <div class="card-grid">
   <div class="card">
@@ -338,16 +352,37 @@ mark.key { background: none; color: var(--accent); font-weight: 600; }
 <tr><td><strong>住小帮</strong><sup><a href="#cite-6">[6]</a></sup></td><td>装修内容 + 服务平台</td><td>装修案例社区 + 设计师/装企匹配</td><td>内容推荐算法</td><td>无原生设计工具、无 AR、无施工过程管理</td></tr>
 <tr><td><strong>Shapr3D</strong><sup><a href="#cite-7">[7]</a></sup></td><td>iPad 专业 3D CAD</td><td>Pencil 交互 + Parasolid 内核 + 工业级建模</td><td>无 AI 能力</td><td>不针对建筑装修场景、无后续模块</td></tr>
 <tr><td><strong>Procore</strong><sup><a href="#cite-8">[8]</a></sup></td><td>施工项目管理</td><td>进度/预算/质量/文档管理</td><td>基本报表分析</td><td>纯管理工具、无设计能力、面向大型工程</td></tr>
+<tr><td><strong>Planner 5D</strong><sup><a href="#cite-9">[9]</a></sup></td><td>跨平台 2D/3D 家居设计</td><td>2D/3D 无缝切换 + 照片级渲染 + AI Design Generator</td><td>AI 渲染生成（Stable Diffusion）</td><td>无 AR 测量、无 CAD 精确绘图、无施工/供应链、无 AI Agent</td></tr>
+<tr><td><strong>MagicPlan</strong><sup><a href="#cite-10">[10]</a></sup></td><td>AR 房间扫描与平面图生成</td><td>摄像头扫描生成平面图 + DXF/PDF 导出 + 基础造价估算</td><td>无 AI 能力</td><td>无 3D 设计建模、无施工管理、无供应链、面向测量单一环节</td></tr>
 </tbody>
 </table>
 </div>
 
 <h3>2.2 竞品能力覆盖矩阵</h3>
 
-<figure class="chart-figure">
-  <figcaption>竞品能力覆盖矩阵（✓=完全具备, △=部分具备, ✕=缺失）</figcaption>
-  <div id="chart-competitor" class="chart-container tall"></div>
-</figure>
+<div class="table-wrap">
+<table class="matrix">
+<caption style="caption-side: top; text-align: left; font-size: 0.9rem; font-weight: 600; color: var(--ink); margin-bottom: 0.75rem;">
+  竞品能力覆盖矩阵（<span class="sym-full">✓</span>=完全具备, <span class="sym-part">△</span>=部分具备, <span class="sym-none">✕</span>=缺失）
+</caption>
+<thead><tr><th>能力维度</th><th>酷家乐</th><th>住小帮</th><th>Shapr3D</th><th>Procore</th><th>Planner 5D</th><th>MagicPlan</th><th>索克家居</th></tr></thead>
+<tbody>
+<tr><td>AR / LiDAR 空间测量</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>3D 设计建模</td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-part">△</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>照片级效果图渲染</td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>CAD 精确绘图（平立剖）</td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>AI 设计生成与建议</td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>智能预算与 BOM</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>供应链 / 采购管理</td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>施工过程管理</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>进度实时监控</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>结算 / 验收闭环</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>AI Agent 自治运营</td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>多端协同（平板+手机）</td><td><span class="sym-part">△</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-full">✓</span></td><td class="own"><span class="sym-full">✓</span></td></tr>
+<tr><td>装修案例 / 内容社区</td><td><span class="sym-part">△</span></td><td><span class="sym-full">✓</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-none">✕</span></td><td><span class="sym-part">△</span></td><td><span class="sym-none">✕</span></td><td class="own"><span class="sym-part">△</span></td></tr>
+</tbody>
+</table>
+</div>
 
 <h3>2.3 差异化定位</h3>
 
@@ -1035,8 +1070,8 @@ flowchart TB
 <tr><td>3D 渲染（本地）</td><td>Three.js (WebView) → 迁移至 Filament</td><td>Three.js 快速迭代；长线迁移至 Filament 获原生性能</td></tr>
 <tr><td>几何内核</td><td>OpenCascade.js (WASM) + 自研简化求解器</td><td>复杂布尔运算走 OCC，简单操作走自研</td></tr>
 <tr><td>AI Agent 框架</td><td>LangChain/LangGraph + 自研调度层</td><td>成熟的 Agent 编排能力 + 自定义工具调用 + 记忆管理</td></tr>
-<tr><td>LLM</td><td>GPT-4o / Claude Sonnet（云端 API）</td><td>多模态原生支持；复杂推理能力强</td></tr>
-<tr><td>多模态</td><td>GPT-4o Vision + Whisper (ASR)</td><td>图像理解 + 语音转文字 + 文字生成统一模型</td></tr>
+<tr><td>LLM</td><td>DeepSeek（云端 API，mock fallback 模式）</td><td>开源领先，API 成本低，支持多场景推理与工具调用</td></tr>
+<tr><td>多模态</td><td>DeepSeek + Whisper (ASR)</td><td>文本对话 + 语音转文字（模拟），图像理解规划中</td></tr>
 <tr><td>RAG 知识库</td><td>向量数据库 + 装修规范/国标/产品目录</td><td>Agent 回答专业问题的知识底座</td></tr>
 <tr><td>认证</td><td>PASETO</td><td>无状态 token，比 JWT 更安全的默认配置</td></tr>
 <tr><td>部署</td><td>不依赖 Docker，直接二进制部署</td><td>用户偏好</td></tr>
@@ -1130,7 +1165,7 @@ erDiagram
 <table>
 <thead><tr><th>依赖项</th><th>类型</th><th>影响</th><th>缓解策略</th></tr></thead>
 <tbody>
-<tr><td>LLM API 稳定性与成本</td><td>外部/技术</td><td>Agent 核心依赖 LLM，API 不可用则全链路失效</td><td>多模型冗余（GPT-4o + Claude 互为备份）；关键路径本地小模型降级</td></tr>
+<tr><td>LLM API 稳定性与成本</td><td>外部/技术</td><td>Agent 核心依赖 LLM，API 不可用则全链路失效</td><td>DeepSeek + mock fallback 模式；关键路径本地降级；2026 年 API 成本已降 5-10 倍</td></tr>
 <tr><td>LiDAR 硬件普及度</td><td>外部/硬件</td><td>仅 iPad Pro / iPhone Pro 支持</td><td>视觉测距 + 照片建模降级；不依赖 LiDAR 作为唯一入口</td></tr>
 <tr><td>鸿蒙 Flutter 适配成熟度</td><td>技术</td><td>Flutter for OpenHarmony 仍在演进</td><td>Phase 1 主攻 iPadOS；鸿蒙在 Phase 2+ 跟进</td></tr>
 <tr><td>供应商冷启动</td><td>运营</td><td>初期供应商不足，采购市场"空城"</td><td>Phase 1 聚焦设计+预算工具；Phase 3 首城 BD + 平台自营高频品类</td></tr>
@@ -1187,33 +1222,49 @@ gantt
 
 <h3>11.1 Phase 1 必须交付</h3>
 
+<div class="callout tip">
+  <strong>实现状态更新（2026-07-08）：</strong>Phase 1-4 后端全链路已完成。8 个 AI Agent 全部实现，139 API 端点，35 张数据表，144 测试通过。前端 2D CAD/3D/AR 为基础实现，平立剖自动生成待补。
+</div>
+
 <div class="table-wrap">
 <table>
-<thead><tr><th>#</th><th>功能</th><th>优先级</th><th>最小可交付定义</th></tr></thead>
+<thead><tr><th>#</th><th>功能</th><th>优先级</th><th>最小可交付定义</th><th>状态</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>2D CAD 精确绘图</td><td><span class="badge badge-blue">P0</span></td><td>直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出</td></tr>
-<tr><td>2</td><td>3D 模型生成</td><td><span class="badge badge-blue">P0</span></td><td>从 2D 墙体拉伸生成 3D + 基础材质</td></tr>
-<tr><td>3</td><td>平立剖自动生成</td><td><span class="badge badge-blue">P0</span></td><td>俯视平面图 + 四向立面正投影</td></tr>
-<tr><td>4</td><td>本地效果图预览</td><td><span class="badge badge-blue">P0</span></td><td>Three.js 实时渲染 + 3 套光照预设</td></tr>
-<tr><td>5</td><td>总控 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>多模态对话（文本+语音）；意图理解+任务路由</td></tr>
-<tr><td>6</td><td>设计 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>自动生成 3 套平面布局方案；自然语言修改指令</td></tr>
-<tr><td>7</td><td>基础物料库 + BOM</td><td><span class="badge badge-orange">P1</span></td><td>200+ 建材/家具/电器 SKU；BOM 自动生成 + Excel 导出</td></tr>
-<tr><td>8</td><td>Apple Pencil 适配</td><td><span class="badge badge-blue">P0</span></td><td>压感线宽 + 悬停预览 + 双击切换工具</td></tr>
+<tr><td>1</td><td>2D CAD 精确绘图</td><td><span class="badge badge-blue">P0</span></td><td>直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出</td><td>⚠️ 部分实现</td></tr>
+<tr><td>2</td><td>3D 模型生成</td><td><span class="badge badge-blue">P0</span></td><td>从 2D 墙体拉伸生成 3D + 基础材质</td><td>⚠️ 部分实现</td></tr>
+<tr><td>3</td><td>平立剖自动生成</td><td><span class="badge badge-blue">P0</span></td><td>俯视平面图 + 四向立面正投影</td><td>❌ 未实现</td></tr>
+<tr><td>4</td><td>本地效果图预览</td><td><span class="badge badge-blue">P0</span></td><td>Three.js 实时渲染 + 3 套光照预设</td><td>⚠️ 基础渲染</td></tr>
+<tr><td>5</td><td>总控 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>多模态对话（文本+语音）；意图理解+任务路由</td><td>✅ 已实现</td></tr>
+<tr><td>6</td><td>设计 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>自动生成 3 套平面布局方案；自然语言修改指令</td><td>✅ 已实现 (9 套)</td></tr>
+<tr><td>7</td><td>基础物料库 + BOM</td><td><span class="badge badge-orange">P1</span></td><td>200+ 建材/家具/电器 SKU；BOM 自动生成 + Excel 导出</td><td>✅ 已实现 (225 SKU)</td></tr>
+<tr><td>8</td><td>Apple Pencil 适配</td><td><span class="badge badge-blue">P0</span></td><td>压感线宽 + 悬停预览 + 双击切换工具</td><td>⚠️ 框架级</td></tr>
 </tbody>
 </table>
 </div>
 
-<h3>11.2 MVP 不做</h3>
+<h3>11.2 超前实现（超出 Phase 1 范围）</h3>
+
+<div class="callout tip">
+  <strong>以下功能原标注为 Phase 2-5，但后端已提前实现：</strong>
+  <ul class="sub-items" style="margin-top:0.5rem;">
+    <li>✅ 预算 Agent + 结算 Agent（原 Phase 2）— 完整 API + Agent 逻辑</li>
+    <li>✅ 采购 Agent + 供应商市场（原 Phase 3）— 12 家供应商 + 询价比价</li>
+    <li>✅ 施工 Agent + 质检 Agent（原 Phase 4）— F37 进度管理 + F38 质量检测</li>
+    <li>✅ 客服 Agent（原 Phase 5）— FAQ 知识库 + 咨询分类 + 升级规则</li>
+    <li>✅ 智能布局动线分析 F28 — 三动线评分 + 冲突检测</li>
+    <li>✅ 三方协作 IM + 工程队匹配 — 数据层 + API 已建</li>
+    <li>⚠️ AR/LiDAR 扫描 — surveys 表已建，前端待实现</li>
+    <li>⚠️ 支付管理 — payments 表已建，支付流程待实现</li>
+  </ul>
+</div>
 
 <div class="callout warn">
-  <strong>Phase 1 不包含：</strong>
+  <strong>Phase 1 仍未完成（前端深度）：</strong>
   <ul class="sub-items" style="margin-top:0.5rem;">
-    <li>AR/LiDAR 扫描（Phase 2）</li>
-    <li>预算 Agent / 结算 Agent（Phase 2）</li>
-    <li>采购 Agent / 供应商市场（Phase 3）</li>
-    <li>施工 Agent / 质检 Agent（Phase 4）</li>
-    <li>厨卫设计器 / 电器点位规划（Phase 2）</li>
-    <li>Android / 鸿蒙平板（Phase 2）</li>
+    <li>平立剖自动生成（P0 未实现）</li>
+    <li>2D CAD 精确绘图（DXF 导出、对象捕捉待补）</li>
+    <li>3D 模型生成（2D→3D 拉伸待补）</li>
+    <li>AR/LiDAR 扫描前端实现</li>
     <li>DWG 导入（仅 DXF 导出）</li>
   </ul>
 </div>
@@ -1500,6 +1551,18 @@ gantt
           <span class="src-title">Procore / Buildertrend / Autodesk Construction Cloud — 全球主流施工项目管理平台。</span>
           <a class="src-url" href="https://www.procore.com" target="_blank" rel="noopener">https://www.procore.com</a>
         </li>
+        <li id="cite-9">
+          <span class="src-title">Planner 5D — 跨平台 2D/3D 家居设计工具，支持 iOS/Android/Web，2D/3D 无缝切换 + 照片级渲染，推出基于 Stable Diffusion 的 AI Design Generator 渲染生成功能。</span>
+          <a class="src-url" href="https://planner5d.com" target="_blank" rel="noopener">https://planner5d.com</a>
+        </li>
+        <li id="cite-10">
+          <span class="src-title">MagicPlan — 使用手机摄像头扫描室内空间并自动生成平面图，支持导出 DXF/PDF/JPEG 等格式，提供基础造价估算功能。</span>
+          <a class="src-url" href="https://www.sensopia.com" target="_blank" rel="noopener">https://www.sensopia.com</a>
+        </li>
+        <li id="cite-11">
+          <span class="src-title">2025 年家装行业现状分析 — 中国家装家居市场总体规模 2025 年达到约 5 万亿元，2030 年预计达 7 万亿元，年均增长率超 6%。</span>
+          <a class="src-url" href="https://m.chinabgao.com/freereport/106586.html" target="_blank" rel="noopener">https://m.chinabgao.com/freereport/106586.html</a>
+        </li>
       </ol>
     </div>
   </div>
@@ -1511,6 +1574,5 @@ gantt
 <script>
 mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
 </script>
-<script src="assets/charts.js"></script>
 </body>
 </html>

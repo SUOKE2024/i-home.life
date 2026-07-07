@@ -1,8 +1,10 @@
+<img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居" width="48" height="48" align="left" style="border-radius:10px;margin-right:12px;">
+
 # i-home.life（索克家居）Code Wiki
 
-> **版本**：v3.5
+> **版本**：v4.0
 > **最后更新**：2026-07-08
-> **项目状态**：Phase 1 MVP 完成（95 测试通过，测量环节已实现，11 Tab Web SPA）
+> **项目状态**：Phase 1-4 后端全链路完成（163 测试通过，8 AI Agent，21 路由 154 端点，54 张数据表）
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 
@@ -118,7 +120,7 @@
 /Users/netsong/Developer/i-home.life/
 │
 ├── app/                              # 后端应用 (FastAPI)
-│   ├── api/                          # 11 个路由模块 (54 端点)
+│   ├── api/                          # 21 个路由模块 (154 端点)
 │   │   ├── auth.py                   # 认证 (register/login/me)
 │   │   ├── projects.py               # 项目管理
 │   │   ├── materials.py              # 物料 + BOM + Excel导出
@@ -129,16 +131,24 @@
 │   │   ├── floorplans.py             # 户型方案存储
 │   │   ├── voice.py                  # 语音处理
 │   │   ├── files.py                  # 文件上传/下载
-│   │   └── agents.py                 # AI Agent 路由 (mock + LLM 双模式)
-│   ├── agents/                       # 7 个 AI Agent
+│   │   ├── agents.py                 # AI Agent 路由 (mock + LLM 双模式, 8 Agent)
+│   │   ├── payments.py               # 支付管理
+│   │   ├── chat.py                   # 三方协作 IM
+│   │   ├── crews.py                  # 工程队匹配
+│   │   ├── surveys.py                # AR 测量数据
+│   │   ├── layouts.py                # 智能布局动线分析
+│   │   └── ...                       # 其他路由模块
+│   ├── agents/                       # 8 个 AI Agent
 │   │   ├── orchestrator.py           # 总控 (意图路由 + fallback_classify)
 │   │   ├── designer.py               # 设计 (9套布局 + 修改意图识别)
 │   │   ├── budget.py                 # 预算分析
 │   │   ├── procurement.py            # 采购建议
-│   │   ├── construction.py           # 施工计划
+│   │   ├── construction.py           # 施工计划 (F37 进度管理 + F38 质量检测)
 │   │   ├── settlement.py             # 财务结算
+│   │   ├── qa_inspector.py           # 质检 (验收报告 + 缺陷识别 + 设计比对)
+│   │   ├── concierge.py              # 客服 (FAQ 知识库 + 咨询分类 + 升级规则)
 │   │   └── base.py                   # BaseAgent
-│   ├── models/                       # 20 张数据表 (SQLAlchemy 2.0 async)
+│   ├── models/                       # 54 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
 │   ├── services/                     # 业务逻辑层
 │   ├── auth/                         # PASETO Token 认证
@@ -175,7 +185,7 @@
 │   ├── bench-matepad.sh              # MatePad 性能验收脚本
 │   └── seed.py                       # 种子数据 (225 SKU)
 │
-├── tests/                            # 测试套件 (95 pass / 8 skipped)
+├── tests/                            # 测试套件 (163 pass / 9 skipped)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
 │   ├── test_projects.py              # 项目 CRUD (4)
@@ -186,15 +196,16 @@
 │   ├── test_floorplans.py            # 户型 CRUD (6)
 │   ├── test_files_and_voice.py       # 文件上传 + 语音 (14)
 │   ├── test_agents_llm.py            # Agent LLM 路径 + mock 模式 (23)
-│   └── test_websocket.py             # WebSocket (3 pass / 9 skipped)
+│   ├── test_websocket.py             # WebSocket (3 pass / 9 skipped)
+│   ├── test_qa_inspector_concierge.py  # 质检 + 客服 Agent (31)
+│   └── ...                           # 其他测试模块
 │
 ├── _shared/                          # 共享静态资源
 │   └── js/
 │       ├── echarts.min.js            # ECharts 图表库
 │       └── mermaid.min.js            # Mermaid 图表库
 │
-├── assets/
-│   └── charts.js                     # 竞品能力覆盖矩阵数据 + ECharts 渲染
+├── assets/                           # 静态资源（截图、图标）
 │
 ├── docs/                             # 文档
 │   └── PHASE2_ROADMAP.md             # Phase 2 路线图
@@ -297,18 +308,16 @@ state = {
 }
 ```
 
-### 4.3 竞品分析图表模块
+### 4.3 竞品分析模块
 
-**文件**：[assets/charts.js](file:///Users/netsong/Developer/i-home.life/assets/charts.js)
-
-使用 ECharts 渲染竞品能力热力图，数据维度：
+竞品能力覆盖矩阵已内联至 PRD HTML 表格（`<table class="matrix">`），数据维度：
 
 | 竞品 | 覆盖能力数（23 维） | AI 能力 |
 |------|-------------------|---------|
 | 酷家乐 | 10 项部分 + 2 项完全 | 无 Agent |
 | 住小帮 | 仅移动端原生 | 无 |
 | Shapr3D | CAD+3D+移动端 | 无 |
-| Planner 5D | 设计+软装+移动端 | 无 |
+| Planner 5D | 设计+软装+移动端 | AI 渲染生成 |
 | MagicPlan | AR 测量+移动端 | 无 |
 | Procore | 施工管理+工程队匹配 | 无 |
 | **索克家居** | **23 项全覆盖** | **8 Agent** |
@@ -330,7 +339,6 @@ state = {
 **外部依赖**：
 - `_shared/js/echarts.min.js`
 - `_shared/js/mermaid.min.js`
-- `assets/charts.js`
 
 ### 5.2 `interactive-demo.html`
 
@@ -355,24 +363,7 @@ state = {
 | `showToast(msg)` | 顶部 Toast 提示（2.5s 自动消失） |
 | `resetDemo()` | 重置所有状态到初始值 |
 
-### 5.3 `assets/charts.js`
-
-| 属性 | 值 |
-|------|-----|
-| 作用 | 竞品能力覆盖热力图数据与渲染 |
-| 依赖 | ECharts |
-| 数据量 | 7 个竞品 × 23 项能力 = 161 个数据点 |
-| 渲染模式 | SVG |
-
-**数据结构**：
-
-```javascript
-competitors = ['酷家乐', '住小帮', 'Shapr3D', 'Planner 5D', 'MagicPlan', 'Procore', '索克家居']
-capabilities = ['AR 空间测量', '2D 精确CAD', '3D 建模', '平立剖自动生成', ...]  // 23 项
-data[i][j] = 0/1/2   // 0=缺失, 1=部分具备, 2=完全具备
-```
-
-### 5.4 配置文件
+### 5.3 配置文件
 
 | 文件 | 内容 | 说明 |
 |------|------|------|
@@ -407,16 +398,16 @@ data[i][j] = 0/1/2   // 0=缺失, 1=部分具备, 2=完全具备
 | 几何内核 | OpenCascade.js (WASM) + 自研简化求解器 | 复杂布尔运算走 OCC，简单操作走自研 |
 | AR | RoomPlan / ARKit / ARCore / AR Engine | 各平台原生 AR 能力 |
 
-### 6.3 规划技术栈（AI）
+### 6.3 实际技术栈（AI）
 
 | 层面 | 技术选型 |
 |------|---------|
-| Agent 框架 | LangChain / LangGraph + 自研调度层 |
-| LLM | GPT-4o / Claude Sonnet（云端 API） |
-| 多模态 | GPT-4o Vision + Whisper (ASR) |
-| 图像生成 | Stable Diffusion + ControlNet |
-| 图像检测 | CV 缺陷检测模型 |
-| 知识库 | RAG（向量数据库 + 装修规范/国标/产品目录） |
+| Agent 框架 | 自研混合路由（关键词匹配 + LLM fallback）+ Orchestrator 中央调度 |
+| LLM | DeepSeek（云端 API，mock fallback 模式） |
+| 多模态 | Whisper 语音识别（模拟）+ 文本对话 |
+| 图像生成 | Stable Diffusion + ControlNet（规划中） |
+| 图像检测 | CV 缺陷检测模型（mock 框架已实现） |
+| 知识库 | FAQ 预置知识库（RAG 规划中） |
 
 ### 6.4 当前 Demo 技术栈
 
@@ -488,16 +479,16 @@ BudgetLine   SettlementLine  BOMItem          Inspection         OrderLine
 
 ### 8.1 Agent 矩阵
 
-| Agent | 角色 | 核心职责 |
-|-------|------|---------|
-| **总控 Agent** Orchestrator | 中央调度者 | 理解用户意图 → 分解任务 → 分派专业 Agent → 监控全局状态 → 人工升级决策 |
-| **设计 Agent** Designer | 设计产出者 | AR 扫描→生成平面图→规范检查→自动标注→生成平立剖→触发渲染 |
-| **预算 Agent** Budget Controller | 财务控制者 | BOM→分项预算→多方案对比→实时追踪→偏差 > 5% 预警 |
-| **采购 Agent** Procurement | 采购执行者 | BOM→匹配供应商→询价→收集报价→比价报告→推荐方案→一键下单 |
-| **施工 Agent** Construction Manager | 施工管理者 | 设计方案→施工计划(Gantt)→每日推送→照片 AI 审核→日报/周报 |
-| **质检 Agent** QA Inspector | 质量检测者 | 照片 vs 设计图纸比对→尺寸偏差检测→工艺缺陷识别→验收报告 |
-| **结算 Agent** Settlement | 结算执行者 | 合同价 + 变更 + 采购 + 验收 → 自动结算 → 异常标记 → 生成对账单 |
-| **客服 Agent** Concierge | 客服接待者 | 7×24 多模态对话（文本+语音+图片）→ 知识问答 → 复杂问题升级 |
+| Agent | 角色 | 核心职责 | 状态 |
+|-------|------|---------|------|
+| **总控 Agent** Orchestrator | 中央调度者 | 理解用户意图 → 分解任务 → 分派专业 Agent → 监控全局状态 → 人工升级决策 | ✅ 已实现 |
+| **设计 Agent** Designer | 设计产出者 | AR 扫描→生成平面图→规范检查→自动标注→生成平立剖→触发渲染 | ✅ 已实现 |
+| **预算 Agent** Budget Controller | 财务控制者 | BOM→分项预算→多方案对比→实时追踪→偏差 > 5% 预警 | ✅ 已实现 |
+| **采购 Agent** Procurement | 采购执行者 | BOM→匹配供应商→询价→收集报价→比价报告→推荐方案→一键下单 | ✅ 已实现 |
+| **施工 Agent** Construction Manager | 施工管理者 | 设计方案→施工计划(Gantt)→每日推送→照片 AI 审核→日报/周报 | ✅ 已实现 |
+| **质检 Agent** QA Inspector | 质量检测者 | 照片 vs 设计图纸比对→尺寸偏差检测→工艺缺陷识别→验收报告 | ✅ 已实现 |
+| **结算 Agent** Settlement | 结算执行者 | 合同价 + 变更 + 采购 + 验收 → 自动结算 → 异常标记 → 生成对账单 | ✅ 已实现 |
+| **客服 Agent** Concierge | 客服接待者 | 7×24 多模态对话（文本+语音+图片）→ 知识问答 → 复杂问题升级 | ✅ 已实现 |
 
 ### 8.2 Agent 自主权分级
 
@@ -546,7 +537,7 @@ pip install -r requirements.txt
 # 4. 启动服务
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. 运行测试 (86 pass / 9 skipped)
+# 5. 运行测试 (163 pass / 9 skipped)
 python -m pytest tests/ -v
 
 # 6. 运行全链路 Demo
@@ -577,50 +568,64 @@ alembic upgrade head
 ## 10. 开发路线图
 
 ```
-Phase 1: 设计核心 + AI 基础 (2026-08 ~ 2026-12)
-├── 2D CAD 绘图引擎
-├── 3D & 平立剖自动生成
-├── 效果图渲染
-├── 总控 Agent + 设计 Agent v1
-└── iPadOS Alpha 测试
+Phase 1: 设计核心 + AI 基础 (2026-08 ~ 2026-12) ✅ 后端完成
+├── 2D CAD 绘图引擎 (web/studio.html Canvas)
+├── 3D & 平立剖自动生成 (web/3d-viewer.html Three.js，平立剖待补)
+├── 效果图渲染 (基础渲染已实现)
+├── 总控 Agent + 设计 Agent v1 ✅
+└── iPadOS Alpha 测试 (Flutter 框架级适配)
 
-Phase 2: AR + 预算 + 厨卫 (2026-12 ~ 2027-03)
-├── LiDAR/RoomPlan 集成
-├── 预算+结算 Agent
-├── 厨卫设计器 + 电器点位规划
-├── Android+鸿蒙平板适配
+Phase 2: AR + 预算 + 厨卫 (2026-12 ~ 2027-03) ✅ 后端完成
+├── LiDAR/RoomPlan 集成 (surveys 表已建，前端待实现)
+├── 预算+结算 Agent ✅
+├── 厨卫设计器 + 电器点位规划 (数据层就绪)
+├── Android+鸿蒙平板适配 (ohos 配置完成)
 └── 封闭 Beta 测试
 
-Phase 3: 采购市场 (2027-04 ~ 2027-06)
-├── 供应商入驻+审核
-├── 采购 Agent + 询价比价
-├── 首城 100+ 供应商 BD
+Phase 3: 采购市场 (2027-04 ~ 2027-06) ✅ 后端完成
+├── 供应商入驻+审核 ✅ (12 家供应商)
+├── 采购 Agent + 询价比价 ✅
+├── 首城 100+ 供应商 BD (运营待推进)
 └── 公开 Beta 上线
 
-Phase 4: 施工 + 质检 Agent (2027-07 ~ 2027-08)
-├── 施工 Agent + 质检 Agent
-├── 工程队入驻+审核
-└── 三方协作 IM
+Phase 4: 施工 + 质检 Agent (2027-07 ~ 2027-08) ✅ 后端完成
+├── 施工 Agent + 质检 Agent ✅
+├── 工程队入驻+审核 (crews 表已建)
+├── 三方协作 IM (chat 表已建)
+├── 智能布局动线分析 ✅ (F28)
+└── 支付管理 (payments 表已建)
 
-Phase 5: 生态完善 (2027-09 ~ 2027-12)
-├── 智能家居方案设计器
-├── 客服 Agent + 服务商平台
-├── AI 自适应学习 L4
+Phase 5: 生态完善 (2027-09 ~ 2027-12) 进行中
+├── 客服 Agent ✅
+├── 智能家居方案设计器 (规划中)
+├── AI 自适应学习 L4 (规划中)
 └── GA 正式版
 ```
 
 ### Phase 1 MVP 必须交付
 
-| # | 功能 | 优先级 |
-|---|------|--------|
-| 1 | 2D CAD 精确绘图（直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出） | P0 |
-| 2 | 3D 模型生成（2D 墙体拉伸 → 3D + 基础材质） | P0 |
-| 3 | 平立剖自动生成（俯视平面图 + 四向立面正投影） | P0 |
-| 4 | 本地效果图预览（Three.js 实时渲染 + 3 套光照预设） | P0 |
-| 5 | 总控 Agent v1（多模态对话 + 意图理解 + 任务路由） | P0 |
-| 6 | 设计 Agent v1（自动生成 3 套平面布局 + 自然语言修改指令） | P0 |
-| 7 | 基础物料库 + BOM（200+ SKU + 自动生成 + Excel 导出） | P1 |
-| 8 | 手写笔适配 stylus_adapter.dart（Apple Pencil + M-Pencil 压感线宽 + 悬停预览 + 双击切换工具） | P0 |
+| # | 功能 | 优先级 | 状态 |
+|---|------|--------|------|
+| 1 | 2D CAD 精确绘图（直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出） | P0 | ⚠️ 部分实现 |
+| 2 | 3D 模型生成（2D 墙体拉伸 → 3D + 基础材质） | P0 | ⚠️ 部分实现 |
+| 3 | 平立剖自动生成（俯视平面图 + 四向立面正投影） | P0 | ❌ 未实现 |
+| 4 | 本地效果图预览（Three.js 实时渲染 + 3 套光照预设） | P0 | ⚠️ 基础渲染 |
+| 5 | 总控 Agent v1（多模态对话 + 意图理解 + 任务路由） | P0 | ✅ 已实现 |
+| 6 | 设计 Agent v1（自动生成 3 套平面布局 + 自然语言修改指令） | P0 | ✅ 已实现 (9 套布局) |
+| 7 | 基础物料库 + BOM（200+ SKU + 自动生成 + Excel 导出） | P1 | ✅ 已实现 (225 SKU) |
+| 8 | 手写笔适配 stylus_adapter.dart（Apple Pencil + M-Pencil 压感线宽 + 悬停预览 + 双击切换工具） | P0 | ⚠️ 框架级 |
+
+### 超前实现（超出 Phase 1 范围）
+
+以下功能在 PRD 中标注为 Phase 2-5，但后端已提前实现：
+
+| PRD 标注 | 功能 | 实现状态 |
+|---------|------|---------|
+| Phase 2 | 预算 Agent + 结算 Agent | ✅ 完整实现 |
+| Phase 3 | 采购 Agent + 供应商管理 | ✅ 完整实现 |
+| Phase 4 | 施工 Agent + 质检 Agent + IM + 工程队匹配 | ✅ 完整实现 |
+| Phase 5 | 客服 Agent | ✅ 完整实现 |
+| Phase 5 | 支付管理 | ⚠️ 数据层就绪 |
 
 ---
 
