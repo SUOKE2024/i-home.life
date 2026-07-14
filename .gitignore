@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.egg-info/
 .eggs/
 dist/
@@ -19,6 +20,22 @@ venv/
 .packages
 build/
 *.jlink
+**/build/
+
+# Flutter iOS (支持嵌套在 flutter_app/ 等子目录下)
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/.last_build_id
+
+# Flutter Android
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/.gradle/
+
+# HarmonyOS build
+**/ohos/.hvigor/
+**/ohos/build/
 
 # IDE
 .idea/
@@ -32,6 +49,7 @@ build/
 # TRAE IDE
 .trae-html-share-packages/
 Thumbs.db
+.superpowers/
 
 # Serverless
 .s/
@@ -40,13 +58,17 @@ Thumbs.db
 data/
 reports/
 
+# Archives
+*.zip
+*.bak
+*.tmp
+*.old
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
 # Flutter OHOS SDK 副本（外部仓库，不应入库）
 flutter_flutter/
-
-# Flutter iOS
-ios/Pods/
-ios/.symlinks/
-
-# HarmonyOS build
-ohos/.hvigor/
-ohos/build/

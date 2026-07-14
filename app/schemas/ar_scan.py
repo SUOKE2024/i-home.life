@@ -1,7 +1,6 @@
 """F1 AR 空间测量 Pydantic 验证模型"""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 

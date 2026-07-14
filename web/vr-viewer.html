@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
 <title>索克家居 · VR 全景查看器</title>
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -69,54 +75,81 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 #toast.show{opacity:1}
 
 /* 响应式 */
+#mobile-toggle{display:none;position:absolute;top:14px;left:14px;z-index:31;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:#ccc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:inherit;backdrop-filter:blur(8px)}
+#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:29}
+@media (max-width:1024px){
+  #sidebar{width:220px}
+  .sidebar-header h1{font-size:1.05rem}
+  .section{padding:12px 16px}
+}
 @media (max-width:768px){
-  #sidebar{width:200px}
+  #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:30;transform:translateX(-100%);transition:transform 0.3s;width:240px}
+  #sidebar.open{transform:translateX(0)}
+  #sidebar.open~#main #sidebar-overlay{display:block}
+  #mobile-toggle{display:block !important}
   .sidebar-header h1{font-size:1rem}
-  #stats{font-size:0.65rem;padding:6px 12px;gap:10px}
-  .tb-btn{padding:6px 10px;font-size:0.7rem}
+  #stats{font-size:0.6rem;padding:6px 10px;gap:10px;flex-wrap:wrap;justify-content:center;max-width:90%}
+  .tb-btn{padding:6px 10px;font-size:0.65rem}
+  #toolbar{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .room-btn{font-size:0.7rem;padding:8px 12px}
+  .view-control label{font-size:0.65rem}
 }
 @media (max-width:480px){
-  #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:30;transform:translateX(-100%);transition:transform 0.3s}
-  #sidebar.open{transform:translateX(0)}
-  #mobile-toggle{display:block !important}
+  #sidebar{width:200px}
+  body{font-size:12px}
+  .sidebar-header{padding:14px}
+  .sidebar-header h1{font-size:0.95rem}
+  .section{padding:10px 14px}
+  .section h3{font-size:0.6rem}
+  .room-btn{font-size:0.65rem;padding:7px 10px}
+  .tb-btn{font-size:0.6rem;padding:5px 8px}
+  #stats{font-size:0.55rem;gap:8px;padding:5px 8px}
+  .hotspot-dot{width:26px;height:26px;font-size:12px}
+  .hotspot-label{font-size:0.6rem;padding:3px 8px;top:32px}
 }
-#mobile-toggle{display:none;position:absolute;top:14px;left:14px;z-index:11;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:#ccc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;backdrop-filter:blur(8px)}
+@media (prefers-reduced-motion:reduce){
+  #loading .spinner{animation:none}
+  *{transition:none !important;animation-duration:0.01ms !important}
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" onerror="this.remove()">
 </head>
 <body>
 
-<div id="loading">
-  <div class="spinner"></div>
+<div id="loading" role="status" aria-live="polite">
+  <div class="spinner" aria-hidden="true"></div>
   <span class="text">正在加载 VR 全景引擎...</span>
 </div>
 
 <div id="app" style="display:none">
-  <div id="sidebar">
+  <div id="sidebar" role="navigation" aria-label="VR全景侧边栏">
     <div class="sidebar-header">
       <h1>VR 全景查看器</h1>
       <div class="sub">索克家居 · i-home.life</div>
     </div>
 
     <div class="section">
-      <h3>🛋 房间列表</h3>
-      <div class="room-list" id="roomList"></div>
+      <h3><span aria-hidden="true">🛋</span> 房间列表</h3>
+      <div class="room-list" id="roomList" role="menu" aria-label="房间列表"></div>
     </div>
 
     <div class="section">
-      <h3>📐 视角控制</h3>
+      <h3><span aria-hidden="true">📐</span> 视角控制</h3>
       <div class="view-control">
-        <label>视野 (FOV) <span id="fovValue">75°</span></label>
-        <input type="range" id="fovSlider" min="30" max="110" value="75" step="1">
+        <label for="fovSlider">视野 (FOV) <span id="fovValue">75°</span></label>
+        <input type="range" id="fovSlider" min="30" max="110" value="75" step="1" aria-label="视野角度">
         <div class="btn-row">
-          <button id="resetView">重置视角</button>
-          <button id="autoRotate">自动旋转</button>
+          <button id="resetView" aria-label="重置视角">重置视角</button>
+          <button id="autoRotate" aria-label="自动旋转">自动旋转</button>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <h3>ℹ 全景信息</h3>
+      <h3><span aria-hidden="true">ℹ</span> 全景信息</h3>
       <div style="font-size:0.7rem;color:#aaa;line-height:1.7">
         <div>房间: <strong id="infoRoom" style="color:var(--accent)">—</strong></div>
         <div>分辨率: <strong id="infoRes" style="color:var(--accent)">4K</strong></div>
@@ -124,23 +157,34 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
         <div>热点数: <strong id="infoHotspots" style="color:var(--accent)">0</strong></div>
       </div>
     </div>
+
+    <!-- 项目信息卡片 -->
+    <div class="section">
+      <h3>项目信息</h3>
+      <div id="vr-project-info" style="font-size:0.7rem;color:var(--muted);display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between"><span>项目</span><strong style="color:var(--text)" id="vr-proj-name">加载中...</strong></div>
+        <div style="display:flex;justify-content:space-between"><span>面积</span><strong style="color:var(--text)" id="vr-proj-area">--</strong></div>
+        <div style="display:flex;justify-content:space-between"><span>状态</span><strong style="color:var(--accent)" id="vr-proj-status">--</strong></div>
+      </div>
+    </div>
   </div>
 
-  <div id="main">
-    <button id="mobile-toggle">☰ 菜单</button>
+  <div id="main" role="main">
+    <button id="mobile-toggle" aria-label="切换侧边栏菜单">☰ 菜单</button>
+    <div id="sidebar-overlay" aria-hidden="true"></div>
     <canvas id="canvas"></canvas>
-    <div id="hotspot-layer"></div>
-    <div id="toolbar">
-      <button class="tb-btn active" data-mode="pan">🚶 漫游</button>
-      <button class="tb-btn" data-mode="info">📍 热点</button>
-      <button class="tb-btn" id="fullscreenBtn">⛶ 全屏</button>
+    <div id="hotspot-layer" aria-hidden="false"></div>
+    <div id="toolbar" role="toolbar" aria-label="全景模式工具栏">
+      <button class="tb-btn active" data-mode="pan" aria-label="漫游模式"><span aria-hidden="true">🚶</span> 漫游</button>
+      <button class="tb-btn" data-mode="info" aria-label="热点信息"><span aria-hidden="true">📍</span> 热点</button>
+      <button class="tb-btn" id="fullscreenBtn" aria-label="全屏切换"><span aria-hidden="true">⛶</span> 全屏</button>
     </div>
-    <div id="stats">
+    <div id="stats" role="status" aria-live="polite">
       <span>当前房间: <strong id="statRoom">—</strong></span>
       <span>视角: <strong id="statView">0° / 0°</strong></span>
       <span>FPS: <strong id="statFps">0</strong></span>
     </div>
-    <div id="toast"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
   </div>
 </div>
 
@@ -322,11 +366,15 @@ function renderHotspots(pano) {
     const el = document.createElement('div');
     el.className = 'hotspot';
     el.dataset.idx = idx;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', hs.label || '热点');
     el.innerHTML = `
-      <div class="hotspot-dot">→</div>
+      <div class="hotspot-dot" aria-hidden="true">→</div>
       <div class="hotspot-label">${hs.label}</div>
     `;
     el.addEventListener('click', () => onHotspotClick(hs));
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onHotspotClick(hs); } });
     hotspotLayer.appendChild(el);
     hotspotElements.push({ el, data: hs });
   });
@@ -398,6 +446,9 @@ function renderRoomList() {
   DEMO_PANORAMAS.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'room-btn' + (currentPanorama && p.id === currentPanorama.id ? ' active' : '');
+    btn.setAttribute('role', 'menuitem');
+    btn.setAttribute('tabindex', '0');
+    btn.setAttribute('aria-label', `${p.room_name}，${p.hotspots.length}个热点`);
     btn.innerHTML = `${p.room_name} <span class="badge">${p.hotspots.length} 热点</span>`;
     btn.addEventListener('click', () => {
       loadPanorama(p);
@@ -507,7 +558,14 @@ document.getElementById('fullscreenBtn').addEventListener('click', () => {
 });
 
 document.getElementById('mobile-toggle').addEventListener('click', () => {
-  document.getElementById('sidebar').classList.toggle('open');
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb.classList.toggle('open');
+  if(ov) ov.style.display=sb.classList.contains('open')?'block':'none';
+});
+document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').style.display='none';
 });
 
 // 工具栏模式切换 (热点显示/隐藏)
@@ -527,6 +585,32 @@ document.querySelectorAll('.tb-btn[data-mode]').forEach(btn => {
 // ════════════════════════════════════════════════════════════
 // 启动
 // ════════════════════════════════════════════════════════════
+
+// 加载项目信息
+function loadVRProjectInfo() {
+  const params = new URLSearchParams(window.location.search);
+  const projectId = params.get('id') || params.get('project_id');
+  
+  if (!projectId) {
+    document.getElementById('vr-proj-name').textContent = '--';
+    return;
+  }
+  
+  const API = (window.ApiClient && window.ApiClient.BASE_URL) || (window.API_BASE_URL) || '';
+  const token = localStorage.getItem('paseto_token');
+  
+  fetch(API + '/api/projects/' + projectId, {
+    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+  }).then(r => r.json()).then(p => {
+    document.getElementById('vr-proj-name').textContent = p.name || '--';
+    document.getElementById('vr-proj-area').textContent = (p.total_area || '--') + ' ㎡';
+    document.getElementById('vr-proj-status').textContent = p.status || '进行中';
+  }).catch(() => {
+    document.getElementById('vr-proj-name').textContent = '获取失败';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', loadVRProjectInfo);
 
 window.addEventListener('load', () => {
   initThree();

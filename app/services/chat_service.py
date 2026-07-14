@@ -44,8 +44,13 @@ async def get_messages(
         .limit(limit)
     )
     if before:
-        # 简化：暂不实现 cursor 分页，仅按时间倒序
-        pass
+        # 游标分页: 获取指定消息 ID 之前的消息
+        cursor_result = await db.execute(
+            select(ChatMessage).where(ChatMessage.id == before)
+        )
+        cursor_msg = cursor_result.scalar_one_or_none()
+        if cursor_msg:
+            stmt = stmt.where(ChatMessage.created_at < cursor_msg.created_at)
     result = await db.execute(stmt)
     return list(reversed(result.scalars().all()))
 

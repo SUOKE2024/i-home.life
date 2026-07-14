@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/error_retry.dart';
 
 class BudgetPage extends StatefulWidget {
   final String projectId;
@@ -16,6 +18,7 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
   Map<String, dynamic>? _compareResult;
   List<dynamic> _templates = [];
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -32,50 +35,58 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
   }
 
   Future<void> _loadBudget() async {
-    setState(() => _loading = true);
-    try {
-      final data = await _api.get('/budgets/project/${widget.projectId}');
-      setState(() => _budget = data);
-    } catch (_) {
-      // 预算可能尚未创建
-    } finally {
-      setState(() => _loading = false);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await _api.get('/budgets/project/${widget.projectId}');
+    if (result.isSuccess) {
+      setState(() => _budget = result.data);
+    } else {
+      // 区分 404（预算尚未创建）与真实加载错误
+      if (result.statusCode == 404) {
+        setState(() => _budget = null);
+      } else {
+        setState(() => _error = '预算加载失败，请检查网络后重试');
+      }
     }
+    setState(() => _loading = false);
   }
 
   Future<void> _loadTemplates() async {
-    try {
-      final data = await _api.get('/budgets/templates');
+    final result = await _api.get('/budgets/templates');
+    if (result.isSuccess) {
+      final data = result.data;
       setState(() => _templates = (data['templates'] as List?) ?? []);
-    } catch (_) {}
+    }
   }
 
   Future<void> _generateFromBom() async {
     setState(() => _loading = true);
-    try {
-      final data = await _api.post('/budgets/generate-from-bom/${widget.projectId}', {});
+    final result = await _api.post('/budgets/generate-from-bom/${widget.projectId}', {});
+    if (result.isSuccess) {
+      final data = result.data;
       setState(() => _budget = data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('已从 BOM 生成预算，总价 ¥${(data['total_estimated'] as num?)?.toDouble() ?? 0}')),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：${result.error}')));
       }
-    } finally {
-      setState(() => _loading = false);
     }
+    setState(() => _loading = false);
   }
 
   Future<void> _comparePlans() async {
-    try {
-      final data = await _api.post('/budgets/compare-plans', {'message': '126㎡'});
-      setState(() => _compareResult = data);
-    } catch (e) {
+    final result = await _api.post('/budgets/compare-plans', {'message': '126㎡'});
+    if (result.isSuccess) {
+      setState(() => _compareResult = result.data);
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('对比失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('对比失败：${result.error}')));
       }
     }
   }
@@ -106,7 +117,12 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
   }
 
   Widget _buildCurrentBudget() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const LoadingSkeleton(itemCount: 3, itemHeight: 110);
+    }
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _loadBudget);
+    }
     if (_budget == null) {
       return Center(
         child: Column(
@@ -131,78 +147,81 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
     final variancePct = totalEstimated > 0 ? (variance / totalEstimated * 100).toStringAsFixed(2) : '0.00';
     final lines = (_budget!['lines'] as List?) ?? [];
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('预算总额', style: TextStyle(fontSize: 14, color: Colors.grey)),
-                    Text('¥${totalEstimated.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const Divider(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('实际支出'),
-                    Text('¥${totalActual.toStringAsFixed(2)}',
-                        style: TextStyle(color: variance > 0 ? Colors.red : Colors.green)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('偏差'),
-                    Text('$variancePct%',
-                        style: TextStyle(
-                            color: variance.abs() > totalEstimated * 0.05 ? Colors.red : Colors.green,
-                            fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ],
+    return RefreshIndicator(
+      onRefresh: _loadBudget,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('预算总额', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                      Text('¥${totalEstimated.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('实际支出'),
+                      Text('¥${totalActual.toStringAsFixed(2)}',
+                          style: TextStyle(color: variance > 0 ? Colors.red : Colors.green)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('偏差'),
+                      Text('$variancePct%',
+                          style: TextStyle(
+                              color: variance.abs() > totalEstimated * 0.05 ? Colors.red : Colors.green,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        const Text('分项明细', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        ...lines.map((line) => Card(
-              child: ListTile(
-                title: Text(line['name'] ?? ''),
-                subtitle: Text(line['category'] ?? ''),
-                trailing: Text('¥${(line['estimated_amount'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}'),
+          const SizedBox(height: 16),
+          const Text('分项明细', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ...lines.map((line) => Card(
+                child: ListTile(
+                  title: Text(line['name'] ?? ''),
+                  subtitle: Text(line['category'] ?? ''),
+                  trailing: Text('¥${(line['estimated_amount'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}'),
+                ),
+              )),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _comparePlans,
+                  icon: const Icon(Icons.compare_arrows),
+                  label: const Text('生成三档对比'),
+                ),
               ),
-            )),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _comparePlans,
-                icon: const Icon(Icons.compare_arrows),
-                label: const Text('生成三档对比'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loadBudget,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('刷新'),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _loadBudget,
-                icon: const Icon(Icons.refresh),
-                label: const Text('刷新'),
-              ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -317,16 +336,17 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
   }
 
   Future<void> _applyTemplate(String code) async {
-    try {
-      final result = await _api.post('/budgets/templates/apply', {'template_code': code});
+    final result = await _api.post('/budgets/templates/apply', {'template_code': code});
+    if (result.isSuccess) {
+      final data = result.data;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['reply'] ?? '已应用模板')),
+          SnackBar(content: Text(data['reply'] ?? '已应用模板')),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('应用失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('应用失败：${result.error}')));
       }
     }
   }

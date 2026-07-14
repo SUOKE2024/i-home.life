@@ -47,6 +47,32 @@ async def list_issues(
     return list(result.scalars().all())
 
 
+# 质量问题状态机: open → in_progress → resolved → verified / reopened
+ISSUE_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "open": {"in_progress", "resolved", "closed"},
+    "in_progress": {"resolved", "closed"},
+    "resolved": {"verified", "reopened"},
+    "verified": {"closed", "reopened"},
+    "reopened": {"in_progress", "resolved", "closed"},
+    "closed": {"reopened"},
+}
+
+# 整改单状态机: pending → in_progress → completed → verified
+ORDER_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"in_progress", "cancelled"},
+    "in_progress": {"completed", "cancelled"},
+    "completed": {"verified"},
+    "verified": set(),  # 终态
+    "cancelled": set(),  # 终态
+}
+
+
+def _validate_transition(current: str, target: str, transitions: dict[str, set[str]]) -> bool:
+    """校验状态流转是否合法"""
+    allowed = transitions.get(current, set())
+    return target in allowed
+
+
 async def update_issue_status(
     db: AsyncSession,
     issue_id: str,
@@ -59,6 +85,9 @@ async def update_issue_status(
     issue = result.scalar_one_or_none()
     if not issue:
         return None
+    # 校验状态机
+    if not _validate_transition(issue.status, new_status, ISSUE_STATUS_TRANSITIONS):
+        raise ValueError(f"非法状态流转: {issue.status} → {new_status} (允许: {ISSUE_STATUS_TRANSITIONS.get(issue.status, set())})")
     issue.status = new_status
     if resolution:
         issue.resolution = resolution
@@ -132,19 +161,32 @@ async def update_order_status(
     order = result.scalar_one_or_none()
     if not order:
         return None
+    # 校验状态机
+    if not _validate_transition(order.status, new_status, ORDER_STATUS_TRANSITIONS):
+        raise ValueError(f"非法状态流转: {order.status} → {new_status} (允许: {ORDER_STATUS_TRANSITIONS.get(order.status, set())})")
     order.status = new_status
     if new_status == "completed":
         order.completed_at = datetime.now(timezone.utc)
+        # 整改完成时，关联 issue 转为 resolved
+        if order.issue_ids:
+            try:
+                issue_ids = json.loads(order.issue_ids)
+                for issue_id in issue_ids:
+                    await update_issue_status(db, issue_id, "resolved", resolver=verifier)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"整改单 {order_id} 关联 issue 同步失败: {e}")
     elif new_status == "verified":
         order.verified_at = datetime.now(timezone.utc)
-        # 同步关联 issue 为 verified
+        # 验收通过时，关联 issue 转为 verified
         if order.issue_ids:
             try:
                 issue_ids = json.loads(order.issue_ids)
                 for issue_id in issue_ids:
                     await update_issue_status(db, issue_id, "verified", verifier=verifier)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"整改单 {order_id} 关联 issue 同步失败: {e}")
     await db.commit()
     await db.refresh(order)
     return order

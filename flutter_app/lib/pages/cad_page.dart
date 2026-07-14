@@ -28,6 +28,18 @@ class _CADPageState extends State<CADPage> {
   final double _pxPerMeter = 50.0;
   final double _snapThreshold = 0.5;
 
+  // 撤销/重做历史栈
+  final List<List<DrawingElement>> _undoStack = [];
+  final List<List<DrawingElement>> _redoStack = [];
+
+  // 图层管理
+  final List<Map<String, dynamic>> _layers = [
+    {'name': '墙体', 'visible': true, 'color': '#4A4A4A'},
+    {'name': '门窗', 'visible': true, 'color': '#5A7EC9'},
+    {'name': '尺寸标注', 'visible': true, 'color': '#8A8894'},
+  ];
+  int _activeLayerIdx = 0;
+
   static const _colors = [Colors.blueGrey, Colors.brown, Colors.teal, Colors.indigo, Colors.orange, Colors.pink, Colors.green, Colors.amber];
 
   final Map<String, String> _toolNames = {
@@ -68,10 +80,14 @@ class _CADPageState extends State<CADPage> {
       _drawing = DrawingElement.line(wp.dx, wp.dy, wp.dx, wp.dy);
     } else if (_tool == 'delete') {
       final hit = _hitTest(wp.dx, wp.dy);
-      if (hit >= 0) { _elements.removeAt(hit); }
+      if (hit >= 0) {
+        _pushUndo();
+        _elements.removeAt(hit);
+      }
     } else if (_tool == 'move') {
       final hit = _hitTest(wp.dx, wp.dy);
       if (hit >= 0) {
+        _pushUndo();
         _dragTarget = _elements[hit];
         _dragStart = wp;
         _dragElementStart = Offset(_dragTarget!.x, _dragTarget!.y);
@@ -121,6 +137,7 @@ class _CADPageState extends State<CADPage> {
   void _onScaleEnd(ScaleEndDetails d) {
     if (_drawing != null) {
       _elements.add(_drawing!); _drawing = null;
+      _pushUndo();
     }
     _dragTarget = null; _dragStart = Offset.zero; _panStart = null;
     setState(() {});
@@ -133,7 +150,139 @@ class _CADPageState extends State<CADPage> {
     return -1;
   }
 
-  void _reset() { setState(() { _elements.clear(); }); }
+  void _pushUndo() {
+    _undoStack.add(List<DrawingElement>.from(_elements));
+    _redoStack.clear();
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(List<DrawingElement>.from(_elements));
+    setState(() {
+      _elements.clear();
+      _elements.addAll(_undoStack.removeLast());
+    });
+  }
+
+  void _redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(List<DrawingElement>.from(_elements));
+    setState(() {
+      _elements.clear();
+      _elements.addAll(_redoStack.removeLast());
+    });
+  }
+
+  void _saveProject() {
+    final data = {
+      'type': 'floorplan', 'version': '2.0',
+      'elements': _elements.map((e) => e.toJson()).toList(),
+      'layers': _layers,
+      'scale': _scale, 'offset': {'x': _offset.dx, 'y': _offset.dy},
+      'saved_at': DateTime.now().toIso8601String(),
+    };
+    Clipboard.setData(ClipboardData(text: jsonEncode(data)));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('项目文件已复制到剪贴板（JSON）')));
+  }
+
+  void _loadProject() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final ctrl = TextEditingController();
+        return AlertDialog(
+          backgroundColor: const Color(0xFF12121D),
+          title: const Text('加载项目', style: TextStyle(color: Color(0xFFE8E6E1))),
+          content: TextField(
+            controller: ctrl,
+            maxLines: 8,
+            style: const TextStyle(color: Color(0xFFE8E6E1), fontSize: 12, fontFamily: 'monospace'),
+            decoration: const InputDecoration(
+              hintText: '粘贴 JSON 项目数据...',
+              hintStyle: TextStyle(color: Color(0xFF5A5866)),
+              border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A3E))),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            TextButton(
+              onPressed: () {
+                try {
+                  final data = jsonDecode(ctrl.text);
+                  setState(() {
+                    _elements.clear();
+                    for (final e in data['elements']) {
+                      _elements.add(DrawingElement.fromJson(e));
+                    }
+                  });
+                  Navigator.pop(ctx);
+                } catch (e) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('解析失败: $e')));
+                }
+              },
+              child: const Text('加载', style: TextStyle(color: Color(0xFFC9973B))),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLayerPanel() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF12121D),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('图层面板', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 16),
+              ..._layers.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final layer = entry.value;
+                return ListTile(
+                  leading: Icon(Icons.layers, color: layer['visible'] ? const Color(0xFFC9973B) : const Color(0xFF5A5866)),
+                  title: Text(layer['name'], style: TextStyle(color: layer['visible'] ? Colors.white : const Color(0xFF5A5866))),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      icon: Icon(layer['visible'] ? Icons.visibility : Icons.visibility_off, color: const Color(0xFF8A8894), size: 20),
+                      onPressed: () => setModalState(() => _layers[idx]['visible'] = !_layers[idx]['visible']),
+                    ),
+                    Radio<int>(value: idx, groupValue: _activeLayerIdx, activeColor: const Color(0xFFC9973B),
+                      onChanged: (v) => setModalState(() => _activeLayerIdx = v as int)),
+                  ]),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _reset() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF12121D),
+        title: const Text('确认清空', style: TextStyle(color: Color(0xFFE8E6E1))),
+        content: const Text('将删除所有绘图元素，此操作不可恢复。', style: TextStyle(color: Color(0xFF8A8894))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+            onPressed: () {
+              setState(() => _elements.clear());
+              Navigator.pop(ctx);
+            },
+            child: const Text('确认清空', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _exportJSON() {
     final data = {
@@ -159,8 +308,9 @@ class _CADPageState extends State<CADPage> {
   }
 
   Future<String?> _pickProjectId() async {
-    final projects = await ApiClient().getList('/projects');
-    if (projects is! List || projects.isEmpty) {
+    final result = await ApiClient().getList('/projects');
+    final projects = result.isSuccess ? result.data as List? : null;
+    if (projects == null || projects.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('没有可用项目，请先创建项目')));
       }
@@ -203,124 +353,124 @@ class _CADPageState extends State<CADPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('画布为空，无法保存')));
       return;
     }
-    try {
-      final projectId = await _pickProjectId();
-      if (projectId == null) return;
+    final projectId = await _pickProjectId();
+    if (projectId == null) return;
 
-      final nameController = TextEditingController(
-        text: '方案 ${DateTime.now().toIso8601String().substring(0, 16)}',
-      );
-      final name = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('保存方案'),
-          content: TextField(
-            controller: nameController,
-            decoration: const InputDecoration(labelText: '方案名称'),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            TextButton(onPressed: () => Navigator.pop(ctx, nameController.text.trim()), child: const Text('保存')),
-          ],
+    final nameController = TextEditingController(
+      text: '方案 ${DateTime.now().toIso8601String().substring(0, 16)}',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('保存方案'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(labelText: '方案名称'),
+          autofocus: true,
         ),
-      );
-      if (name == null || name.isEmpty) return;
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx, nameController.text.trim()), child: const Text('保存')),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
 
-      final data = {
-        'type': 'floorplan', 'version': '1.0',
-        'elements': _elements.map((e) => e.toJson()).toList(),
-      };
-      final dataStr = jsonEncode(data);
+    final data = {
+      'type': 'floorplan', 'version': '1.0',
+      'elements': _elements.map((e) => e.toJson()).toList(),
+    };
+    final dataStr = jsonEncode(data);
 
-      double totalArea = 0;
-      int roomCount = 0;
-      for (final el in _elements) {
-        if (el.type == 'rect') {
-          totalArea += el.w * el.h;
-          if (el.name.isNotEmpty) roomCount++;
-        }
+    double totalArea = 0;
+    int roomCount = 0;
+    for (final el in _elements) {
+      if (el.type == 'rect') {
+        totalArea += el.w * el.h;
+        if (el.name.isNotEmpty) roomCount++;
       }
+    }
 
-      await ApiClient().post('/floorplans', {
-        'project_id': projectId,
-        'name': name,
-        'data': dataStr,
-        'wall_height': 2.8,
-        'total_area': totalArea,
-        'room_count': roomCount,
-      });
+    final result = await ApiClient().post('/floorplans', {
+      'project_id': projectId,
+      'name': name,
+      'data': dataStr,
+      'wall_height': 2.8,
+      'total_area': totalArea,
+      'room_count': roomCount,
+    });
 
-      if (context.mounted) {
+    if (context.mounted) {
+      if (result.isSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('方案已保存')));
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: $e')));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: ${result.error}')));
       }
     }
   }
 
   Future<void> _loadPlan() async {
-    try {
-      final projectId = await _pickProjectId();
-      if (projectId == null) return;
+    final projectId = await _pickProjectId();
+    if (projectId == null) return;
 
-      final plans = await ApiClient().getList('/floorplans/project/$projectId');
-      if (plans is! List || plans.isEmpty) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该项目没有保存的方案')));
-        }
-        return;
+    final plansResult = await ApiClient().getList('/floorplans/project/$projectId');
+    final plans = plansResult.isSuccess ? plansResult.data as List? : null;
+    if (plans == null || plans.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该项目没有保存的方案')));
       }
+      return;
+    }
 
-      final planId = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('加载方案'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: plans.length,
-              itemBuilder: (_, i) {
-                final p = plans[i];
-                final updated = (p['updated_at']?.toString() ?? '').substring(0, 16);
-                return ListTile(
-                  title: Text(p['name']?.toString() ?? '未命名方案'),
-                  subtitle: Text('${p['total_area'] ?? 0}㎡ · ${p['room_count'] ?? 0}房间 · $updated'),
-                  onTap: () => Navigator.pop(ctx, p['id'] as String),
-                );
-              },
-            ),
+    final planId = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('加载方案'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: plans.length,
+            itemBuilder: (_, i) {
+              final p = plans[i];
+              final updated = (p['updated_at']?.toString() ?? '').substring(0, 16);
+              return ListTile(
+                title: Text(p['name']?.toString() ?? '未命名方案'),
+                subtitle: Text('${p['total_area'] ?? 0}㎡ · ${p['room_count'] ?? 0}房间 · $updated'),
+                onTap: () => Navigator.pop(ctx, p['id'] as String),
+              );
+            },
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          ],
         ),
-      );
-      if (planId == null) return;
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+        ],
+      ),
+    );
+    if (planId == null) return;
 
-      final plan = await ApiClient().get('/floorplans/$planId');
-      final dataStr = plan['data'] as String;
-      final decoded = jsonDecode(dataStr);
-      final List elementsList = decoded is Map
-          ? (decoded['elements'] as List)
-          : (decoded as List);
-
-      setState(() {
-        _elements
-          ..clear()
-          ..addAll(elementsList.map((e) => DrawingElement.fromJson(e as Map<String, dynamic>)));
-      });
-
+    final planResult = await ApiClient().get('/floorplans/$planId');
+    if (!planResult.isSuccess) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已加载 ${_elements.length} 个元素')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败: ${planResult.error}')));
       }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败: $e')));
-      }
+      return;
+    }
+    final plan = planResult.data as Map<String, dynamic>;
+    final dataStr = plan['data'] as String;
+    final decoded = jsonDecode(dataStr);
+    final List elementsList = decoded is Map
+        ? (decoded['elements'] as List)
+        : (decoded as List);
+
+    setState(() {
+      _elements
+        ..clear()
+        ..addAll(elementsList.map((e) => DrawingElement.fromJson(e as Map<String, dynamic>)));
+    });
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已加载 ${_elements.length} 个元素')));
     }
   }
 
@@ -330,6 +480,11 @@ class _CADPageState extends State<CADPage> {
       appBar: AppBar(
         title: const Text('设计台', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(icon: const Icon(Icons.undo, size: 20), tooltip: '撤销', onPressed: _undoStack.isNotEmpty ? _undo : null, color: const Color(0xFF8A8894)),
+          IconButton(icon: const Icon(Icons.redo, size: 20), tooltip: '重做', onPressed: _redoStack.isNotEmpty ? _redo : null, color: const Color(0xFF8A8894)),
+          IconButton(icon: const Icon(Icons.layers, size: 20), tooltip: '图层', onPressed: _showLayerPanel, color: const Color(0xFFC9973B)),
+          IconButton(icon: const Icon(Icons.save_alt, size: 20), tooltip: '保存项目文件', onPressed: _saveProject, color: const Color(0xFF4A9E6E)),
+          IconButton(icon: const Icon(Icons.file_open, size: 20), tooltip: '加载项目文件', onPressed: _loadProject, color: const Color(0xFF5A7EC9)),
           IconButton(icon: const Icon(Icons.folder_open, size: 20), tooltip: '加载方案', onPressed: _loadPlan),
           IconButton(icon: const Icon(Icons.save, size: 20), tooltip: '保存方案', onPressed: _savePlan),
           IconButton(icon: Icon(_orthoLock ? Icons.lock : Icons.lock_open, size: 20), tooltip: '正交锁定 ${_orthoLock ? "ON" : "OFF"}', onPressed: () => setState(() => _orthoLock = !_orthoLock)),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/error_retry.dart';
 import 'budget_page.dart';
 import 'construction_page.dart';
 import 'settlement_page.dart';
@@ -19,6 +21,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   List<Map<String, dynamic>> _bomItems = [];
   bool _loading = true;
   bool _actionBusy = false;
+  String? _error;
 
   static const _brand = Color(0xFFC9973B);
   static const _bg = Color(0xFF08080F);
@@ -33,18 +36,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final api = ApiClient();
-    try {
-      final proj = await api.get('/projects/${widget.projectId}');
-      _project = Map<String, dynamic>.from(proj as Map);
-    } catch (_) {
+    final projResult = await api.get('/projects/${widget.projectId}');
+    if (projResult.isSuccess) {
+      _project = Map<String, dynamic>.from(projResult.data as Map);
+    } else {
       _project = null;
+      _error = '项目加载失败，请检查网络后重试';
     }
-    try {
-      final bom = await api.getList('/materials/bom/${widget.projectId}');
-      _bomItems = List<Map<String, dynamic>>.from(bom as List);
-    } catch (_) {
+    final bomResult = await api.getList('/materials/bom/${widget.projectId}');
+    if (bomResult.isSuccess) {
+      _bomItems = List<Map<String, dynamic>>.from(bomResult.data as List);
+    } else {
       _bomItems = [];
     }
     if (mounted) setState(() => _loading = false);
@@ -107,44 +114,42 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     if (_actionBusy) return;
     setState(() => _actionBusy = true);
     final api = ApiClient();
-    try {
-      await api.post('/budgets/generate-from-bom/${widget.projectId}', {});
+    final result = await api.post('/budgets/generate-from-bom/${widget.projectId}', {});
+    if (result.isSuccess) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('预算已生成')),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('生成预算失败: $e')),
+          SnackBar(content: Text('生成预算失败: ${result.error}')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _actionBusy = false);
     }
+    if (mounted) setState(() => _actionBusy = false);
   }
 
   Future<void> _generateSettlement() async {
     if (_actionBusy) return;
     setState(() => _actionBusy = true);
     final api = ApiClient();
-    try {
-      await api.post('/settlements/generate-from-budget/${widget.projectId}', {});
+    final result = await api.post('/settlements/generate-from-budget/${widget.projectId}', {});
+    if (result.isSuccess) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('结算已生成')),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('生成结算失败: $e')),
+          SnackBar(content: Text('生成结算失败: ${result.error}')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _actionBusy = false);
     }
+    if (mounted) setState(() => _actionBusy = false);
   }
 
   Future<void> _confirmDelete() async {
@@ -171,18 +176,18 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     if (confirmed != true) return;
 
     final api = ApiClient();
-    try {
-      await api.delete('/projects/${widget.projectId}');
+    final result = await api.delete('/projects/${widget.projectId}');
+    if (result.isSuccess) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('项目已删除')),
         );
         Navigator.pop(context, true);
       }
-    } catch (e) {
+    } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败: $e')),
+          SnackBar(content: Text('删除失败: ${result.error}')),
         );
       }
     }
@@ -202,20 +207,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: _project == null
-                  ? ListView(
-                      children: const [
-                        SizedBox(height: 120),
-                        Center(
-                          child: Text('加载项目失败，下拉重试',
-                              style: TextStyle(color: _textSecondary)),
-                        ),
-                      ],
-                    )
-                  : ListView(
+          ? const LoadingSkeleton(itemCount: 4, itemHeight: 110)
+          : _error != null
+              ? ErrorRetryWidget(message: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: _project == null
+                      ? ListView(
+                          children: const [
+                            SizedBox(height: 120),
+                            Center(
+                              child: Text('项目不存在或已被删除',
+                                  style: TextStyle(color: _textSecondary)),
+                            ),
+                          ],
+                        )
+                      : ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
                         _buildHeader(),

@@ -22,6 +22,10 @@ from app.database import Base
 # 导入所有模型,确保 autogenerate 能检测到
 from app.models import user, project, material, budget, procurement, construction, settlement, floorplan, file_attachment  # noqa: F401
 from app.models import survey, change_order, payment, chat, construction_crew, progress_alert, quality, service_worker  # noqa: F401
+from app.models import ar_scan, lighting, kitchen, bathroom, custom_furniture, soft_furnishing  # noqa: F401
+from app.models import vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof  # noqa: F401
+from app.models import furniture_catalog, smart_home, scene_automation, procurement_enhanced  # noqa: F401
+from app.models import appliance, structural  # noqa: F401
 
 config = context.config
 

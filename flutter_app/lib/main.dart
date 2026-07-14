@@ -1,10 +1,60 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'config.dart';
+import 'theme/suoke_theme.dart';
 import 'services/api.dart';
+import 'services/project_context.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
 
+/// 仅用于本地开发：跳过 TLS 证书校验，便于对接使用自签名证书的后端。
+/// 生产环境必须启用完整 SSL 校验。
+class _DevelopmentHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (AppConfig.debugMode) {
+    HttpOverrides.global = _DevelopmentHttpOverrides();
+  }
   runApp(const IHomeApp());
+}
+
+/// 主题状态管理
+class ThemeState extends ChangeNotifier {
+  ThemeMode _mode = ThemeMode.dark;
+
+  ThemeMode get mode => _mode;
+  bool get isDark => _mode == ThemeMode.dark;
+
+  ThemeState() {
+    _loadPref();
+  }
+
+  Future<void> _loadPref() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('theme_mode');
+    if (stored == 'light') {
+      _mode = ThemeMode.light;
+    }
+    notifyListeners();
+  }
+
+  Future<void> toggle() async {
+    _mode = _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('theme_mode', _mode == ThemeMode.dark ? 'dark' : 'light');
+  }
 }
 
 class IHomeApp extends StatelessWidget {
@@ -12,56 +62,23 @@ class IHomeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: '索克家居',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF08080F),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFC9973B),
-          surface: Color(0xFF12121D),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF12121D),
-          foregroundColor: Color(0xFFE8E6E1),
-          elevation: 0,
-        ),
-        cardTheme: CardThemeData(
-          color: const Color(0xFF12121D),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Color(0xFF1E1E32)),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xFF0D0D18),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF1E1E32)),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF1E1E32)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFFC9973B)),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFC9973B),
-            foregroundColor: const Color(0xFF0A0A0F),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+    return ChangeNotifierProvider(
+      create: (_) => ThemeState(),
+      child: Consumer<ThemeState>(
+        builder: (context, themeState, _) {
+          return ChangeNotifierProvider(
+            create: (_) => ProjectContext(),
+            child: MaterialApp(
+              title: '索克家居',
+              debugShowCheckedModeBanner: false,
+              theme: SuokeTheme.light(),
+              darkTheme: SuokeTheme.dark(),
+              themeMode: themeState.isDark ? ThemeMode.dark : ThemeMode.light,
+              home: const AuthGate(),
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-        ),
+          );
+        },
       ),
-      home: const AuthGate(),
     );
   }
 }
@@ -86,10 +103,12 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _checkAuth() async {
     final api = ApiClient();
     await api.loadToken();
-    setState(() {
-      _loggedIn = api.isLoggedIn;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _loggedIn = api.isLoggedIn;
+        _loading = false;
+      });
+    }
   }
 
   @override

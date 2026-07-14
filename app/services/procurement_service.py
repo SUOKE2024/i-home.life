@@ -4,6 +4,23 @@ from sqlalchemy.orm import selectinload
 
 from app.models.procurement import Supplier, Quotation, ProcurementOrder, OrderLine
 
+# 采购订单状态流转定义
+ORDER_STATUS_FLOW: dict[str, set[str]] = {
+    "draft": {"pending", "confirmed", "cancelled"},
+    "pending": {"confirmed", "cancelled"},
+    "confirmed": {"shipped", "cancelled"},
+    "shipped": {"delivered", "cancelled"},
+    "delivered": {"completed"},
+    "completed": set(),
+    "cancelled": set(),
+}
+
+
+def is_valid_status_transition(current: str, target: str) -> bool:
+    """校验订单状态流转是否合法"""
+    allowed = ORDER_STATUS_FLOW.get(current, set())
+    return target in allowed
+
 
 async def get_suppliers(db: AsyncSession, category: str | None = None) -> list[Supplier]:
     stmt = select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
@@ -75,7 +92,10 @@ async def get_project_orders(db: AsyncSession, project_id: str) -> list[Procurem
     result = await db.execute(
         select(ProcurementOrder)
         .where(ProcurementOrder.project_id == project_id)
-        .options(selectinload(ProcurementOrder.supplier))
+        .options(
+            selectinload(ProcurementOrder.supplier),
+            selectinload(ProcurementOrder.lines).selectinload(OrderLine.material),
+        )
         .order_by(ProcurementOrder.created_at.desc())
     )
     return list(result.scalars().all())
@@ -86,7 +106,30 @@ async def update_order_status(db: AsyncSession, order_id: str, status: str) -> P
     order = result.scalar_one_or_none()
     if not order:
         return None
+    if not is_valid_status_transition(order.status, status):
+        raise ValueError(f"非法状态流转: {order.status} → {status}")
     order.status = status
     await db.commit()
     await db.refresh(order)
     return order
+
+
+async def update_order(db: AsyncSession, order_id: str, data: dict) -> ProcurementOrder | None:
+    result = await db.execute(select(ProcurementOrder).where(ProcurementOrder.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        return None
+    for key, value in data.items():
+        setattr(order, key, value)
+    await db.commit()
+    return await get_order(db, order_id)
+
+
+async def delete_order(db: AsyncSession, order_id: str) -> bool:
+    result = await db.execute(select(ProcurementOrder).where(ProcurementOrder.id == order_id))
+    order = result.scalar_one_or_none()
+    if not order:
+        return False
+    await db.delete(order)
+    await db.commit()
+    return True

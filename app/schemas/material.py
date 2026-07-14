@@ -74,3 +74,32 @@ class BOMItemResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BOMItemSummary(BaseModel):
+    """BOM 汇总单行（按品类聚合）"""
+
+    category_code: str
+    category_name: str
+    item_count: int
+    total_price: float
+
+
+class BOMSummaryResponse(BaseModel):
+    """BOM 汇总响应（F6/F7 配套）"""
+
+    project_id: str
+    total_items: int
+    total_price: float
+    categories: list[BOMItemSummary] = []
+
+
+class BOMGenerateResponse(BaseModel):
+    """F6 BOM 自动生成响应"""
+
+    project_id: str
+    generated_count: int
+    total_price: float
+    items: list[BOMItemResponse] = []
+
+    model_config = {"from_attributes": True}

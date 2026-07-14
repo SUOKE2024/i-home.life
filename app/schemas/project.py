@@ -50,6 +50,13 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     address: str | None = None
     total_area: float | None = None
+    project_type: str = Field(default="full_renovation")
+    # full_renovation(整装) / hard_decoration(硬装) / soft_furnishing(软装) /
+    # curtain(窗帘定制) / kitchen(厨房改造) / bathroom(卫浴改造) /
+    # electrical(电路改造) / carpentry(木工制作) / painting(油漆涂刷) /
+    # plumbing(水管改造) / masonry(泥瓦铺贴) / installation(设备安装)
+    source: str = Field(default="manual")
+    # manual / ar_measure
     floors: list[FloorCreate] = []
 
 
@@ -57,6 +64,7 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     address: str | None = None
     total_area: float | None = None
+    project_type: str | None = None
     status: str | None = None
 
 
@@ -66,6 +74,7 @@ class ProjectResponse(BaseModel):
     address: str | None = None
     total_area: float | None = None
     status: str
+    project_type: str = "full_renovation"
     owner_id: str
     floors: list[FloorResponse] = []
     created_at: datetime
@@ -80,6 +89,7 @@ class ProjectListResponse(BaseModel):
     address: str | None = None
     total_area: float | None = None
     status: str
+    project_type: str = "full_renovation"
     owner_id: str
     created_at: datetime
     updated_at: datetime

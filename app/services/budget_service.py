@@ -99,7 +99,11 @@ async def update_budget_line(db: AsyncSession, line_id: str, data: dict) -> Budg
     await db.commit()
     await db.refresh(bl)
 
-    budget = await get_budget(db, bl.budget_id)
+    # 注意：get_budget 按 project_id 查询，这里需要按 budget_id 查询以重算总额
+    budget_result = await db.execute(
+        select(Budget).where(Budget.id == bl.budget_id).options(selectinload(Budget.lines))
+    )
+    budget = budget_result.scalar_one_or_none()
     if budget:
         budget.total_estimated = sum(line.estimated_amount for line in budget.lines)
         budget.total_actual = sum(line.actual_amount for line in budget.lines)

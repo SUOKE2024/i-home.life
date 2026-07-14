@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="索克家居 i-home.life 隐私政策 - 信息收集、使用、存储、共享与用户权利说明">
+<title>隐私政策 · 索克家居 i-home.life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" onerror="this.remove()">
+<link rel="icon" type="image/png" href="../images/icons/desktop/suoke-favicon-32.png">
+<style>
+:root{
+  --bg-deep:#08080f;--bg-card:#12121d;--bg-card-hover:#1a1a2a;--bg-input:#0d0d18;
+  --border:#1e1e32;--border-active:#2a2a45;
+  --text-primary:#e8e6e1;--text-secondary:#8a8894;--text-muted:#5a5866;
+  --accent:#c9973b;--accent-bright:#e0aa4a;--accent-glow:rgba(201,151,59,0.15);
+  --success:#4a9e6e;--warning:#c9973b;--danger:#c4554d;--info:#5b8ec4;
+  --radius:12px;--radius-sm:8px;--transition:0.25s cubic-bezier(0.4,0,0.2,1);--max-w:860px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-deep);color:var(--text-primary);line-height:1.8;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-active);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(8,8,15,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.topbar-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.topbar-brand .logo-mark{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent);letter-spacing:0.02em}
+.topbar-brand .logo-sub{font-size:0.65rem;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase}
+.back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);text-decoration:none;font-size:0.85rem;padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);transition:all var(--transition);white-space:nowrap}
+.back-link:hover{color:var(--accent-bright);border-color:var(--border-active);background:var(--bg-card-hover)}
+.back-link svg{width:14px;height:14px}
+.wrap{position:relative;z-index:1;max-width:var(--max-w);margin:0 auto;padding:40px 24px 80px}
+.doc-header{text-align:center;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)}
+.doc-header h1{font-family:'DM Serif Display',serif;font-size:2.4rem;font-weight:400;color:var(--accent);margin-bottom:8px;letter-spacing:0.01em}
+.doc-header .subtitle{color:var(--text-secondary);font-size:0.95rem}
+.doc-header .meta{margin-top:14px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:500;background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary)}
+.badge.accent{background:var(--accent-glow);border-color:rgba(201,151,59,0.3);color:var(--accent-bright)}
+.toc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;margin-bottom:48px}
+.toc-title{font-size:0.8rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px}
+.toc ol{list-style:none;counter-reset:toc;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+.toc li{counter-increment:toc}
+.toc a{display:flex;align-items:center;gap:8px;color:var(--text-secondary);text-decoration:none;font-size:0.88rem;padding:4px 0;transition:color var(--transition)}
+.toc a::before{content:counter(toc,decimal-leading-zero);color:var(--accent);font-weight:600;font-size:0.76rem;font-variant-numeric:tabular-nums}
+.toc a:hover{color:var(--accent-bright)}
+section{margin-bottom:48px;scroll-margin-top:80px}
+.section-title{font-family:'DM Serif Display',serif;font-size:1.55rem;font-weight:400;color:var(--text-primary);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.section-title .num{font-size:0.8rem;color:var(--accent);font-family:'DM Sans',sans-serif;font-weight:600;background:var(--accent-glow);padding:2px 10px;border-radius:var(--radius-sm)}
+p{margin-bottom:14px;color:var(--text-secondary)}p strong{color:var(--text-primary)}
+ul,ol{margin:0 0 16px 4px;padding-left:20px}li{margin-bottom:8px;color:var(--text-secondary)}li strong{color:var(--text-primary)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+code{font-family:'SF Mono','Fira Code','Consolas',monospace;background:var(--bg-input);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:0.85em}
+.callout{background:var(--bg-card);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 18px;margin:16px 0}
+.callout.info{border-left-color:var(--info)}.callout.warning{border-left-color:var(--warning)}
+.callout .callout-label{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:4px}
+.callout.info .callout-label{color:var(--info)}.callout.warning .callout-label{color:var(--warning)}
+.callout p{margin:0;color:var(--text-secondary)}
+table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:0.85rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border)}
+th{color:var(--accent-bright);font-weight:600;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;background:var(--bg-card)}
+td{color:var(--text-secondary)}td strong{color:var(--text-primary)}
+tr:hover td{background:rgba(255,255,255,0.015)}
+.effective-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:40px;display:flex;gap:16px;align-items:flex-start}
+.effective-box .eb-icon{font-size:1.6rem;flex-shrink:0}
+.effective-box .eb-body p{margin:0}
+.doc-footer{margin-top:64px;padding-top:32px;border-top:1px solid var(--border);text-align:center}
+.doc-footer p{font-size:0.82rem;color:var(--text-muted);margin-bottom:8px}
+.doc-footer .footer-links{display:flex;justify-content:center;gap:16px;margin-top:16px;flex-wrap:wrap}
+.doc-footer .footer-links a{color:var(--text-secondary);text-decoration:none;font-size:0.82rem;transition:color var(--transition)}
+.doc-footer .footer-links a:hover{color:var(--accent-bright)}
+@media (max-width:768px){html{font-size:15px}.topbar{padding:12px 16px}.wrap{padding:28px 16px 60px}.doc-header h1{font-size:1.9rem}.toc ol{grid-template-columns:1fr}.section-title{font-size:1.35rem}}
+@media (max-width:480px){html{font-size:14px}.topbar-brand .logo-sub{display:none}.doc-header h1{font-size:1.6rem}.doc-header .meta{gap:6px}.card{padding:16px}.back-link span{display:none}.section-title .num{display:none}.effective-box{flex-direction:column;gap:8px}}
+.skip-link{position:absolute;top:-40px;left:8px;background:var(--accent);color:var(--bg-deep);padding:8px 16px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600;font-size:0.85rem;z-index:200;transition:top 0.2s}
+.skip-link:focus{top:8px}
+:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">跳到主要内容</a>
+
+<nav class="topbar" role="navigation" aria-label="顶部导航">
+  <a href="../../web/index.html" class="topbar-brand" aria-label="返回索克家居首页">
+    <span class="logo-mark" aria-hidden="true">索克家居</span>
+    <span class="logo-sub" aria-hidden="true">i-home.life</span>
+  </a>
+  <a href="../../web/index.html" class="back-link" aria-label="返回主站">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <span>返回主站</span>
+  </a>
+</nav>
+
+<main id="main" class="wrap" role="main">
+
+<header class="doc-header" role="banner">
+  <h1>隐私政策</h1>
+  <p class="subtitle">索克家居 · i-home.life — 我们如何收集、使用和保护您的个人信息</p>
+  <div class="meta">
+    <span class="badge accent">v1.0.1</span>
+    <span class="badge">生效日期：2026-07-12</span>
+  </div>
+</header>
+
+<div class="effective-box">
+  <span class="eb-icon" aria-hidden="true">🔒</span>
+  <div class="eb-body">
+    <p><strong>引言</strong></p>
+    <p>索克家居（i-home.life）致力于保护您的个人隐私。本隐私政策说明我们在您使用平台服务时如何收集、使用、存储、共享和保护您的个人信息。请您在使用本平台前仔细阅读本政策。使用本平台即表示您同意本隐私政策的全部条款。</p>
+  </div>
+</div>
+
+<nav class="toc" role="navigation" aria-label="文档目录">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#collect">信息收集</a></li>
+    <li><a href="#use">信息使用</a></li>
+    <li><a href="#storage">信息存储与保护</a></li>
+    <li><a href="#share">信息共享</a></li>
+    <li><a href="#rights">用户权利</a></li>
+    <li><a href="#cookies">Cookie 与本地存储</a></li>
+    <li><a href="#thirdparty">第三方服务</a></li>
+    <li><a href="#contact">联系方式</a></li>
+  </ol>
+</nav>
+
+<!-- 1. 信息收集 -->
+<section id="collect" aria-labelledby="collect-title">
+  <h2 class="section-title" id="collect-title"><span class="num">01</span>信息收集</h2>
+  <p>我们在您使用平台服务时收集以下类型的信息：</p>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">注册与账户信息</h3>
+    <ul>
+      <li><strong>手机号</strong> — 用于账号注册、登录验证与身份识别。</li>
+      <li><strong>密码</strong> — 以加密哈希形式存储，不存储明文。</li>
+      <li><strong>角色信息</strong> — 业主、设计师、工长或管理员身份标识。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">项目数据</h3>
+    <ul>
+      <li><strong>项目信息</strong> — 项目名称、地址（支持高德地图智能补全）、户型描述等。</li>
+      <li><strong>楼层与房间数据</strong> — 户型结构、房间名称、面积等。</li>
+      <li><strong>设计方案</strong> — 2D/3D 设计图纸、布局方案、AI 生成的设计建议。</li>
+      <li><strong>预算与采购数据</strong> — 预算方案、BOM 物料清单、采购订单、供应商信息。</li>
+      <li><strong>施工与结算数据</strong> — 施工任务、日志、质检记录、结算单据、支付记录。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">测量数据</h3>
+    <ul>
+      <li><strong>AR 空间测量数据</strong> — 通过 ARKit / ARCore / AR Engine 采集的房间尺寸、墙面特征、测量点坐标。</li>
+      <li><strong>扫描会话记录</strong> — 扫描时间、设备信息、精度校验结果。</li>
+      <li><strong>手动录入数据</strong> — 用户手动输入的房间尺寸与户型信息。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">文件上传</h3>
+    <ul>
+      <li><strong>工程文件</strong> — 图纸（DXF）、合同、质检报告、变更单等用户主动上传的文件。</li>
+      <li><strong>施工照片</strong> — 用于 AI 图像质检的现场施工照片。</li>
+      <li><strong>VR 全景图</strong> — 用于全景渲染的等距柱状全景图。</li>
+    </ul>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">设备信息</div>
+    <p>在 AR 测量功能中，我们会读取设备能力信息（如是否支持 AR、传感器类型），用于功能适配与降级策略判断。我们不收集设备唯一标识符用于广告追踪。</p>
+  </div>
+</section>
+
+<!-- 2. 信息使用 -->
+<section id="use" aria-labelledby="use-title">
+  <h2 class="section-title" id="use-title"><span class="num">02</span>信息使用</h2>
+  <p>我们收集的信息仅用于以下目的：</p>
+
+  <ul>
+    <li><strong>提供装修服务</strong> — 创建和管理您的装修项目，执行测量、设计、预算、采购、施工与结算等业务流程。</li>
+    <li><strong>AI 分析与辅助决策</strong> — 使用 DeepSeek AI 模型分析您的设计需求、户型数据与预算信息，生成设计方案、预算建议与施工计划。AI 分析在服务端进行，您的数据不会用于训练第三方 AI 模型。</li>
+    <li><strong>项目管理与协作</strong> — 在您授权的范围内，将项目信息共享给参与项目的施工方、供应商或设计师，支持多方协作。</li>
+    <li><strong>服务改进</strong> — 收集使用情况统计与错误日志，用于优化平台功能与用户体验。</li>
+    <li><strong>安全防护</strong> — 用于身份验证、防止欺诈、保障账户与交易安全。</li>
+    <li><strong>通知与沟通</strong> — 向您发送项目进度通知、施工预警、结算提醒等服务消息。</li>
+  </ul>
+
+  <div class="callout warning">
+    <div class="callout-label">重要说明</div>
+    <p>AI 生成的设计方案、预算建议与施工计划仅供参考，不构成专业工程建议。最终方案应由具备资质的设计师或工程师审核确认。</p>
+  </div>
+</section>
+
+<!-- 3. 信息存储与保护 -->
+<section id="storage" aria-labelledby="storage-title">
+  <h2 class="section-title" id="storage-title"><span class="num">03</span>信息存储与保护</h2>
+  <p>我们采取行业标准的措施保护您的个人信息安全。</p>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">数据存储</h3>
+    <ul>
+      <li><strong>数据库</strong> — 开发环境使用 SQLite，生产环境支持 PostgreSQL。数据库部署在服务器本地或私有网络中，不使用第三方托管数据库。</li>
+      <li><strong>文件存储</strong> — 用户上传的工程文件与图片默认存储在服务器本地文件系统中。生产环境可选配置阿里云 OSS 对象存储，文件传输均经过 HTTPS 加密。</li>
+      <li><strong>缓存</strong> — 平台可选使用 Redis 缓存加速数据访问，缓存数据不包含敏感信息，且有过期机制。未配置 Redis 时自动降级为内存缓存。</li>
+      <li><strong>数据表</strong> — 平台使用 72 张数据表分类存储不同业务数据，实现最小化访问原则。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">安全措施</h3>
+    <ul>
+      <li><strong>PASETO 令牌认证</strong> — 采用 PASETO v4 协议（local 模式）进行身份认证，令牌内容对称加密，比传统 JWT 更安全。令牌有效期为 24 小时。</li>
+      <li><strong>密码加密</strong> — 用户密码以哈希形式存储，不存储明文密码。</li>
+      <li><strong>HTTPS 传输加密</strong> — 生产环境通过 Nginx 配置 SSL/TLS，所有数据传输均经过加密。</li>
+      <li><strong>安全响应头</strong> — Nginx 配置 X-Frame-Options、CSP、X-Content-Type-Options 等安全头，防御 XSS、点击劫持等攻击。</li>
+      <li><strong>访问控制</strong> — 基于角色的访问控制（RBAC），不同角色（业主/设计师/工长/管理员）拥有不同数据访问权限。</li>
+      <li><strong>CORS 白名单</strong> — 生产环境仅允许白名单域名访问 API。</li>
+    </ul>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">数据保留</div>
+    <p>您的数据将在您使用平台服务期间持续保留。如您注销账户或请求删除数据，我们将在合理期限内删除您的个人信息。法律法规另有规定的除外。</p>
+  </div>
+</section>
+
+<!-- 4. 信息共享 -->
+<section id="share" aria-labelledby="share-title">
+  <h2 class="section-title" id="share-title"><span class="num">04</span>信息共享</h2>
+  <p>我们尊重您的隐私，不会向第三方出售您的个人信息。在以下情形中，我们可能共享您的部分信息：</p>
+
+  <ul>
+    <li><strong>经您授权的共享</strong> — 当您在项目中邀请施工方、供应商或设计师协作时，平台会在您授权范围内将相关项目信息（如设计方案、预算、施工要求）共享给被邀请方。</li>
+    <li><strong>担保支付场景</strong> — 在采购增强模块的担保支付流程中，必要的订单与支付信息会在您、供应商与平台之间共享，以完成资金托管与释放。</li>
+    <li><strong>法律要求</strong> — 因法律法规要求、诉讼需要或行政机关强制要求时，我们可能披露必要的信息。</li>
+  </ul>
+
+  <div class="callout warning">
+    <div class="callout-label">共享原则</div>
+    <p>所有信息共享均以最小必要为原则。施工方与供应商仅能查看与其参与项目相关的数据，无法访问您的其他项目或个人敏感信息。</p>
+  </div>
+</section>
+
+<!-- 5. 用户权利 -->
+<section id="rights" aria-labelledby="rights-title">
+  <h2 class="section-title" id="rights-title"><span class="num">05</span>用户权利</h2>
+  <p>您对自己的个人信息享有以下权利：</p>
+
+  <table>
+    <thead><tr><th>权利</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>查看权</strong></td><td>您可随时在个人中心查看您的账户信息、项目数据与操作记录。</td></tr>
+      <tr><td><strong>修改权</strong></td><td>您可修改个人信息、项目资料与设计方案。部分关键数据（如已结算的金额）修改需遵循平台流程。</td></tr>
+      <tr><td><strong>删除权</strong></td><td>您可请求删除您的账户及相关数据。已上传的工程文件、施工记录等可单独删除。</td></tr>
+      <tr><td><strong>导出权</strong></td><td>您可导出项目数据（设计方案 DXF、物料清单 Excel、预算报告等）留存备份。</td></tr>
+      <tr><td><strong>撤回授权</strong></td><td>您可随时撤回对施工方或供应商的项目协作授权，终止信息共享。</td></tr>
+      <tr><td><strong>注销权</strong></td><td>您可注销账户。注销后您的个人信息将被删除或匿名化处理。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-label">行使权利</div>
+    <p>如需行使上述权利，请通过本政策末尾的联系方式与我们取得联系。我们将在 15 个工作日内回复您的请求。</p>
+  </div>
+</section>
+
+<!-- 6. Cookie 与本地存储 -->
+<section id="cookies" aria-labelledby="cookies-title">
+  <h2 class="section-title" id="cookies-title"><span class="num">06</span>Cookie 与本地存储</h2>
+  <p>平台使用浏览器本地存储（localStorage）而非传统 Cookie 来管理会话状态。</p>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">本地存储内容</h3>
+    <ul>
+      <li><strong>PASETO 令牌</strong> — 登录成功后，PASETO 认证令牌存储在浏览器 localStorage 中，用于后续 API 请求的身份验证。令牌有效期为 24 小时。</li>
+      <li><strong>用户偏好</strong> — 如界面主题、最近查看的项目等非敏感偏好设置。</li>
+      <li><strong>离线缓存</strong> — Web 端缓存静态资源（JS/CSS）加速页面加载；Flutter App 使用 SharedPreferences 缓存项目列表等非敏感数据，在网络不可用时提供降级浏览。缓存数据不包含密码或敏感个人信息。</li>
+    </ul>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">管理方式</div>
+    <p>您可通过浏览器设置清除 localStorage 数据。清除后需重新登录。我们不使用追踪型 Cookie，不进行跨站广告追踪。</p>
+  </div>
+</section>
+
+<!-- 7. 第三方服务 -->
+<section id="thirdparty" aria-labelledby="thirdparty-title">
+  <h2 class="section-title" id="thirdparty-title"><span class="num">07</span>第三方服务</h2>
+  <p>平台集成了以下第三方服务，这些服务可能收集和处理您的部分信息：</p>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">高德地图 API</h3>
+    <ul>
+      <li><strong>用途</strong> — 地址智能补全、地理位置定位。</li>
+      <li><strong>共享信息</strong> — 您输入的地址关键词与 IP 地址（用于定位）。</li>
+      <li><strong>隐私政策</strong> — 受高德地图隐私政策约束。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent-bright);font-size:1.05rem;margin-bottom:10px">DeepSeek AI</h3>
+    <ul>
+      <li><strong>用途</strong> — AI 设计方案生成、预算分析、施工计划建议等智能服务。</li>
+      <li><strong>共享信息</strong> — 您的设计需求描述、户型数据、预算参数等业务上下文（用于 AI 推理）。</li>
+      <li><strong>数据处理</strong> — AI 推理在 DeepSeek 服务端进行，数据不用于模型训练。</li>
+      <li><strong>Mock 模式</strong> — 未配置 API Key 时，平台使用本地规则引擎替代 AI 调用，不发送任何数据到外部。</li>
+    </ul>
+  </div>
+
+  <div class="callout warning">
+    <div class="callout-label">注意</div>
+    <p>第三方服务提供商有其独立的隐私政策。我们建议您查阅相关服务的隐私政策，了解其数据处理实践。我们不对第三方服务的隐私实践承担责任。</p>
+  </div>
+</section>
+
+<!-- 8. 联系方式 -->
+<section id="contact" aria-labelledby="contact-title">
+  <h2 class="section-title" id="contact-title"><span class="num">08</span>联系方式</h2>
+  <p>如您对本隐私政策有任何疑问、建议或需要行使您的数据权利，请通过以下方式联系我们：</p>
+
+  <div class="card">
+    <ul>
+      <li><strong>平台名称</strong> — 索克家居（i-home.life）</li>
+      <li><strong>技术支持邮箱</strong> — support@i-home.life</li>
+      <li><strong>隐私事务邮箱</strong> — privacy@i-home.life</li>
+      <li><strong>平台官网</strong> — i-home.life</li>
+      <li><strong>服务时间</strong> — 周一至周五 09:00 - 18:00</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">政策更新</div>
+    <p>本隐私政策可能不时更新。重大变更时我们将通过平台通知或邮件告知您。更新后的政策自发布之日起生效。继续使用平台服务即视为您同意更新后的隐私政策。</p>
+  </div>
+</section>
+
+<footer class="doc-footer" role="contentinfo">
+  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.1</p>
+  <p>本隐私政策最后更新于 2026-07-12</p>
+  <div class="footer-links">
+    <a href="../../web/index.html">返回主站</a>
+    <a href="../guide/user-guide.html">用户使用指南</a>
+    <a href="terms-of-service.html">服务条款</a>
+    <a href="license.txt">开源许可</a>
+  </div>
+</footer>
+
+</main>
+</body>
+</html>

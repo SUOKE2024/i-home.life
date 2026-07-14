@@ -289,7 +289,12 @@ async def test_quality_issue_and_rectification(client: AsyncClient):
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
-    # 4. 完成整改单
+    # 4. 完成整改单 (需先转为 in_progress, 再 completed)
+    resp = await client.patch(
+        f"/api/construction/rectification-orders/{order_id}/status?new_status=in_progress",
+        headers=headers,
+    )
+    assert resp.status_code == 200
     resp = await client.patch(
         f"/api/construction/rectification-orders/{order_id}/status?new_status=completed",
         headers=headers,

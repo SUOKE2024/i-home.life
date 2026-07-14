@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="索克家居 i-home.life 用户使用指南 - AI 智能装修平台功能说明与常见问题解答">
+<title>用户使用指南 · 索克家居 i-home.life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" onerror="this.remove()">
+<link rel="icon" type="image/png" href="../images/icons/desktop/suoke-favicon-32.png">
+<style>
+:root{
+  --bg-deep:#08080f;
+  --bg-card:#12121d;
+  --bg-card-hover:#1a1a2a;
+  --bg-input:#0d0d18;
+  --border:#1e1e32;
+  --border-active:#2a2a45;
+  --text-primary:#e8e6e1;
+  --text-secondary:#8a8894;
+  --text-muted:#5a5866;
+  --accent:#c9973b;
+  --accent-bright:#e0aa4a;
+  --accent-glow:rgba(201,151,59,0.15);
+  --success:#4a9e6e;
+  --warning:#c9973b;
+  --danger:#c4554d;
+  --info:#5b8ec4;
+  --radius:12px;
+  --radius-sm:8px;
+  --transition:0.25s cubic-bezier(0.4,0,0.2,1);
+  --max-w:880px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{
+  font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg-deep);
+  color:var(--text-primary);
+  line-height:1.7;
+  min-height:100vh;
+}
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-active);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+/* 顶部导航 */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:100;
+  background:rgba(8,8,15,0.85);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  padding:14px 24px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.topbar-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  text-decoration:none;
+}
+.topbar-brand .logo-mark{
+  font-family:'DM Serif Display',serif;
+  font-size:1.4rem;
+  color:var(--accent);
+  letter-spacing:0.02em;
+}
+.topbar-brand .logo-sub{
+  font-size:0.65rem;
+  color:var(--text-muted);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+}
+.back-link{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--text-secondary);
+  text-decoration:none;
+  font-size:0.85rem;
+  padding:7px 14px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  transition:all var(--transition);
+  white-space:nowrap;
+}
+.back-link:hover{
+  color:var(--accent-bright);
+  border-color:var(--border-active);
+  background:var(--bg-card-hover);
+}
+.back-link svg{width:14px;height:14px}
+
+/* 主体容器 */
+.wrap{
+  position:relative;
+  z-index:1;
+  max-width:var(--max-w);
+  margin:0 auto;
+  padding:40px 24px 80px;
+}
+
+/* 页头 */
+.doc-header{
+  text-align:center;
+  margin-bottom:48px;
+  padding-bottom:32px;
+  border-bottom:1px solid var(--border);
+}
+.doc-header h1{
+  font-family:'DM Serif Display',serif;
+  font-size:2.6rem;
+  font-weight:400;
+  color:var(--accent);
+  margin-bottom:8px;
+  letter-spacing:0.01em;
+}
+.doc-header .subtitle{
+  color:var(--text-secondary);
+  font-size:1rem;
+}
+.doc-header .meta{
+  margin-top:16px;
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.badge{
+  display:inline-block;
+  padding:4px 12px;
+  border-radius:20px;
+  font-size:0.75rem;
+  font-weight:500;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  color:var(--text-secondary);
+}
+.badge.accent{
+  background:var(--accent-glow);
+  border-color:rgba(201,151,59,0.3);
+  color:var(--accent-bright);
+}
+
+/* 目录 */
+.toc{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:24px 28px;
+  margin-bottom:48px;
+}
+.toc-title{
+  font-size:0.8rem;
+  font-weight:600;
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  margin-bottom:14px;
+}
+.toc ol{
+  list-style:none;
+  counter-reset:toc;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px 24px;
+}
+.toc li{
+  counter-increment:toc;
+}
+.toc a{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--text-secondary);
+  text-decoration:none;
+  font-size:0.9rem;
+  padding:4px 0;
+  transition:color var(--transition);
+}
+.toc a::before{
+  content:counter(toc,decimal-leading-zero);
+  color:var(--accent);
+  font-weight:600;
+  font-size:0.78rem;
+  font-variant-numeric:tabular-nums;
+}
+.toc a:hover{color:var(--accent-bright)}
+
+/* 章节 */
+section{
+  margin-bottom:56px;
+  scroll-margin-top:80px;
+}
+.section-title{
+  font-family:'DM Serif Display',serif;
+  font-size:1.7rem;
+  font-weight:400;
+  color:var(--text-primary);
+  margin-bottom:6px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.section-title .num{
+  font-size:0.85rem;
+  color:var(--accent);
+  font-family:'DM Sans',sans-serif;
+  font-weight:600;
+  background:var(--accent-glow);
+  padding:2px 10px;
+  border-radius:var(--radius-sm);
+}
+.section-desc{
+  color:var(--text-secondary);
+  font-size:0.9rem;
+  margin-bottom:24px;
+}
+h3{
+  font-size:1.15rem;
+  font-weight:600;
+  color:var(--text-primary);
+  margin:28px 0 12px;
+}
+
+/* 段落与列表 */
+p{margin-bottom:14px;color:var(--text-secondary)}
+p strong{color:var(--text-primary)}
+ul,ol{margin:0 0 16px 4px;padding-left:20px}
+li{margin-bottom:6px;color:var(--text-secondary)}
+li strong{color:var(--text-primary)}
+
+/* 卡片 */
+.card{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:24px;
+  margin-bottom:20px;
+  transition:border-color var(--transition);
+}
+.card:hover{border-color:var(--border-active)}
+.card-title{
+  font-size:1.1rem;
+  font-weight:600;
+  color:var(--accent-bright);
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.card-title .icon{
+  font-size:1.3rem;
+  width:28px;
+  text-align:center;
+}
+
+/* 功能网格 */
+.feature-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+.feature-item{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px;
+  transition:all var(--transition);
+}
+.feature-item:hover{
+  border-color:var(--border-active);
+  transform:translateY(-2px);
+}
+.feature-item .fi-head{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}
+.feature-item .fi-icon{
+  font-size:1.4rem;
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--accent-glow);
+  border-radius:var(--radius-sm);
+}
+.feature-item h4{
+  font-size:1rem;
+  font-weight:600;
+  color:var(--text-primary);
+}
+.feature-item p{
+  font-size:0.85rem;
+  margin:0;
+  color:var(--text-secondary);
+}
+.feature-item .fi-ep{
+  margin-top:8px;
+  font-size:0.75rem;
+  color:var(--text-muted);
+}
+.feature-item .fi-ep code{
+  color:var(--accent);
+  background:var(--bg-input);
+  padding:1px 6px;
+  border-radius:4px;
+  font-size:0.72rem;
+}
+
+/* 步骤 */
+.steps{
+  list-style:none;
+  padding:0;
+  counter-reset:step;
+}
+.steps li{
+  counter-increment:step;
+  position:relative;
+  padding-left:48px;
+  padding-bottom:24px;
+  color:var(--text-secondary);
+}
+.steps li::before{
+  content:counter(step);
+  position:absolute;
+  left:0;
+  top:0;
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  background:var(--accent-glow);
+  border:1px solid rgba(201,151,59,0.3);
+  color:var(--accent-bright);
+  font-weight:600;
+  font-size:0.9rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.steps li::after{
+  content:'';
+  position:absolute;
+  left:15px;
+  top:36px;
+  bottom:0;
+  width:2px;
+  background:var(--border);
+}
+.steps li:last-child{padding-bottom:0}
+.steps li:last-child::after{display:none}
+.steps li strong{color:var(--text-primary)}
+
+/* FAQ */
+.faq-item{
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  margin-bottom:12px;
+  overflow:hidden;
+}
+.faq-item summary{
+  padding:16px 20px;
+  cursor:pointer;
+  font-weight:500;
+  color:var(--text-primary);
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  transition:background var(--transition);
+}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary:hover{background:var(--bg-card-hover)}
+.faq-item summary .q-mark{color:var(--accent);flex-shrink:0;font-size:1.2rem}
+.faq-item[open] summary{border-bottom:1px solid var(--border)}
+.faq-item .faq-body{padding:16px 20px}
+.faq-item .faq-body p{margin:0}
+
+/* 代码块 */
+code{
+  font-family:'SF Mono','Fira Code','Consolas',monospace;
+  background:var(--bg-input);
+  color:var(--accent);
+  padding:2px 7px;
+  border-radius:5px;
+  font-size:0.85em;
+}
+pre{
+  background:var(--bg-input);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:16px;
+  overflow-x:auto;
+  margin-bottom:16px;
+}
+pre code{
+  background:none;
+  padding:0;
+  color:var(--text-primary);
+  font-size:0.85rem;
+}
+
+/* 提示框 */
+.callout{
+  background:var(--bg-card);
+  border-left:3px solid var(--accent);
+  border-radius:0 var(--radius-sm) var(--radius-sm) 0;
+  padding:14px 18px;
+  margin:16px 0;
+}
+.callout.info{border-left-color:var(--info)}
+.callout.success{border-left-color:var(--success)}
+.callout.warning{border-left-color:var(--warning)}
+.callout .callout-label{
+  font-size:0.75rem;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--accent);
+  margin-bottom:4px;
+}
+.callout.info .callout-label{color:var(--info)}
+.callout.success .callout-label{color:var(--success)}
+.callout.warning .callout-label{color:var(--warning)}
+.callout p{margin:0;color:var(--text-secondary)}
+
+/* 表格 */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-bottom:16px;
+  font-size:0.88rem;
+}
+th,td{
+  text-align:left;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+}
+th{
+  color:var(--accent-bright);
+  font-weight:600;
+  font-size:0.8rem;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  background:var(--bg-card);
+}
+td{color:var(--text-secondary)}
+tr:hover td{background:rgba(255,255,255,0.015)}
+
+/* 页脚 */
+.doc-footer{
+  margin-top:64px;
+  padding-top:32px;
+  border-top:1px solid var(--border);
+  text-align:center;
+}
+.doc-footer p{
+  font-size:0.82rem;
+  color:var(--text-muted);
+  margin-bottom:8px;
+}
+.doc-footer .footer-links{
+  display:flex;
+  justify-content:center;
+  gap:16px;
+  margin-top:16px;
+  flex-wrap:wrap;
+}
+.doc-footer .footer-links a{
+  color:var(--text-secondary);
+  text-decoration:none;
+  font-size:0.82rem;
+  transition:color var(--transition);
+}
+.doc-footer .footer-links a:hover{color:var(--accent-bright)}
+
+/* 响应式 */
+@media (max-width:768px){
+  html{font-size:15px}
+  .topbar{padding:12px 16px}
+  .wrap{padding:28px 16px 60px}
+  .doc-header h1{font-size:2rem}
+  .toc ol{grid-template-columns:1fr}
+  .feature-grid{grid-template-columns:1fr}
+  .section-title{font-size:1.4rem}
+}
+@media (max-width:480px){
+  html{font-size:14px}
+  .topbar-brand .logo-sub{display:none}
+  .doc-header h1{font-size:1.7rem}
+  .doc-header .meta{gap:6px}
+  .card,.feature-item{padding:16px}
+  .back-link span{display:none}
+  .section-title .num{display:none}
+}
+
+/* 无障碍：跳转链接 */
+.skip-link{
+  position:absolute;
+  top:-40px;
+  left:8px;
+  background:var(--accent);
+  color:var(--bg-deep);
+  padding:8px 16px;
+  border-radius:var(--radius-sm);
+  text-decoration:none;
+  font-weight:600;
+  font-size:0.85rem;
+  z-index:200;
+  transition:top 0.2s;
+}
+.skip-link:focus{top:8px}
+:focus-visible{
+  outline:2px solid var(--accent-bright);
+  outline-offset:2px;
+}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">跳到主要内容</a>
+
+<!-- 顶部导航 -->
+<nav class="topbar" role="navigation" aria-label="顶部导航">
+  <a href="../../web/index.html" class="topbar-brand" aria-label="返回索克家居首页">
+    <span class="logo-mark" aria-hidden="true">索克家居</span>
+    <span class="logo-sub" aria-hidden="true">i-home.life</span>
+  </a>
+  <a href="../../web/index.html" class="back-link" aria-label="返回主站">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <span>返回主站</span>
+  </a>
+</nav>
+
+<main id="main" class="wrap" role="main">
+
+<!-- 页头 -->
+<header class="doc-header" role="banner">
+  <h1>用户使用指南</h1>
+  <p class="subtitle">索克家居 · AI 智能装修平台 — 从注册到完工的全流程操作手册</p>
+  <div class="meta">
+    <span class="badge accent">v1.0.1</span>
+    <span class="badge">最后更新：2026-07-12</span>
+    <span class="badge">13 功能模块</span>
+  </div>
+</header>
+
+<!-- 目录 -->
+<nav class="toc" role="navigation" aria-label="文档目录">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#overview">平台概述</a></li>
+    <li><a href="#quickstart">快速开始</a></li>
+    <li><a href="#modules">功能模块说明</a></li>
+    <li><a href="#faq">常见问题 FAQ</a></li>
+    <li><a href="#support">技术支持</a></li>
+  </ol>
+</nav>
+
+<!-- 1. 平台概述 -->
+<section id="overview" aria-labelledby="overview-title">
+  <h2 class="section-title" id="overview-title"><span class="num">01</span>平台概述</h2>
+  <p class="section-desc">了解索克家居是什么，以及它能为您的装修之旅带来什么。</p>
+
+  <div class="card">
+    <h3>索克家居是什么？</h3>
+    <p><strong>索克家居（i-home.life）</strong>是一个 AI 智能装修平台，覆盖从 AR 空间测量、AI 辅助设计、物料预算管理，到施工进度跟踪与工程结算的装修全链路业务。平台将传统装修中分散的测量、设计、采购、施工、结算等环节整合为一体化数字工作流，帮助业主、设计师和施工方高效协作。</p>
+  </div>
+
+  <div class="card">
+    <h3>核心功能</h3>
+    <ul>
+      <li><strong>AR 空间测量</strong> — 使用手机摄像头进行 AR 实景扫描，自动生成房间尺寸与墙面特征数据，精度校验保障数据可靠性。</li>
+      <li><strong>AI 设计台</strong> — 2D CAD 绘图 + 3D 实时渲染，支持 9 套布局模板，自然语言修改方案，DXF 格式导出。</li>
+      <li><strong>智能预算与采购</strong> — 基于 BOM 自动生成预算，多方案对比与偏差预警，供应商比价与担保支付。</li>
+      <li><strong>施工管理</strong> — 施工任务排期、日志记录、AI 图像质检、进度预警与里程碑跟踪。</li>
+      <li><strong>结算管理</strong> — 里程碑结算、异常检测、自动对账单生成。</li>
+      <li><strong>多端协同</strong> — Web 管理后台、Flutter 移动 App（iOS / Android / 鸿蒙 HarmonyOS），实时 WebSocket 通信。</li>
+    </ul>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">技术特点</div>
+    <p>平台采用 PASETO 令牌认证（比 JWT 更安全），321 个 API 端点覆盖 34 个业务模块，69 张数据表支撑全链路数据管理。</p>
+  </div>
+</section>
+
+<!-- 2. 快速开始 -->
+<section id="quickstart" aria-labelledby="quickstart-title">
+  <h2 class="section-title" id="quickstart-title"><span class="num">02</span>快速开始</h2>
+  <p class="section-desc">几步即可开始使用索克家居平台。</p>
+
+  <h3>注册与登录流程</h3>
+  <ol class="steps">
+    <li>
+      <strong>访问平台</strong><br>
+      打开 Web 管理后台（<code>web/index.html</code>）或启动 Flutter 移动 App。首次使用请先注册账号。
+    </li>
+    <li>
+      <strong>注册账号</strong><br>
+      在登录页点击「注册」，输入手机号并设置密码。系统支持四种角色：业主、设计师、工长、管理员。注册成功后系统将自动签发 PASETO 令牌并存储在本地。
+    </li>
+    <li>
+      <strong>登录系统</strong><br>
+      输入手机号与密码登录。令牌有效期为 24 小时，过期后需重新登录。移动端支持生物识别快捷登录。
+    </li>
+    <li>
+      <strong>创建项目</strong><br>
+      进入「项目」模块，点击「新建项目」，填写项目名称、地址（支持高德地图智能补全）、户型信息等基础资料。
+    </li>
+    <li>
+      <strong>开始测量</strong><br>
+      在「测量」模块中使用 AR 扫描功能对房间进行空间测量，或手动录入尺寸数据。测量数据将自动关联到当前项目。
+    </li>
+    <li>
+      <strong>AI 设计</strong><br>
+      进入「设计台」或「AI 助手」，基于测量数据生成设计方案。可用自然语言描述需求（如「把客厅沙发换成 L 型」），AI 将实时调整布局。
+    </li>
+  </ol>
+
+  <div class="callout success">
+    <div class="callout-label">演示账号</div>
+    <p>体验平台功能可使用演示账号：手机号 <code>13800138000</code>，密码 <code>123456</code>（业主角色）。</p>
+  </div>
+</section>
+
+<!-- 3. 功能模块说明 -->
+<section id="modules" aria-labelledby="modules-title">
+  <h2 class="section-title" id="modules-title"><span class="num">03</span>功能模块说明</h2>
+  <p class="section-desc">平台包含 13 个主功能 Tab，覆盖装修全流程。以下逐一说明各模块的用途与操作方式。</p>
+
+  <div class="feature-grid">
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🏠</span>
+        <h4>工作台</h4>
+      </div>
+      <p>项目总览仪表盘。展示当前进行中的项目数量、预算执行概况、施工进度、待办事项与最新动态。支持快速跳转到任意子模块。</p>
+      <div class="fi-ep">入口：<code>Dashboard</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">📁</span>
+        <h4>项目</h4>
+      </div>
+      <p>项目管理中心。创建、编辑、归档装修项目。每个项目包含户型、楼层、房间层级结构，并关联测量数据、设计方案、预算与施工记录。</p>
+      <div class="fi-ep">端点：<code>/api/projects</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">📐</span>
+        <h4>测量</h4>
+      </div>
+      <p>AR 空间测量与手动测量。使用 ARKit / ARCore / AR Engine 进行实景扫描，自动识别墙面特征与测量点。支持扫描会话管理、精度校验与设备能力检测。降级策略保障低端设备也能手动录入。</p>
+      <div class="fi-ep">端点：<code>/api/surveys/ar/*</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🎨</span>
+        <h4>设计台</h4>
+      </div>
+      <p>2D CAD 绘图 + 3D 实时渲染。15 种绘图工具（含圆弧/偏移/修剪/延伸/块定义/图层管理）、正交模式、对象捕捉（98% 命中率），墙体拉伸 3 秒内完成 3D 同步。支持平立剖自动生成、DXF R12 导出。集成厨房设计器、卫生间设计器、定制家具参数化等垂直模块。</p>
+      <div class="fi-ep">入口：<code>studio.html</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🤖</span>
+        <h4>AI 助手</h4>
+      </div>
+      <p>自然语言对话式 AI 助手，由 7 个专业 Agent 协同工作：总控路由、设计师、预算师、采购师、施工师、结算师、质检师。支持意图识别与混合路由（规则 + DeepSeek LLM）。可用语音或文字输入需求。</p>
+      <div class="fi-ep">端点：<code>/api/agents/chat</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">📦</span>
+        <h4>物料库</h4>
+      </div>
+      <p>物料浏览与 BOM 管理。9 大物料分类、225 个 SKU，支持多维筛选、搜索与按房间推荐。可生成物料清单（BOM）并导出 Excel。家具品类库支持 AR 摆放预览。</p>
+      <div class="fi-ep">端点：<code>/api/materials</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">💰</span>
+        <h4>预算管理</h4>
+      </div>
+      <p>基于 BOM 自动生成预算，支持多方案对比、偏差预警与预算模板库。三 Tab 视图：预算总览、方案对比、模板管理。AI 可根据户型与设计方案智能预估各分项预算。</p>
+      <div class="fi-ep">端点：<code>/api/budgets</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🏗️</span>
+        <h4>施工进度</h4>
+      </div>
+      <p>施工任务排期、施工日志、AI 图像质检。支持 Gantt 排期视图、进度预警（超期/超前提醒）、里程碑跟踪。质检模块含分阶段质检清单与 AI 图像审核。施工方可上传现场照片进行自动质量检测。</p>
+      <div class="fi-ep">端点：<code>/api/construction</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🧾</span>
+        <h4>结算管理</h4>
+      </div>
+      <p>里程碑结算、异常检测与对账单生成。从预算自动生成结算基础数据，按施工里程碑分阶段结算。异常检测自动标记金额偏差，对账单支持导出。三 Tab 视图：结算单、里程碑、对账。</p>
+      <div class="fi-ep">端点：<code>/api/settlements</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🏭</span>
+        <h4>供应商</h4>
+      </div>
+      <p>供应商管理与采购协同。12 家供应商档案，支持报价单管理、比价报告、采购订单、物流追踪与样品索要。采购增强模块含担保支付（资金托管）与比价分析。</p>
+      <div class="fi-ep">端点：<code>/api/procurement</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">📄</span>
+        <h4>工程文件</h4>
+      </div>
+      <p>工程文件上传、下载与归档管理。支持图纸、合同、质检报告、变更单等各类工程文档的版本化管理。文件与项目、任务关联，支持按类型与时间筛选。</p>
+      <div class="fi-ep">端点：<code>/api/files</code></div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">✨</span>
+        <h4>设计深化</h4>
+      </div>
+      <p>设计方案的深化与专业化。涵盖硬装（瓷砖排版/涂料用量/吊顶）、门窗防水、厨卫水电（给排水/燃气/回路/等电位）、灯光设计（照度计算/色温规划/无主灯方案）、软装搭配（AI 配色和谐度/收纳推荐）、智能家居方案与场景编辑。</p>
+      <div class="fi-ep">端点：<code>/api/hard-decoration</code> 等</div>
+    </article>
+
+    <article class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🛒</span>
+        <h4>采购增强</h4>
+      </div>
+      <p>采购增强功能：比价分析、担保支付（资金托管至验收合格）、物流追踪、样品索要。支持自动生成比价报告，按评分模型推荐最优供应商。担保支付保障业主资金安全。</p>
+      <div class="fi-ep">端点：<code>/api/procurement-enhanced</code></div>
+    </article>
+
+  </div>
+
+  <h3>设计台 CAD 工具使用说明（v1.0.1 新增）</h3>
+  <p>设计台已从 9 个工具扩展至 15 个工具，新增 6 个 CAD 高级工具与图层管理系统，满足专业绘图需求。</p>
+
+  <div class="card">
+    <h3>新增 CAD 工具操作指南</h3>
+
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">⤴</span>
+          <h4>圆弧工具</h4>
+        </div>
+        <p>通过三点绘制圆弧。点击三次完成绘制：<strong>起点</strong> → <strong>终点</strong> → <strong>中间点</strong>。中间点决定圆弧的弯曲方向与曲率，适用于拱门、弧形墙等曲线元素。</p>
+      </div>
+
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">⇆</span>
+          <h4>偏移工具</h4>
+        </div>
+        <p>选择线段或矩形，输入偏移距离，生成平行副本。适用于墙体双边线、平行辅助线绘制。偏移矩形会生成同心矩形。</p>
+      </div>
+
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">✂</span>
+          <h4>修剪工具</h4>
+        </div>
+        <p>选择线段，在与其他线段的交点处自动修剪。适用于清理交叉线段的多余部分，如墙体交接处的线段处理。</p>
+      </div>
+
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">→</span>
+          <h4>延伸工具</h4>
+        </div>
+        <p>选择线段，自动延伸到最近的相交边界。适用于将线段精确延伸到目标墙体或边界，无需手动计算终点。</p>
+      </div>
+
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">📋</span>
+          <h4>块定义</h4>
+        </div>
+        <p>选择一个或多个元素并命名，保存为可复用块。块可在图纸中多次插入，修改块定义后所有实例同步更新。适用于门窗、家具等标准化组件。</p>
+      </div>
+
+      <div class="feature-item">
+        <div class="fi-head">
+          <span class="fi-icon" aria-hidden="true">🗂</span>
+          <h4>图层管理</h4>
+        </div>
+        <p>侧边栏图层面板，支持可见性切换、新建图层、选择当前图层。预设 4 个图层：<strong>默认 / 墙体 / 家具 / 标注</strong>。隐藏图层后该层元素不显示，便于专注于特定类别元素。</p>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-label">图层使用提示</div>
+      <p>建议按元素类别分配图层：墙体画在「墙体」层，家具画在「家具」层，尺寸标注画在「标注」层。出图时可隐藏标注层，保持图纸整洁。新建图层时可自定义名称与颜色。</p>
+    </div>
+  </div>
+
+</section>
+
+<!-- 4. FAQ -->
+<section id="faq" aria-labelledby="faq-title">
+  <h2 class="section-title" id="faq-title"><span class="num">04</span>常见问题 FAQ</h2>
+  <p class="section-desc">以下是用户最常遇到的问题与解答。</p>
+
+  <details class="faq-item" open>
+    <summary><span>AR 测量功能支持哪些设备？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>AR 空间测量支持以下平台：<strong>iOS</strong>（ARKit，需 iPhone 8 及以上 / iPad Pro）、<strong>Android</strong>（ARCore，需支持 ARCore 的设备）、<strong>HarmonyOS</strong>（AR Engine，需 API 23+ 设备）。不支持的设备将自动降级为手动录入模式。可在「测量」模块中点击「设备能力检测」查看当前设备是否支持 AR。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>AI 设计生成的方案可以直接使用吗？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>AI 生成的设计方案作为参考建议，通常需要设计师根据实际户型规范与业主需求进行确认和调整。平台支持自然语言修改（如「把卧室门移到左边」），AI 会实时更新方案。最终方案可导出 DXF 格式供施工使用。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>担保支付的资金安全如何保障？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>采购增强模块的担保支付机制将资金托管在平台，仅在业主确认验收合格或里程碑达成后释放给供应商。如遇争议，可发起对账与异常检测流程，平台将协助调解。资金流转全程留痕可追溯。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>登录令牌会过期吗？需要频繁登录吗？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>平台使用 PASETO v4 令牌认证，令牌有效期为 24 小时。令牌存储在浏览器 localStorage 中，在此期间无需重复登录。令牌过期后系统会自动跳转到登录页。移动端 App 支持生物识别（指纹/Face ID）快捷登录。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>支持哪些文件格式的导入导出？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>设计图纸支持 <strong>DXF R12</strong> 格式导出（兼容 AutoCAD 等主流 CAD 软件）。物料清单与预算支持 <strong>Excel（.xlsx）</strong> 导出。文件上传支持常见图片、PDF、文档格式。VR 全景支持等距柱状全景图渲染。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>多个人可以同时协作同一个项目吗？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>支持。平台通过 WebSocket 实时通信实现多端协同，业主、设计师、工长可在同一项目中实时查看更新。IM 协作模块支持三方群组聊天、@提及与消息已读确认。施工进度、设计变更等关键操作会实时推送给相关方。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>鸿蒙 HarmonyOS 设备可以使用吗？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>可以。Flutter App 已适配 HarmonyOS（Flutter 3.35.7-ohos-0.0.3，API 23+），支持华为 MatePad 等设备。AR 测量通过 AR Engine 实现原生适配，手写笔（M-Pencil）支持也已集成。可在华为应用市场下载安装。</p>
+    </div>
+  </details>
+
+  <details class="faq-item">
+    <summary><span>数据会丢失吗？如何备份？</span><span class="q-mark" aria-hidden="true">+</span></summary>
+    <div class="faq-body">
+      <p>项目数据存储在 SQLite 数据库中（Phase 2 将支持 PostgreSQL）。建议定期通过 Alembic 迁移工具或数据库文件备份进行数据归档。工程文件支持独立上传下载，可随时导出留存。平台不会在未经授权情况下删除用户数据。</p>
+    </div>
+  </details>
+</section>
+
+<!-- 5. 技术支持 -->
+<section id="support" aria-labelledby="support-title">
+  <h2 class="section-title" id="support-title"><span class="num">05</span>技术支持</h2>
+  <p class="section-desc">遇到问题？我们随时为您提供帮助。</p>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">📖</span>
+        <h4>文档资源</h4>
+      </div>
+      <p>开发者指南与部署指南提供技术细节。<br>API 交互文档：<code>/api/docs</code>（Swagger UI）<br>API 参考文档：<code>/api/redoc</code>（ReDoc）</p>
+    </div>
+    <div class="feature-item">
+      <div class="fi-head">
+        <span class="fi-icon" aria-hidden="true">🔧</span>
+        <h4>问题反馈</h4>
+      </div>
+      <p>遇到功能异常或数据问题，请通过 App 内「意见反馈」入口提交，附上截图与操作步骤。技术团队将在 1 个工作日内响应。</p>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">联系方式</div>
+    <p>技术支持邮箱：support@i-home.life<br>
+    平台官网：i-home.life<br>
+    服务时间：周一至周五 09:00 - 18:00</p>
+  </div>
+
+  <div class="callout warning">
+    <div class="callout-label">健康检查</div>
+    <p>如遇平台无法访问，可检查服务状态：<code>/health</code> 或 <code>/api/health</code> 返回 <code>{"status":"ok"}</code> 即表示服务正常。</p>
+  </div>
+</section>
+
+<!-- 页脚 -->
+<footer class="doc-footer" role="contentinfo">
+  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.1</p>
+  <p>本指南最后更新于 2026-07-12</p>
+  <div class="footer-links">
+    <a href="../../web/index.html">返回主站</a>
+    <a href="developer-guide.html">开发者指南</a>
+    <a href="deployment-guide.html">部署指南</a>
+    <a href="../legal/privacy-policy.html">隐私政策</a>
+    <a href="../legal/terms-of-service.html">服务条款</a>
+  </div>
+</footer>
+
+</main>
+</body>
+</html>

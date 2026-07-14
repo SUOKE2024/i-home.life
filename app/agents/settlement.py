@@ -50,6 +50,7 @@ ANOMALY_RULES = [
     {"code": "unauthorized", "name": "未授权变更", "threshold_pct": 0, "severity": "critical"},
     {"code": "unaccepted", "name": "验收未通过", "threshold_pct": 0, "severity": "critical"},
     {"code": "duplicate", "name": "重复计费", "threshold_pct": 0, "severity": "warning"},
+    {"code": "disputed", "name": "支付争议", "threshold_pct": 0, "severity": "disputed"},
 ]
 
 
@@ -249,3 +250,51 @@ class SettlementAgent(BaseAgent):
             "total": len(SETTLEMENT_MILESTONES),
             "reply": f"共 {len(SETTLEMENT_MILESTONES)} 个结算里程碑：交房 30% → 水电 20% → 泥瓦 25% → 竣工 20% → 保修 5%",
         }
+
+    def auto_generate_full_settlement(
+        self,
+        contract_amount: float,
+        actual_amount: float,
+        change_orders: list[dict] | None = None,
+        unaccepted_items: list[dict] | None = None,
+        line_items: list[dict] | None = None,
+    ) -> dict:
+        """F14 一键自动结算流程：
+        1. 异常检测
+        2. 对账单生成（基于异常扣款）
+        3. 输出建议人工复核标记
+
+        用于 /settlements/auto-settlement 接口。
+        """
+        change_orders = change_orders or []
+        unaccepted_items = unaccepted_items or []
+        line_items = line_items or []
+
+        anomalies = self.detect_anomalies({
+            "contract_amount": contract_amount,
+            "actual_amount": actual_amount,
+            "change_orders": change_orders,
+            "unaccepted_items": unaccepted_items,
+            "line_items": line_items,
+        })
+
+        reconciliation = self.generate_reconciliation({
+            "contract_amount": contract_amount,
+            "change_orders": change_orders,
+            "procurement_actual": 0.0,
+            "labor_actual": 0.0,
+            "unaccepted_items": unaccepted_items,
+        })
+
+        review_required = anomalies["critical_count"] > 0
+
+        return {
+            "anomalies": anomalies,
+            "reconciliation": reconciliation,
+            "review_required": review_required,
+            "reply": (
+                f"自动结算完成：{anomalies['reply']}。{reconciliation['reply']}。"
+                + ("⚠ 检测到严重异常，已标记需人工复核。" if review_required else "✓ 未触发人工复核。")
+            ),
+        }
+

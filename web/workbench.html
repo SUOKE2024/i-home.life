@@ -1,0 +1,2186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="索克家居 · AI 自治运营群聊工作台">
+<meta property="og:title" content="工作台 · 索克家居">
+<meta property="og:description" content="AI 自治运营群聊工作台，8 AI 智能体 7×24 服务">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="assets/css/workbench.css?v=20260714d" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260714d" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260714d" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260714d" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260714d" as="script">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260714d">
+<link rel="manifest" href="manifest.json">
+<title>工作台 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"索克家居工作台","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"},"description":"AI 自治运营群聊工作台，8 AI 智能体 7×24 服务"}
+</script>
+</head>
+<body>
+<a href="#message-list" class="skip-link">跳到消息列表</a>
+<!-- 壁纸背景层 -->
+<div class="wallpaper-layer" id="wallpaper-layer" aria-hidden="true"></div>
+
+<!-- 工作台主容器 -->
+<div class="workbench" role="application" aria-label="项目群聊工作台">
+  <!-- 顶栏 -->
+  <header class="chat-header" role="banner">
+    <a href="index.html" class="chat-back" aria-label="返回首页">‹</a>
+    <div class="chat-title-block">
+      <div class="chat-title" id="chat-title">加载中…</div>
+      <div class="chat-subtitle" id="chat-subtitle">8 AI 群策群力</div>
+    </div>
+    <button class="chat-new-project" id="new-project-btn" aria-label="新建项目" title="新建项目">+</button>
+    <button class="chat-search-btn" id="chat-search-btn" aria-label="搜索消息" title="搜索消息">🔍</button>
+    <a href="settings.html" class="chat-avatar" id="chat-avatar-btn" aria-label="设置" title="设置">
+      <img id="chat-avatar-img" src="" alt="用户头像" class="chat-avatar-img">
+    </a>
+  </header>
+
+  <!-- 搜索栏 -->
+  <div class="search-bar" id="search-bar" hidden>
+    <input type="search" class="search-input" id="search-input" placeholder="搜索消息…" autocomplete="off">
+    <span class="search-count" id="search-count"></span>
+    <button class="search-close" id="search-close" aria-label="关闭搜索">×</button>
+  </div>
+
+  <!-- 消息流 -->
+  <main class="message-list" id="message-list" role="log" aria-live="polite" aria-label="消息流">
+    <div class="refresh-indicator" id="refresh-indicator" aria-hidden="true">
+      <span class="refresh-spinner"></span>
+      <span class="refresh-text">下拉刷新</span>
+    </div>
+    <!-- 消息将动态渲染到这里 -->
+  </main>
+
+  <!-- 附件菜单 -->
+  <div class="attach-menu" id="attach-menu" role="menu" aria-label="附件菜单">
+    <div class="attach-item" role="menuitem" data-action="photo" tabindex="0">📷 拍照</div>
+    <div class="attach-item" role="menuitem" data-action="file" tabindex="0">📁 文件</div>
+    <div class="attach-item" role="menuitem" data-action="location" tabindex="0">📍 位置</div>
+  </div>
+
+  <!-- 新消息通知 toast -->
+  <div class="notification-toast" id="notification-toast" aria-live="assertive" hidden>
+    <span class="nt-sender" id="nt-sender"></span>
+    <span class="nt-content" id="nt-content"></span>
+  </div>
+
+  <!-- mention 弹出 -->
+  <div class="mention-popup" id="mention-popup" role="listbox" aria-label="提及 Agent">
+  </div>
+
+  <!-- 右键菜单 -->
+  <div class="context-menu" id="context-menu" role="menu" hidden>
+    <div class="context-item" data-action="copy" role="menuitem" tabindex="0">📋 复制文本</div>
+    <div class="context-item" data-action="quote" role="menuitem" tabindex="0">💬 引用回复</div>
+  </div>
+
+  <!-- 项目选择器 -->
+  <div class="project-picker" id="project-picker" role="dialog" aria-label="选择项目">
+    <div class="project-picker-card">
+      <div class="project-picker-header">
+        <span>切换项目</span>
+        <button class="project-picker-close" id="project-picker-close" aria-label="关闭">×</button>
+      </div>
+      <div id="project-picker-list"></div>
+      <button class="project-picker-create" id="project-picker-create-btn" aria-label="新建项目">+ 新建项目</button>
+    </div>
+  </div>
+
+  <!-- 创建项目对话框 -->
+  <div class="create-project-dialog" id="create-project-dialog" role="dialog" aria-label="创建新项目" aria-modal="true">
+    <div class="create-project-card">
+      <div class="create-project-header">
+        <span>创建新项目</span>
+        <button class="create-project-close" id="create-project-close" aria-label="关闭">×</button>
+      </div>
+      <form id="create-project-form" novalidate>
+        <div class="cp-field">
+          <label class="cp-label" for="cp-name">项目名称 *</label>
+          <input class="cp-input" type="text" id="cp-name" placeholder="如：阳光花园3栋201" required maxlength="200" autocomplete="off">
+        </div>
+        <div class="cp-field">
+          <label class="cp-label" for="cp-address">地址（选填）</label>
+          <input class="cp-input" type="text" id="cp-address" placeholder="如：上海市浦东新区..." maxlength="500" autocomplete="off">
+        </div>
+        <div class="cp-field">
+          <label class="cp-label" for="cp-area">总面积 ㎡（选填）</label>
+          <input class="cp-input" type="number" id="cp-area" placeholder="如：120.5" min="0" step="0.1" autocomplete="off">
+        </div>
+        <p class="cp-error" id="cp-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary cp-submit" id="cp-submit-btn">创建项目</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- emoji 面板 -->
+  <div class="emoji-panel" id="emoji-panel" role="dialog" aria-label="表情选择" hidden>
+    <div class="emoji-tabs" role="tablist">
+      <button class="emoji-tab active" data-cat="recent" role="tab" aria-selected="true">🕐</button>
+      <button class="emoji-tab" data-cat="smileys" role="tab" aria-selected="false">😀</button>
+      <button class="emoji-tab" data-cat="gestures" role="tab" aria-selected="false">👍</button>
+      <button class="emoji-tab" data-cat="hearts" role="tab" aria-selected="false">❤️</button>
+      <button class="emoji-tab" data-cat="renovation" role="tab" aria-selected="false">🔨</button>
+    </div>
+    <div class="emoji-grid" id="emoji-grid" role="listbox" aria-label="表情列表"></div>
+  </div>
+
+  <!-- 底栏 -->
+  <footer class="chat-input-bar" role="contentinfo">
+    <button class="input-attach" id="attach-btn" aria-label="添加附件" aria-expanded="false">+</button>
+    <input
+      type="text"
+      class="chat-input"
+      id="chat-input"
+      placeholder="说点什么…"
+      aria-label="输入消息"
+      autocomplete="off"
+      enterkeyhint="send"
+    >
+    <button class="input-emoji" id="emoji-btn" aria-label="表情" aria-expanded="false">😊</button>
+    <button class="input-voice" id="voice-btn" aria-label="语音输入">🎤</button>
+  </footer>
+</div>
+
+<script src="assets/js/api-client.js?v=20260714d"></script>
+<script src="assets/js/im-client.js?v=20260714d"></script>
+<script src="assets/js/agent-router.js?v=20260714d"></script>
+<script src="assets/js/message-renderers.js?v=20260714d"></script>
+<script>
+(function() {
+  // ============ 初始化 ============
+  const params = new URLSearchParams(window.location.search);
+  const role = params.get('role') || 'owner';
+
+  // 角色 → 显示名称映射 (D-5 修复: role 参数应影响欢迎消息的角色标识)
+  const ROLE_DISPLAY = {
+    owner: '业主',
+    designer: '设计师',
+    supplier: '供应商',
+    foreman: '工长',
+  };
+  const roleLabel = ROLE_DISPLAY[role] || '业主';
+
+  let currentUser = null;
+  let projectId = null;
+  let projectInfo = null;
+  let allProjects = [];
+
+  const titleEl = document.getElementById('chat-title');
+  const subtitleEl = document.getElementById('chat-subtitle');
+  const titleBlockEl = document.querySelector('.chat-title-block');
+  const listEl = document.getElementById('message-list');
+  const inputEl = document.getElementById('chat-input');
+  const attachBtn = document.getElementById('attach-btn');
+  const attachMenu = document.getElementById('attach-menu');
+  const projectPicker = document.getElementById('project-picker');
+  const projectPickerList = document.getElementById('project-picker-list');
+  const projectPickerClose = document.getElementById('project-picker-close');
+  const newProjectBtn = document.getElementById('new-project-btn');
+  const projectPickerCreateBtn = document.getElementById('project-picker-create-btn');
+  const createDialog = document.getElementById('create-project-dialog');
+  const createDialogClose = document.getElementById('create-project-close');
+  const createProjectForm = document.getElementById('create-project-form');
+  const avatarImg = document.getElementById('chat-avatar-img');
+  const searchBtn = document.getElementById('chat-search-btn');
+  const searchBar = document.getElementById('search-bar');
+  const searchInput = document.getElementById('search-input');
+  const searchCount = document.getElementById('search-count');
+  const searchClose = document.getElementById('search-close');
+
+  const AVATAR_BASE = 'assets/images/avatars/hand-drawn-profiles/';
+  const AVATAR_COUNT = 110;
+
+  // ============ 壁纸 ============
+  function loadWallpaper() {
+    const wallpaperPath = 'assets/images/wallpaper/';
+    const totalImages = 18;
+    const stored = localStorage.getItem('wallpaper');
+    let selected;
+    if (stored) {
+      selected = stored;
+    } else {
+      const session = sessionStorage.getItem('wallpaper_random');
+      if (session) {
+        selected = session;
+      } else {
+        const idx = Math.floor(Math.random() * totalImages) + 2640;
+        selected = `IMG_${idx}.webp`;
+        sessionStorage.setItem('wallpaper_random', selected);
+      }
+    }
+    document.getElementById('wallpaper-layer').style.backgroundImage = `url('${wallpaperPath}${selected}')`;
+  }
+
+  // ============ 头像 ============
+  function randomAvatar() {
+    const idx = Math.floor(Math.random() * AVATAR_COUNT) + 1;
+    return `${idx}.png`;
+  }
+
+  function loadAvatar() {
+    const stored = localStorage.getItem('avatar');
+    const filename = stored || randomAvatar();
+    avatarImg.src = AVATAR_BASE + filename;
+  }
+
+  // ============ 消息渲染 ============
+  let _lastRenderedDate = null;
+  let _lastSenderKey = null;
+
+  function _getSenderKey(msg) {
+    if (msg.type === 'system') return 'system';
+    if (msg.is_self) return 'user';
+    return msg.agent || 'unknown';
+  }
+
+  function _getDateKey(ts) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function _fmtDateLabel(dateKey) {
+    if (!dateKey) return '';
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yestKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    if (dateKey === todayKey) return '今天';
+    if (dateKey === yestKey) return '昨天';
+    const parts = dateKey.split('-');
+    return `${parseInt(parts[1])}月${parseInt(parts[2])}日`;
+  }
+
+  function renderMessage(msg) {
+    // 自动插入日期分隔线
+    const dateKey = _getDateKey(msg.timestamp);
+    if (dateKey && dateKey !== _lastRenderedDate) {
+      _lastRenderedDate = dateKey;
+      _lastSenderKey = null; // 日期变化时重置发送者
+      renderDateSeparator('── ' + _fmtDateLabel(dateKey) + ' ──');
+    }
+
+    const senderKey = _getSenderKey(msg);
+    const isConsecutive = senderKey === _lastSenderKey && senderKey !== 'system';
+    _lastSenderKey = senderKey;
+
+    let html = MessageRenderers.render(msg, role);
+    // 连续消息：隐藏 meta 并减小间距
+    if (isConsecutive) {
+      html = html.replace(/<div class="msg-meta">.*?<\/div>/s, '');
+      html = html.replace('class="msg ', 'class="msg consecutive ');
+    }
+    listEl.insertAdjacentHTML('beforeend', html);
+    listEl.scrollTop = listEl.scrollHeight;
+  }
+
+  function renderDateSeparator(dateStr) {
+    const sep = document.createElement('div');
+    sep.className = 'date-separator';
+    sep.innerHTML = `<span>${dateStr}</span>`;
+    listEl.appendChild(sep);
+  }
+
+  // ============ 下拉刷新 ============
+  let _pullStartY = 0;
+  let _pullDistance = 0;
+  let _isPulling = false;
+  const refreshIndicator = document.getElementById('refresh-indicator');
+  const refreshText = refreshIndicator.querySelector('.refresh-text');
+  const PULL_THRESHOLD = 60;
+
+  listEl.addEventListener('touchstart', (e) => {
+    if (listEl.scrollTop <= 0) {
+      _pullStartY = e.touches[0].clientY;
+      _isPulling = true;
+    }
+  }, { passive: true });
+
+  listEl.addEventListener('touchmove', (e) => {
+    if (!_isPulling) return;
+    _pullDistance = e.touches[0].clientY - _pullStartY;
+    if (_pullDistance > 0 && listEl.scrollTop <= 0) {
+      refreshIndicator.classList.add('visible');
+      refreshIndicator.style.height = Math.min(_pullDistance, 80) + 'px';
+      if (_pullDistance >= PULL_THRESHOLD) {
+        refreshText.textContent = '松开刷新';
+        refreshIndicator.classList.add('ready');
+      } else {
+        refreshText.textContent = '下拉刷新';
+        refreshIndicator.classList.remove('ready');
+      }
+    }
+  }, { passive: true });
+
+  listEl.addEventListener('touchend', async () => {
+    if (!_isPulling) return;
+    _isPulling = false;
+    if (_pullDistance >= PULL_THRESHOLD && listEl.scrollTop <= 0) {
+      refreshText.textContent = '刷新中…';
+      refreshIndicator.classList.add('refreshing');
+      // 重新加载项目消息
+      try {
+        _lastRenderedDate = null;
+        listEl.innerHTML = '';
+        listEl.appendChild(refreshIndicator);
+        await loadProjectMessages();
+      } catch (_) {}
+      refreshIndicator.classList.remove('visible', 'ready', 'refreshing');
+      refreshIndicator.style.height = '0';
+      refreshText.textContent = '下拉刷新';
+    } else {
+      refreshIndicator.classList.remove('visible', 'ready');
+      refreshIndicator.style.height = '0';
+    }
+    _pullDistance = 0;
+  });
+
+  // ============ 从业务数据聚合消息流 ============
+  async function loadProjectMessages() {
+    // 系统通知
+    renderMessage({ type: 'system', content: `── ${new Date().toLocaleDateString('zh-CN')} · 项目启动 ──` });
+
+    // 加载施工任务
+    try {
+      const tasks = await ApiClient.getConstructionTasks(projectId);
+      const taskList = Array.isArray(tasks) ? tasks : (tasks.items || []);
+      if (taskList.length > 0) {
+        const t = taskList[0];
+        const taskItems = (t.tasks || t.checklist || []).map(item => ({
+          name: item.name || item.title || item.description || '',
+          status: item.status === 'done' || item.status === 'completed' ? 'done' :
+                  item.status === 'in_progress' || item.status === 'doing' ? 'in_progress' : 'pending',
+        }));
+        renderMessage({
+          type: 'task_card', agent: 'construction', timestamp: t.created_at || new Date().toISOString(),
+          payload: {
+            title: t.title || t.name || '施工任务',
+            tasks: taskItems.length > 0 ? taskItems : [{ name: '等待任务分配', status: 'pending' }],
+          },
+        });
+      }
+    } catch (e) {
+      // 施工任务不可达时跳过
+    }
+
+    // 加载预算
+    try {
+      const budget = await ApiClient.getBudget(projectId);
+      const total = budget.total_estimated || 0;
+      const spent = budget.total_actual || 0;
+      if (budget && total) {
+        renderMessage({
+          type: 'budget', agent: 'budget', timestamp: new Date().toISOString(),
+          payload: {
+            total: total,
+            spent: spent,
+            remaining: total - spent,
+            note: budget.status ? `预算状态：${budget.status}` : '预算概况',
+          },
+        });
+      }
+    } catch (e) {
+      // 预算不可达时跳过
+    }
+
+    // 加载变更单（审批卡片）
+    try {
+      const changeOrders = await ApiClient.getChangeOrders(projectId);
+      const orders = Array.isArray(changeOrders) ? changeOrders : (changeOrders.items || []);
+      orders.forEach(order => {
+        if (order.status === 'pending' || order.status === 'review') {
+          renderMessage({
+            type: 'approval', agent: 'master', timestamp: order.created_at || new Date().toISOString(),
+            payload: {
+              id: order.id, title: order.title || '变更审批',
+              problem: order.description || order.reason || '',
+              impact_cost: order.cost_impact || order.impact_cost || 0,
+              impact_days: order.schedule_impact || order.impact_days || 0,
+              detail: order.detail || '',
+            },
+          });
+        }
+      });
+    } catch (e) {
+      // 变更单不可达时跳过
+    }
+
+    // 加载 BOM 物料清单卡片（F6/F7）
+    try {
+      const bomItems = await ApiClient.getProjectBOM(projectId);
+      const items = Array.isArray(bomItems) ? bomItems : (bomItems.items || []);
+      if (items.length > 0) {
+        const totalPrice = items.reduce((s, it) => s + (it.total_price || 0), 0);
+        renderMessage({
+          type: 'bom', agent: 'procurement', timestamp: new Date().toISOString(),
+          payload: {
+            title: 'BOM 物料清单',
+            project_id: projectId,
+            items: items,
+            total_price: totalPrice,
+          },
+        });
+      }
+    } catch (e) {
+      // BOM 不可达时跳过
+    }
+
+    // F15 加载支付进度卡片
+    try {
+      const schedule = await ApiClient.getPaymentSchedule(projectId);
+      const stages = Array.isArray(schedule) ? schedule : [];
+      if (stages.length > 0) {
+        const totalPaid = stages.reduce((s, st) => s + (st.paid_amount || 0), 0);
+        const totalAmount = stages.reduce((s, st) => s + (st.total_amount || 0), 0);
+        let invoiceCount = 0;
+        let invoicedAmount = 0;
+        try {
+          const report = await ApiClient.getFinalSettlement(projectId);
+          invoiceCount = report.invoice_count || 0;
+          invoicedAmount = report.invoiced_amount || 0;
+        } catch (_) {}
+        renderMessage({
+          type: 'payment', agent: 'settlement', timestamp: new Date().toISOString(),
+          payload: {
+            stages: stages,
+            total_paid: totalPaid,
+            total_amount: totalAmount,
+            invoice_count: invoiceCount,
+            invoiced_amount: invoicedAmount,
+            note: '分阶段支付节点',
+          },
+        });
+      }
+    } catch (e) {
+      // 支付数据不可达时跳过
+    }
+
+    // 加载结算单卡片（F14）
+    try {
+      const settlement = await ApiClient.getSettlement(projectId);
+      if (settlement && settlement.id) {
+        renderMessage({
+          type: 'settlement', agent: 'settlement', timestamp: new Date().toISOString(),
+          payload: {
+            ...settlement,
+            project_id: projectId,
+          },
+        });
+      }
+    } catch (e) {
+      // 结算单不存在时跳过
+    }
+
+    // 加载采购订单列表卡片
+    try {
+      const ordersResp = await ApiClient.getProcurementOrders(projectId);
+      const orders = Array.isArray(ordersResp) ? ordersResp : (ordersResp.items || []);
+      if (orders.length > 0) {
+        renderMessage({
+          type: 'procurement_orders', agent: 'procurement', timestamp: new Date().toISOString(),
+          payload: { orders: orders },
+        });
+      }
+    } catch (e) {
+      // 采购订单不可达时跳过
+    }
+
+    // 加载比价报告卡片（F33）
+    try {
+      const comparisons = await ApiClient.getProjectComparisons(projectId);
+      const cmpList = Array.isArray(comparisons) ? comparisons : (comparisons.items || []);
+      cmpList.slice(0, 3).forEach(cmp => {
+        // 取详情以获得报价明细
+        ApiClient.getComparison(cmp.id).then(detail => {
+          const items = (detail.items || []);
+          const quotes = items.length > 0 ? (items[0].quotations || []) : [];
+          renderMessage({
+            type: 'quote', agent: 'procurement', timestamp: cmp.created_at || new Date().toISOString(),
+            payload: {
+              product: `比价报告 ${cmp.report_no || ''}（${cmp.item_count || 0} 项）`,
+              quotes: quotes.map(q => ({
+                supplier: q.supplier_name,
+                price: q.price,
+                recommended: q.supplier_id === items[0].recommended_supplier_id,
+              })),
+              recommendation: cmp.total_savings != null
+                ? `预计节省 ¥${(cmp.total_savings || 0).toLocaleString()}`
+                : '',
+            },
+          });
+        }).catch(() => {});
+      });
+    } catch (e) {
+      // 比价报告不可达时跳过
+    }
+
+    // 加载采购订单关联的物流/担保支付卡片（F34）
+    try {
+      const orders = await ApiClient.getProcurementOrders(projectId);
+      const orderList = Array.isArray(orders) ? orders : (orders.items || []);
+      for (const order of orderList.slice(0, 5)) {
+        // 物流追踪
+        try {
+          const trackings = await ApiClient.getOrderLogistics(order.id);
+          (Array.isArray(trackings) ? trackings : []).slice(0, 2).forEach(t => {
+            renderMessage({
+              type: 'logistics', agent: 'procurement', timestamp: t.created_at || new Date().toISOString(),
+              payload: {
+                tracking_no: t.tracking_no,
+                carrier: t.carrier,
+                ship_from: t.ship_from,
+                ship_to: t.ship_to,
+                status: t.status,
+                tracking_history: t.tracking_history || [],
+              },
+            });
+          });
+        } catch (_) {}
+        // 担保支付
+        try {
+          const escrows = await ApiClient.getOrderEscrow(order.id);
+          (Array.isArray(escrows) ? escrows : []).slice(0, 2).forEach(p => {
+            renderMessage({
+              type: 'escrow', agent: 'procurement', timestamp: p.created_at || new Date().toISOString(),
+              payload: {
+                escrow_no: p.escrow_no,
+                total_amount: p.total_amount,
+                escrow_fee: p.escrow_fee,
+                status: p.status,
+                dispute_reason: p.dispute_reason,
+              },
+            });
+          });
+        } catch (_) {}
+      }
+    } catch (e) {
+      // 采购订单不可达时跳过
+    }
+
+    // 加载样品索要卡片（F34）
+    try {
+      const samples = await ApiClient.getProjectSamples(projectId);
+      const sampleList = Array.isArray(samples) ? samples : (samples.items || []);
+      sampleList.slice(0, 5).forEach(s => {
+        renderMessage({
+          type: 'sample', agent: 'procurement', timestamp: s.created_at || new Date().toISOString(),
+          payload: {
+            sample_type: s.sample_type,
+            status: s.status,
+            notes: s.notes,
+            material_name: s.material_id || '',
+          },
+        });
+      });
+    } catch (e) {
+      // 样品索要不可达时跳过
+    }
+
+    // 加载历史 IM 消息（F40 三方协作，支持无限滚动）
+    let _historyHasMore = true;
+    let _historyLoadedCount = 0;
+    const HISTORY_PAGE_SIZE = 100;
+
+    async function loadHistoryMessages() {
+      if (!_historyHasMore || !projectId) return;
+      try {
+        const history = await ApiClient.getChatMessages(projectId, HISTORY_PAGE_SIZE);
+        const msgs = Array.isArray(history) ? history : (history.items || []);
+        _historyHasMore = msgs.length >= HISTORY_PAGE_SIZE;
+        _historyLoadedCount += msgs.length;
+
+        const roleToAgent = {
+          homeowner: 'master', owner: 'master', admin: 'master',
+          designer: 'design',
+          contractor: 'construction', foreman: 'construction',
+          supplier: 'procurement',
+        };
+
+        if (msgs.length === 0) return;
+
+        // 记录插入前的滚动高度
+        const prevScrollHeight = listEl.scrollHeight;
+
+        if (_historyLoadedCount === msgs.length) {
+          // 首次加载：显示日期分隔线
+          renderDateSeparator('── 协作消息 ──');
+        }
+
+        msgs.forEach(m => {
+          const isSelf = currentUser && m.sender_id === currentUser.id;
+          const agentKey = roleToAgent[m.sender_role] || 'master';
+          renderMessage({
+            type: 'text',
+            is_self: !!isSelf,
+            agent: isSelf ? null : agentKey,
+            display_name: isSelf ? null : m.sender_name,
+            timestamp: m.created_at || new Date().toISOString(),
+            content: m.content,
+          });
+          IMClient.markRendered(m.id);
+        });
+
+        // 保持滚动位置（仅在非首次加载时）
+        if (_historyLoadedCount > msgs.length) {
+          listEl.scrollTop = listEl.scrollHeight - prevScrollHeight;
+        }
+      } catch (e) {
+        // 历史消息不可达时跳过
+        _historyHasMore = false;
+      }
+    }
+
+    await loadHistoryMessages();
+
+    // 总控 Agent 欢迎消息
+    renderMessage({
+      type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+      content: `欢迎，${currentUser?.name || roleLabel}。我是总控 Agent，已协调 8 个 AI 智能体为你的项目服务。你可以直接在群里提问，例如"现在预算还剩多少"或"施工进度怎么样"。`,
+    });
+
+    // 建立 WebSocket 实时连接（在历史消息加载后，避免顺序错乱）
+    _connectIM();
+
+    // 无限滚动：滚动到顶部时加载更多历史
+    let _isLoadingHistory = false;
+    listEl.addEventListener('scroll', () => {
+      if (listEl.scrollTop < 80 && !_isLoadingHistory && _historyHasMore) {
+        _isLoadingHistory = true;
+        loadHistoryMessages().finally(() => {
+          _isLoadingHistory = false;
+        });
+      }
+    }, { passive: true });
+  }
+
+  // ============ WebSocket 实时消息 ============
+  function _connectIM() {
+    const token = ApiClient.getToken();
+    if (!token || !projectId) return;
+    // 已连接且项目相同则跳过
+    if (IMClient.ws && IMClient.ws.readyState === WebSocket.OPEN && IMClient.projectId === projectId) return;
+    // 项目切换时先关闭旧连接
+    if (IMClient.ws && IMClient.projectId !== projectId) {
+      IMClient.close();
+      IMClient.maxReconnect = 5; // 重置重连上限
+    }
+
+    IMClient.on('chat.message', (data) => {
+      _handleIncomingIM(data);
+    });
+
+    IMClient.connect(token, projectId, currentUser?.id || '').catch(() => {
+      // 连接失败不阻塞，后续会自动重连
+    });
+  }
+
+  function _handleIncomingIM(data) {
+    // data: ChatMessageResponse { id, sender_id, sender_name, sender_role, content, ... }
+    const msgId = data.id;
+    // 防重复（自己发送的消息会被服务端广播回来）
+    if (IMClient.hasRendered(msgId)) return;
+    IMClient.markRendered(msgId);
+
+    const isSelf = currentUser && data.sender_id === currentUser.id;
+    const roleToAgent = {
+      homeowner: 'master', owner: 'master', admin: 'master',
+      designer: 'design',
+      contractor: 'construction', foreman: 'construction',
+      supplier: 'procurement',
+    };
+    const agentKey = roleToAgent[data.sender_role] || 'master';
+
+    // 页面非激活时显示通知 toast
+    if (document.hidden && !isSelf) {
+      _showNotificationToast(data.sender_name || agentKey, data.content);
+    }
+
+    renderMessage({
+      type: 'text',
+      is_self: !!isSelf,
+      agent: isSelf ? null : agentKey,
+      display_name: isSelf ? null : data.sender_name,
+      timestamp: data.created_at || new Date().toISOString(),
+      content: data.content,
+    });
+  }
+
+  // 页面卸载时关闭 WS
+  window.addEventListener('beforeunload', () => {
+    if (IMClient.ws) IMClient.close();
+  });
+
+  // 新消息通知 toast
+  let _toastTimer = null;
+  function _showNotificationToast(sender, content) {
+    const toast = document.getElementById('notification-toast');
+    const senderEl = document.getElementById('nt-sender');
+    const contentEl = document.getElementById('nt-content');
+    senderEl.textContent = sender;
+    contentEl.textContent = (content || '').slice(0, 60);
+    toast.hidden = false;
+    toast.classList.add('show');
+    // 点击 toast 聚焦页面
+    toast.onclick = () => window.focus();
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => { toast.hidden = true; }, 300);
+    }, 3500);
+  }
+
+  // ============ 审批按钮处理 ============
+  listEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.approval-btn');
+    if (!btn) return;
+    const approvalId = btn.dataset.approvalId;
+    const decision = btn.dataset.decision;
+    btn.disabled = true;
+    btn.textContent = '处理中…';
+    try {
+      await ApiClient.approveChangeOrder(approvalId, decision);
+      btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
+    } catch (err) {
+      btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
+    }
+    btn.style.opacity = 0.6;
+  });
+
+  // ============ BOM 导出处理（F7） ============
+  listEl.addEventListener('click', async (e) => {
+    const link = e.target.closest('[data-bom-export]');
+    if (!link) return;
+    e.preventDefault();
+    const pid = link.dataset.bomExport;
+    if (!pid) return;
+    const original = link.textContent;
+    link.textContent = '生成中…';
+    try {
+      const blob = await ApiClient.exportBOM(pid);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bom-${pid.slice(0, 8)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      link.textContent = '✓ 已下载';
+    } catch (err) {
+      link.textContent = '导出失败';
+    }
+    setTimeout(() => { link.textContent = original; }, 2000);
+  });
+
+  // ============ 结算单交互（F14） ============
+  listEl.addEventListener('click', async (e) => {
+    const confirmBtn = e.target.closest('[data-settlement-confirm]');
+    if (confirmBtn) {
+      const pid = confirmBtn.dataset.settlementConfirm;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '处理中…';
+      try {
+        await ApiClient.confirmSettlement(pid);
+        confirmBtn.textContent = '✓ 已确认';
+        renderMessage({
+          type: 'text', agent: 'settlement', timestamp: new Date().toISOString(),
+          content: '结算单已确认，应付金额已锁定。',
+        });
+      } catch (err) {
+        const msg = err?.body?.detail?.message || err?.body?.detail || '确认失败';
+        confirmBtn.textContent = '✗ 失败';
+        renderMessage({
+          type: 'text', agent: 'settlement', timestamp: new Date().toISOString(),
+          content: `结算确认失败：${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
+        });
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '确认结算';
+      }
+      return;
+    }
+
+    const reviewBtn = e.target.closest('[data-settlement-approve-review]');
+    if (reviewBtn) {
+      const pid = reviewBtn.dataset.settlementApproveReview;
+      reviewBtn.disabled = true;
+      reviewBtn.textContent = '处理中…';
+      try {
+        await ApiClient.approveSettlementReview(pid);
+        reviewBtn.textContent = '✓ 已通过';
+        renderMessage({
+          type: 'text', agent: 'settlement', timestamp: new Date().toISOString(),
+          content: '人工复核已通过，可继续确认结算。',
+        });
+      } catch (err) {
+        reviewBtn.textContent = '✗ 失败';
+        reviewBtn.disabled = false;
+        reviewBtn.textContent = '通过复核';
+      }
+      return;
+    }
+
+    const exportLink = e.target.closest('[data-settlement-export]');
+    if (exportLink) {
+      e.preventDefault();
+      const pid = exportLink.dataset.settlementExport;
+      const original = exportLink.textContent;
+      exportLink.textContent = '生成中…';
+      try {
+        const data = await ApiClient.exportSettlement(pid);
+        // 触发 JSON 下载（前端无 Excel 依赖时降级为 JSON）
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `settlement-${pid.slice(0, 8)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        exportLink.textContent = '✓ 已下载';
+      } catch (err) {
+        exportLink.textContent = '导出失败';
+      }
+      setTimeout(() => { exportLink.textContent = original; }, 2000);
+      return;
+    }
+  });
+
+  // ============ 右键菜单 ============
+  const contextMenu = document.getElementById('context-menu');
+  let _ctxTarget = null;
+
+  listEl.addEventListener('contextmenu', (e) => {
+    const bubble = e.target.closest('.msg-bubble');
+    if (!bubble) {
+      // 在非 bubble 区域右键，保持默认行为
+      hideContextMenu();
+      return;
+    }
+    e.preventDefault();
+    _ctxTarget = bubble;
+    // 定位菜单
+    const x = Math.min(e.clientX, window.innerWidth - 160);
+    const y = Math.min(e.clientY, window.innerHeight - 60);
+    contextMenu.style.left = x + 'px';
+    contextMenu.style.top = y + 'px';
+    contextMenu.removeAttribute('hidden');
+  });
+
+  contextMenu.addEventListener('click', async (e) => {
+    const item = e.target.closest('.context-item');
+    if (!item) return;
+    const action = item.dataset.action;
+    if (action === 'copy' && _ctxTarget) {
+      try {
+        await navigator.clipboard.writeText(_ctxTarget.textContent.trim());
+        item.textContent = '✓ 已复制';
+        setTimeout(() => { item.textContent = '📋 复制文本'; }, 1500);
+      } catch (_) {
+        item.textContent = '✗ 复制失败';
+        setTimeout(() => { item.textContent = '📋 复制文本'; }, 1500);
+      }
+    } else if (action === 'quote' && _ctxTarget) {
+      // 获取消息文本和发送者
+      const msgEl = _ctxTarget.closest('.msg');
+      const metaEl = msgEl?.querySelector('.msg-meta strong');
+      const sender = metaEl ? metaEl.textContent.trim() : '消息';
+      const text = _ctxTarget.textContent.trim();
+      const quoteText = text.length > 80 ? text.substring(0, 80) + '…' : text;
+      // 构建引用格式插入输入框
+      const currentVal = inputEl.value;
+      const quote = `> ${sender}: ${quoteText}\n`;
+      inputEl.value = currentVal + (currentVal && !currentVal.endsWith('\n') ? '\n' : '') + quote;
+      inputEl.focus();
+      inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      // 触发 input 事件以保存草稿
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      item.textContent = '✓ 已插入引用';
+      setTimeout(() => { item.textContent = '💬 引用回复'; }, 1500);
+    }
+    hideContextMenu();
+  });
+
+  function hideContextMenu() {
+    contextMenu.setAttribute('hidden', '');
+    _ctxTarget = null;
+  }
+
+  // 点击外部关闭
+  document.addEventListener('click', (e) => {
+    if (!contextMenu.contains(e.target)) {
+      hideContextMenu();
+    }
+  });
+
+  // ============ 发送消息 ============
+  async function sendMessage(text) {
+    if (!text.trim()) return;
+    const content = text.trim();
+    // 渲染用户消息（乐观渲染）
+    renderMessage({
+      type: 'text', is_self: true, timestamp: new Date().toISOString(), content,
+    });
+    inputEl.value = '';
+    clearDraft();
+
+    // 持久化到 IM（F40 三方协作）—— 让其他端实时可见
+    if (projectId) {
+      const mentions = extractMentions(content);
+      ApiClient.sendChatMessage({
+        project_id: projectId,
+        content,
+        message_type: 'text',
+        ...(mentions.length > 0 ? { mentions } : {}),
+      }).then(resp => {
+        // 标记已渲染，防止 WebSocket 回推重复
+        if (resp && resp.id) IMClient.markRendered(resp.id);
+      }).catch(() => {
+        // IM 持久化失败不阻塞 Agent 回复
+      });
+    }
+
+    // 自然语言路由
+    const route = AgentRouter.route(text);
+    // 映射 agent key 到后端 agent_type
+    const agentTypeMap = {
+      master: 'orchestrator',
+      design: 'design',
+      budget: 'budget',
+      procurement: 'procurement',
+      construction: 'construction',
+      quality: 'qa_inspector',
+      settlement: 'settlement',
+      support: 'concierge',
+    };
+    const agentType = agentTypeMap[route.agent] || 'orchestrator';
+
+    // 从消息流提取最近 10 轮对话（最多 20 条消息）作为上下文
+    const history = [];
+    const historyMsgs = listEl.querySelectorAll('.msg');
+    const recentMsgs = Array.from(historyMsgs).slice(-20);
+    recentMsgs.forEach(el => {
+      const isSelf = el.classList.contains('user');
+      const bubble = el.querySelector('.msg-bubble');
+      if (!bubble) return;
+      let agentT = '';
+      if (!isSelf) {
+        const m = el.className.match(/agent-(\S+)/);
+        if (m) agentT = m[1];
+      }
+      history.push({
+        role: isSelf ? 'user' : 'assistant',
+        content: bubble.textContent.trim().slice(0, 500),
+        agent_type: agentT,
+      });
+    });
+
+    // 流式响应（有项目时使用 SSE 流式）
+    if (projectId) {
+      // 创建打字指示器占位
+      const agentInfo = AgentRouter.getAgentInfo('master');
+      const typingHTML = `<div class="msg agent agent-master" id="streaming-placeholder">
+        <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${MessageRenderers._fmtTime(new Date().toISOString())}</div>
+        <div class="msg-bubble typing-indicator">
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+          <span class="typing-dot"></span>
+        </div>
+      </div>`;
+      listEl.insertAdjacentHTML('beforeend', typingHTML);
+      listEl.scrollTop = listEl.scrollHeight;
+
+      async function streamChat() {
+        try {
+          const token = ApiClient.getToken();
+          const resp = await fetch(ApiClient.BASE_URL + '/api/agents/chat/stream', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token,
+            },
+            body: JSON.stringify({
+              message: text,
+              agent_type: 'orchestrator',
+              project_id: projectId,
+              history: history,
+            }),
+          });
+          if (!resp.ok) throw new Error('Stream request failed: ' + resp.status);
+
+          // 找到占位消息元素并更新
+          const placeholder = document.getElementById('streaming-placeholder');
+          if (!placeholder) return;
+          const bubble = placeholder.querySelector('.msg-bubble');
+          if (!bubble) return;
+
+          // 将打字指示器替换为文本内容
+          bubble.classList.remove('typing-indicator');
+          bubble.innerHTML = '';
+          bubble.textContent = '';
+          let fullContent = '';
+
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = JSON.parse(line.slice(6));
+                if (data.event === 'meta') {
+                  // 更新 agent 类型和 meta 信息
+                  const agentKey = data.agent_type || 'master';
+                  const reverseMap = { orchestrator: 'master', design: 'design', budget: 'budget', procurement: 'procurement', construction: 'construction', qa_inspector: 'quality', settlement: 'settlement', concierge: 'support' };
+                  const frontendKey = reverseMap[agentKey] || 'master';
+                  placeholder.className = placeholder.className.replace(/agent-\S+/, 'agent-' + frontendKey);
+                  const ai = AgentRouter.getAgentInfo(frontendKey);
+                  const metaEl = placeholder.querySelector('.msg-meta strong');
+                  if (metaEl) {
+                    metaEl.textContent = ai.emoji + ' ' + ai.name + ' Agent';
+                    metaEl.style.color = ai.color;
+                  }
+                } else if (data.event === 'token') {
+                  fullContent += data.content;
+                  bubble.textContent = fullContent;
+                  listEl.scrollTop = listEl.scrollHeight;
+                }
+                // done 事件无需处理
+              }
+            }
+          }
+          // 移除 ID 属性，变为普通消息
+          placeholder.removeAttribute('id');
+        } catch (e) {
+          console.error('Stream chat error:', e);
+          // 移除占位
+          const placeholder = document.getElementById('streaming-placeholder');
+          if (placeholder) {
+            const bubble = placeholder.querySelector('.msg-bubble');
+            if (bubble && (bubble.classList.contains('typing-indicator') || bubble.textContent === '')) {
+              placeholder.remove();
+            }
+          }
+          // 流式失败，降级到非流式 API
+          try {
+            const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
+            if (resp.reply) {
+              const reverseMap = {
+                orchestrator: 'master', design: 'design', budget: 'budget',
+                procurement: 'procurement', construction: 'construction',
+                qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+              };
+              const agentKey = reverseMap[resp.agent_type] || route.agent;
+              renderMessage({
+                type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
+                content: resp.reply,
+              });
+              if (resp.suggestions && resp.suggestions.length > 0) {
+                renderMessage({
+                  type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
+                  content: '💡 ' + resp.suggestions.join(' / '),
+                });
+              }
+            }
+          } catch (err2) {
+            renderMessage({
+              type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+              content: '抱歉，AI 服务暂时不可用，请稍后重试。'
+            });
+          }
+        }
+      }
+
+      streamChat();
+      return;
+    }
+
+    // 调用后端 Agent Chat API
+    try {
+      const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
+      if (resp.reply) {
+        // 映射 agent_type 回前端 agent key
+        const reverseMap = {
+          orchestrator: 'master', design: 'design', budget: 'budget',
+          procurement: 'procurement', construction: 'construction',
+          qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+        };
+        const agentKey = reverseMap[resp.agent_type] || route.agent;
+        renderMessage({
+          type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
+          content: resp.reply,
+        });
+        // 渲染建议
+        if (resp.suggestions && resp.suggestions.length > 0) {
+          renderMessage({
+            type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
+            content: '💡 ' + resp.suggestions.join(' / '),
+          });
+        }
+      }
+    } catch (err) {
+      // 后端不可达，本地路由回复
+      if (route.payload && route.payload.clarify) {
+        renderMessage({
+          type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+          content: route.payload.message,
+        });
+      } else {
+        const agentInfo = AgentRouter.getAgentInfo(route.agent);
+        renderMessage({
+          type: 'text', agent: route.agent, timestamp: new Date().toISOString(),
+          content: `（${agentInfo.emoji} ${agentInfo.name} Agent 暂时离线）请稍后重试。`,
+        });
+      }
+    }
+  }
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // 如果 mention 弹窗开启且有选中项，不发送消息（由 mention handler 处理）
+      if (mentionActive && mentionPopup.classList.contains('open') && mentionIdx >= 0) return;
+      e.preventDefault();
+      sendMessage(inputEl.value);
+    }
+  });
+
+  // ============ emoji 选择器 ============
+  const emojiPanel = document.getElementById('emoji-panel');
+  const emojiBtn = document.getElementById('emoji-btn');
+  const emojiGrid = document.getElementById('emoji-grid');
+  let _emojiCategory = 'recent';
+
+  const EMOJI_DATA = {
+    smileys: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽 👾 🤖'.split(' '),
+    gestures: '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 🙏 🤲 💪 🤜 🤛 ✊ 👊 🫶 🫰 🫵'.split(' '),
+    hearts: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💯 🔥 ⭐ 🌟 ✨ ⚡ 💢 💥 💫 💦 🎉 🎊 🎈 🏆 🎁'.split(' '),
+    renovation: '🏠 🏗️ 🛏️ 🛋️ 🪑 🚪 🪟 🛁 🚿 🚽 🧱 🔨 🪛 🔩 🪚 🧰 🛠️ ⚒️ 📐 📏 ✂️ 🧹 🧽 💡 🔌 🪔 ⚡ 🧴 🪣 🎨 🖌️'.split(' '),
+  };
+
+  function _getRecentEmojis() {
+    try {
+      const stored = localStorage.getItem('emoji_recent');
+      return stored ? JSON.parse(stored) : [];
+    } catch (_) { return []; }
+  }
+
+  function _addRecentEmoji(emoji) {
+    try {
+      let recent = _getRecentEmojis().filter(e => e !== emoji);
+      recent.unshift(emoji);
+      recent = recent.slice(0, 32);
+      localStorage.setItem('emoji_recent', JSON.stringify(recent));
+    } catch (_) {}
+  }
+
+  function _renderEmojiGrid() {
+    let emojis;
+    if (_emojiCategory === 'recent') {
+      emojis = _getRecentEmojis();
+      if (emojis.length === 0) {
+        emojiGrid.innerHTML = '<div class="emoji-empty">还没有最近使用的表情，点击其他分类选择</div>';
+        return;
+      }
+    } else {
+      emojis = EMOJI_DATA[_emojiCategory] || [];
+    }
+    emojiGrid.innerHTML = emojis.map(e =>
+      `<div class="emoji-item" role="option" tabindex="0" aria-label="${e}">${e}</div>`
+    ).join('');
+  }
+
+  function toggleEmojiPanel() {
+    const isOpen = !emojiPanel.hasAttribute('hidden');
+    if (isOpen) {
+      closeEmojiPanel();
+    } else {
+      // 关闭其他弹层
+      attachMenu.classList.remove('open');
+      attachBtn.setAttribute('aria-expanded', 'false');
+      // 打开 emoji 面板
+      emojiPanel.removeAttribute('hidden');
+      emojiBtn.classList.add('active');
+      emojiBtn.setAttribute('aria-expanded', 'true');
+      _emojiCategory = 'recent';
+      _updateEmojiTabs();
+      _renderEmojiGrid();
+    }
+  }
+
+  function closeEmojiPanel() {
+    emojiPanel.setAttribute('hidden', '');
+    emojiBtn.classList.remove('active');
+    emojiBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function _updateEmojiTabs() {
+    emojiPanel.querySelectorAll('.emoji-tab').forEach(tab => {
+      const active = tab.dataset.cat === _emojiCategory;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+  }
+
+  emojiBtn.addEventListener('click', toggleEmojiPanel);
+
+  // 分类切换
+  emojiPanel.querySelectorAll('.emoji-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      _emojiCategory = tab.dataset.cat;
+      _updateEmojiTabs();
+      _renderEmojiGrid();
+    });
+  });
+
+  // emoji 选中
+  emojiGrid.addEventListener('click', (e) => {
+    const item = e.target.closest('.emoji-item');
+    if (!item) return;
+    const emoji = item.textContent;
+    // 在光标位置插入 emoji
+    const start = inputEl.selectionStart;
+    const end = inputEl.selectionEnd;
+    const val = inputEl.value;
+    inputEl.value = val.slice(0, start) + emoji + val.slice(end);
+    const newPos = start + emoji.length;
+    inputEl.setSelectionRange(newPos, newPos);
+    inputEl.focus();
+    // 记录到最近使用
+    _addRecentEmoji(emoji);
+    // 触发 input 事件以保存草稿
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // 键盘支持：Enter 选中
+  emojiGrid.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.emoji-item');
+      if (item) { e.preventDefault(); item.click(); }
+    }
+  });
+
+  // 点击外部关闭
+  document.addEventListener('click', (e) => {
+    if (!emojiPanel.contains(e.target) && e.target !== emojiBtn) {
+      closeEmojiPanel();
+    }
+  });
+
+  // ============ 附件菜单 ============
+  attachBtn.addEventListener('click', () => {
+    closeEmojiPanel();
+    const isOpen = attachMenu.classList.toggle('open');
+    attachBtn.setAttribute('aria-expanded', isOpen);
+  });
+
+  // 关闭附件菜单（点击外部）
+  document.addEventListener('click', (e) => {
+    if (!attachBtn.contains(e.target) && !attachMenu.contains(e.target)) {
+      attachMenu.classList.remove('open');
+      attachBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  attachMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('.attach-item');
+    if (!item) return;
+    const action = item.dataset.action;
+    attachMenu.classList.remove('open');
+    attachBtn.setAttribute('aria-expanded', 'false');
+
+    if (action === 'photo') {
+      openCamera();
+    } else if (action === 'file') {
+      openFilePicker();
+    } else if (action === 'location') {
+      shareLocation();
+    }
+  });
+
+  // 拍照
+  function openCamera() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.capture = 'environment';
+    fileInput.onchange = async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      // 乐观渲染本地预览
+      const localUrl = URL.createObjectURL(file);
+      renderMessage({
+        type: 'photo', is_self: true, timestamp: new Date().toISOString(),
+        payload: { photos: [{ url: localUrl, caption: '现场照片' }], note: '上传中…' },
+      });
+      try {
+        const resp = await ApiClient.uploadFile(file, projectId, 'photo');
+        // 更新为服务器 URL
+        const lastPhoto = listEl.querySelector('.msg.user:last-of-type .photo-thumb');
+        if (lastPhoto && resp.url) {
+          lastPhoto.style.backgroundImage = `url('${resp.url}')`;
+        }
+      } catch (_) {
+        // 保持本地预览
+      }
+    };
+    fileInput.click();
+  }
+
+  // 文件选择
+  function openFilePicker() {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.usdz,.glb,.gltf';
+    fileInput.onchange = async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      renderMessage({
+        type: 'document', is_self: true, agent: null, timestamp: new Date().toISOString(),
+        payload: { name: file.name, size: _fmtFileSize(file.size), url: '#', note: '上传中…' },
+      });
+      try {
+        const resp = await ApiClient.uploadFile(file, projectId, 'document');
+        if (resp.url) {
+          // 更新为服务器 URL（如果支持）
+        }
+      } catch (_) {
+        // 保持本地状态
+      }
+    };
+    fileInput.click();
+  }
+
+  function _fmtFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  // 位置共享
+  async function shareLocation() {
+    if (!projectId) {
+      renderMessage({
+        type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+        content: '请先选择或创建项目。',
+      });
+      return;
+    }
+    renderMessage({
+      type: 'text', is_self: true, timestamp: new Date().toISOString(),
+      content: '📍 正在获取位置…',
+    });
+    try {
+      // 使用浏览器 Geolocation API
+      const pos = await new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('浏览器不支持定位'));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true, timeout: 10000, maximumAge: 60000,
+        });
+      });
+      const { latitude, longitude } = pos.coords;
+      // 逆地理编码获取地址
+      let address = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      try {
+        const geo = await ApiClient.geocodeLocation(`${longitude},${latitude}`);
+        if (geo.result && geo.result.formatted_address) {
+          address = geo.result.formatted_address;
+        }
+      } catch (_) {}
+      renderMessage({
+        type: 'text', is_self: true, timestamp: new Date().toISOString(),
+        content: `📍 ${address}\n🗺 https://uri.amap.com/marker?position=${longitude},${latitude}`,
+      });
+    } catch (err) {
+      // 定位失败，提供手动输入搜索
+      const query = prompt('无法自动定位。请输入地址搜索：', '');
+      if (!query || !query.trim()) return;
+      try {
+        const result = await ApiClient.autocompleteLocation(query.trim());
+        const pois = result.pois || [];
+        if (pois.length > 0) {
+          const p = pois[0];
+          renderMessage({
+            type: 'text', is_self: true, timestamp: new Date().toISOString(),
+            content: `📍 ${p.name} · ${p.address}\n🗺 https://uri.amap.com/marker?position=${p.location}`,
+          });
+        } else {
+          renderMessage({
+            type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+            content: `未找到"${query}"的相关位置。`,
+          });
+        }
+      } catch (_) {
+        renderMessage({
+          type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+          content: '位置服务暂时不可用。',
+        });
+      }
+    }
+  }
+
+  // ============ 语音输入 ============
+  const voiceBtn = document.getElementById('voice-btn');
+  let isRecording = false;
+  let recognition = null;
+
+  voiceBtn.addEventListener('click', () => {
+    if (isRecording) {
+      stopVoiceInput();
+    } else {
+      startVoiceInput();
+    }
+  });
+
+  function startVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      renderMessage({
+        type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+        content: '当前浏览器不支持语音输入。',
+      });
+      return;
+    }
+    if (!recognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'zh-CN';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        inputEl.value = transcript;
+        isRecording = false;
+        voiceBtn.textContent = '🎤';
+        voiceBtn.style.color = '';
+      };
+      recognition.onerror = () => {
+        isRecording = false;
+        voiceBtn.textContent = '🎤';
+        voiceBtn.style.color = '';
+      };
+      recognition.onend = () => {
+        isRecording = false;
+        voiceBtn.textContent = '🎤';
+        voiceBtn.style.color = '';
+      };
+    }
+    isRecording = true;
+    voiceBtn.textContent = '🔴';
+    voiceBtn.style.color = 'var(--danger)';
+    recognition.start();
+  }
+
+  function stopVoiceInput() {
+    if (recognition) {
+      recognition.stop();
+    }
+    isRecording = false;
+    voiceBtn.textContent = '🎤';
+    voiceBtn.style.color = '';
+  }
+
+  // ============ @mention ============
+  const mentionPopup = document.getElementById('mention-popup');
+  const AGENTS = [
+    { key: 'master',      name: '总控 Agent', emoji: '🏠', color: 'var(--agent-master)' },
+    { key: 'design',      name: '设计 Agent', emoji: '📐', color: 'var(--agent-design)' },
+    { key: 'budget',      name: '预算 Agent', emoji: '💰', color: 'var(--agent-budget)' },
+    { key: 'procurement', name: '采购 Agent', emoji: '🛒', color: 'var(--agent-procurement)' },
+    { key: 'construction',name: '施工 Agent', emoji: '🔨', color: 'var(--agent-construction)' },
+    { key: 'quality',     name: '质检 Agent', emoji: '✅', color: 'var(--agent-quality)' },
+    { key: 'settlement',  name: '结算 Agent', emoji: '🧾', color: 'var(--agent-settlement)' },
+    { key: 'support',     name: '客服 Agent', emoji: '🎧', color: 'var(--agent-support)' },
+  ];
+  let mentionActive = false;
+  let mentionFilter = '';
+  let mentionIdx = -1;
+  let mentionCursorPos = 0;
+
+  function renderMentionPopup(filter) {
+    const filtered = filter
+      ? AGENTS.filter(a => a.key.includes(filter) || a.name.includes(filter) || a.emoji.includes(filter))
+      : AGENTS;
+    if (filtered.length === 0) {
+      mentionPopup.innerHTML = '<div class="mention-item" style="color:var(--text-muted);cursor:default;pointer-events:none;">无匹配 Agent</div>';
+      mentionPopup.classList.add('open');
+      return;
+    }
+    mentionPopup.innerHTML = filtered.map((a, i) =>
+      `<div class="mention-item${i === mentionIdx ? ' active' : ''}" data-key="${a.key}" data-idx="${i}" role="option" aria-selected="${i === mentionIdx}">
+        <span class="mention-item-emoji">${a.emoji}</span>
+        <span class="mention-item-name" style="color:${a.color}">${a.name}</span>
+        <span class="mention-item-key">@${a.key}</span>
+      </div>`
+    ).join('');
+    mentionPopup.classList.add('open');
+  }
+
+  function closeMentionPopup() {
+    mentionPopup.classList.remove('open');
+    mentionActive = false;
+    mentionIdx = -1;
+  }
+
+  function insertMention(agentKey) {
+    const val = inputEl.value;
+    const pos = mentionCursorPos;
+    // 找到 @ 开始的位置
+    const beforeAt = val.lastIndexOf('@', pos - 1);
+    if (beforeAt === -1) {
+      closeMentionPopup();
+      return;
+    }
+    const before = val.slice(0, beforeAt);
+    const after = val.slice(pos);
+    const mentionText = `@${agentKey} `;
+    inputEl.value = before + mentionText + after;
+    // 光标定位到插入文本之后
+    const newPos = before.length + mentionText.length;
+    inputEl.setSelectionRange(newPos, newPos);
+    inputEl.focus();
+    closeMentionPopup();
+  }
+
+  inputEl.addEventListener('input', (e) => {
+    const val = inputEl.value;
+    const pos = inputEl.selectionStart;
+    // 从光标位置往前找 @
+    const beforeCursor = val.slice(0, pos);
+    const atIdx = beforeCursor.lastIndexOf('@');
+    if (atIdx === -1) {
+      closeMentionPopup();
+      return;
+    }
+    // 检查 @ 之后到光标之间有没有空格（空格表示 mention 已结束）
+    const afterAt = beforeCursor.slice(atIdx + 1);
+    if (afterAt.includes(' ')) {
+      closeMentionPopup();
+      return;
+    }
+    // 激活 mention
+    mentionActive = true;
+    mentionCursorPos = pos;
+    mentionFilter = afterAt.toLowerCase();
+    mentionIdx = -1;
+    renderMentionPopup(mentionFilter);
+  });
+
+  inputEl.addEventListener('keydown', (e) => {
+    if (!mentionActive || !mentionPopup.classList.contains('open')) return;
+    const items = mentionPopup.querySelectorAll('.mention-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentionIdx = Math.min(mentionIdx + 1, items.length - 1);
+      renderMentionPopup(mentionFilter);
+      items[mentionIdx]?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentionIdx = Math.max(mentionIdx - 1, 0);
+      renderMentionPopup(mentionFilter);
+      items[mentionIdx]?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey && mentionIdx >= 0) {
+      e.preventDefault();
+      const activeItem = items[mentionIdx];
+      if (activeItem) {
+        insertMention(activeItem.dataset.key);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMentionPopup();
+      return;
+    }
+  });
+
+  mentionPopup.addEventListener('click', (e) => {
+    const item = e.target.closest('.mention-item');
+    if (!item || !item.dataset.key) return;
+    insertMention(item.dataset.key);
+  });
+
+  // 点击外部关闭 mention（但点击 popup 内部不关）
+  document.addEventListener('click', (e) => {
+    if (!mentionPopup.contains(e.target) && e.target !== inputEl) {
+      closeMentionPopup();
+    }
+  });
+
+  // 提取消息中的 mentions
+  function extractMentions(text) {
+    const re = /@(\w+)/g;
+    const keys = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      if (AGENTS.some(a => a.key === m[1]) && !keys.includes(m[1])) {
+        keys.push(m[1]);
+      }
+    }
+    return keys;
+  }
+
+  // ============ 项目选择器 ============
+  const statusMap = {
+    draft: '设计阶段', design: '设计阶段', construction: '施工中',
+    completed: '已完工', pending: '筹备中', in_progress: '施工中',
+  };
+
+  function applyProjectInfo(p) {
+    projectInfo = p;
+    projectId = p.id;
+    titleEl.textContent = p.name || '项目群';
+    subtitleEl.textContent = `8 AI 群策群力 · ${statusMap[p.status] || p.status || '进行中'}`;
+    // 更新快捷导航链接，携带 project_id
+    const navDetail = document.getElementById('nav-detail');
+    const navMaterials = document.getElementById('nav-materials');
+    const navQuality = document.getElementById('nav-quality');
+    if (navDetail) navDetail.href = `project-detail.html?id=${projectId}`;
+    if (navMaterials) navMaterials.href = `materials.html?project_id=${projectId}`;
+    if (navQuality) navQuality.href = `quality-report.html?project_id=${projectId}`;
+  }
+
+  function renderProjectPicker() {
+    if (!allProjects.length) {
+      projectPickerList.innerHTML = '<div class="project-picker-empty">暂无项目，请新建</div>';
+      return;
+    }
+    projectPickerList.innerHTML = allProjects.map(p => `
+      <div class="project-picker-item ${p.id === projectId ? 'active' : ''}" data-pid="${p.id}" role="option" tabindex="0">
+        <div class="pp-name">${p.name || '未命名项目'}</div>
+        <div class="pp-meta">${statusMap[p.status] || p.status || '进行中'} · ${p.total_area ? p.total_area + '㎡' : '面积未填'}</div>
+      </div>
+    `).join('');
+    projectPickerList.querySelectorAll('.project-picker-item').forEach(el => {
+      el.addEventListener('click', async () => {
+        const pid = el.dataset.pid;
+        const selected = allProjects.find(x => x.id === pid);
+        if (!selected || pid === projectId) {
+          closeProjectPicker();
+          return;
+        }
+        closeProjectPicker();
+        // 切换前保存当前项目草稿
+        saveDraft();
+        inputEl.value = '';
+        listEl.innerHTML = '';
+        applyProjectInfo(selected);
+        await loadProjectMessages();
+        // 恢复新项目的草稿
+        restoreDraft();
+      });
+    });
+  }
+
+  function openProjectPicker() {
+    renderProjectPicker();
+    projectPicker.classList.add('open');
+  }
+  function closeProjectPicker() {
+    projectPicker.classList.remove('open');
+  }
+  titleBlockEl.addEventListener('click', () => {
+    openProjectPicker();
+  });
+  projectPickerClose.addEventListener('click', closeProjectPicker);
+  projectPicker.addEventListener('click', (e) => {
+    if (e.target === projectPicker) closeProjectPicker();
+  });
+
+  // ============ 创建项目对话框 ============
+  function openCreateDialog() {
+    closeProjectPicker();
+    createProjectForm.reset();
+    document.getElementById('cp-error').hidden = true;
+    createDialog.classList.add('open');
+    setTimeout(() => document.getElementById('cp-name').focus(), 100);
+  }
+  function closeCreateDialog() {
+    createDialog.classList.remove('open');
+  }
+  newProjectBtn.addEventListener('click', openCreateDialog);
+  projectPickerCreateBtn.addEventListener('click', openCreateDialog);
+  createDialogClose.addEventListener('click', closeCreateDialog);
+  createDialog.addEventListener('click', (e) => {
+    if (e.target === createDialog) closeCreateDialog();
+  });
+
+  createProjectForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('cp-name').value.trim();
+    const address = document.getElementById('cp-address').value.trim() || null;
+    const areaVal = document.getElementById('cp-area').value;
+    const totalArea = areaVal ? parseFloat(areaVal) : null;
+    const errEl = document.getElementById('cp-error');
+    const submitBtn = document.getElementById('cp-submit-btn');
+
+    if (!name) {
+      errEl.textContent = '请输入项目名称';
+      errEl.hidden = false;
+      return;
+    }
+
+    errEl.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '创建中…';
+
+    try {
+      const payload = { name };
+      if (address) payload.address = address;
+      if (totalArea) payload.total_area = totalArea;
+      const newProject = await ApiClient.createProject(payload);
+
+      // 刷新项目列表
+      const projects = await ApiClient.getProjects();
+      allProjects = projects;
+
+      closeCreateDialog();
+      submitBtn.disabled = false;
+      submitBtn.textContent = '创建项目';
+
+      // 切换到新项目
+      listEl.innerHTML = '';
+      applyProjectInfo(newProject);
+      if (allProjects.length > 1) {
+        titleBlockEl.classList.add('has-switcher');
+      }
+      await loadProjectMessages();
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '创建项目';
+      const msg = (err.body && (err.body.detail || (Array.isArray(err.body.detail) ? err.body.detail[0]?.msg : err.body.detail))) || err.message || '创建失败';
+      errEl.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
+      errEl.hidden = false;
+    }
+  });
+
+  // ============ 消息搜索 ============
+  let _searchTerm = '';
+
+  function openSearch() {
+    searchBar.hidden = false;
+    setTimeout(() => searchInput.focus(), 100);
+  }
+
+  function closeSearch() {
+    searchBar.hidden = true;
+    searchInput.value = '';
+    _searchTerm = '';
+    searchCount.textContent = '';
+    _clearSearchHighlights();
+  }
+
+  function _clearSearchHighlights() {
+    listEl.querySelectorAll('.msg.dimmed').forEach(el => el.classList.remove('dimmed'));
+    listEl.querySelectorAll('.search-highlight').forEach(el => {
+      const parent = el.parentNode;
+      parent.replaceChild(document.createTextNode(el.textContent), el);
+      parent.normalize();
+    });
+  }
+
+  function _highlightText(textNode, term) {
+    // Only apply to text nodes inside .msg-bubble
+    const text = textNode.textContent;
+    const lower = text.toLowerCase();
+    const idx = lower.indexOf(term);
+    if (idx === -1) return;
+    const fragment = document.createDocumentFragment();
+    fragment.appendChild(document.createTextNode(text.slice(0, idx)));
+    const mark = document.createElement('span');
+    mark.className = 'search-highlight';
+    mark.textContent = text.slice(idx, idx + term.length);
+    fragment.appendChild(mark);
+    fragment.appendChild(document.createTextNode(text.slice(idx + term.length)));
+    textNode.parentNode.replaceChild(fragment, textNode);
+  }
+
+  function _findTextNodes(el) {
+    const nodes = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.textContent.trim()) nodes.push(node);
+    }
+    return nodes;
+  }
+
+  function performSearch() {
+    const term = searchInput.value.trim().toLowerCase();
+    if (term === _searchTerm) return;
+    _searchTerm = term;
+
+    // Clear previous highlights and dims
+    _clearSearchHighlights();
+
+    if (!term) {
+      searchCount.textContent = '';
+      return;
+    }
+
+    let matchCount = 0;
+    let firstMatchEl = null;
+
+    const msgEls = listEl.querySelectorAll('.msg');
+    msgEls.forEach(el => {
+      // Skip system messages, date-separator children, card messages (not .msg-bubble text)
+      if (el.classList.contains('system')) {
+        el.classList.add('dimmed');
+        return;
+      }
+
+      const bubble = el.querySelector('.msg-bubble');
+      if (!bubble) {
+        el.classList.add('dimmed');
+        return;
+      }
+
+      // Skip card-type messages (msg-card wrapper)
+      const cardWrapper = el.querySelector('.msg-card');
+      if (cardWrapper) {
+        el.classList.add('dimmed');
+        return;
+      }
+
+      // Check for text content matching
+      const text = bubble.textContent.toLowerCase();
+      if (text.includes(term)) {
+        el.classList.remove('dimmed');
+        matchCount++;
+
+        // Apply highlights to matching text nodes
+        const textNodes = _findTextNodes(bubble);
+        textNodes.forEach(node => {
+          _highlightText(node, term);
+        });
+
+        if (!firstMatchEl) firstMatchEl = el;
+      } else {
+        el.classList.add('dimmed');
+      }
+    });
+
+    // Update match count
+    if (matchCount > 0) {
+      searchCount.textContent = `找到 ${matchCount} 条匹配`;
+    } else if (term) {
+      searchCount.textContent = '无匹配';
+    }
+
+    // Scroll to first match
+    if (firstMatchEl) {
+      firstMatchEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  // Debounce helper
+  let _searchTimer = null;
+  function debouncedSearch() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(performSearch, 150);
+  }
+
+  searchBtn.addEventListener('click', () => {
+    if (searchBar.hidden) {
+      openSearch();
+    } else {
+      closeSearch();
+    }
+  });
+
+  searchInput.addEventListener('input', debouncedSearch);
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeSearch();
+    }
+  });
+
+  searchClose.addEventListener('click', closeSearch);
+
+  // ============ 全局键盘快捷键 ============
+  document.addEventListener('keydown', (e) => {
+    // Ctrl/Cmd+K → 搜索
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      openSearch();
+      return;
+    }
+
+    // Ctrl/Cmd+N → 新建项目
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      openCreateDialog();
+      return;
+    }
+
+    // Escape → 按优先级依次关闭弹窗
+    if (e.key === 'Escape') {
+      // 1. 关闭搜索栏
+      if (!searchBar.hidden) {
+        closeSearch();
+        return;
+      }
+      // 2. 关闭附件菜单
+      if (attachMenu.classList.contains('open')) {
+        attachMenu.classList.remove('open');
+        attachBtn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      // 3. 关闭 emoji 面板
+      if (!emojiPanel.hidden) {
+        closeEmojiPanel();
+        return;
+      }
+      // 4. 关闭创建项目弹窗
+      if (createDialog.classList.contains('open')) {
+        closeCreateDialog();
+        return;
+      }
+      // 5. 关闭项目选择器
+      if (projectPicker.classList.contains('open')) {
+        closeProjectPicker();
+        return;
+      }
+      // 5. 关闭右键菜单
+      if (!contextMenu.hasAttribute('hidden')) {
+        hideContextMenu();
+        return;
+      }
+      // 6. 关闭 mention 弹窗
+      if (mentionPopup.classList.contains('open')) {
+        mentionPopup.classList.remove('open');
+        return;
+      }
+      // 7. 取消输入框焦点
+      if (document.activeElement === inputEl) {
+        inputEl.blur();
+        return;
+      }
+    }
+  });
+
+  // ============ PWA 离线草稿保存 ============
+  // 按项目 ID 隔离，输入时保存到 localStorage，发送后清除，页面加载时恢复
+  function _draftKey() {
+    return projectId ? `draft:${projectId}` : 'draft:default';
+  }
+
+  function saveDraft() {
+    try {
+      const val = inputEl.value;
+      if (val.trim()) {
+        localStorage.setItem(_draftKey(), val);
+      } else {
+        localStorage.removeItem(_draftKey());
+      }
+    } catch (_) {
+      // localStorage 不可用时忽略
+    }
+  }
+
+  function restoreDraft() {
+    try {
+      const saved = localStorage.getItem(_draftKey());
+      if (saved) {
+        inputEl.value = saved;
+        // 触发 input 事件以激活 mention 检测和样式更新
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        // 聚焦并定位光标到末尾
+        const len = saved.length;
+        inputEl.focus();
+        inputEl.setSelectionRange(len, len);
+        // 显示草稿恢复提示
+        _showDraftRestoredToast();
+      }
+    } catch (_) {}
+  }
+
+  function clearDraft() {
+    try { localStorage.removeItem(_draftKey()); } catch (_) {}
+  }
+
+  let _draftToastTimer = null;
+  function _showDraftRestoredToast() {
+    let toast = document.getElementById('draft-restored-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'draft-restored-toast';
+      toast.className = 'draft-restored-toast';
+      toast.setAttribute('role', 'status');
+      toast.textContent = '✓ 已恢复未发送的草稿';
+      document.querySelector('.workbench').appendChild(toast);
+    }
+    toast.classList.add('visible');
+    clearTimeout(_draftToastTimer);
+    _draftToastTimer = setTimeout(() => toast.classList.remove('visible'), 2500);
+  }
+
+  // 输入时保存草稿（防抖 500ms）
+  let _draftSaveTimer = null;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(_draftSaveTimer);
+    _draftSaveTimer = setTimeout(saveDraft, 500);
+  });
+  // 页面隐藏前强制保存（移动端切后台、刷新、关闭）
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveDraft();
+  });
+  window.addEventListener('beforeunload', saveDraft);
+
+  // ============ 初始化 ============
+  async function init() {
+    loadWallpaper();
+    loadAvatar();
+    const token = ApiClient.getToken();
+
+    if (!token) {
+      window.location.href = `login.html?role=${encodeURIComponent(role)}`;
+      return;
+    }
+
+    try {
+      currentUser = await ApiClient.getCurrentUser();
+      // 读取自定义昵称
+      const savedNick = localStorage.getItem('nickname');
+      if (savedNick) currentUser.name = savedNick;
+      // 获取项目列表
+      const projects = await ApiClient.getProjects();
+      allProjects = projects;
+      if (projects.length > 0) {
+        // 支持通过 URL 参数 project_id 指定项目，否则取第一个
+        const requestedId = params.get('project_id');
+        const selected = (requestedId && projects.find(p => p.id === requestedId)) || projects[0];
+        applyProjectInfo(selected);
+        if (projects.length > 0) {
+          titleBlockEl.classList.add('has-switcher');
+        }
+        // 加载项目相关消息
+        await loadProjectMessages();
+        // 恢复该项目未发送的草稿（PWA 离线草稿）
+        restoreDraft();
+      } else {
+        titleEl.textContent = '暂无项目';
+        subtitleEl.textContent = '点击 + 创建项目';
+        renderMessage({
+          type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+          content: `欢迎，${currentUser?.name || roleLabel}。你还没有项目，点击下方按钮创建第一个家居项目。`,
+        });
+        // 插入创建项目按钮
+        const ctaWrap = document.createElement('div');
+        ctaWrap.className = 'msg agent';
+        ctaWrap.innerHTML = `<div class="msg-bubble" style="text-align:center;padding:16px 20px;">
+          <button class="btn btn-primary cp-cta-btn" style="width:auto;padding:10px 24px;font-size:14px;">+ 创建新项目</button>
+        </div>`;
+        listEl.appendChild(ctaWrap);
+        ctaWrap.querySelector('.cp-cta-btn').addEventListener('click', openCreateDialog);
+      }
+    } catch (err) {
+      // 认证失败或后端不可达
+      titleEl.textContent = '连接失败';
+      subtitleEl.textContent = '后端服务不可达';
+      renderMessage({
+        type: 'system', content: '── 后端服务不可达 ──',
+      });
+      renderMessage({
+        type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+        content: '无法连接到后端服务。请检查网络或稍后重试。',
+      });
+      // 重试按钮
+      const retryWrap = document.createElement('div');
+      retryWrap.className = 'msg agent';
+      retryWrap.innerHTML = `<div class="msg-bubble" style="text-align:center;padding:12px 20px;">
+        <button class="btn btn-primary" id="retry-init-btn" style="width:auto;padding:8px 24px;font-size:13px;">重试连接</button>
+      </div>`;
+      listEl.appendChild(retryWrap);
+      retryWrap.querySelector('#retry-init-btn').addEventListener('click', () => {
+        listEl.innerHTML = '';
+        titleEl.textContent = '加载中…';
+        subtitleEl.textContent = '8 AI 群策群力';
+        init();
+      });
+    }
+  }
+
+  // ── 全局错误处理 ──
+  window.addEventListener('api:server-error', function(e) {
+    const { status, path } = e.detail;
+    // 避免在已有错误状态时重复显示
+    const existing = listEl.querySelector('.server-error-banner');
+    if (existing) return;
+    const banner = document.createElement('div');
+    banner.className = 'msg system server-error-banner';
+    banner.style.cssText = 'background:rgba(201,74,74,0.08);border:1px solid var(--danger);margin:8px 12px';
+    banner.innerHTML = '<div class="msg-bubble" style="color:var(--danger);font-size:12px">⚠️ 服务器异常 (HTTP ' + status + ')，请稍后重试</div>';
+    listEl.appendChild(banner);
+    listEl.scrollTop = listEl.scrollHeight;
+    // 5 秒后自动移除
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 5000);
+  });
+
+  window.addEventListener('api:network-error', function(e) {
+    const existing = listEl.querySelector('.network-error-banner');
+    if (existing) return;
+    const banner = document.createElement('div');
+    banner.className = 'msg system network-error-banner';
+    banner.style.cssText = 'background:rgba(201,151,59,0.08);border:1px solid var(--warning);margin:8px 12px';
+    banner.innerHTML = '<div class="msg-bubble" style="color:var(--warning);font-size:12px">📡 ' + e.detail.message + '</div>';
+    listEl.appendChild(banner);
+    listEl.scrollTop = listEl.scrollHeight;
+    setTimeout(() => { if (banner.parentNode) banner.remove(); }, 5000);
+  });
+
+  // 全局未捕获错误
+  window.addEventListener('unhandledrejection', function(e) {
+    console.error('[Workbench] 未处理的 Promise 拒绝:', e.reason);
+  });
+
+  window.addEventListener('error', function(e) {
+    if (e.target === window) {
+      console.error('[Workbench] 全局错误:', e.error?.message || e.message);
+    }
+  });
+
+  init();
+})();
+</script>
+<script src="assets/js/analytics.js?v=20260714d"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

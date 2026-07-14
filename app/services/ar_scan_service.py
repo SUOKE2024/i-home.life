@@ -11,11 +11,9 @@
 
 import json
 import math
-import uuid
 from datetime import datetime, timezone
-from typing import Any
 
-from sqlalchemy import select, func as sa_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ar_scan import ScanSession, WallFeature, MeasurementPoint

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/error_retry.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -12,6 +14,8 @@ class _DashboardPageState extends State<DashboardPage> {
   int _projectCount = 0;
   int _inProgress = 0;
   double _totalArea = 0;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -20,15 +24,26 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _load() async {
-    try {
-      final api = ApiClient();
-      final projects = (await api.getList('/projects')) as List;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final api = ApiClient();
+    final result = await api.getList('/api/projects');
+    if (result.isSuccess) {
+      final projects = result.data as List;
       setState(() {
         _projectCount = projects.length;
         _inProgress = projects.where((p) => p['status'] == 'in_progress').length;
         _totalArea = projects.fold<double>(0, (s, p) => s + ((p['total_area'] as num?)?.toDouble() ?? 0));
+        _loading = false;
       });
-    } catch (_) {}
+    } else {
+      setState(() {
+        _loading = false;
+        _error = '加载失败，请检查网络后重试';
+      });
+    }
   }
 
   @override
@@ -38,50 +53,63 @@ class _DashboardPageState extends State<DashboardPage> {
         title: const Text('工作台', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: false,
       ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                _statCard('项目总数', '$_projectCount', Icons.home_work),
-                const SizedBox(width: 12),
-                _statCard('施工中', '$_inProgress', Icons.engineering),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _statCard('总面积', '${_totalArea.toStringAsFixed(0)}㎡', Icons.square_foot),
-                const SizedBox(width: 12),
-                _statCard('AI Agent', '6', Icons.smart_toy),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Card(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('快速入口', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFE8E6E1))),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _QuickAction(icon: Icons.design_services, label: '设计规划'),
-                        _QuickAction(icon: Icons.account_balance_wallet, label: '预算管理'),
-                        _QuickAction(icon: Icons.shopping_cart, label: '物料采购'),
-                        _QuickAction(icon: Icons.build, label: '施工进度'),
-                      ],
-                    ),
-                  ],
-                ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const LoadingSkeleton(itemCount: 3, itemHeight: 100);
+    }
+    if (_error != null) {
+      return ErrorRetryWidget(
+        message: _error!,
+        onRetry: _load,
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              _statCard('项目总数', '$_projectCount', Icons.home_work),
+              const SizedBox(width: 12),
+              _statCard('施工中', '$_inProgress', Icons.engineering),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _statCard('总面积', '${_totalArea.toStringAsFixed(0)}㎡', Icons.square_foot),
+              const SizedBox(width: 12),
+              _statCard('AI Agent', '6', Icons.smart_toy),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('快速入口', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFE8E6E1))),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _QuickAction(icon: Icons.design_services, label: '设计规划'),
+                      _QuickAction(icon: Icons.account_balance_wallet, label: '预算管理'),
+                      _QuickAction(icon: Icons.shopping_cart, label: '物料采购'),
+                      _QuickAction(icon: Icons.build, label: '施工进度'),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

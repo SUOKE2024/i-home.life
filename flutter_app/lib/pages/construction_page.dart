@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/error_retry.dart';
 
 class ConstructionPage extends StatefulWidget {
   final String projectId;
@@ -15,6 +17,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   List<dynamic> _tasks = [];
   Map<String, dynamic>? _plan;
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
@@ -30,34 +33,37 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Future<void> _loadTasks() async {
-    setState(() => _loading = true);
-    try {
-      final data = await _api.getList('/construction/tasks/${widget.projectId}');
-      setState(() => _tasks = data);
-    } catch (_) {}
-    finally {
-      setState(() => _loading = false);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await _api.getList('/construction/tasks/${widget.projectId}');
+    if (result.isSuccess) {
+      setState(() => _tasks = result.data);
+    } else {
+      setState(() => _error = '施工任务加载失败，请检查网络后重试');
     }
+    setState(() => _loading = false);
   }
 
   Future<void> _generatePlan() async {
-    try {
-      final data = await _api.post('/construction/plan', {'total_area': 126.0, 'tier': 'comfort'});
-      setState(() => _plan = data);
-    } catch (e) {
+    final result = await _api.post('/construction/plan', {'total_area': 126.0, 'tier': 'comfort'});
+    if (result.isSuccess) {
+      setState(() => _plan = result.data);
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：${result.error}')));
       }
     }
   }
 
   Future<void> _updateTaskStatus(String taskId, String status) async {
-    try {
-      await _api.patch('/construction/tasks/$taskId/status', {'status': status});
+    final result = await _api.patch('/construction/tasks/$taskId/status', {'status': status});
+    if (result.isSuccess) {
       await _loadTasks();
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('更新失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('更新失败：${result.error}')));
       }
     }
   }
@@ -88,7 +94,12 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Widget _buildTasksView() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) {
+      return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    }
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _loadTasks);
+    }
     if (_tasks.isEmpty) {
       return Center(
         child: Column(
@@ -258,7 +269,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         ),
         Card(
           child: ListTile(
-            leading: const Icon(Icons.carpentry, color: Colors.brown),
+            leading: const Icon(Icons.handyman, color: Colors.brown),
             title: const Text('木工阶段质检'),
             subtitle: const Text('4 项检查点'),
             trailing: const Icon(Icons.chevron_right),
@@ -294,8 +305,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Future<void> _showChecklist(String phase) async {
-    try {
-      final data = await _api.get('/construction/quality-checklist/$phase');
+    final result = await _api.get('/construction/quality-checklist/$phase');
+    if (result.isSuccess) {
+      final data = result.data;
       if (mounted) {
         final checklist = (data['checklist'] as List?) ?? [];
         showDialog(
@@ -321,27 +333,28 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
           ),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败：${result.error}')));
       }
     }
   }
 
   Future<void> _runAiInspection() async {
-    try {
-      final result = await _api.post('/construction/inspections/analyze', {
-        'phase': 'masonry',
-        'images': [{'url': 'mock://tile.jpg', 'type': 'tile_surface'}],
-      });
+    final result = await _api.post('/construction/inspections/analyze', {
+      'phase': 'masonry',
+      'images': [{'url': 'mock://tile.jpg', 'type': 'tile_surface'}],
+    });
+    if (result.isSuccess) {
+      final data = result.data;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['reply'] ?? 'AI 质检完成')),
+          SnackBar(content: Text(data['reply'] ?? 'AI 质检完成')),
         );
       }
-    } catch (e) {
+    } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('质检失败：$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('质检失败：${result.error}')));
       }
     }
   }

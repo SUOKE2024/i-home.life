@@ -65,6 +65,15 @@ class OrderCreate(BaseModel):
     lines: list[OrderLineCreate] = []
 
 
+class OrderUpdate(BaseModel):
+    expected_delivery: datetime | None = None
+    note: str | None = None
+
+
+class OrderStatusUpdate(BaseModel):
+    status: str = Field(min_length=1, max_length=20)
+
+
 class OrderLineResponse(BaseModel):
     id: str
     material_id: str

@@ -3,7 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.auth.paseto_handler import verify_token
+from app.auth.paseto_handler import verify_token, TokenExpiredError, TokenInvalidError
 from app.database import get_db
 from app.models.user import User
 
@@ -15,11 +15,17 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     token = credentials.credentials
-    payload = verify_token(token)
-    if payload is None:
+    try:
+        payload = verify_token(token)
+    except TokenExpiredError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="无效或过期的令牌",
+            detail="令牌已过期，请重新登录",
+        )
+    except TokenInvalidError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的令牌",
         )
 
     user_id = payload.get("sub")

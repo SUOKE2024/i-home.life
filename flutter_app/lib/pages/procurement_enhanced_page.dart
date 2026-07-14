@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
+import '../widgets/error_retry.dart';
 
 /// 采购增强页面 - 整合 F33/F34
 /// 4 Tab: 比价 / 托管支付 / 物流 / 样品申请
@@ -36,8 +38,7 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
 
   void _toast(String msg) {
     if (mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -47,9 +48,10 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
       backgroundColor: _bg,
       appBar: AppBar(
         backgroundColor: _card,
-        title: const Text('采购增强',
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontFamily: 'DM Sans')),
+        title: const Text(
+          '采购增强',
+          style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'DM Sans'),
+        ),
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
@@ -68,7 +70,10 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
         controller: _tabController,
         children: [
           _PriceComparisonTab(
-              api: _api, projectId: widget.projectId, toast: _toast),
+            api: _api,
+            projectId: widget.projectId,
+            toast: _toast,
+          ),
           _EscrowTab(api: _api, projectId: widget.projectId, toast: _toast),
           _LogisticsTab(api: _api, projectId: widget.projectId, toast: _toast),
           _SampleTab(api: _api, projectId: widget.projectId, toast: _toast),
@@ -118,12 +123,16 @@ Widget _procKv(String k, String v) {
       children: [
         SizedBox(
           width: 80,
-          child: Text(k,
-              style: const TextStyle(color: Color(0xFF8A8894), fontSize: 12)),
+          child: Text(
+            k,
+            style: const TextStyle(color: Color(0xFF8A8894), fontSize: 12),
+          ),
         ),
         Expanded(
-          child: Text(v,
-              style: const TextStyle(color: Color(0xFFE8E6E1), fontSize: 13)),
+          child: Text(
+            v,
+            style: const TextStyle(color: Color(0xFFE8E6E1), fontSize: 13),
+          ),
         ),
       ],
     ),
@@ -172,8 +181,11 @@ class _PriceComparisonTab extends StatefulWidget {
   final ApiClient api;
   final String projectId;
   final void Function(String) toast;
-  const _PriceComparisonTab(
-      {required this.api, required this.projectId, required this.toast});
+  const _PriceComparisonTab({
+    required this.api,
+    required this.projectId,
+    required this.toast,
+  });
 
   @override
   State<_PriceComparisonTab> createState() => _PriceComparisonTabState();
@@ -183,6 +195,7 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
     with AutomaticKeepAliveClientMixin {
   List<dynamic> _items = [];
   bool _loading = false;
+  String? _error;
 
   @override
   bool get wantKeepAlive => true;
@@ -194,29 +207,34 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final data = await widget.api.procPriceComparisons(projectId: widget.projectId);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await widget.api.procPriceComparisons(
+      projectId: widget.projectId,
+    );
+    if (result.isSuccess) {
+      final data = result.data;
       _items = data is List ? data : (data['items'] as List? ?? []);
-    } catch (e) {
-      widget.toast('加载比价失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      if (mounted) setState(() => _error = '加载失败，请检查网络后重试');
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _create() async {
     final materialName = await _showInputDialog('新建比价', '物料名称');
     if (materialName == null || materialName.isEmpty) return;
-    try {
-      await widget.api.procCreatePriceComparison({
-        'project_id': widget.projectId,
-        'material_name': materialName,
-      });
+    final result = await widget.api.procCreatePriceComparison({
+      'project_id': widget.projectId,
+      'material_name': materialName,
+    });
+    if (result.isSuccess) {
       widget.toast('已创建');
       _load();
-    } catch (e) {
-      widget.toast('创建失败: $e');
+    } else {
+      widget.toast('创建失败: ${result.error}');
     }
   }
 
@@ -238,11 +256,13 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('确定')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
@@ -251,73 +271,87 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _load);
+    }
     return Scaffold(
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
+      body: _items.isEmpty
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  _procEmptyState(
+                    '暂无比价记录，点击右下角新建',
+                    icon: Icons.compare_arrows_outlined,
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final item = Map<String, dynamic>.from(_items[i] as Map);
+                  final status = item['status']?.toString();
+                  final offers = item['offers'] is List
+                      ? item['offers'] as List
+                      : <dynamic>[];
+                  final lowest = item['lowest_price'];
+                  final highest = item['highest_price'];
+                  return _procSectionCard(
                     children: [
-                      const SizedBox(height: 120),
-                      _procEmptyState('暂无比价记录，点击右下角新建',
-                          icon: Icons.compare_arrows_outlined),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = Map<String, dynamic>.from(_items[i] as Map);
-                      final status = item['status']?.toString();
-                      final offers = item['offers'] is List
-                          ? item['offers'] as List
-                          : <dynamic>[];
-                      final lowest = item['lowest_price'];
-                      final highest = item['highest_price'];
-                      return _procSectionCard(children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  (item['material_name'] ?? '比价').toString(),
-                                  style: const TextStyle(
-                                      color: Color(0xFFE8E6E1),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (item['material_name'] ?? '比价').toString(),
+                              style: const TextStyle(
+                                color: Color(0xFFE8E6E1),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
                               ),
-                              child: Text(_statusText(status),
-                                  style: TextStyle(
-                                      color: _statusColor(status),
-                                      fontSize: 10)),
                             ),
-                          ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _statusText(status),
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      if (lowest != null) _procKv('最低价', '¥$lowest'),
+                      if (highest != null) _procKv('最高价', '¥$highest'),
+                      _procKv('报价数', '${offers.length}'),
+                      if (item['recommended_supplier'] != null)
+                        _procKv(
+                          '推荐供应商',
+                          item['recommended_supplier'].toString(),
                         ),
-                        const SizedBox(height: 8),
-                        _procKv('ID', (item['id'] ?? '-').toString()),
-                        if (lowest != null)
-                          _procKv('最低价', '¥$lowest'),
-                        if (highest != null)
-                          _procKv('最高价', '¥$highest'),
-                        _procKv('报价数', '${offers.length}'),
-                        if (item['recommended_supplier'] != null)
-                          _procKv('推荐供应商',
-                              item['recommended_supplier'].toString()),
-                      ]);
-                    },
-                  ),
-                ),
+                    ],
+                  );
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFC9973B),
         foregroundColor: Colors.black,
@@ -335,8 +369,11 @@ class _EscrowTab extends StatefulWidget {
   final ApiClient api;
   final String projectId;
   final void Function(String) toast;
-  const _EscrowTab(
-      {required this.api, required this.projectId, required this.toast});
+  const _EscrowTab({
+    required this.api,
+    required this.projectId,
+    required this.toast,
+  });
 
   @override
   State<_EscrowTab> createState() => _EscrowTabState();
@@ -346,6 +383,7 @@ class _EscrowTabState extends State<_EscrowTab>
     with AutomaticKeepAliveClientMixin {
   List<dynamic> _items = [];
   bool _loading = false;
+  String? _error;
 
   @override
   bool get wantKeepAlive => true;
@@ -357,16 +395,20 @@ class _EscrowTabState extends State<_EscrowTab>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final data =
-          await widget.api.procEscrowPayments(projectId: widget.projectId);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await widget.api.procEscrowPayments(
+      projectId: widget.projectId,
+    );
+    if (result.isSuccess) {
+      final data = result.data;
       _items = data is List ? data : (data['items'] as List? ?? []);
-    } catch (e) {
-      widget.toast('加载托管支付失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      if (mounted) setState(() => _error = '加载失败，请检查网络后重试');
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _create() async {
@@ -377,26 +419,26 @@ class _EscrowTabState extends State<_EscrowTab>
       widget.toast('金额格式错误');
       return;
     }
-    try {
-      await widget.api.procCreateEscrowPayment({
-        'project_id': widget.projectId,
-        'amount': amount,
-        'currency': 'CNY',
-      });
+    final result = await widget.api.procCreateEscrowPayment({
+      'project_id': widget.projectId,
+      'amount': amount,
+      'currency': 'CNY',
+    });
+    if (result.isSuccess) {
       widget.toast('已创建');
       _load();
-    } catch (e) {
-      widget.toast('创建失败: $e');
+    } else {
+      widget.toast('创建失败: ${result.error}');
     }
   }
 
   Future<void> _confirm(String id) async {
-    try {
-      await widget.api.procConfirmEscrow(id);
+    final result = await widget.api.procConfirmEscrow(id);
+    if (result.isSuccess) {
       widget.toast('已确认');
       _load();
-    } catch (e) {
-      widget.toast('确认失败: $e');
+    } else {
+      widget.toast('确认失败: ${result.error}');
     }
   }
 
@@ -419,11 +461,13 @@ class _EscrowTabState extends State<_EscrowTab>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('确定')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
@@ -432,81 +476,94 @@ class _EscrowTabState extends State<_EscrowTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _load);
+    }
     return Scaffold(
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
+      body: _items.isEmpty
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  _procEmptyState(
+                    '暂无托管支付，点击右下角新建',
+                    icon: Icons.account_balance_outlined,
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final item = Map<String, dynamic>.from(_items[i] as Map);
+                  final status = item['status']?.toString();
+                  final amount = item['amount'];
+                  return _procSectionCard(
                     children: [
-                      const SizedBox(height: 120),
-                      _procEmptyState('暂无托管支付，点击右下角新建',
-                          icon: Icons.account_balance_outlined),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (item['payee'] ?? '托管支付').toString(),
+                              style: const TextStyle(
+                                color: Color(0xFFE8E6E1),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _statusText(status),
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      if (amount != null) _procKv('金额', '¥$amount'),
+                      if (item['currency'] != null)
+                        _procKv('币种', item['currency'].toString()),
+                      if (item['escrow_no'] != null)
+                        _procKv('托管号', item['escrow_no'].toString()),
+                      if (item['created_at'] != null)
+                        _procKv('创建时间', item['created_at'].toString()),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (status == 'pending')
+                            TextButton.icon(
+                              onPressed: () =>
+                                  _confirm(item['id']?.toString() ?? ''),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text('确认放款'),
+                            ),
+                        ],
+                      ),
                     ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = Map<String, dynamic>.from(_items[i] as Map);
-                      final status = item['status']?.toString();
-                      final amount = item['amount'];
-                      return _procSectionCard(children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  (item['payee'] ?? '托管支付').toString(),
-                                  style: const TextStyle(
-                                      color: Color(0xFFE8E6E1),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(_statusText(status),
-                                  style: TextStyle(
-                                      color: _statusColor(status),
-                                      fontSize: 10)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _procKv('ID', (item['id'] ?? '-').toString()),
-                        if (amount != null)
-                          _procKv('金额', '¥$amount'),
-                        if (item['currency'] != null)
-                          _procKv('币种', item['currency'].toString()),
-                        if (item['escrow_no'] != null)
-                          _procKv('托管号', item['escrow_no'].toString()),
-                        if (item['created_at'] != null)
-                          _procKv('创建时间', item['created_at'].toString()),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            if (status == 'pending')
-                              TextButton.icon(
-                                onPressed: () =>
-                                    _confirm(item['id']?.toString() ?? ''),
-                                icon: const Icon(Icons.check, size: 16),
-                                label: const Text('确认放款'),
-                              ),
-                          ],
-                        ),
-                      ]);
-                    },
-                  ),
-                ),
+                  );
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFC9973B),
         foregroundColor: Colors.black,
@@ -524,8 +581,11 @@ class _LogisticsTab extends StatefulWidget {
   final ApiClient api;
   final String projectId;
   final void Function(String) toast;
-  const _LogisticsTab(
-      {required this.api, required this.projectId, required this.toast});
+  const _LogisticsTab({
+    required this.api,
+    required this.projectId,
+    required this.toast,
+  });
 
   @override
   State<_LogisticsTab> createState() => _LogisticsTabState();
@@ -535,6 +595,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
     with AutomaticKeepAliveClientMixin {
   List<dynamic> _items = [];
   bool _loading = false;
+  String? _error;
 
   @override
   bool get wantKeepAlive => true;
@@ -546,76 +607,88 @@ class _LogisticsTabState extends State<_LogisticsTab>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final data =
-          await widget.api.procLogistics(projectId: widget.projectId);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await widget.api.procLogistics(projectId: widget.projectId);
+    if (result.isSuccess) {
+      final data = result.data;
       _items = data is List ? data : (data['items'] as List? ?? []);
-    } catch (e) {
-      widget.toast('加载物流失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      if (mounted) setState(() => _error = '加载失败，请检查网络后重试');
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _create() async {
     final trackingNo = await _showInputDialog('新建物流', '运单号');
     if (trackingNo == null || trackingNo.isEmpty) return;
-    try {
-      await widget.api.procCreateLogistics({
-        'project_id': widget.projectId,
-        'tracking_no': trackingNo,
-      });
+    final result = await widget.api.procCreateLogistics({
+      'project_id': widget.projectId,
+      'tracking_no': trackingNo,
+    });
+    if (result.isSuccess) {
       widget.toast('已创建');
       _load();
-    } catch (e) {
-      widget.toast('创建失败: $e');
+    } else {
+      widget.toast('创建失败: ${result.error}');
     }
   }
 
   Future<void> _track(String id) async {
-    try {
-      final result = await widget.api.procTrackLogistics(id);
-      if (!mounted) return;
-      final tracks = result is Map ? result['tracks'] : null;
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF12121D),
-          title: const Text('物流跟踪', style: TextStyle(color: Color(0xFFE8E6E1))),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: (tracks is List && tracks.isNotEmpty)
-                ? ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: tracks.length,
-                    itemBuilder: (_, i) {
-                      final t = Map<String, dynamic>.from(tracks[i] as Map);
-                      return ListTile(
-                        dense: true,
-                        leading: const Icon(Icons.circle,
-                            size: 10, color: Color(0xFFC9973B)),
-                        title: Text((t['event'] ?? '').toString(),
-                            style: const TextStyle(color: Color(0xFFE8E6E1))),
-                        subtitle: Text((t['time'] ?? '').toString(),
-                            style: const TextStyle(color: Color(0xFF8A8894))),
-                      );
-                    },
-                  )
-                : const Text('暂无轨迹',
-                    style: TextStyle(color: Color(0xFF8A8894))),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('关闭'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      widget.toast('查询失败: $e');
+    final result = await widget.api.procTrackLogistics(id);
+    if (!mounted) return;
+    if (!result.isSuccess) {
+      widget.toast('查询失败: ${result.error}');
+      return;
     }
+    final data = result.data;
+    final tracks = data is Map ? data['tracks'] : null;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF12121D),
+        title: const Text('物流跟踪', style: TextStyle(color: Color(0xFFE8E6E1))),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: (tracks is List && tracks.isNotEmpty)
+              ? ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tracks.length,
+                  itemBuilder: (_, i) {
+                    final t = Map<String, dynamic>.from(tracks[i] as Map);
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(
+                        Icons.circle,
+                        size: 10,
+                        color: Color(0xFFC9973B),
+                      ),
+                      title: Text(
+                        (t['event'] ?? '').toString(),
+                        style: const TextStyle(color: Color(0xFFE8E6E1)),
+                      ),
+                      subtitle: Text(
+                        (t['time'] ?? '').toString(),
+                        style: const TextStyle(color: Color(0xFF8A8894)),
+                      ),
+                    );
+                  },
+                )
+              : const Text(
+                  '暂无轨迹',
+                  style: TextStyle(color: Color(0xFF8A8894)),
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<String?> _showInputDialog(String title, String label) {
@@ -636,11 +709,13 @@ class _LogisticsTabState extends State<_LogisticsTab>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('确定')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
@@ -649,80 +724,96 @@ class _LogisticsTabState extends State<_LogisticsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _load);
+    }
     return Scaffold(
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
+      body: _items.isEmpty
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  _procEmptyState(
+                    '暂无物流记录，点击右下角新建',
+                    icon: Icons.local_shipping_outlined,
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final item = Map<String, dynamic>.from(_items[i] as Map);
+                  final status = item['status']?.toString();
+                  return _procSectionCard(
                     children: [
-                      const SizedBox(height: 120),
-                      _procEmptyState('暂无物流记录，点击右下角新建',
-                          icon: Icons.local_shipping_outlined),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = Map<String, dynamic>.from(_items[i] as Map);
-                      final status = item['status']?.toString();
-                      return _procSectionCard(children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  (item['tracking_no'] ?? '物流').toString(),
-                                  style: const TextStyle(
-                                      color: Color(0xFFE8E6E1),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (item['tracking_no'] ?? '物流').toString(),
+                              style: const TextStyle(
+                                color: Color(0xFFE8E6E1),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
                               ),
-                              child: Text(_statusText(status),
-                                  style: TextStyle(
-                                      color: _statusColor(status),
-                                      fontSize: 10)),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _procKv('ID', (item['id'] ?? '-').toString()),
-                        if (item['carrier'] != null)
-                          _procKv('承运商', item['carrier'].toString()),
-                        if (item['origin'] != null)
-                          _procKv('起点', item['origin'].toString()),
-                        if (item['destination'] != null)
-                          _procKv('终点', item['destination'].toString()),
-                        if (item['eta'] != null)
-                          _procKv('预计送达', item['eta'].toString()),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton.icon(
-                              onPressed: () =>
-                                  _track(item['id']?.toString() ?? ''),
-                              icon: const Icon(Icons.location_on_outlined,
-                                  size: 16),
-                              label: const Text('跟踪'),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
                             ),
-                          ],
-                        ),
-                      ]);
-                    },
-                  ),
-                ),
+                            decoration: BoxDecoration(
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _statusText(status),
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      if (item['carrier'] != null)
+                        _procKv('承运商', item['carrier'].toString()),
+                      if (item['origin'] != null)
+                        _procKv('起点', item['origin'].toString()),
+                      if (item['destination'] != null)
+                        _procKv('终点', item['destination'].toString()),
+                      if (item['eta'] != null)
+                        _procKv('预计送达', item['eta'].toString()),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () =>
+                                _track(item['id']?.toString() ?? ''),
+                            icon: const Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                            ),
+                            label: const Text('跟踪'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFC9973B),
         foregroundColor: Colors.black,
@@ -740,8 +831,11 @@ class _SampleTab extends StatefulWidget {
   final ApiClient api;
   final String projectId;
   final void Function(String) toast;
-  const _SampleTab(
-      {required this.api, required this.projectId, required this.toast});
+  const _SampleTab({
+    required this.api,
+    required this.projectId,
+    required this.toast,
+  });
 
   @override
   State<_SampleTab> createState() => _SampleTabState();
@@ -751,6 +845,7 @@ class _SampleTabState extends State<_SampleTab>
     with AutomaticKeepAliveClientMixin {
   List<dynamic> _items = [];
   bool _loading = false;
+  String? _error;
 
   @override
   bool get wantKeepAlive => true;
@@ -762,40 +857,44 @@ class _SampleTabState extends State<_SampleTab>
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final data =
-          await widget.api.procSampleRequests(projectId: widget.projectId);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final result = await widget.api.procSampleRequests(
+      projectId: widget.projectId,
+    );
+    if (result.isSuccess) {
+      final data = result.data;
       _items = data is List ? data : (data['items'] as List? ?? []);
-    } catch (e) {
-      widget.toast('加载样品申请失败: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    } else {
+      if (mounted) setState(() => _error = '加载失败，请检查网络后重试');
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _create() async {
     final material = await _showInputDialog('新建样品申请', '物料名称');
     if (material == null || material.isEmpty) return;
-    try {
-      await widget.api.procCreateSampleRequest({
-        'project_id': widget.projectId,
-        'material_name': material,
-      });
+    final result = await widget.api.procCreateSampleRequest({
+      'project_id': widget.projectId,
+      'material_name': material,
+    });
+    if (result.isSuccess) {
       widget.toast('已创建');
       _load();
-    } catch (e) {
-      widget.toast('创建失败: $e');
+    } else {
+      widget.toast('创建失败: ${result.error}');
     }
   }
 
   Future<void> _approve(String id) async {
-    try {
-      await widget.api.procApproveSample(id);
+    final result = await widget.api.procApproveSample(id);
+    if (result.isSuccess) {
       widget.toast('已批准');
       _load();
-    } catch (e) {
-      widget.toast('操作失败: $e');
+    } else {
+      widget.toast('操作失败: ${result.error}');
     }
   }
 
@@ -817,11 +916,13 @@ class _SampleTabState extends State<_SampleTab>
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('确定')),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('确定'),
+          ),
         ],
       ),
     );
@@ -830,81 +931,94 @@ class _SampleTabState extends State<_SampleTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_error != null) {
+      return ErrorRetryWidget(message: _error!, onRetry: _load);
+    }
     return Scaffold(
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
+      body: _items.isEmpty
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                children: [
+                  const SizedBox(height: 120),
+                  _procEmptyState(
+                    '暂无样品申请，点击右下角新建',
+                    icon: Icons.inventory_2_outlined,
+                  ),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _items.length,
+                itemBuilder: (ctx, i) {
+                  final item = Map<String, dynamic>.from(_items[i] as Map);
+                  final status = item['status']?.toString();
+                  return _procSectionCard(
                     children: [
-                      const SizedBox(height: 120),
-                      _procEmptyState('暂无样品申请，点击右下角新建',
-                          icon: Icons.inventory_2_outlined),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              (item['material_name'] ?? '样品申请').toString(),
+                              style: const TextStyle(
+                                color: Color(0xFFE8E6E1),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor(
+                                status,
+                              ).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _statusText(status),
+                              style: TextStyle(
+                                color: _statusColor(status),
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      if (item['supplier'] != null)
+                        _procKv('供应商', item['supplier'].toString()),
+                      if (item['quantity'] != null)
+                        _procKv('数量', item['quantity'].toString()),
+                      if (item['remark'] != null)
+                        _procKv('备注', item['remark'].toString()),
+                      if (item['created_at'] != null)
+                        _procKv('创建时间', item['created_at'].toString()),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (status == 'pending')
+                            TextButton.icon(
+                              onPressed: () =>
+                                  _approve(item['id']?.toString() ?? ''),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text('批准'),
+                            ),
+                        ],
+                      ),
                     ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
-                    itemBuilder: (ctx, i) {
-                      final item = Map<String, dynamic>.from(_items[i] as Map);
-                      final status = item['status']?.toString();
-                      return _procSectionCard(children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                  (item['material_name'] ?? '样品申请')
-                                      .toString(),
-                                  style: const TextStyle(
-                                      color: Color(0xFFE8E6E1),
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15)),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _statusColor(status)
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(_statusText(status),
-                                  style: TextStyle(
-                                      color: _statusColor(status),
-                                      fontSize: 10)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        _procKv('ID', (item['id'] ?? '-').toString()),
-                        if (item['supplier'] != null)
-                          _procKv('供应商', item['supplier'].toString()),
-                        if (item['quantity'] != null)
-                          _procKv('数量', item['quantity'].toString()),
-                        if (item['remark'] != null)
-                          _procKv('备注', item['remark'].toString()),
-                        if (item['created_at'] != null)
-                          _procKv('创建时间', item['created_at'].toString()),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            if (status == 'pending')
-                              TextButton.icon(
-                                onPressed: () =>
-                                    _approve(item['id']?.toString() ?? ''),
-                                icon: const Icon(Icons.check, size: 16),
-                                label: const Text('批准'),
-                              ),
-                          ],
-                        ),
-                      ]);
-                    },
-                  ),
-                ),
+                  );
+                },
+              ),
+            ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFC9973B),
         foregroundColor: Colors.black,

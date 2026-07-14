@@ -16,15 +16,16 @@ class OrchestratorAgent(BaseAgent):
 可用 Agent：
 - designer: 设计 Agent，负责平面布局、3D 建模、效果图
 - budget: 预算 Agent，负责成本估算、预算跟踪
-- procurement: 采购 Agent，负责物料匹配、询价比价
+- procurement: 采购 Agent，负责物料匹配、询价比价、内容发布
 - construction: 施工 Agent，负责进度管理、任务调度
 - qa_inspector: 质检 Agent，负责质量检测、验收报告、缺陷识别、图纸比对
 - settlement: 结算 Agent，负责财务结算、付款管理
 - concierge: 客服 Agent，负责 7×24 知识问答、咨询接待、问题升级
+- content_publisher: 内容发布 Agent，辅助供应商在聊天中发布产品/服务
 
 最重要：对于用户的消息，你需要判断属于哪种类型，然后用以下JSON格式回复：
 ```json
-{"intent": "design|budget|procurement|construction|qa_inspector|settlement|concierge|general", "reasoning": "简短说明", "reply": "给用户的回复"}
+{"intent": "design|budget|procurement|construction|qa_inspector|settlement|concierge|content_publish|general", "reasoning": "简短说明", "reply": "给用户的回复"}
 ```
 
 如果消息包含设计/布局/方案/户型相关内容 → intent: design
@@ -34,6 +35,7 @@ class OrchestratorAgent(BaseAgent):
 如果消息包含质检/验收/缺陷/整改/返工/空鼓/裂缝/渗漏相关内容 → intent: qa_inspector
 如果消息包含结算/付款/尾款/账单相关内容 → intent: settlement
 如果消息包含咨询/帮助/投诉/售后/FAQ/常见问题相关内容 → intent: concierge
+如果消息包含发布/上架/产品/商品/服务/推广相关内容 → intent: content_publish
 其他通用问题 → intent: general
 
 请始终输出JSON格式的回复。"""
@@ -62,9 +64,10 @@ class OrchestratorAgent(BaseAgent):
             "design": ["设计", "布局", "方案", "户型", "平面", "空间", "风格", "装修效果", "图纸", "CAD", "添加", "加一个", "新建", "建造", "删除", "移动"],
             "budget": ["预算", "价格", "费用", "成本", "报价", "多少钱", "估算", "花费"],
             "procurement": ["采购", "材料", "物料", "建材", "供应商", "购买", "买", "订单", "询价"],
-            "construction": ["施工", "进度", "排期", "工期", "阶段", "完工"],
+            "construction": ["施工", "进度", "排期", "工期", "阶段", "完工", "招工", "找人", "派工", "发布任务", "安排工人", "要一个"],
             "qa_inspector": ["质检", "验收", "缺陷", "整改", "返工", "空鼓", "裂缝", "渗漏", "色差", "平整度", "工艺缺陷", "验收报告"],
             "concierge": ["咨询", "帮助", "投诉", "售后", "FAQ", "常见问题", "客服", "转人工", "保修", "报修", "退款"],
+            "content_publish": ["发布", "上架", "产品", "商品", "推广", "上新", "介绍产品"],
         }
 
         keywords["settlement"] = ["结算", "付款", "尾款", "账单", "结清", "结账"]

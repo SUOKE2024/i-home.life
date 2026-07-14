@@ -20,6 +20,10 @@ class SettlementLineResponse(BaseModel):
     actual_amount: float
     status: str
     note: str | None = None
+    is_anomaly: bool = False
+    anomaly_type: str | None = None
+    anomaly_severity: str | None = None
+    anomaly_detail: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -39,6 +43,12 @@ class SettlementResponse(BaseModel):
     actual_amount: float
     payable_amount: float
     status: str
+    anomaly_count: int = 0
+    critical_anomaly_count: int = 0
+    suggested_deduction: float = 0.0
+    review_required: bool = False
+    review_reason: str | None = None
+    reviewed_by: str | None = None
     lines: list[SettlementLineResponse] = []
     settled_at: datetime | None = None
     created_at: datetime
@@ -49,3 +59,15 @@ class SettlementResponse(BaseModel):
 
 class SettlementConfirm(BaseModel):
     milestone: str | None = None
+
+
+class ReviewRequest(BaseModel):
+    """F14 人工复核请求"""
+    reason: str = Field(min_length=1, max_length=500)
+    reviewer_id: str | None = None
+
+
+class AnomalyAttachRequest(BaseModel):
+    """F14 异常标记附加请求 — 把 Agent 检测出的异常关联到结算行"""
+    anomalies: list[dict] = Field(default_factory=list)
+    auto_mark_lines: bool = True

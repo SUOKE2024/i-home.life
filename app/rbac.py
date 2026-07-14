@@ -13,7 +13,10 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     async def __call__(self, current_user: User = Depends(get_current_user)) -> User:
+        # 子角色检查：如果 primary_role 不在列表中，检查是否 contractor 子角色
         if current_user.role not in self.allowed_roles:
+            if current_user.role == "contractor" and "contractor" in self.allowed_roles:
+                return current_user
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"角色 {current_user.role} 无权执行此操作。需要: {', '.join(self.allowed_roles)}",
@@ -21,9 +24,12 @@ class RoleChecker:
         return current_user
 
 
+# 所有角色可访问（包括工种子角色）
 allow_homeowner = RoleChecker(["homeowner", "designer", "admin"])
 allow_designer = RoleChecker(["designer", "admin"])
 allow_admin = RoleChecker(["admin"])
+# 允许所有已认证用户（用于开放项目发布等）
+allow_any = RoleChecker(["homeowner", "designer", "contractor", "supplier", "admin"])
 
 
 async def verify_project_access(

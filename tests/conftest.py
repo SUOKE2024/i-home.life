@@ -2,6 +2,10 @@ import asyncio
 import os
 import sys
 
+# 在导入 app 模块前设置测试数据库 URL，确保 engine 使用测试数据库
+# 使用 PID 隔离，避免并发测试运行时 SQLite 文件锁定
+os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_{os.getpid()}.db"
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
@@ -23,17 +27,13 @@ def event_loop():
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
-    settings = get_settings()
-    settings.database_url = "sqlite+aiosqlite:///./data/test.db"
-
+    """每个测试前: drop_all(checkfirst=True) + create_all — 不删除文件"""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all, checkfirst=True)
         await conn.run_sync(Base.metadata.create_all)
-
     yield
-
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all, checkfirst=True)
 
 
 @pytest_asyncio.fixture

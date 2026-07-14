@@ -1,7 +1,7 @@
 """水电点位规划路由 — F22 + F20"""
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models.user import User
 from app.auth import get_current_user

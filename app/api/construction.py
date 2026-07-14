@@ -5,7 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.models.construction import ConstructionTask
+from app.models.project import Project
+from app.models.construction import ConstructionTask, ConstructionLog
 from app.schemas.construction import (
     TaskCreate,
     TaskResponse,
@@ -107,6 +108,12 @@ async def list_tasks(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     tasks = await construction_service.get_tasks(db, project_id)
     return [TaskResponse.model_validate(t) for t in tasks]
 
@@ -249,6 +256,12 @@ async def list_progress_alerts(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目进度预警列表"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     alerts = await progress_service.list_alerts(db, project_id, status_filter=status_filter, severity=severity)
     return [_alert_to_response(a) for a in alerts]
 
@@ -289,6 +302,12 @@ async def list_milestones(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目里程碑跟踪列表"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     milestones = await progress_service.list_milestones(db, project_id)
     return [_milestone_to_response(m) for m in milestones]
 
@@ -441,6 +460,12 @@ async def list_quality_issues(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目质量问题列表"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     issues = await quality_service.list_issues(db, project_id, phase=phase, status_filter=status_filter, severity=severity)
     return [_issue_to_response(i) for i in issues]
 
@@ -487,6 +512,12 @@ async def list_rectification_orders(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目整改单列表"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     orders = await quality_service.list_orders(db, project_id, status_filter=status_filter)
     return [_order_to_response(o) for o in orders]
 
@@ -527,5 +558,120 @@ async def list_quality_assessments(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目质量评估列表"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     assessments = await quality_service.list_assessments(db, project_id)
     return [_assessment_to_response(a) for a in assessments]
+
+
+@router.post("/logs/analyze-defects")
+async def analyze_construction_logs(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """AI 分析施工日志中的潜在缺陷
+
+    从施工日志中提取文本描述，通过关键词匹配和 QA Inspector 的缺陷类别库进行交叉检测。
+    检测到的潜在问题按严重度（critical/high/medium/low）分类返回。
+    """
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    from app.agents.qa_inspector import DEFECT_CATEGORIES, DEFECT_KEYWORD_MAP
+
+    # 获取项目的施工日志
+    tasks_result = await db.execute(
+        select(ConstructionTask).where(ConstructionTask.project_id == project_id)
+    )
+    tasks = tasks_result.scalars().all()
+
+    if not tasks:
+        return {
+            "project_id": project_id,
+            "issues": [],
+            "total_logs": 0,
+            "reply": "该项目暂无施工日志",
+        }
+
+    # 收集所有日志内容
+    all_logs = []
+    for task in tasks:
+        logs_result = await db.execute(
+            select(ConstructionLog).where(ConstructionLog.task_id == task.id)
+        )
+        logs = logs_result.scalars().all()
+        for log in logs:
+            all_logs.append(
+                {
+                    "task_name": task.name or "",
+                    "phase": task.phase or "",
+                    "content": log.content or "",
+                    "created_at": str(log.created_at) if log.created_at else "",
+                }
+            )
+
+    # 关键词匹配检测
+    detected_issues = []
+    for log_item in all_logs:
+        content = log_item["content"]
+        for category_name, keywords in DEFECT_KEYWORD_MAP.items():
+            for kw in keywords:
+                if kw in content:
+                    cat_def = next(
+                        (c for c in DEFECT_CATEGORIES if c["name"] == category_name),
+                        None,
+                    )
+                    severity = cat_def["severity"] if cat_def else "low"
+                    rectification = (
+                        cat_def["rectification"] if cat_def else "需要人工复查"
+                    )
+                    detected_issues.append(
+                        {
+                            "task_name": log_item["task_name"],
+                            "phase": log_item["phase"],
+                            "category": category_name,
+                            "keyword_matched": kw,
+                            "severity": severity,
+                            "log_excerpt": content[:200]
+                            + ("..." if len(content) > 200 else ""),
+                            "rectification": rectification,
+                            "created_at": log_item["created_at"],
+                        }
+                    )
+                    break
+
+    # 按严重度排序
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    detected_issues.sort(
+        key=lambda x: severity_order.get(x["severity"], 99)
+    )
+
+    critical_count = sum(1 for i in detected_issues if i["severity"] == "critical")
+    high_count = sum(1 for i in detected_issues if i["severity"] == "high")
+
+    return {
+        "project_id": project_id,
+        "total_logs": len(all_logs),
+        "issue_count": len(detected_issues),
+        "critical_count": critical_count,
+        "high_count": high_count,
+        "issues": detected_issues,
+        "reply": f"施工日志缺陷分析完成：{len(all_logs)} 条日志，检出 {len(detected_issues)} 个潜在问题（严重 {critical_count}，高危 {high_count}）",
+        "suggestion": (
+            "建议立即处理严重问题"
+            if critical_count > 0
+            else (
+                "暂未发现严重问题"
+                if detected_issues
+                else "施工日志未检出异常"
+            )
+        ),
+    }

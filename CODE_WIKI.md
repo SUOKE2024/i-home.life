@@ -2,9 +2,9 @@
 
 # i-home.life（索克家居）Code Wiki
 
-> **版本**：v4.0
-> **最后更新**：2026-07-08
-> **项目状态**：Phase 1-4 后端全链路完成（163 测试通过，8 AI Agent，21 路由 154 端点，54 张数据表）
+> **版本**：v5.1
+> **最后更新**：2026-07-11
+> **项目状态**：Phase 1-4 后端全链路完成（302 测试通过，8 AI Agent，34 路由 319 端点，72 张数据表），Web 管理后台已上线，v1.0.1 ARIA 无障碍 + 支付完善
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 
@@ -120,7 +120,7 @@
 /Users/netsong/Developer/i-home.life/
 │
 ├── app/                              # 后端应用 (FastAPI)
-│   ├── api/                          # 21 个路由模块 (154 端点)
+│   ├── api/                          # 34 个路由模块 (321 端点)
 │   │   ├── auth.py                   # 认证 (register/login/me)
 │   │   ├── projects.py               # 项目管理
 │   │   ├── materials.py              # 物料 + BOM + Excel导出
@@ -148,7 +148,7 @@
 │   │   ├── qa_inspector.py           # 质检 (验收报告 + 缺陷识别 + 设计比对)
 │   │   ├── concierge.py              # 客服 (FAQ 知识库 + 咨询分类 + 升级规则)
 │   │   └── base.py                   # BaseAgent
-│   ├── models/                       # 54 张数据表 (SQLAlchemy 2.0 async)
+│   ├── models/                       # 72 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
 │   ├── services/                     # 业务逻辑层
 │   ├── auth/                         # PASETO Token 认证
@@ -165,10 +165,11 @@
 │   └── pubspec.yaml                  # 依赖: path_provider, file_picker, image_picker, provider, intl, uuid
 │
 ├── web/                              # 前端页面
-│   ├── index.html                    # 管理后台 SPA (10 Tab)
-│   ├── studio.html                   # 统一设计台 (Canvas + Three.js + AI)
+│   ├── index.html                    # 落地页 (4 入口卡片：Demo/设计台/管理后台/产品方案)
+│   ├── admin.html                    # 管理后台 SPA (8 Tab，PASETO 认证，实时 API 数据)
+│   ├── studio.html                   # 统一设计台 (15 工具：选择/矩形/直线/圆弧/偏移/修剪/延伸/块定义/图层管理/门/窗/标注/文字/删除/移动 + 平立剖自动生成)
 │   ├── 3d-viewer.html                # 3D 效果图查看器
-│   └── designer.html                 # Canvas 户型编辑器
+│   └── vr-viewer.html                # VR 全景查看器 (Three.js r128 球面渲染+热点)
 │
 ├── alembic/                          # 数据库迁移 (Alembic)
 │   ├── env.py                        # 从 settings 注入 DATABASE_URL (SQLite/PostgreSQL 双库)
@@ -185,7 +186,7 @@
 │   ├── bench-matepad.sh              # MatePad 性能验收脚本
 │   └── seed.py                       # 种子数据 (225 SKU)
 │
-├── tests/                            # 测试套件 (163 pass / 9 skipped)
+├── tests/                            # 测试套件 (302 pass / 9 skipped)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
 │   ├── test_projects.py              # 项目 CRUD (4)
@@ -207,12 +208,9 @@
 │
 ├── assets/                           # 静态资源（截图、图标）
 │
-├── docs/                             # 文档
-│   └── PHASE2_ROADMAP.md             # Phase 2 路线图
-│
 ├── .gitignore                        # Git 忽略规则
 ├── .python-version                   # Python 3.12.13
-├── .env                              # 环境变量 (DATABASE_URL/PASETO_KEY/DEEPSEEK_API_KEY)
+├── .env                              # 环境变量 (DATABASE_URL/PASETO_KEY/DEEPSEEK_API_KEY/REDIS_URL/OSS_*/VECTOR_DB_*)
 ├── requirements.txt                  # Python 依赖
 ├── house-design-platform-prd.html    # 完整 PRD v3.0
 └── interactive-demo.html             # 交互式 Demo（入口）
@@ -369,6 +367,64 @@ state = {
 |------|------|------|
 | `.python-version` | `3.12.13` | Python 运行环境版本 |
 | `.gitignore` | Python / Flutter / IDE / OS / Serverless 忽略规则 | 多技术栈覆盖 |
+
+### 5.4 studio.html CAD 工具与图层管理
+
+**文件**：[web/studio.html](file:///Users/netsong/Developer/i-home.life/web/studio.html)
+
+CAD 工具从 9 个扩展到 15 个，新增 6 个高级工具：
+
+| 工具 | 标识 | 功能 |
+|------|------|------|
+| 选择 | select | 元素选取与变换 |
+| 矩形 | rectangle | 矩形绘制 |
+| 直线 | line | 直线绘制 |
+| **圆弧** | **arc** | **三点绘制圆弧（起点 → 终点 → 中间点）** |
+| **偏移** | **offset** | **选择线段/矩形 + 输入偏移距离 → 生成平行副本** |
+| **修剪** | **trim** | **选择线段 → 在与其他线段交点处修剪** |
+| **延伸** | **extend** | **选择线段 → 延伸到最近的相交边界** |
+| **块定义** | **block** | **选择元素 + 命名 → 保存为可复用块** |
+| **图层管理** | **layers** | **图层可见性切换 + 新建图层 + 当前图层选择** |
+| 门 | door | 门图元绘制 |
+| 窗 | window | 窗图元绘制 |
+| 标注 | dimension | 尺寸标注 |
+| 文字 | text | 文字标注 |
+| 删除 | delete | 元素删除 |
+| 移动 | move | 元素移动 |
+
+**图层管理系统**：
+
+- `layers` 数组：维护所有图层定义，包含 4 个预设图层（默认 / 墙体 / 家具 / 标注）
+- 可见性过滤：渲染时根据图层 `visible` 属性过滤元素
+- 当前图层选择：`currentLayer` 标识当前活动图层，新绘制的元素自动归属当前图层
+- 新建图层：支持输入名称创建自定义图层
+
+### 5.5 config.py 基础设施配置
+
+**文件**：[app/config.py](file:///Users/netsong/Developer/i-home.life/app/config.py)
+
+v1.0.1 新增基础设施配置项，支持生产环境平滑切换至 PostgreSQL + Redis + OSS + 向量库：
+
+| 配置项 | 环境变量 | 说明 | 降级策略 |
+|--------|----------|------|----------|
+| 数据库 | `DATABASE_URL` | 开发用 SQLite (`sqlite+aiosqlite:///`)，生产切换 PostgreSQL (`postgresql+asyncpg://`) | — |
+| Redis | `REDIS_URL` | 缓存与消息队列，如 `redis://localhost:6379/0` | 留空则使用内存字典降级 |
+| OSS Endpoint | `OSS_ENDPOINT` | 阿里云 OSS 访问端点 | 留空则使用本地文件存储 |
+| OSS Access Key | `OSS_ACCESS_KEY` | OSS 访问密钥 ID | — |
+| OSS Secret Key | `OSS_SECRET_KEY` | OSS 访问密钥（保密） | — |
+| OSS Bucket | `OSS_BUCKET` | OSS 存储桶名称 | — |
+| OSS Region | `OSS_REGION` | OSS 地域 | — |
+| 向量数据库 URL | `VECTOR_DB_URL` | 向量库地址，支持 Qdrant / Milvus | 留空则禁用 RAG 功能 |
+| 向量数据库 Collection | `VECTOR_DB_COLLECTION` | 向量集合/索引名称 | — |
+
+**requirements.txt 新增依赖**（v1.0.1）：
+
+| 包 | 用途 |
+|----|------|
+| `asyncpg` | PostgreSQL 异步驱动（生产环境数据库） |
+| `redis` | Redis 客户端（缓存与消息队列） |
+| `oss2` | 阿里云 OSS SDK（对象存储） |
+| `qdrant-client` | Qdrant 向量数据库客户端（RAG 知识库） |
 
 ---
 
@@ -606,9 +662,9 @@ Phase 5: 生态完善 (2027-09 ~ 2027-12) 进行中
 
 | # | 功能 | 优先级 | 状态 |
 |---|------|--------|------|
-| 1 | 2D CAD 精确绘图（直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出） | P0 | ⚠️ 部分实现 |
+| 1 | 2D CAD 精确绘图（直线/矩形/圆弧/门窗/标注 + 正交锁定 + 对象捕捉 + DXF 导出） | P0 | ✅ Web 9 工具, Flutter 7 工具 |
 | 2 | 3D 模型生成（2D 墙体拉伸 → 3D + 基础材质） | P0 | ⚠️ 部分实现 |
-| 3 | 平立剖自动生成（俯视平面图 + 四向立面正投影） | P0 | ❌ 未实现 |
+| 3 | 平立剖自动生成（俯视平面图 + 四向立面正投影） | P0 | ✅ 已实现 (5 视图) |
 | 4 | 本地效果图预览（Three.js 实时渲染 + 3 套光照预设） | P0 | ⚠️ 基础渲染 |
 | 5 | 总控 Agent v1（多模态对话 + 意图理解 + 任务路由） | P0 | ✅ 已实现 |
 | 6 | 设计 Agent v1（自动生成 3 套平面布局 + 自然语言修改指令） | P0 | ✅ 已实现 (9 套布局) |

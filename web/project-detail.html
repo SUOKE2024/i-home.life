@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="项目详情 · 索克家居 AI 自治运营平台">
+<meta property="og:title" content="项目详情 · 索克家居">
+<meta property="og:description" content="索克家居 AI 装修平台项目详情，含预算、进度与施工管理">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="preload" href="assets/js/echarts.min.js?v=20260713b" as="script">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260713b">
+<link rel="manifest" href="manifest.json">
+<title>项目详情 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","name":"项目详情 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"}}
+</script>
+<style>
+  /* 项目详情页专属样式（复用 workbench.css 变量与基础类） */
+  .detail-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(160deg, #1a1a2e 0%, var(--bg-deep) 100%);
+    display: flex;
+    flex-direction: column;
+  }
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(18, 18, 29, 0.95);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .detail-back {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 22px;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color var(--transition);
+  }
+  .detail-back:hover { color: var(--accent); }
+  .detail-title-block { flex: 1; min-width: 0; }
+  .detail-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .detail-subtitle {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .detail-settings-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 18px;
+    padding: 4px 8px;
+    transition: color var(--transition);
+  }
+  .detail-settings-link:hover { color: var(--accent); }
+
+  .detail-main {
+    flex: 1;
+    padding: 16px 14px 32px;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* 状态视图 */
+  .detail-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-secondary);
+  }
+  .detail-state .state-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .detail-state .state-msg {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .detail-state .state-err {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    word-break: break-word;
+  }
+  .detail-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .detail-spinner { animation: none; }
+  }
+
+  /* 详情卡片 */
+  .detail-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .detail-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .detail-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    letter-spacing: 0.02em;
+  }
+  .detail-card-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+
+  /* 项目信息行 */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+  }
+  .info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .info-item.full { grid-column: 1 / -1; }
+  .info-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+  .info-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+  .info-value.muted { color: var(--text-secondary); }
+  .status-pill {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .status-pill.draft, .status-pill.design { background: rgba(90,126,201,0.18); color: var(--info); }
+  .status-pill.construction, .status-pill.in_progress { background: rgba(201,151,59,0.18); color: var(--accent); }
+  .status-pill.completed { background: rgba(74,158,110,0.18); color: var(--success); }
+  .status-pill.pending { background: rgba(201,122,59,0.18); color: var(--warning); }
+
+  /* 预算概览 */
+  .budget-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .budget-stat {
+    text-align: center;
+    padding: 8px 4px;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+  }
+  .budget-stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .budget-stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .budget-stat.spent .budget-stat-value { color: var(--warning); }
+  .budget-stat.remaining .budget-stat-value { color: var(--success); }
+  .budget-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  /* 任务列表 */
+  .task-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-deep);
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .task-row:last-child { margin-bottom: 0; }
+  .task-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .task-dot.done { background: var(--success); }
+  .task-dot.in_progress { background: var(--accent); }
+  .task-dot.pending { background: var(--text-muted); }
+  .task-name { flex: 1; color: var(--text-primary); }
+  .task-status-text {
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .task-status-text.done { color: var(--success); }
+  .task-status-text.in_progress { color: var(--accent); }
+
+  /* 里程碑时间线 */
+  .timeline {
+    position: relative;
+    padding-left: 20px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-item {
+    position: relative;
+    padding: 6px 0 14px 14px;
+  }
+  .timeline-item:last-child { padding-bottom: 0; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -17px;
+    top: 8px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 2px solid var(--text-muted);
+  }
+  .timeline-item.completed::before {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .timeline-item.current::before {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-glow);
+  }
+  .timeline-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .timeline-item.completed .timeline-title { color: var(--text-secondary); }
+  .timeline-item.current .timeline-title { color: var(--accent-bright); }
+  .timeline-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .timeline-state {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .timeline-state.completed { background: rgba(74,158,110,0.18); color: var(--success); }
+  .timeline-state.current { background: rgba(201,151,59,0.18); color: var(--accent); }
+  .timeline-state.pending { background: rgba(90,88,102,0.18); color: var(--text-muted); }
+
+  /* 变更单 */
+  .change-item {
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--warning);
+  }
+  .change-item:last-child { margin-bottom: 0; }
+  .change-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .change-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .change-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .change-meta span strong { color: var(--text-secondary); }
+
+  /* 团队成员 */
+  .team-group {
+    margin-bottom: 14px;
+  }
+  .team-group:last-child { margin-bottom: 0; }
+  .team-group-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .team-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .team-member {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+  }
+  .team-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    color: white;
+  }
+  .team-avatar.agent-master { background: var(--agent-master); }
+  .team-avatar.agent-design { background: var(--agent-design); }
+  .team-avatar.agent-budget { background: var(--agent-budget); }
+  .team-avatar.agent-procurement { background: var(--agent-procurement); }
+  .team-avatar.agent-construction { background: var(--agent-construction); }
+  .team-avatar.agent-quality { background: var(--agent-quality); }
+  .team-avatar.agent-settlement { background: var(--agent-settlement); }
+  .team-avatar.agent-support { background: var(--agent-support); }
+  .team-avatar.human { background: var(--border-active); color: var(--text-primary); }
+  .team-info { min-width: 0; }
+  .team-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .team-role {
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  /* 空状态 */
+  .empty-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 12px;
+  }
+
+  /* 数据可视化区块 */
+  .charts-card .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .chart-item {
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px 8px;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-item-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-bright);
+    margin: 0 0 4px;
+    letter-spacing: 0.02em;
+  }
+  .chart-container {
+    width: 100%;
+    height: 240px;
+    min-width: 0;
+  }
+  .chart-item-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin: 2px 0 0;
+    text-align: center;
+  }
+  .charts-note {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin: 8px 0 0;
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* 响应式断点：481-1024px 两列、>1024px 三列 */
+  @media (min-width: 481px) {
+    .charts-card .charts-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (min-width: 1025px) {
+    .charts-card .charts-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+
+  /* 底部返回 */
+  .detail-footer {
+    text-align: center;
+    padding: 20px 16px 32px;
+  }
+  .detail-footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 12px;
+  }
+  .detail-footer a:hover { color: var(--accent-bright); }
+
+  @media (max-width: 480px) {
+    .info-grid { grid-template-columns: 1fr; }
+    .budget-summary { grid-template-columns: 1fr; }
+    .team-list { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="detail-page">
+  <!-- 顶栏 -->
+  <header class="detail-header" role="banner">
+    <a href="workbench.html" class="detail-back" aria-label="返回工作台">‹</a>
+    <div class="detail-title-block">
+      <div class="detail-title" id="page-title">项目详情</div>
+      <div class="detail-subtitle" id="page-subtitle">加载中…</div>
+    </div>
+    <a href="settings.html" class="detail-settings-link" aria-label="打开设置">⋯</a>
+  </header>
+
+  <main class="detail-main" role="main">
+    <!-- 加载态 -->
+    <div class="detail-state" id="loading-state" role="status" aria-live="polite">
+      <div class="detail-spinner" aria-hidden="true"></div>
+      <p class="state-msg">正在加载项目详情…</p>
+    </div>
+
+    <!-- 错误态 -->
+    <div class="detail-state" id="error-state" hidden role="alert">
+      <span class="state-icon" aria-hidden="true">⚠️</span>
+      <p class="state-msg">加载失败</p>
+      <p class="state-err" id="error-message">无法获取项目信息</p>
+      <button class="btn btn-secondary" id="retry-btn" aria-label="重新加载">重新加载</button>
+    </div>
+
+    <!-- 内容容器 -->
+    <div id="detail-content" hidden>
+      <!-- 项目信息 -->
+      <section class="detail-card" aria-labelledby="info-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="info-card-title">项目信息</h2>
+          <span class="status-pill" id="project-status-pill" aria-label="项目状态">—</span>
+        </div>
+        <div class="info-grid">
+          <div class="info-item full">
+            <span class="info-label">项目名称</span>
+            <span class="info-value" id="project-name">—</span>
+          </div>
+          <div class="info-item full">
+            <span class="info-label">地址</span>
+            <span class="info-value muted" id="project-address">—</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">总面积</span>
+            <span class="info-value" id="project-area">—</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">创建时间</span>
+            <span class="info-value" id="project-created">—</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 预算概览 -->
+      <section class="detail-card" aria-labelledby="budget-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="budget-card-title">预算概览</h2>
+          <span class="detail-card-badge" id="budget-status-badge">—</span>
+        </div>
+        <div class="budget-summary">
+          <div class="budget-stat total">
+            <div class="budget-stat-label">总预算</div>
+            <div class="budget-stat-value" id="budget-total">¥0</div>
+          </div>
+          <div class="budget-stat spent">
+            <div class="budget-stat-label">已支出</div>
+            <div class="budget-stat-value" id="budget-spent">¥0</div>
+          </div>
+          <div class="budget-stat remaining">
+            <div class="budget-stat-label">剩余</div>
+            <div class="budget-stat-value" id="budget-remaining">¥0</div>
+          </div>
+        </div>
+        <div class="progress-bar" role="progressbar" aria-label="预算使用进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="budget-progress">
+          <div class="progress-bar-fill" id="budget-progress-fill" style="width:0%"></div>
+        </div>
+        <div class="budget-progress-label">
+          <span id="budget-progress-text">使用率 0%</span>
+          <span id="budget-progress-detail">—</span>
+        </div>
+      </section>
+
+      <!-- 数据可视化 -->
+      <section class="detail-card charts-card" aria-labelledby="charts-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="charts-card-title">数据可视化</h2>
+          <span class="detail-card-badge" id="charts-source-badge">加载中</span>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-item">
+            <h3 class="chart-item-title">预算分布</h3>
+            <div id="chart-budget" class="chart-container" role="img" aria-label="预算分布饼图：展示硬装、定制柜体、软装、家电、管理费各项预算占比"></div>
+            <p class="chart-item-desc" id="chart-budget-desc">各分项预算占比</p>
+          </div>
+          <div class="chart-item">
+            <h3 class="chart-item-title">施工进度</h3>
+            <div id="chart-progress" class="chart-container" role="img" aria-label="施工进度柱状图：展示准备、拆改、水电、泥瓦、木工、油漆、安装、验收 8 个施工阶段的完成百分比"></div>
+            <p class="chart-item-desc" id="chart-progress-desc">8 个施工阶段完成率</p>
+          </div>
+          <div class="chart-item">
+            <h3 class="chart-item-title">质检合格率</h3>
+            <div id="chart-quality" class="chart-container" role="img" aria-label="质检合格率仪表盘：展示水电、泥瓦、木工、油漆、安装 5 个分项的合格率"></div>
+            <p class="chart-item-desc" id="chart-quality-desc">5 个分项合格率</p>
+          </div>
+        </div>
+        <p class="charts-note" id="charts-note" hidden></p>
+      </section>
+
+      <!-- 施工任务 -->
+      <section class="detail-card" aria-labelledby="tasks-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="tasks-card-title">施工任务</h2>
+          <span class="detail-card-badge" id="tasks-count-badge">0 项</span>
+        </div>
+        <div id="tasks-list" aria-live="polite">
+          <p class="empty-hint">暂无施工任务</p>
+        </div>
+      </section>
+
+      <!-- 里程碑时间线 -->
+      <section class="detail-card" aria-labelledby="milestones-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="milestones-card-title">里程碑节点</h2>
+        </div>
+        <div id="milestones-list" class="timeline" aria-live="polite">
+          <p class="empty-hint">暂无里程碑</p>
+        </div>
+      </section>
+
+      <!-- 变更单审批 -->
+      <section class="detail-card" aria-labelledby="changes-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="changes-card-title">变更审批</h2>
+          <span class="detail-card-badge" id="changes-count-badge">0 项待审</span>
+        </div>
+        <div id="changes-list" aria-live="polite">
+          <p class="empty-hint">暂无待审批变更</p>
+        </div>
+      </section>
+
+      <!-- 团队成员 -->
+      <section class="detail-card" aria-labelledby="team-card-title">
+        <div class="detail-card-header">
+          <h2 class="detail-card-title" id="team-card-title">项目团队</h2>
+        </div>
+
+        <div class="team-group">
+          <div class="team-group-title">AI 智能体（8）</div>
+          <div class="team-list" id="ai-agents-list">
+            <div class="team-member">
+              <div class="team-avatar agent-master" aria-hidden="true">🏠</div>
+              <div class="team-info">
+                <div class="team-name">总控 Agent</div>
+                <div class="team-role">统筹协调</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-design" aria-hidden="true">📐</div>
+              <div class="team-info">
+                <div class="team-name">设计 Agent</div>
+                <div class="team-role">方案设计</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-budget" aria-hidden="true">💰</div>
+              <div class="team-info">
+                <div class="team-name">预算 Agent</div>
+                <div class="team-role">成本管控</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-procurement" aria-hidden="true">🛒</div>
+              <div class="team-info">
+                <div class="team-name">采购 Agent</div>
+                <div class="team-role">物料采购</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-construction" aria-hidden="true">🔨</div>
+              <div class="team-info">
+                <div class="team-name">施工 Agent</div>
+                <div class="team-role">施工管理</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-quality" aria-hidden="true">✅</div>
+              <div class="team-info">
+                <div class="team-name">质检 Agent</div>
+                <div class="team-role">质量验收</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-settlement" aria-hidden="true">🧾</div>
+              <div class="team-info">
+                <div class="team-name">结算 Agent</div>
+                <div class="team-role">财务结算</div>
+              </div>
+            </div>
+            <div class="team-member">
+              <div class="team-avatar agent-support" aria-hidden="true">🎧</div>
+              <div class="team-info">
+                <div class="team-name">客服 Agent</div>
+                <div class="team-role">售后支持</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="team-group" id="human-collab-group" hidden>
+          <div class="team-group-title">人工协作者</div>
+          <div class="team-list" id="human-collab-list"></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="detail-footer">
+      <a href="workbench.html" aria-label="返回工作台">← 返回工作台</a>
+    </div>
+  </main>
+</div>
+
+<script src="assets/js/api-client.js?v=20260713b"></script>
+<script src="assets/js/echarts.min.js?v=20260713b"></script>
+<script>
+(function() {
+  'use strict';
+
+  // ============ 元素引用 ============
+  const pageTitleEl = document.getElementById('page-title');
+  const pageSubtitleEl = document.getElementById('page-subtitle');
+  const loadingState = document.getElementById('loading-state');
+  const errorState = document.getElementById('error-state');
+  const errorMessage = document.getElementById('error-message');
+  const retryBtn = document.getElementById('retry-btn');
+  const detailContent = document.getElementById('detail-content');
+
+  // ============ 工具函数 ============
+  const STATUS_MAP = {
+    draft: '设计阶段', design: '设计阶段', construction: '施工中',
+    completed: '已完工', pending: '筹备中', in_progress: '施工中',
+  };
+
+  function formatCurrency(n) {
+    const num = Number(n) || 0;
+    return '¥' + num.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  }
+
+  function formatDate(str) {
+    if (!str) return '—';
+    try {
+      const d = new Date(str);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    } catch (_) {
+      return '—';
+    }
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setStatusPill(pillEl, status) {
+    const label = STATUS_MAP[status] || status || '进行中';
+    pillEl.textContent = label;
+    pillEl.className = 'status-pill ' + (status || 'pending');
+  }
+
+  function showLoading() {
+    loadingState.hidden = false;
+    errorState.hidden = true;
+    detailContent.hidden = true;
+  }
+
+  function showError(msg) {
+    loadingState.hidden = true;
+    errorState.hidden = false;
+    detailContent.hidden = true;
+    errorMessage.textContent = msg || '无法获取项目信息';
+  }
+
+  function showContent() {
+    loadingState.hidden = true;
+    errorState.hidden = true;
+    detailContent.hidden = false;
+  }
+
+  // ============ 渲染：项目信息 ============
+  function renderProjectInfo(p) {
+    pageTitleEl.textContent = p.name || '项目详情';
+    pageSubtitleEl.textContent = STATUS_MAP[p.status] || p.status || '进行中';
+
+    document.getElementById('project-name').textContent = p.name || '未命名项目';
+    document.getElementById('project-address').textContent = p.address || '未填写';
+    document.getElementById('project-area').textContent = p.total_area ? (p.total_area + ' ㎡') : '未填写';
+    document.getElementById('project-created').textContent = formatDate(p.created_at || p.createdAt);
+    setStatusPill(document.getElementById('project-status-pill'), p.status);
+
+    // 人工协作者（从项目数据中提取，若存在）
+    renderHumanCollaborators(p);
+  }
+
+  // ============ 渲染：人工协作者 ============
+  function renderHumanCollaborators(p) {
+    const group = document.getElementById('human-collab-group');
+    const list = document.getElementById('human-collab-list');
+    const humans = [];
+
+    // 从项目字段中提取可能的协作者信息
+    if (p.owner_name || p.owner_id) {
+      humans.push({ name: p.owner_name || '业主', role: '业主', emoji: '👤' });
+    }
+    if (p.designer_name || p.designer_id) {
+      humans.push({ name: p.designer_name || '设计师', role: '设计师', emoji: '📐' });
+    }
+    if (p.foreman_name || p.foreman_id) {
+      humans.push({ name: p.foreman_name || '工长', role: '工长', emoji: '👷' });
+    }
+    if (p.supplier_name || p.supplier_id) {
+      humans.push({ name: p.supplier_name || '供应商', role: '供应商', emoji: '🏭' });
+    }
+
+    if (humans.length === 0) {
+      group.hidden = true;
+      return;
+    }
+    group.hidden = false;
+    list.innerHTML = humans.map(h => `
+      <div class="team-member">
+        <div class="team-avatar human" aria-hidden="true">${h.emoji}</div>
+        <div class="team-info">
+          <div class="team-name">${escapeHtml(h.name)}</div>
+          <div class="team-role">${escapeHtml(h.role)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ============ 渲染：预算 ============
+  function renderBudget(budget) {
+    const total = Number(budget.total_estimated || budget.total || 0);
+    const spent = Number(budget.total_actual || budget.spent || 0);
+    const remaining = total - spent;
+    const pct = total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0;
+
+    document.getElementById('budget-total').textContent = formatCurrency(total);
+    document.getElementById('budget-spent').textContent = formatCurrency(spent);
+    document.getElementById('budget-remaining').textContent = formatCurrency(remaining);
+
+    const fill = document.getElementById('budget-progress-fill');
+    fill.style.width = pct + '%';
+
+    const progress = document.getElementById('budget-progress');
+    progress.setAttribute('aria-valuenow', String(pct));
+
+    document.getElementById('budget-progress-text').textContent = `使用率 ${pct}%`;
+    document.getElementById('budget-progress-detail').textContent =
+      total > 0 ? `剩余 ${formatCurrency(remaining)}` : '—';
+
+    const badge = document.getElementById('budget-status-badge');
+    badge.textContent = budget.status || (total > 0 ? '已建立' : '未建立');
+  }
+
+  // ============ 渲染：施工任务 ============
+  function renderTasks(tasksData) {
+    const listEl = document.getElementById('tasks-list');
+    const badge = document.getElementById('tasks-count-badge');
+
+    // 兼容多种返回结构
+    let tasks = [];
+    if (Array.isArray(tasksData)) {
+      tasks = tasksData;
+    } else if (tasksData && tasksData.items) {
+      tasks = tasksData.items;
+    } else if (tasksData && (tasksData.tasks || tasksData.checklist)) {
+      // 单个任务对象包含 checklist
+      tasks = tasksData.tasks || tasksData.checklist;
+    }
+
+    if (!tasks || tasks.length === 0) {
+      listEl.innerHTML = '<p class="empty-hint">暂无施工任务</p>';
+      badge.textContent = '0 项';
+      return;
+    }
+
+    badge.textContent = tasks.length + ' 项';
+    listEl.innerHTML = tasks.map(t => {
+      const name = t.name || t.title || t.description || '未命名任务';
+      const status = t.status || 'pending';
+      const statusText = status === 'done' || status === 'completed' ? '已完成'
+        : status === 'in_progress' || status === 'doing' ? '进行中'
+        : status === 'pending' || status === 'todo' ? '待开始'
+        : status;
+      const dotClass = status === 'done' || status === 'completed' ? 'done'
+        : status === 'in_progress' || status === 'doing' ? 'in_progress'
+        : 'pending';
+      const textClass = status === 'done' || status === 'completed' ? 'done'
+        : status === 'in_progress' || status === 'doing' ? 'in_progress'
+        : '';
+      return `
+        <div class="task-row">
+          <span class="task-dot ${dotClass}" aria-hidden="true"></span>
+          <span class="task-name">${escapeHtml(name)}</span>
+          <span class="task-status-text ${textClass}">${escapeHtml(statusText)}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ============ 渲染：里程碑时间线 ============
+  function renderMilestones(milestonesData) {
+    const listEl = document.getElementById('milestones-list');
+    let milestones = [];
+    if (Array.isArray(milestonesData)) {
+      milestones = milestonesData;
+    } else if (milestonesData && milestonesData.items) {
+      milestones = milestonesData.items;
+    }
+
+    if (!milestones || milestones.length === 0) {
+      listEl.innerHTML = '<p class="empty-hint">暂无里程碑</p>';
+      return;
+    }
+
+    listEl.innerHTML = milestones.map(m => {
+      const name = m.name || m.title || '里程碑节点';
+      const status = m.status || 'pending';
+      const stateClass = status === 'done' || status === 'completed' ? 'completed'
+        : status === 'current' || status === 'in_progress' || status === 'doing' ? 'current'
+        : 'pending';
+      const stateLabel = status === 'done' || status === 'completed' ? '已完成'
+        : status === 'current' || status === 'in_progress' || status === 'doing' ? '进行中'
+        : '待开始';
+      const date = m.planned_date || m.actual_date || m.date || m.completed_at;
+      return `
+        <div class="timeline-item ${stateClass}">
+          <div class="timeline-title">${escapeHtml(name)}<span class="timeline-state ${stateClass}">${stateLabel}</span></div>
+          <div class="timeline-meta">${date ? '计划：' + formatDate(date) : '时间未定'}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ============ 渲染：变更单 ============
+  function renderChangeOrders(ordersData) {
+    const listEl = document.getElementById('changes-list');
+    const badge = document.getElementById('changes-count-badge');
+
+    let orders = [];
+    if (Array.isArray(ordersData)) {
+      orders = ordersData;
+    } else if (ordersData && ordersData.items) {
+      orders = ordersData.items;
+    }
+
+    // 仅展示待审批
+    const pending = orders.filter(o =>
+      o.status === 'pending' || o.status === 'review' || !o.status
+    );
+
+    badge.textContent = pending.length + ' 项待审';
+
+    if (pending.length === 0) {
+      listEl.innerHTML = '<p class="empty-hint">暂无待审批变更</p>';
+      return;
+    }
+
+    listEl.innerHTML = pending.map(o => {
+      const title = o.title || o.name || '变更申请';
+      const desc = o.description || o.reason || o.detail || '';
+      const costImpact = o.cost_impact || o.impact_cost || 0;
+      const daysImpact = o.schedule_impact || o.impact_days || 0;
+      const created = o.created_at || o.createdAt;
+      const oid = o.id || '';
+      return `
+        <div class="change-item" data-change-id="${escapeHtml(oid)}">
+          <div class="change-title">${escapeHtml(title)}</div>
+          ${desc ? `<div class="change-desc">${escapeHtml(desc)}</div>` : ''}
+          <div class="change-meta">
+            <span><strong>费用影响：</strong>${formatCurrency(costImpact)}</span>
+            <span><strong>工期影响：</strong>${daysImpact} 天</span>
+            ${created ? `<span><strong>提交：</strong>${formatDate(created)}</span>` : ''}
+          </div>
+          <div class="approval-actions">
+            <button class="approval-btn approve" data-change-id="${escapeHtml(oid)}" data-decision="approve" aria-label="同意变更">同意</button>
+            <button class="approval-btn reject" data-change-id="${escapeHtml(oid)}" data-decision="reject" aria-label="驳回变更">驳回</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ============ 数据可视化（ECharts） ============
+  const CHART_COLORS = {
+    bg: '#0E0E1A',
+    bgCard: '#12121D',
+    textPrimary: '#e8e6e1',
+    textSecondary: '#8a8894',
+    accent: '#c9973b',
+    success: '#4a9e6e',
+    warning: '#c97a3b',
+    danger: '#c94a4a',
+    info: '#5a7ec9',
+    purple: '#9b6ac9',
+    cyan: '#4ac9a3',
+  };
+  const CHART_PALETTE = [
+    CHART_COLORS.accent, CHART_COLORS.info, CHART_COLORS.success,
+    CHART_COLORS.purple, CHART_COLORS.cyan, CHART_COLORS.warning,
+  ];
+
+  const prefersReducedMotion =
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ANIMATION_OPT = prefersReducedMotion ? { animation: false } : {};
+
+  let budgetChart = null;
+  let progressChart = null;
+  let qualityChart = null;
+
+  function disposeCharts() {
+    if (budgetChart) { budgetChart.dispose(); budgetChart = null; }
+    if (progressChart) { progressChart.dispose(); progressChart = null; }
+    if (qualityChart) { qualityChart.dispose(); qualityChart = null; }
+  }
+
+  // 从预算数据中提取分项明细，失败则返回 null
+  function extractBudgetBreakdown(budget) {
+    if (!budget) return null;
+    const candidates = budget.breakdown || budget.categories ||
+      budget.items || budget.details || budget.sub_items;
+    if (Array.isArray(candidates) && candidates.length > 0) {
+      const mapped = candidates.map(item => ({
+        name: item.name || item.category || item.label || item.title || '其他',
+        value: Number(item.amount || item.estimated || item.value ||
+          item.total_estimated || item.actual || 0),
+      })).filter(i => i.value > 0);
+      if (mapped.length > 0) return mapped;
+    }
+    return null;
+  }
+
+  // 生成预算分布 mock 数据（依据总额缩放）
+  function mockBudgetBreakdown(total) {
+    const t = Number(total) || 0;
+    const base = t > 0 ? t : 100000;
+    return [
+      { name: '硬装', value: Math.round(base * 0.35) },
+      { name: '定制柜体', value: Math.round(base * 0.25) },
+      { name: '软装', value: Math.round(base * 0.20) },
+      { name: '家电', value: Math.round(base * 0.15) },
+      { name: '管理费', value: Math.round(base * 0.05) },
+    ];
+  }
+
+  // 从施工任务数组提取 8 阶段进度
+  function extractStageProgress(tasksData) {
+    const stages = ['准备', '拆改', '水电', '泥瓦', '木工', '油漆', '安装', '验收'];
+    const keywords = {
+      '准备': ['准备', '筹备', '开工', 'protect'],
+      '拆改': ['拆改', '拆除', '拆', 'demolition'],
+      '水电': ['水电', '水管', '电线', '管线', 'plumb', 'electric'],
+      '泥瓦': ['泥瓦', '瓦工', '泥工', '瓷砖', '铺贴', '防水', 'masonry'],
+      '木工': ['木工', '木作', '吊顶', 'carpentry'],
+      '油漆': ['油漆', '涂料', '墙面漆', 'paint'],
+      '安装': ['安装', '装置', 'install'],
+      '验收': ['验收', '竣工', 'inspect', 'accept'],
+    };
+
+    let tasks = [];
+    if (Array.isArray(tasksData)) tasks = tasksData;
+    else if (tasksData && Array.isArray(tasksData.items)) tasks = tasksData.items;
+    else if (tasksData && Array.isArray(tasksData.tasks)) tasks = tasksData.tasks;
+
+    if (tasks.length === 0) return null;
+
+    const result = stages.map(stage => {
+      const kws = keywords[stage];
+      const matched = tasks.filter(t => {
+        const name = String(t.name || t.title || t.description || '').toLowerCase();
+        return kws.some(k => name.includes(k.toLowerCase()));
+      });
+      if (matched.length === 0) return { stage, progress: 0 };
+      const avg = matched.reduce((sum, t) => {
+        const p = Number(t.progress || t.completion || t.percentage ||
+          t.completion_rate || 0);
+        const status = t.status || '';
+        if (status === 'done' || status === 'completed') return sum + 100;
+        if (status === 'pending' || status === 'todo') return sum + 0;
+        return sum + (p > 0 ? p : 0);
+      }, 0) / matched.length;
+      return { stage, progress: Math.round(Math.min(100, avg)) };
+    });
+    return result;
+  }
+
+  function mockStageProgress() {
+    return [
+      { stage: '准备', progress: 100 },
+      { stage: '拆改', progress: 100 },
+      { stage: '水电', progress: 100 },
+      { stage: '泥瓦', progress: 85 },
+      { stage: '木工', progress: 60 },
+      { stage: '油漆', progress: 30 },
+      { stage: '安装', progress: 0 },
+      { stage: '验收', progress: 0 },
+    ];
+  }
+
+  // 从质量问题数组估算合格率（依据严重等级与状态）
+  function extractQualityRates(qualityData) {
+    const items = ['水电', '泥瓦', '木工', '油漆', '安装'];
+    const keywords = {
+      '水电': ['水电', 'plumb'],
+      '泥瓦': ['泥瓦', '瓦', '瓷砖', '防水'],
+      '木工': ['木工', '木作', '吊顶'],
+      '油漆': ['油漆', '涂料', 'paint'],
+      '安装': ['安装', 'install'],
+    };
+
+    let issues = [];
+    if (Array.isArray(qualityData)) issues = qualityData;
+    else if (qualityData && Array.isArray(qualityData.items)) issues = qualityData.items;
+    else if (qualityData && Array.isArray(qualityData.issues)) issues = qualityData.issues;
+
+    if (issues.length === 0) return null;
+
+    const result = items.map(item => {
+      const kws = keywords[item];
+      const matched = issues.filter(i => {
+        const cat = String(i.category || i.stage || i.phase || i.title || '').toLowerCase();
+        return kws.some(k => cat.includes(k.toLowerCase()));
+      });
+      // 无问题视为 100% 合格；有问题则按未关闭缺陷数估算
+      if (matched.length === 0) return { item, rate: 100 };
+      const open = matched.filter(i =>
+        i.status !== 'resolved' && i.status !== 'closed' && i.status !== 'fixed'
+      ).length;
+      const rate = Math.max(0, Math.min(100, 100 - open * 5));
+      return { item, rate };
+    });
+    return result;
+  }
+
+  function mockQualityRates() {
+    return [
+      { item: '水电', rate: 98 },
+      { item: '泥瓦', rate: 95 },
+      { item: '木工', rate: 92 },
+      { item: '油漆', rate: 88 },
+      { item: '安装', rate: 0 },
+    ];
+  }
+
+  function renderBudgetChart(breakdown, isMock) {
+    const el = document.getElementById('chart-budget');
+    if (!el || typeof echarts === 'undefined') return;
+    if (budgetChart) budgetChart.dispose();
+    budgetChart = echarts.init(el, null, { renderer: 'canvas' });
+
+    const total = breakdown.reduce((s, i) => s + i.value, 0);
+    budgetChart.setOption({
+      color: CHART_PALETTE,
+      backgroundColor: 'transparent',
+      animation: ANIMATION_OPT.animation !== false,
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: CHART_COLORS.bgCard,
+        borderColor: CHART_COLORS.accent,
+        textStyle: { color: CHART_COLORS.textPrimary, fontSize: 12 },
+        formatter: function(p) {
+          const pct = total > 0 ? (p.value / total * 100).toFixed(1) : '0';
+          return p.name + ': ¥' + p.value.toLocaleString('zh-CN') + ' (' + pct + '%)';
+        },
+      },
+      legend: {
+        type: 'scroll',
+        orient: 'horizontal',
+        bottom: 0,
+        textStyle: { color: CHART_COLORS.textSecondary, fontSize: 10 },
+        itemWidth: 10,
+        itemHeight: 10,
+      },
+      series: [{
+        name: '预算分布',
+        type: 'pie',
+        radius: ['38%', '62%'],
+        center: ['50%', '44%'],
+        avoidLabelOverlap: true,
+        label: {
+          show: true,
+          color: CHART_COLORS.textPrimary,
+          fontSize: 10,
+          formatter: '{b}\n{d}%',
+        },
+        labelLine: {
+          lineStyle: { color: CHART_COLORS.textSecondary },
+          length: 8,
+          length2: 6,
+        },
+        itemStyle: {
+          borderColor: CHART_COLORS.bgCard,
+          borderWidth: 2,
+        },
+        data: breakdown,
+      }],
+    });
+
+    const desc = document.getElementById('chart-budget-desc');
+    if (desc) {
+      desc.textContent = isMock
+        ? '示例分项占比（总额：¥' + total.toLocaleString('zh-CN') + '）'
+        : '合计 ¥' + total.toLocaleString('zh-CN');
+    }
+  }
+
+  function renderProgressChart(progress, isMock) {
+    const el = document.getElementById('chart-progress');
+    if (!el || typeof echarts === 'undefined') return;
+    if (progressChart) progressChart.dispose();
+    progressChart = echarts.init(el, null, { renderer: 'canvas' });
+
+    const stages = progress.map(p => p.stage);
+    const values = progress.map(p => p.progress);
+
+    progressChart.setOption({
+      backgroundColor: 'transparent',
+      animation: ANIMATION_OPT.animation !== false,
+      grid: { left: 36, right: 16, top: 20, bottom: 28, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: CHART_COLORS.bgCard,
+        borderColor: CHART_COLORS.accent,
+        textStyle: { color: CHART_COLORS.textPrimary, fontSize: 12 },
+        formatter: function(params) {
+          const p = params[0];
+          return p.name + ': ' + p.value + '%';
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: stages,
+        axisLabel: { color: CHART_COLORS.textSecondary, fontSize: 10, interval: 0, rotate: 0 },
+        axisLine: { lineStyle: { color: CHART_COLORS.textSecondary } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        axisLabel: { color: CHART_COLORS.textSecondary, fontSize: 10, formatter: '{value}%' },
+        splitLine: { lineStyle: { color: 'rgba(138,136,148,0.15)' } },
+        axisLine: { show: false },
+      },
+      series: [{
+        name: '完成率',
+        type: 'bar',
+        barWidth: '55%',
+        data: values.map(v => ({
+          value: v,
+          itemStyle: {
+            color: v >= 100 ? CHART_COLORS.success
+              : v > 0 ? CHART_COLORS.accent
+              : CHART_COLORS.textSecondary,
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+        label: {
+          show: true,
+          position: 'top',
+          color: CHART_COLORS.textPrimary,
+          fontSize: 10,
+          formatter: '{c}%',
+        },
+      }],
+    });
+
+    const desc = document.getElementById('chart-progress-desc');
+    if (desc) {
+      const avg = Math.round(values.reduce((s, v) => s + v, 0) / values.length);
+      desc.textContent = (isMock ? '示例进度 · ' : '') + '整体完成 ' + avg + '%';
+    }
+  }
+
+  function renderQualityChart(rates, isMock) {
+    const el = document.getElementById('chart-quality');
+    if (!el || typeof echarts === 'undefined') return;
+    if (qualityChart) qualityChart.dispose();
+    qualityChart = echarts.init(el, null, { renderer: 'canvas' });
+
+    const items = rates.map(r => r.item);
+    const values = rates.map(r => r.rate);
+
+    qualityChart.setOption({
+      backgroundColor: 'transparent',
+      animation: ANIMATION_OPT.animation !== false,
+      grid: { left: 36, right: 16, top: 24, bottom: 28, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: CHART_COLORS.bgCard,
+        borderColor: CHART_COLORS.accent,
+        textStyle: { color: CHART_COLORS.textPrimary, fontSize: 12 },
+        formatter: function(params) {
+          const p = params[0];
+          return p.name + ' 合格率: ' + p.value + '%';
+        },
+      },
+      xAxis: {
+        type: 'category',
+        data: items,
+        axisLabel: { color: CHART_COLORS.textSecondary, fontSize: 10, interval: 0 },
+        axisLine: { lineStyle: { color: CHART_COLORS.textSecondary } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: 100,
+        axisLabel: { color: CHART_COLORS.textSecondary, fontSize: 10, formatter: '{value}%' },
+        splitLine: { lineStyle: { color: 'rgba(138,136,148,0.15)' } },
+        axisLine: { show: false },
+      },
+      series: [{
+        name: '合格率',
+        type: 'bar',
+        barWidth: '45%',
+        data: values.map(v => ({
+          value: v,
+          itemStyle: {
+            color: v >= 95 ? CHART_COLORS.success
+              : v >= 80 ? CHART_COLORS.accent
+              : v > 0 ? CHART_COLORS.warning
+              : CHART_COLORS.textSecondary,
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+        label: {
+          show: true,
+          position: 'top',
+          color: CHART_COLORS.textPrimary,
+          fontSize: 10,
+          formatter: function(p) { return p.value > 0 ? p.value + '%' : '—'; },
+        },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { color: CHART_COLORS.success, type: 'dashed', opacity: 0.5 },
+          data: [{ yAxis: 95 }],
+          label: {
+            color: CHART_COLORS.success,
+            fontSize: 9,
+            formatter: '达标线 95%',
+            position: 'insideEndTop',
+          },
+        },
+      }],
+    });
+
+    const desc = document.getElementById('chart-quality-desc');
+    if (desc) {
+      const valid = values.filter(v => v > 0);
+      const avg = valid.length > 0
+        ? Math.round(valid.reduce((s, v) => s + v, 0) / valid.length)
+        : 0;
+      desc.textContent = (isMock ? '示例数据 · ' : '') +
+        (valid.length > 0 ? '平均合格率 ' + avg + '%' : '暂无质检数据');
+    }
+  }
+
+  function renderCharts(data) {
+    if (typeof echarts === 'undefined') {
+      const badge = document.getElementById('charts-source-badge');
+      if (badge) badge.textContent = '图表库未加载';
+      const note = document.getElementById('charts-note');
+      if (note) {
+        note.hidden = false;
+        note.textContent = 'ECharts 库加载失败，无法显示图表。';
+      }
+      return;
+    }
+
+    disposeCharts();
+
+    // —— 预算分布 ——
+    let budgetBreakdown = extractBudgetBreakdown(data.budget);
+    let budgetIsMock = false;
+    if (!budgetBreakdown) {
+      const total = data.budget
+        ? (data.budget.total_estimated || data.budget.total || 0)
+        : 0;
+      budgetBreakdown = mockBudgetBreakdown(total);
+      budgetIsMock = true;
+    }
+    renderBudgetChart(budgetBreakdown, budgetIsMock);
+
+    // —— 施工进度 ——
+    let stageProgress = extractStageProgress(data.tasks);
+    let progressIsMock = false;
+    if (!stageProgress) {
+      stageProgress = mockStageProgress();
+      progressIsMock = true;
+    }
+    renderProgressChart(stageProgress, progressIsMock);
+
+    // —— 质检合格率 ——
+    let qualityRates = extractQualityRates(data.quality);
+    let qualityIsMock = false;
+    if (!qualityRates) {
+      qualityRates = mockQualityRates();
+      qualityIsMock = true;
+    }
+    renderQualityChart(qualityRates, qualityIsMock);
+
+    // —— 数据来源标识 ——
+    const badge = document.getElementById('charts-source-badge');
+    if (badge) {
+      const anyMock = budgetIsMock || progressIsMock || qualityIsMock;
+      const allMock = budgetIsMock && progressIsMock && qualityIsMock;
+      if (allMock) badge.textContent = '示例数据';
+      else if (anyMock) badge.textContent = '部分示例';
+      else badge.textContent = '实时数据';
+    }
+    const note = document.getElementById('charts-note');
+    if (note) {
+      const notes = [];
+      if (budgetIsMock) notes.push('预算分布');
+      if (progressIsMock) notes.push('施工进度');
+      if (qualityIsMock) notes.push('质检合格率');
+      if (notes.length > 0) {
+        note.hidden = false;
+        note.textContent = '注：' + notes.join('、') + ' 为示例数据（API 数据不足或不可用）。';
+      } else {
+        note.hidden = true;
+      }
+    }
+  }
+
+  // 窗口尺寸变化时重绘图表
+  let chartResizeTimer = null;
+  window.addEventListener('resize', function() {
+    if (chartResizeTimer) clearTimeout(chartResizeTimer);
+    chartResizeTimer = setTimeout(function() {
+      if (budgetChart) budgetChart.resize();
+      if (progressChart) progressChart.resize();
+      if (qualityChart) qualityChart.resize();
+    }, 150);
+  });
+
+  // 页面卸载时释放图表实例
+  window.addEventListener('beforeunload', disposeCharts);
+
+
+  // ============ 变更单审批交互 ============
+  document.getElementById('changes-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.approval-btn');
+    if (!btn) return;
+    const changeId = btn.dataset.changeId;
+    const decision = btn.dataset.decision;
+    if (!changeId) return;
+
+    const card = btn.closest('.change-item');
+    const buttons = card.querySelectorAll('.approval-btn');
+    buttons.forEach(b => { b.disabled = true; });
+    btn.textContent = '处理中…';
+
+    try {
+      await ApiClient.approveChangeOrder(changeId, decision);
+      btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
+      btn.style.opacity = 0.6;
+      buttons.forEach(b => {
+        if (b !== btn) {
+          b.textContent = '—';
+          b.style.opacity = 0.4;
+        }
+      });
+    } catch (err) {
+      btn.textContent = decision === 'approve' ? '同意' : '驳回';
+      buttons.forEach(b => { b.disabled = false; });
+      const msg = (err && err.body && (err.body.detail || err.body.message)) || err.message || '操作失败';
+      alert('审批失败：' + (typeof msg === 'string' ? msg : JSON.stringify(msg)));
+    }
+  });
+
+  // ============ 数据加载 ============
+  async function loadDetail() {
+    showLoading();
+
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('id');
+
+    if (!projectId) {
+      showError('缺少项目 ID 参数（?id=xxx）');
+      return;
+    }
+
+    // Token 检查
+    const token = ApiClient.getToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    // 并行加载所有数据
+    const results = await Promise.allSettled([
+      ApiClient.getProject(projectId),
+      ApiClient.getBudget(projectId),
+      ApiClient.getConstructionTasks(projectId),
+      ApiClient.getMilestones(projectId),
+      ApiClient.getChangeOrders(projectId),
+      ApiClient.getQualityIssues(projectId),
+    ]);
+
+    const [projectRes, budgetRes, tasksRes, milestonesRes, changesRes, qualityRes] = results;
+
+    // 项目信息是核心数据，若失败则展示错误
+    if (projectRes.status === 'fulfilled' && projectRes.value) {
+      renderProjectInfo(projectRes.value);
+    } else {
+      const err = projectRes.reason;
+      let msg = '无法获取项目信息';
+      if (err && err.status === 401) {
+        // 401 已由 request 方法处理跳转
+        return;
+      }
+      if (err && err.status === 404) {
+        msg = '项目不存在或无访问权限';
+      } else if (err && err.message) {
+        msg = err.message;
+      }
+      showError(msg);
+      return;
+    }
+
+    // 预算（失败则展示空预算）
+    if (budgetRes.status === 'fulfilled' && budgetRes.value) {
+      renderBudget(budgetRes.value);
+    } else {
+      renderBudget({});
+    }
+
+    // 施工任务
+    if (tasksRes.status === 'fulfilled') {
+      renderTasks(tasksRes.value);
+    } else {
+      renderTasks([]);
+    }
+
+    // 里程碑
+    if (milestonesRes.status === 'fulfilled') {
+      renderMilestones(milestonesRes.value);
+    } else {
+      renderMilestones([]);
+    }
+
+    // 变更单
+    if (changesRes.status === 'fulfilled') {
+      renderChangeOrders(changesRes.value);
+    } else {
+      renderChangeOrders([]);
+    }
+
+    // 数据可视化图表（API 失败时降级 mock）
+    try {
+      const budgetData = budgetRes.status === 'fulfilled' ? budgetRes.value : null;
+      const tasksData = tasksRes.status === 'fulfilled' ? tasksRes.value : null;
+      const qualityData = qualityRes.status === 'fulfilled' ? qualityRes.value : null;
+      renderCharts({ budget: budgetData, tasks: tasksData, quality: qualityData });
+    } catch (e) {
+      console.warn('图表渲染失败:', e);
+    }
+
+    showContent();
+  }
+
+  // ============ 事件绑定 ============
+  retryBtn.addEventListener('click', loadDetail);
+
+  // ============ 启动 ============
+  loadDetail();
+})();
+</script>
+<script src="assets/js/analytics.js?v=20260713b"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

@@ -4,15 +4,26 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
+import 'offline_cache_service.dart';
 
-/// 统一 API 响应
-class ApiResponse<T> {
+/// 统一 API 结果（Result 模式）
+///
+/// 所有 API 方法返回 [Result] 而非抛异常，调用方通过 [isSuccess] 判断
+/// 成功与否，避免 try-catch 散落各处。
+class Result<T> {
   final T? data;
   final String? error;
   final int statusCode;
   final bool isNetworkError;
+
   bool get isSuccess => statusCode >= 200 && statusCode < 300;
-  ApiResponse({this.data, this.error, this.statusCode = 0, this.isNetworkError = false});
+
+  Result.success(this.data, {this.statusCode = 200})
+      : error = null,
+        isNetworkError = false;
+
+  Result.failure(this.error, {this.statusCode = 0, this.isNetworkError = false})
+      : data = null;
 }
 
 class ApiClient {
@@ -46,6 +57,7 @@ class ApiClient {
   }
 
   bool get isLoggedIn => _token != null;
+  String? get token => _token;
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
@@ -56,14 +68,18 @@ class ApiClient {
 
   // ── 核心请求（带重试） ──
 
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
+  Future<T> _send<T>(Future<T> Function() request) async {
     _retryCount = 0;
     while (true) {
       try {
         return await request().timeout(AppConfig.requestTimeout);
       } on SocketException catch (e) {
+        // 连接被拒绝不重试（后端未启动或端口未开放）
+        if (e.message.contains('Connection refused') || e.osError?.errorCode == 61) {
+          throw ApiException('无法连接到服务器', isNetwork: true, cause: e);
+        }
         if (_retryCount >= _maxRetries) {
-          throw ApiException('网络连接失败', isNetwork: true, cause: e);
+          throw ApiException('网络连接失败: ${e.message}', isNetwork: true, cause: e);
         }
         _retryCount++;
         await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
@@ -83,270 +99,823 @@ class ApiClient {
     }
   }
 
-  // ── HTTP 方法 ──
+  // ── HTTP 方法（统一返回 Result） ──
 
-  Future<dynamic> get(String path) async {
-    final res = await _send(() => http.get(_uri(path), headers: _headers));
-    return _handleResponse(res);
-  }
-
-  Future<dynamic> post(String path, Map<String, dynamic> body) async {
-    final res = await _send(() => http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
-    return _handleResponse(res);
-  }
-
-  Future<dynamic> put(String path, Map<String, dynamic> body) async {
-    final res = await _send(() => http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
-    return _handleResponse(res);
-  }
-
-  Future<dynamic> patch(String path, Map<String, dynamic> body) async {
-    final res = await _send(() => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)));
-    return _handleResponse(res);
-  }
-
-  Future<dynamic> delete(String path) async {
-    final res = await _send(() => http.delete(_uri(path), headers: _headers));
-    return _handleResponse(res);
-  }
-
-  Future<dynamic> getList(String path) async {
-    final res = await _send(() => http.get(_uri(path), headers: _headers));
-    if (res.statusCode == 204) return [];
-    if (res.statusCode == 401) {
-      await _onUnauthorized();
-      throw Exception('未授权，请重新登录');
+  Future<Result<dynamic>> get(String path) async {
+    try {
+      final res = await _send(() => http.get(_uri(path), headers: _headers));
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
     }
-    final decoded = jsonDecode(res.body);
-    if (res.statusCode >= 400) {
-      throw Exception(decoded['detail'] ?? '请求失败 (${res.statusCode})');
+  }
+
+  Future<Result<dynamic>> post(String path, Map<String, dynamic> body) async {
+    try {
+      final res = await _send(() => http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
     }
-    if (decoded is List) return decoded;
-    return decoded;
+  }
+
+  Future<Result<dynamic>> put(String path, Map<String, dynamic> body) async {
+    try {
+      final res = await _send(() => http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  Future<Result<dynamic>> patch(String path, Map<String, dynamic> body) async {
+    try {
+      final res = await _send(() => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)));
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  Future<Result<dynamic>> delete(String path) async {
+    try {
+      final res = await _send(() => http.delete(_uri(path), headers: _headers));
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  Future<Result<dynamic>> getList(String path, {bool enableCache = true}) async {
+    try {
+      final res = await _send(() => http.get(_uri(path), headers: _headers));
+      if (res.statusCode == 204) return Result.success([]);
+      if (res.statusCode == 401) {
+        await _onUnauthorized();
+        return Result.failure('未授权，请重新登录', statusCode: 401);
+      }
+      final decoded = jsonDecode(res.body);
+      if (res.statusCode >= 400) {
+        return Result.failure(
+          decoded['detail'] ?? '请求失败 (${res.statusCode})',
+          statusCode: res.statusCode,
+        );
+      }
+      // 请求成功，更新离线缓存
+      if (enableCache) {
+        await OfflineCacheService().cacheData('list:$path', decoded);
+      }
+      return Result.success(decoded);
+    } on ApiException catch (e) {
+      // 网络超时/断连时降级到缓存，保证离线可浏览
+      if (enableCache && e.isNetwork) {
+        final cached = await OfflineCacheService().getCachedData('list:$path');
+        if (cached != null) return Result.success(cached);
+      }
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
   }
 
   // ── 文件上传 ──
 
-  Future<dynamic> uploadFile(String path, {required String filePath, String? projectId}) async {
-    final uri = _uri(path);
-    final request = http.MultipartRequest('POST', uri);
-    if (_token != null) {
-      request.headers['Authorization'] = 'Bearer $_token';
+  Future<Result<dynamic>> uploadFile(String path, {required String filePath, String? projectId}) async {
+    try {
+      final uri = _uri(path);
+      final request = http.MultipartRequest('POST', uri);
+      if (_token != null) {
+        request.headers['Authorization'] = 'Bearer $_token';
+      }
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      if (projectId != null) {
+        request.fields['project_id'] = projectId;
+      }
+      final streamed = await _send(() => request.send());
+      final res = await http.Response.fromStream(streamed);
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
     }
-    request.files.add(await http.MultipartFile.fromPath('file', filePath));
-    if (projectId != null) {
-      request.fields['project_id'] = projectId;
-    }
-    final streamed = await _send(() => request.send());
-    final res = await http.Response.fromStream(streamed);
-    return _handleResponse(res);
   }
-
-  // ── 安全 API 调用（非抛异常，返回 ApiResponse） ──
-
-  Future<ApiResponse<dynamic>> safeGet(String path) => _safeCall(() => get(path));
-  Future<ApiResponse<dynamic>> safePost(String path, Map<String, dynamic> body) => _safeCall(() => post(path, body));
-  Future<ApiResponse<dynamic>> safePut(String path, Map<String, dynamic> body) => _safeCall(() => put(path, body));
-  Future<ApiResponse<dynamic>> safeDelete(String path) => _safeCall(() => delete(path));
 
   // ── F18 厨卫水电 (MEP-KB) ──
 
-  Future<dynamic> mepListPlans(String projectId) =>
+  Future<Result<dynamic>> mepListPlans(String projectId) =>
       get('/mep-kb/plans?project_id=$projectId');
-  Future<dynamic> mepCreatePlan(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> mepCreatePlan(Map<String, dynamic> body) =>
       post('/mep-kb/plans', body);
-  Future<dynamic> mepGetPlan(String planId) =>
+  Future<Result<dynamic>> mepGetPlan(String planId) =>
       get('/mep-kb/plans/$planId');
-  Future<dynamic> mepUpdatePlan(String planId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> mepUpdatePlan(String planId, Map<String, dynamic> body) =>
       put('/mep-kb/plans/$planId', body);
-  Future<dynamic> mepDeletePlan(String planId) =>
+  Future<Result<dynamic>> mepDeletePlan(String planId) =>
       delete('/mep-kb/plans/$planId');
-  Future<dynamic> mepListPoints(String planId) =>
+  Future<Result<dynamic>> mepListPoints(String planId) =>
       get('/mep-kb/plans/$planId/points');
-  Future<dynamic> mepListGas(String planId) =>
+  Future<Result<dynamic>> mepListGas(String planId) =>
       get('/mep-kb/plans/$planId/gas');
-  Future<dynamic> mepListCircuits(String planId) =>
+  Future<Result<dynamic>> mepListCircuits(String planId) =>
       get('/mep-kb/plans/$planId/circuits');
-  Future<dynamic> mepListEquipotential(String planId) =>
+  Future<Result<dynamic>> mepListEquipotential(String planId) =>
       get('/mep-kb/plans/$planId/equipotential');
-  Future<dynamic> mepAddPoint(String planId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> mepAddPoint(String planId, Map<String, dynamic> body) =>
       post('/mep-kb/plans/$planId/points', body);
-  Future<dynamic> mepAddCircuit(String planId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> mepAddCircuit(String planId, Map<String, dynamic> body) =>
       post('/mep-kb/plans/$planId/circuits', body);
+
+  // ── F17 卫浴设计 ──
+
+  Future<Result<dynamic>> bathroomListDesigns(String projectId) =>
+      get('/bathroom/designs/project/$projectId');
+  Future<Result<dynamic>> bathroomCreateDesign(Map<String, dynamic> body) =>
+      post('/bathroom/designs', body);
+  Future<Result<dynamic>> bathroomGetDesign(String designId) =>
+      get('/bathroom/designs/$designId');
+  Future<Result<dynamic>> bathroomDeleteDesign(String designId) =>
+      delete('/bathroom/designs/$designId');
+  Future<Result<dynamic>> bathroomAutoLayout(String designId) =>
+      post('/bathroom/designs/$designId/auto-layout', {});
+  Future<Result<dynamic>> bathroomDrain(String designId) =>
+      get('/bathroom/designs/$designId/drain');
+  Future<Result<dynamic>> bathroomWaterproof(String designId) =>
+      get('/bathroom/designs/$designId/waterproof');
+  Future<Result<dynamic>> bathroomVentilation(String designId) =>
+      get('/bathroom/designs/$designId/ventilation');
+  Future<Result<dynamic>> bathroomListFixtures(String designId) =>
+      get('/bathroom/designs/$designId/fixtures');
+  Future<Result<dynamic>> bathroomAddFixture(String designId, Map<String, dynamic> body) =>
+      post('/bathroom/designs/$designId/fixtures', body);
+  Future<Result<dynamic>> bathroomDeleteFixture(String fixtureId) =>
+      delete('/bathroom/fixtures/$fixtureId');
 
   // ── F21 硬装 ──
 
-  Future<dynamic> hardDecoListSchemes(String projectId) =>
+  Future<Result<dynamic>> hardDecoListSchemes(String projectId) =>
       get('/hard-decoration/schemes?project_id=$projectId');
-  Future<dynamic> hardDecoCreateScheme(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> hardDecoCreateScheme(Map<String, dynamic> body) =>
       post('/hard-decoration/schemes', body);
-  Future<dynamic> hardDecoGetScheme(String schemeId) =>
+  Future<Result<dynamic>> hardDecoGetScheme(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId');
-  Future<dynamic> hardDecoUpdateScheme(String schemeId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> hardDecoUpdateScheme(String schemeId, Map<String, dynamic> body) =>
       put('/hard-decoration/schemes/$schemeId', body);
-  Future<dynamic> hardDecoDeleteScheme(String schemeId) =>
+  Future<Result<dynamic>> hardDecoDeleteScheme(String schemeId) =>
       delete('/hard-decoration/schemes/$schemeId');
-  Future<dynamic> hardDecoListFloors(String schemeId) =>
+  Future<Result<dynamic>> hardDecoListFloors(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId/floor');
-  Future<dynamic> hardDecoListWalls(String schemeId) =>
+  Future<Result<dynamic>> hardDecoListWalls(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId/wall');
-  Future<dynamic> hardDecoListCeilings(String schemeId) =>
+  Future<Result<dynamic>> hardDecoListCeilings(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId/ceiling');
-  Future<dynamic> hardDecoListTileLayout(String schemeId) =>
+  Future<Result<dynamic>> hardDecoListTileLayout(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId/tile-layout');
-  Future<dynamic> hardDecoAddFloor(String schemeId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> hardDecoAddFloor(String schemeId, Map<String, dynamic> body) =>
       post('/hard-decoration/schemes/$schemeId/floor', body);
-  Future<dynamic> hardDecoAddWall(String schemeId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> hardDecoAddWall(String schemeId, Map<String, dynamic> body) =>
       post('/hard-decoration/schemes/$schemeId/wall', body);
 
   // ── F23 门窗防水 ──
 
-  Future<dynamic> doorWinListSpecs(String projectId) =>
+  Future<Result<dynamic>> doorWinListSpecs(String projectId) =>
       get('/door-window-waterproof/specs?project_id=$projectId');
-  Future<dynamic> doorWinCreateSpec(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> doorWinCreateSpec(Map<String, dynamic> body) =>
       post('/door-window-waterproof/specs', body);
-  Future<dynamic> doorWinGetSpec(String specId) =>
+  Future<Result<dynamic>> doorWinGetSpec(String specId) =>
       get('/door-window-waterproof/specs/$specId');
-  Future<dynamic> doorWinUpdateSpec(String specId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> doorWinUpdateSpec(String specId, Map<String, dynamic> body) =>
       put('/door-window-waterproof/specs/$specId', body);
-  Future<dynamic> doorWinDeleteSpec(String specId) =>
+  Future<Result<dynamic>> doorWinDeleteSpec(String specId) =>
       delete('/door-window-waterproof/specs/$specId');
-  Future<dynamic> doorWinListWaterproof(String specId) =>
+  Future<Result<dynamic>> doorWinListWaterproof(String specId) =>
       get('/door-window-waterproof/specs/$specId/waterproof');
-  Future<dynamic> doorWinValidate(String specId) =>
+  Future<Result<dynamic>> doorWinValidate(String specId) =>
       post('/door-window-waterproof/specs/$specId/validate', {});
-  Future<dynamic> doorWinAddWaterproof(String specId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> doorWinAddWaterproof(String specId, Map<String, dynamic> body) =>
       post('/door-window-waterproof/specs/$specId/waterproof', body);
 
   // ── F26 家具品类库 ──
 
-  Future<dynamic> furnitureListItems({int limit = 100, String? category}) =>
+  Future<Result<dynamic>> furnitureListItems({int limit = 100, String? category}) =>
       get('/furniture-catalog/items?limit=$limit${category != null ? '&category=$category' : ''}');
-  Future<dynamic> furnitureGetItem(String itemId) =>
+  Future<Result<dynamic>> furnitureGetItem(String itemId) =>
       get('/furniture-catalog/items/$itemId');
-  Future<dynamic> furnitureCreateItem(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> furnitureCreateItem(Map<String, dynamic> body) =>
       post('/furniture-catalog/items', body);
-  Future<dynamic> furnitureUpdateItem(String itemId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> furnitureUpdateItem(String itemId, Map<String, dynamic> body) =>
       put('/furniture-catalog/items/$itemId', body);
-  Future<dynamic> furnitureDeleteItem(String itemId) =>
+  Future<Result<dynamic>> furnitureDeleteItem(String itemId) =>
       delete('/furniture-catalog/items/$itemId');
-  Future<dynamic> furnitureSearch(String keyword) =>
+  Future<Result<dynamic>> furnitureSearch(String keyword) =>
       post('/furniture-catalog/items/search', {'keyword': keyword});
-  Future<dynamic> furnitureRecommend(String itemId) =>
+  Future<Result<dynamic>> furnitureRecommend(String itemId) =>
       get('/furniture-catalog/items/$itemId/recommend');
-  Future<dynamic> furnitureArPlace(String itemId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> furnitureArPlace(String itemId, Map<String, dynamic> body) =>
       post('/furniture-catalog/items/$itemId/ar-place', body);
+
+  // ── F19/F20 电器品类与点位 ──
+
+  // 电器品类
+  Future<Result<dynamic>> applianceListCategories() =>
+      get('/appliances/categories');
+  Future<Result<dynamic>> applianceCreateCategory(Map<String, dynamic> body) =>
+      post('/appliances/categories', body);
+  Future<Result<dynamic>> applianceGetCategory(String catId) =>
+      get('/appliances/categories/$catId');
+  Future<Result<dynamic>> applianceUpdateCategory(String catId, Map<String, dynamic> body) =>
+      put('/appliances/categories/$catId', body);
+  Future<Result<dynamic>> applianceDeleteCategory(String catId) =>
+      delete('/appliances/categories/$catId');
+
+  // 电器实例
+  Future<Result<dynamic>> applianceCreate(Map<String, dynamic> body) =>
+      post('/appliances', body);
+  Future<Result<dynamic>> applianceSearch({
+    String? categoryId,
+    String? subcategory,
+    String? brand,
+    String? energyLabel,
+    String? keyword,
+    double? priceMin,
+    double? priceMax,
+    String sortBy = 'price',
+    String sortOrder = 'asc',
+  }) {
+    final params = <String>[];
+    if (categoryId != null) params.add('category_id=$categoryId');
+    if (subcategory != null) params.add('subcategory=$subcategory');
+    if (brand != null) params.add('brand=$brand');
+    if (energyLabel != null) params.add('energy_label=$energyLabel');
+    if (keyword != null) {
+      params.add('keyword=${Uri.encodeQueryComponent(keyword)}');
+    }
+    if (priceMin != null) params.add('price_min=$priceMin');
+    if (priceMax != null) params.add('price_max=$priceMax');
+    params.add('sort_by=$sortBy');
+    params.add('sort_order=$sortOrder');
+    return get('/appliances/search?${params.join('&')}');
+  }
+
+  Future<Result<dynamic>> applianceGet(String applianceId) =>
+      get('/appliances/$applianceId');
+  Future<Result<dynamic>> applianceUpdate(String applianceId, Map<String, dynamic> body) =>
+      put('/appliances/$applianceId', body);
+  Future<Result<dynamic>> applianceDelete(String applianceId) =>
+      delete('/appliances/$applianceId');
+
+  // 电器点位
+  Future<Result<dynamic>> applianceListPoints(String projectId) =>
+      get('/appliances/projects/$projectId/points');
+  Future<Result<dynamic>> applianceCreatePoint(Map<String, dynamic> body) =>
+      post('/appliances/points', body);
+  Future<Result<dynamic>> applianceGetPoint(String pointId) =>
+      get('/appliances/points/$pointId');
+  Future<Result<dynamic>> applianceUpdatePoint(String pointId, Map<String, dynamic> body) =>
+      put('/appliances/points/$pointId', body);
+  Future<Result<dynamic>> applianceDeletePoint(String pointId) =>
+      delete('/appliances/points/$pointId');
+
+  // 负载计算
+  Future<Result<dynamic>> applianceComputeLoadCalc(String projectId) =>
+      post('/appliances/projects/$projectId/load-calc', {});
+  Future<Result<dynamic>> applianceGetLoadCalcs(String projectId) =>
+      get('/appliances/projects/$projectId/load-calcs');
+
+  // 嵌入式匹配
+  Future<Result<dynamic>> applianceCabinetMatch(Map<String, dynamic> body) =>
+      post('/appliances/cabinet-match', body);
+
+  // 预埋规划
+  Future<Result<dynamic>> applianceGetEmbeddingPlan(String projectId) =>
+      get('/appliances/projects/$projectId/embedding-plan');
+
+  // 房间推荐
+  Future<Result<dynamic>> applianceRecommendForRoom(String roomId) =>
+      get('/appliances/rooms/$roomId/recommend');
 
   // ── F31 智能家居 ──
 
-  Future<dynamic> smartHomeListSchemes(String projectId) =>
+  Future<Result<dynamic>> smartHomeListSchemes(String projectId) =>
       get('/smart-home/schemes?project_id=$projectId');
-  Future<dynamic> smartHomeCreateScheme(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> smartHomeCreateScheme(Map<String, dynamic> body) =>
       post('/smart-home/schemes', body);
-  Future<dynamic> smartHomeGetScheme(String schemeId) =>
+  Future<Result<dynamic>> smartHomeGetScheme(String schemeId) =>
       get('/smart-home/schemes/$schemeId');
-  Future<dynamic> smartHomeUpdateScheme(String schemeId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> smartHomeUpdateScheme(String schemeId, Map<String, dynamic> body) =>
       put('/smart-home/schemes/$schemeId', body);
-  Future<dynamic> smartHomeDeleteScheme(String schemeId) =>
+  Future<Result<dynamic>> smartHomeDeleteScheme(String schemeId) =>
       delete('/smart-home/schemes/$schemeId');
-  Future<dynamic> smartHomeListDevices(String schemeId) =>
+  Future<Result<dynamic>> smartHomeListDevices(String schemeId) =>
       get('/smart-home/schemes/$schemeId/devices');
-  Future<dynamic> smartHomeAutoRecommend(String schemeId) =>
+  Future<Result<dynamic>> smartHomeAutoRecommend(String schemeId) =>
       post('/smart-home/schemes/$schemeId/auto-recommend', {});
-  Future<dynamic> smartHomeWiring(String schemeId) =>
+  Future<Result<dynamic>> smartHomeWiring(String schemeId) =>
       get('/smart-home/schemes/$schemeId/wiring');
-  Future<dynamic> smartHomeProtocol(String schemeId) =>
+  Future<Result<dynamic>> smartHomeProtocol(String schemeId) =>
       get('/smart-home/schemes/$schemeId/protocol');
-  Future<dynamic> smartHomeAddDevice(String schemeId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> smartHomeAddDevice(String schemeId, Map<String, dynamic> body) =>
       post('/smart-home/schemes/$schemeId/devices', body);
 
   // ── F32 场景编辑 ──
 
-  Future<dynamic> sceneListScenes(String schemeId) =>
+  Future<Result<dynamic>> sceneListScenes(String schemeId) =>
       get('/scene-automation/scenes?scheme_id=$schemeId');
-  Future<dynamic> sceneCreateScene(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> sceneCreateScene(Map<String, dynamic> body) =>
       post('/scene-automation/scenes', body);
-  Future<dynamic> sceneGetScene(String sceneId) =>
+  Future<Result<dynamic>> sceneGetScene(String sceneId) =>
       get('/scene-automation/scenes/$sceneId');
-  Future<dynamic> sceneUpdateScene(String sceneId, Map<String, dynamic> body) =>
+  Future<Result<dynamic>> sceneUpdateScene(String sceneId, Map<String, dynamic> body) =>
       put('/scene-automation/scenes/$sceneId', body);
-  Future<dynamic> sceneDeleteScene(String sceneId) =>
+  Future<Result<dynamic>> sceneDeleteScene(String sceneId) =>
       delete('/scene-automation/scenes/$sceneId');
-  Future<dynamic> sceneSimulate(String sceneId) =>
+  Future<Result<dynamic>> sceneSimulate(String sceneId) =>
       post('/scene-automation/scenes/$sceneId/simulate', {});
-  Future<dynamic> sceneParseNl(String text) =>
+  Future<Result<dynamic>> sceneParseNl(String text) =>
       post('/scene-automation/scenes/parse-nl', {'text': text});
-  Future<dynamic> sceneValidate(String sceneId) =>
+  Future<Result<dynamic>> sceneValidate(String sceneId) =>
       post('/scene-automation/scenes/$sceneId/validate', {});
-  Future<dynamic> sceneListEcosystems() =>
+  Future<Result<dynamic>> sceneListEcosystems() =>
       get('/scene-automation/ecosystems');
 
   // ── F33/F34 采购增强 ──
 
-  Future<dynamic> procPriceComparisons({String? projectId}) =>
+  Future<Result<dynamic>> procPriceComparisons({String? projectId}) =>
       get('/procurement-enhanced/price-comparisons${projectId != null ? '?project_id=$projectId' : ''}');
-  Future<dynamic> procCreatePriceComparison(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> procCreatePriceComparison(Map<String, dynamic> body) =>
       post('/procurement-enhanced/price-comparisons', body);
-  Future<dynamic> procGetPriceComparison(String id) =>
+  Future<Result<dynamic>> procGetPriceComparison(String id) =>
       get('/procurement-enhanced/price-comparisons/$id');
-  Future<dynamic> procEscrowPayments({String? projectId}) =>
+  Future<Result<dynamic>> procEscrowPayments({String? projectId}) =>
       get('/procurement-enhanced/escrow-payments${projectId != null ? '?project_id=$projectId' : ''}');
-  Future<dynamic> procCreateEscrowPayment(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> procCreateEscrowPayment(Map<String, dynamic> body) =>
       post('/procurement-enhanced/escrow-payments', body);
-  Future<dynamic> procGetEscrowPayment(String id) =>
+  Future<Result<dynamic>> procGetEscrowPayment(String id) =>
       get('/procurement-enhanced/escrow-payments/$id');
-  Future<dynamic> procConfirmEscrow(String id) =>
+  Future<Result<dynamic>> procConfirmEscrow(String id) =>
       post('/procurement-enhanced/escrow-payments/$id/confirm', {});
-  Future<dynamic> procLogistics({String? projectId}) =>
+  Future<Result<dynamic>> procLogistics({String? projectId}) =>
       get('/procurement-enhanced/logistics${projectId != null ? '?project_id=$projectId' : ''}');
-  Future<dynamic> procCreateLogistics(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> procCreateLogistics(Map<String, dynamic> body) =>
       post('/procurement-enhanced/logistics', body);
-  Future<dynamic> procGetLogistics(String id) =>
+  Future<Result<dynamic>> procGetLogistics(String id) =>
       get('/procurement-enhanced/logistics/$id');
-  Future<dynamic> procTrackLogistics(String id) =>
+  Future<Result<dynamic>> procTrackLogistics(String id) =>
       get('/procurement-enhanced/logistics/$id/track');
-  Future<dynamic> procSampleRequests({String? projectId}) =>
+  Future<Result<dynamic>> procSampleRequests({String? projectId}) =>
       get('/procurement-enhanced/sample-requests${projectId != null ? '?project_id=$projectId' : ''}');
-  Future<dynamic> procCreateSampleRequest(Map<String, dynamic> body) =>
+  Future<Result<dynamic>> procCreateSampleRequest(Map<String, dynamic> body) =>
       post('/procurement-enhanced/sample-requests', body);
-  Future<dynamic> procGetSampleRequest(String id) =>
+  Future<Result<dynamic>> procGetSampleRequest(String id) =>
       get('/procurement-enhanced/sample-requests/$id');
-  Future<dynamic> procApproveSample(String id) =>
+  Future<Result<dynamic>> procApproveSample(String id) =>
       post('/procurement-enhanced/sample-requests/$id/approve', {});
 
-  Future<ApiResponse<dynamic>> _safeCall(Future<dynamic> Function() call) async {
-    try {
-      final data = await call();
-      return ApiResponse(data: data, statusCode: 200);
-    } on ApiException catch (e) {
-      return ApiResponse(error: e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
-    } on Exception catch (e) {
-      return ApiResponse(error: e.toString(), statusCode: 500);
+  // ── 用户 & 项目 ──
+
+  Future<Result<dynamic>> getCurrentUser() => get('/api/auth/me');
+
+  // ── WebAuthn / FIDO2 / Passkey ──
+
+  /// 注册：开始（需已登录）
+  Future<Result<dynamic>> webauthnRegisterBegin({String? deviceName}) =>
+      post('/api/auth/webauthn/register/begin', {
+        if (deviceName != null) 'device_name': deviceName,
+      });
+
+  /// 注册：完成
+  Future<Result<dynamic>> webauthnRegisterComplete(Map<String, dynamic> params) =>
+      post('/api/auth/webauthn/register/complete', params);
+
+  /// 登录：开始（获取挑战）
+  Future<Result<dynamic>> webauthnLoginBegin({String? phone}) =>
+      post('/api/auth/webauthn/login/begin', {
+        if (phone != null) 'phone': phone,
+      });
+
+  /// 登录：完成（验证断言，返回 PASETO Token）
+  Future<Result<dynamic>> webauthnLoginComplete(Map<String, dynamic> credential) async {
+    final result = await post('/api/auth/webauthn/login/complete', {
+      'credential': credential,
+    });
+    if (result.isSuccess && result.data != null) {
+      final data = result.data as Map<String, dynamic>;
+      if (data['access_token'] != null) {
+        await saveToken(data['access_token'] as String);
+      }
     }
+    return result;
   }
+
+  /// 列出当前用户的 Passkey
+  Future<Result<dynamic>> listPasskeys() =>
+      get('/api/auth/webauthn/credentials');
+
+  /// 删除 Passkey
+  Future<Result<dynamic>> deletePasskey(String credentialId) =>
+      delete('/api/auth/webauthn/credentials/$credentialId');
+
+  // ── 项目 ──
+
+  Future<Result<dynamic>> getProjects() => get('/api/projects');
+  Future<Result<dynamic>> getProject(String id) => get('/api/projects/$id');
+  Future<Result<dynamic>> createProject(Map<String, dynamic> data) => post('/api/projects', data);
+
+  // ── 业务操作 API ──
+
+  /// 审批变更单
+  Future<Result<dynamic>> approveChangeOrder(String changeId, String decision) {
+    final action = decision == 'approve' ? 'approve' : 'cancel';
+    return post('/api/change-orders/$changeId/$action', {});
+  }
+
+  /// 确认结算
+  Future<Result<dynamic>> confirmSettlement(String projectId) =>
+      post('/api/settlements/confirm/$projectId', {});
+
+  /// 通过结算复核
+  Future<Result<dynamic>> approveSettlementReview(String projectId) =>
+      post('/api/settlements/approve-review/$projectId', {});
+
+  /// 导出 BOM
+  Future<Result<dynamic>> exportBOM(String projectId) =>
+      get('/api/materials/bom/$projectId/export');
+
+  // ── AI 图片生成 ──
+
+  Future<Result<dynamic>> aiImageListJobs(String projectId) =>
+      get('/ai-image/jobs/project/$projectId');
+  Future<Result<dynamic>> aiImageCreateJob(Map<String, dynamic> body) =>
+      post('/ai-image/jobs', body);
+  Future<Result<dynamic>> aiImageGetJob(String jobId) =>
+      get('/ai-image/jobs/$jobId');
+  Future<Result<dynamic>> aiImageDeleteJob(String jobId) =>
+      delete('/ai-image/jobs/$jobId');
+  Future<Result<dynamic>> aiImageListPresets() =>
+      get('/ai-image/presets');
+  Future<Result<dynamic>> aiImageProcessJob(String jobId) =>
+      post('/ai-image/jobs/$jobId/process', {});
+  Future<Result<dynamic>> aiImageGetJobStatus(String jobId) =>
+      get('/ai-image/jobs/$jobId/status');
+  Future<Result<dynamic>> aiImageApplyPreset(
+          String presetId, String inputImageUrl, Map<String, dynamic> customizations) =>
+      post('/ai-image/jobs/apply-preset', {
+        'preset_id': presetId,
+        'input_image_url': inputImageUrl,
+        'customizations': customizations,
+      });
+
+  // ── VR 全景 ──
+
+  Future<Result<dynamic>> vrListPanoramas(String projectId) =>
+      get('/vr/panoramas/project/$projectId');
+  Future<Result<dynamic>> vrCreatePanorama(Map<String, dynamic> body) =>
+      post('/vr/panoramas', body);
+  Future<Result<dynamic>> vrGetPanorama(String panoId) =>
+      get('/vr/panoramas/$panoId');
+  Future<Result<dynamic>> vrRenderPanorama(String panoId, Map<String, dynamic> body) =>
+      post('/vr/panoramas/$panoId/render', body);
+  Future<Result<dynamic>> vrDeletePanorama(String panoId) =>
+      delete('/vr/panoramas/$panoId');
+  Future<Result<dynamic>> vrListHotspots(String panoId) =>
+      get('/vr/panoramas/$panoId/hotspots');
+  Future<Result<dynamic>> vrAddHotspot(String panoId, Map<String, dynamic> body) =>
+      post('/vr/panoramas/$panoId/hotspots', body);
+  Future<Result<dynamic>> vrDeleteHotspot(String panoId, int hotspotIndex) =>
+      delete('/vr/hotspots/$panoId/$hotspotIndex');
+  Future<Result<dynamic>> vrListScenes(String projectId) =>
+      get('/vr/scenes/project/$projectId');
+  Future<Result<dynamic>> vrCreateScene(Map<String, dynamic> body) =>
+      post('/vr/scenes', body);
+  Future<Result<dynamic>> vrGetScene(String sceneId) =>
+      get('/vr/scenes/$sceneId');
+  Future<Result<dynamic>> vrUpdateScene(String sceneId, Map<String, dynamic> body) =>
+      patch('/vr/scenes/$sceneId', body);
+  Future<Result<dynamic>> vrDeleteScene(String sceneId) =>
+      delete('/vr/scenes/$sceneId');
+
+  // ── 积分系统 ──
+
+  Future<Result<dynamic>> pointsGetAccount() =>
+      get('/points/account');
+  Future<Result<dynamic>> pointsListTransactions({int limit = 50, int offset = 0}) =>
+      get('/points/transactions?limit=$limit&offset=$offset');
+  Future<Result<dynamic>> pointsListRules() =>
+      get('/points/rules');
+  Future<Result<dynamic>> pointsListMallItems({String? category}) =>
+      get('/points/mall${category != null ? '?category=$category' : ''}');
+  Future<Result<dynamic>> pointsRedeem(String itemId) =>
+      post('/points/redeem', {'item_id': itemId});
+  Future<Result<dynamic>> pointsListRedemptions() =>
+      get('/points/redemptions');
+  Future<Result<dynamic>> pointsGetRanking({String category = 'overall'}) =>
+      get('/points/ranking?category=$category');
+
+  // ── 身份认证 ──
+
+  /// 提交实名认证申请
+  Future<Result<dynamic>> identitySubmit({
+    required String realName,
+    required String idCard,
+    String? idCardFront,
+    String? idCardBack,
+    String? selfieWithId,
+    Map<String, dynamic>? roleAttributes,
+  }) =>
+      post('/identity/submit', {
+        'real_name': realName,
+        'id_card': idCard,
+        'id_card_front': ?idCardFront,
+        'id_card_back': ?idCardBack,
+        'selfie_with_id': ?selfieWithId,
+        'role_attributes': ?roleAttributes,
+      });
+
+  /// 查询当前用户的认证状态
+  Future<Result<dynamic>> identityGetStatus() => get('/identity/status');
+
+  /// 管理员查看待审核列表
+  Future<Result<dynamic>> identityListPending() => get('/identity/pending');
+
+  /// 管理员审核通过/拒绝认证
+  Future<Result<dynamic>> identityReview(
+    String verificationId, {
+    required String reviewStatus,
+    String? reviewNote,
+  }) =>
+      post('/identity/$verificationId/review', {
+        'status': reviewStatus,
+        'review_note': ?reviewNote,
+      });
+
+  // ── F16 厨房设计 ──
+
+  Future<Result<dynamic>> kitchenCreateDesign(Map<String, dynamic> body) =>
+      post('/kitchen/designs', body);
+  Future<Result<dynamic>> kitchenListDesigns(String projectId) =>
+      get('/kitchen/designs/project/$projectId');
+  Future<Result<dynamic>> kitchenGetDesign(String designId) =>
+      get('/kitchen/designs/$designId');
+  Future<Result<dynamic>> kitchenDeleteDesign(String designId) =>
+      delete('/kitchen/designs/$designId');
+  Future<Result<dynamic>> kitchenAutoLayout(String designId) =>
+      post('/kitchen/designs/$designId/auto-layout', {});
+  Future<Result<dynamic>> kitchenAnalyzeWorkflow(String designId) =>
+      get('/kitchen/designs/$designId/workflow');
+  Future<Result<dynamic>> kitchenValidateCompliance(String designId) =>
+      get('/kitchen/designs/$designId/compliance');
+  Future<Result<dynamic>> kitchenListComponents(String designId) =>
+      get('/kitchen/designs/$designId/components');
+  Future<Result<dynamic>> kitchenAddComponent(String designId, Map<String, dynamic> body) =>
+      post('/kitchen/designs/$designId/components', body);
+  Future<Result<dynamic>> kitchenDeleteComponent(String componentId) =>
+      delete('/kitchen/components/$componentId');
+
+  // ── F29/F30 灯光设计器 ──
+
+  Future<Result<dynamic>> lightingListSchemes(String projectId) =>
+      get('/lighting/schemes/project/$projectId');
+  Future<Result<dynamic>> lightingCreateScheme(Map<String, dynamic> body) =>
+      post('/lighting/schemes', body);
+  Future<Result<dynamic>> lightingGetScheme(String schemeId) =>
+      get('/lighting/schemes/$schemeId');
+  Future<Result<dynamic>> lightingDeleteScheme(String schemeId) =>
+      delete('/lighting/schemes/$schemeId');
+  Future<Result<dynamic>> lightingAiDesign(String schemeId, Map<String, dynamic> body) =>
+      post('/lighting/schemes/$schemeId/ai-design', body);
+  Future<Result<dynamic>> lightingListFixtures(String schemeId) =>
+      get('/lighting/schemes/$schemeId/fixtures');
+  Future<Result<dynamic>> lightingAddFixture(String schemeId, Map<String, dynamic> body) =>
+      post('/lighting/schemes/$schemeId/fixtures', body);
+  Future<Result<dynamic>> lightingDeleteFixture(String fixtureId) =>
+      delete('/lighting/fixtures/$fixtureId');
+  Future<Result<dynamic>> lightingComputeIlluminance(String schemeId) =>
+      get('/lighting/schemes/$schemeId/illuminance');
+
+  // ── F24/F25 软装搭配 + 收纳系统 ──
+
+  Future<Result<dynamic>> softListSchemes(String projectId) =>
+      get('/soft-furnishing/schemes/project/$projectId');
+  Future<Result<dynamic>> softCreateScheme(Map<String, dynamic> body) =>
+      post('/soft-furnishing/schemes', body);
+  Future<Result<dynamic>> softGetScheme(String schemeId) =>
+      get('/soft-furnishing/schemes/$schemeId');
+  Future<Result<dynamic>> softDeleteScheme(String schemeId) =>
+      delete('/soft-furnishing/schemes/$schemeId');
+  Future<Result<dynamic>> softAiMatch(String schemeId) =>
+      post('/soft-furnishing/schemes/$schemeId/ai-match', {});
+  Future<Result<dynamic>> softColorHarmony(String schemeId) =>
+      get('/soft-furnishing/schemes/$schemeId/color-harmony');
+  Future<Result<dynamic>> softBudgetUsage(String schemeId) =>
+      get('/soft-furnishing/schemes/$schemeId/budget');
+  Future<Result<dynamic>> softListItems(String schemeId) =>
+      get('/soft-furnishing/schemes/$schemeId/items');
+  Future<Result<dynamic>> softAddItem(String schemeId, Map<String, dynamic> body) =>
+      post('/soft-furnishing/schemes/$schemeId/items', body);
+  Future<Result<dynamic>> softDeleteItem(String itemId) =>
+      delete('/soft-furnishing/items/$itemId');
+  Future<Result<dynamic>> softUpdateItemStatus(String itemId, String status) =>
+      patch('/soft-furnishing/items/$itemId/status', {'status': status});
+  Future<Result<dynamic>> softListStorages(String schemeId) =>
+      get('/soft-furnishing/schemes/$schemeId/storage');
+  Future<Result<dynamic>> softAddStorage(String schemeId, Map<String, dynamic> body) =>
+      post('/soft-furnishing/schemes/$schemeId/storage', body);
+  Future<Result<dynamic>> softStorageCapacity(String storageId) =>
+      get('/soft-furnishing/storage/$storageId/capacity');
+  Future<Result<dynamic>> softRecommendStorage(String roomName, double roomArea, int familySize) =>
+      post('/soft-furnishing/storage/recommend', {
+        'room_name': roomName,
+        'room_area': roomArea,
+        'family_size': familySize,
+      });
+
+  // ── 任务管理 ──
+
+  /// 获取项目下所有任务
+  Future<Result<dynamic>> taskListByProject(String projectId) =>
+      get('/tasks/project/$projectId');
+
+  /// 创建任务
+  Future<Result<dynamic>> taskCreate(Map<String, dynamic> body) =>
+      post('/tasks', body);
+
+  /// 获取可申领任务池
+  Future<Result<dynamic>> taskPool({String? claimRole, int limit = 50}) =>
+      get('/tasks/pool?limit=$limit${claimRole != null ? '&claim_role=$claimRole' : ''}');
+
+  /// 获取我的任务
+  Future<Result<dynamic>> taskMine() => get('/tasks/mine');
+
+  /// 申领任务
+  Future<Result<dynamic>> taskClaim(String taskId) =>
+      post('/tasks/claim', {'task_id': taskId});
+
+  /// 查看任务候选人
+  Future<Result<dynamic>> taskCandidates(String taskId) =>
+      get('/tasks/$taskId/candidates');
+
+  /// 分配任务给指定用户
+  Future<Result<dynamic>> taskAssign(String taskId, String userId) =>
+      post('/tasks/assign', {'task_id': taskId, 'user_id': userId});
+
+  /// 完成任务
+  Future<Result<dynamic>> taskComplete(String taskId, [Map<String, dynamic>? result]) =>
+      post('/tasks/$taskId/complete', result ?? {});
+
+  // ── F39 变更管理 ──
+
+  Future<Result<dynamic>> changeOrderList(String projectId) =>
+      get('/api/change-orders/project/$projectId');
+  Future<Result<dynamic>> changeOrderCreate(Map<String, dynamic> body) =>
+      post('/api/change-orders', body);
+  Future<Result<dynamic>> changeOrderGet(String changeId) =>
+      get('/api/change-orders/$changeId');
+  Future<Result<dynamic>> changeOrderReview(String changeId, Map<String, dynamic> body) =>
+      post('/api/change-orders/$changeId/review', body);
+  Future<Result<dynamic>> changeOrderApprove(String changeId) =>
+      post('/api/change-orders/$changeId/approve', {});
+  Future<Result<dynamic>> changeOrderCancel(String changeId) =>
+      post('/api/change-orders/$changeId/cancel', {});
+
+  // ── F9 工程量计算 ──
+
+  /// 墙体工程量计算（砖数/砂浆/涂料面积）
+  Future<Result<dynamic>> takeoffCalcWall(Map<String, dynamic> body) =>
+      post('/takeoff/wall', body);
+
+  /// 楼板工程量计算（混凝土/钢筋/模板）
+  Future<Result<dynamic>> takeoffCalcSlab(Map<String, dynamic> body) =>
+      post('/takeoff/slab', body);
+
+  /// 地面工程量计算（瓷砖数/砂浆/砖缝）
+  Future<Result<dynamic>> takeoffCalcFloor(Map<String, dynamic> body) =>
+      post('/takeoff/floor', body);
+
+  /// 涂料工程量计算（漆量/桶数）
+  Future<Result<dynamic>> takeoffCalcPaint(Map<String, dynamic> body) =>
+      post('/takeoff/paint', body);
+
+  /// 项目级工程量汇总（墙体/楼板/地面）
+  Future<Result<dynamic>> takeoffCalcProject(Map<String, dynamic> body) =>
+      post('/takeoff/project', body);
+
+  // ── F8/F9 土建结构 ──
+
+  // 承重墙
+  Future<Result<dynamic>> structuralListWalls(String projectId) =>
+      get('/structural/projects/$projectId/walls');
+  Future<Result<dynamic>> structuralCreateWall(Map<String, dynamic> body) =>
+      post('/structural/walls', body);
+  Future<Result<dynamic>> structuralGetWall(String wallId) =>
+      get('/structural/walls/$wallId');
+  Future<Result<dynamic>> structuralUpdateWall(String wallId, Map<String, dynamic> body) =>
+      put('/structural/walls/$wallId', body);
+  Future<Result<dynamic>> structuralDeleteWall(String wallId) =>
+      delete('/structural/walls/$wallId');
+
+  // 梁
+  Future<Result<dynamic>> structuralListBeams(String projectId) =>
+      get('/structural/projects/$projectId/beams');
+  Future<Result<dynamic>> structuralCreateBeam(Map<String, dynamic> body) =>
+      post('/structural/beams', body);
+  Future<Result<dynamic>> structuralGetBeam(String beamId) =>
+      get('/structural/beams/$beamId');
+  Future<Result<dynamic>> structuralUpdateBeam(String beamId, Map<String, dynamic> body) =>
+      put('/structural/beams/$beamId', body);
+  Future<Result<dynamic>> structuralDeleteBeam(String beamId) =>
+      delete('/structural/beams/$beamId');
+
+  // 柱
+  Future<Result<dynamic>> structuralListColumns(String projectId) =>
+      get('/structural/projects/$projectId/columns');
+  Future<Result<dynamic>> structuralCreateColumn(Map<String, dynamic> body) =>
+      post('/structural/columns', body);
+  Future<Result<dynamic>> structuralGetColumn(String columnId) =>
+      get('/structural/columns/$columnId');
+  Future<Result<dynamic>> structuralUpdateColumn(String columnId, Map<String, dynamic> body) =>
+      put('/structural/columns/$columnId', body);
+  Future<Result<dynamic>> structuralDeleteColumn(String columnId) =>
+      delete('/structural/columns/$columnId');
+
+  // 楼板
+  Future<Result<dynamic>> structuralListSlabs(String projectId) =>
+      get('/structural/projects/$projectId/slabs');
+  Future<Result<dynamic>> structuralCreateSlab(Map<String, dynamic> body) =>
+      post('/structural/slabs', body);
+  Future<Result<dynamic>> structuralGetSlab(String slabId) =>
+      get('/structural/slabs/$slabId');
+  Future<Result<dynamic>> structuralUpdateSlab(String slabId, Map<String, dynamic> body) =>
+      put('/structural/slabs/$slabId', body);
+  Future<Result<dynamic>> structuralDeleteSlab(String slabId) =>
+      delete('/structural/slabs/$slabId');
+
+  // 工程量计算
+  Future<Result<dynamic>> structuralListQuantityCalcs(String projectId) =>
+      get('/structural/projects/$projectId/quantity-calcs');
+  Future<Result<dynamic>> structuralCreateQuantityCalc(Map<String, dynamic> body) =>
+      post('/structural/quantity-calcs', body);
+  Future<Result<dynamic>> structuralGetQuantityCalc(String calcId) =>
+      get('/structural/quantity-calcs/$calcId');
+  Future<Result<dynamic>> structuralDeleteQuantityCalc(String calcId) =>
+      delete('/structural/quantity-calcs/$calcId');
+  Future<Result<dynamic>> structuralAutoCalcQuantity(Map<String, dynamic> body) =>
+      post('/structural/quantity-calcs/auto-calc', body);
+  Future<Result<dynamic>> structuralAddQuantityLineItem(String calcId, Map<String, dynamic> body) =>
+      post('/structural/quantity-calcs/$calcId/line-items', body);
+  Future<Result<dynamic>> structuralDeleteQuantityLineItem(String itemId) =>
+      delete('/structural/quantity-calcs/line-items/$itemId');
+
+  // ── 产品/服务管理 ──
+
+  /// 查询产品列表（全局产品库）
+  Future<Result<dynamic>> productList({
+    String? category,
+    String status = 'published',
+    int offset = 0,
+    int limit = 20,
+  }) {
+    final params = <String>[];
+    if (category != null) {
+      params.add('category=${Uri.encodeQueryComponent(category)}');
+    }
+    params.add('status=$status');
+    params.add('offset=$offset');
+    params.add('limit=$limit');
+    return get('/products?${params.join('&')}');
+  }
+
+  /// 获取产品详情
+  Future<Result<dynamic>> productGet(String productId) =>
+      get('/products/$productId');
+
+  /// 创建产品（支持 AI 辅助生成文案）
+  Future<Result<dynamic>> productCreate(Map<String, dynamic> body) =>
+      post('/products', body);
+
+  /// 更新产品
+  Future<Result<dynamic>> productUpdate(String productId, Map<String, dynamic> body) =>
+      put('/products/$productId', body);
+
+  /// 发布产品到市场（可选推送到项目聊天室）
+  Future<Result<dynamic>> productPublish(String productId, {String? projectId}) =>
+      post('/products/$productId/publish${projectId != null ? '?project_id=$projectId' : ''}', {});
+
+  /// 查询当前供应商的产品
+  Future<Result<dynamic>> productMine({int offset = 0, int limit = 20}) =>
+      get('/products/mine?offset=$offset&limit=$limit');
 
   // ── 响应处理 ──
 
-  dynamic _handleResponse(http.Response res) {
-    if (res.statusCode == 204) return {};
+  Result<dynamic> _handleResponse(http.Response res) {
+    if (res.statusCode == 204) return Result.success({});
     if (res.statusCode == 401) {
       _onUnauthorized();
-      throw ApiException('未授权，请重新登录', statusCode: 401);
+      return Result.failure('未授权，请重新登录', statusCode: 401);
     }
     final data = jsonDecode(res.body);
-    if (res.statusCode >= 500) {
-      throw ApiException(
-        data['detail'] ?? '服务器错误 (${res.statusCode})',
-        statusCode: res.statusCode,
-      );
-    }
     if (res.statusCode >= 400) {
-      throw ApiException(
+      return Result.failure(
         data['detail'] ?? '请求失败 (${res.statusCode})',
         statusCode: res.statusCode,
       );
     }
-    return data;
+    return Result.success(data);
   }
 
   Future<void> _onUnauthorized() async {

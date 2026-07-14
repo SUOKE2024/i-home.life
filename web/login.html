@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="登录索克家居 · AI 自治运营工作台">
+<meta property="og:title" content="登录 · 索克家居">
+<meta property="og:description" content="AI 自治运营工作台，8 AI 智能体 7×24 服务">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260713b">
+<link rel="manifest" href="manifest.json">
+<title>登录 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","name":"登录 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"}}
+</script>
+</head>
+<body>
+<main class="auth-container" role="main">
+  <section class="auth-card" role="form" aria-labelledby="login-title">
+    <div class="auth-brand">
+      <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:56px;height:56px;margin-bottom:8px">
+      <h1 id="login-title">索克家居</h1>
+      <p>AI 自治运营工作台</p>
+    </div>
+
+    <form id="login-form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="phone">手机号</label>
+        <input
+          class="form-input"
+          id="phone"
+          name="phone"
+          type="tel"
+          inputmode="numeric"
+          maxlength="11"
+          placeholder="请输入手机号"
+          autocomplete="tel"
+          value="13800138000"
+          required
+          aria-required="true"
+        >
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">密码</label>
+        <input
+          class="form-input"
+          id="password"
+          name="password"
+          type="password"
+          placeholder="请输入密码"
+          autocomplete="current-password"
+          value="123456"
+          required
+          aria-required="true"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="login-btn">登录</button>
+
+      <p class="form-error" id="login-error" role="alert" hidden></p>
+    </form>
+
+    <!-- ── Passkey 登录分隔线 ── -->
+    <div class="passkey-divider" style="display:flex;align-items:center;gap:10px;margin:16px 0">
+      <span style="flex:1;height:1px;background:var(--border)"></span>
+      <span style="font-size:10px;color:var(--text-muted);white-space:nowrap">或使用生物识别</span>
+      <span style="flex:1;height:1px;background:var(--border)"></span>
+    </div>
+
+    <!-- ── Passkey 登录按钮 ── -->
+    <button type="button" class="btn btn-primary" id="passkey-login-btn"
+            style="background:var(--bg-card);color:var(--accent);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;gap:8px">
+      <span id="passkey-icon">🔑</span> 使用 Passkey 登录
+    </button>
+    <p class="form-error" id="passkey-error" role="alert" hidden></p>
+    <p style="text-align:center;margin-top:8px">
+      <a href="#" id="passkey-register-link" style="font-size:11px;color:var(--text-secondary)">注册新 Passkey</a>
+    </p>
+
+    <p class="form-hint">
+      体验账号已预填：13800138000 / 123456
+    </p>
+
+    <p class="form-hint">
+      <a href="#" id="show-register">注册新账号</a>
+      · <a href="#" id="show-login" hidden>返回登录</a>
+    </p>
+
+    <p class="form-hint">
+      登录即表示同意 <a href="assets/legal/terms-of-service.html">用户协议</a> 与 <a href="assets/legal/privacy-policy.html">隐私政策</a>
+    </p>
+
+    <p class="form-hint">
+      <a href="index.html">← 返回首页</a>
+    </p>
+  </section>
+
+  <!-- 注册表单（初始隐藏） -->
+  <section class="auth-card" id="register-card" role="form" aria-labelledby="register-title" hidden>
+    <div class="auth-brand">
+      <h2 id="register-title">注册新账号</h2>
+      <p>选择您的角色和工种</p>
+    </div>
+
+    <form id="register-form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="reg-name">姓名</label>
+        <input class="form-input" id="reg-name" name="name" type="text" placeholder="请输入姓名" required maxlength="100">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="reg-phone">手机号</label>
+        <input class="form-input" id="reg-phone" name="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入手机号" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="reg-password">密码</label>
+        <input class="form-input" id="reg-password" name="password" type="password" placeholder="至少6位密码" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="reg-role">角色</label>
+        <select class="form-input" id="reg-role" name="role" required>
+          <option value="homeowner">业主</option>
+          <option value="designer">设计师</option>
+          <option value="contractor">施工方（工长/工人）</option>
+          <option value="supplier">供应商</option>
+        </select>
+      </div>
+      <div class="form-group" id="reg-sub-role-group" hidden>
+        <label class="form-label" for="reg-sub-role">细分工种</label>
+        <select class="form-input" id="reg-sub-role" name="sub_role">
+          <option value="">-- 请选择工种 --</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="register-btn">注册</button>
+      <p class="form-error" id="register-error" role="alert" hidden></p>
+    </form>
+
+    <p class="form-hint">
+      <a href="#" id="back-to-login">已有账号？返回登录</a>
+    </p>
+  </section>
+</main>
+
+<script src="assets/js/api-client.js?v=20260713b"></script>
+<script>
+(function() {
+  // ── 登录 ──
+  const form = document.getElementById('login-form');
+  const phoneInput = document.getElementById('phone');
+  const passwordInput = document.getElementById('password');
+  const loginBtn = document.getElementById('login-btn');
+  const errorEl = document.getElementById('login-error');
+
+  // 获取 URL 参数 role
+  const params = new URLSearchParams(window.location.search);
+  const role = params.get('role') || 'owner';
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.hidden = false;
+  }
+  function clearError() {
+    errorEl.hidden = true;
+  }
+
+  // 登录提交
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const phone = phoneInput.value.trim();
+    const password = passwordInput.value;
+    if (!/^1\d{10}$/.test(phone)) {
+      showError('请输入正确的手机号');
+      return;
+    }
+    if (!password) {
+      showError('请输入密码');
+      return;
+    }
+    clearError();
+    loginBtn.disabled = true;
+    loginBtn.textContent = '登录中…';
+    try {
+      await ApiClient.login(phone, password);
+      window.location.href = `workbench.html?role=${encodeURIComponent(role)}`;
+    } catch (e) {
+      const msg = (e.body && (e.body.detail || (Array.isArray(e.body.detail) ? e.body.detail[0]?.msg : e.body.detail))) || '登录失败，请检查手机号和密码';
+      showError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      loginBtn.disabled = false;
+      loginBtn.textContent = '登录';
+    }
+  });
+
+  // ── 注册表单切换 ──
+  const loginCard = document.querySelector('.auth-card');
+  const registerCard = document.getElementById('register-card');
+  const showRegister = document.getElementById('show-register');
+  const showLogin = document.getElementById('show-login');
+  const backToLogin = document.getElementById('back-to-login');
+
+  showRegister.addEventListener('click', (e) => {
+    e.preventDefault();
+    loginCard.hidden = true;
+    registerCard.hidden = false;
+    showRegister.hidden = true;
+    showLogin.hidden = false;
+  });
+  function showLoginForm() {
+    loginCard.hidden = false;
+    registerCard.hidden = true;
+    showRegister.hidden = false;
+    showLogin.hidden = true;
+  }
+  showLogin.addEventListener('click', (e) => { e.preventDefault(); showLoginForm(); });
+  backToLogin.addEventListener('click', (e) => { e.preventDefault(); showLoginForm(); });
+
+  // ── 工种子角色联动 ──
+  const SUB_ROLES = {
+    contractor: [
+      { value: '', label: '-- 工长（总包） --' },
+      { value: 'electrician', label: '电工' },
+      { value: 'plumber', label: '水电安装工' },
+      { value: 'mason', label: '泥瓦工' },
+      { value: 'carpenter', label: '木工' },
+      { value: 'painter', label: '油漆工' },
+      { value: 'installer', label: '安装工' },
+      { value: 'curtain_installer', label: '窗帘安装工' },
+      { value: 'supervisor', label: '监理' },
+    ],
+    designer: [
+      { value: '', label: '-- 通用设计师 --' },
+      { value: 'curtain_designer', label: '窗帘设计师' },
+    ],
+  };
+
+  const regRole = document.getElementById('reg-role');
+  const regSubRole = document.getElementById('reg-sub-role');
+  const regSubRoleGroup = document.getElementById('reg-sub-role-group');
+
+  regRole.addEventListener('change', () => {
+    const role = regRole.value;
+    const options = SUB_ROLES[role] || [];
+    if (options.length > 0) {
+      regSubRole.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+      regSubRoleGroup.hidden = false;
+    } else {
+      regSubRoleGroup.hidden = true;
+    }
+  });
+
+  // ── 注册提交 ──
+  const regForm = document.getElementById('register-form');
+  const regBtn = document.getElementById('register-btn');
+  const regError = document.getElementById('register-error');
+
+  function showRegError(msg) {
+    regError.textContent = msg;
+    regError.hidden = false;
+  }
+  function clearRegError() {
+    regError.hidden = true;
+  }
+
+  regForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('reg-name').value.trim();
+    const phone = document.getElementById('reg-phone').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const roleVal = regRole.value;
+    const subRole = regSubRole.value || null;
+
+    if (!name) { showRegError('请输入姓名'); return; }
+    if (!/^1\d{10}$/.test(phone)) { showRegError('请输入正确的手机号'); return; }
+    if (password.length < 6) { showRegError('密码至少6位'); return; }
+
+    clearRegError();
+    regBtn.disabled = true;
+    regBtn.textContent = '注册中…';
+
+    try {
+      await ApiClient.register(phone, password, name, roleVal, subRole);
+      // 注册成功，跳转工作台
+      window.location.href = `workbench.html?role=${encodeURIComponent(roleVal)}`;
+    } catch (err) {
+      const msg = (err.body && err.body.detail) || '注册失败';
+      showRegError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      regBtn.disabled = false;
+      regBtn.textContent = '注册';
+    }
+  });
+})();
+</script>
+<script>
+// ═══════════════════════════════════════════
+//  WebAuthn / Passkey 登录
+// ═══════════════════════════════════════════
+(function() {
+  const passkeyBtn = document.getElementById('passkey-login-btn');
+  const passkeyIcon = document.getElementById('passkey-icon');
+  const passkeyError = document.getElementById('passkey-error');
+  const registerLink = document.getElementById('passkey-register-link');
+  const phoneInput = document.getElementById('phone');
+
+  // 检测浏览器是否支持 WebAuthn
+  const hasWebAuthn = typeof PublicKeyCredential !== 'undefined';
+
+  if (!hasWebAuthn) {
+    passkeyBtn.style.display = 'none';
+    registerLink.style.display = 'none';
+    document.querySelector('.passkey-divider').style.display = 'none';
+    return;
+  }
+
+  // 检测是否为 Apple 设备（用于显示 Touch ID / Face ID 图标）
+  const isMac = /Macintosh/.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  if (isMac || isIOS) {
+    passkeyIcon.textContent = isMac ? '🍏' : '📱';
+  }
+
+  function showPasskeyError(msg) {
+    passkeyError.textContent = msg;
+    passkeyError.hidden = false;
+    setTimeout(() => { passkeyError.hidden = true; }, 5000);
+  }
+
+  // ── Base64URL 编码/解码 ──
+  function b64Encode(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function b64Decode(str) {
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  // ── Passkey 登录 ──
+  passkeyBtn.addEventListener('click', async () => {
+    passkeyBtn.disabled = true;
+    passkeyBtn.textContent = '发起挑战中…';
+
+    try {
+      const phone = phoneInput.value.trim() || null;
+      // 1. 请求登录挑战
+      const options = await ApiClient.webauthnLoginBegin(phone);
+
+      // 2. 转换 allowCredentials 为 WebAuthn 格式
+      const allowCredentials = (options.allowCredentials || []).map(cred => ({
+        id: b64Decode(cred.id),
+        type: cred.type || 'public-key',
+        transports: cred.transports || ['internal', 'hybrid'],
+      }));
+
+      passkeyBtn.textContent = '请验证身份…';
+
+      // 3. 调用 navigator.credentials.get()
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: b64Decode(options.challenge),
+          timeout: options.timeout || 60000,
+          rpId: options.rpId,
+          allowCredentials: allowCredentials,
+          userVerification: options.userVerification || 'preferred',
+        },
+      });
+
+      if (!assertion) {
+        throw new Error('用户取消验证');
+      }
+
+       // 4. 提取 credential JSON (webauthn v3 期望完整 JSON)
+      const credJSON = {
+        id: assertion.id,
+        rawId: assertion.id,
+        type: assertion.type,
+        response: {
+          clientDataJSON: b64Encode(response.clientDataJSON),
+          authenticatorData: b64Encode(response.authenticatorData),
+          signature: b64Encode(response.signature),
+          userHandle: assertion.userHandle ? b64Encode(assertion.userHandle) : null,
+        },
+      };
+      const loginResult = await ApiClient.webauthnLoginComplete(credJSON);
+
+      // 5. 登录成功，跳转工作台
+      window.location.href = `workbench.html?role=${encodeURIComponent(params.get('role') || 'owner')}`;
+    } catch (err) {
+      passkeyBtn.disabled = false;
+      passkeyBtn.textContent = '🔑 使用 Passkey 登录';
+      const msg = err.message || 'Passkey 登录失败，请使用密码登录';
+      showPasskeyError(msg);
+    }
+  });
+
+  // ── Passkey 注册（需先登录） ──
+  registerLink.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const phone = phoneInput.value.trim();
+    const password = document.getElementById('password').value;
+
+    if (!phone || !password) {
+      showPasskeyError('请先输入手机号和密码登录，再注册 Passkey');
+      return;
+    }
+
+    // 先通过密码登录获取 token
+    passkeyBtn.disabled = true;
+    passkeyBtn.textContent = '正在登录…';
+
+    try {
+      await ApiClient.login(phone, password);
+      const token = ApiClient.getToken();
+      if (!token) throw new Error('登录失败');
+
+      // 请求注册挑战
+      const options = await ApiClient.webauthnRegisterBegin('Web 浏览器');
+
+      passkeyBtn.textContent = '请验证生物识别…';
+
+      // 转换 challenge 和 user.id 为 bytes
+      // API 直接返回 WebAuthn 原生 JSON，key 均为 camelCase
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          challenge: b64Decode(options.challenge),
+          rp: options.rp,
+          user: {
+            id: b64Decode(options.user.id),
+            name: options.user.name,
+            displayName: options.user.displayName,
+          },
+          pubKeyCredParams: options.pubKeyCredParams,
+          timeout: options.timeout || 60000,
+          attestation: options.attestation || 'none',
+          authenticatorSelection: options.authenticatorSelection || {
+            authenticatorAttachment: 'platform',
+            residentKey: 'required',
+            requireResidentKey: true,
+            userVerification: 'preferred',
+          },
+          excludeCredentials: (options.excludeCredentials || []).map(cred => ({
+            id: b64Decode(cred.id),
+            type: cred.type || 'public-key',
+          })),
+          hints: options.hints || [],
+        },
+      });
+
+      if (!credential) {
+        throw new Error('用户取消注册');
+      }
+
+      // 提交注册结果 (完整 credential JSON)
+      const response = credential.response;
+      const credJSON = {
+        id: credential.id,
+        rawId: credential.id,
+        type: credential.type,
+        response: {
+          clientDataJSON: b64Encode(response.clientDataJSON),
+          attestationObject: b64Encode(response.attestationObject),
+        },
+      };
+      await ApiClient.webauthnRegisterComplete({
+        credential: credJSON,
+        device_name: 'Web 浏览器 (' + (navigator.platform || '未知') + ')',
+        transports: response.getTransports ? response.getTransports() : ['internal'],
+      });
+
+      passkeyBtn.textContent = '🔑 Passkey 已注册';
+      showPasskeyError('✓ Passkey 注册成功！下次可直接使用指纹/面容登录');
+      setTimeout(() => { passkeyBtn.textContent = '🔑 使用 Passkey 登录'; passkeyBtn.disabled = false; }, 2000);
+    } catch (err) {
+      // 注册失败，清理可能残留的 token
+      try { localStorage.removeItem('paseto_token'); } catch (_) {}
+      passkeyBtn.disabled = false;
+      passkeyBtn.textContent = '🔑 使用 Passkey 登录';
+      showPasskeyError(err.message || 'Passkey 注册失败');
+    }
+  });
+})();
+</script>
+<script src="assets/js/analytics.js?v=20260713b"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

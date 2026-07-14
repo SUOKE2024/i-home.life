@@ -191,3 +191,33 @@ class ProcurementAgent(BaseAgent):
             "suppliers": SUPPLIER_RECOMMENDATIONS[cat][:3],
             "reply": f"已为「{material_name}」匹配 {len(SUPPLIER_RECOMMENDATIONS[cat][:3])} 家供应商",
         }
+
+    # ── 内容发布（扩展 ProcurementAgent） ──
+
+    async def generate_content_publish_reply(self, message: str, user_name: str = "") -> str:
+        """辅助供应商在聊天中发布产品/服务"""
+        prompt = f"""你是索克家居的内容发布助手。供应商 {user_name} 想要发布产品/服务。
+
+用户消息：{message}
+
+请按以下步骤协助：
+1. 如果消息包含产品名称、类别、价格、规格等信息，提取并整理
+2. 如果信息不完整，引导供应商补充缺失信息
+3. 用 JSON 格式回复：{{"product_info": {{"name": "...", "category": "...", "price_range": "...", "description": "...", "tags": [...]}}, "missing_fields": [...], "reply": "对供应商的回复"}}
+
+如果用户消息中信息完整，直接在 reply 中生成产品预览卡片格式的回复。
+如果信息不完整，在 reply 中友好地询问缺失信息，并在 missing_fields 中列出。"""
+        try:
+            result = await self.think(prompt)
+            return result
+        except Exception:
+            return (
+                f"**产品发布助手**\n\n"
+                f"收到您的消息：{message}\n\n"
+                "请确认以下信息以便发布产品：\n\n"
+                "1. 产品名称\n"
+                "2. 产品类别（瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他）\n"
+                "3. 价格区间\n"
+                "4. 产品描述\n"
+                "5. 标签"
+            )

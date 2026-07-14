@@ -1,20 +1,74 @@
+import logging
 import os
+import time
+import uuid
+from collections import deque
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI
+import structlog
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.config import get_settings
 from app.database import init_db
-from app.api import auth, projects, materials, budgets, procurement, construction, settlements, floorplans, voice, files, agents, surveys, location, change_orders, takeoff, mep, payments, chat, crews, workers, lighting, kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog, smart_home, scene_automation, procurement_enhanced
+from app.logging_config import configure_logging
+from app.metrics import (
+    http_request_duration_seconds,
+    http_requests_in_progress,
+    http_requests_total,
+    metrics_response,
+)
+from app.api import auth, projects, materials, budgets, procurement, construction, settlements, floorplans, voice, files, agents, surveys, location, change_orders, takeoff, mep, payments, chat, crews, workers, lighting, kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog, smart_home, scene_automation, procurement_enhanced, appliance, structural
+from app.api import identity, products, tasks, points
 
 settings = get_settings()
+logger = structlog.get_logger("ihome")
+
+# ── 监控常量 ──
+SLOW_REQUEST_THRESHOLD = 3.0  # 慢请求阈值（秒）
+_ALERT_WINDOW_SIZE = 100      # 异常率告警滑动窗口
+_ALERT_ERROR_RATE = 0.10      # 5xx 比例告警阈值
+_alert_status_window: deque = deque(maxlen=_ALERT_WINDOW_SIZE)
+
+
+def _extract_user_id(request: Request):
+    """从 Authorization 头解析 PASETO user_id，失败返回 None（不记录 token）。"""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        from app.auth.paseto_handler import verify_token
+        payload = verify_token(auth_header[7:])
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
+def _check_error_rate(status_code: int) -> None:
+    """滑动窗口异常率告警：5xx 比例超阈值且当前请求为 5xx 时输出 WARNING。"""
+    _alert_status_window.append(status_code)
+    if len(_alert_status_window) < 20:
+        return
+    error_count = sum(1 for s in _alert_status_window if s >= 500)
+    error_rate = error_count / len(_alert_status_window)
+    if status_code >= 500 and error_rate >= _ALERT_ERROR_RATE:
+        logger.warning(
+            "high_error_rate_alert",
+            error_rate=round(error_rate, 4),
+            window_size=len(_alert_status_window),
+            error_count=error_count,
+            threshold=_ALERT_ERROR_RATE,
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    configure_logging(debug=settings.debug)
     yield
 
 
@@ -29,6 +83,8 @@ app = FastAPI(
 )
 
 # CORS: 生产环境从 .env 读取白名单; DEBUG 模式下放开以方便本地联调
+if not settings.debug:
+    settings.validate_paseto_key()
 _cors_origins = (
     ["*"] if settings.debug else (settings.cors_origins or ["http://localhost:3000"])
 )
@@ -39,6 +95,77 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── 请求追踪中间件：request_id / 结构化日志 / metrics / 异常率告警 ──
+@app.middleware("http")
+async def request_tracking_middleware(request: Request, call_next):
+    path = request.url.path
+    method = request.method
+
+    # 排除 /metrics 端点与静态文件（仅追踪 /api、/health、/ws）
+    if path == "/metrics" or not (
+        path.startswith("/api") or path.startswith("/health") or path.startswith("/ws")
+    ):
+        return await call_next(request)
+
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    user_id = _extract_user_id(request)
+
+    bind_contextvars(request_id=request_id, user_id=user_id, method=method, path=path)
+
+    http_requests_in_progress.inc()
+    start = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        response.headers["X-Request-ID"] = request_id
+        return response
+    except Exception:
+        logger.error("request_unhandled_exception", exc_info=True)
+        raise
+    finally:
+        duration = time.perf_counter() - start
+        duration_ms = round(duration * 1000, 2)
+        http_requests_in_progress.dec()
+
+        # 使用路由模板降低 label 基数
+        route = request.scope.get("route")
+        path_label = getattr(route, "path", path) if route else path
+        if not path_label or path_label == "/":
+            path_label = path
+
+        http_requests_total.labels(
+            method=method, path=path_label, status=str(status_code)
+        ).inc()
+        http_request_duration_seconds.labels(method=method, path=path_label).observe(
+            duration
+        )
+
+        logger.info(
+            "request",
+            duration_ms=duration_ms,
+            status_code=status_code,
+        )
+
+        if duration > SLOW_REQUEST_THRESHOLD:
+            logger.warning(
+                "slow_request",
+                duration_ms=duration_ms,
+                status_code=status_code,
+            )
+
+        if status_code >= 500:
+            logger.error(
+                "server_error",
+                duration_ms=duration_ms,
+                status_code=status_code,
+            )
+
+        _check_error_rate(status_code)
+        clear_contextvars()
+
 
 # ── API 路由（统一 /api 前缀，与前端 JS 中 `const API = '/api'` 对齐） ──
 api_router = APIRouter(prefix="/api")
@@ -76,18 +203,178 @@ api_router.include_router(furniture_catalog.router)       # /api/furniture-catal
 api_router.include_router(smart_home.router)              # /api/smart-home/* (F31)
 api_router.include_router(scene_automation.router)        # /api/scene-automation/* (F32)
 api_router.include_router(procurement_enhanced.router)    # /api/procurement-enhanced/* (F33/F34)
+api_router.include_router(appliance.router)                # /api/appliances/* (F19/F20)
+api_router.include_router(structural.router)              # /api/structural/* (F8/F9)
+api_router.include_router(identity.router)             # /api/identity/*
+api_router.include_router(products.router)             # /api/products/*
+api_router.include_router(tasks.router)                # /api/tasks/*
+api_router.include_router(points.router)               # /api/points/*
 app.include_router(api_router)
+
+# ── 全局异常处理 ──
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """统一 HTTP 异常响应格式"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "detail": exc.detail,
+            "status_code": exc.status_code,
+            "path": request.url.path,
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """未捕获异常兜底处理 — 不泄露堆栈信息"""
+    logger.error(f"Unhandled exception at {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": True,
+            "detail": "服务器内部错误，请稍后重试",
+            "status_code": 500,
+            "path": request.url.path,
+        },
+    )
+
+
+@app.exception_handler(401)
+async def unauthorized_handler(request: Request, exc: Exception):
+    # 保留业务层原有的错误详情（如登录失败），否则用通用文案
+    detail = getattr(exc, 'detail', None) or "认证失败，请重新登录"
+    return JSONResponse(
+        status_code=401,
+        content={
+            "error": True,
+            "detail": detail,
+            "status_code": 401,
+            "path": request.url.path,
+        },
+    )
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "app": settings.app_name, "version": settings.app_version}
+    return {"status": "ok", "app": settings.app_name, "version": settings.app_version, "domain": "i-home.life"}
+
+
+@app.get("/api/health/detail")
+async def health_check_detail():
+    """详细健康检查：数据库、Redis（可选）、磁盘空间。"""
+    import shutil
+
+    from sqlalchemy import text
+
+    from app.database import engine
+
+    checks: dict = {}
+    overall = "ok"
+
+    # 数据库连接
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["database"] = {"status": "ok"}
+    except Exception as e:
+        checks["database"] = {"status": "error", "detail": str(e)}
+        overall = "degraded"
+
+    # Redis 连接（仅在配置 redis_url 时检查）
+    if settings.redis_url:
+        try:
+            import redis.asyncio as aioredis
+
+            r = aioredis.from_url(settings.redis_url, socket_connect_timeout=2)
+            await r.ping()
+            await r.aclose()
+            checks["redis"] = {"status": "ok"}
+        except Exception as e:
+            checks["redis"] = {"status": "error", "detail": str(e)}
+            overall = "degraded"
+    else:
+        checks["redis"] = {"status": "disabled"}
+
+    # 磁盘空间（检查项目所在分区）
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        usage = shutil.disk_usage(base_dir)
+        free_percent = round(usage.free / usage.total * 100, 2)
+        disk_status = "ok" if free_percent > 10 else "warning"
+        if disk_status != "ok":
+            overall = "degraded"
+        checks["disk"] = {
+            "status": disk_status,
+            "free_percent": free_percent,
+            "free_gb": round(usage.free / (1024**3), 2),
+            "total_gb": round(usage.total / (1024**3), 2),
+        }
+    except Exception as e:
+        checks["disk"] = {"status": "error", "detail": str(e)}
+        overall = "degraded"
+
+    return JSONResponse(
+        status_code=200 if overall == "ok" else 503,
+        content={
+            "status": overall,
+            "app": settings.app_name,
+            "version": settings.app_version,
+            "checks": checks,
+        },
+    )
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus 指标端点。"""
+    return metrics_response()
 
 
 @app.websocket("/ws/{project_id}")
-async def websocket_endpoint(websocket, project_id: str):
+async def websocket_endpoint(websocket: WebSocket, project_id: str):
+    """WebSocket 实时通信端点 — 需 PASETO Token 认证
+
+    客户端通过 query 参数传递 token: ws://host/ws/{project_id}?token=xxx
+    """
+    import logging
+    from app.auth.paseto_handler import verify_token, TokenExpiredError, TokenInvalidError
     from app.ws import ws_manager
+
+    logger = logging.getLogger(__name__)
+
+    # ── 认证: 从 query 参数获取 token ──
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="缺少认证令牌")
+        return
+
+    try:
+        payload = verify_token(token)
+    except TokenExpiredError:
+        await websocket.close(code=4001, reason="令牌已过期")
+        return
+    except TokenInvalidError:
+        await websocket.close(code=4001, reason="无效的令牌")
+        return
+
+    user_id = payload.get("sub")
+    user_role = payload.get("role", "homeowner")
+    if not user_id:
+        await websocket.close(code=4001, reason="令牌格式无效")
+        return
+
     await ws_manager.connect(websocket, project_id)
+    # 认证成功后通知客户端
+    await ws_manager.send_to(websocket, "connected", {
+        "project_id": project_id,
+        "user_id": user_id,
+        "role": user_role,
+    })
     try:
         while True:
             data = await websocket.receive_text()
@@ -95,12 +382,20 @@ async def websocket_endpoint(websocket, project_id: str):
             try:
                 msg = json.loads(data)
                 event = msg.get("event", "message")
-                payload = msg.get("data", {})
-                await ws_manager.broadcast_to_project(project_id, event, payload)
-            except Exception:
-                await ws_manager.send_to(websocket, "error", {"message": "Invalid message format"})
-    except Exception:
-        pass
+                payload_data = msg.get("data", {})
+                # 注入发送者信息
+                payload_data["_sender_id"] = user_id
+                payload_data["_sender_role"] = user_role
+                await ws_manager.broadcast_to_project(project_id, event, payload_data)
+            except json.JSONDecodeError:
+                await ws_manager.send_to(websocket, "error", {"message": "消息格式无效，需为合法 JSON"})
+            except Exception as e:
+                logger.warning(f"WebSocket 消息处理异常: project={project_id}, error={e}")
+                await ws_manager.send_to(websocket, "error", {"message": f"处理失败: {str(e)}"})
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket 客户端断开: project={project_id}, user={user_id}")
+    except Exception as e:
+        logger.error(f"WebSocket 异常断开: project={project_id}, user={user_id}, error={e}")
     finally:
         ws_manager.disconnect(websocket)
 

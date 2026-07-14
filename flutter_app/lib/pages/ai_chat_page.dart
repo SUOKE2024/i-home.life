@@ -1,8 +1,27 @@
+import 'dart:async';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+
+import '../main.dart' show ThemeState;
+import '../models/chat_message.dart';
+import '../theme/suoke_theme.dart';
+import '../services/agent_router.dart';
 import '../services/api.dart';
+import '../services/project_context.dart';
+import '../services/sse_service.dart';
+import '../services/websocket_service.dart';
+import '../widgets/chat_message_card.dart';
+import '../widgets/emoji_picker.dart';
 
 class AIChatPage extends StatefulWidget {
-  const AIChatPage({super.key});
+  final String? projectId;
+  final ProjectContext? projectContext;
+
+  const AIChatPage({super.key, this.projectId, this.projectContext});
 
   @override
   State<AIChatPage> createState() => _AIChatPageState();
@@ -11,139 +30,1013 @@ class AIChatPage extends StatefulWidget {
 class _AIChatPageState extends State<AIChatPage> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
-  final List<Map<String, String>> _messages = [];
-  String _agent = 'orchestrator';
+  final List<ChatMessage> _messages = [];
+  final SseService _sse = SseService();
+  final WebSocketService _ws = WebSocketService();
 
-  final _agents = {
-    'orchestrator': ('◈', '总控'),
-    'designer': ('✦', '设计'),
-    'budget': ('◎', '预算'),
-    'procurement': ('▦', '采购'),
-    'construction': ('▥', '施工'),
-  };
+  String _selectedAgent = 'master';
+  bool _isLoading = false;
+  String? _currentProjectId;
+
+  StreamSubscription<SseEvent>? _sseSub;
+  VoidCallback? _wsUnsubscribe;
+
+  late final List<AgentInfo> _agents;
+
+  /// 快览导航项（对齐 Web 端 .quick-nav）
+  static const _quickNavItems = [
+    ('主页', '#'),
+    ('项目详情', 'project-detail'),
+    ('物料管理', 'materials'),
+    ('设置', 'settings'),
+  ];
 
   @override
   void initState() {
     super.initState();
-    _messages.add({'role': 'agent', 'text': '您好！我是索克家居 AI 总控 Agent。我可以帮您进行设计规划、预算管理、物料采购、施工管理。请告诉我您的需求。'});
+    _agents = AgentInfo.standardAgents;
+    _connectWebSocket();
   }
 
-  void _addMsg(String role, String text) {
-    setState(() => _messages.add({'role': role, 'text': text}));
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-    });
-  }
-
-  Future<void> _send() async {
-    final text = _msgCtrl.text.trim();
-    if (text.isEmpty) return;
-    _msgCtrl.clear();
-    _addMsg('user', text);
-
-    try {
-      final api = ApiClient();
-      final Map<String, String> endpointMap = {
-        'designer': '/agents/design',
-        'budget': '/agents/budget',
-        'procurement': '/agents/procurement',
-        'construction': '/agents/construction',
-      };
-      final endpoint = endpointMap[_agent] ?? '/agents/chat';
-      final res = await api.post(endpoint, {'message': text, 'agent_type': _agent});
-      final reply = (res['reply'] ?? res['full_reply'] ?? res['summary'] ?? res.toString()) as String;
-      _addMsg('agent', reply);
-    } catch (e) {
-      _addMsg('agent', '抱歉，AI 服务暂时不可用: $e');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pc = context.read<ProjectContext>();
+    final pid = widget.projectId ?? widget.projectContext?.currentProjectId ?? pc.currentProjectId;
+    if (pid != _currentProjectId) {
+      _currentProjectId = pid;
+      _connectWebSocket();
+      if (pc.projects.isEmpty) {
+        pc.loadProjects();
+      }
     }
   }
 
   @override
+  void dispose() {
+    _msgCtrl.dispose();
+    _scrollCtrl.dispose();
+    _sseSub?.cancel();
+    _wsUnsubscribe?.call();
+    _ws.close();
+    super.dispose();
+  }
+
+  // ── WebSocket 连接 ──
+
+  Future<void> _connectWebSocket() async {
+    final token = ApiClient().token;
+    final pid = _currentProjectId;
+    if (token == null || pid == null) return;
+
+    _wsUnsubscribe?.call();
+    _ws.close();
+
+    try {
+      await _ws.connect(pasetoToken: token, projectId: pid);
+      _wsUnsubscribe = _ws.on('chat.message', _handleIncomingIM);
+    } catch (_) {}
+  }
+
+  void _handleIncomingIM(dynamic data) {
+    if (data is! Map<String, dynamic>) return;
+    final msgId = data['id'] as String?;
+    if (msgId != null && _ws.hasRendered(msgId)) return;
+    if (msgId != null) _ws.markRendered(msgId);
+
+    final senderName = data['sender_name'] as String?;
+    final content = data['content'] as String? ?? '';
+    final senderRole = data['sender_role'] as String? ?? '';
+
+    const roleToAgent = {
+      'homeowner': 'master', 'owner': 'master', 'admin': 'master',
+      'designer': 'design',
+      'contractor': 'construction', 'foreman': 'construction',
+      'supplier': 'procurement',
+    };
+    final agentKey = roleToAgent[senderRole] ?? 'master';
+
+    _addMessage(ChatMessage(
+      type: ChatMessageType.text,
+      agent: agentKey,
+      displayName: senderName,
+      isSelf: false,
+      content: content,
+      timestamp: DateTime.now(),
+    ));
+  }
+
+  // ── 消息操作 ──
+
+  void _addMessage(ChatMessage msg) {
+    setState(() => _messages.add(msg));
+    _scrollToBottom();
+  }
+
+  void _updateLastAgentMessage(String content, {String? agent}) {
+    setState(() {
+      for (int i = _messages.length - 1; i >= 0; i--) {
+        final m = _messages[i];
+        if (!m.isSelf && m.type == ChatMessageType.text) {
+          _messages[i] = m.copyWith(content: content, agent: agent ?? m.agent);
+          break;
+        }
+      }
+    });
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 120), () {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  // ── 发送消息 ──
+
+  Future<void> _send() async {
+    final text = _msgCtrl.text.trim();
+    if (text.isEmpty || _isLoading) return;
+    _msgCtrl.clear();
+
+    final route = AgentRouter.route(text);
+    final targetAgent = route.needsClarify ? _selectedAgent : route.agent;
+    final backendAgent = _agentToBackend(targetAgent);
+
+    _addMessage(ChatMessage.userText(text: text));
+
+    setState(() => _isLoading = true);
+
+    final placeholder = ChatMessage.agentText(text: '', agent: targetAgent);
+    _addMessage(placeholder);
+
+    final history = <Map<String, dynamic>>[];
+    final recentMsgs = _messages.length > 20
+        ? _messages.sublist(_messages.length - 21, _messages.length - 1)
+        : _messages.sublist(0, _messages.length - 1);
+    for (final m in recentMsgs) {
+      if (m.type != ChatMessageType.text) continue;
+      history.add({
+        'role': m.isSelf ? 'user' : 'assistant',
+        'content': (m.content ?? '').length > 500
+            ? m.content!.substring(0, 500)
+            : (m.content ?? ''),
+        'agent_type': m.agent ?? '',
+      });
+    }
+
+    String fullContent = '';
+    String currentAgent = targetAgent;
+
+    try {
+      _sseSub?.cancel();
+      final stream = _sse.streamChat(
+        text,
+        agentType: backendAgent,
+        projectId: _currentProjectId,
+        history: history,
+      );
+
+      _sseSub = stream.listen(
+        (event) {
+          switch (event.type) {
+            case SseEventType.meta:
+              if (event.agentType != null) {
+                currentAgent = _backendToAgent(event.agentType!);
+              }
+            case SseEventType.token:
+              fullContent += event.content ?? '';
+              _updateLastAgentMessage(fullContent, agent: currentAgent);
+            case SseEventType.done:
+              if (event.content != null && event.content!.isNotEmpty) {
+                _updateLastAgentMessage(event.content!, agent: currentAgent);
+              }
+              setState(() => _isLoading = false);
+          }
+        },
+        onError: (e) {
+          _updateLastAgentMessage('抱歉，AI 服务暂时不可用，请稍后重试。', agent: 'master');
+          setState(() => _isLoading = false);
+        },
+        onDone: () {
+          setState(() => _isLoading = false);
+        },
+      );
+    } catch (e) {
+      _updateLastAgentMessage('抱歉，AI 服务暂时不可用: $e', agent: 'master');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  String _agentToBackend(String agentKey) {
+    const map = {
+      'master': 'orchestrator', 'design': 'design', 'budget': 'budget',
+      'procurement': 'procurement', 'construction': 'construction',
+      'quality': 'qa_inspector', 'settlement': 'settlement', 'support': 'concierge',
+    };
+    return map[agentKey] ?? 'orchestrator';
+  }
+
+  String _backendToAgent(String backendType) {
+    const map = {
+      'orchestrator': 'master', 'design': 'design', 'budget': 'budget',
+      'procurement': 'procurement', 'construction': 'construction',
+      'qa_inspector': 'quality', 'settlement': 'settlement', 'concierge': 'support',
+    };
+    return map[backendType] ?? 'master';
+  }
+
+  void _handleApproval(String decision, Map<String, dynamic> payload) {
+    final changeId = payload['id']?.toString();
+    if (changeId == null || changeId.isEmpty) return;
+
+    _addMessage(ChatMessage.userText(
+      text: decision == 'approve' ? '已同意该审批' : '已要求整改',
+    ));
+
+    ApiClient().approveChangeOrder(changeId, decision).then((result) {
+      if (result.isSuccess) {
+        _addMessage(ChatMessage.agentText(
+          text: decision == 'approve' ? '变更单已批准。' : '变更单已驳回，等待整改。',
+          agent: 'master',
+        ));
+      } else {
+        _addMessage(ChatMessage.agentText(
+          text: '操作失败，请稍后重试。',
+          agent: 'master',
+        ));
+      }
+    });
+  }
+
+  void _handleCardAction(String action, Map<String, dynamic> payload) {
+    final api = ApiClient();
+    final pid = payload['project_id']?.toString() ?? _currentProjectId;
+
+    switch (action) {
+      case 'confirm_settlement':
+        if (pid == null) return;
+        _addMessage(ChatMessage.userText(text: '确认结算中…'));
+        api.confirmSettlement(pid).then((result) {
+          if (result.isSuccess) {
+            _addMessage(ChatMessage.agentText(
+              text: '结算单已确认，应付金额已锁定。',
+              agent: 'settlement',
+            ));
+          } else {
+            _addMessage(ChatMessage.agentText(
+              text: '结算确认失败：${result.error}',
+              agent: 'settlement',
+            ));
+          }
+        });
+      case 'approve_review':
+        if (pid == null) return;
+        _addMessage(ChatMessage.userText(text: '通过复核中…'));
+        api.approveSettlementReview(pid).then((result) {
+          if (result.isSuccess) {
+            _addMessage(ChatMessage.agentText(
+              text: '人工复核已通过，可继续确认结算。',
+              agent: 'settlement',
+            ));
+          } else {
+            _addMessage(ChatMessage.agentText(
+              text: '复核操作失败：${result.error}',
+              agent: 'settlement',
+            ));
+          }
+        });
+      case 'select_candidate':
+        final candidateId = payload['candidate_id']?.toString();
+        final taskId = payload['task_id']?.toString();
+        _addMessage(ChatMessage.userText(text: '已选择候选人 $candidateId 处理任务 $taskId'));
+        _addMessage(ChatMessage.agentText(
+          text: '任务已分配给候选人，等待对方确认。',
+          agent: 'master',
+        ));
+      default:
+        _addMessage(ChatMessage.system(text: '操作: $action'));
+    }
+  }
+
+  void _handleCopy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已复制', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+          backgroundColor: SuokeDesignTokens.cardBg,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+            side: const BorderSide(color: SuokeDesignTokens.border),
+          ),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _handleReply(ChatMessage msg) {
+    final text = msg.content ?? '';
+    _msgCtrl.text = '> 引用: $text\n';
+    _msgCtrl.selection = TextSelection.collapsed(offset: _msgCtrl.text.length);
+    FocusScope.of(context).requestFocus();
+  }
+
+  // ═══════════════════════════════════════════
+  // UI
+  // ═══════════════════════════════════════════
+
+  @override
   Widget build(BuildContext context) {
+    final pc = context.watch<ProjectContext>();
+    final projects = pc.projects;
+    final currentName = projects
+        .where((p) => (p['id'] ?? '').toString() == _currentProjectId)
+        .map((p) => (p['name'] ?? '选择项目').toString())
+        .toList();
+    final title = currentName.isNotEmpty ? currentName.first : '索克家居';
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI 助手', style: TextStyle(fontWeight: FontWeight.bold)),
+      backgroundColor: SuokeDesignTokens.bgDeep,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            // ── 聊天头部（对齐 Web chat-header：半透明 + 底部边框） ──
+            _buildChatHeader(pc, projects, title, isDark),
+            // ── Agent 选择栏 ──
+            _buildAgentChips(),
+            // ── 快览导航（对齐 Web .quick-nav） ──
+            _buildQuickNav(),
+            // ── 消息流 ──
+            Expanded(
+              child: _buildMessageList(),
+            ),
+            // ── 思考中指示器 ──
+            if (_isLoading)
+              _buildThinkingIndicator(),
+            // ── 输入栏 ──
+            _buildInputBar(),
+          ],
+        ),
       ),
-      body: Column(
+    );
+  }
+
+  /// 聊天头部（半透明玻璃效果，对齐 Web chat-header）
+  Widget _buildChatHeader(ProjectContext pc, List<Map<String, dynamic>> projects, String title, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: SuokeDesignTokens.cardBgSemi,
+        border: const Border(bottom: BorderSide(color: SuokeDesignTokens.border)),
+      ),
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top > 0 ? 0 : 8,
+      ),
+      child: Row(
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: _agents.entries.map((e) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: ChoiceChip(
-                  label: Text('${e.value.$1} ${e.value.$2}'),
-                  selected: _agent == e.key,
-                  onSelected: (_) => setState(() => _agent = e.key),
-                  selectedColor: const Color(0xFFC9973B).withValues(alpha: 0.2),
-                  labelStyle: TextStyle(
-                    color: _agent == e.key ? const Color(0xFFC9973B) : const Color(0xFF8A8894),
-                    fontSize: 12,
-                  ),
-                  side: BorderSide(
-                    color: _agent == e.key ? const Color(0xFFC9973B) : const Color(0xFF2A2A45),
-                  ),
+          // 项目选择器（点击可切换）
+          if (projects.length > 1)
+            Expanded(
+              child: _buildProjectDropdown(pc, title),
+            )
+          else
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: SuokeDesignTokens.fontSizeLg,
+                          color: SuokeDesignTokens.textPrimary,
+                        )),
+                    Text('8 AI 群策群力',
+                        style: TextStyle(
+                          fontSize: SuokeDesignTokens.fontSizeXs,
+                          color: SuokeDesignTokens.textSecondary,
+                        )),
+                  ],
                 ),
-              )).toList(),
+              ),
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollCtrl,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _messages.length,
-              itemBuilder: (ctx, i) {
-                final m = _messages[i];
-                final isUser = m['role'] == 'user';
-                return Align(
-                  alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    decoration: BoxDecoration(
-                      color: isUser ? const Color(0xFFC9973B).withValues(alpha: 0.12) : const Color(0xFF1A1A2A),
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(4),
-                        bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(16),
-                      ),
-                      border: Border.all(color: isUser ? const Color(0xFFC9973B).withValues(alpha: 0.2) : const Color(0xFF1E1E32)),
-                    ),
-                    child: Text(m['text']!, style: const TextStyle(fontSize: 14, color: Color(0xFFE8E6E1), height: 1.5)),
-                  ),
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF12121D),
-              border: Border(top: BorderSide(color: Color(0xFF1E1E32))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _msgCtrl,
-                    decoration: const InputDecoration(
-                      hintText: '输入你的装修需求...',
-                      border: InputBorder.none,
-                    ),
-                    onSubmitted: (_) => _send(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFFC9973B)),
-                  onPressed: _send,
-                ),
-              ],
+          // 主题切换
+          GestureDetector(
+            onTap: () => context.read<ThemeState>().toggle(),
+            child: Container(
+              width: 36,
+              height: 36,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: SuokeDesignTokens.bgDeep,
+                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+                border: Border.all(color: SuokeDesignTokens.border),
+              ),
+              child: Icon(
+                isDark ? Icons.light_mode : Icons.dark_mode,
+                size: 18,
+                color: SuokeDesignTokens.accent,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProjectDropdown(ProjectContext pc, String currentTitle) {
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 44),
+      color: SuokeDesignTokens.cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
+        side: const BorderSide(color: SuokeDesignTokens.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(currentTitle,
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: SuokeDesignTokens.fontSizeLg, color: SuokeDesignTokens.textPrimary),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary, size: 20),
+                  ],
+                ),
+                Text('8 AI 群策群力',
+                    style: TextStyle(fontSize: SuokeDesignTokens.fontSizeXs, color: SuokeDesignTokens.textSecondary)),
+              ],
+            ),
+          ],
+        ),
+      ),
+      onSelected: (pid) {
+        pc.switchProject(pid);
+        setState(() {
+          _currentProjectId = pid;
+          _messages.clear();
+          _messages.add(ChatMessage.agentText(
+            text: '已切换到新项目。我是索克家居 AI 总控 Agent，请告诉我您的需求。',
+            agent: 'master',
+          ));
+        });
+        _connectWebSocket();
+      },
+      itemBuilder: (_) => pc.projects.map((p) {
+        final pid = (p['id'] ?? '').toString();
+        final name = (p['name'] ?? '未命名').toString();
+        final status = p['status']?.toString() ?? '';
+        final isSelected = pid == _currentProjectId;
+        return PopupMenuItem<String>(
+          value: pid,
+          child: Row(
+            children: [
+              if (isSelected)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Icon(Icons.check, color: SuokeDesignTokens.accent, size: 16),
+                ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        style: TextStyle(
+                            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13)),
+                    if (status.isNotEmpty)
+                      Text(status,
+                          style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 10)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// 快览导航栏（对齐 Web 端 .quick-nav）
+  Widget _buildQuickNav() {
+    if (_currentProjectId == null || _currentProjectId!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: SuokeDesignTokens.cardBgSemi,
+        border: const Border(
+          bottom: BorderSide(color: SuokeDesignTokens.border, width: 1),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        itemCount: _quickNavItems.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 4),
+        itemBuilder: (context, index) {
+          final item = _quickNavItems[index];
+          return GestureDetector(
+            onTap: () => _handleQuickNav(item.$2),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: SuokeDesignTokens.border.withValues(alpha: 0.6)),
+              ),
+              child: Text(
+                item.$1,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: SuokeDesignTokens.textSecondary,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleQuickNav(String target) {
+    final pid = _currentProjectId;
+    if (pid == null) return;
+
+    Widget? page;
+    switch (target) {
+      case 'project-detail':
+        // 需要在 Navigator 中打开
+        break;
+      case 'materials':
+        // 同样需要 Navigator
+        break;
+      case 'settings':
+        // 打开设置
+        break;
+    }
+    // 快览导航的业务跳转逻辑可根据需要扩展
+  }
+
+  Widget _buildMessageList() {
+    if (_messages.isEmpty) {
+      return _buildWelcomeScreen();
+    }
+
+    final items = <Widget>[];
+    String? lastDate;
+
+    for (int i = 0; i < _messages.length; i++) {
+      final msg = _messages[i];
+      final dateStr = _fmtDate(msg.timestamp);
+
+      if (dateStr != lastDate) {
+        lastDate = dateStr;
+        items.add(
+          _buildDateSeparator(dateStr),
+        );
+      }
+
+      items.add(
+        ChatMessageCard(
+          key: ValueKey(msg.id ?? 'msg_$i'),
+          message: msg,
+          onApprovalAction: _handleApproval,
+          onCardAction: _handleCardAction,
+          onCopy: _handleCopy,
+          onReply: _handleReply,
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: SuokeDesignTokens.accent,
+      backgroundColor: SuokeDesignTokens.cardBg,
+      onRefresh: _refreshMessages,
+      child: ListView.builder(
+        controller: _scrollCtrl,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: items.length,
+        itemBuilder: (ctx, i) => items[i],
+      ),
+    );
+  }
+
+  /// 日期分隔线（对齐 Web .date-separator）
+  Widget _buildDateSeparator(String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: SuokeDesignTokens.cardBgSemi,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(label,
+                  style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeXs)),
+            ),
+          ),
+          const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _refreshMessages() async {
+    final pc = context.read<ProjectContext>();
+    final pid = _currentProjectId ?? pc.currentProjectId;
+    if (pid == null) return;
+
+    setState(() {
+      _messages.clear();
+      _messages.add(ChatMessage.agentText(
+        text: '已刷新。我是索克家居 AI 总控 Agent，请告诉我您的需求。',
+        agent: 'master',
+      ));
+    });
+    _connectWebSocket();
+  }
+
+  String _fmtDate(DateTime? dt) {
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDate = DateTime(dt.year, dt.month, dt.day);
+    if (msgDate == today) return '今天';
+    if (msgDate == today.subtract(const Duration(days: 1))) return '昨天';
+    return '${dt.month}月${dt.day}日';
+  }
+
+  // ── 思考中指示器 ──
+
+  Widget _buildThinkingIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      color: SuokeDesignTokens.cardBgSemi,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('思考中…',
+              style: TextStyle(fontSize: SuokeDesignTokens.fontSizeSm, color: SuokeDesignTokens.textSecondary)),
+        ],
+      ),
+    );
+  }
+
+  // ── emoji 选择器 ──
+
+  void _showEmojiPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => EmojiPicker(
+        onEmojiSelected: (emoji) {
+          final text = _msgCtrl.text;
+          final sel = _msgCtrl.selection;
+          final start = sel.baseOffset.clamp(0, text.length);
+          final end = sel.extentOffset.clamp(0, text.length);
+          _msgCtrl.text = text.substring(0, start) + emoji + text.substring(end);
+          final newPos = start + emoji.length;
+          _msgCtrl.selection = TextSelection.collapsed(offset: newPos);
+        },
+      ),
+    );
+  }
+
+  /// 输入栏（对齐 Web chat-input-bar）
+  Widget _buildInputBar() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: SuokeDesignTokens.cardBgSemi,
+        border: const Border(top: BorderSide(color: SuokeDesignTokens.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // 附件按钮
+            GestureDetector(
+              onTap: _showAttachmentSheet,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: SuokeDesignTokens.inputBg,
+                  borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+                  border: Border.all(color: SuokeDesignTokens.border),
+                ),
+                child: Icon(Icons.add, color: SuokeDesignTokens.textSecondary, size: 22),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: SuokeDesignTokens.inputBg,
+                  borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+                  border: Border.all(color: SuokeDesignTokens.border),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  controller: _msgCtrl,
+                  enabled: !_isLoading,
+                  style: TextStyle(fontSize: SuokeDesignTokens.fontSizeMd, color: SuokeDesignTokens.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: '说点什么…',
+                    hintStyle: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeMd),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onSubmitted: (_) => _send(),
+                  textInputAction: TextInputAction.send,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // emoji 按钮
+            GestureDetector(
+              onTap: _showEmojiPicker,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: SuokeDesignTokens.inputBg,
+                  borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+                  border: Border.all(color: SuokeDesignTokens.border),
+                ),
+                child: Icon(Icons.emoji_emotions_outlined, color: SuokeDesignTokens.textSecondary, size: 22),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 发送按钮
+            Container(
+              decoration: const BoxDecoration(
+                color: SuokeDesignTokens.accent,
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.send_rounded, color: Colors.black, size: 20),
+                onPressed: _isLoading ? null : _send,
+                splashRadius: 22,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAttachmentSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SuokeDesignTokens.cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
+        side: const BorderSide(color: SuokeDesignTokens.border),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(Icons.camera_alt_outlined, color: SuokeDesignTokens.textPrimary),
+                title: Text('拍照', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: Text('拍摄现场照片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.camera); },
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_library_outlined, color: SuokeDesignTokens.textPrimary),
+                title: Text('相册', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: Text('从相册选择图片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.gallery); },
+              ),
+              ListTile(
+                leading: Icon(Icons.attach_file_outlined, color: SuokeDesignTokens.textPrimary),
+                title: Text('文件', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: Text('选择文档或图纸', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                onTap: () { Navigator.pop(ctx); _pickFile(); },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: source, imageQuality: 85);
+      if (picked == null || !mounted) return;
+
+      _addMessage(ChatMessage(
+        type: ChatMessageType.photo,
+        isSelf: true,
+        timestamp: DateTime.now(),
+        payload: {
+          'photos': [{'url': picked.path, 'caption': '现场照片'}],
+          'note': '上传中…',
+        },
+      ));
+
+      final pid = _currentProjectId;
+      await ApiClient().uploadFile('/api/files/upload', filePath: picked.path, projectId: pid);
+    } catch (_) {}
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.pickFiles();
+      if (result == null || result.files.isEmpty || !mounted) return;
+      final file = result.files.first;
+      if (file.path == null) return;
+
+      final sizeStr = file.size > 1024 * 1024
+          ? '${(file.size / (1024 * 1024)).toStringAsFixed(1)} MB'
+          : '${(file.size / 1024).toStringAsFixed(0)} KB';
+
+      _addMessage(ChatMessage(
+        type: ChatMessageType.document,
+        isSelf: true,
+        timestamp: DateTime.now(),
+        payload: {'name': file.name, 'size': sizeStr, 'url': '#'},
+      ));
+
+      final pid = _currentProjectId;
+      await ApiClient().uploadFile('/api/files/upload', filePath: file.path!, projectId: pid);
+    } catch (_) {}
+  }
+
+  Widget _buildAgentChips() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: SuokeDesignTokens.cardBgSemi,
+        border: const Border(bottom: BorderSide(color: SuokeDesignTokens.border)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: _agents.map((agent) {
+            final isSelected = _selectedAgent == agent.key;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedAgent = agent.key),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isSelected ? agent.color.withValues(alpha: 0.15) : SuokeDesignTokens.bgDeep,
+                    borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+                    border: Border.all(
+                      color: isSelected ? agent.color : SuokeDesignTokens.border,
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    '${agent.emoji} ${agent.name}',
+                    style: TextStyle(
+                      fontSize: SuokeDesignTokens.fontSizeSm,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      color: isSelected ? agent.color : SuokeDesignTokens.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  // ── 欢迎页面 ──
+
+  Widget _buildWelcomeScreen() {
+    final suggestions = [
+      (emoji: '💰', text: '查看预算情况'),
+      (emoji: '📐', text: '我的设计方案'),
+      (emoji: '🔨', text: '施工进度如何'),
+      (emoji: '🛒', text: '需要采购什么'),
+    ];
+
+    return RefreshIndicator(
+      color: SuokeDesignTokens.accent,
+      backgroundColor: SuokeDesignTokens.cardBg,
+      onRefresh: _refreshMessages,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 72),
+                const Text('🏠', style: TextStyle(fontSize: 48)),
+                const SizedBox(height: 16),
+                Text('索克家居',
+                    style: TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('AI 智能装修助手',
+                    style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
+                const SizedBox(height: 6),
+                Text('8 个 AI Agent 7×24',
+                    style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+                Text('在线服务',
+                    style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+                const SizedBox(height: 32),
+                for (final s in suggestions) ...[
+                  _buildSuggestionChip(s.emoji, s.text),
+                  const SizedBox(height: 10),
+                ],
+                const SizedBox(height: 32),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('或直接输入',
+                            style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeSm)),
+                      ),
+                      const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuggestionChip(String emoji, String text) {
+    return GestureDetector(
+      onTap: () {
+        _msgCtrl.text = text;
+        _msgCtrl.selection = TextSelection.fromPosition(
+          TextPosition(offset: text.length),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        decoration: BoxDecoration(
+          color: SuokeDesignTokens.cardBgSemi,
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
+          border: Border.all(color: SuokeDesignTokens.border),
+        ),
+        child: Text(
+          '$emoji  $text',
+          style: TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 15),
+        ),
       ),
     );
   }

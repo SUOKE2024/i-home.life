@@ -1,12 +1,19 @@
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import select, func
+from sqlalchemy.pool import StaticPool
 
 from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(settings.database_url, echo=settings.debug)
+# SQLite 使用 StaticPool 保持单连接，避免文件锁定和 selectinload 兼容问题
+_engine_kwargs = {"echo": settings.debug}
+if "sqlite" in settings.database_url:
+    _engine_kwargs["poolclass"] = StaticPool
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_async_engine(settings.database_url, **_engine_kwargs)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -309,5 +316,111 @@ async def init_db():
             hashed_password=_hash_password("123456")[0],
         )
         db.add(demo_user)
+
+        # ── 第二个演示用户（设计师） ──
+        designer = User(
+            phone="13900139000",
+            name="李设计师",
+            role="designer",
+            hashed_password=_hash_password("123456")[0],
+        )
+        db.add(designer)
+        await db.flush()
+
+        # ── 演示项目（多种状态） ──
+        from app.models.project import Project
+        import uuid as _uuid
+        from datetime import datetime as _dt
+
+        demo_projects = [
+            Project(
+                id=str(_uuid.uuid4()),
+                name="现代简约三房·西湖花园",
+                address="杭州市西湖区西湖花园 12-1-301",
+                total_area=120.0,
+                status="active",
+                project_type="full_renovation",
+                source="manual",
+                owner_id=demo_user.id,
+                created_at=_dt(2026, 7, 8, 10, 0, 0),
+            ),
+            Project(
+                id=str(_uuid.uuid4()),
+                name="北欧风两居改造·阳光100",
+                address="北京市朝阳区阳光100 3-2-1501",
+                total_area=88.0,
+                status="completed",
+                project_type="full_renovation",
+                source="manual",
+                owner_id=demo_user.id,
+                created_at=_dt(2026, 6, 15, 9, 0, 0),
+            ),
+            Project(
+                id=str(_uuid.uuid4()),
+                name="南湖花园独栋别墅",
+                address="南京市江宁区南湖花园 8 号",
+                total_area=260.0,
+                status="active",
+                project_type="full_renovation",
+                source="ar_measure",
+                owner_id=demo_user.id,
+                created_at=_dt(2026, 7, 5, 14, 0, 0),
+            ),
+            Project(
+                id=str(_uuid.uuid4()),
+                name="青年公寓翻新·自如寓",
+                address="上海市浦东新区自如寓 A-1205",
+                total_area=56.0,
+                status="completed",
+                project_type="hard_decoration",
+                source="manual",
+                owner_id=demo_user.id,
+                created_at=_dt(2026, 7, 10, 8, 30, 0),
+            ),
+            Project(
+                id=str(_uuid.uuid4()),
+                name="城市花园 Loft·高新公馆",
+                address="成都市高新区高新公馆 2-1805",
+                total_area=75.0,
+                status="active",
+                project_type="soft_furnishing",
+                source="manual",
+                owner_id=demo_user.id,
+                created_at=_dt(2026, 7, 12, 11, 0, 0),
+            ),
+        ]
+        for proj in demo_projects:
+            db.add(proj)
+
+        # ── F26 家具品类库 seed 数据 ──
+        from app.models.furniture_catalog import FurnitureCatalogItem
+
+        furniture_items = [
+            # 客厅家具
+            {"category": "living_room", "subcategory": "sofa", "name": "北欧简约三人沙发", "brand": "林氏木业", "model": "LS-SF-001", "width": 2100, "depth": 850, "height": 800, "material": "棉麻", "color": "浅灰", "style": "nordic", "price": 4980.0, "sale_price": 4580.0, "rating": 4.6, "sales_count": 1200, "stock_count": 50, "ar_preview_supported": True, "tags": ["热销", "新品"], "status": "active"},
+            {"category": "living_room", "subcategory": "sofa", "name": "现代轻奢三人沙发", "brand": "顾家家居", "model": "GJ-SF-002", "width": 2200, "depth": 900, "height": 820, "material": "科技布", "color": "深灰", "style": "modern", "price": 6280.0, "sale_price": 5680.0, "rating": 4.8, "sales_count": 860, "stock_count": 30, "ar_preview_supported": True, "tags": ["热销"], "status": "active"},
+            {"category": "living_room", "subcategory": "coffee_table", "name": "岩板茶几", "brand": "全友家居", "model": "QY-CT-001", "width": 1200, "depth": 600, "height": 420, "material": "岩板+不锈钢", "color": "黑色", "style": "modern", "price": 1980.0, "sale_price": 1680.0, "rating": 4.5, "sales_count": 540, "stock_count": 80, "ar_preview_supported": True, "status": "active"},
+            {"category": "living_room", "subcategory": "tv_cabinet", "name": "悬空式电视柜", "brand": "索菲亚", "model": "SF-TV-001", "width": 1800, "depth": 350, "height": 300, "material": "颗粒板", "color": "白色", "style": "modern", "price": 2280.0, "rating": 4.4, "sales_count": 320, "stock_count": 40, "ar_preview_supported": True, "status": "active"},
+            # 卧室家具
+            {"category": "bedroom", "subcategory": "bed", "name": "1.8m实木床", "brand": "源氏木语", "model": "YS-BD-001", "width": 2000, "depth": 1800, "height": 400, "material": "橡木", "color": "原木色", "style": "nordic", "price": 4980.0, "sale_price": 4480.0, "rating": 4.7, "sales_count": 980, "stock_count": 25, "ar_preview_supported": True, "tags": ["热销"], "status": "active"},
+            {"category": "bedroom", "subcategory": "nightstand", "name": "北欧实木床头柜", "brand": "源氏木语", "model": "YS-NS-001", "width": 450, "depth": 400, "height": 550, "material": "橡木", "color": "原木色", "style": "nordic", "price": 680.0, "rating": 4.5, "sales_count": 420, "stock_count": 60, "ar_preview_supported": True, "status": "active"},
+            {"category": "bedroom", "subcategory": "wardrobe", "name": "定制衣柜", "brand": "索菲亚", "model": "SF-WD-001", "width": 2400, "depth": 600, "height": 2700, "material": "颗粒板", "color": "白色", "style": "modern", "price": 4280.0, "rating": 4.6, "sales_count": 350, "stock_count": 20, "ar_preview_supported": True, "status": "active"},
+            # 餐厅家具
+            {"category": "dining_room", "subcategory": "dining_table", "name": "黑胡桃实木餐桌", "brand": "源氏木语", "model": "YS-DT-001", "width": 1400, "depth": 800, "height": 750, "material": "黑胡桃木", "color": "深棕", "style": "modern", "price": 2980.0, "sale_price": 2680.0, "rating": 4.8, "sales_count": 280, "stock_count": 35, "ar_preview_supported": True, "status": "active"},
+            {"category": "dining_room", "subcategory": "chair", "name": "北欧餐椅", "brand": "林氏木业", "model": "LS-CH-001", "width": 450, "depth": 500, "height": 850, "material": "实木+布艺", "color": "灰色", "style": "nordic", "price": 380.0, "rating": 4.3, "sales_count": 1500, "stock_count": 200, "ar_preview_supported": True, "status": "active"},
+            # 书房家具
+            {"category": "study", "subcategory": "desk", "name": "实木书桌", "brand": "源氏木语", "model": "YS-DK-001", "width": 1400, "depth": 700, "height": 750, "material": "橡木", "color": "原木色", "style": "nordic", "price": 2280.0, "rating": 4.6, "sales_count": 180, "stock_count": 45, "ar_preview_supported": True, "status": "active"},
+            {"category": "study", "subcategory": "bookshelf", "name": "简约书柜", "brand": "全友家居", "model": "QY-BS-001", "width": 800, "depth": 300, "height": 2000, "material": "颗粒板", "color": "白色", "style": "modern", "price": 1880.0, "rating": 4.2, "sales_count": 220, "stock_count": 50, "ar_preview_supported": True, "status": "active"},
+            # 玄关家具
+            {"category": "entrance", "subcategory": "shoe_cabinet", "name": "入户鞋柜", "brand": "索菲亚", "model": "SF-SC-001", "width": 1200, "depth": 350, "height": 1000, "material": "颗粒板", "color": "白色", "style": "modern", "price": 1280.0, "rating": 4.4, "sales_count": 190, "stock_count": 55, "ar_preview_supported": True, "status": "active"},
+            # 新中式风格
+            {"category": "living_room", "subcategory": "sofa", "name": "新中式实木沙发", "brand": "曲美", "model": "QM-SF-001", "width": 2300, "depth": 900, "height": 800, "material": "胡桃木+棉麻", "color": "深棕", "style": "chinese", "price": 8800.0, "rating": 4.9, "sales_count": 120, "stock_count": 10, "ar_preview_supported": True, "tags": ["高端"], "status": "active"},
+            {"category": "living_room", "subcategory": "coffee_table", "name": "新中式茶台", "brand": "曲美", "model": "QM-CT-001", "width": 1400, "depth": 700, "height": 450, "material": "胡桃木", "color": "深棕", "style": "chinese", "price": 3680.0, "rating": 4.7, "sales_count": 80, "stock_count": 15, "ar_preview_supported": True, "status": "active"},
+            # 工业风
+            {"category": "living_room", "subcategory": "coffee_table", "name": "工业风铁艺茶几", "brand": "吱音", "model": "ZY-CT-001", "width": 1000, "depth": 550, "height": 400, "material": "铁艺+实木", "color": "黑色", "style": "industrial", "price": 1280.0, "rating": 4.3, "sales_count": 160, "stock_count": 40, "ar_preview_supported": True, "status": "active"},
+        ]
+
+        for fur_data in furniture_items:
+            db.add(FurnitureCatalogItem(**fur_data))
 
         await db.commit()

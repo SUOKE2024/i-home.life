@@ -1,7 +1,6 @@
 """视觉表现层 VR 全景 Pydantic 验证模型"""
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 

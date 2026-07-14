@@ -8,6 +8,11 @@ class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=6, max_length=100)
     role: str = Field(default="homeowner")
+    # 主角色: homeowner / designer / contractor / supplier / admin
+    # 工种子角色（可选）:
+    #   contractor子: electrician / carpenter / plumber / painter / mason / installer / curtain_installer / supervisor
+    #   designer子: curtain_designer
+    sub_role: str | None = None
 
 
 class UserLogin(BaseModel):
@@ -20,8 +25,10 @@ class UserResponse(BaseModel):
     phone: str
     name: str
     role: str
+    sub_role: str | None = None
     avatar_url: str | None = None
     is_active: bool
+    is_verified: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

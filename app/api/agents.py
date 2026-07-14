@@ -1,12 +1,16 @@
+import asyncio
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
 from app.models.user import User
+from app.models.project import Project
 from app.auth import get_current_user
+from app.database import get_db
 from app.agents.orchestrator import OrchestratorAgent
 from app.agents.designer import DesignerAgent
 from app.agents.budget import BudgetAgent
@@ -16,6 +20,7 @@ from app.agents.settlement import SettlementAgent
 from app.agents.qa_inspector import QAInspectorAgent
 from app.agents.concierge import ConciergeAgent
 from app.config import get_settings
+from app.ws import ws_manager
 
 router = APIRouter(prefix="/agents", tags=["AI Agent"])
 
@@ -24,6 +29,7 @@ class AgentMessage(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     agent_type: str = Field(default="orchestrator")
     project_id: str | None = None
+    history: list[dict] = Field(default_factory=list, max_length=20, description="最近 N 轮对话历史，每项含 role/content/agent_type")
 
 
 class DesignRequest(BaseModel):
@@ -114,14 +120,38 @@ class ConciergeChatRequest(BaseModel):
 
 settings = get_settings()
 
-MOCK_MODE = not settings.deepseek_api_key
+MOCK_MODE = not settings.deepseek_api_key and not settings.glm_api_key
 
 
 @router.post("/chat", response_model=AgentResponse)
 async def chat_with_agent(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    # 校验项目归属（若指定了 project_id）
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    # 构建 history 上下文（多轮对话支持）
+    history_ctx = ""
+    if data.history:
+        recent = data.history[-10:]  # 仅取最近 10 轮，防止 token 超限
+        lines = []
+        for h in recent:
+            role = h.get("role", "user")
+            content = h.get("content", "")[:500]  # 截断超长消息
+            agent_t = h.get("agent_type", "")
+            prefix = f"[{agent_t}] " if agent_t and role == "assistant" else ""
+            lines.append(f"{prefix}{role}: {content}")
+        history_ctx = "\n".join(lines)
+    user_ctx = f"用户: {current_user.name}"
+    if history_ctx:
+        user_ctx = f"{history_ctx}\n{user_ctx}"
     # Hybrid routing: LLM classify (with API key) or rule-based (mock mode)
     agent = OrchestratorAgent()
     try:
@@ -141,8 +171,31 @@ async def chat_with_agent(
             "construction": ["查看进度", "上传日志", "发起验收"],
             "qa_inspector": ["生成验收报告", "图纸比对", "缺陷检测"],
             "concierge": ["查看常见问题", "转人工客服", "提交报修"],
+            "content_publisher": ["生成产品文案", "发布产品", "编辑产品信息"],
             "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
         }
+
+        if intent in ("content_publish",):
+            # 内容发布：复用 ProcurementAgent 的内容发布能力
+            proc_agent = ProcurementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = (
+                        "**产品发布助手**\n\n"
+                        "检测到您要发布产品，请提供以下信息：\n\n"
+                        "1. **产品名称**：如「800×800灰色防滑地砖」\n"
+                        "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
+                        "3. **价格区间**：如「50-80元/㎡」\n"
+                        "4. **产品描述**：材质、规格、产地、卖点等\n"
+                        "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
+                        "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
+                    )
+                else:
+                    # 使用 ProcurementAgent 生成内容发布引导
+                    reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+                return AgentResponse(agent_type="content_publisher", reply=reply, suggestions=suggestions_map["content_publisher"])
+            finally:
+                await proc_agent.close()
 
         if intent in ("design",):
             des_agent = DesignerAgent()
@@ -151,7 +204,7 @@ async def chat_with_agent(
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
                 else:
-                    reply = await des_agent.think(data.message, f"用户: {current_user.name}")
+                    reply = await des_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="designer", reply=reply, suggestions=suggestions_map["designer"])
             finally:
                 await des_agent.close()
@@ -162,7 +215,7 @@ async def chat_with_agent(
                 if MOCK_MODE:
                     reply = _mock_budget_summary(data.message) + "\n\n" + _mock_budget_breakdown() + "\n\n" + _mock_cost_saving()
                 else:
-                    reply = await bud_agent.think(data.message, f"{current_user.name}")
+                    reply = await bud_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="budget", reply=reply, suggestions=suggestions_map["budget"])
             finally:
                 await bud_agent.close()
@@ -173,7 +226,7 @@ async def chat_with_agent(
                 if MOCK_MODE:
                     reply = _mock_purchase_plan() + "\n\n" + _mock_supplier_rec() + "\n\n" + _mock_procurement_timeline()
                 else:
-                    reply = await proc_agent.think(data.message, f"{current_user.name}")
+                    reply = await proc_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="procurement", reply=reply, suggestions=suggestions_map["procurement"])
             finally:
                 await proc_agent.close()
@@ -184,7 +237,7 @@ async def chat_with_agent(
                 if MOCK_MODE:
                     reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
                 else:
-                    reply = await cons_agent.think(data.message, f"{current_user.name}")
+                    reply = await cons_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="construction", reply=reply, suggestions=suggestions_map["construction"])
             finally:
                 await cons_agent.close()
@@ -195,7 +248,7 @@ async def chat_with_agent(
                 if MOCK_MODE:
                     reply = _mock_settlement()
                 else:
-                    reply = await sett_agent.think(data.message, f"{current_user.name}")
+                    reply = await sett_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="settlement", reply=reply, suggestions=["查看结算明细", "确认结算", "导出报表"])
             finally:
                 await sett_agent.close()
@@ -206,7 +259,7 @@ async def chat_with_agent(
                 if MOCK_MODE:
                     reply = _mock_qa_inspection()
                 else:
-                    reply = await qa_agent.think(data.message, f"{current_user.name}")
+                    reply = await qa_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="qa_inspector", reply=reply, suggestions=suggestions_map["qa_inspector"])
             finally:
                 await qa_agent.close()
@@ -229,6 +282,176 @@ async def chat_with_agent(
     finally:
         await agent.close()
 
+
+@router.post("/chat/stream")
+async def chat_stream(
+    data: AgentMessage,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent 聊天 SSE 流式响应 — 逐句/逐词推送回复"""
+    # 校验项目归属
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    # 构建 history 上下文（复用 /chat 逻辑）
+    history_ctx = ""
+    if data.history:
+        recent = data.history[-10:]
+        lines = []
+        for h in recent:
+            role = h.get("role", "user")
+            content = h.get("content", "")[:500]
+            agent_t = h.get("agent_type", "")
+            prefix = f"[{agent_t}] " if agent_t and role == "assistant" else ""
+            lines.append(f"{prefix}{role}: {content}")
+        history_ctx = "\n".join(lines)
+    user_ctx = f"用户: {current_user.name}"
+    if history_ctx:
+        user_ctx = f"{history_ctx}\n{user_ctx}"
+
+    # Hybrid routing
+    agent = OrchestratorAgent()
+    try:
+        if MOCK_MODE:
+            classification = OrchestratorAgent.fallback_classify(data.message)
+        else:
+            classification = await agent.classify_intent(data.message)
+        intent = classification.get("intent", "general")
+
+        # 获取回复文本（与 /chat 相同逻辑）
+        if intent in ("content_publish",):
+            proc_agent = ProcurementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = (
+                        "**产品发布助手**\n\n"
+                        "检测到您要发布产品，请提供以下信息：\n\n"
+                        "1. **产品名称**：如「800×800灰色防滑地砖」\n"
+                        "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
+                        "3. **价格区间**：如「50-80元/㎡」\n"
+                        "4. **产品描述**：材质、规格、产地、卖点等\n"
+                        "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
+                        "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
+                    )
+                else:
+                    reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+            finally:
+                await proc_agent.close()
+        elif intent in ("design",):
+            des_agent = DesignerAgent()
+            try:
+                if MOCK_MODE:
+                    layouts = await des_agent.generate_layouts(data.message)
+                    reply = layouts["reply"]
+                else:
+                    reply = await des_agent.think(data.message, user_ctx)
+            finally:
+                await des_agent.close()
+        elif intent in ("budget",):
+            bud_agent = BudgetAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_budget_summary(data.message) + "\n\n" + _mock_budget_breakdown() + "\n\n" + _mock_cost_saving()
+                else:
+                    reply = await bud_agent.think(data.message, user_ctx)
+            finally:
+                await bud_agent.close()
+        elif intent in ("procurement",):
+            proc_agent = ProcurementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_purchase_plan() + "\n\n" + _mock_supplier_rec() + "\n\n" + _mock_procurement_timeline()
+                else:
+                    reply = await proc_agent.think(data.message, user_ctx)
+            finally:
+                await proc_agent.close()
+        elif intent in ("construction",):
+            cons_agent = ConstructionAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
+                else:
+                    reply = await cons_agent.think(data.message, user_ctx)
+            finally:
+                await cons_agent.close()
+        elif intent in ("settlement",):
+            sett_agent = SettlementAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_settlement()
+                else:
+                    reply = await sett_agent.think(data.message, user_ctx)
+            finally:
+                await sett_agent.close()
+        elif intent in ("qa_inspector",):
+            qa_agent = QAInspectorAgent()
+            try:
+                if MOCK_MODE:
+                    reply = _mock_qa_inspection()
+                else:
+                    reply = await qa_agent.think(data.message, user_ctx)
+            finally:
+                await qa_agent.close()
+        elif intent in ("concierge",):
+            conc_agent = ConciergeAgent()
+            try:
+                if MOCK_MODE:
+                    faq_result = conc_agent.answer_faq(data.message)
+                    reply = faq_result["answer"]
+                else:
+                    reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+            finally:
+                await conc_agent.close()
+        else:
+            reply, _ = _mock_agent_reply(data.message, "orchestrator")
+
+        # SSE 流式推送：按句子分割，每句间隔 80ms
+        async def generate_sse():
+            # 先发送 agent_type 元信息
+            yield f"data: {json.dumps({'event': 'meta', 'agent_type': intent})}\n\n"
+            await asyncio.sleep(0.05)
+
+            # 按段落分割，再按句号分割
+            paragraphs = reply.split("\n\n")
+            for para in paragraphs:
+                # 按句号、问号、感叹号分割
+                sentences = para.replace("？", "?\n").replace("！", "!\n").replace("。", ".\n").split("\n")
+                for sent in sentences:
+                    sent = sent.strip()
+                    if not sent:
+                        continue
+                    # 以词为单位（每 3-5 个字符为一组）
+                    i = 0
+                    while i < len(sent):
+                        chunk = sent[i:i + 4]
+                        i += len(chunk)
+                        yield f"data: {json.dumps({'event': 'token', 'content': chunk})}\n\n"
+                        await asyncio.sleep(0.03)
+                # 段落间增加停顿
+                _newlines = '\n\n'
+                yield f"data: {json.dumps({'event': 'token', 'content': _newlines})}\n\n"
+                await asyncio.sleep(0.1)
+
+            # 发送结束信号
+            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+
+        return StreamingResponse(
+            generate_sse(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+    finally:
+        await agent.close()
 
 
 @router.post("/design", response_model=DesignPlanResponse)
@@ -368,6 +591,89 @@ async def plan_construction(
         )
     finally:
         await agent.close()
+
+
+@router.post("/construction/publish-tasks")
+async def construction_publish_tasks(
+    project_id: str,
+    sub_roles: list[str] | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """施工 Agent 根据位置和项目信息发布工种任务到任务池"""
+    from sqlalchemy import select as sql_select
+    from app.models.orchestrator_task import OrchestratorTask
+    from app.services import points_service
+    import json
+
+    # 获取项目信息
+    result = await db.execute(sql_select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    project_info = {
+        "project_id": project.id,
+        "project_name": project.name,
+        "address": project.address or "",
+        "project_type": project.project_type,
+        "total_area": project.total_area or 0,
+    }
+
+    agent = ConstructionAgent()
+    try:
+        sub_task_data = agent.generate_sub_task_cards(
+            project_info=project_info,
+            sub_roles=sub_roles,
+            location=project.address or None,
+        )
+    finally:
+        await agent.close()
+
+    # 将子任务写入任务池
+    created_tasks = []
+    for task_data in sub_task_data["tasks"]:
+        task = OrchestratorTask(
+            project_id=project_id,
+            task_type=task_data["task_type"],
+            title=task_data["title"],
+            description=task_data["description"],
+            assigned_agent="construction",
+            claimable=True,
+            claim_role="contractor",
+            priority=7,
+            created_by=current_user.id,
+            status="pending",
+        )
+        db.add(task)
+        created_tasks.append(task)
+
+    await db.commit()
+
+    # WebSocket 推送任务
+    for task in created_tasks:
+        await ws_manager.broadcast_to_project(project_id, "task.created", {
+            "task_id": task.id,
+            "title": task.title,
+            "task_type": task.task_type,
+            "claim_role": task.claim_role,
+            "priority": task.priority,
+        })
+
+    # 奖励积分
+    await points_service.earn_points(
+        db, current_user.id, "product_publish",
+        reference_id=project_id,
+        description=f"发布工种施工任务: {project.name}",
+    )
+
+    return {
+        "agent_type": "construction",
+        "reply": sub_task_data["reply"],
+        "sub_roles": sub_task_data["sub_roles"],
+        "tasks_created": len(created_tasks),
+        "task_ids": [t.id for t in created_tasks],
+    }
 
 
 # === QA Inspector Agent 端点 ===

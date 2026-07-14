@@ -3,13 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
 <title>索克家居 · 3D 效果图</title>
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
 <link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
-:root{--bg:#1a1a2e;--panel:#16213e;--accent:#c9973b;--text:#e0e0e0}
+:root{--bg:#1a1a2e;--panel:#16213e;--accent:#c9973b;--text:#e0e0e0;--muted:#888;--border:#2a2a4a}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
 #app{display:flex;height:100vh}
@@ -34,85 +40,134 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;flex-direction:column}
 #loading .spinner{width:40px;height:40px;border:3px solid #333;border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* === 响应式适配 === */
+#sidebar-toggle{display:none;position:absolute;top:12px;left:12px;z-index:20;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);color:#ccc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:1rem;font-family:inherit;backdrop-filter:blur(8px)}
+#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40}
+@media (max-width:1024px){
+  #sidebar{width:210px}
+  .preset-grid{grid-template-columns:1fr 1fr}
+  .sidebar-header h1{font-size:1.05rem}
+}
+@media (max-width:768px){
+  #sidebar-toggle{display:block}
+  #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);transition:transform 0.3s ease}
+  #sidebar.open{transform:translateX(0)}
+  #toolbar{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;top:54px}
+  .tb-btn{white-space:nowrap;padding:6px 10px;font-size:0.65rem}
+  #stats{font-size:0.6rem;padding:6px 10px;gap:10px;flex-wrap:wrap;justify-content:center;max-width:90%}
+}
+@media (max-width:480px){
+  body{font-size:12px}
+  .sidebar-header{padding:14px}
+  .sidebar-header h1{font-size:1rem}
+  .control-section{padding:10px 12px}
+  .control-section h3{font-size:0.6rem}
+  .preset-btn{font-size:0.6rem;padding:8px 4px}
+  .tb-btn{font-size:0.6rem;padding:5px 8px}
+  #stats{font-size:0.55rem;gap:8px;padding:5px 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  #loading .spinner{animation:none}
+  *{transition:none !important;animation-duration:0.01ms !important}
+}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap" rel="stylesheet" onerror="this.remove()">
 </head>
 <body>
 
-<div id="loading">
-  <div class="spinner"></div>
+<div id="loading" role="status" aria-live="polite">
+  <div class="spinner" aria-hidden="true"></div>
   <span style="font-size:0.8rem;color:#888">正在加载 3D 引擎...</span>
 </div>
 
 <div id="app" style="display:none">
-  <div id="sidebar">
+  <div id="sidebar" role="navigation" aria-label="3D效果图侧边栏">
     <div class="sidebar-header"><h1>3D 效果图</h1><div class="sub">索克家居 · i-home.life</div></div>
 
     <div class="control-section">
-      <h3>📐 户型预设</h3>
+      <h3><span aria-hidden="true">📐</span> 户型预设</h3>
       <div class="preset-grid">
-        <button class="preset-btn active" data-preset="apartment_90">90㎡ 两室</button>
-        <button class="preset-btn" data-preset="apartment_126">126㎡ 三室</button>
-        <button class="preset-btn" data-preset="apartment_50">50㎡ 一室</button>
-        <button class="preset-btn" data-preset="apartment_160">160㎡ 四室</button>
+        <button class="preset-btn active" data-preset="apartment_90" role="menuitem" tabindex="0">90㎡ 两室</button>
+        <button class="preset-btn" data-preset="apartment_126" role="menuitem" tabindex="0">126㎡ 三室</button>
+        <button class="preset-btn" data-preset="apartment_50" role="menuitem" tabindex="0">50㎡ 一室</button>
+        <button class="preset-btn" data-preset="apartment_160" role="menuitem" tabindex="0">160㎡ 四室</button>
       </div>
     </div>
 
     <div class="control-section">
-      <h3>💡 光照预设</h3>
+      <h3><span aria-hidden="true">💡</span> 光照预设</h3>
       <div class="preset-grid">
-        <button class="preset-btn active" data-light="day">☀️ 日光</button>
-        <button class="preset-btn" data-light="night">🌙 夜间</button>
-        <button class="preset-btn" data-light="warm">🔥 暖光</button>
+        <button class="preset-btn active" data-light="day" role="menuitem" tabindex="0" aria-label="日光"><span aria-hidden="true">☀️</span> 日光</button>
+        <button class="preset-btn" data-light="night" role="menuitem" tabindex="0" aria-label="夜间"><span aria-hidden="true">🌙</span> 夜间</button>
+        <button class="preset-btn" data-light="warm" role="menuitem" tabindex="0" aria-label="暖光"><span aria-hidden="true">🔥</span> 暖光</button>
       </div>
     </div>
 
     <div class="control-section">
-      <h3>🎨 材质</h3>
+      <h3><span aria-hidden="true">🎨</span> 材质</h3>
       <div class="preset-grid" id="materialPresets">
-        <button class="preset-btn active" data-mat="white">⚪ 白墙</button>
-        <button class="preset-btn" data-mat="wood">🟤 木地板</button>
-        <button class="preset-btn" data-mat="tile">⬜ 瓷砖</button>
-        <button class="preset-btn" data-mat="concrete">🔘 水泥</button>
+        <button class="preset-btn active" data-mat="white" role="menuitem" tabindex="0" aria-label="白墙"><span aria-hidden="true">⚪</span> 白墙</button>
+        <button class="preset-btn" data-mat="wood" role="menuitem" tabindex="0" aria-label="木地板"><span aria-hidden="true">🟤</span> 木地板</button>
+        <button class="preset-btn" data-mat="tile" role="menuitem" tabindex="0" aria-label="瓷砖"><span aria-hidden="true">⬜</span> 瓷砖</button>
+        <button class="preset-btn" data-mat="concrete" role="menuitem" tabindex="0" aria-label="水泥"><span aria-hidden="true">🔘</span> 水泥</button>
       </div>
     </div>
 
     <div class="control-section">
-      <h3>📏 墙高</h3>
-      <input type="range" min="2.4" max="4.0" step="0.1" value="2.8" id="wallHeight">
-      <label style="text-align:right"><span id="wallHeightVal">2.8m</span></label>
+      <h3><span aria-hidden="true">📏</span> 墙高</h3>
+      <input type="range" min="2.4" max="4.0" step="0.1" value="2.8" id="wallHeight" aria-label="墙高">
+      <label for="wallHeight" style="text-align:right"><span id="wallHeightVal">2.8m</span></label>
     </div>
 
     <div class="control-section">
-      <h3>🔍 视角</h3>
+      <h3><span aria-hidden="true">🔍</span> 视角</h3>
       <div class="preset-grid" id="viewPresets">
-        <button class="preset-btn active" data-view="free">🖱 自由</button>
-        <button class="preset-btn" data-view="top">⬆ 俯视</button>
-        <button class="preset-btn" data-view="front">→ 正面</button>
-        <button class="preset-btn" data-view="iso">◈ 等距</button>
+        <button class="preset-btn active" data-view="free" role="menuitem" tabindex="0" aria-label="自由视角"><span aria-hidden="true">🖱</span> 自由</button>
+        <button class="preset-btn" data-view="top" role="menuitem" tabindex="0" aria-label="俯视"><span aria-hidden="true">⬆</span> 俯视</button>
+        <button class="preset-btn" data-view="front" role="menuitem" tabindex="0" aria-label="正面"><span aria-hidden="true">→</span> 正面</button>
+        <button class="preset-btn" data-view="iso" role="menuitem" tabindex="0" aria-label="等距视角"><span aria-hidden="true">◈</span> 等距</button>
       </div>
     </div>
 
     <div class="control-section">
-      <button onclick="exportScreenshot()" style="width:100%;padding:10px;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s">📷 截图导出</button>
+      <button onclick="exportScreenshot()" aria-label="截图导出" style="width:100%;padding:10px;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s"><span aria-hidden="true">📷</span> 截图导出</button>
     </div>
   </div>
-  <div id="renderCanvas"></div>
+  <div id="renderCanvas" role="main">
+    <!-- 浮动数据仪表盘 -->
+    <div id="data-dashboard" style="position:absolute;top:60px;right:12px;z-index:15;background:rgba(18,18,29,0.9);border:1px solid var(--border);border-radius:12px;padding:14px;width:220px;max-width:90%;backdrop-filter:blur(10px);font-size:0.7rem;display:flex;flex-direction:column;gap:10px">
+      <div style="color:var(--accent);font-weight:700;font-size:0.75rem">📐 空间数据</div>
+      <div><span style="color:var(--muted)">总面积</span> <strong style="color:var(--text);float:right" id="dash-area">-- ㎡</strong></div>
+      <div><span style="color:var(--muted)">层高</span> <strong style="color:var(--text);float:right" id="dash-height">2.8 m</strong></div>
+      <div><span style="color:var(--muted)">房间数</span> <strong style="color:var(--text);float:right" id="dash-rooms">--</strong></div>
+      <div style="border-top:1px solid var(--border);padding-top:8px">
+        <span style="color:var(--muted)">渲染模式</span> <strong style="color:var(--accent);float:right" id="dash-mode">标准</strong></div>
+      <div><span style="color:var(--muted)">面数</span> <strong style="color:var(--text);float:right" id="dash-faces">--</strong></div>
+      <div style="border-top:1px solid var(--border);padding-top:8px">
+        <button onclick="toggleDashboard()" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;background:0;color:var(--muted);cursor:pointer;font-size:0.65rem;font-family:inherit">▼ 收起</button>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="toolbar">
-  <button class="tb-btn active" data-mode="3d">3D 透视图</button>
-  <button class="tb-btn" data-mode="plan">平面图</button>
-  <button class="tb-btn" data-mode="elevation_n">北立面</button>
-  <button class="tb-btn" data-mode="elevation_s">南立面</button>
-  <button class="tb-btn" data-mode="elevation_e">东立面</button>
-  <button class="tb-btn" data-mode="elevation_w">西立面</button>
+<div id="toolbar" role="toolbar" aria-label="视图模式工具栏">
+  <button class="tb-btn active" data-mode="3d" aria-label="3D透视图">3D 透视图</button>
+  <button class="tb-btn" data-mode="plan" aria-label="平面图">平面图</button>
+  <button class="tb-btn" data-mode="elevation_n" aria-label="北立面">北立面</button>
+  <button class="tb-btn" data-mode="elevation_s" aria-label="南立面">南立面</button>
+  <button class="tb-btn" data-mode="elevation_e" aria-label="东立面">东立面</button>
+  <button class="tb-btn" data-mode="elevation_w" aria-label="西立面">西立面</button>
 </div>
-<div id="stats">
+<div id="stats" role="status" aria-live="polite">
   <span id="statFaces">面数: 0</span>
   <span id="statFPS">FPS: --</span>
   <span id="statArea">面积: 0㎡</span>
 </div>
+<button id="sidebar-toggle" aria-label="切换侧边栏菜单">☰</button>
+<div id="sidebar-overlay" aria-hidden="true"></div>
 
 <script>
 let scene, camera, renderer, controls, clock;
@@ -120,6 +175,7 @@ let walls = [], floors = [], ceilingPlanes = [];
 let wallHeight = 2.8, currentPreset = 'apartment_126';
 let currentLight = 'day', currentMaterial = 'white';
 let viewMode = '3d';
+let isPlanMode = false;
 let fpsFrames = 0, fpsLastTime = performance.now();
 
 // Material presets
@@ -216,7 +272,7 @@ function initScene() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
@@ -245,7 +301,7 @@ function setupLights(preset) {
     const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
     sun.position.set(15, 20, 5);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(512, 512);
     sun.shadow.camera.near = 0.5;
     sun.shadow.camera.far = 50;
     sun.shadow.camera.left = -20;
@@ -268,7 +324,7 @@ function setupLights(preset) {
     const warm = new THREE.DirectionalLight(0xffcc88, 0.9);
     warm.position.set(10, 12, 5);
     warm.castShadow = true;
-    warm.shadow.mapSize.set(1024, 1024);
+    warm.shadow.mapSize.set(512, 512);
     scene.add(warm);
     const warmHem = new THREE.HemisphereLight(0xffaa66, 0x554422, 0.5);
     scene.add(warmHem);
@@ -374,9 +430,11 @@ function animate() {
     fpsLastTime = now;
   }
 
-  if (viewMode === 'plan') {
-    camera.position.lerp(new THREE.Vector3(presets[currentPreset].outerWalls.w / 2, wallHeight + 8, presets[currentPreset].outerWalls.h / 2), 0.1);
-    controls.target.lerp(new THREE.Vector3(presets[currentPreset].outerWalls.w / 2, 0, presets[currentPreset].outerWalls.h / 2), 0.1);
+  // 只在平面图模式下做平滑过渡
+  if (isPlanMode) {
+    const ow = presets[currentPreset].outerWalls;
+    camera.position.lerp(new THREE.Vector3(ow.w / 2, wallHeight + 8, ow.h / 2), 0.1);
+    controls.target.lerp(new THREE.Vector3(ow.w / 2, 0, ow.h / 2), 0.1);
   }
 }
 
@@ -390,6 +448,7 @@ function loadPreset(name) {
 
 function setViewMode(mode) {
   viewMode = mode;
+  isPlanMode = (mode === 'plan');
   document.querySelectorAll('.tb-btn[data-mode]').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === mode);
   });
@@ -432,6 +491,64 @@ setupLights(currentLight);
 buildWalls(presets[currentPreset]);
 animate();
 
+// 加载项目数据到仪表盘
+function loadProjectDataToDashboard() {
+  const params = new URLSearchParams(window.location.search);
+  const projectId = params.get('id') || params.get('project_id');
+  
+  // 从 localStorage 缓存读取
+  const cached = localStorage.getItem('project_' + projectId);
+  if (cached) {
+    try {
+      const p = JSON.parse(cached);
+      document.getElementById('dash-area').textContent = (p.total_area || '--') + ' ㎡';
+      document.getElementById('dash-rooms').textContent = p.room_count || '--';
+    } catch(e) {}
+  }
+  
+  // 从 API 获取
+  if (projectId && window.ApiClient) {
+    const API = (window.ApiClient && window.ApiClient.BASE_URL) || (window.API_BASE_URL) || '';
+    const token = window.ApiClient.getToken ? window.ApiClient.getToken() : localStorage.getItem('paseto_token');
+    fetch(API + '/api/projects/' + projectId, {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    }).then(r => r.json()).then(p => {
+      document.getElementById('dash-area').textContent = (p.total_area || '--') + ' ㎡';
+      document.getElementById('dash-rooms').textContent = p.room_count || p.floors?.reduce((s,f) => s + (f.rooms?.length || 0), 0) || '--';
+      localStorage.setItem('project_' + projectId, JSON.stringify(p));
+    }).catch(() => {});
+  }
+  
+  // 更新面数（从 scene 获取）
+  if (window.scene && window.scene.children) {
+    let faces = 0;
+    window.scene.traverse(function(obj) {
+      if (obj.isMesh && obj.geometry && obj.geometry.index) {
+        faces += obj.geometry.index.count / 3;
+      }
+    });
+    document.getElementById('dash-faces').textContent = faces.toLocaleString();
+  }
+}
+
+function toggleDashboard() {
+  const dash = document.getElementById('data-dashboard');
+  const content = dash.querySelectorAll('div:not(:last-child)');
+  const btn = dash.querySelector('button');
+  if (dash.dataset.collapsed === 'true') {
+    content.forEach(d => d.style.display = '');
+    btn.textContent = '▼ 收起';
+    dash.dataset.collapsed = 'false';
+  } else {
+    content.forEach(d => d.style.display = 'none');
+    btn.textContent = '▶ 展开';
+    dash.dataset.collapsed = 'true';
+  }
+}
+
+// 在渲染初始化完成后调用
+setTimeout(loadProjectDataToDashboard, 2000);
+
 // Events
 document.querySelectorAll('[data-preset]').forEach(b => {
   b.onclick = () => loadPreset(b.dataset.preset);
@@ -471,6 +588,18 @@ document.getElementById('wallHeight').oninput = function() {
   document.getElementById('wallHeightVal').textContent = wallHeight.toFixed(1) + 'm';
   buildWalls(presets[currentPreset]);
 };
+
+// === MOBILE SIDEBAR TOGGLE ===
+document.getElementById('sidebar-toggle')?.addEventListener('click',()=>{
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb.classList.toggle('open');
+  if(ov) ov.style.display=sb.classList.contains('open')?'block':'none';
+});
+document.getElementById('sidebar-overlay')?.addEventListener('click',()=>{
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').style.display='none';
+});
 
 console.log('🏠 索克家居 3D 效果图引擎就绪');
 console.log('   - 4 套户型预设');

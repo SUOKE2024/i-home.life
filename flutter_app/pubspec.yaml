@@ -16,8 +16,9 @@ dependencies:
   cupertino_icons: ^1.0.8
   # 网络 & 持久化
   http: ^1.2.0
-  shared_preferences: ^2.3.0
+  shared_preferences: ^2.3.2
   path_provider: ^2.1.4
+  connectivity_plus: ^7.2.0
   # 文件选择 & 图片
   file_picker: ^11.0.2
   image_picker: ^1.1.0

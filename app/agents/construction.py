@@ -233,7 +233,161 @@ class ConstructionAgent(BaseAgent):
             return "report"
         if any(kw in message for kw in ["问题", "整改", "返工", "延期"]):
             return "issue"
+        if any(kw in message for kw in ["发布任务", "招工", "找人", "安排", "派工", "需要工人", "要一个"]):
+            return "publish_task"
         return "general"
+
+    # ── 按工种发布任务到任务池 ──
+
+    # 子角色 ↔ 施工阶段/任务类型映射
+    SUB_ROLE_TASK_MAP = {
+        "electrician": {
+            "task_type": "construction",
+            "phase": "mep",
+            "title_template": "电路改造施工",
+            "description_template": "承担 {project_name} 项目的电路敷设、开关插座安装、配电箱接线等工作",
+            "claim_role": "contractor",
+        },
+        "plumber": {
+            "task_type": "construction",
+            "phase": "mep",
+            "title_template": "水暖管道安装",
+            "description_template": "承担 {project_name} 项目的给排水管敷设、暖气管道安装、打压测试等工作",
+            "claim_role": "contractor",
+        },
+        "carpenter": {
+            "task_type": "construction",
+            "phase": "carpentry",
+            "title_template": "木工制作安装",
+            "description_template": "承担 {project_name} 项目的吊顶制作、柜体安装、门窗套线安装等工作",
+            "claim_role": "contractor",
+        },
+        "mason": {
+            "task_type": "construction",
+            "phase": "masonry",
+            "title_template": "泥瓦铺贴施工",
+            "description_template": "承担 {project_name} 项目的防水处理、瓷砖铺贴、地面找平等工作",
+            "claim_role": "contractor",
+        },
+        "painter": {
+            "task_type": "construction",
+            "phase": "painting",
+            "title_template": "油漆涂刷施工",
+            "description_template": "承担 {project_name} 项目的墙面批灰、油漆涂刷、壁纸铺贴等工作",
+            "claim_role": "contractor",
+        },
+        "installer": {
+            "task_type": "construction",
+            "phase": "installation",
+            "title_template": "设备安装施工",
+            "description_template": "承担 {project_name} 项目的灯具/开关/卫浴/橱柜等设备安装工作",
+            "claim_role": "contractor",
+        },
+        "curtain_installer": {
+            "task_type": "construction",
+            "phase": "installation",
+            "title_template": "窗帘安装施工",
+            "description_template": "承担 {project_name} 项目的窗帘轨道安装、窗帘挂装等工作",
+            "claim_role": "contractor",
+        },
+        "supervisor": {
+            "task_type": "qa_inspector",
+            "phase": "acceptance",
+            "title_template": "工程质量监理",
+            "description_template": "承担 {project_name} 项目的全过程质量监理、进度把控、安全检查等工作",
+            "claim_role": "contractor",
+        },
+    }
+
+    def generate_sub_task_cards(
+        self,
+        project_info: dict,
+        sub_roles: list[str] | None = None,
+        location: str | None = None,
+    ) -> dict:
+        """根据位置、项目类型和所需工种生成任务发布卡片列表
+
+        Args:
+            project_info: {"project_id": str, "project_name": str, "address": str, "project_type": str, "total_area": float}
+            sub_roles: 需要发布的工种列表，为空则按项目类型自动推断
+            location: 位置信息（用于匹配附近工人）
+
+        Returns:
+            {"tasks": [...], "reply": str}
+        """
+        if not sub_roles:
+            sub_roles = self._infer_sub_roles(project_info.get("project_type", ""))
+
+        tasks = []
+        for sub_role in sub_roles:
+            template = self.SUB_ROLE_TASK_MAP.get(sub_role)
+            if not template:
+                continue
+
+            title = template["title_template"].format(project_name=project_info.get("project_name", ""))
+            description = template["description_template"].format(project_name=project_info.get("project_name", ""))
+            if location:
+                description += f"（施工地点：{location}）"
+
+            tasks.append({
+                "sub_role": sub_role,
+                "sub_role_label": self._sub_role_label(sub_role),
+                "task_type": template["task_type"],
+                "phase": template["phase"],
+                "title": title,
+                "description": description,
+                "claim_role": template["claim_role"],
+                "project_id": project_info.get("project_id"),
+                "project_name": project_info.get("project_name"),
+                "location": location or project_info.get("address"),
+                "total_area": project_info.get("total_area"),
+            })
+
+        role_labels = "、".join([self._sub_role_label(r) for r in sub_roles])
+        reply = (
+            f"🔨 **施工任务发布**\n\n"
+            f"根据项目「{project_info.get('project_name', '')}」的需求，"
+            f"建议招募以下工种：{role_labels}\n\n"
+            f"共 {len(tasks)} 个工种子任务已生成，将推送到任务池供相应工种申领。"
+        )
+
+        return {"tasks": tasks, "reply": reply, "sub_roles": sub_roles}
+
+    @staticmethod
+    def _infer_sub_roles(project_type: str) -> list[str]:
+        """根据项目类型推断所需工种"""
+        project_role_map = {
+            "full_renovation": ["electrician", "plumber", "mason", "carpenter", "painter", "installer"],
+            "hard_decoration": ["electrician", "plumber", "mason", "carpenter", "painter", "installer"],
+            "soft_furnishing": ["installer", "carpenter"],
+            "curtain": ["curtain_installer"],
+            "curtain_designer": ["curtain_installer"],
+            "kitchen": ["electrician", "plumber", "mason", "installer"],
+            "bathroom": ["plumber", "mason", "installer"],
+            "electrical": ["electrician"],
+            "carpentry": ["carpenter"],
+            "painting": ["painter"],
+            "plumbing": ["plumber"],
+            "masonry": ["mason"],
+            "installation": ["installer"],
+        }
+        return project_role_map.get(project_type, ["installer"])
+
+    @staticmethod
+    def _sub_role_label(sub_role: str) -> str:
+        """工种中文标签"""
+        labels = {
+            "electrician": "电工",
+            "carpenter": "木工",
+            "plumber": "水电安装工",
+            "painter": "油漆工",
+            "mason": "泥瓦工",
+            "installer": "安装工",
+            "curtain_installer": "窗帘安装工",
+            "supervisor": "监理",
+            "curtain_designer": "窗帘设计师",
+        }
+        return labels.get(sub_role, sub_role)
 
 
 # ── F37 里程碑定义（与结算里程碑对齐：交房30% / 水电20% / 泥瓦25% / 竣工20% / 保修5%） ──

@@ -31,6 +31,25 @@ from app.models.smart_home import SmartHomeScheme, SmartDevice
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
 from app.models.procurement_enhanced import PriceComparison, PriceComparisonItem, EscrowPayment, LogisticsTracking, SampleRequest
 
+# F19-F20 电器品类库 + 电器点位规划
+from app.models.appliance import ApplianceCategory, Appliance, AppliancePoint, ApplianceLoadCalc
+
+# F8-F9 土建模块 — 结构属性 + 工程量计算
+from app.models.structural import (
+    LoadBearingWall, Beam, Column, FloorSlab, FoundationType,
+    StructureLoadEstimate, BayCompliance, QuantityCalculation, QuantityLineItem,
+)
+
+# 新增：身份认证、积分、产品、任务协调
+from app.models.identity_verification import IdentityVerification
+from app.models.product import Product
+from app.models.points import (
+    PointsAccount, PointsTransaction, PointsRule,
+    PointsMallItem, PointsRedemption, PointsRanking,
+)
+from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
+from app.models.webauthn_credential import WebAuthnCredential
+
 __all__ = [
     "User",
     "Project",
@@ -104,4 +123,31 @@ __all__ = [
     "EscrowPayment",
     "LogisticsTracking",
     "SampleRequest",
+    # F19-F20 电器
+    "ApplianceCategory",
+    "Appliance",
+    "AppliancePoint",
+    "ApplianceLoadCalc",
+    # F8-F9 土建/结构
+    "LoadBearingWall",
+    "Beam",
+    "Column",
+    "FloorSlab",
+    "FoundationType",
+    "StructureLoadEstimate",
+    "BayCompliance",
+    "QuantityCalculation",
+    "QuantityLineItem",
+    # 新增
+    "IdentityVerification",
+    "Product",
+    "PointsAccount",
+    "PointsTransaction",
+    "PointsRule",
+    "PointsMallItem",
+    "PointsRedemption",
+    "PointsRanking",
+    "OrchestratorTask",
+    "TaskCandidate",
+    "WebAuthnCredential",
 ]

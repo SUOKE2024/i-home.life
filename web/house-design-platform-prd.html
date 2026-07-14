@@ -1223,16 +1223,16 @@ gantt
 <h3>11.1 Phase 1 必须交付</h3>
 
 <div class="callout tip">
-  <strong>实现状态更新（2026-07-08）：</strong>Phase 1-4 后端全链路已完成。8 个 AI Agent 全部实现，139 API 端点，35 张数据表，144 测试通过。前端 2D CAD/3D/AR 为基础实现，平立剖自动生成待补。
+  <strong>实现状态更新（2026-07-12）：</strong>Phase 1-4 后端全链路已完成。8 个 AI Agent 全部实现，320 API 端点，72 张数据表，307 测试用例。前端 2D CAD/3D/AR/平立剖已完整实现，CAD 高级工具与基础设施配置已交付。
 </div>
 
 <div class="table-wrap">
 <table>
 <thead><tr><th>#</th><th>功能</th><th>优先级</th><th>最小可交付定义</th><th>状态</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>2D CAD 精确绘图</td><td><span class="badge badge-blue">P0</span></td><td>直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出</td><td>⚠️ 部分实现</td></tr>
-<tr><td>2</td><td>3D 模型生成</td><td><span class="badge badge-blue">P0</span></td><td>从 2D 墙体拉伸生成 3D + 基础材质</td><td>⚠️ 部分实现</td></tr>
-<tr><td>3</td><td>平立剖自动生成</td><td><span class="badge badge-blue">P0</span></td><td>俯视平面图 + 四向立面正投影</td><td>❌ 未实现</td></tr>
+<tr><td>1</td><td>2D CAD 精确绘图</td><td><span class="badge badge-blue">P0</span></td><td>直线/矩形/圆弧 + 正交锁定 + 对象捕捉 + DXF 导出</td><td>✅ 已实现（15工具 + 网格吸附 + 端点捕捉 + DXF R12）</td></tr>
+<tr><td>2</td><td>3D 模型生成</td><td><span class="badge badge-blue">P0</span></td><td>从 2D 墙体拉伸生成 3D + 基础材质</td><td>✅ 已实现（generate3DFrom2D + Three.js r128）</td></tr>
+<tr><td>3</td><td>平立剖自动生成</td><td><span class="badge badge-blue">P0</span></td><td>俯视平面图 + 四向立面正投影</td><td>✅ 已实现（5视图：平面/正立面/背立面/左立面/右立面，缺任意剖切面）</td></tr>
 <tr><td>4</td><td>本地效果图预览</td><td><span class="badge badge-blue">P0</span></td><td>Three.js 实时渲染 + 3 套光照预设</td><td>⚠️ 基础渲染</td></tr>
 <tr><td>5</td><td>总控 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>多模态对话（文本+语音）；意图理解+任务路由</td><td>✅ 已实现</td></tr>
 <tr><td>6</td><td>设计 Agent v1</td><td><span class="badge badge-blue">P0</span></td><td>自动生成 3 套平面布局方案；自然语言修改指令</td><td>✅ 已实现 (9 套)</td></tr>
@@ -1253,19 +1253,23 @@ gantt
     <li>✅ 客服 Agent（原 Phase 5）— FAQ 知识库 + 咨询分类 + 升级规则</li>
     <li>✅ 智能布局动线分析 F28 — 三动线评分 + 冲突检测</li>
     <li>✅ 三方协作 IM + 工程队匹配 — 数据层 + API 已建</li>
-    <li>⚠️ AR/LiDAR 扫描 — surveys 表已建，前端待实现</li>
-    <li>⚠️ 支付管理 — payments 表已建，支付流程待实现</li>
+    <li>✅ AR/LiDAR 扫描 — Flutter MethodChannel + ARKit/ARCore/AR Engine 四级降级</li>
+    <li>✅ 支付管理 — 7端点状态机：发起/确认/退款/失败/里程碑</li>
+    <li>✅ CAD 高级工具: 圆弧(三点)/偏移/修剪/延伸/块定义/图层管理(6项)</li>
+    <li>✅ 基础设施配置: PostgreSQL/Redis/OSS/向量库 config 支持（生产可切换）</li>
   </ul>
 </div>
 
-<div class="callout warn">
-  <strong>Phase 1 仍未完成（前端深度）：</strong>
+<div class="callout tip">
+  <strong>Phase 1 前端深度（2026-07-12 已补齐）：</strong>
   <ul class="sub-items" style="margin-top:0.5rem;">
-    <li>平立剖自动生成（P0 未实现）</li>
-    <li>2D CAD 精确绘图（DXF 导出、对象捕捉待补）</li>
-    <li>3D 模型生成（2D→3D 拉伸待补）</li>
-    <li>AR/LiDAR 扫描前端实现</li>
-    <li>DWG 导入（仅 DXF 导出）</li>
+    <li>✅ 平立剖自动生成 — 5视图：平面/正立面/背立面/左立面/右立面（缺任意剖切面）</li>
+    <li>✅ DXF 导出 — DXF R12 POLYLINE 格式，含预览模态</li>
+    <li>✅ 对象捕捉 — 网格吸附 0.1-1.0m + 端点捕捉</li>
+    <li>✅ 2D→3D 拉伸 — generate3DFrom2D + Three.js r128</li>
+    <li>✅ AR/LiDAR 前端 — Flutter MethodChannel + ARKit/ARCore/AR Engine 四级降级</li>
+    <li>✅ 支付管理 — 7端点状态机：发起/确认/退款/失败/里程碑</li>
+    <li>⚠️ DWG 导入 — 仅支持 DXF 导出（Phase 2 计划）</li>
   </ul>
 </div>
 

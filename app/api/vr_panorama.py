@@ -10,7 +10,6 @@ from app.schemas.vr_panorama import (
     VRPanoramaCreate,
     VRPanoramaResponse,
     VRPanoramaListItem,
-    VRPanoramaUpdate,
     HotspotCreate,
     RenderPanoramaRequest,
     VRSceneCreate,

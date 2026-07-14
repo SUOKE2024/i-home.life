@@ -779,3 +779,379 @@ async def test_rank_quotations_empty():
     """F33 空报价列表"""
     from app.services.procurement_enhanced_service import rank_quotations
     assert rank_quotations([]) == []
+
+
+# ── F34 担保支付状态机补充分支 ──
+
+
+@pytest.mark.asyncio
+async def test_escrow_dispute_resolve_to_refunded(client: AsyncClient):
+    """F34 争议流程: buyer_paid → disputed → resolve(refunded)"""
+    token, headers = await _register_and_login(client, "13900009040")
+    project_id = await _create_project(client, headers, "争议退款测试")
+    supplier_ids = await _create_suppliers(client, headers, "lighting")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="lighting",
+        material_sku="PE-DSP-001",
+        material_name="争议测试灯具",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    # 创建并付款
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers)
+
+    # 发起争议
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/dispute",
+        json={"reason": "到货损坏"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "disputed"
+    assert resp.json()["dispute_reason"] == "到货损坏"
+
+    # 解决争议: 退款
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/resolve",
+        json={"resolution": "refunded"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "refunded"
+
+
+@pytest.mark.asyncio
+async def test_escrow_dispute_resolve_to_supplier(client: AsyncClient):
+    """F34 争议流程: buyer_paid → disputed → resolve(supplier_received)"""
+    token, headers = await _register_and_login(client, "13900009041")
+    project_id = await _create_project(client, headers, "争议释放测试")
+    supplier_ids = await _create_suppliers(client, headers, "flooring")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="flooring",
+        material_sku="PE-DSR-001",
+        material_name="争议释放地板",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers)
+    await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/dispute",
+        json={"reason": "规格不符"}, headers=headers,
+    )
+
+    # 解决争议: 释放给供应商
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/resolve",
+        json={"resolution": "supplier_received"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "supplier_received"
+    assert data["supplier_received"] is True
+    assert data["supplier_received_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_escrow_refund_from_disputed(client: AsyncClient):
+    """F34 从争议状态直接退款: disputed → refunded"""
+    token, headers = await _register_and_login(client, "13900009042")
+    project_id = await _create_project(client, headers, "争议后退款测试")
+    supplier_ids = await _create_suppliers(client, headers, "wall")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="wall",
+        material_sku="PE-RFD2-001",
+        material_name="争议退款涂料",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers)
+    await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/dispute",
+        json={"reason": "色差"}, headers=headers,
+    )
+
+    # 从 disputed 直接退款
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/refund",
+        json={"reason": "协商退款"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "refunded"
+    assert resp.json()["dispute_reason"] == "协商退款"
+
+
+@pytest.mark.asyncio
+async def test_escrow_dispute_invalid_state(client: AsyncClient):
+    """F34 非买家已付款状态不允许发起争议"""
+    token, headers = await _register_and_login(client, "13900009043")
+    project_id = await _create_project(client, headers, "非法争议测试")
+    supplier_ids = await _create_suppliers(client, headers, "mep")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="mep",
+        material_sku="PE-INV-DSP-001",
+        material_name="非法争议电线",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+
+    # pending 状态下发起争议应失败
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/dispute",
+        json={"reason": "测试"}, headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_escrow_resolve_invalid_state(client: AsyncClient):
+    """F34 非争议状态不允许解决争议"""
+    token, headers = await _register_and_login(client, "13900009044")
+    project_id = await _create_project(client, headers, "非法解决测试")
+    supplier_ids = await _create_suppliers(client, headers, "ceiling")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="ceiling",
+        material_sku="PE-INV-RSV-001",
+        material_name="非法解决吊顶",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+    # 付款后（buyer_paid，非 disputed）尝试解决争议应失败
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers)
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/resolve",
+        json={"resolution": "refunded"}, headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_escrow_resolve_invalid_resolution(client: AsyncClient):
+    """F34 解决争议的 resolution 参数非法应失败"""
+    token, headers = await _register_and_login(client, "13900009045")
+    project_id = await _create_project(client, headers, "非法 resolution 测试")
+    supplier_ids = await _create_suppliers(client, headers, "appliances")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="appliances",
+        material_sku="PE-INV-RES-001",
+        material_name="非法 resolution 空调",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers,
+    )
+    escrow_id = resp.json()["id"]
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers)
+    await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/dispute",
+        json={"reason": "质量问题"}, headers=headers,
+    )
+
+    # 非法 resolution
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/resolve",
+        json={"resolution": "unknown"}, headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_order_escrow(client: AsyncClient):
+    """F34 按订单查询担保支付记录"""
+    token, headers = await _register_and_login(client, "13900009046")
+    project_id = await _create_project(client, headers, "订单担保列表测试")
+    supplier_ids = await _create_suppliers(client, headers, "kitchen_bath")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="kitchen_bath",
+        material_sku="PE-LST-ESC-001",
+        material_name="列表担保马桶",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    # 创建 2 笔担保支付
+    for _ in range(2):
+        resp = await client.post(
+            "/api/procurement-enhanced/escrow",
+            json={"order_id": order_id}, headers=headers,
+        )
+        assert resp.status_code == 201
+
+    # 按订单查询
+    resp = await client.get(
+        f"/api/procurement-enhanced/escrow/order/{order_id}", headers=headers,
+    )
+    assert resp.status_code == 200
+    items = resp.json()
+    assert len(items) == 2
+    assert all(it["order_id"] == order_id for it in items)
+
+
+@pytest.mark.asyncio
+async def test_escrow_cross_user_forbidden(client: AsyncClient):
+    """F34 跨用户访问担保支付应被拒绝"""
+    token_a, headers_a = await _register_and_login(client, "13900009047")
+    project_id = await _create_project(client, headers_a, "跨用户A")
+    supplier_ids = await _create_suppliers(client, headers_a, "soft_decor")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers_a, project_id,
+        category_code="soft_decor",
+        material_sku="PE-CROSS-001",
+        material_name="跨用户沙发",
+    )
+    order_id = await _create_order(client, headers_a, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id}, headers=headers_a,
+    )
+    escrow_id = resp.json()["id"]
+    await client.post(f"/api/procurement-enhanced/escrow/{escrow_id}/pay", headers=headers_a)
+
+    # 用户 B 登录，尝试操作 A 的担保支付
+    _, headers_b = await _register_and_login(client, "13900009048")
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/release", headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+# ── F34 其它缺口补充 ──
+
+
+@pytest.mark.asyncio
+async def test_sample_rejected_status(client: AsyncClient):
+    """F34 样品被拒绝流程"""
+    token, headers = await _register_and_login(client, "13900009049")
+    project_id = await _create_project(client, headers, "样品拒绝测试")
+    supplier_ids = await _create_suppliers(client, headers, "doors_windows")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="doors_windows",
+        material_sku="PE-REJ-001",
+        material_name="拒绝测试门",
+    )
+
+    resp = await client.post(
+        "/api/procurement-enhanced/samples",
+        json={
+            "project_id": project_id, "supplier_id": supplier_ids[0],
+            "material_id": material_id, "sample_type": "小样",
+        },
+        headers=headers,
+    )
+    sample_id = resp.json()["id"]
+
+    # 更新为已拒绝
+    resp = await client.patch(
+        f"/api/procurement-enhanced/samples/{sample_id}",
+        json={"status": "rejected", "notes": "样品不合格"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "rejected"
+    assert data["notes"] == "样品不合格"
+
+
+@pytest.mark.asyncio
+async def test_logistics_exception_status(client: AsyncClient):
+    """F34 物流异常状态更新"""
+    token, headers = await _register_and_login(client, "13900009050")
+    project_id = await _create_project(client, headers, "物流异常测试")
+    supplier_ids = await _create_suppliers(client, headers, "custom_furniture")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="custom_furniture",
+        material_sku="PE-EXC-001",
+        material_name="异常测试衣柜",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    resp = await client.post(
+        "/api/procurement-enhanced/logistics",
+        json={"order_id": order_id, "carrier": "zto", "ship_from": "广州", "ship_to": "上海"},
+        headers=headers,
+    )
+    tracking_id = resp.json()["id"]
+
+    # 更新为异常状态
+    resp = await client.patch(
+        f"/api/procurement-enhanced/logistics/{tracking_id}",
+        json={"status": "exception", "location": "中转场", "description": "包裹破损"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "exception"
+    assert len(data["tracking_history"]) == 1
+    assert data["tracking_history"][0]["description"] == "包裹破损"
+
+
+@pytest.mark.asyncio
+async def test_comparison_multiple_bom_items(client: AsyncClient):
+    """F33 多物料 BOM 比价报告"""
+    token, headers = await _register_and_login(client, "13900009051")
+    project_id = await _create_project(client, headers, "多物料比价测试")
+    await _create_suppliers(client, headers, "flooring")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="flooring",
+        material_sku="PE-MULTI-001",
+        material_name="多物料测试A",
+    )
+
+    # 再创建一个 BOM 项（复用同品类物料）
+    resp = await client.post(
+        "/api/materials/bom",
+        json={
+            "project_id": project_id, "material_id": material_id,
+            "quantity": 20.0, "unit_price": 200.0,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200 or resp.status_code == 201
+
+    resp = await client.post(
+        "/api/procurement-enhanced/comparisons",
+        json={"project_id": project_id}, headers=headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["item_count"] == 2
+    assert len(data["items"]) == 2
+    assert data["total_quotes"] >= 2
+    # 每个项都有推荐供应商
+    for item in data["items"]:
+        assert item["recommended_supplier_id"] is not None
+        assert item["recommended_price"] > 0

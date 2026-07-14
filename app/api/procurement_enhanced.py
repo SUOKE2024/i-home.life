@@ -182,6 +182,20 @@ async def get_escrow(
     return EscrowPaymentResponse.model_validate(payment)
 
 
+@router.get(
+    "/escrow/order/{order_id}",
+    response_model=list[EscrowPaymentResponse],
+)
+async def list_order_escrow(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """按订单查询担保支付记录"""
+    items = await svc.list_order_escrow(db, order_id)
+    return [EscrowPaymentResponse.model_validate(p) for p in items]
+
+
 @router.post("/escrow/{escrow_id}/pay", response_model=EscrowPaymentResponse)
 async def buyer_pay(
     escrow_id: str,

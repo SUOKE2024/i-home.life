@@ -1,0 +1,17 @@
+[Unit]
+Description=i-home.life Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/i-home.life
+ExecStart=/opt/i-home.life/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4 --log-level info
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=/opt/i-home.life/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+
+[Install]
+WantedBy=multi-user.target

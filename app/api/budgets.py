@@ -82,6 +82,16 @@ async def generate_from_bom(
     return resp
 
 
+# ── F10 AI 分项预算 ──
+@router.post("/generate-plan")
+async def generate_budget_plan(
+    data: BudgetPlanRequest,
+    current_user: User = Depends(get_current_user),
+):
+    agent = BudgetAgent()
+    return agent.generate_budget_plan(data.message)
+
+
 @router.patch("/lines/{line_id}", response_model=BudgetLineResponse)
 async def update_budget_line(
     line_id: str,

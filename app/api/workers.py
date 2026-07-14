@@ -1,6 +1,5 @@
 """F35 服务者匹配路由 — 设计师/监理/预算师档案 + 智能匹配"""
 
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select

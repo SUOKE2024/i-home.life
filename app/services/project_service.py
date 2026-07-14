@@ -33,6 +33,8 @@ async def create_project(db: AsyncSession, user_id: str, data: ProjectCreate) ->
         name=data.name,
         address=data.address,
         total_area=data.total_area,
+        project_type=data.project_type,
+        source=data.source,
         owner_id=user_id,
     )
     db.add(project)
@@ -75,8 +77,8 @@ async def update_project(db: AsyncSession, project_id: str, data: ProjectUpdate)
         setattr(project, key, value)
 
     await db.commit()
-    await db.refresh(project)
-    return project
+    # 重新通过 get_project 加载，确保 floors/rooms 等关系在异步上下文中可用
+    return await get_project(db, project_id)
 
 
 async def delete_project(db: AsyncSession, project_id: str) -> bool:

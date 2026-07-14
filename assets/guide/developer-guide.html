@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="索克家居 i-home.life 开发者指南 - 技术架构、API 概览、PASETO 认证、WebSocket、数据库迁移与测试">
+<title>开发者指南 · 索克家居 i-home.life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" onerror="this.remove()">
+<link rel="icon" type="image/png" href="../images/icons/desktop/suoke-favicon-32.png">
+<style>
+:root{
+  --bg-deep:#08080f;--bg-card:#12121d;--bg-card-hover:#1a1a2a;--bg-input:#0d0d18;
+  --border:#1e1e32;--border-active:#2a2a45;
+  --text-primary:#e8e6e1;--text-secondary:#8a8894;--text-muted:#5a5866;
+  --accent:#c9973b;--accent-bright:#e0aa4a;--accent-glow:rgba(201,151,59,0.15);
+  --success:#4a9e6e;--warning:#c9973b;--danger:#c4554d;--info:#5b8ec4;
+  --radius:12px;--radius-sm:8px;--transition:0.25s cubic-bezier(0.4,0,0.2,1);--max-w:920px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg-deep);color:var(--text-primary);line-height:1.7;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border-active);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.topbar{position:sticky;top:0;z-index:100;background:rgba(8,8,15,0.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.topbar-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.topbar-brand .logo-mark{font-family:'DM Serif Display',serif;font-size:1.4rem;color:var(--accent);letter-spacing:0.02em}
+.topbar-brand .logo-sub{font-size:0.65rem;color:var(--text-muted);letter-spacing:0.15em;text-transform:uppercase}
+.back-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);text-decoration:none;font-size:0.85rem;padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);transition:all var(--transition);white-space:nowrap}
+.back-link:hover{color:var(--accent-bright);border-color:var(--border-active);background:var(--bg-card-hover)}
+.back-link svg{width:14px;height:14px}
+.wrap{position:relative;z-index:1;max-width:var(--max-w);margin:0 auto;padding:40px 24px 80px}
+.doc-header{text-align:center;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)}
+.doc-header h1{font-family:'DM Serif Display',serif;font-size:2.6rem;font-weight:400;color:var(--accent);margin-bottom:8px;letter-spacing:0.01em}
+.doc-header .subtitle{color:var(--text-secondary);font-size:1rem}
+.doc-header .meta{margin-top:16px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:500;background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary)}
+.badge.accent{background:var(--accent-glow);border-color:rgba(201,151,59,0.3);color:var(--accent-bright)}
+.toc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;margin-bottom:48px}
+.toc-title{font-size:0.8rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:14px}
+.toc ol{list-style:none;counter-reset:toc;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+.toc li{counter-increment:toc}
+.toc a{display:flex;align-items:center;gap:8px;color:var(--text-secondary);text-decoration:none;font-size:0.9rem;padding:4px 0;transition:color var(--transition)}
+.toc a::before{content:counter(toc,decimal-leading-zero);color:var(--accent);font-weight:600;font-size:0.78rem;font-variant-numeric:tabular-nums}
+.toc a:hover{color:var(--accent-bright)}
+section{margin-bottom:56px;scroll-margin-top:80px}
+.section-title{font-family:'DM Serif Display',serif;font-size:1.7rem;font-weight:400;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.section-title .num{font-size:0.85rem;color:var(--accent);font-family:'DM Sans',sans-serif;font-weight:600;background:var(--accent-glow);padding:2px 10px;border-radius:var(--radius-sm)}
+.section-desc{color:var(--text-secondary);font-size:0.9rem;margin-bottom:24px}
+h3{font-size:1.15rem;font-weight:600;color:var(--text-primary);margin:28px 0 12px}
+h4{font-size:1rem;font-weight:600;color:var(--accent-bright);margin:20px 0 8px}
+p{margin-bottom:14px;color:var(--text-secondary)}p strong{color:var(--text-primary)}
+ul,ol{margin:0 0 16px 4px;padding-left:20px}li{margin-bottom:6px;color:var(--text-secondary)}li strong{color:var(--text-primary)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;transition:border-color var(--transition)}
+.card:hover{border-color:var(--border-active)}
+code{font-family:'SF Mono','Fira Code','Consolas',monospace;background:var(--bg-input);color:var(--accent);padding:2px 7px;border-radius:5px;font-size:0.85em}
+pre{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;overflow-x:auto;margin-bottom:16px}
+pre code{background:none;padding:0;color:var(--text-primary);font-size:0.82rem;line-height:1.6}
+.callout{background:var(--bg-card);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 18px;margin:16px 0}
+.callout.info{border-left-color:var(--info)}.callout.success{border-left-color:var(--success)}.callout.warning{border-left-color:var(--warning)}.callout.danger{border-left-color:var(--danger)}
+.callout .callout-label{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--accent);margin-bottom:4px}
+.callout.info .callout-label{color:var(--info)}.callout.success .callout-label{color:var(--success)}.callout.warning .callout-label{color:var(--warning)}.callout.danger .callout-label{color:var(--danger)}
+.callout p{margin:0;color:var(--text-secondary)}
+table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:0.85rem}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border)}
+th{color:var(--accent-bright);font-weight:600;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;background:var(--bg-card)}
+td{color:var(--text-secondary)}td strong{color:var(--text-primary)}
+tr:hover td{background:rgba(255,255,255,0.015)}
+.arch-layer{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:12px;display:flex;gap:16px;align-items:flex-start}
+.arch-layer .al-tag{flex-shrink:0;width:64px;text-align:center;padding:6px 0;border-radius:var(--radius-sm);background:var(--accent-glow);color:var(--accent-bright);font-weight:600;font-size:0.8rem}
+.arch-layer .al-body h4{margin:0 0 4px}
+.arch-layer .al-body p{margin:0;font-size:0.85rem}
+.doc-footer{margin-top:64px;padding-top:32px;border-top:1px solid var(--border);text-align:center}
+.doc-footer p{font-size:0.82rem;color:var(--text-muted);margin-bottom:8px}
+.doc-footer .footer-links{display:flex;justify-content:center;gap:16px;margin-top:16px;flex-wrap:wrap}
+.doc-footer .footer-links a{color:var(--text-secondary);text-decoration:none;font-size:0.82rem;transition:color var(--transition)}
+.doc-footer .footer-links a:hover{color:var(--accent-bright)}
+@media (max-width:768px){html{font-size:15px}.topbar{padding:12px 16px}.wrap{padding:28px 16px 60px}.doc-header h1{font-size:2rem}.toc ol{grid-template-columns:1fr}.section-title{font-size:1.4rem}.arch-layer{flex-direction:column;gap:8px}}
+@media (max-width:480px){html{font-size:14px}.topbar-brand .logo-sub{display:none}.doc-header h1{font-size:1.7rem}.doc-header .meta{gap:6px}.card{padding:16px}.back-link span{display:none}.section-title .num{display:none}.arch-layer .al-tag{width:auto}}
+.skip-link{position:absolute;top:-40px;left:8px;background:var(--accent);color:var(--bg-deep);padding:8px 16px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600;font-size:0.85rem;z-index:200;transition:top 0.2s}
+.skip-link:focus{top:8px}
+:focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px}
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">跳到主要内容</a>
+
+<nav class="topbar" role="navigation" aria-label="顶部导航">
+  <a href="../../web/index.html" class="topbar-brand" aria-label="返回索克家居首页">
+    <span class="logo-mark" aria-hidden="true">索克家居</span>
+    <span class="logo-sub" aria-hidden="true">i-home.life</span>
+  </a>
+  <a href="../../web/index.html" class="back-link" aria-label="返回主站">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <span>返回主站</span>
+  </a>
+</nav>
+
+<main id="main" class="wrap" role="main">
+
+<header class="doc-header" role="banner">
+  <h1>开发者指南</h1>
+  <p class="subtitle">索克家居 · AI 智能装修平台 — 技术架构、API 文档与开发流程</p>
+  <div class="meta">
+    <span class="badge accent">v1.0.1</span>
+    <span class="badge">FastAPI + SQLite/PostgreSQL + Flutter</span>
+    <span class="badge">321 端点 · 69 表 · 34 模块</span>
+    <span class="badge">最后更新：2026-07-12</span>
+  </div>
+</header>
+
+<nav class="toc" role="navigation" aria-label="文档目录">
+  <div class="toc-title">目录</div>
+  <ol>
+    <li><a href="#architecture">技术架构</a></li>
+    <li><a href="#structure">项目结构</a></li>
+    <li><a href="#api">API 概览</a></li>
+    <li><a href="#auth">认证机制</a></li>
+    <li><a href="#websocket">WebSocket 实时通信</a></li>
+    <li><a href="#migration">数据库迁移</a></li>
+    <li><a href="#testing">测试</a></li>
+    <li><a href="#deploy">部署</a></li>
+    <li><a href="#harmony">鸿蒙适配</a></li>
+  </ol>
+</nav>
+
+<!-- 1. 技术架构 -->
+<section id="architecture" aria-labelledby="architecture-title">
+  <h2 class="section-title" id="architecture-title"><span class="num">01</span>技术架构</h2>
+  <p class="section-desc">平台采用前后端分离架构，后端 FastAPI 提供 RESTful API，前端 Web SPA + Flutter 跨平台移动端。</p>
+
+  <div class="arch-layer">
+    <div class="al-tag">后端</div>
+    <div class="al-body">
+      <h4>Python 3.12 + FastAPI + SQLAlchemy 2.0 (async)</h4>
+      <p>异步 Web 框架，uvicorn ASGI 服务器。SQLAlchemy 2.0 异步 ORM + aiosqlite 驱动。数据库为 SQLite（Phase 1），Phase 2 切换 PostgreSQL。Pydantic v2 进行数据校验。</p>
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="al-tag">认证</div>
+    <div class="al-body">
+      <h4>PASETO v4 (local)</h4>
+      <p>使用 PASETO（Platform-Agnostic Security Tokens）替代 JWT，对称密钥加密（SymmetricKey），令牌有效期 24 小时。比 JWT 更安全，无算法混淆攻击风险。</p>
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="al-tag">AI</div>
+    <div class="al-body">
+      <h4>DeepSeek LLM + 规则混合路由</h4>
+      <p>7 个 AI Agent（总控/设计/预算/采购/施工/结算/质检），支持 mock 模式（无 API Key 时使用规则引擎）与 LLM 模式（接入 DeepSeek API）。意图路由自动分发到对应 Agent。</p>
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="al-tag">前端</div>
+    <div class="al-body">
+      <h4>Vanilla JS + Canvas 2D + Three.js r128</h4>
+      <p>Web 管理后台为纯 JS 单页应用（无框架依赖），2D CAD 使用 Canvas API，3D 渲染使用 Three.js。导出格式为 DXF R12（POLYLINE）+ Excel（openpyxl）。</p>
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="al-tag">移动端</div>
+    <div class="al-body">
+      <h4>Flutter 3.35.7-ohos-0.0.3</h4>
+      <p>跨平台 App，支持 iOS / iPadOS / Android / HarmonyOS。2D 绘图使用 CustomPainter，AR 测量通过 MethodChannel 调用原生 ARKit / ARCore / AR Engine。手写笔适配（M-Pencil）。</p>
+    </div>
+  </div>
+  <div class="arch-layer">
+    <div class="al-tag">迁移</div>
+    <div class="al-body">
+      <h4>Alembic（SQLite / PostgreSQL 双库）</h4>
+      <p>数据库迁移工具，支持 SQLite 与 PostgreSQL 双库切换。自动检测模型差异并生成迁移脚本。</p>
+    </div>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">技术栈一览</div>
+    <p>后端依赖详见 <code>requirements.txt</code>：FastAPI >= 0.136、uvicorn[standard]、SQLAlchemy[asyncio] >= 2.0.50、aiosqlite、paseto >= 2.0、cryptography、pydantic >= 2.13、alembic >= 1.18、httpx、openpyxl 等。v1.0.1 新增：asyncpg（PostgreSQL）、redis、oss2（阿里云 OSS）、qdrant-client（向量库）。</p>
+  </div>
+
+  <h3>基础设施配置（v1.0.1 新增）</h3>
+  <p class="section-desc">平台支持从开发环境（SQLite + 内存字典 + 本地文件）平滑切换至生产环境（PostgreSQL + Redis + OSS + 向量库），所有配置通过 <code>app/config.py</code>（pydantic-settings）统一管理，环境变量在 <code>.env</code> 中设置。</p>
+
+  <div class="card">
+    <h3>数据库（必选）</h3>
+    <p><strong>开发环境</strong>：默认使用 SQLite，无需额外配置。</p>
+    <p><strong>生产环境</strong>：切换至 PostgreSQL，设置 <code>DATABASE_URL</code> 环境变量。驱动使用 <code>asyncpg</code>（异步）。</p>
+    <pre><code># 开发环境（默认）
+DATABASE_URL=sqlite+aiosqlite:///./data/ihome.db
+
+# 生产环境
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/ihome</code></pre>
+    <div class="callout info">
+      <div class="callout-label">切换说明</div>
+      <p>切换数据库后需执行 <code>alembic upgrade head</code> 重新应用迁移。Alembic 已配置 SQLite / PostgreSQL 双库支持。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Redis（可选）</h3>
+    <p>用于缓存与消息队列。设置 <code>REDIS_URL</code> 启用；<strong>留空则自动降级为内存字典</strong>，开发环境无需安装 Redis。</p>
+    <pre><code># 启用 Redis
+REDIS_URL=redis://localhost:6379/0
+
+# 留空则降级为内存字典（开发环境推荐）
+REDIS_URL=</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>OSS 对象存储（可选）</h3>
+    <p>用于存储图纸、照片、3D 模型等大文件。支持阿里云 OSS；<strong>留空则使用本地文件存储</strong>。</p>
+    <pre><code># 启用阿里云 OSS
+OSS_ENDPOINT=oss-cn-hangzhou.aliyuncs.com
+OSS_ACCESS_KEY=your-access-key-id
+OSS_SECRET_KEY=your-access-key-secret
+OSS_BUCKET=ihome-files
+OSS_REGION=cn-hangzhou
+
+# 留空则使用本地文件存储（data/uploads/）
+# OSS_ENDPOINT=</code></pre>
+    <div class="callout warning">
+      <div class="callout-label">安全提示</div>
+      <p>OSS Access Key 与 Secret Key 属于敏感信息，务必仅配置在 <code>.env</code> 中，切勿提交到版本控制。</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>向量数据库（可选）</h3>
+    <p>用于 RAG 知识库（装修规范、国标、产品目录检索）。支持 Qdrant 与 Milvus；<strong>留空则禁用 RAG 功能</strong>，不影响其他模块。</p>
+    <pre><code># 启用 Qdrant
+VECTOR_DB_URL=http://localhost:6333
+VECTOR_DB_COLLECTION=ihome_knowledge
+
+# 启用 Milvus
+VECTOR_DB_URL=http://localhost:19530
+VECTOR_DB_COLLECTION=ihome_knowledge
+
+# 留空则禁用 RAG（客服 Agent 仍可使用 FAQ 预置知识库）
+# VECTOR_DB_URL=</code></pre>
+  </div>
+
+  <div class="callout success">
+    <div class="callout-label">降级策略总结</div>
+    <p><strong>Redis</strong> 留空 → 内存字典 | <strong>OSS</strong> 留空 → 本地文件存储 | <strong>向量库</strong> 留空 → 禁用 RAG（FAQ 仍可用）。开发环境仅需 SQLite，零外部依赖即可运行。</p>
+  </div>
+</section>
+
+<!-- 2. 项目结构 -->
+<section id="structure" aria-labelledby="structure-title">
+  <h2 class="section-title" id="structure-title"><span class="num">02</span>项目结构</h2>
+  <p class="section-desc">项目采用分层架构，按职责划分目录。</p>
+
+  <pre><code>i-home.life/
+├── app/                      # 后端应用
+│   ├── api/                  # 34 个路由模块 (321 端点)
+│   │   ├── auth.py           # 认证 (register/login/me)
+│   │   ├── projects.py       # 项目管理
+│   │   ├── agents.py         # AI Agent 路由
+│   │   ├── surveys.py        # 测量 + AR 空间测量
+│   │   └── ...               # 其余 30 个模块
+│   ├── agents/               # 7 个 AI Agent (业务逻辑)
+│   ├── models/               # 69 张数据表 (SQLAlchemy)
+│   ├── schemas/              # Pydantic 验证模型
+│   ├── services/             # 业务逻辑层
+│   ├── auth/                 # PASETO Token 认证
+│   │   └── paseto_handler.py # 令牌创建与验证
+│   ├── config.py             # 配置 (pydantic-settings)
+│   ├── database.py           # 数据库初始化
+│   ├── main.py               # FastAPI 入口
+│   ├── rbac.py               # 角色权限控制
+│   └── ws.py                 # WebSocket 管理器
+├── flutter_app/              # 跨平台 App
+│   ├── lib/
+│   │   ├── pages/            # 15+ 页面
+│   │   ├── services/api.dart # API 客户端
+│   │   └── config.dart       # 配置
+│   ├── ohos/                 # HarmonyOS 适配
+│   ├── android/              # Android 原生配置
+│   └── ios/                  # iOS 原生配置
+├── web/                      # 前端页面
+│   ├── index.html            # 管理后台 SPA
+│   ├── studio.html           # 统一设计台 (2D+3D+AI)
+│   ├── 3d-viewer.html        # 3D 效果图查看器
+│   └── vr-viewer.html        # VR 全景查看器
+├── alembic/                  # 数据库迁移
+│   ├── versions/             # 迁移脚本
+│   └── env.py
+├── tests/                    # 302+ 测试用例
+├── scripts/                  # 运维脚本
+└── data/                     # SQLite 数据库文件</code></pre>
+
+  <div class="callout">
+    <div class="callout-label">分层职责</div>
+    <p><strong>api/</strong> 负责 HTTP 路由与请求响应；<strong>services/</strong> 封装业务逻辑；<strong>models/</strong> 定义数据表结构；<strong>schemas/</strong> 定义请求/响应校验；<strong>agents/</strong> 实现 AI 业务逻辑。严格遵循关注点分离原则。</p>
+  </div>
+</section>
+
+<!-- 3. API 概览 -->
+<section id="api" aria-labelledby="api-title">
+  <h2 class="section-title" id="api-title"><span class="num">03</span>API 概览</h2>
+  <p class="section-desc">平台提供 321 个 API 端点，分布在 34 个路由模块中，统一使用 <code>/api</code> 前缀。</p>
+
+  <h3>主要模块与端点分布</h3>
+  <table>
+    <thead><tr><th>模块</th><th>路径前缀</th><th>端点数</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>认证</strong></td><td><code>/api/auth</code></td><td>3</td><td>注册、登录、获取当前用户</td></tr>
+      <tr><td><strong>项目</strong></td><td><code>/api/projects</code></td><td>5</td><td>项目 CRUD</td></tr>
+      <tr><td><strong>测量</strong></td><td><code>/api/surveys</code></td><td>23</td><td>含 AR 扫描会话/墙面特征/校准点</td></tr>
+      <tr><td><strong>物料</strong></td><td><code>/api/materials</code></td><td>9</td><td>物料 + BOM + Excel 导出</td></tr>
+      <tr><td><strong>预算</strong></td><td><code>/api/budgets</code></td><td>8</td><td>多方案对比/偏差预警/模板库</td></tr>
+      <tr><td><strong>采购</strong></td><td><code>/api/procurement</code></td><td>9</td><td>供应商/报价/订单/比价</td></tr>
+      <tr><td><strong>采购增强</strong></td><td><code>/api/procurement-enhanced</code></td><td>18</td><td>比价/担保支付/物流/样品</td></tr>
+      <tr><td><strong>施工</strong></td><td><code>/api/construction</code></td><td>23</td><td>任务/日志/质检/进度/质量</td></tr>
+      <tr><td><strong>结算</strong></td><td><code>/api/settlements</code></td><td>8</td><td>里程碑/异常检测/对账单</td></tr>
+      <tr><td><strong>支付</strong></td><td><code>/api/payments</code></td><td>6</td><td>发起/确认/退款/里程碑</td></tr>
+      <tr><td><strong>IM 协作</strong></td><td><code>/api/chat</code></td><td>5</td><td>聊天室/消息/@提及/已读</td></tr>
+      <tr><td><strong>AI Agent</strong></td><td><code>/api/agents</code></td><td>6</td><td>对话/设计/预算/采购/施工/结算</td></tr>
+      <tr><td><strong>设计深化</strong></td><td>多个前缀</td><td>80+</td><td>厨房/卫生间/水电/硬装/灯光/软装等</td></tr>
+      <tr><td><strong>VR / AI 图</strong></td><td><code>/api/vr</code> 等</td><td>24</td><td>VR 全景/AI 图生图</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="callout-label">API 文档</div>
+    <p>交互式文档：<code>/api/docs</code>（Swagger UI）；参考文档：<code>/api/redoc</code>（ReDoc）；OpenAPI Schema：<code>/api/openapi.json</code>。</p>
+  </div>
+
+  <h3>请求示例</h3>
+  <pre><code># 注册
+POST /api/auth/register
+Content-Type: application/json
+{ "phone": "13800138000", "password": "123456", "role": "owner" }
+
+# 登录（返回 PASETO 令牌）
+POST /api/auth/login
+{ "phone": "13800138000", "password": "123456" }
+# 响应: { "access_token": "v4.local.xxx", "token_type": "paseto" }
+
+# 调用需认证的接口
+GET /api/auth/me
+Authorization: Bearer v4.local.xxx</code></pre>
+</section>
+
+<!-- 4. 认证机制 -->
+<section id="auth" aria-labelledby="auth-title">
+  <h2 class="section-title" id="auth-title"><span class="num">04</span>认证机制：PASETO 令牌流程</h2>
+  <p class="section-desc">平台使用 PASETO v4 local 模式进行令牌认证，替代传统 JWT。</p>
+
+  <div class="card">
+    <h3>为什么选择 PASETO？</h3>
+    <ul>
+      <li><strong>无算法混淆攻击</strong> — PASETO 在协议层面固定算法，不存在 JWT 的 "alg: none" 漏洞。</li>
+      <li><strong>更简洁的 API</strong> — 只有 create / parse 两个操作，无需手动处理 Header。</li>
+      <li><strong>local 模式加密</strong> — 令牌内容对称加密，payload 不明文暴露。</li>
+      <li><strong>v4 协议</strong> — 使用现代加密原语（AES-256-CTR + HMAC-SHA-384）。</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>令牌流程</h3>
+    <ol class="steps" style="list-style:none;padding:0;counter-reset:step">
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>用户登录</strong> — 客户端发送 <code>POST /api/auth/login</code>，携带手机号与密码。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>验证凭据</strong> — 后端查询 users 表，校验密码哈希。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>签发令牌</strong> — 调用 <code>paseto_handler.create_token(user_id, role)</code>，生成包含 <code>sub</code>、<code>role</code>、<code>iat</code>、<code>exp</code> 声明的 v4.local 令牌。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>返回令牌</strong> — 响应体返回 <code>{ "access_token": "...", "token_type": "paseto" }</code>。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>存储令牌</strong> — 客户端将令牌存入 localStorage（Web）或安全存储（Flutter）。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative;margin-bottom:12px"><strong>携带令牌</strong> — 后续请求在 Header 中携带 <code>Authorization: Bearer &lt;token&gt;</code>。</li>
+      <li style="counter-increment:step;padding-left:36px;position:relative"><strong>验证令牌</strong> — 后端通过 <code>verify_token()</code> 解密并校验过期时间，提取用户信息。</li>
+    </ol>
+  </div>
+
+  <h3>核心代码</h3>
+  <pre><code># app/auth/paseto_handler.py
+from datetime import datetime, timedelta, timezone
+import paseto
+from paseto.keys.symmetric_key import SymmetricKey
+from paseto.protocols.v4 import ProtocolVersion4 as v4
+
+def _get_key() -> SymmetricKey:
+    key_bytes = settings.paseto_secret_key.encode()
+    if len(key_bytes) < 32:
+        key_bytes = key_bytes.ljust(32, b"\x00")
+    return SymmetricKey(key_material=key_bytes[:32], protocol=v4)
+
+def create_token(user_id: str, role: str) -> str:
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(minutes=settings.paseto_token_expire_minutes)
+    payload = {"sub": user_id, "role": role, "iat": now.isoformat(), "exp": exp.isoformat()}
+    return paseto.create(key=_get_key(), purpose="local", claims=payload)
+
+def verify_token(token: str) -> dict | None:
+    try:
+        result = paseto.parse(key=_get_key(), purpose="local", token=token)
+        return result["message"]
+    except Exception:
+        return None</code></pre>
+
+  <div class="callout warning">
+    <div class="callout-label">安全提示</div>
+    <p>生产环境务必将 <code>PASETO_SECRET_KEY</code> 设置为 32 字节以上的强随机密钥，切勿使用默认值。密钥配置在 <code>.env</code> 文件中，不应提交到版本控制。</p>
+  </div>
+</section>
+
+<!-- 5. WebSocket -->
+<section id="websocket" aria-labelledby="websocket-title">
+  <h2 class="section-title" id="websocket-title"><span class="num">05</span>WebSocket 实时通信</h2>
+  <p class="section-desc">平台通过 WebSocket 实现多端实时协同，支持项目级消息广播。</p>
+
+  <div class="card">
+    <h3>连接端点</h3>
+    <pre><code>ws://host:port/ws/{project_id}</code></pre>
+    <p>客户端通过项目 ID 建立 WebSocket 连接，同一项目的所有连接会被归组，实现消息广播。</p>
+  </div>
+
+  <div class="card">
+    <h3>消息格式</h3>
+    <pre><code>// 客户端发送
+{ "event": "message", "data": { "text": "施工进度已更新" } }
+
+// 服务端广播给同项目其他客户端
+{ "event": "message", "data": { ... } }
+
+// 错误消息
+{ "event": "error", "data": { "message": "Invalid message format" } }</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>核心实现</h3>
+    <p>WebSocket 管理器（<code>app/ws.py</code>）维护每个项目的连接池，支持 <code>connect</code>、<code>disconnect</code>、<code>broadcast_to_project</code>、<code>send_to</code> 方法。在 <code>app/main.py</code> 中注册 <code>/ws/{project_id}</code> 路由，接收 JSON 消息并按 event 分发广播。</p>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">Nginx 代理配置</div>
+    <p>生产环境需在 Nginx 中配置 WebSocket 升级：<code>proxy_http_version 1.1</code> + <code>Upgrade</code> + <code>Connection "upgrade"</code>。详见部署指南。</p>
+  </div>
+</section>
+
+<!-- 6. 数据库迁移 -->
+<section id="migration" aria-labelledby="migration-title">
+  <h2 class="section-title" id="migration-title"><span class="num">06</span>数据库迁移：Alembic</h2>
+  <p class="section-desc">使用 Alembic 管理数据库 Schema 变更，支持 SQLite 与 PostgreSQL 双库。</p>
+
+  <h3>常用命令</h3>
+  <pre><code># 检测模型与数据库差异
+alembic check
+
+# 自动生成迁移脚本
+alembic revision --autogenerate -m "add new table"
+
+# 应用迁移到最新版本
+alembic upgrade head
+
+# 回滚一个版本
+alembic downgrade -1
+
+# 查看迁移历史
+alembic history</code></pre>
+
+  <div class="card">
+    <h3>迁移目录结构</h3>
+    <pre><code>alembic/
+├── versions/
+│   ├── 4356fec95e3e_init.py              # 初始化迁移
+│   └── 8c945de89e0d_add_phase2_4_...py   # Phase 2-4 表迁移
+├── env.py                                 # 迁移环境配置
+└── script.py.mako                         # 迁移脚本模板</code></pre>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">开发流程</div>
+    <p>修改 <code>app/models/</code> 中的模型后，执行 <code>alembic revision --autogenerate</code> 生成迁移脚本，检查无误后 <code>alembic upgrade head</code> 应用。迁移脚本应纳入版本控制，确保团队数据库结构一致。</p>
+  </div>
+</section>
+
+<!-- 7. 测试 -->
+<section id="testing" aria-labelledby="testing-title">
+  <h2 class="section-title" id="testing-title"><span class="num">07</span>测试：pytest 302+ 用例</h2>
+  <p class="section-desc">平台拥有完善的测试套件，覆盖认证、项目、测量、设计、预算、采购、施工、结算等全模块。</p>
+
+  <h3>运行测试</h3>
+  <pre><code># 激活虚拟环境
+source .venv/bin/activate
+
+# 运行全部测试
+python -m pytest tests/ -v
+
+# 运行指定测试文件
+python -m pytest tests/test_auth.py -v
+
+# 运行并显示覆盖率
+python -m pytest tests/ --cov=app --cov-report=term-missing
+
+# 当前结果: 302 passed, 9 skipped</code></pre>
+
+  <h3>测试文件分布</h3>
+  <table>
+    <thead><tr><th>测试文件</th><th>覆盖模块</th></tr></thead>
+    <tbody>
+      <tr><td><code>test_auth.py</code></td><td>注册、登录、PASETO 令牌</td></tr>
+      <tr><td><code>test_projects.py</code></td><td>项目 CRUD、楼层房间</td></tr>
+      <tr><td><code>test_surveys.py</code></td><td>测量、AR 扫描会话</td></tr>
+      <tr><td><code>test_floorplans.py</code></td><td>户型方案</td></tr>
+      <tr><td><code>test_materials.py</code></td><td>物料、BOM、Excel 导出</td></tr>
+      <tr><td><code>test_budgets_and_agents.py</code></td><td>预算、AI Agent</td></tr>
+      <tr><td><code>test_procurement_construction.py</code></td><td>采购、施工</td></tr>
+      <tr><td><code>test_procurement_enhanced.py</code></td><td>采购增强</td></tr>
+      <tr><td><code>test_settlements.py</code></td><td>结算管理</td></tr>
+      <tr><td><code>test_websocket.py</code></td><td>WebSocket 实时通信</td></tr>
+      <tr><td><code>test_ar_scan.py</code></td><td>AR 空间测量</td></tr>
+      <tr><td><code>test_files_and_voice.py</code></td><td>文件上传、语音</td></tr>
+      <tr><td><code>test_visual_layer.py</code></td><td>VR 全景、AI 图生图</td></tr>
+      <tr><td>其余 7 个文件</td><td>垂直设计器、智能家居等</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="callout-label">关于 skipped</div>
+    <p>9 个 skipped 用例为 WebSocket 广播集成测试，需要运行中的服务实例。可通过 <code>bash scripts/demo-start.sh</code> 启动服务后运行。</p>
+  </div>
+
+  <h3>验收脚本</h3>
+  <pre><code># AC 验收报告
+bash scripts/verify-ac.sh
+# 最新结果: 33 通过 / 0 失败 / 3 跳过 (91%)
+
+# 全链路演示测试
+bash scripts/e2e-full.sh
+# 输出: reports/demo-YYYYMMDD-HHMMSS.md</code></pre>
+</section>
+
+<!-- 8. 部署 -->
+<section id="deploy" aria-labelledby="deploy-title">
+  <h2 class="section-title" id="deploy-title"><span class="num">08</span>部署：Nginx + uvicorn</h2>
+  <p class="section-desc">生产部署使用 Nginx 反向代理 + uvicorn ASGI 服务器。详细步骤请参阅部署指南。</p>
+
+  <pre><code># 一键部署
+bash scripts/deploy.sh start
+
+# 停止 / 重启 / 状态 / 日志
+bash scripts/deploy.sh stop
+bash scripts/deploy.sh restart
+bash scripts/deploy.sh status
+bash scripts/deploy.sh logs</code></pre>
+
+  <div class="callout">
+    <div class="callout-label">架构拓扑</div>
+    <p>客户端 (Web/Flutter) → Nginx (:8081) → uvicorn (:8000) → FastAPI App → SQLite。Nginx 负责静态文件服务、安全头、Gzip 压缩与 WebSocket 代理。完整部署细节请参阅<a href="deployment-guide.html">部署指南</a>。</p>
+  </div>
+</section>
+
+<!-- 9. 鸿蒙适配 -->
+<section id="harmony" aria-labelledby="harmony-title">
+  <h2 class="section-title" id="harmony-title"><span class="num">09</span>鸿蒙适配说明</h2>
+  <p class="section-desc">Flutter App 已完成 HarmonyOS（鸿蒙）原生适配。</p>
+
+  <div class="card">
+    <h3>适配版本</h3>
+    <ul>
+      <li><strong>Flutter</strong> — 3.35.7-ohos-0.0.3（鸿蒙定制版 Flutter）</li>
+      <li><strong>HarmonyOS API</strong> — 23+（DevEco Studio）</li>
+      <li><strong>目标设备</strong> — 华为 MatePad / MatePad Pro 等平板设备</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>适配要点</h3>
+    <ul>
+      <li><strong>AR Engine</strong> — AR 空间测量通过 MethodChannel 调用鸿蒙原生 AR Engine，实现与 ARKit / ARCore 对等的扫描能力。</li>
+      <li><strong>手写笔</strong> — <code>stylus_adapter.dart</code> 适配华为 M-Pencil，支持压感与手势绘制。</li>
+      <li><strong>CustomPainter</strong> — 2D CAD 引擎基于 CustomPainter 实现，跨平台一致。</li>
+      <li><strong>HAP 构建</strong> — <code>scripts/deploy-ohos.sh</code> 一键构建 HAP 包并部署到 DevEco Studio。</li>
+    </ul>
+  </div>
+
+  <h3>鸿蒙相关脚本</h3>
+  <pre><code># 环境诊断
+bash scripts/check-ohos-env.sh
+
+# HAP 构建部署
+bash scripts/deploy-ohos.sh
+
+# MatePad 真机测试
+bash scripts/matepad-test.sh
+
+# MatePad 性能验收
+bash scripts/bench-matepad.sh</code></pre>
+
+  <div class="callout success">
+    <div class="callout-label">升级指南</div>
+    <p>鸿蒙 Flutter 版本升级请参阅 <code>flutter_app/ohos/OHOS_UPGRADE_GUIDE.md</code>，包含版本兼容性与迁移注意事项。</p>
+  </div>
+</section>
+
+<footer class="doc-footer" role="contentinfo">
+  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.1</p>
+  <p>本指南最后更新于 2026-07-12</p>
+  <div class="footer-links">
+    <a href="../../web/index.html">返回主站</a>
+    <a href="user-guide.html">用户使用指南</a>
+    <a href="deployment-guide.html">部署指南</a>
+    <a href="../legal/privacy-policy.html">隐私政策</a>
+    <a href="../legal/terms-of-service.html">服务条款</a>
+  </div>
+</footer>
+
+</main>
+</body>
+</html>

@@ -131,7 +131,7 @@
 | 项 | 内容 |
 |---|---|
 | 前置条件 | UAT-01-02 项目已存在，已生成户型 |
-| 测试步骤 | 1. `POST /api/materials/bom` 生成 BOM（含至少 1 项物料）<br>2. `POST /api/budgets/generate-from-bom/{bom_id}` 生成预算<br>3. 校验预算 total 与 BOM 汇总一致<br>4. `POST /api/procurement/orders` 创建采购单<br>5. 校验采购金额与预算一致 |
+| 测试步骤 | 1. `POST /api/materials/bom` 生成 BOM（含至少 1 项物料）<br>2. `POST /api/budgets/generate-from-bom/{bom_id}` 生成预算<br>3. 校验预算 total 与 BOM 汇总一致<br>4. `POST /api/procurement/orders` 创建采购单（注意: 请求体使用 `lines` 字段而非 `items`）<br>5. 校验采购金额与预算一致 |
 | 预期结果 | BOM→预算→采购金额链路数值一致（参考 SIT 实测 total=9900） |
 | 验收标准 | AC-MONEY-1：BOM 汇总 = 预算 total = 采购金额；AC-MONEY-2：精度保留 2 位小数 |
 | 优先级 | High |
@@ -615,15 +615,27 @@
 
 执行 UAT 前请逐项确认：
 
-- [ ] 远程环境 `GET /health` 返回 `{"status":"ok"}`
-- [ ] `GET /api/docs` 可访问 Swagger
-- [ ] 演示账号 `13800138000 / 123456` 可登录
+- [x] 远程环境 `GET /health` 返回 `{"status":"ok"}` ✅ (2026-07-08 verified)
+- [x] `GET /api/docs` 可访问 Swagger ✅
+- [x] 演示账号 `13800138000 / 123456` 可登录 ✅
 - [ ] 测试账号已批量注册（业主/设计师/施工方/供应商各 ≥ 1）
 - [ ] Chrome / Safari / Edge / MatePad / iPhone / Android 已就绪
 - [ ] 压测工具（locust 或 wrk）已安装
 - [ ] Chrome DevTools / FPS 工具就绪
 - [ ] 缺陷管理工具可用
 - [ ] 用户代表已就位
+
+### 9.1 API 路径纠错（执行中发现的文档偏差）
+
+| 文档路径 (错误) | 正确路径 | 说明 |
+|---|---|---|
+| `POST /api/agents/design` (prompt) | `POST /api/agents/design` (message) | 请求体字段为 `message` 而非 `prompt` |
+| `POST /api/workers/match` (role, city, style) | `POST /api/workers/match` (project_id 必填) | 需传 `project_id` |
+| `GET /api/budgets` | `GET /api/budgets/project/{project_id}` | 需要 project_id 路径参数 |
+| `GET /api/settlements` | `GET /api/settlements/project/{project_id}` | 需要 project_id 路径参数 |
+| `GET /api/construction/tasks` | `GET /api/construction/tasks?project_id={id}` | 需要 query 参数 |
+| `POST /api/procurement-enhanced/escrow-payments` | `POST /api/procurement-enhanced/escrow` | 路径与文档不符 |
+| `POST /api/procurement-enhanced/escrow` | 需要 `order_id` 字段 | 文档未说明必填字段 |
 
 ---
 

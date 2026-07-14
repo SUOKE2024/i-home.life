@@ -108,6 +108,7 @@ class DrawingElement {
         'name': name,
         'layer': layer,
         'is_wall': isWall,
+        'color': color.value,
       };
 
   factory DrawingElement.fromJson(Map<String, dynamic> json) {
@@ -131,6 +132,9 @@ class DrawingElement {
     } else {
       el = DrawingElement.rect(n('x'), n('y'), n('w'), n('h'),
           name: name, layer: layer, isWall: isWall);
+    }
+    if (json['color'] != null) {
+      el.color = Color((json['color'] as num).toInt());
     }
     return el;
   }

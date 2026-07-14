@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.material import BOMItem, Material, MaterialCategory
-from app.models.procurement import Supplier, Quotation, ProcurementOrder
+from app.models.procurement import Supplier, ProcurementOrder
 from app.models.procurement_enhanced import (
     PriceComparison,
     PriceComparisonItem,
@@ -370,6 +370,16 @@ async def create_escrow_payment(db: AsyncSession, order_id: str) -> EscrowPaymen
 async def get_escrow(db: AsyncSession, escrow_id: str) -> EscrowPayment | None:
     result = await db.execute(select(EscrowPayment).where(EscrowPayment.id == escrow_id))
     return result.scalar_one_or_none()
+
+
+async def list_order_escrow(db: AsyncSession, order_id: str) -> list[EscrowPayment]:
+    """按订单查询担保支付记录。"""
+    result = await db.execute(
+        select(EscrowPayment)
+        .where(EscrowPayment.order_id == order_id)
+        .order_by(EscrowPayment.created_at.desc())
+    )
+    return list(result.scalars().all())
 
 
 async def buyer_pay(db: AsyncSession, escrow_id: str) -> EscrowPayment | None:

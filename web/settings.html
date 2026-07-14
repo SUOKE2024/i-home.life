@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="设置 · 索克家居">
+<meta property="og:title" content="设置 · 索克家居">
+<meta property="og:description" content="个性化设置您的索克家居 AI 工作台">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="preload" href="assets/css/workbench.css?v=20260714c" as="style">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260714c">
+<link rel="manifest" href="manifest.json">
+<title>设置 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","name":"设置 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"}}
+</script>
+</head>
+<body>
+<a href="#account-section" class="skip-link">跳到主内容</a>
+<main class="settings-container" role="main">
+  <section class="settings-card" aria-label="设置">
+    <div class="settings-brand">
+      <div class="settings-avatar-wrap" id="settings-avatar-wrap" role="button" tabindex="0" aria-label="点击更换头像" title="点击更换头像" style="cursor:pointer;position:relative;width:64px;height:64px;margin:0 auto 16px">
+        <img id="settings-avatar-img" src="" alt="用户头像" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)" loading="lazy" decoding="async">
+        <span class="settings-avatar-badge" style="position:absolute;bottom:-2px;right:-2px;background:var(--accent);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;border:2px solid var(--bg-card)">🔄</span>
+      </div>
+      <!-- 头像选择弹窗 -->
+      <div class="settings-avatar-popover" id="settings-avatar-popover" style="display:none;position:absolute;top:80px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border-active);border-radius:var(--radius-md);padding:12px;z-index:100;max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+        <div class="avatar-grid" id="avatar-grid" role="radiogroup" aria-label="头像选择" style="max-width:320px;max-height:200px;overflow-y:auto"></div>
+        <button class="avatar-random-btn" id="avatar-random-btn" style="margin-top:8px">🎲 随机换一个</button>
+      </div>
+    </div>
+
+    <!-- 账户 -->
+    <div class="settings-section" id="account-section">
+      <div class="settings-section-title">账户</div>
+      <div class="settings-list">
+        <div class="settings-item">
+          <span>👤 昵称</span>
+          <div class="settings-item-edit">
+            <input type="text" id="user-name-input" class="settings-input" value="加载中…" maxlength="20" aria-label="修改昵称" style="display:none">
+            <span class="settings-item-value" id="user-name">加载中…</span>
+            <button class="edit-btn" id="edit-name-btn" aria-label="修改昵称" title="修改昵称">✏️</button>
+            <button class="save-btn" id="save-name-btn" style="display:none" aria-label="保存昵称">✓</button>
+            <button class="cancel-btn" id="cancel-name-btn" style="display:none" aria-label="取消修改">✕</button>
+          </div>
+        </div>
+        <div class="settings-item">
+          <span>🎭 角色</span>
+          <span class="settings-item-value" id="user-role">—</span>
+        </div>
+        <div class="settings-item">
+          <span>📱 手机号</span>
+          <span class="settings-item-value" id="user-phone">—</span>
+        </div>
+        <div class="settings-item">
+          <span>🔐 修改密码 / PASETO</span>
+          <span class="settings-item-value">→</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 通知 -->
+    <div class="settings-section">
+      <div class="settings-section-title">通知</div>
+      <div class="settings-list">
+        <div class="settings-item">
+          <span>🔔 待审批提醒</span>
+          <button class="toggle on" data-key="notify_approval" aria-label="待审批提醒开关"></button>
+        </div>
+        <div class="settings-item">
+          <span>📜 施工日报</span>
+          <button class="toggle on" data-key="notify_daily" aria-label="施工日报开关"></button>
+        </div>
+        <div class="settings-item">
+          <span>⚠️ 质检异常</span>
+          <button class="toggle on" data-key="notify_quality" aria-label="质检异常开关"></button>
+        </div>
+        <div class="settings-item">
+          <span>🤝 Agent 协作通知</span>
+          <button class="toggle" data-key="notify_collab" aria-label="Agent 协作通知开关"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 偏好 -->
+    <div class="settings-section">
+      <div class="settings-section-title">偏好</div>
+      <div class="settings-list">
+        <div class="settings-item">
+          <span>🌙 深色模式</span>
+          <span class="settings-item-value">当前</span>
+        </div>
+        <div class="settings-item">
+          <span>🌐 语言</span>
+          <span class="settings-item-value">中文</span>
+        </div>
+        <div class="settings-item">
+          <span>🔇 勿扰时段</span>
+          <span class="settings-item-value">22:00-08:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 其他 -->
+    <div class="settings-section">
+      <div class="settings-section-title">其他</div>
+      <div class="settings-list">
+        <div class="settings-item"><span>📄 项目档案</span><span class="settings-item-value">→</span></div>
+        <div class="settings-item"><span>❓ 帮助中心</span><span class="settings-item-value">→</span></div>
+        <div class="settings-item"><span>ℹ️ 关于索克家居</span><span class="settings-item-value">→</span></div>
+        <div class="settings-item"><button class="btn btn-secondary btn-danger" id="logout-btn" style="width:100%;text-align:left">退出登录</button></div>
+      </div>
+    </div>
+
+    <p class="form-hint">
+      <a href="workbench.html">← 返回工作台</a>
+    </p>
+  </section>
+</main>
+
+<script src="assets/js/api-client.js?v=20260714b"></script>
+<script>
+(function() {
+  // ============ 头像选择器 ============
+  const avatarBasePath = 'assets/images/avatars/hand-drawn-profiles/';
+  const TOTAL_AVATARS = 110;
+  const avatarGrid = document.getElementById('avatar-grid');
+  const avatarImg = document.getElementById('settings-avatar-img');
+  const avatarWrap = document.getElementById('settings-avatar-wrap');
+  const avatarPopover = document.getElementById('settings-avatar-popover');
+  let currentAvatar = localStorage.getItem('avatar') || (Math.floor(Math.random() * TOTAL_AVATARS) + 1) + '.png';
+
+  // 初始化头像
+  avatarImg.src = avatarBasePath + currentAvatar;
+
+  // 生成头像网格
+  for (let i = 1; i <= TOTAL_AVATARS; i++) {
+    const filename = i + '.png';
+    const thumb = document.createElement('div');
+    thumb.className = 'avatar-thumb';
+    thumb.style.backgroundImage = `url('${avatarBasePath}${filename}')`;
+    thumb.dataset.avatar = filename;
+    thumb.setAttribute('role', 'radio');
+    thumb.setAttribute('aria-checked', currentAvatar === filename ? 'true' : 'false');
+    thumb.setAttribute('aria-label', '头像 ' + i);
+    thumb.tabIndex = 0;
+    if (currentAvatar === filename) thumb.classList.add('selected');
+    avatarGrid.appendChild(thumb);
+  }
+
+  function selectAvatar(filename) {
+    currentAvatar = filename;
+    localStorage.setItem('avatar', currentAvatar);
+    avatarImg.src = avatarBasePath + currentAvatar;
+
+    avatarGrid.querySelectorAll('.avatar-thumb').forEach(function(t) {
+      t.classList.remove('selected');
+      t.setAttribute('aria-checked', 'false');
+    });
+    var selected = avatarGrid.querySelector('[data-avatar="' + currentAvatar + '"]');
+    if (selected) {
+      selected.classList.add('selected');
+      selected.setAttribute('aria-checked', 'true');
+    }
+  }
+
+  // 点击/键盘触发头像区域 → 切换弹窗
+  function togglePopover() {
+    avatarPopover.style.display = avatarPopover.style.display === 'none' ? 'block' : 'none';
+  }
+  avatarWrap.addEventListener('click', togglePopover);
+  avatarWrap.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePopover(); }
+  });
+
+  // 点击弹窗外部关闭
+  document.addEventListener('click', function(e) {
+    if (!avatarWrap.contains(e.target) && !avatarPopover.contains(e.target)) {
+      avatarPopover.style.display = 'none';
+    }
+  });
+
+  // 点击选择头像
+  avatarGrid.addEventListener('click', function(e) {
+    var thumb = e.target.closest('.avatar-thumb');
+    if (!thumb) return;
+    selectAvatar(thumb.dataset.avatar);
+    avatarPopover.style.display = 'none';
+  });
+
+  // 键盘选择
+  avatarGrid.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      var thumb = e.target.closest('.avatar-thumb');
+      if (thumb) {
+        e.preventDefault();
+        selectAvatar(thumb.dataset.avatar);
+        avatarPopover.style.display = 'none';
+      }
+    }
+  });
+
+  // 随机按钮
+  document.getElementById('avatar-random-btn').addEventListener('click', function() {
+    var randomIndex = Math.floor(Math.random() * TOTAL_AVATARS) + 1;
+    selectAvatar(randomIndex + '.png');
+  });
+
+  // ============ 昵称编辑 ============
+  const userNameSpan = document.getElementById('user-name');
+  const userNameInput = document.getElementById('user-name-input');
+  const editNameBtn = document.getElementById('edit-name-btn');
+  const saveNameBtn = document.getElementById('save-name-btn');
+  const cancelNameBtn = document.getElementById('cancel-name-btn');
+
+  editNameBtn.addEventListener('click', function() {
+    userNameInput.value = userNameSpan.textContent;
+    userNameSpan.style.display = 'none';
+    editNameBtn.style.display = 'none';
+    userNameInput.style.display = 'inline-block';
+    saveNameBtn.style.display = 'inline-block';
+    cancelNameBtn.style.display = 'inline-block';
+    userNameInput.focus();
+    userNameInput.select();
+  });
+
+  saveNameBtn.addEventListener('click', function() {
+    var newName = userNameInput.value.trim();
+    if (!newName) { newName = '用户'; }
+    localStorage.setItem('nickname', newName);
+    userNameSpan.textContent = newName;
+    userNameInput.style.display = 'none';
+    saveNameBtn.style.display = 'none';
+    cancelNameBtn.style.display = 'none';
+    userNameSpan.style.display = 'inline';
+    editNameBtn.style.display = 'inline';
+  });
+
+  cancelNameBtn.addEventListener('click', function() {
+    userNameInput.style.display = 'none';
+    saveNameBtn.style.display = 'none';
+    cancelNameBtn.style.display = 'none';
+    userNameSpan.style.display = 'inline';
+    editNameBtn.style.display = 'inline';
+  });
+
+  userNameInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') saveNameBtn.click();
+    if (e.key === 'Escape') cancelNameBtn.click();
+  });
+
+  // ============ 开关 ============
+  document.querySelectorAll('.toggle').forEach(toggle => {
+    const key = toggle.dataset.key;
+    // 从 localStorage 恢复
+    const saved = localStorage.getItem(`setting_${key}`);
+    if (saved === 'off') {
+      toggle.classList.remove('on');
+    }
+    toggle.addEventListener('click', () => {
+      toggle.classList.toggle('on');
+      localStorage.setItem(`setting_${key}`, toggle.classList.contains('on') ? 'on' : 'off');
+    });
+  });
+
+  // ============ 用户信息 ============
+  async function loadUser() {
+    // 优先从 localStorage 读取自定义昵称
+    var savedNick = localStorage.getItem('nickname');
+    if (savedNick) {
+      document.getElementById('user-name').textContent = savedNick;
+    }
+    try {
+      const user = await ApiClient.getCurrentUser();
+      if (!savedNick) {
+        document.getElementById('user-name').textContent = user.name || user.nickname || '用户';
+      }
+      const roleMap = {
+          owner: '业主', homeowner: '业主', designer: '设计师',
+          supplier: '供应商', foreman: '工长', contractor: '工长',
+        };
+      document.getElementById('user-role').textContent = roleMap[user.role] || user.role || '—';
+      document.getElementById('user-phone').textContent = user.phone ? user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : '—';
+    } catch (e) {
+      if (!savedNick) {
+        document.getElementById('user-name').textContent = '演示用户';
+      }
+      document.getElementById('user-role').textContent = '业主';
+      document.getElementById('user-phone').textContent = '138****8888';
+    }
+  }
+
+  // ============ 退出登录 ============
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    if (!confirm('确定退出登录？')) return;
+    ApiClient.clearToken();
+    if (typeof IMClient !== 'undefined' && IMClient.close) IMClient.close();
+    window.location.href = 'index.html';
+  });
+
+  loadUser();
+})();
+</script>
+<script src="assets/js/analytics.js?v=20260714b"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

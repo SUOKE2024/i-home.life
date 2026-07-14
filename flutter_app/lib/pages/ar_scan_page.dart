@@ -96,7 +96,31 @@ class _ARScanPageState extends State<ARScanPage> {
     String arEngineVersion = '';
     String deviceModel = '';
 
-    if (Platform.isIOS) {
+    // 优先通过 MethodChannel 询问原生平台 (Flutter-OH 在鸿蒙会返回 'harmonyos')
+    // 标准 Flutter 在 iOS/Android 上调用未注册的 channel 方法会抛 MissingPluginException
+    String platformName = '';
+    try {
+      platformName = await _arChannel.invokeMethod<String>('getPlatform') ?? '';
+    } on PlatformException {
+      platformName = '';
+    } on MissingPluginException {
+      platformName = '';
+    }
+
+    if (platformName == 'harmonyos' || platformName == 'ohos') {
+      platform = _Platform.harmonyos;
+      // 通过 MethodChannel 询问 AR Engine 能力
+      try {
+        final result = await _arChannel.invokeMethod<Map>('detectCapability');
+        arEngineVersion = result?['ar_engine_version'] as String? ?? '';
+        deviceModel = result?['device_model'] as String? ?? 'HarmonyOS Device';
+        // HarmonyOS AR Engine 6.0+ 支持视觉 SLAM
+        hasLidar = result?['has_lidar'] as bool? ?? false;
+      } on PlatformException {
+        arEngineVersion = '6.0';
+        deviceModel = 'HarmonyOS Device';
+      }
+    } else if (Platform.isIOS) {
       platform = _Platform.ios;
       // 通过 MethodChannel 询问原生 ARKit 能力
       try {
@@ -140,28 +164,29 @@ class _ARScanPageState extends State<ARScanPage> {
   }
 
   Future<void> _queryDeviceCapability() async {
-    try {
-      final result = await _api.post('/surveys/ar/device-capability', {
-        'platform': _platform.name,
-        'device_model': _deviceModel,
-        'has_lidar': _hasLidar,
-        'supports_roomplan': _supportsRoomplan,
-        'arkit_version': _arkitVersion,
-        'arcore_version': _arcoreVersion,
-        'ar_engine_version': _arEngineVersion,
-        'supports_photogrammetry': true,
-      });
+    final result = await _api.post('/surveys/ar/device-capability', {
+      'platform': _platform.name,
+      'device_model': _deviceModel,
+      'has_lidar': _hasLidar,
+      'supports_roomplan': _supportsRoomplan,
+      'arkit_version': _arkitVersion,
+      'arcore_version': _arcoreVersion,
+      'ar_engine_version': _arEngineVersion,
+      'supports_photogrammetry': true,
+    });
+    if (result.isSuccess) {
+      final data = result.data as Map<String, dynamic>? ?? {};
       setState(() {
-        _recommendedMethod = result['recommended_method'] as String? ?? 'manual';
-        _availableMethods = List<String>.from(result['available_methods'] ?? ['manual']);
-        _fallbackChain = List<String>.from(result['fallback_chain'] ?? ['manual']);
-        _estimatedAccuracyCm = (result['estimated_accuracy_cm'] as num?)?.toDouble() ?? 5.0;
-        _estimatedScanTimeMin = result['estimated_scan_time_per_room_min'] as int? ?? 10;
+        _recommendedMethod = data['recommended_method'] as String? ?? 'manual';
+        _availableMethods = List<String>.from(data['available_methods'] ?? ['manual']);
+        _fallbackChain = List<String>.from(data['fallback_chain'] ?? ['manual']);
+        _estimatedAccuracyCm = (data['estimated_accuracy_cm'] as num?)?.toDouble() ?? 5.0;
+        _estimatedScanTimeMin = data['estimated_scan_time_per_room_min'] as int? ?? 10;
         _state = _ScanState.ready;
       });
-    } catch (e) {
+    } else {
       setState(() {
-        _errorMessage = '设备能力检测失败: $e';
+        _errorMessage = '设备能力检测失败: ${result.error}';
         _state = _ScanState.ready;
         _recommendedMethod = 'manual';
         _availableMethods = ['manual'];
@@ -172,61 +197,62 @@ class _ARScanPageState extends State<ARScanPage> {
 
   Future<void> _createSession() async {
     setState(() => _errorMessage = '');
-    try {
-      final session = await _api.post('/surveys/ar/sessions', {
-        'project_id': widget.projectId,
-        'name': _sessionName,
+    final result = await _api.post('/surveys/ar/sessions', {
+      'project_id': widget.projectId,
+      'name': _sessionName,
+      'platform': _platform.name,
+      'requested_method': _recommendedMethod,
+      'device_capability': {
         'platform': _platform.name,
-        'requested_method': _recommendedMethod,
-        'device_capability': {
-          'platform': _platform.name,
-          'device_model': _deviceModel,
-          'has_lidar': _hasLidar,
-          'supports_roomplan': _supportsRoomplan,
-          'arkit_version': _arkitVersion,
-          'arcore_version': _arcoreVersion,
-          'ar_engine_version': _arEngineVersion,
-        },
-        'floor_count': _floorCount,
-        'wall_height': _wallHeight,
-      });
+        'device_model': _deviceModel,
+        'has_lidar': _hasLidar,
+        'supports_roomplan': _supportsRoomplan,
+        'arkit_version': _arkitVersion,
+        'arcore_version': _arcoreVersion,
+        'ar_engine_version': _arEngineVersion,
+      },
+      'floor_count': _floorCount,
+      'wall_height': _wallHeight,
+    });
+    if (result.isSuccess) {
+      final session = result.data as Map<String, dynamic>;
       setState(() => _sessionId = session['id']);
       await _startScan();
-    } catch (e) {
-      setState(() => _errorMessage = '创建扫描会话失败: $e');
+    } else {
+      setState(() => _errorMessage = '创建扫描会话失败: ${result.error}');
     }
   }
 
   Future<void> _startScan() async {
     if (_sessionId == null) return;
-    try {
-      await _api.post('/surveys/ar/sessions/$_sessionId/start', {});
-      setState(() => _state = _ScanState.scanning);
+    final startResult = await _api.post('/surveys/ar/sessions/$_sessionId/start', {});
+    if (!startResult.isSuccess) {
+      setState(() => _errorMessage = '启动扫描失败: ${startResult.error}');
+      return;
+    }
+    setState(() => _state = _ScanState.scanning);
 
-      // 调用原生 AR 扫描
-      try {
-        final scanResult = await _arChannel.invokeMethod<Map>('startScan', {
-          'session_id': _sessionId,
-          'method': _recommendedMethod,
+    // 调用原生 AR 扫描
+    try {
+      final scanResult = await _arChannel.invokeMethod<Map>('startScan', {
+        'session_id': _sessionId,
+        'method': _recommendedMethod,
+      });
+      final modelPath = scanResult?['model_path'] as String?;
+      final modelFormat = scanResult?['model_format'] as String? ?? 'usdz';
+      final pointsCount = scanResult?['points_count'] as int? ?? 0;
+      final durationSec = scanResult?['duration_sec'] as int? ?? 0;
+      await _uploadAndProcess(modelPath, modelFormat, pointsCount, durationSec);
+    } on PlatformException catch (e) {
+      // 原生 AR 不可用,使用 mock 数据测试
+      if (AppConfig.debugMode) {
+        await _uploadAndProcess(null, 'usdz', 50000, 180);
+      } else {
+        setState(() {
+          _errorMessage = 'AR 扫描失败: ${e.message}\n建议切换到手动测量模式';
+          _state = _ScanState.failed;
         });
-        final modelPath = scanResult?['model_path'] as String?;
-        final modelFormat = scanResult?['model_format'] as String? ?? 'usdz';
-        final pointsCount = scanResult?['points_count'] as int? ?? 0;
-        final durationSec = scanResult?['duration_sec'] as int? ?? 0;
-        await _uploadAndProcess(modelPath, modelFormat, pointsCount, durationSec);
-      } on PlatformException catch (e) {
-        // 原生 AR 不可用,使用 mock 数据测试
-        if (AppConfig.debugMode) {
-          await _uploadAndProcess(null, 'usdz', 50000, 180);
-        } else {
-          setState(() {
-            _errorMessage = 'AR 扫描失败: ${e.message}\n建议切换到手动测量模式';
-            _state = _ScanState.failed;
-          });
-        }
       }
-    } catch (e) {
-      setState(() => _errorMessage = '启动扫描失败: $e');
     }
   }
 
@@ -237,41 +263,42 @@ class _ARScanPageState extends State<ARScanPage> {
 
     String? modelUrl;
     if (modelPath != null) {
-      try {
-        final uploadResult = await _api.uploadFile(
-          '/files/upload',
-          filePath: modelPath,
-          projectId: widget.projectId,
-        );
-        modelUrl = uploadResult['url'] as String?;
-      } catch (e) {
+      final uploadResult = await _api.uploadFile(
+        '/files/upload',
+        filePath: modelPath,
+        projectId: widget.projectId,
+      );
+      if (uploadResult.isSuccess) {
+        modelUrl = uploadResult.data?['url'] as String?;
+      } else {
         // 上传失败仍可处理 (使用 mock 数据)
-        debugPrint('模型上传失败: $e');
+        debugPrint('模型上传失败: ${uploadResult.error}');
       }
     }
 
     setState(() => _state = _ScanState.processing);
-    try {
-      final result = await _api.post('/surveys/ar/sessions/$_sessionId/process', {
-        'model_url': modelUrl,
-        'model_format': modelFormat,
-        'scan_points_count': pointsCount,
-        'scan_duration_sec': durationSec,
-      });
+    final result = await _api.post('/surveys/ar/sessions/$_sessionId/process', {
+      'model_url': modelUrl,
+      'model_format': modelFormat,
+      'scan_points_count': pointsCount,
+      'scan_duration_sec': durationSec,
+    });
+    if (result.isSuccess) {
+      final data = result.data as Map<String, dynamic>? ?? {};
       setState(() {
         _state = _ScanState.completed;
-        _roomCount = result['room_count'] as int? ?? 0;
-        _totalArea = (result['total_area'] as num?)?.toDouble() ?? 0.0;
-        _wallFeaturesAdded = result['wall_features_added'] as int? ?? 0;
-        final accuracy = result['accuracy_report'] as Map<String, dynamic>?;
+        _roomCount = data['room_count'] as int? ?? 0;
+        _totalArea = (data['total_area'] as num?)?.toDouble() ?? 0.0;
+        _wallFeaturesAdded = data['wall_features_added'] as int? ?? 0;
+        final accuracy = data['accuracy_report'] as Map<String, dynamic>?;
         if (accuracy != null) {
           _accuracyLevel = accuracy['accuracy_level'] as String? ?? '';
           _rmsErrorCm = (accuracy['rms_error_cm'] as num?)?.toDouble();
         }
       });
-    } catch (e) {
+    } else {
       setState(() {
-        _errorMessage = '处理扫描数据失败: $e';
+        _errorMessage = '处理扫描数据失败: ${result.error}';
         _state = _ScanState.failed;
       });
     }
@@ -288,15 +315,16 @@ class _ARScanPageState extends State<ARScanPage> {
       );
       return;
     }
-    try {
-      final point = await _api.post('/surveys/ar/points', {
-        'session_id': _sessionId,
-        'label': label,
-        'point_type': 'distance',
-        'ar_value': arValue,
-        'reference_value': refValue,
-        'unit': 'm',
-      });
+    final result = await _api.post('/surveys/ar/points', {
+      'session_id': _sessionId,
+      'label': label,
+      'point_type': 'distance',
+      'ar_value': arValue,
+      'reference_value': refValue,
+      'unit': 'm',
+    });
+    if (result.isSuccess) {
+      final point = result.data as Map<String, dynamic>;
       setState(() {
         _calibrationPoints.add({
           'id': point['id'],
@@ -311,23 +339,24 @@ class _ARScanPageState extends State<ARScanPage> {
       _labelCtrl.clear();
       _arValueCtrl.clear();
       _refValueCtrl.clear();
-    } catch (e) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('添加校准点失败: $e')),
+        SnackBar(content: Text('添加校准点失败: ${result.error}')),
       );
     }
   }
 
   Future<void> _applyToSurvey() async {
     if (_sessionId == null) return;
-    try {
-      final result = await _api.post('/surveys/ar/sessions/$_sessionId/apply', {});
+    final result = await _api.post('/surveys/ar/sessions/$_sessionId/apply', {});
+    if (result.isSuccess) {
+      final data = result.data as Map<String, dynamic>? ?? {};
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已应用到测量记录: ${result['rooms_added']} 个房间')),
+        SnackBar(content: Text('已应用到测量记录: ${data['rooms_added']} 个房间')),
       );
-    } catch (e) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('应用失败: $e')),
+        SnackBar(content: Text('应用失败: ${result.error}')),
       );
     }
   }
@@ -380,6 +409,25 @@ class _ARScanPageState extends State<ARScanPage> {
       'photogrammetry': '照片建模',
       'manual': '手动测量',
     };
+    // 平台友好显示
+    String platformDisplay;
+    switch (_platform) {
+      case _Platform.ios:
+        platformDisplay = 'iOS';
+        break;
+      case _Platform.android:
+        platformDisplay = 'Android';
+        break;
+      case _Platform.harmonyos:
+        platformDisplay = 'HarmonyOS';
+        break;
+      case _Platform.web:
+        platformDisplay = 'Web';
+        break;
+      case _Platform.unknown:
+        platformDisplay = 'Unknown';
+        break;
+    }
     return Card(
       color: const Color(0xFF1A1A2E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -399,12 +447,13 @@ class _ARScanPageState extends State<ARScanPage> {
               ],
             ),
             const SizedBox(height: 12),
-            _infoRow('平台', _platform.name.toUpperCase()),
+            _infoRow('平台', platformDisplay),
             _infoRow('设备', _deviceModel),
             _infoRow('LiDAR', _hasLidar ? '✓ 支持' : '✗ 不支持'),
             if (_supportsRoomplan) _infoRow('RoomPlan', '✓ 支持 (iOS 16+)'),
             if (_arkitVersion.isNotEmpty) _infoRow('ARKit', _arkitVersion),
             if (_arcoreVersion.isNotEmpty) _infoRow('ARCore', _arcoreVersion),
+            if (_arEngineVersion.isNotEmpty) _infoRow('AR Engine', _arEngineVersion),
             const Divider(color: Color(0xFF2A2A3E), height: 24),
             _infoRow('推荐方法', methodLabels[_recommendedMethod] ?? _recommendedMethod),
             _infoRow('预计精度', '±${_estimatedAccuracyCm.toStringAsFixed(1)} cm'),

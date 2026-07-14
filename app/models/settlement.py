@@ -17,6 +17,13 @@ class Settlement(Base):
     actual_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     payable_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    # F14 异常检测与人工复核字段
+    anomaly_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    critical_anomaly_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    suggested_deduction: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    review_required: Mapped[bool] = mapped_column(default=False, nullable=False)
+    review_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -38,6 +45,11 @@ class SettlementLine(Base):
     actual_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # F14 异常标记字段
+    is_anomaly: Mapped[bool] = mapped_column(default=False, nullable=False)
+    anomaly_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    anomaly_severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    anomaly_detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
