@@ -85,6 +85,14 @@ class _ARScanPageState extends State<ARScanPage> {
     _detectPlatform();
   }
 
+  @override
+  void dispose() {
+    _labelCtrl.dispose();
+    _arValueCtrl.dispose();
+    _refValueCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _detectPlatform() async {
     setState(() => _state = _ScanState.detecting);
 

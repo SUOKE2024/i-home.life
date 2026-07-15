@@ -1,12 +1,13 @@
 """任务协调 API — 任务池、申领、候选人排序、分配、完成"""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
+from app.models.project import Project
 from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
 from app.auth import get_current_user
 from app.schemas.task import (
@@ -18,6 +19,25 @@ from app.services import points_service
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/tasks", tags=["任务协调"])
+
+
+async def _verify_project_owner(db: AsyncSession, project_id: str, user: User) -> Project:
+    """校验当前用户是项目所有者（admin 角色豁免），否则抛 403"""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if user.role != "admin" and project.owner_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    return project
+
+
+async def _verify_task_owner(db: AsyncSession, task_id: str, user: User) -> OrchestratorTask:
+    """校验任务存在且其所属项目归当前用户所有（admin 豁免），否则抛 403/404"""
+    task = await db.get(OrchestratorTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await _verify_project_owner(db, task.project_id, user)
+    return task
 
 
 def _task_to_response(task: OrchestratorTask, candidates: list | None = None) -> TaskResponse:
@@ -60,6 +80,7 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
 ):
     """创建任务（业主或总控Agent）"""
+    await _verify_project_owner(db, data.project_id, current_user)
     task = OrchestratorTask(
         project_id=data.project_id,
         task_type=data.task_type,
@@ -113,6 +134,7 @@ async def get_project_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     """获取项目的所有任务"""
+    await _verify_project_owner(db, project_id, current_user)
     stmt = (
         select(OrchestratorTask)
         .where(OrchestratorTask.project_id == project_id)
@@ -204,6 +226,7 @@ async def get_task_candidates(
     db: AsyncSession = Depends(get_db),
 ):
     """查看任务候选人（按积分/经验/评分排序）"""
+    await _verify_task_owner(db, task_id, current_user)
     candidates = await task_service.rank_candidates(db, task_id)
     return [
         TaskCandidateResponse(
@@ -225,6 +248,7 @@ async def assign_task(
     db: AsyncSession = Depends(get_db),
 ):
     """业主选择候选人分配任务"""
+    await _verify_task_owner(db, data.task_id, current_user)
     task = await task_service.assign_task(db, task_id=data.task_id, user_id=data.user_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -248,10 +272,24 @@ async def complete_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """完成任务"""
+    """完成任务（项目所有者或被分配者）"""
+    task = await db.get(OrchestratorTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    # 项目所有者（或 admin）可完成；被分配该任务的施工方也可完成
+    if current_user.role != "admin":
+        project = await db.get(Project, task.project_id)
+        if not project or (
+            project.owner_id != current_user.id
+            and task.assigned_user_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权完成该任务",
+            )
     task = await task_service.complete_task(db, task_id=task_id, result=result)
     if not task:
-        raise HTTPException(status_code=404, detail="任务不存在")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
 
     # 奖励积分：完成任务
     if task.assigned_user_id:

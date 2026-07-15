@@ -24,6 +24,14 @@ dependencies:
   image_picker: ^1.1.0
   # 状态管理
   provider: ^6.1.2
+  # 生物识别认证（指纹/面容）
+  # 注意: 仅 Android/iOS 完整支持；鸿蒙平台会自动降级为关闭
+  local_auth: ^3.0.2
+  # 本地通知
+  # 注意: 仅 Android/iOS 完整支持；鸿蒙平台通过 try-catch 优雅降级
+  flutter_local_notifications: ^22.0.1
+  # 平台权限请求（通知/相机等）
+  permission_handler: ^12.0.3
   # 工具
   intl: ^0.20.3
   uuid: ^4.4.0

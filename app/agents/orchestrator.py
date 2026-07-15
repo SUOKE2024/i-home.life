@@ -5,7 +5,8 @@ from app.agents.base import BaseAgent
 
 class OrchestratorAgent(BaseAgent):
     agent_name = "orchestrator"
-    system_prompt = """你是索克家居（i-home.life）AI 总控 Agent。
+    system_prompt = (
+        """你是索克家居（i-home.life）AI 总控 Agent。
 
 你的职责：
 1. 理解用户的装修需求意图（设计、预算、采购、施工、质检、结算、客服）
@@ -25,7 +26,11 @@ class OrchestratorAgent(BaseAgent):
 
 最重要：对于用户的消息，你需要判断属于哪种类型，然后用以下JSON格式回复：
 ```json
-{"intent": "design|budget|procurement|construction|qa_inspector|settlement|concierge|content_publish|general", "reasoning": "简短说明", "reply": "给用户的回复"}
+{
+  "intent": "design|budget|procurement|construction|qa_inspector|settlement|concierge|content_publish|general",
+  "reasoning": "简短说明",
+  "reply": "给用户的回复"
+}
 ```
 
 如果消息包含设计/布局/方案/户型相关内容 → intent: design
@@ -39,6 +44,7 @@ class OrchestratorAgent(BaseAgent):
 其他通用问题 → intent: general
 
 请始终输出JSON格式的回复。"""
+    )
 
     async def classify_intent(self, message: str) -> dict:
         """用 LLM 分类用户意图"""
@@ -61,7 +67,11 @@ class OrchestratorAgent(BaseAgent):
     def fallback_classify(message: str) -> dict:
         """无 API Key 时的规则分类"""
         keywords = {
-            "design": ["设计", "布局", "方案", "户型", "平面", "空间", "风格", "装修效果", "图纸", "CAD", "添加", "加一个", "新建", "建造", "删除", "移动"],
+            "design": [
+                "设计", "布局", "方案", "户型", "平面", "空间", "风格",
+                "装修效果", "图纸", "CAD", "添加", "加一个",
+                "新建", "建造", "删除", "移动",
+            ],
             "budget": ["预算", "价格", "费用", "成本", "报价", "多少钱", "估算", "花费"],
             "procurement": ["采购", "材料", "物料", "建材", "供应商", "购买", "买", "订单", "询价"],
             "construction": ["施工", "进度", "排期", "工期", "阶段", "完工", "招工", "找人", "派工", "发布任务", "安排工人", "要一个"],

@@ -58,7 +58,7 @@ async def get_materials(
 ) -> list[Material]:
     stmt = (
         select(Material)
-        .where(Material.is_active == True)
+        .where(Material.is_active.is_(True))
         .options(selectinload(Material.category))
         .offset(skip)
         .limit(limit)
@@ -216,7 +216,7 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
     # 取所有启用物料，按品类 code 取首条作为默认物料
     mat_result = await db.execute(
         select(Material)
-        .where(Material.is_active == True)
+        .where(Material.is_active.is_(True))
         .options(selectinload(Material.category))
         .order_by(Material.created_at.asc())
     )
@@ -281,7 +281,7 @@ async def search_materials(
     stmt = (
         select(Material)
         .where(
-            Material.is_active == True,
+            Material.is_active.is_(True),
             (Material.name.ilike(pattern))
             | (Material.sku.ilike(pattern))
             | (Material.brand.ilike(pattern)),

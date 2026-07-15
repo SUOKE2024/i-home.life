@@ -45,8 +45,8 @@ def _ensure_routers_registered() -> None:
 _ensure_routers_registered()
 
 
-import pytest
-from httpx import AsyncClient
+import pytest  # noqa: E402
+from httpx import AsyncClient  # noqa: E402
 
 
 async def _register_and_login(client: AsyncClient, phone: str, name: str) -> str:
@@ -138,10 +138,26 @@ async def test_furniture_catalog_search(client: AsyncClient):
     token = await _register_and_login(client, "13900300002", "家具库筛选")
     # 批量创建不同品类的家具
     items = [
-        {"category": "living_room", "subcategory": "sofa", "name": "现代沙发A", "style": "modern", "price": 5000, "brand": "A牌", "material": "布艺", "color": "灰"},
-        {"category": "living_room", "subcategory": "coffee_table", "name": "现代茶几", "style": "modern", "price": 2000, "brand": "B牌", "material": "岩板", "color": "黑"},
-        {"category": "bedroom", "subcategory": "bed", "name": "北欧床", "style": "nordic", "price": 4000, "brand": "A牌", "material": "实木", "color": "原木"},
-        {"category": "bedroom", "subcategory": "wardrobe", "name": "中式衣柜", "style": "chinese", "price": 8000, "brand": "C牌", "material": "实木", "color": "红木"},
+        {
+            "category": "living_room", "subcategory": "sofa",
+            "name": "现代沙发A", "style": "modern", "price": 5000,
+            "brand": "A牌", "material": "布艺", "color": "灰",
+        },
+        {
+            "category": "living_room", "subcategory": "coffee_table",
+            "name": "现代茶几", "style": "modern", "price": 2000,
+            "brand": "B牌", "material": "岩板", "color": "黑",
+        },
+        {
+            "category": "bedroom", "subcategory": "bed",
+            "name": "北欧床", "style": "nordic", "price": 4000,
+            "brand": "A牌", "material": "实木", "color": "原木",
+        },
+        {
+            "category": "bedroom", "subcategory": "wardrobe",
+            "name": "中式衣柜", "style": "chinese", "price": 8000,
+            "brand": "C牌", "material": "实木", "color": "红木",
+        },
     ]
     for it in items:
         await client.post("/api/furniture-catalog", json=it, headers={"Authorization": f"Bearer {token}"})
@@ -162,7 +178,10 @@ async def test_furniture_catalog_search(client: AsyncClient):
     assert len(resp.json()) == 2
 
     # 按价格区间筛选
-    resp = await client.get("/api/furniture-catalog?price_min=3000&price_max=6000", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get(
+        "/api/furniture-catalog?price_min=3000&price_max=6000",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     prices = [i["price"] for i in resp.json()]
     assert all(3000 <= p <= 6000 for p in prices)
@@ -184,22 +203,37 @@ async def test_furniture_catalog_recommend(client: AsyncClient):
     # 创建匹配的家具
     await client.post(
         "/api/furniture-catalog",
-        json={"category": "bedroom", "subcategory": "bed", "name": "1.8m北欧床", "style": "nordic", "price": 4980, "width": 1800, "depth": 2000, "height": 400},
+        json={
+            "category": "bedroom", "subcategory": "bed", "name": "1.8m北欧床",
+            "style": "nordic", "price": 4980,
+            "width": 1800, "depth": 2000, "height": 400,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     await client.post(
         "/api/furniture-catalog",
-        json={"category": "bedroom", "subcategory": "nightstand", "name": "北欧床头柜", "style": "nordic", "price": 680, "width": 500, "depth": 400, "height": 500},
+        json={
+            "category": "bedroom", "subcategory": "nightstand", "name": "北欧床头柜",
+            "style": "nordic", "price": 680,
+            "width": 500, "depth": 400, "height": 500,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     await client.post(
         "/api/furniture-catalog",
-        json={"category": "bedroom", "subcategory": "wardrobe", "name": "北欧衣柜", "style": "nordic", "price": 4280, "width": 1800, "depth": 600, "height": 2200},
+        json={
+            "category": "bedroom", "subcategory": "wardrobe", "name": "北欧衣柜",
+            "style": "nordic", "price": 4280,
+            "width": 1800, "depth": 600, "height": 2200,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
 
     # 推荐卧室组合
-    resp = await client.get("/api/furniture-catalog/recommend?room_type=bedroom&room_area=20&style=nordic&budget=20000", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get(
+        "/api/furniture-catalog/recommend?room_type=bedroom&room_area=20&style=nordic&budget=20000",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["room_type"] == "bedroom"
@@ -233,7 +267,10 @@ async def test_furniture_catalog_ar_placement(client: AsyncClient):
     item_id = create.json()["id"]
 
     # 正常摆放
-    resp = await client.get(f"/api/furniture-catalog/{item_id}/ar-placement?room_width=4000&room_length=5000&room_height=2800", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get(
+        f"/api/furniture-catalog/{item_id}/ar-placement?room_width=4000&room_length=5000&room_height=2800",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["scale"] == 1.0
@@ -245,7 +282,10 @@ async def test_furniture_catalog_ar_placement(client: AsyncClient):
     assert data["fit_warning"] is None
 
     # 尺寸过大警告
-    resp2 = await client.get(f"/api/furniture-catalog/{item_id}/ar-placement?room_width=1500&room_length=5000&room_height=2800", headers={"Authorization": f"Bearer {token}"})
+    resp2 = await client.get(
+        f"/api/furniture-catalog/{item_id}/ar-placement?room_width=1500&room_length=5000&room_height=2800",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp2.status_code == 200
     assert resp2.json()["fit_warning"] is not None
     assert "超过房间宽度" in resp2.json()["fit_warning"]
@@ -257,22 +297,34 @@ async def test_furniture_catalog_similar(client: AsyncClient):
     # 创建同品类同风格的家具
     await client.post(
         "/api/furniture-catalog",
-        json={"category": "living_room", "subcategory": "sofa", "name": "沙发A", "style": "modern", "price": 5000, "rating": 4.5},
+        json={
+            "category": "living_room", "subcategory": "sofa",
+            "name": "沙发A", "style": "modern", "price": 5000, "rating": 4.5,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     await client.post(
         "/api/furniture-catalog",
-        json={"category": "living_room", "subcategory": "coffee_table", "name": "茶几B", "style": "modern", "price": 2000, "rating": 4.2},
+        json={
+            "category": "living_room", "subcategory": "coffee_table",
+            "name": "茶几B", "style": "modern", "price": 2000, "rating": 4.2,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     create_c = await client.post(
         "/api/furniture-catalog",
-        json={"category": "living_room", "subcategory": "sofa", "name": "沙发C", "style": "modern", "price": 4500, "rating": 4.8},
+        json={
+            "category": "living_room", "subcategory": "sofa",
+            "name": "沙发C", "style": "modern", "price": 4500, "rating": 4.8,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     item_id = create_c.json()["id"]
 
-    resp = await client.get(f"/api/furniture-catalog/{item_id}/similar?limit=5", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get(
+        f"/api/furniture-catalog/{item_id}/similar?limit=5",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     # 应返回同 category + 同 style 的其他家具(沙发A)
@@ -319,7 +371,10 @@ async def test_smart_home_scheme_crud(client: AsyncClient):
     assert get.json()["id"] == scheme_id
 
     # 列表
-    lst = await client.get(f"/api/smart-home/schemes/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/smart-home/schemes/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -336,7 +391,10 @@ async def test_smart_home_auto_recommend(client: AsyncClient):
     project_id = await _create_project(client, token, "智家推荐项目")
     create = await client.post(
         "/api/smart-home/schemes",
-        json={"project_id": project_id, "room_name": "客厅", "room_type": "living_room", "protocol": "zigbee", "hub_brand": "xiaomi"},
+        json={
+            "project_id": project_id, "room_name": "客厅", "room_type": "living_room",
+            "protocol": "zigbee", "hub_brand": "xiaomi",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = create.json()["id"]
@@ -366,7 +424,10 @@ async def test_smart_home_auto_recommend(client: AsyncClient):
     assert scheme.json()["device_count"] == len(data["recommended_devices"])
 
     # 设备列表
-    devices = await client.get(f"/api/smart-home/schemes/{scheme_id}/devices", headers={"Authorization": f"Bearer {token}"})
+    devices = await client.get(
+        f"/api/smart-home/schemes/{scheme_id}/devices",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert devices.status_code == 200
     assert len(devices.json()) == len(data["recommended_devices"])
 
@@ -377,7 +438,10 @@ async def test_smart_home_wiring_plan(client: AsyncClient):
     project_id = await _create_project(client, token, "布线项目")
     create = await client.post(
         "/api/smart-home/schemes",
-        json={"project_id": project_id, "room_name": "客厅", "room_type": "living_room", "protocol": "zigbee", "hub_brand": "xiaomi"},
+        json={
+            "project_id": project_id, "room_name": "客厅", "room_type": "living_room",
+            "protocol": "zigbee", "hub_brand": "xiaomi",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = create.json()["id"]
@@ -403,7 +467,10 @@ async def test_smart_home_protocol_advice(client: AsyncClient):
     # Apple 生态
     create = await client.post(
         "/api/smart-home/schemes",
-        json={"project_id": project_id, "room_name": "客厅", "room_type": "living_room", "protocol": "matter", "hub_brand": "apple"},
+        json={
+            "project_id": project_id, "room_name": "客厅", "room_type": "living_room",
+            "protocol": "matter", "hub_brand": "apple",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = create.json()["id"]
@@ -413,7 +480,10 @@ async def test_smart_home_protocol_advice(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    resp = await client.get(f"/api/smart-home/schemes/{scheme_id}/protocol-advice", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get(
+        f"/api/smart-home/schemes/{scheme_id}/protocol-advice",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["hub_brand"] == "apple"
@@ -427,18 +497,27 @@ async def test_smart_home_total_price(client: AsyncClient):
     project_id = await _create_project(client, token, "总价项目")
     create = await client.post(
         "/api/smart-home/schemes",
-        json={"project_id": project_id, "room_name": "客厅", "room_type": "living_room", "protocol": "zigbee", "hub_brand": "xiaomi"},
+        json={
+            "project_id": project_id, "room_name": "客厅", "room_type": "living_room",
+            "protocol": "zigbee", "hub_brand": "xiaomi",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = create.json()["id"]
     await client.post(
         f"/api/smart-home/schemes/{scheme_id}/devices",
-        json={"device_type": "light", "device_name": "智能灯", "price": 880, "wiring_required": True, "wiring_spec": {"零火线": True}},
+        json={
+            "device_type": "light", "device_name": "智能灯", "price": 880,
+            "wiring_required": True, "wiring_spec": {"零火线": True},
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     await client.post(
         f"/api/smart-home/schemes/{scheme_id}/devices",
-        json={"device_type": "switch", "device_name": "智能开关", "price": 280, "wiring_required": True, "wiring_spec": {"零火线": True}},
+        json={
+            "device_type": "switch", "device_name": "智能开关", "price": 280,
+            "wiring_required": True, "wiring_spec": {"零火线": True},
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -518,7 +597,10 @@ async def test_scene_crud(client: AsyncClient):
     assert get.json()["id"] == scene_id
 
     # 列表
-    lst = await client.get(f"/api/scene-automation/scenes/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/scene-automation/scenes/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -596,7 +678,10 @@ async def test_scene_action_validation_with_devices(client: AsyncClient):
     # 创建智能家居方案 + 设备
     scheme = await client.post(
         "/api/smart-home/schemes",
-        json={"project_id": project_id, "room_name": "客厅", "room_type": "living_room", "protocol": "zigbee", "hub_brand": "xiaomi"},
+        json={
+            "project_id": project_id, "room_name": "客厅", "room_type": "living_room",
+            "protocol": "zigbee", "hub_brand": "xiaomi",
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = scheme.json()["id"]
@@ -726,7 +811,10 @@ async def test_scene_sync_to_ecosystem(client: AsyncClient):
     assert "米家" in data["message"]
 
     # 验证生态对接记录已创建
-    ecos = await client.get(f"/api/scene-automation/ecosystems/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    ecos = await client.get(
+        f"/api/scene-automation/ecosystems/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert ecos.status_code == 200
     assert len(ecos.json()) == 1
     assert ecos.json()[0]["ecosystem"] == "mijia"
@@ -751,12 +839,21 @@ async def test_ecosystem_crud(client: AsyncClient):
     eco_id = data["id"]
 
     # 列表
-    lst = await client.get(f"/api/scene-automation/ecosystems/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/scene-automation/ecosystems/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
     # 删除
-    dele = await client.delete(f"/api/scene-automation/ecosystems/{eco_id}", headers={"Authorization": f"Bearer {token}"})
+    dele = await client.delete(
+        f"/api/scene-automation/ecosystems/{eco_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert dele.status_code == 204
-    lst2 = await client.get(f"/api/scene-automation/ecosystems/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst2 = await client.get(
+        f"/api/scene-automation/ecosystems/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert len(lst2.json()) == 0

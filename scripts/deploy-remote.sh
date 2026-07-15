@@ -161,13 +161,13 @@ REMOTE_SCRIPT
     ssh "$REMOTE_HOST" "systemctl status ihome --no-pager 2>/dev/null | head -10"
     echo ""
     echo "--- 健康检查 ---"
-    curl -sk https://118.31.223.213:8081/health 2>/dev/null && echo "" || echo "  ❌ 无法连接"
+    curl -s http://118.31.223.213:8081/health 2>/dev/null && echo "" || echo "  ❌ 无法连接"
     echo ""
     echo "--- 资源文件 ---"
     ssh "$REMOTE_HOST" "echo '  LOGO:    ' && ls ${WEB_DEPLOY_DIR}/assets/images/icons/desktop/suoke-logo-*.png 2>/dev/null | wc -l | xargs echo '    files'; echo '  壁纸:    ' && ls ${WEB_DEPLOY_DIR}/assets/images/wallpaper/*.webp 2>/dev/null | wc -l | xargs echo '    files'; echo '  用户头像:' && ls ${WEB_DEPLOY_DIR}/assets/images/avatars/hand-drawn-profiles/*.png 2>/dev/null | wc -l | xargs echo '    files'"
     echo ""
-    echo "  API 文档: https://118.31.223.213:8081/api/docs"
-    echo "  站点首页: https://118.31.223.213:8081/"
+    echo "  API 文档: http://118.31.223.213:8081/api/docs"
+    echo "  站点首页: http://118.31.223.213:8081/"
     ;;
 
   seed)
@@ -193,7 +193,7 @@ esac
 echo ""
 echo -e "${BLUE}╔════════════════════════════════════════════╗"
 echo -e "║  部署完成                                   ║"
-echo -e "║  HTTPS: https://118.31.223.213:8081        ║"
-echo -e "║  API:   https://118.31.223.213:8081/api    ║"
-echo -e "║  文档:  https://118.31.223.213:8081/api/docs║"
+echo -e "║  URL:   http://118.31.223.213:8081         ║"
+echo -e "║  API:   http://118.31.223.213:8081/api     ║"
+echo -e "║  文档:  http://118.31.223.213:8081/api/docs║"
 echo -e "╚════════════════════════════════════════════╝${NC}"

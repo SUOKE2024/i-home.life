@@ -189,7 +189,7 @@ async def test_milestone_summary(client: AsyncClient):
     # 创建 3 笔支付，分属 2 个里程碑
     p1 = await _create_payment(client, headers, project_id, amount=30000.0, milestone_code="handover")
     p2 = await _create_payment(client, headers, project_id, amount=50000.0, milestone_code="completion")
-    p3 = await _create_payment(client, headers, project_id, amount=20000.0, milestone_code="completion")
+    await _create_payment(client, headers, project_id, amount=20000.0, milestone_code="completion")
 
     # 确认 p1 和 p2
     await client.post(f"/api/payments/{p1}/confirm", json={"transaction_id": "T1"}, headers=headers)
@@ -359,10 +359,10 @@ async def test_payment_schedule(client: AsyncClient):
                                milestone_code="handover", stage_code="deposit", stage_order=1)
     p2 = await _create_payment(client, headers, project_id, amount=40000.0,
                                milestone_code="mep", stage_code="progress", stage_order=2)
-    p3 = await _create_payment(client, headers, project_id, amount=20000.0,
-                               milestone_code="completion", stage_code="final", stage_order=3)
-    p4 = await _create_payment(client, headers, project_id, amount=10000.0,
-                               milestone_code="warranty", stage_code="warranty", stage_order=4)
+    await _create_payment(client, headers, project_id, amount=20000.0,
+                          milestone_code="completion", stage_code="final", stage_order=3)
+    await _create_payment(client, headers, project_id, amount=10000.0,
+                          milestone_code="warranty", stage_code="warranty", stage_order=4)
 
     # 确认首付和进度款
     await client.post(f"/api/payments/{p1}/confirm", json={"transaction_id": "T-S1"}, headers=headers)
@@ -404,8 +404,8 @@ async def test_final_settlement_report(client: AsyncClient):
     # 创建 2 笔支付
     p1 = await _create_payment(client, headers, project_id, amount=50000.0,
                                milestone_code="handover", stage_code="deposit", stage_order=1)
-    p2 = await _create_payment(client, headers, project_id, amount=30000.0,
-                               milestone_code="completion", stage_code="final", stage_order=2)
+    await _create_payment(client, headers, project_id, amount=30000.0,
+                          milestone_code="completion", stage_code="final", stage_order=2)
 
     # 确认 p1
     await client.post(f"/api/payments/{p1}/confirm", json={"transaction_id": "T-FS-1"}, headers=headers)
@@ -441,8 +441,8 @@ async def test_list_and_get_payment(client: AsyncClient):
     token, headers = await _register_and_login(client, "13900005012")
     project_id = await _create_project(client, headers, "列表详情项目")
 
-    p1 = await _create_payment(client, headers, project_id, amount=10000.0,
-                               stage_code="final", stage_order=3)
+    await _create_payment(client, headers, project_id, amount=10000.0,
+                          stage_code="final", stage_order=3)
     p2 = await _create_payment(client, headers, project_id, amount=20000.0,
                                stage_code="deposit", stage_order=1)
 

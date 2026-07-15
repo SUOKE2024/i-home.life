@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api.dart';
@@ -18,24 +20,69 @@ class _LoginPageState extends State<LoginPage> {
   final _nameCtrl = TextEditingController();
   bool _isRegister = false;
   bool _passkeyLoading = false;
+  bool _biometricsLoading = false;
 
   // ── 生物识别 ──
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
+  /// 设备是否支持生物识别（仅平台能力，与 token 无关）
+  /// 用于决定 Passkey 按钮是否显示
+  bool _biometricsSupported = false;
+
+  /// 设备支持生物识别 且 本地已有登录 token（用于"指纹/面容快速登录"按钮）
   bool _biometricsAvailable = false;
 
-  Future<void> _checkBiometrics() async {
-    try {
-      debugPrint('生物识别：local_auth 未安装，已降级为关闭状态');
-      if (mounted) setState(() => _biometricsAvailable = false);
-    } catch (e) {
-      debugPrint('生物识别检测失败: $e');
-      if (mounted) setState(() => _biometricsAvailable = false);
-    }
-  }
+  /// SharedPreferences 中标记本设备是否已注册 Passkey（简化方案：
+  /// Flutter 无标准 WebAuthn API，注册标记 = 密码登录成功后置位）
+  static const String _kPasskeyRegisteredKey = 'passkey_registered';
 
   @override
   void initState() {
     super.initState();
     _checkBiometrics();
+  }
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _passCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  // 检测设备是否支持生物识别
+  Future<void> _checkBiometrics() async {
+    bool supported = false;
+    try {
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final isDeviceSupported = await _localAuth.isDeviceSupported();
+      supported = canCheck && isDeviceSupported;
+    } on PlatformException catch (e) {
+      // 鸿蒙等不支持的平台会抛 PlatformException，优雅降级
+      debugPrint('生物识别不可用（可能当前平台不支持）: ${e.code} - ${e.message}');
+      supported = false;
+    } catch (e) {
+      debugPrint('生物识别检测失败: $e');
+      supported = false;
+    }
+
+    if (!mounted) return;
+    setState(() => _biometricsSupported = supported);
+
+    if (!supported) {
+      setState(() => _biometricsAvailable = false);
+      return;
+    }
+
+    // 设备支持生物识别时，再判断是否已有 token（控制"快速登录"按钮）
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasToken = prefs.getString('auth_token') != null;
+      if (mounted) setState(() => _biometricsAvailable = hasToken);
+    } catch (e) {
+      debugPrint('读取 token 失败: $e');
+      if (mounted) setState(() => _biometricsAvailable = false);
+    }
   }
 
   // ── 密码登录/注册 ──
@@ -56,6 +103,18 @@ class _LoginPageState extends State<LoginPage> {
     if (result.isSuccess) {
       final res = result.data as Map<String, dynamic>;
       await api.saveToken(res['access_token'] as String);
+      // 保存手机号用于下次生物识别提示（不保存密码）
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_phone', _phoneCtrl.text.trim());
+      // 密码登录成功后，标记本设备已"注册 Passkey"（简化方案）
+      // 真正的 WebAuthn 注册需要平台 Credential Manager，Flutter 暂无标准 API
+      await prefs.setBool(_kPasskeyRegisteredKey, true);
+      // 刷新生物识别可用状态（现在有 token 了）
+      if (mounted) {
+        setState(() {
+          _biometricsAvailable = _biometricsSupported;
+        });
+      }
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -71,26 +130,93 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ── Passkey 登录 ──
-
+  // ── Passkey 登录（简化方案：local_auth + 保存的 token） ──
+  //
+  // Flutter 没有标准的 WebAuthn 浏览器 API（navigator.credentials），
+  // 因此移动端"Passkey"实际表现为"生物识别快速登录"：
+  // 1. 检查 SharedPreferences 中 passkey_registered 标记
+  // 2. 若已注册：用 local_auth 验证生物特征 → 用保存的 token 登录
+  // 3. 若未注册：提示用户先用密码登录（登录后会自动置位标记）
   Future<void> _passkeyLogin() async {
+    if (_passkeyLoading) return;
     setState(() => _passkeyLoading = true);
-    final api = ApiClient();
 
     try {
-      // 1. 请求登录挑战
-      final beginResult = await api.webauthnLoginBegin();
-      if (!beginResult.isSuccess) {
-        _showError('Passkey 服务暂不可用');
+      final prefs = await SharedPreferences.getInstance();
+      final passkeyRegistered = prefs.getBool(_kPasskeyRegisteredKey) ?? false;
+      final hasToken = prefs.getString('auth_token') != null;
+
+      if (!passkeyRegistered || !hasToken) {
+        // 设备未注册 Passkey：提示用户先密码登录
+        // 真正的 WebAuthn 注册需登录态 + 平台 Credential Manager，Flutter 暂不支持
+        _showError('本设备尚未启用 Passkey，请先使用密码登录（登录后将自动启用快速登录）');
         return;
       }
 
-      final options = beginResult.data as Map<String, dynamic>;
-      // 2. 平台 Passkey 认证由操作系统处理
-      //    在 Flutter 中通过 platform channel 调用原生 Credential Manager API
-      //    此处为简化实现，提示用户使用密码登录
-      _showError('请使用手机号密码登录，或使用 Web 端 Passkey 扫码登录');
+      // 1. 先用 local_auth 验证生物特征（指纹/面容）
+      bool authenticated = false;
+      try {
+        authenticated = await _localAuth.authenticate(
+          localizedReason: '请验证您的指纹或面容以使用 Passkey 登录',
+        );
+      } on PlatformException catch (e) {
+        debugPrint('Passkey 生物识别异常: ${e.code} - ${e.message}');
+        _showError('生物识别不可用（当前平台可能不支持），请使用密码登录');
+        if (mounted) setState(() => _biometricsSupported = false);
+        return;
+      }
+
+      if (!authenticated) {
+        _showError('生物识别验证未通过');
+        return;
+      }
+
+      // 2. 验证通过，尝试调用后端 webauthnLoginBegin（不带 phone，discoverable 模式）
+      //    由于 Flutter 无标准 WebAuthn API，无法构造完整 credential 断言，
+      //    此处仅用作服务可达性探测；真正的"登录"使用已保存的 PASETO token。
+      final api = ApiClient();
+      await api.loadToken();
+
+      if (!api.isLoggedIn) {
+        _showError('未找到登录记录，请使用密码登录');
+        await prefs.remove(_kPasskeyRegisteredKey);
+        if (mounted) setState(() => _biometricsAvailable = false);
+        return;
+      }
+
+      // 3. 探测后端 Passkey 服务可用性（失败不阻断本地快速登录）
+      try {
+        final beginResult = await api.webauthnLoginBegin();
+        if (beginResult.isSuccess && beginResult.data != null) {
+          final options = beginResult.data as Map<String, dynamic>;
+          debugPrint('Passkey 登录挑战已获取: ${options["challenge"]}');
+        }
+      } catch (e) {
+        debugPrint('Passkey 后端探测失败（不阻断本地登录）: $e');
+      }
+
+      // 4. 用保存的 token 验证有效性（等同 Passkey 快速登录）
+      final meResult = await api.get('/auth/me');
+      if (meResult.isSuccess) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
+        }
+      } else {
+        // token 已失效，清除并提示重新登录
+        await api.clearToken();
+        await prefs.remove(_kPasskeyRegisteredKey);
+        _showError('Passkey 登录已过期，请使用密码重新登录');
+        if (mounted) {
+          setState(() {
+            _biometricsAvailable = false;
+          });
+        }
+      }
     } catch (e) {
+      debugPrint('Passkey 登录失败: $e');
       _showError('Passkey 登录失败: $e');
     } finally {
       if (mounted) setState(() => _passkeyLoading = false);
@@ -104,20 +230,55 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // ── 生物识别（placeholder） ──
+  // ── 生物识别快速登录（基于已保存的 token） ──
 
   Future<void> _authenticateWithBiometrics() async {
+    if (_biometricsLoading) return;
+    setState(() => _biometricsLoading = true);
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedPhone = prefs.getString('saved_phone');
-      final savedPassword = prefs.getString('saved_password');
-      if (savedPhone != null && savedPassword != null) {
-        _phoneCtrl.text = savedPhone;
-        _passCtrl.text = savedPassword;
-        if (mounted) _submit();
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: '请验证您的指纹或面容以快速登录',
+      );
+
+      if (!authenticated) {
+        _showError('生物识别验证未通过');
+        return;
       }
+
+      // 验证通过，使用已保存的 token 登录
+      final api = ApiClient();
+      await api.loadToken(); // 从 SharedPreferences 加载 token
+      if (api.isLoggedIn) {
+        // 可选：验证 token 是否仍然有效
+        final meResult = await api.get('/auth/me');
+        if (meResult.isSuccess) {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomePage()),
+            );
+          }
+          return;
+        } else {
+          // token 已失效，清除并提示重新登录
+          await api.clearToken();
+          _showError('登录已过期，请重新输入密码登录');
+          if (mounted) setState(() => _biometricsAvailable = false);
+        }
+      } else {
+        _showError('未找到登录记录，请使用密码登录');
+        if (mounted) setState(() => _biometricsAvailable = false);
+      }
+    } on PlatformException catch (e) {
+      debugPrint('生物识别认证异常: ${e.code} - ${e.message}');
+      _showError('生物识别不可用，请使用密码登录');
+      if (mounted) setState(() => _biometricsAvailable = false);
     } catch (e) {
       debugPrint('生物识别认证失败: $e');
+      _showError('生物识别认证失败: $e');
+    } finally {
+      if (mounted) setState(() => _biometricsLoading = false);
     }
   }
 
@@ -177,63 +338,80 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                // ── Passkey 分隔 ──
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Divider(color: SuokeDesignTokens.border),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          '或使用生物识别',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: SuokeDesignTokens.textMuted,
+                // ── 生物识别分隔（仅设备支持时显示） ──
+                if (_biometricsSupported)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Divider(color: SuokeDesignTokens.border),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Text(
+                            '或使用 Passkey',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: SuokeDesignTokens.textMuted,
+                            ),
                           ),
                         ),
-                      ),
-                      const Expanded(
-                        child: Divider(color: SuokeDesignTokens.border),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // ── Passkey 登录按钮 ──
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _passkeyLoading ? null : _passkeyLogin,
-                    icon: _passkeyLoading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.fingerprint),
-                    label: Text(_passkeyLoading ? '验证中…' : '使用 Passkey 登录'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: SuokeDesignTokens.accent,
-                      side: const BorderSide(color: SuokeDesignTokens.accent),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                        const Expanded(
+                          child: Divider(color: SuokeDesignTokens.border),
+                        ),
+                      ],
                     ),
                   ),
-                ),
 
+                // ── Passkey 登录按钮（仅设备支持生物识别时显示） ──
+                if (_biometricsSupported)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _passkeyLoading ? null : _passkeyLogin,
+                      icon: _passkeyLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.fingerprint),
+                      label: Text(_passkeyLoading ? '验证中…' : '使用 Passkey 登录'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: SuokeDesignTokens.accent,
+                        side: const BorderSide(color: SuokeDesignTokens.accent),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ),
+
+                // ── 生物识别快速登录按钮（仅当设备支持且有登录记录时显示） ──
                 if (_biometricsAvailable)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.fingerprint,
-                        color: SuokeDesignTokens.accent,
-                        size: 40,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _biometricsLoading
+                            ? null
+                            : _authenticateWithBiometrics,
+                        icon: _biometricsLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.face,
+                                size: 28),
+                        label: const Text('指纹 / 面容 快速登录'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: SuokeDesignTokens.accent,
+                          side: const BorderSide(color: SuokeDesignTokens.border),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
                       ),
-                      onPressed: _authenticateWithBiometrics,
-                      tooltip: '生物识别登录',
                     ),
                   ),
                 const SizedBox(height: 16),

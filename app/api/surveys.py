@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user
+from app.rbac import verify_project_access
+from app.models.ar_scan import WallFeature
 from app.schemas.survey import SurveyCreate, SurveyUpdate, SurveyResponse, SurveyListItem
 from app.schemas.ar_scan import (
     ScanSessionCreate,
@@ -30,6 +33,7 @@ def _current_user(user=Depends(get_current_user)):
 
 @router.post("", response_model=SurveyResponse, status_code=status.HTTP_201_CREATED)
 async def create_survey(body: SurveyCreate, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     data = body.model_dump()
     rooms = data.pop("rooms", [])
     rooms_data = [r.model_dump() if hasattr(r, "model_dump") else r for r in rooms]
@@ -37,7 +41,8 @@ async def create_survey(body: SurveyCreate, db: AsyncSession = Depends(get_db), 
 
 
 @router.get("/project/{project_id}", response_model=list[SurveyListItem])
-async def list_surveys(project_id: str, db: AsyncSession = Depends(get_db)):
+async def list_surveys(project_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
+    await verify_project_access(project_id=project_id, current_user=user, db=db)
     return await survey_service.get_surveys_by_project(db, project_id)
 
 
@@ -88,18 +93,23 @@ async def device_check():
 
 
 @router.get("/{survey_id}", response_model=SurveyResponse)
-async def get_survey(survey_id: str, db: AsyncSession = Depends(get_db)):
+async def get_survey(survey_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     s = await survey_service.get_survey(db, survey_id)
     if not s:
         raise HTTPException(status_code=404, detail="测量记录不存在")
+    await verify_project_access(project_id=s.project_id, current_user=user, db=db)
     return s
 
 
 @router.put("/{survey_id}", response_model=SurveyResponse)
-async def update_survey(survey_id: str, body: SurveyUpdate, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
+async def update_survey(
+    survey_id: str, body: SurveyUpdate,
+    db: AsyncSession = Depends(get_db), user=Depends(_current_user),
+):
     s = await survey_service.get_survey(db, survey_id)
     if not s:
         raise HTTPException(status_code=404, detail="测量记录不存在")
+    await verify_project_access(project_id=s.project_id, current_user=user, db=db)
     data = body.model_dump(exclude_none=True)
     return await survey_service.update_survey(db, s, data)
 
@@ -109,6 +119,7 @@ async def delete_survey(survey_id: str, db: AsyncSession = Depends(get_db), user
     s = await survey_service.get_survey(db, survey_id)
     if not s:
         raise HTTPException(status_code=404, detail="测量记录不存在")
+    await verify_project_access(project_id=s.project_id, current_user=user, db=db)
     await survey_service.delete_survey(db, s)
 
 
@@ -118,6 +129,7 @@ async def apply_survey(survey_id: str, db: AsyncSession = Depends(get_db), user=
     s = await survey_service.get_survey(db, survey_id)
     if not s:
         raise HTTPException(status_code=404, detail="测量记录不存在")
+    await verify_project_access(project_id=s.project_id, current_user=user, db=db)
     return await survey_service.apply_survey_to_project(db, s)
 
 
@@ -141,6 +153,7 @@ async def ar_device_capability(body: DeviceCapabilityRequest):
 @router.post("/ar/sessions", response_model=ScanSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_ar_session(body: ScanSessionCreate, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     """创建 AR 扫描会话 — 自动检测设备能力并确定扫描方法。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     data = body.model_dump()
     if data.get("device_capability"):
         data["device_capability"] = dict(data["device_capability"])
@@ -158,16 +171,19 @@ async def list_ar_sessions(
     project_id: str,
     status_filter: str | None = None,
     db: AsyncSession = Depends(get_db),
+    user=Depends(_current_user),
 ):
+    await verify_project_access(project_id=project_id, current_user=user, db=db)
     sessions = await ar_scan_service.list_sessions(db, project_id, status_filter)
     return sessions
 
 
 @router.get("/ar/sessions/{session_id}", response_model=ScanSessionResponse)
-async def get_ar_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_ar_session(session_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     return session
 
 
@@ -178,6 +194,7 @@ async def update_ar_session(
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     data = body.model_dump(exclude_none=True)
     if "panoramas" in data and data["panoramas"] is not None:
         data["panoramas"] = list(data["panoramas"])
@@ -190,6 +207,7 @@ async def start_ar_scan(session_id: str, db: AsyncSession = Depends(get_db), use
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     if session.status not in ("created", "failed"):
         raise HTTPException(status_code=400, detail=f"当前状态 {session.status} 不允许开始扫描")
     session = await ar_scan_service.start_scan(db, session)
@@ -207,6 +225,7 @@ async def process_ar_scan(
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     if session.status not in ("scanning", "uploaded", "processing", "failed"):
         raise HTTPException(status_code=400, detail=f"当前状态 {session.status} 不允许处理")
     data = body.model_dump(exclude_none=True)
@@ -251,8 +270,12 @@ async def process_ar_scan(
 
 
 @router.get("/ar/sessions/{session_id}/accuracy", response_model=AccuracyReportResponse)
-async def get_accuracy_report(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_accuracy_report(session_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     """获取精度校验报告 — 包含 RMS 误差、等级、通过率、建议。"""
+    session = await ar_scan_service.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     report = await ar_scan_service.get_accuracy_report(db, session_id)
     if not report:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
@@ -270,6 +293,7 @@ async def apply_ar_session(session_id: str, db: AsyncSession = Depends(get_db), 
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     if session.status != "completed":
         raise HTTPException(status_code=400, detail="扫描会话未完成,无法应用")
     result = await ar_scan_service.apply_session_to_survey(db, session)
@@ -286,6 +310,7 @@ async def delete_ar_session(session_id: str, db: AsyncSession = Depends(get_db),
     session = await ar_scan_service.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     await ar_scan_service.delete_session(db, session)
 
 
@@ -303,6 +328,7 @@ async def add_wall_feature(body: WallFeatureCreate, db: AsyncSession = Depends(g
     warnings = ar_scan_service.validate_wall_feature(feature)
     session = await ar_scan_service.get_session(db, feature.session_id)
     if session:
+        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
         await ws_manager.broadcast_to_project(
             session.project_id,
             "ar.feature.added",
@@ -318,13 +344,24 @@ async def add_wall_feature(body: WallFeatureCreate, db: AsyncSession = Depends(g
 
 @router.get("/ar/features/{session_id}", response_model=list[WallFeatureResponse])
 async def list_wall_features(
-    session_id: str, room_name: str | None = None, db: AsyncSession = Depends(get_db)
+    session_id: str, room_name: str | None = None, db: AsyncSession = Depends(get_db),
+    user=Depends(_current_user),
 ):
+    session = await ar_scan_service.get_session(db, session_id)
+    if session:
+        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     return await ar_scan_service.list_wall_features(db, session_id, room_name)
 
 
 @router.delete("/ar/features/{feature_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wall_feature(feature_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
+    feat_result = await db.execute(select(WallFeature).where(WallFeature.id == feature_id))
+    feat = feat_result.scalar_one_or_none()
+    if not feat:
+        raise HTTPException(status_code=404, detail="墙面特征不存在")
+    session = await ar_scan_service.get_session(db, feat.session_id)
+    if session:
+        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     ok = await ar_scan_service.delete_wall_feature(db, feature_id)
     if not ok:
         raise HTTPException(status_code=404, detail="墙面特征不存在")
@@ -342,6 +379,7 @@ async def add_measurement_point(
     point = await ar_scan_service.add_measurement_point(db, data)
     session = await ar_scan_service.get_session(db, point.session_id)
     if session:
+        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
         await ws_manager.broadcast_to_project(
             session.project_id,
             "ar.point.added",
@@ -356,5 +394,8 @@ async def add_measurement_point(
 
 
 @router.get("/ar/points/{session_id}", response_model=list[MeasurementPointResponse])
-async def list_measurement_points(session_id: str, db: AsyncSession = Depends(get_db)):
+async def list_measurement_points(session_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
+    session = await ar_scan_service.get_session(db, session_id)
+    if session:
+        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     return await ar_scan_service.list_measurement_points(db, session_id)

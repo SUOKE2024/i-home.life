@@ -19,6 +19,7 @@ from app.schemas.soft_furnishing import (
     StorageRecommendResult,
     StorageCapacityResult,
 )
+from app.rbac import verify_project_access
 from app.services import soft_furnishing_service as svc
 from app.ws import ws_manager
 
@@ -34,6 +35,7 @@ async def create_scheme(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     scheme = await svc.create_scheme(db, data.model_dump())
     resp = SoftFurnishingSchemeResponse.model_validate(scheme)
     await ws_manager.broadcast_to_project(scheme.project_id, "soft.scheme.created", resp.model_dump())
@@ -41,16 +43,26 @@ async def create_scheme(
 
 
 @router.get("/schemes/project/{project_id}", response_model=list[SoftFurnishingSchemeResponse])
-async def list_schemes_by_project(project_id: str, db: AsyncSession = Depends(get_db)):
+async def list_schemes_by_project(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     schemes = await svc.list_schemes_by_project(db, project_id)
     return [SoftFurnishingSchemeResponse.model_validate(s) for s in schemes]
 
 
 @router.get("/schemes/{scheme_id}", response_model=SoftFurnishingSchemeResponse)
-async def get_scheme(scheme_id: str, db: AsyncSession = Depends(get_db)):
+async def get_scheme(
+    scheme_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return SoftFurnishingSchemeResponse.model_validate(scheme)
 
 
@@ -63,6 +75,7 @@ async def delete_scheme(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     project_id = scheme.project_id
     deleted = await svc.delete_scheme(db, scheme_id)
     if not deleted:
@@ -82,6 +95,7 @@ async def ai_match(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     result = await svc.ai_match_soft_furnishing(db, scheme)
     await ws_manager.broadcast_to_project(scheme.project_id, "soft.ai.matched", result)
     return result
@@ -91,10 +105,15 @@ async def ai_match(
 
 
 @router.get("/schemes/{scheme_id}/color-harmony", response_model=ColorHarmonyResult)
-async def color_harmony(scheme_id: str, db: AsyncSession = Depends(get_db)):
+async def color_harmony(
+    scheme_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return ColorHarmonyResult(**svc.compute_color_harmony(scheme))
 
 
@@ -102,17 +121,26 @@ async def color_harmony(scheme_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/schemes/{scheme_id}/budget", response_model=BudgetUsageResult)
-async def budget_usage(scheme_id: str, db: AsyncSession = Depends(get_db)):
+async def budget_usage(
+    scheme_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return BudgetUsageResult(**svc.compute_budget_usage(scheme))
 
 
 # ── 单品 ──
 
 
-@router.post("/schemes/{scheme_id}/items", response_model=SoftFurnishingItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/schemes/{scheme_id}/items",
+    response_model=SoftFurnishingItemResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_item(
     scheme_id: str,
     data: SoftFurnishingItemCreate,
@@ -122,6 +150,7 @@ async def add_item(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     item = await svc.add_item(db, scheme_id, data.model_dump())
     resp = SoftFurnishingItemResponse.model_validate(item)
     await ws_manager.broadcast_to_project(scheme.project_id, "soft.item.added", resp.model_dump())
@@ -129,7 +158,15 @@ async def add_item(
 
 
 @router.get("/schemes/{scheme_id}/items", response_model=list[SoftFurnishingItemResponse])
-async def list_items(scheme_id: str, db: AsyncSession = Depends(get_db)):
+async def list_items(
+    scheme_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     items = await svc.list_items(db, scheme_id)
     return [SoftFurnishingItemResponse.model_validate(i) for i in items]
 
@@ -140,6 +177,15 @@ async def delete_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import select
+    from app.models.soft_furnishing import SoftFurnishingItem
+    item_result = await db.execute(select(SoftFurnishingItem).where(SoftFurnishingItem.id == item_id))
+    existing = item_result.scalar_one_or_none()
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="单品不存在")
+    scheme = await svc.get_scheme(db, existing.scheme_id)
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     deleted = await svc.delete_item(db, item_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="单品不存在")
@@ -159,6 +205,7 @@ async def update_item_status(
     # 项目级广播(查 scheme.project_id)
     scheme = await svc.get_scheme(db, item.scheme_id)
     if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
         await ws_manager.broadcast_to_project(scheme.project_id, "soft.item.status_changed", resp.model_dump())
     return resp
 
@@ -176,6 +223,7 @@ async def add_storage(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     storage = await svc.add_storage(db, scheme_id, data.model_dump())
     resp = StorageSystemResponse.model_validate(storage)
     await ws_manager.broadcast_to_project(scheme.project_id, "soft.storage.added", resp.model_dump())
@@ -183,13 +231,25 @@ async def add_storage(
 
 
 @router.get("/schemes/{scheme_id}/storage", response_model=list[StorageSystemResponse])
-async def list_storages(scheme_id: str, db: AsyncSession = Depends(get_db)):
+async def list_storages(
+    scheme_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     storages = await svc.list_storages(db, scheme_id)
     return [StorageSystemResponse.model_validate(s) for s in storages]
 
 
 @router.get("/storage/{storage_id}/capacity", response_model=StorageCapacityResult)
-async def storage_capacity(storage_id: str, db: AsyncSession = Depends(get_db)):
+async def storage_capacity(
+    storage_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """获取指定收纳系统的容量计算结果"""
     from sqlalchemy import select
     from app.models.soft_furnishing import StorageSystem
@@ -197,6 +257,9 @@ async def storage_capacity(storage_id: str, db: AsyncSession = Depends(get_db)):
     storage = result.scalar_one_or_none()
     if not storage:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="收纳系统不存在")
+    scheme = await svc.get_scheme(db, storage.scheme_id)
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return StorageCapacityResult(**svc.compute_storage_capacity(storage))
 
 

@@ -136,7 +136,7 @@ async def ai_match_suppliers(
 
     # 匹配同品类、激活状态的供应商
     sup_stmt = select(Supplier).where(
-        Supplier.is_active == True,
+        Supplier.is_active.is_(True),
         Supplier.category == category_code,
     ).order_by(Supplier.rating.desc())
     sup_result = await db.execute(sup_stmt)
@@ -145,7 +145,7 @@ async def ai_match_suppliers(
     # 若同品类无供应商，则放宽到全部活跃供应商
     if not suppliers:
         all_result = await db.execute(
-            select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
+            select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.rating.desc())
         )
         suppliers = list(all_result.scalars().all())
 

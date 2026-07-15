@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.models.user import User
 from app.schemas.vr_panorama import (
     VRPanoramaCreate,
@@ -32,6 +33,7 @@ async def create_panorama(
     user: User = Depends(get_current_user),
 ):
     """创建全景图记录。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     data = body.model_dump()
     if data.get("initial_view") and hasattr(data["initial_view"], "model_dump"):
         data["initial_view"] = data["initial_view"].model_dump()
@@ -50,6 +52,7 @@ async def list_panoramas(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await verify_project_access(project_id=project_id, current_user=user, db=db)
     return await vr_panorama_service.list_panoramas(db, project_id, status_filter)
 
 
@@ -62,6 +65,7 @@ async def get_panorama(
     panorama = await vr_panorama_service.get_panorama(db, panorama_id)
     if not panorama:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     return panorama
 
 
@@ -76,6 +80,7 @@ async def render_panorama(
     panorama = await vr_panorama_service.get_panorama(db, panorama_id)
     if not panorama:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     rendered = await vr_panorama_service.render_panorama(
         db, panorama_id, body.floorplan_data, body.quality
     )
@@ -102,6 +107,7 @@ async def add_hotspot(
     panorama = await vr_panorama_service.get_panorama(db, panorama_id)
     if not panorama:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     hotspot_data = body.model_dump()
     updated = await vr_panorama_service.add_hotspot(db, panorama_id, hotspot_data)
     resp = VRPanoramaResponse.model_validate(updated)
@@ -117,6 +123,10 @@ async def list_hotspots(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    panorama = await vr_panorama_service.get_panorama(db, panorama_id)
+    if not panorama:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     return await vr_panorama_service.list_hotspots(db, panorama_id)
 
 
@@ -131,6 +141,7 @@ async def delete_hotspot(
     panorama = await vr_panorama_service.get_panorama(db, panorama_id)
     if not panorama:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     updated = await vr_panorama_service.delete_hotspot(db, panorama_id, hotspot_index)
     if not updated:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="热点不存在")
@@ -153,6 +164,7 @@ async def delete_panorama(
     panorama = await vr_panorama_service.get_panorama(db, panorama_id)
     if not panorama:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
     project_id = panorama.project_id
     deleted = await vr_panorama_service.delete_panorama(db, panorama_id)
     if not deleted:
@@ -172,6 +184,7 @@ async def create_scene(
     user: User = Depends(get_current_user),
 ):
     """创建 VR 场景 (多个全景图按顺序组合,支持漫游)。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     data = body.model_dump()
     scene = await vr_panorama_service.create_scene(db, data)
     resp = VRSceneResponse.model_validate(scene)
@@ -188,6 +201,7 @@ async def list_scenes(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await verify_project_access(project_id=project_id, current_user=user, db=db)
     return await vr_panorama_service.list_scenes(db, project_id, status_filter)
 
 
@@ -200,6 +214,7 @@ async def get_scene(
     scene = await vr_panorama_service.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VR 场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=user, db=db)
     return scene
 
 
@@ -214,6 +229,7 @@ async def update_scene(
     scene = await vr_panorama_service.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VR 场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=user, db=db)
     data = body.model_dump(exclude_none=True)
     updated = await vr_panorama_service.update_scene(db, scene_id, data)
     resp = VRSceneResponse.model_validate(updated)
@@ -232,6 +248,7 @@ async def delete_scene(
     scene = await vr_panorama_service.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VR 场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=user, db=db)
     project_id = scene.project_id
     deleted = await vr_panorama_service.delete_scene(db, scene_id)
     if not deleted:

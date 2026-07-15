@@ -30,9 +30,69 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
+async def _run_lightweight_migrations():
+    """轻量级 schema 迁移：为已有表添加缺失列。
+
+    SQLAlchemy 的 create_all 只创建不存在的表，不会给已有表添加新列。
+    此函数检查关键表的列并执行 ALTER TABLE ADD COLUMN。
+    生产环境中应在 init_db() 后自动调用。
+    """
+    from sqlalchemy import text, inspect
+
+    async with engine.begin() as conn:
+        def _get_table_columns(sync_conn, table_name):
+            insp = inspect(sync_conn)
+            if not insp.has_table(table_name):
+                return None
+            return [col["name"] for col in insp.get_columns(table_name)]
+
+        # 检查 users 表
+        user_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "users")
+        )
+        if user_cols is not None:
+            user_migrations = [
+                ("users", "sub_role", "VARCHAR(30)"),
+                ("users", "is_verified", "BOOLEAN DEFAULT 0 NOT NULL"),
+            ]
+            for table, column, coltype in user_migrations:
+                if column not in user_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    import logging
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # 检查 projects 表（v1.0.14 修复：project_type/source/scan_session_id
+        # 在模型中存在但 init 迁移未包含，导致生产库查询 500）
+        project_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "projects")
+        )
+        if project_cols is not None:
+            project_migrations = [
+                ("projects", "project_type", "VARCHAR(30) NOT NULL DEFAULT 'full_renovation'"),
+                ("projects", "source", "VARCHAR(20) NOT NULL DEFAULT 'manual'"),
+                ("projects", "scan_session_id", "VARCHAR(36)"),
+            ]
+            for table, column, coltype in project_migrations:
+                if column not in project_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    import logging
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # 轻量级 schema 迁移：检查并添加缺失列（防止 create_all 不更新已有表）
+    await _run_lightweight_migrations()
 
     from app.models.user import User
     from app.models.material import MaterialCategory, Material
@@ -313,7 +373,7 @@ async def init_db():
             phone="13800138000",
             name="张先生",
             role="homeowner",
-            hashed_password=_hash_password("123456")[0],
+            hashed_password=_hash_password("123456"),
         )
         db.add(demo_user)
 
@@ -322,7 +382,7 @@ async def init_db():
             phone="13900139000",
             name="李设计师",
             role="designer",
-            hashed_password=_hash_password("123456")[0],
+            hashed_password=_hash_password("123456"),
         )
         db.add(designer)
         await db.flush()

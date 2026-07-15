@@ -161,6 +161,14 @@ const ApiClient = {
     });
   },
 
+  // 别名：与 WebAuthn 契约命名对齐（等价于 listPasskeys / deletePasskey）
+  async listWebauthnCredentials() {
+    return this.listPasskeys();
+  },
+  async deleteWebauthnCredential(credentialId) {
+    return this.deletePasskey(credentialId);
+  },
+
   // 项目列表（后端返回数组）
   async getProjects() {
     const data = await this.request('/api/projects');
@@ -1747,6 +1755,28 @@ const ApiClient = {
   },
   async publishProduct(productId) {
     return this.request(`/api/products/${productId}/publish`, { method: 'POST' });
+  },
+
+  // ============ 通知 / 设备推送令牌 ============
+
+  // 注册/更新设备推送令牌（每用户每平台仅保留一条活跃记录）
+  async registerDevice(data) {
+    return this.request('/api/notifications/register-device', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // 列出当前用户的活跃设备
+  async listMyDevices() {
+    return this.request('/api/notifications/devices');
+  },
+
+  // 注销设备推送令牌（软删除）
+  async unregisterDevice(deviceId) {
+    return this.request(`/api/notifications/devices/${deviceId}`, {
+      method: 'DELETE',
+    });
   },
 
   // 健康检查

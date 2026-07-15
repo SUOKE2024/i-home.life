@@ -12,6 +12,7 @@ from app.schemas.kitchen import (
     KitchenComponentResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import kitchen_service
 from app.ws import ws_manager
 
@@ -25,6 +26,7 @@ async def create_design(
     db: AsyncSession = Depends(get_db),
 ):
     """创建厨房设计"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     design = await kitchen_service.create_design(db, data.model_dump())
     resp = KitchenDesignResponse.model_validate(design)
     await ws_manager.broadcast_to_project(design.project_id, "kitchen.design_created", resp.model_dump())
@@ -65,6 +67,7 @@ async def auto_layout(
     design = await kitchen_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
 
     components_data = kitchen_service.generate_kitchen_layout(design)
 
@@ -115,7 +118,11 @@ async def validate_compliance(
     return {"design_id": design_id, **result}
 
 
-@router.post("/designs/{design_id}/components", response_model=KitchenComponentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/designs/{design_id}/components",
+    response_model=KitchenComponentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_component(
     design_id: str,
     data: KitchenComponentCreate,
@@ -126,6 +133,7 @@ async def add_component(
     design = await kitchen_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     comp_data = data.model_dump()
     comp_data["design_id"] = design_id
     component = await kitchen_service.add_component(db, comp_data)
@@ -168,6 +176,7 @@ async def delete_design(
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
     project_id = design.project_id
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     deleted = await kitchen_service.delete_design(db, design_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")

@@ -14,7 +14,6 @@ PAGES=(
   "index.html 200"
   "login.html 200"
   "workbench.html 200"
-  "our-story.html 200"
   "settings.html 200"
   "project-detail.html 200"
   "materials.html 200"

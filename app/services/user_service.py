@@ -1,7 +1,6 @@
-import hashlib
-import secrets
 import uuid
 
+import bcrypt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,17 +8,14 @@ from app.models.user import User
 from app.schemas.user import UserCreate
 
 
-def _hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
-    if salt is None:
-        salt = secrets.token_hex(16)
-    h = hashlib.sha256((password + salt).encode()).hexdigest()
-    return f"{salt}:{h}", salt
+def _hash_password(password: str) -> str:
+    """使用 bcrypt 哈希密码，盐值内嵌于结果中"""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
-def _verify_password(password: str, stored: str) -> bool:
-    salt, _ = stored.split(":", 1)
-    hashed, _ = _hash_password(password, salt)
-    return hashed == stored
+def _verify_password(password: str, stored_hash: str) -> bool:
+    """验证密码是否与 bcrypt 哈希匹配"""
+    return bcrypt.checkpw(password.encode(), stored_hash.encode())
 
 
 async def create_user(db: AsyncSession, data: UserCreate) -> User:
@@ -29,7 +25,7 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     """
     hashed = None
     if data.password:
-        hashed, _ = _hash_password(data.password)
+        hashed = _hash_password(data.password)
 
     user = User(
         phone=data.phone,

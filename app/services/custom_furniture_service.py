@@ -94,14 +94,16 @@ async def list_modules(db: AsyncSession, design_id: str) -> list[FurnitureModule
     return list(result.scalars().all())
 
 
-async def delete_module(db: AsyncSession, module_id: str) -> bool:
+async def delete_module(db: AsyncSession, module_id: str) -> tuple[bool, str | None]:
+    """删除模块，返回 (是否成功, design_id)"""
     result = await db.execute(select(FurnitureModule).where(FurnitureModule.id == module_id))
     module = result.scalar_one_or_none()
     if not module:
-        return False
+        return False, None
+    design_id = module.design_id
     await db.delete(module)
     await db.commit()
-    return True
+    return True, design_id
 
 
 # ── BOM 查询 ──

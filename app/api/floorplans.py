@@ -9,6 +9,7 @@ from app.schemas.floorplan import (
     FloorPlanListItem,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import floorplan_service
 from app.ws import ws_manager
 
@@ -21,6 +22,7 @@ async def list_plans(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     plans = await floorplan_service.list_floor_plans(db, project_id)
     return [FloorPlanListItem.model_validate(p) for p in plans]
 
@@ -34,6 +36,7 @@ async def get_plan(
     plan = await floorplan_service.get_floor_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     return FloorPlanResponse.model_validate(plan)
 
 
@@ -43,6 +46,7 @@ async def create_plan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     plan = await floorplan_service.create_floor_plan(db, data.model_dump())
     resp = FloorPlanResponse.model_validate(plan)
     await ws_manager.broadcast_to_project(plan.project_id, "floorplan.created", resp.model_dump())
@@ -56,6 +60,10 @@ async def update_plan(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    existing = await floorplan_service.get_floor_plan(db, plan_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     plan = await floorplan_service.update_floor_plan(db, plan_id, data.model_dump())
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
@@ -73,6 +81,7 @@ async def delete_plan(
     plan = await floorplan_service.get_floor_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     project_id = plan.project_id
     deleted = await floorplan_service.delete_floor_plan(db, plan_id)
     if not deleted:

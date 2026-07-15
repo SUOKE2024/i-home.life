@@ -188,7 +188,7 @@ async def list_presets(
     if category:
         stmt = stmt.where(AIImagePreset.category == category)
     if is_public_only:
-        stmt = stmt.where(AIImagePreset.is_public == True)
+        stmt = stmt.where(AIImagePreset.is_public.is_(True))
     result = await db.execute(stmt)
     return list(result.scalars().all())
 

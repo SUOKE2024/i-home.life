@@ -16,11 +16,13 @@ class Survey(Base):
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="现场测量")
     surveyor: Mapped[str | None] = mapped_column(String(100), nullable=True)       # 测量人员
-    method: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")  # manual | lidar | visual | photo | voice_guided
+    # method: manual | lidar | visual | photo | voice_guided
+    method: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     scene_type: Mapped[str] = mapped_column(String(20), nullable=False, default="indoor")  # indoor | outdoor | balcony
     wall_height: Mapped[float] = mapped_column(Float, default=2.8)                  # 层高(米)
     total_area: Mapped[float] = mapped_column(Float, default=0.0)                   # 实测总面积(㎡)
-    rooms_data: Mapped[str] = mapped_column(Text, nullable=False, default="[]")     # JSON: [{name,type,width,length,area,notes}]
+    # JSON: [{name,type,width,length,area,notes}]
+    rooms_data: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     scan_data: Mapped[str | None] = mapped_column(Text, nullable=True)              # LiDAR/摄像头原始数据 JSON
     voice_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)       # 语音引导对话记录
     device_info: Mapped[str | None] = mapped_column(Text, nullable=True)            # 设备信息 JSON {device,os,sensors}

@@ -632,7 +632,11 @@ async def auto_calc_quantity(
     return result
 
 
-@router.post("/quantity-calcs/{calc_id}/line-items", response_model=QuantityLineItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/quantity-calcs/{calc_id}/line-items",
+    response_model=QuantityLineItemResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_line_item(
     calc_id: str,
     data: QuantityLineItemCreate,

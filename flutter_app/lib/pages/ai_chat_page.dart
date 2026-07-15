@@ -883,7 +883,7 @@ class _AIChatPageState extends State<AIChatPage> {
       ));
 
       final pid = _currentProjectId;
-      await ApiClient().uploadFile('/api/files/upload', filePath: picked.path, projectId: pid);
+      await ApiClient().uploadFile('/files/upload', filePath: picked.path, projectId: pid);
     } catch (_) {}
   }
 
@@ -906,7 +906,7 @@ class _AIChatPageState extends State<AIChatPage> {
       ));
 
       final pid = _currentProjectId;
-      await ApiClient().uploadFile('/api/files/upload', filePath: file.path!, projectId: pid);
+      await ApiClient().uploadFile('/files/upload', filePath: file.path!, projectId: pid);
     } catch (_) {}
   }
 

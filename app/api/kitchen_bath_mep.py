@@ -14,6 +14,7 @@ from app.schemas.kitchen_bath_mep import (
     AutoGenerateRequest,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import kitchen_bath_mep_service as svc
 from app.ws import ws_manager
 
@@ -71,6 +72,7 @@ async def auto_generate(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
 
     # 生成给排水点位
     water_result = svc.generate_water_inlets(plan.room_type, data.devices)
@@ -178,6 +180,7 @@ async def add_point(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     point_data = data.model_dump()
     point_data["plan_id"] = plan_id
     point = await svc.add_point(db, point_data)

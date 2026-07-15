@@ -53,7 +53,8 @@ async def test_create_survey(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_list_surveys_empty(client: AsyncClient):
     token, pid = await _register_and_get_project(client)
-    resp = await client.get(f"/api/surveys/project/{pid}")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.get(f"/api/surveys/project/{pid}", headers=headers)
     assert resp.status_code == 200
     assert resp.json() == []
 
@@ -72,7 +73,7 @@ async def test_list_surveys(client: AsyncClient):
             "rooms": [{"name": "客厅", "room_type": "living_room", "width": 5.0, "length": 6.0}],
         },
     )
-    resp = await client.get(f"/api/surveys/project/{pid}")
+    resp = await client.get(f"/api/surveys/project/{pid}", headers=headers)
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
@@ -92,14 +93,16 @@ async def test_get_survey(client: AsyncClient):
         },
     )
     sid = create.json()["id"]
-    resp = await client.get(f"/api/surveys/{sid}")
+    resp = await client.get(f"/api/surveys/{sid}", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["total_area"] == 12.0
 
 
 @pytest.mark.asyncio
 async def test_get_survey_not_found(client: AsyncClient):
-    resp = await client.get("/api/surveys/nonexistent-id")
+    token, _ = await _register_and_get_project(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.get("/api/surveys/nonexistent-id", headers=headers)
     assert resp.status_code == 404
 
 
@@ -151,7 +154,7 @@ async def test_delete_survey(client: AsyncClient):
     sid = create.json()["id"]
     resp = await client.delete(f"/api/surveys/{sid}", headers=headers)
     assert resp.status_code == 204
-    get_resp = await client.get(f"/api/surveys/{sid}")
+    get_resp = await client.get(f"/api/surveys/{sid}", headers=headers)
     assert get_resp.status_code == 404
 
 
@@ -187,7 +190,7 @@ async def test_apply_survey_to_project(client: AsyncClient):
     assert proj.json()["total_area"] == 62.0
 
     # 验证测量状态变为 completed
-    survey = await client.get(f"/api/surveys/{sid}")
+    survey = await client.get(f"/api/surveys/{sid}", headers=headers)
     assert survey.json()["status"] == "completed"
 
 

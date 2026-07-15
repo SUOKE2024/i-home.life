@@ -552,7 +552,7 @@ async def test_logistics_create_and_track(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_logistics_eta_computation(client: AsyncClient):
     """F34 ETA 计算 — 不同承运商和起止地"""
-    from app.services.procurement_enhanced_service import compute_eta, CARRIER_BASE_DAYS
+    from app.services.procurement_enhanced_service import compute_eta
     from app.models.procurement_enhanced import LogisticsTracking
 
     # 顺丰，同省份
@@ -561,7 +561,6 @@ async def test_logistics_eta_computation(client: AsyncClient):
         ship_from="上海市闵行区", ship_to="上海市浦东新区",
     )
     eta1 = compute_eta(t1)
-    base1 = CARRIER_BASE_DAYS["sf_express"]  # 2 天
     assert eta1 is not None
 
     # 德邦，跨省份（额外 1 天）
@@ -732,7 +731,8 @@ async def test_rank_quotations_algorithm():
     quotations = [
         {"supplier_id": "A", "supplier_name": "A", "price": 100.0, "delivery_days": 5, "in_stock": True, "rating": 4.5},
         {"supplier_id": "B", "supplier_name": "B", "price": 120.0, "delivery_days": 3, "in_stock": True, "rating": 4.8},
-        {"supplier_id": "C", "supplier_name": "C", "price": 90.0, "delivery_days": 10, "in_stock": False, "rating": 3.5},
+        {"supplier_id": "C", "supplier_name": "C", "price": 90.0,
+         "delivery_days": 10, "in_stock": False, "rating": 3.5},
     ]
     ranked = rank_quotations(quotations)
     assert len(ranked) == 3

@@ -25,8 +25,16 @@ async def test_create_budget(client: AsyncClient):
         json={
             "project_id": proj_id,
             "lines": [
-                {"category": "硬装", "name": "墙面处理", "estimated_amount": 20000.0, "unit": "㎡", "quantity": 100, "unit_price": 200},
-                {"category": "软装", "name": "灯具", "estimated_amount": 5000.0, "unit": "套", "quantity": 1, "unit_price": 5000},
+                {
+                    "category": "硬装", "name": "墙面处理",
+                    "estimated_amount": 20000.0, "unit": "㎡",
+                    "quantity": 100, "unit_price": 200,
+                },
+                {
+                    "category": "软装", "name": "灯具",
+                    "estimated_amount": 5000.0, "unit": "套",
+                    "quantity": 1, "unit_price": 5000,
+                },
             ],
         },
         headers={"Authorization": f"Bearer {token}"},
@@ -51,7 +59,13 @@ async def test_get_budget(client: AsyncClient):
         "/api/budgets",
         json={
             "project_id": proj_id,
-            "lines": [{"category": "测试", "name": "测试项", "estimated_amount": 1000.0, "unit": "项", "quantity": 1, "unit_price": 1000}],
+            "lines": [
+                {
+                    "category": "测试", "name": "测试项",
+                    "estimated_amount": 1000.0, "unit": "项",
+                    "quantity": 1, "unit_price": 1000,
+                },
+            ],
         },
         headers={"Authorization": f"Bearer {token}"},
     )

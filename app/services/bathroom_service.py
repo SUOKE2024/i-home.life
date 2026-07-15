@@ -19,17 +19,17 @@ def generate_bathroom_layout(design: BathroomDesign) -> list[dict]:
     """
     layout = design.layout_type
     w = design.room_width
-    l = design.room_length
+    length = design.room_length
 
     if layout == "dry_wet_separation":
-        return _gen_dry_wet_layout(w, l)
+        return _gen_dry_wet_layout(w, length)
     elif layout == "three_separation":
-        return _gen_three_separation_layout(w, l)
+        return _gen_three_separation_layout(w, length)
     else:
-        return _gen_traditional_layout(w, l)
+        return _gen_traditional_layout(w, length)
 
 
-def _gen_dry_wet_layout(w: float, l: float) -> list[dict]:
+def _gen_dry_wet_layout(w: float, length: float) -> list[dict]:
     """干湿分离: 淋浴区 + 马桶区 + 洗漱区"""
     return [
         # 洗漱区 (干区 - 入门侧)
@@ -73,7 +73,7 @@ def _gen_dry_wet_layout(w: float, l: float) -> list[dict]:
             "brand": "高仪",
             "width": 900.0, "depth": 900.0, "height": 2000.0,
             "position_x": (w * 1000 - 900) / 2,
-            "position_y": (l * 1000 - 900),
+            "position_y": (length * 1000 - 900),
             "position_z": 0.0,
             "material": "不锈钢", "color": "银色",
             "price": 1680.0,
@@ -92,23 +92,23 @@ def _gen_dry_wet_layout(w: float, l: float) -> list[dict]:
             "fixture_type": "vent_fan",
             "brand": "艾美特",
             "width": 300.0, "depth": 300.0, "height": 100.0,
-            "position_x": 0.0, "position_y": (l * 1000 - 300),
+            "position_x": 0.0, "position_y": (length * 1000 - 300),
             "position_z": 2500.0,
             "price": 368.0,
         },
     ]
 
 
-def _gen_three_separation_layout(w: float, l: float) -> list[dict]:
+def _gen_three_separation_layout(w: float, length: float) -> list[dict]:
     """三分离: 淋浴 / 马桶 / 洗漱各自独立"""
-    fixtures = _gen_dry_wet_layout(w, l)
+    fixtures = _gen_dry_wet_layout(w, length)
     # 三分离增加隔断标识 (通过 notes 标注)
     for f in fixtures:
         f["notes"] = "三分离独立区域"
     return fixtures
 
 
-def _gen_traditional_layout(w: float, l: float) -> list[dict]:
+def _gen_traditional_layout(w: float, length: float) -> list[dict]:
     """传统布局: 无分离"""
     return [
         {
@@ -131,7 +131,7 @@ def _gen_traditional_layout(w: float, l: float) -> list[dict]:
             "brand": "高仪",
             "width": 600.0, "depth": 600.0, "height": 2000.0,
             "position_x": (w * 1000 - 600) / 2,
-            "position_y": (l * 1000 - 600),
+            "position_y": (length * 1000 - 600),
             "position_z": 0.0,
             "price": 1280.0,
         },
@@ -147,11 +147,11 @@ def compute_drain_slope(design: BathroomDesign) -> dict:
         design: 卫生间设计
     """
     w = design.room_width
-    l = design.room_length
+    length = design.room_length
 
     # 假设地漏在湿区中心 (最内侧)
     drain_x = w / 2
-    drain_y = l * 0.8
+    drain_y = length * 0.8
 
     # 最远点为门口对角
     farthest_x = 0.0

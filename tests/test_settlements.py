@@ -434,12 +434,12 @@ async def test_attach_anomalies_to_settlement(client: AsyncClient):
     assert data["suggested_deduction"] == 5000.0
     assert data["review_required"] is True  # critical > 0 触发复核
     # 找到 "基础工程" 行，验证 is_anomaly=True
-    base_line = next(l for l in data["lines"] if l["name"] == "基础工程")
+    base_line = next(line for line in data["lines"] if line["name"] == "基础工程")
     assert base_line["is_anomaly"] is True
     assert base_line["anomaly_type"] == "over_budget"
     assert base_line["anomaly_severity"] == "warning"
     # 找到 "主材" 行，验证 critical 标记
-    main_line = next(l for l in data["lines"] if l["name"] == "主材")
+    main_line = next(line for line in data["lines"] if line["name"] == "主材")
     assert main_line["is_anomaly"] is True
     assert main_line["anomaly_severity"] == "critical"
     assert main_line["status"] == "flagged"

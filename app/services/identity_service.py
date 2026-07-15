@@ -1,11 +1,13 @@
 """实名认证服务 — 支持第三方身份证核验（阿里云/腾讯云）"""
 
+import base64
 import json
 import logging
-import hashlib
+import os
 from datetime import datetime, timezone
 
 import httpx
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -83,10 +85,21 @@ def _get_identity_provider() -> IdentityProvider:
 # ── 加密工具 ──
 
 def _encrypt_id_card(id_card: str) -> str:
-    """对称加密身份证号存储"""
+    """AES-256-GCM 加密身份证号存储"""
     key = settings.paseto_secret_key.encode()[:32]
-    # 简单混淆存储（生产环境请使用 AES-256-GCM）
-    return hashlib.sha256((id_card + key.decode()).encode()).hexdigest()[:32]
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)
+    ciphertext = aesgcm.encrypt(nonce, id_card.encode(), None)
+    return base64.b64encode(nonce + ciphertext).decode()
+
+
+def _decrypt_id_card(encrypted: str) -> str:
+    """AES-256-GCM 解密身份证号"""
+    key = settings.paseto_secret_key.encode()[:32]
+    aesgcm = AESGCM(key)
+    raw = base64.b64decode(encrypted)
+    nonce, ct = raw[:12], raw[12:]
+    return aesgcm.decrypt(nonce, ct, None).decode()
 
 
 # ── 服务方法 ──

@@ -1,6 +1,4 @@
 """实名认证 API — 提交认证、查询状态、管理员审核"""
-import json
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 

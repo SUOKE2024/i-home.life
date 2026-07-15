@@ -63,8 +63,15 @@ def _handle_intent(text: str, intent: str) -> tuple[str, list[dict]]:
             w = float(size_match.group(1)) if size_match else 4
             h = float(size_match.group(3)) if size_match else 3
             name = name_match.group(1) if name_match else "房间"
-            type_map = {"客厅": "living_room", "卧室": "bedroom", "厨房": "kitchen", "卫生间": "bathroom", "书房": "study", "阳台": "balcony", "餐厅": "dining_room", "走廊": "hallway"}
-            actions = [{"action": "add_room", "x": 0, "y": 0, "w": w, "h": h, "name": name, "roomType": type_map.get(name, "living_room")}]
+            type_map = {
+                "客厅": "living_room", "卧室": "bedroom", "厨房": "kitchen",
+                "卫生间": "bathroom", "书房": "study", "阳台": "balcony",
+                "餐厅": "dining_room", "走廊": "hallway",
+            }
+            actions = [{
+                "action": "add_room", "x": 0, "y": 0, "w": w, "h": h,
+                "name": name, "roomType": type_map.get(name, "living_room"),
+            }]
             reply = f"已创建 {name} ({w}×{h}m)"
     elif intent == "budget":
         reply = f"预算分析：「{text}」。建议按舒适型标准（1200-2000/㎡）估算。"
@@ -104,6 +111,15 @@ def _extract_room_from_text(text: str) -> list[dict]:
         name = m.group(1)
         w = float(m.group(2))
         h = float(m.group(3))
-        type_map = {"客厅": "living_room", "卧室": "living_room", "主卧": "bedroom", "次卧": "bedroom", "厨房": "kitchen", "卫生间": "bathroom", "书房": "study", "阳台": "balcony", "餐厅": "dining_room", "走廊": "hallway", "玄关": "hallway"}
-        actions.append({"action": "measure_room", "name": name, "room_type": type_map.get(name, "living_room"), "width": w, "length": h, "area": round(w * h, 2)})
+        type_map = {
+            "客厅": "living_room", "卧室": "living_room", "主卧": "bedroom",
+            "次卧": "bedroom", "厨房": "kitchen", "卫生间": "bathroom",
+            "书房": "study", "阳台": "balcony", "餐厅": "dining_room",
+            "走廊": "hallway", "玄关": "hallway",
+        }
+        actions.append({
+            "action": "measure_room", "name": name,
+            "room_type": type_map.get(name, "living_room"),
+            "width": w, "length": h, "area": round(w * h, 2),
+        })
     return actions

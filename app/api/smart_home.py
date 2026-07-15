@@ -17,6 +17,7 @@ from app.schemas.smart_home import (
     ProtocolAdviceResult,
     PriceComputeResult,
 )
+from app.rbac import verify_project_access
 from app.services import smart_home_service as svc
 from app.ws import ws_manager
 
@@ -95,6 +96,7 @@ async def auto_recommend(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     room_type = body.get("room_type") or scheme.room_type
     room_area = float(body.get("room_area") or 20.0)
     protocol = body.get("protocol") or scheme.protocol
@@ -170,6 +172,7 @@ async def add_device(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     device = await svc.add_device(db, scheme_id, data.model_dump())
     resp = SmartDeviceResponse.model_validate(device)
     await ws_manager.broadcast_to_project(scheme.project_id, "smart.device.added", resp.model_dump())

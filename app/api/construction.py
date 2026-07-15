@@ -32,6 +32,7 @@ from app.schemas.quality import (
     QualityDetectRequest,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import construction_service, progress_service, quality_service
 from app.agents.construction import ConstructionAgent, manage_progress, detect_quality_issues
 from app.ws import ws_manager
@@ -124,6 +125,7 @@ async def create_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     task = await construction_service.create_task(db, data.model_dump())
     resp = TaskResponse.model_validate(task)
     await ws_manager.broadcast_to_project(data.project_id, "task.created", resp.model_dump())
@@ -140,6 +142,7 @@ async def update_task_status(
     task = await construction_service.update_task_status(db, task_id, status_val)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     resp = TaskResponse.model_validate(task)
     await ws_manager.broadcast_to_project(task.project_id, "task.status_updated", resp.model_dump())
     return resp
@@ -159,6 +162,7 @@ async def add_log(
     task_result = await db.execute(select(ConstructionTask).where(ConstructionTask.id == data.task_id))
     task = task_result.scalar_one_or_none()
     if task:
+        await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
         await ws_manager.broadcast_to_project(task.project_id, "log.added", resp.model_dump())
     return resp
 
@@ -170,7 +174,7 @@ async def get_logs(
     db: AsyncSession = Depends(get_db),
 ):
     logs = await construction_service.get_logs(db, task_id)
-    return [LogResponse.model_validate(l) for l in logs]
+    return [LogResponse.model_validate(log) for log in logs]
 
 
 @router.post("/inspections", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
@@ -185,6 +189,7 @@ async def create_inspection(
     task_result = await db.execute(select(ConstructionTask).where(ConstructionTask.id == data.task_id))
     task = task_result.scalar_one_or_none()
     if task:
+        await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
         await ws_manager.broadcast_to_project(task.project_id, "inspection.created", resp.model_dump())
     return resp
 
@@ -235,8 +240,10 @@ async def analyze_inspection_images(
 async def analyze_project_progress(
     data: ProgressAnalysisRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """F37 AI 进度分析 — 基于任务列表生成预警 + 里程碑跟踪"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     result = manage_progress(
         project_id=data.project_id,
         tasks=data.tasks,
@@ -273,6 +280,7 @@ async def create_progress_alert(
     db: AsyncSession = Depends(get_db),
 ):
     """手动创建进度预警"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     alert = await progress_service.create_alert(db, data.model_dump())
     resp = _alert_to_response(alert)
     await ws_manager.broadcast_to_project(data.project_id, "progress.alert", resp.model_dump())
@@ -290,6 +298,7 @@ async def resolve_progress_alert(
     alert = await progress_service.resolve_alert(db, alert_id, resolver=current_user.name, note=data.note)
     if not alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预警记录不存在")
+    await verify_project_access(project_id=alert.project_id, current_user=current_user, db=db)
     resp = _alert_to_response(alert)
     await ws_manager.broadcast_to_project(alert.project_id, "progress.alert_resolved", resp.model_dump())
     return resp
@@ -320,6 +329,7 @@ async def upsert_milestone(
 ):
     """创建或更新里程碑跟踪记录"""
     record = await progress_service.upsert_milestone(db, data)
+    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
     resp = _milestone_to_response(record)
     await ws_manager.broadcast_to_project(record.project_id, "milestone.updated", resp.model_dump())
     return resp
@@ -345,6 +355,7 @@ async def complete_milestone(
     )
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
+    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
     resp = _milestone_to_response(record)
     await ws_manager.broadcast_to_project(record.project_id, "milestone.completed", resp.model_dump())
     return resp
@@ -424,8 +435,10 @@ def _assessment_to_response(a) -> QualityAssessmentResponse:
 async def detect_quality_problems(
     data: QualityDetectRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """F38 AI 质量问题检测 — 基于质检结果自动识别质量问题"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     result = detect_quality_issues(
         project_id=data.project_id,
         phase=data.phase,
@@ -444,6 +457,7 @@ async def create_quality_issue(
     db: AsyncSession = Depends(get_db),
 ):
     """创建质量问题记录"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     issue = await quality_service.create_issue(db, data.model_dump())
     resp = _issue_to_response(issue)
     await ws_manager.broadcast_to_project(data.project_id, "quality.issue_created", resp.model_dump())
@@ -466,7 +480,9 @@ async def list_quality_issues(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     if current_user.role != "admin" and project.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
-    issues = await quality_service.list_issues(db, project_id, phase=phase, status_filter=status_filter, severity=severity)
+    issues = await quality_service.list_issues(
+        db, project_id, phase=phase, status_filter=status_filter, severity=severity
+    )
     return [_issue_to_response(i) for i in issues]
 
 
@@ -486,6 +502,7 @@ async def update_quality_issue_status(
     )
     if not issue:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="质量问题不存在")
+    await verify_project_access(project_id=issue.project_id, current_user=current_user, db=db)
     resp = _issue_to_response(issue)
     await ws_manager.broadcast_to_project(issue.project_id, "quality.issue_updated", resp.model_dump())
     return resp
@@ -498,6 +515,7 @@ async def create_rectification_order(
     db: AsyncSession = Depends(get_db),
 ):
     """创建整改单（自动生成单号 + 同步关联 issue 状态）"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     order = await quality_service.create_rectification_order(db, data.model_dump(), created_by=current_user.name)
     resp = _order_to_response(order)
     await ws_manager.broadcast_to_project(data.project_id, "quality.order_created", resp.model_dump())
@@ -533,6 +551,7 @@ async def update_rectification_order_status(
     order = await quality_service.update_order_status(db, order_id, new_status, verifier=current_user.name)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="整改单不存在")
+    await verify_project_access(project_id=order.project_id, current_user=current_user, db=db)
     resp = _order_to_response(order)
     await ws_manager.broadcast_to_project(order.project_id, "quality.order_updated", resp.model_dump())
     return resp
@@ -545,6 +564,7 @@ async def create_quality_assessment(
     db: AsyncSession = Depends(get_db),
 ):
     """创建质量评估汇总"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     assessment = await quality_service.create_assessment(db, data.model_dump())
     resp = _assessment_to_response(assessment)
     await ws_manager.broadcast_to_project(data.project_id, "quality.assessed", resp.model_dump())

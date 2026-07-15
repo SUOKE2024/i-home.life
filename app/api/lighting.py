@@ -13,6 +13,7 @@ from app.schemas.lighting import (
     AIDesignRequest,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import lighting_service
 from app.ws import ws_manager
 
@@ -26,6 +27,7 @@ async def create_scheme(
     db: AsyncSession = Depends(get_db),
 ):
     """创建灯光方案"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     scheme = await lighting_service.create_scheme(db, data.model_dump())
     resp = LightingSchemeResponse.model_validate(scheme)
     await ws_manager.broadcast_to_project(scheme.project_id, "lighting.scheme_created", resp.model_dump())
@@ -39,6 +41,7 @@ async def list_schemes(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目灯光方案"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     schemes = await lighting_service.list_schemes(db, project_id)
     return [LightingSchemeResponse.model_validate(s) for s in schemes]
 
@@ -53,6 +56,7 @@ async def get_scheme(
     scheme = await lighting_service.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return LightingSchemeResponse.model_validate(scheme)
 
 
@@ -67,6 +71,7 @@ async def ai_design(
     scheme = await lighting_service.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
 
     # 调用 AI 方案生成
     ai_result = lighting_service.generate_ai_scheme(
@@ -103,7 +108,11 @@ async def ai_design(
     return resp
 
 
-@router.post("/schemes/{scheme_id}/fixtures", response_model=LightingFixtureResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/schemes/{scheme_id}/fixtures",
+    response_model=LightingFixtureResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_fixture(
     scheme_id: str,
     data: LightingFixtureCreate,
@@ -114,6 +123,7 @@ async def add_fixture(
     scheme = await lighting_service.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     fixture_data = data.model_dump()
     fixture_data["scheme_id"] = scheme_id
     fixture = await lighting_service.add_fixture(db, fixture_data)
@@ -129,6 +139,10 @@ async def list_fixtures(
     db: AsyncSession = Depends(get_db),
 ):
     """列出灯具"""
+    scheme = await lighting_service.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     fixtures = await lighting_service.list_fixtures(db, scheme_id)
     return [LightingFixtureResponse.model_validate(f) for f in fixtures]
 
@@ -140,6 +154,15 @@ async def delete_fixture(
     db: AsyncSession = Depends(get_db),
 ):
     """删除灯具"""
+    from sqlalchemy import select
+    from app.models.lighting import LightingFixture
+    fixture_result = await db.execute(select(LightingFixture).where(LightingFixture.id == fixture_id))
+    fixture = fixture_result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯具不存在")
+    scheme = await lighting_service.get_scheme(db, fixture.scheme_id)
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     deleted = await lighting_service.delete_fixture(db, fixture_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯具不存在")
@@ -155,6 +178,7 @@ async def compute_illuminance(
     scheme = await lighting_service.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     fixtures = await lighting_service.list_fixtures(db, scheme_id)
     result = lighting_service.compute_illuminance(scheme.room_area, scheme.ceiling_height, fixtures)
     return {
@@ -175,6 +199,7 @@ async def delete_scheme(
     scheme = await lighting_service.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     project_id = scheme.project_id
     deleted = await lighting_service.delete_scheme(db, scheme_id)
     if not deleted:

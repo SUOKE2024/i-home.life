@@ -17,6 +17,7 @@ from app.schemas.construction_crew import (
     CrewMatchResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import crew_service
 from app.ws import ws_manager
 
@@ -118,6 +119,7 @@ async def match_crews(
     db: AsyncSession = Depends(get_db),
 ):
     """F36 智能匹配：地域 + 专长 + 评分 + 资质 + 价格 + 工期 六维评分"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     matches = await crew_service.match_crews(
         db,
         project_id=data.project_id,
@@ -164,6 +166,7 @@ async def update_match_status(
     if not match:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="匹配记录不存在")
     refreshed = await _load_match_with_crew(db, match_id)
+    await verify_project_access(project_id=refreshed.project_id, current_user=current_user, db=db)
     resp = _match_to_response(refreshed)
     await ws_manager.broadcast_to_project(refreshed.project_id, "crew.status_changed", resp.model_dump())
     return resp

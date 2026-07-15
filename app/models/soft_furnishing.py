@@ -52,7 +52,9 @@ class SoftFurnishingItem(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("soft_furnishing_schemes.id"), nullable=False)
     item_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    # item_type: sofa(沙发) / bed(床) / dining_table(餐桌) / chair(椅子) / coffee_table(茶几) / rug(地毯) / curtain(窗帘) / artwork(装饰画) / plant(绿植) / lamp(灯具) / pillow(抱枕) / decorative(摆件)
+    # item_type: sofa(沙发) / bed(床) / dining_table(餐桌) / chair(椅子) / coffee_table(茶几) /
+    #   rug(地毯) / curtain(窗帘) / artwork(装饰画) / plant(绿植) / lamp(灯具) /
+    #   pillow(抱枕) / decorative(摆件)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)

@@ -18,7 +18,8 @@ class FurnitureCatalogItem(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     # category: living_room / dining_room / bedroom / study / kitchen / bathroom / outdoor
     subcategory: Mapped[str] = mapped_column(String(50), nullable=False)
-    # subcategory: sofa / bed / dining_table / chair / coffee_table / wardrobe / bookshelf / desk / tv_cabinet / shoe_cabinet / nightstand
+    # subcategory: sofa / bed / dining_table / chair / coffee_table / wardrobe /
+    #   bookshelf / desk / tv_cabinet / shoe_cabinet / nightstand
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)

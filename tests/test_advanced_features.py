@@ -458,7 +458,10 @@ async def test_supervisor_and_estimator_match(client: AsyncClient):
         json={
             "name": "王监理", "city": "北京",
             "role": "supervisor",
-            "role_attributes": {"phases": ["mep", "masonry", "carpentry"], "certificate": "注册监理工程师", "supervised_projects": 100},
+            "role_attributes": {
+                "phases": ["mep", "masonry", "carpentry"],
+                "certificate": "注册监理工程师", "supervised_projects": 100,
+            },
             "qualification": "A", "rating": 4.7, "completed_projects": 100,
             "years_of_experience": 10, "daily_rate": 800,
         },

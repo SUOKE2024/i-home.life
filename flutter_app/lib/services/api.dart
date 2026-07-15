@@ -469,29 +469,29 @@ class ApiClient {
 
   // ── 用户 & 项目 ──
 
-  Future<Result<dynamic>> getCurrentUser() => get('/api/auth/me');
+  Future<Result<dynamic>> getCurrentUser() => get('/auth/me');
 
   // ── WebAuthn / FIDO2 / Passkey ──
 
   /// 注册：开始（需已登录）
   Future<Result<dynamic>> webauthnRegisterBegin({String? deviceName}) =>
-      post('/api/auth/webauthn/register/begin', {
+      post('/auth/webauthn/register/begin', {
         if (deviceName != null) 'device_name': deviceName,
       });
 
   /// 注册：完成
   Future<Result<dynamic>> webauthnRegisterComplete(Map<String, dynamic> params) =>
-      post('/api/auth/webauthn/register/complete', params);
+      post('/auth/webauthn/register/complete', params);
 
   /// 登录：开始（获取挑战）
   Future<Result<dynamic>> webauthnLoginBegin({String? phone}) =>
-      post('/api/auth/webauthn/login/begin', {
+      post('/auth/webauthn/login/begin', {
         if (phone != null) 'phone': phone,
       });
 
   /// 登录：完成（验证断言，返回 PASETO Token）
   Future<Result<dynamic>> webauthnLoginComplete(Map<String, dynamic> credential) async {
-    final result = await post('/api/auth/webauthn/login/complete', {
+    final result = await post('/auth/webauthn/login/complete', {
       'credential': credential,
     });
     if (result.isSuccess && result.data != null) {
@@ -505,37 +505,37 @@ class ApiClient {
 
   /// 列出当前用户的 Passkey
   Future<Result<dynamic>> listPasskeys() =>
-      get('/api/auth/webauthn/credentials');
+      get('/auth/webauthn/credentials');
 
   /// 删除 Passkey
   Future<Result<dynamic>> deletePasskey(String credentialId) =>
-      delete('/api/auth/webauthn/credentials/$credentialId');
+      delete('/auth/webauthn/credentials/$credentialId');
 
   // ── 项目 ──
 
-  Future<Result<dynamic>> getProjects() => get('/api/projects');
-  Future<Result<dynamic>> getProject(String id) => get('/api/projects/$id');
-  Future<Result<dynamic>> createProject(Map<String, dynamic> data) => post('/api/projects', data);
+  Future<Result<dynamic>> getProjects() => get('/projects');
+  Future<Result<dynamic>> getProject(String id) => get('/projects/$id');
+  Future<Result<dynamic>> createProject(Map<String, dynamic> data) => post('/projects', data);
 
   // ── 业务操作 API ──
 
   /// 审批变更单
   Future<Result<dynamic>> approveChangeOrder(String changeId, String decision) {
     final action = decision == 'approve' ? 'approve' : 'cancel';
-    return post('/api/change-orders/$changeId/$action', {});
+    return post('/change-orders/$changeId/$action', {});
   }
 
   /// 确认结算
   Future<Result<dynamic>> confirmSettlement(String projectId) =>
-      post('/api/settlements/confirm/$projectId', {});
+      post('/settlements/confirm/$projectId', {});
 
   /// 通过结算复核
   Future<Result<dynamic>> approveSettlementReview(String projectId) =>
-      post('/api/settlements/approve-review/$projectId', {});
+      post('/settlements/approve-review/$projectId', {});
 
   /// 导出 BOM
   Future<Result<dynamic>> exportBOM(String projectId) =>
-      get('/api/materials/bom/$projectId/export');
+      get('/materials/bom/$projectId/export');
 
   // ── AI 图片生成 ──
 
@@ -761,17 +761,17 @@ class ApiClient {
   // ── F39 变更管理 ──
 
   Future<Result<dynamic>> changeOrderList(String projectId) =>
-      get('/api/change-orders/project/$projectId');
+      get('/change-orders/project/$projectId');
   Future<Result<dynamic>> changeOrderCreate(Map<String, dynamic> body) =>
-      post('/api/change-orders', body);
+      post('/change-orders', body);
   Future<Result<dynamic>> changeOrderGet(String changeId) =>
-      get('/api/change-orders/$changeId');
+      get('/change-orders/$changeId');
   Future<Result<dynamic>> changeOrderReview(String changeId, Map<String, dynamic> body) =>
-      post('/api/change-orders/$changeId/review', body);
+      post('/change-orders/$changeId/review', body);
   Future<Result<dynamic>> changeOrderApprove(String changeId) =>
-      post('/api/change-orders/$changeId/approve', {});
+      post('/change-orders/$changeId/approve', {});
   Future<Result<dynamic>> changeOrderCancel(String changeId) =>
-      post('/api/change-orders/$changeId/cancel', {});
+      post('/change-orders/$changeId/cancel', {});
 
   // ── F9 工程量计算 ──
 

@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.auth import get_current_user
 from app.database import get_db
+from app.rbac import verify_project_access
 from app.agents.orchestrator import OrchestratorAgent
 from app.agents.designer import DesignerAgent
 from app.agents.budget import BudgetAgent
@@ -29,7 +30,10 @@ class AgentMessage(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     agent_type: str = Field(default="orchestrator")
     project_id: str | None = None
-    history: list[dict] = Field(default_factory=list, max_length=20, description="最近 N 轮对话历史，每项含 role/content/agent_type")
+    history: list[dict] = Field(
+        default_factory=list, max_length=20,
+        description="最近 N 轮对话历史，每项含 role/content/agent_type",
+    )
 
 
 class DesignRequest(BaseModel):
@@ -124,7 +128,7 @@ MOCK_MODE = not settings.deepseek_api_key and not settings.glm_api_key
 
 
 @router.post("/chat", response_model=AgentResponse)
-async def chat_with_agent(
+async def chat_with_agent(  # noqa: C901
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -161,7 +165,6 @@ async def chat_with_agent(
             classification = await agent.classify_intent(data.message)
 
         intent = classification.get("intent", "general")
-        reasoning = classification.get("reasoning", "")
 
         # Route to specialized agent based on intent
         suggestions_map = {
@@ -193,7 +196,10 @@ async def chat_with_agent(
                 else:
                     # 使用 ProcurementAgent 生成内容发布引导
                     reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
-                return AgentResponse(agent_type="content_publisher", reply=reply, suggestions=suggestions_map["content_publisher"])
+                return AgentResponse(
+                    agent_type="content_publisher", reply=reply,
+                    suggestions=suggestions_map["content_publisher"],
+                )
             finally:
                 await proc_agent.close()
 
@@ -213,7 +219,13 @@ async def chat_with_agent(
             bud_agent = BudgetAgent()
             try:
                 if MOCK_MODE:
-                    reply = _mock_budget_summary(data.message) + "\n\n" + _mock_budget_breakdown() + "\n\n" + _mock_cost_saving()
+                    reply = (
+                        _mock_budget_summary(data.message)
+                        + "\n\n"
+                        + _mock_budget_breakdown()
+                        + "\n\n"
+                        + _mock_cost_saving()
+                    )
                 else:
                     reply = await bud_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="budget", reply=reply, suggestions=suggestions_map["budget"])
@@ -224,7 +236,13 @@ async def chat_with_agent(
             proc_agent = ProcurementAgent()
             try:
                 if MOCK_MODE:
-                    reply = _mock_purchase_plan() + "\n\n" + _mock_supplier_rec() + "\n\n" + _mock_procurement_timeline()
+                    reply = (
+                        _mock_purchase_plan()
+                        + "\n\n"
+                        + _mock_supplier_rec()
+                        + "\n\n"
+                        + _mock_procurement_timeline()
+                    )
                 else:
                     reply = await proc_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="procurement", reply=reply, suggestions=suggestions_map["procurement"])
@@ -238,7 +256,10 @@ async def chat_with_agent(
                     reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
                 else:
                     reply = await cons_agent.think(data.message, user_ctx)
-                return AgentResponse(agent_type="construction", reply=reply, suggestions=suggestions_map["construction"])
+                return AgentResponse(
+                    agent_type="construction", reply=reply,
+                    suggestions=suggestions_map["construction"],
+                )
             finally:
                 await cons_agent.close()
 
@@ -260,7 +281,10 @@ async def chat_with_agent(
                     reply = _mock_qa_inspection()
                 else:
                     reply = await qa_agent.think(data.message, user_ctx)
-                return AgentResponse(agent_type="qa_inspector", reply=reply, suggestions=suggestions_map["qa_inspector"])
+                return AgentResponse(
+                    agent_type="qa_inspector", reply=reply,
+                    suggestions=suggestions_map["qa_inspector"],
+                )
             finally:
                 await qa_agent.close()
 
@@ -284,7 +308,7 @@ async def chat_with_agent(
 
 
 @router.post("/chat/stream")
-async def chat_stream(
+async def chat_stream(  # noqa: C901
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -357,7 +381,13 @@ async def chat_stream(
             bud_agent = BudgetAgent()
             try:
                 if MOCK_MODE:
-                    reply = _mock_budget_summary(data.message) + "\n\n" + _mock_budget_breakdown() + "\n\n" + _mock_cost_saving()
+                    reply = (
+                        _mock_budget_summary(data.message)
+                        + "\n\n"
+                        + _mock_budget_breakdown()
+                        + "\n\n"
+                        + _mock_cost_saving()
+                    )
                 else:
                     reply = await bud_agent.think(data.message, user_ctx)
             finally:
@@ -366,7 +396,13 @@ async def chat_stream(
             proc_agent = ProcurementAgent()
             try:
                 if MOCK_MODE:
-                    reply = _mock_purchase_plan() + "\n\n" + _mock_supplier_rec() + "\n\n" + _mock_procurement_timeline()
+                    reply = (
+                        _mock_purchase_plan()
+                        + "\n\n"
+                        + _mock_supplier_rec()
+                        + "\n\n"
+                        + _mock_procurement_timeline()
+                    )
                 else:
                     reply = await proc_agent.think(data.message, user_ctx)
             finally:
@@ -604,7 +640,9 @@ async def construction_publish_tasks(
     from sqlalchemy import select as sql_select
     from app.models.orchestrator_task import OrchestratorTask
     from app.services import points_service
-    import json
+
+    # 校验项目归属
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
 
     # 获取项目信息
     result = await db.execute(sql_select(Project).where(Project.id == project_id))
@@ -856,44 +894,6 @@ def _mock_agent_reply(message: str, agent_type: str) -> tuple[str, list[str]]:
         "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
     }
     return replies.get(matched, replies["orchestrator"]), suggestions.get(matched, suggestions["orchestrator"])
-
-
-def _mock_design_plan(message: str, room_info: str | None) -> dict:
-    return {
-        "space_planning": (
-            "**空间规划建议**\n\n"
-            "1. 客厅区域：建议采用客餐厅一体化设计，增加空间通透感。\n"
-            "2. 卧室布局：主卧配备独立衣帽间，次卧可考虑多功能房设计。\n"
-            "3. 厨房规划：推荐 L 型或 U 型布局，最大化操作台面。\n"
-            "4. 卫生间：干湿分离是现在的标配，建议三分离设计。"
-        ),
-        "style_suggestion": (
-            "**风格建议**\n\n"
-            "当代主流装修风格对比：\n"
-            "- **现代简约**：简洁线条、中性色调，适合小户型\n"
-            "- **北欧风**：温暖木材、柔和色彩，性价比高\n"
-            "- **日式侘寂**：原木、白墙、留白艺术\n"
-            "- **轻奢风**：金属点缀、大理石、深色系\n\n"
-            "推荐：现代简约 + 原木点缀，兼顾美观与预算。"
-        ),
-        "circulation_analysis": (
-            "**动线分析**\n\n"
-            "1. 访客动线：玄关 → 客厅 → 餐厅 → 客卫，避免经过卧室区\n"
-            "2. 家务动线：厨房 → 餐厅，洗衣 → 晾晒，路径最短\n"
-            "3. 卧室动线：卧室 → 卫生间 → 衣帽间，形成便捷三角\n\n"
-            "优化建议：客餐厅之间避免隔断，保持视线和动线通畅。"
-        ),
-        "material_plan": (
-            "**材料清单推荐**\n\n"
-            "| 区域 | 地面 | 墙面 | 顶面 |\n"
-            "|------|------|------|------|\n"
-            "| 客厅 | 750×1500 大板砖 | 乳胶漆/艺术漆 | 无主灯吊顶 |\n"
-            "| 卧室 | 木地板 | 乳胶漆/墙布 | 石膏线 |\n"
-            "| 厨房 | 防滑砖 | 400×800 墙砖 | 铝扣板 |\n"
-            "| 卫生间 | 防滑砖 | 300×600 墙砖 | 铝扣板 |"
-        ),
-        "full_reply": "设计方案已生成，请查看各板块详情。如需调整，请随时告诉我。",
-    }
 
 
 def _mock_budget_summary(message: str) -> str:

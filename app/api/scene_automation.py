@@ -18,6 +18,7 @@ from app.schemas.scene_automation import (
     SceneParseResult,
     SceneSyncResult,
 )
+from app.rbac import verify_project_access
 from app.services import scene_automation_service as svc
 from app.ws import ws_manager
 
@@ -142,6 +143,7 @@ async def sync_scene(
     scene = await svc.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
     ecosystem = body.get("ecosystem")
     if not ecosystem:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 ecosystem 参数")
@@ -164,6 +166,7 @@ async def create_ecosystem(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     eco = await svc.create_ecosystem(db, data.model_dump())
     resp = EcosystemIntegrationResponse.model_validate(eco)
     await ws_manager.broadcast_to_project(eco.project_id, "scene.ecosystem.added", resp.model_dump())

@@ -10,6 +10,7 @@ from app.schemas.budget import (
     BudgetLineResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import budget_service
 from app.agents.budget import BudgetAgent
 from app.ws import ws_manager
@@ -41,6 +42,7 @@ async def get_project_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     budget = await budget_service.get_budget(db, project_id)
     if not budget:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预算不存在")
@@ -53,6 +55,7 @@ async def create_budget(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     existing = await budget_service.get_budget(db, data.project_id)
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该项目已有预算")
@@ -69,6 +72,7 @@ async def generate_from_bom(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     existing = await budget_service.get_budget(db, project_id)
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该项目已有预算")
@@ -103,12 +107,13 @@ async def update_budget_line(
     if not bl:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预算行不存在")
     resp = BudgetLineResponse.model_validate(bl)
-    # 通过 budget_id 查询 project_id 用于广播
+    # 通过 budget_id 查询 project_id 用于校验归属和广播
     from sqlalchemy import select
     from app.models.budget import Budget
     budget_result = await db.execute(select(Budget).where(Budget.id == bl.budget_id))
     budget = budget_result.scalar_one_or_none()
     if budget:
+        await verify_project_access(project_id=budget.project_id, current_user=current_user, db=db)
         await ws_manager.broadcast_to_project(budget.project_id, "budget.line_updated", resp.model_dump())
     return resp
 

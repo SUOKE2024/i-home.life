@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'theme/suoke_theme.dart';
 import 'services/api.dart';
+import 'services/notification_service.dart';
 import 'services/project_context.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
@@ -26,6 +27,11 @@ void main() {
   if (AppConfig.debugMode) {
     HttpOverrides.global = _DevelopmentHttpOverrides();
   }
+  // 初始化通知服务（失败不影响应用启动）
+  // HarmonyOS 等不支持的平台会自动跳过原生初始化
+  NotificationService().initialize().catchError((e) {
+    debugPrint('NotificationService 初始化失败（不影响应用启动）: $e');
+  });
   runApp(const IHomeApp());
 }
 

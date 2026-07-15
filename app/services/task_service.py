@@ -2,9 +2,9 @@
 
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -19,32 +19,92 @@ logger = logging.getLogger(__name__)
 
 PROJECT_TASK_FLOWS = {
     "full_renovation": [
-        {"task_type": "survey", "title": "房屋勘查测量", "assigned_agent": "orchestrator", "claim_role": None, "priority": 10},
-        {"task_type": "design", "title": "全案设计方案", "assigned_agent": "designer", "claim_role": "designer", "priority": 9},
-        {"task_type": "budget", "title": "预算评估编制", "assigned_agent": "budget", "claim_role": None, "priority": 8},
-        {"task_type": "procurement", "title": "物料采购计划", "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7},
-        {"task_type": "construction", "title": "施工执行管理", "assigned_agent": "construction", "claim_role": "contractor", "priority": 7},
-        {"task_type": "qa_inspector", "title": "质量验收检查", "assigned_agent": "qa_inspector", "claim_role": None, "priority": 6},
-        {"task_type": "settlement", "title": "项目结算对账", "assigned_agent": "settlement", "claim_role": None, "priority": 5},
+        {
+            "task_type": "survey", "title": "房屋勘查测量",
+            "assigned_agent": "orchestrator", "claim_role": None, "priority": 10,
+        },
+        {
+            "task_type": "design", "title": "全案设计方案",
+            "assigned_agent": "designer", "claim_role": "designer", "priority": 9,
+        },
+        {
+            "task_type": "budget", "title": "预算评估编制",
+            "assigned_agent": "budget", "claim_role": None, "priority": 8,
+        },
+        {
+            "task_type": "procurement", "title": "物料采购计划",
+            "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7,
+        },
+        {
+            "task_type": "construction", "title": "施工执行管理",
+            "assigned_agent": "construction", "claim_role": "contractor", "priority": 7,
+        },
+        {
+            "task_type": "qa_inspector", "title": "质量验收检查",
+            "assigned_agent": "qa_inspector", "claim_role": None, "priority": 6,
+        },
+        {
+            "task_type": "settlement", "title": "项目结算对账",
+            "assigned_agent": "settlement", "claim_role": None, "priority": 5,
+        },
     ],
     "hard_decoration": [
-        {"task_type": "design", "title": "硬装设计方案", "assigned_agent": "designer", "claim_role": "designer", "priority": 9},
-        {"task_type": "budget", "title": "硬装预算编制", "assigned_agent": "budget", "claim_role": None, "priority": 8},
-        {"task_type": "procurement", "title": "硬装物料采购", "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7},
-        {"task_type": "construction", "title": "硬装施工执行", "assigned_agent": "construction", "claim_role": "contractor", "priority": 7},
-        {"task_type": "qa_inspector", "title": "硬装质量验收", "assigned_agent": "qa_inspector", "claim_role": None, "priority": 6},
-        {"task_type": "settlement", "title": "硬装结算", "assigned_agent": "settlement", "claim_role": None, "priority": 5},
+        {
+            "task_type": "design", "title": "硬装设计方案",
+            "assigned_agent": "designer", "claim_role": "designer", "priority": 9,
+        },
+        {
+            "task_type": "budget", "title": "硬装预算编制",
+            "assigned_agent": "budget", "claim_role": None, "priority": 8,
+        },
+        {
+            "task_type": "procurement", "title": "硬装物料采购",
+            "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7,
+        },
+        {
+            "task_type": "construction", "title": "硬装施工执行",
+            "assigned_agent": "construction", "claim_role": "contractor", "priority": 7,
+        },
+        {
+            "task_type": "qa_inspector", "title": "硬装质量验收",
+            "assigned_agent": "qa_inspector", "claim_role": None, "priority": 6,
+        },
+        {
+            "task_type": "settlement", "title": "硬装结算",
+            "assigned_agent": "settlement", "claim_role": None, "priority": 5,
+        },
     ],
     "soft_furnishing": [
-        {"task_type": "design", "title": "软装方案设计", "assigned_agent": "designer", "claim_role": "designer", "priority": 8},
-        {"task_type": "budget", "title": "软装预算", "assigned_agent": "budget", "claim_role": None, "priority": 7},
-        {"task_type": "procurement", "title": "软装采购", "assigned_agent": "procurement", "claim_role": "supplier", "priority": 6},
-        {"task_type": "settlement", "title": "软装结算", "assigned_agent": "settlement", "claim_role": None, "priority": 5},
+        {
+            "task_type": "design", "title": "软装方案设计",
+            "assigned_agent": "designer", "claim_role": "designer", "priority": 8,
+        },
+        {
+            "task_type": "budget", "title": "软装预算",
+            "assigned_agent": "budget", "claim_role": None, "priority": 7,
+        },
+        {
+            "task_type": "procurement", "title": "软装采购",
+            "assigned_agent": "procurement", "claim_role": "supplier", "priority": 6,
+        },
+        {
+            "task_type": "settlement", "title": "软装结算",
+            "assigned_agent": "settlement", "claim_role": None, "priority": 5,
+        },
     ],
     "curtain": [
-        {"task_type": "design", "title": "窗帘测量与设计", "assigned_agent": "designer", "claim_role": "designer", "priority": 8},
-        {"task_type": "procurement", "title": "窗帘采购定制", "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7},
-        {"task_type": "construction", "title": "窗帘安装施工", "assigned_agent": "construction", "claim_role": "contractor", "priority": 6},
+        {
+            "task_type": "design", "title": "窗帘测量与设计",
+            "assigned_agent": "designer", "claim_role": "designer", "priority": 8,
+        },
+        {
+            "task_type": "procurement", "title": "窗帘采购定制",
+            "assigned_agent": "procurement", "claim_role": "supplier", "priority": 7,
+        },
+        {
+            "task_type": "construction", "title": "窗帘安装施工",
+            "assigned_agent": "construction", "claim_role": "contractor", "priority": 6,
+        },
     ],
 }
 
@@ -143,12 +203,10 @@ async def rank_candidates(
                     completed_projects = crew.completed_projects
 
         # 归一化计算
-        max_experience = max(experience, 1)
         experience_normalized = min(experience / 15, 1.0) * 100  # 15年=满分
 
         rating_normalized = (rating / 5.0) * 100 if rating > 0 else 60
 
-        max_points = max(points, 1)
         points_normalized = min(points / 5000, 1.0) * 100  # 5000分=满分
 
         # 综合得分 = 积分40% + 经验20% + 评分20% + 完成数20%
@@ -247,7 +305,7 @@ async def get_task_pool(
 ) -> list[OrchestratorTask]:
     """获取可申领的任务池"""
     conditions = [
-        OrchestratorTask.claimable == True,
+        OrchestratorTask.claimable.is_(True),
         OrchestratorTask.status == status,
     ]
     if claim_role:

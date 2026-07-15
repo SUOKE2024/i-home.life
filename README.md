@@ -7,6 +7,15 @@
 
 ## 最近更新
 
+### 2026-07-15 · v1.0.5
+
+- **生物识别认证全链路修复**:
+  - P0: 修复生产环境 WebAuthn RP ID 与 Origin 不匹配（RP ID 改为 `118.31.223.213`）
+  - P0: WebAuthn 挑战存储重构为 Redis+内存降级，带 TTL 自动过期，多 worker 部署共享挑战
+  - P1: Flutter 端集成 `local_auth` 实现真实指纹/面容登录（鸿蒙优雅降级），修复明文密码存储隐患改为 token 快速登录
+  - P1: 新增 28 个 WebAuthn 全链路测试用例（挑战存储层、注册/登录 begin/complete、凭证管理、鉴权隔离、配置正确性）
+- **测试用例**: 455 通过 / 1 失败（预存）/ 9 跳过
+
 ### 2026-07-14 · v1.0.4
 
 - **Flutter 页面补全**: 新增 6 个页面（定制家具 F27 / 厨卫水电 F18 / 工程队匹配 F36 / 服务者匹配 F35 / 场景编辑 F32 / 协作聊天 F40），页面总数 35 → 41
@@ -232,6 +241,7 @@ i-home.life/
 | 模块 | 端点 | 方法 |
 |------|------|------|
 | 认证 | /auth/register, /auth/login, /auth/me | POST/POST/GET |
+| WebAuthn/Passkey | /auth/webauthn/register/begin, /auth/webauthn/register/complete, /auth/webauthn/login/begin, /auth/webauthn/login/complete, /auth/webauthn/credentials | POST/POST/POST/POST/GET-DELETE |
 | 项目 | /projects | CRUD 5端点 |
 | 物料 | /materials, /materials/categories, /materials/bom | 12端点 |
 | 预算 | /budgets, /budgets/generate-from-bom/{id}, /budgets/compare-plans, /budgets/variance-check, /budgets/templates, /budgets/templates/apply | 9端点 |

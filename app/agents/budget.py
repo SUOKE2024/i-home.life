@@ -182,7 +182,12 @@ class BudgetAgent(BaseAgent):
                 "comfort_to_premium": round(diff_comfort_premium, 2),
             },
             "recommendation": f"推荐舒适型方案，总价 ¥{plans[1]['total_estimated']:,.0f}，兼顾品质与性价比",
-            "reply": f"已生成 {area}㎡ 三档预算对比：经济型 ¥{plans[0]['total_estimated']:,.0f} / 舒适型 ¥{plans[1]['total_estimated']:,.0f} / 品质型 ¥{plans[2]['total_estimated']:,.0f}",
+            "reply": (
+                f"已生成 {area}㎡ 三档预算对比："
+                f"经济型 ¥{plans[0]['total_estimated']:,.0f} / "
+                f"舒适型 ¥{plans[1]['total_estimated']:,.0f} / "
+                f"品质型 ¥{plans[2]['total_estimated']:,.0f}"
+            ),
         }
 
     def check_budget_variance(self, total_estimated: float, total_actual: float) -> dict:

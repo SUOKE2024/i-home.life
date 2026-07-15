@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260713b">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260716a">
 <link rel="manifest" href="manifest.json">
 <title>登录 · 索克家居</title>
 <script type="application/ld+json">
@@ -150,7 +150,7 @@
   </section>
 </main>
 
-<script src="assets/js/api-client.js?v=20260713b"></script>
+<script src="assets/js/api-client.js?v=20260716a"></script>
 <script>
 (function() {
   // ── 登录 ──
@@ -300,7 +300,7 @@
 </script>
 <script>
 // ═══════════════════════════════════════════
-//  WebAuthn / Passkey 登录
+//  WebAuthn / Passkey 登录（纯原生实现，无外部库）
 // ═══════════════════════════════════════════
 (function() {
   const passkeyBtn = document.getElementById('passkey-login-btn');
@@ -308,6 +308,40 @@
   const passkeyError = document.getElementById('passkey-error');
   const registerLink = document.getElementById('passkey-register-link');
   const phoneInput = document.getElementById('phone');
+  const passwordInput = document.getElementById('password');
+  const divider = document.querySelector('.passkey-divider');
+
+  const params = new URLSearchParams(window.location.search);
+
+  // ── Base64URL 编解码工具 ──
+  // base64url 字符串 → ArrayBuffer（用于 challenge / credential id）
+  function base64UrlToBuffer(base64url) {
+    let str = String(base64url).replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes; // Uint8Array 是 ArrayBuffer 视图，navigator.credentials 直接接受
+  }
+
+  // ArrayBuffer → base64url 字符串（用于响应序列化）
+  function bufferToBase64Url(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  // base64url → 标准 base64（后端个别字段需要标准 base64）
+  function base64UrlToBase64(b64u) {
+    let str = String(b64u).replace(/-/g, '+').replace(/_/g, '/');
+    while (str.length % 4) str += '=';
+    return str;
+  }
 
   // 检测浏览器是否支持 WebAuthn
   const hasWebAuthn = typeof PublicKeyCredential !== 'undefined';
@@ -315,11 +349,32 @@
   if (!hasWebAuthn) {
     passkeyBtn.style.display = 'none';
     registerLink.style.display = 'none';
-    document.querySelector('.passkey-divider').style.display = 'none';
+    if (divider) divider.style.display = 'none';
     return;
   }
 
-  // 检测是否为 Apple 设备（用于显示 Touch ID / Face ID 图标）
+  // WebAuthn 要求 Secure Context（HTTPS 或 localhost）
+  // HTTP 模式下 Passkey 不可用，隐藏按钮并提示
+  if (!window.isSecureContext) {
+    passkeyBtn.style.display = 'none';
+    registerLink.style.display = 'none';
+    if (divider) divider.style.display = 'none';
+    return;
+  }
+
+  // 检测平台认证器（Touch ID / Face ID / Windows Hello）
+  // 不可用时提示但仍允许走 security key / 跨设备 hybrid
+  if (typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then((available) => {
+      if (!available) {
+        passkeyError.textContent = '未检测到生物识别器，可使用安全密钥或跨设备 Passkey';
+        passkeyError.hidden = false;
+        setTimeout(() => { passkeyError.hidden = true; }, 4000);
+      }
+    });
+  }
+
+  // Apple 设备图标（Touch ID / Face ID）
   const isMac = /Macintosh/.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
   if (isMac || isIOS) {
@@ -332,50 +387,38 @@
     setTimeout(() => { passkeyError.hidden = true; }, 5000);
   }
 
-  // ── Base64URL 编码/解码 ──
-  function b64Encode(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
-  function b64Decode(str) {
-    str = str.replace(/-/g, '+').replace(/_/g, '/');
-    while (str.length % 4) str += '=';
-    const binary = atob(str);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-
-  // ── Passkey 登录 ──
-  passkeyBtn.addEventListener('click', async () => {
+  function setBtnLoading(text) {
     passkeyBtn.disabled = true;
-    passkeyBtn.textContent = '发起挑战中…';
+    passkeyBtn.setAttribute('aria-busy', 'true');
+    passkeyBtn.textContent = text;
+  }
 
+  function resetBtn(text) {
+    passkeyBtn.disabled = false;
+    passkeyBtn.removeAttribute('aria-busy');
+    passkeyBtn.textContent = text || '🔑 使用 Passkey 登录';
+  }
+
+  // ── Passkey 登录（discoverable credentials，不传 phone） ──
+  passkeyBtn.addEventListener('click', async () => {
+    setBtnLoading('认证中…');
     try {
-      const phone = phoneInput.value.trim() || null;
-      // 1. 请求登录挑战
-      const options = await ApiClient.webauthnLoginBegin(phone);
+      // 1. 请求登录挑战（不带 phone，由浏览器弹出账号选择器）
+      const options = await ApiClient.webauthnLoginBegin(null);
 
-      // 2. 转换 allowCredentials 为 WebAuthn 格式
+      // 2. 转换 allowCredentials 为 WebAuthn 原生格式
       const allowCredentials = (options.allowCredentials || []).map(cred => ({
-        id: b64Decode(cred.id),
+        id: base64UrlToBuffer(cred.id),
         type: cred.type || 'public-key',
         transports: cred.transports || ['internal', 'hybrid'],
       }));
 
-      passkeyBtn.textContent = '请验证身份…';
+      setBtnLoading('请验证身份…');
 
-      // 3. 调用 navigator.credentials.get()
+      // 3. 触发浏览器 Passkey 弹窗
       const assertion = await navigator.credentials.get({
         publicKey: {
-          challenge: b64Decode(options.challenge),
+          challenge: base64UrlToBuffer(options.challenge),
           timeout: options.timeout || 60000,
           rpId: options.rpId,
           allowCredentials: allowCredentials,
@@ -387,64 +430,77 @@
         throw new Error('用户取消验证');
       }
 
-       // 4. 提取 credential JSON (webauthn v3 期望完整 JSON)
+      // 4. 序列化 assertion 为 JSON 提交至后端
+      const response = assertion.response;
       const credJSON = {
         id: assertion.id,
         rawId: assertion.id,
         type: assertion.type,
         response: {
-          clientDataJSON: b64Encode(response.clientDataJSON),
-          authenticatorData: b64Encode(response.authenticatorData),
-          signature: b64Encode(response.signature),
-          userHandle: assertion.userHandle ? b64Encode(assertion.userHandle) : null,
+          clientDataJSON: bufferToBase64Url(response.clientDataJSON),
+          authenticatorData: bufferToBase64Url(response.authenticatorData),
+          signature: bufferToBase64Url(response.signature),
+          userHandle: assertion.userHandle ? bufferToBase64Url(assertion.userHandle) : null,
         },
       };
-      const loginResult = await ApiClient.webauthnLoginComplete(credJSON);
 
-      // 5. 登录成功，跳转工作台
-      window.location.href = `workbench.html?role=${encodeURIComponent(params.get('role') || 'owner')}`;
+      // 5. 提交验证，ApiClient 内部会保存 PASETO token
+      await ApiClient.webauthnLoginComplete(credJSON);
+
+      // 6. 登录成功，跳转工作台
+      const role = params.get('role') || 'owner';
+      window.location.href = `workbench.html?role=${encodeURIComponent(role)}`;
     } catch (err) {
-      passkeyBtn.disabled = false;
-      passkeyBtn.textContent = '🔑 使用 Passkey 登录';
-      const msg = err.message || 'Passkey 登录失败，请使用密码登录';
+      resetBtn();
+      const msg = (err && err.name === 'NotAllowedError')
+        ? '验证已取消或超时'
+        : (err.message || 'Passkey 登录失败，请使用密码登录');
       showPasskeyError(msg);
     }
   });
 
-  // ── Passkey 注册（需先登录） ──
+  // ── Passkey 注册（需登录态） ──
   registerLink.addEventListener('click', async (e) => {
     e.preventDefault();
 
-    const phone = phoneInput.value.trim();
-    const password = document.getElementById('password').value;
-
-    if (!phone || !password) {
-      showPasskeyError('请先输入手机号和密码登录，再注册 Passkey');
-      return;
+    // 若已有 token 直接注册；否则需先密码登录
+    let token = ApiClient.getToken();
+    let didLoginHere = false;
+    if (!token) {
+      const phone = phoneInput.value.trim();
+      const password = passwordInput.value;
+      if (!phone || !password) {
+        showPasskeyError('请先密码登录后再注册 Passkey');
+        return;
+      }
+      setBtnLoading('正在登录…');
+      try {
+        await ApiClient.login(phone, password);
+        token = ApiClient.getToken();
+        if (!token) throw new Error('登录失败');
+        didLoginHere = true;
+      } catch (err) {
+        resetBtn();
+        const msg = (err.body && err.body.detail) || '登录失败，无法注册 Passkey';
+        showPasskeyError(typeof msg === 'string' ? msg : JSON.stringify(msg));
+        return;
+      }
     }
 
-    // 先通过密码登录获取 token
-    passkeyBtn.disabled = true;
-    passkeyBtn.textContent = '正在登录…';
-
+    setBtnLoading('发起挑战中…');
     try {
-      await ApiClient.login(phone, password);
-      const token = ApiClient.getToken();
-      if (!token) throw new Error('登录失败');
-
-      // 请求注册挑战
+      // 1. 请求注册挑战
       const options = await ApiClient.webauthnRegisterBegin('Web 浏览器');
 
-      passkeyBtn.textContent = '请验证生物识别…';
+      setBtnLoading('请验证生物识别…');
 
-      // 转换 challenge 和 user.id 为 bytes
-      // API 直接返回 WebAuthn 原生 JSON，key 均为 camelCase
+      // 2. 触发浏览器创建凭证
       const credential = await navigator.credentials.create({
         publicKey: {
-          challenge: b64Decode(options.challenge),
+          challenge: base64UrlToBuffer(options.challenge),
           rp: options.rp,
           user: {
-            id: b64Decode(options.user.id),
+            id: base64UrlToBuffer(options.user.id),
             name: options.user.name,
             displayName: options.user.displayName,
           },
@@ -458,7 +514,7 @@
             userVerification: 'preferred',
           },
           excludeCredentials: (options.excludeCredentials || []).map(cred => ({
-            id: b64Decode(cred.id),
+            id: base64UrlToBuffer(cred.id),
             type: cred.type || 'public-key',
           })),
           hints: options.hints || [],
@@ -469,37 +525,42 @@
         throw new Error('用户取消注册');
       }
 
-      // 提交注册结果 (完整 credential JSON)
+      // 3. 序列化注册结果并提交
       const response = credential.response;
       const credJSON = {
         id: credential.id,
         rawId: credential.id,
         type: credential.type,
         response: {
-          clientDataJSON: b64Encode(response.clientDataJSON),
-          attestationObject: b64Encode(response.attestationObject),
+          clientDataJSON: bufferToBase64Url(response.clientDataJSON),
+          attestationObject: bufferToBase64Url(response.attestationObject),
         },
       };
+
       await ApiClient.webauthnRegisterComplete({
         credential: credJSON,
         device_name: 'Web 浏览器 (' + (navigator.platform || '未知') + ')',
         transports: response.getTransports ? response.getTransports() : ['internal'],
       });
 
-      passkeyBtn.textContent = '🔑 Passkey 已注册';
+      setBtnLoading('✓ Passkey 已注册');
       showPasskeyError('✓ Passkey 注册成功！下次可直接使用指纹/面容登录');
-      setTimeout(() => { passkeyBtn.textContent = '🔑 使用 Passkey 登录'; passkeyBtn.disabled = false; }, 2000);
+      setTimeout(() => { resetBtn(); }, 2000);
     } catch (err) {
-      // 注册失败，清理可能残留的 token
-      try { localStorage.removeItem('paseto_token'); } catch (_) {}
-      passkeyBtn.disabled = false;
-      passkeyBtn.textContent = '🔑 使用 Passkey 登录';
-      showPasskeyError(err.message || 'Passkey 注册失败');
+      // 注册失败：仅清理本次流程新登录产生的 token，不破坏既有会话
+      if (didLoginHere) {
+        try { localStorage.removeItem('paseto_token'); } catch (_) {}
+      }
+      resetBtn();
+      const msg = (err && err.name === 'NotAllowedError')
+        ? '验证已取消'
+        : (err.message || 'Passkey 注册失败');
+      showPasskeyError(msg);
     }
   });
 })();
 </script>
-<script src="assets/js/analytics.js?v=20260713b"></script>
+<script src="assets/js/analytics.js?v=20260716a"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

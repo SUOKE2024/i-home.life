@@ -22,8 +22,6 @@ from app.agents.qa_inspector import (
 from app.agents.concierge import (
     ConciergeAgent,
     FAQ_KNOWLEDGE_BASE,
-    INQUIRY_TYPES,
-    ESCALATION_RULES,
     search_knowledge_base,
     list_faq_by_category,
     check_escalation,

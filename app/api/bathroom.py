@@ -12,6 +12,7 @@ from app.schemas.bathroom import (
     BathroomFixtureResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import bathroom_service
 from app.ws import ws_manager
 
@@ -25,6 +26,7 @@ async def create_design(
     db: AsyncSession = Depends(get_db),
 ):
     """创建卫生间设计"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     design = await bathroom_service.create_design(db, data.model_dump())
     resp = BathroomDesignResponse.model_validate(design)
     await ws_manager.broadcast_to_project(design.project_id, "bathroom.design_created", resp.model_dump())
@@ -65,6 +67,7 @@ async def auto_layout(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
 
     fixtures_data = bathroom_service.generate_bathroom_layout(design)
 
@@ -129,7 +132,11 @@ async def analyze_ventilation(
     return {"design_id": design_id, **result}
 
 
-@router.post("/designs/{design_id}/fixtures", response_model=BathroomFixtureResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/designs/{design_id}/fixtures",
+    response_model=BathroomFixtureResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_fixture(
     design_id: str,
     data: BathroomFixtureCreate,
@@ -140,6 +147,7 @@ async def add_fixture(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     fix_data = data.model_dump()
     fix_data["design_id"] = design_id
     fixture = await bathroom_service.add_fixture(db, fix_data)
@@ -182,6 +190,7 @@ async def delete_design(
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
     project_id = design.project_id
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     deleted = await bathroom_service.delete_design(db, design_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")

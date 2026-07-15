@@ -64,6 +64,36 @@ asyncio.run(setup())
 echo "  🌱 加载种子数据..."
 PYTHONPATH=. python scripts/seed.py 2>&1 | grep -v "INFO\|PRAGMA\|CREATE\|SELECT\|INSERT\|COMMIT\|FROM\|RETURNING\|BEGIN\|index\|FOREIGN\|UNIQUE\|PRIMARY\|idx\|ix\|ON\|TABLE\|user\|material\|supplier\|WHERE\|password\|avatar\|hashed\|id," | head -3
 
+# 生成自签名 SSL 证书（IP 直连场景无法使用 Let's Encrypt）
+SSL_DIR="/etc/nginx/ssl"
+SSL_CRT="$SSL_DIR/ihome-self-signed.crt"
+SSL_KEY="$SSL_DIR/ihome-self-signed.key"
+if [ ! -f "$SSL_CRT" ] || [ ! -f "$SSL_KEY" ]; then
+  echo "  🔐 生成自签名 SSL 证书（用于 https://118.31.223.213:8081 兼容访问）..."
+  sudo mkdir -p "$SSL_DIR"
+  sudo openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout "$SSL_KEY" -out "$SSL_CRT" \
+    -days 3650 \
+    -subj "/C=CN/ST=Shanghai/L=Shanghai/O=i-home.life/OU=IT/CN=118.31.223.213" \
+    -addext "subjectAltName=IP:118.31.223.213,DNS:i-home.life,DNS:www.i-home.life" 2>&1 | tail -2
+  sudo chmod 644 "$SSL_CRT"
+  sudo chmod 600 "$SSL_KEY"
+  echo "  ✅ 自签名证书已生成: $SSL_CRT (有效期 10 年)"
+fi
+
+# 检查 Nginx 版本（同端口 HTTP+HTTPS 需要 Nginx >= 1.25.1）
+NGINX_VERSION=$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+NGINX_MAJOR=$(echo "$NGINX_VERSION" | cut -d. -f1)
+NGINX_MINOR=$(echo "$NGINX_VERSION" | cut -d. -f2)
+NGINX_PATCH=$(echo "$NGINX_VERSION" | cut -d. -f3)
+echo "  ℹ️  Nginx 版本: $NGINX_VERSION"
+if [ "$NGINX_MAJOR" -lt 1 ] || ([ "$NGINX_MAJOR" -eq 1 ] && [ "$NGINX_MINOR" -lt 25 ]) || \
+   ([ "$NGINX_MAJOR" -eq 1 ] && [ "$NGINX_MINOR" -eq 25 ] && [ "$NGINX_PATCH" -lt 1 ]); then
+  echo "  ⚠️  Nginx < 1.25.1 不支持「同端口 HTTP+HTTPS」特性"
+  echo "      升级方法: sudo apt update && sudo apt install --only-upgrade nginx"
+  echo "      或要求用户使用 http://118.31.223.213:8081 访问"
+fi
+
 # 配置 nginx（始终同步最新配置，确保 WebSocket/gzip/安全头等更新生效）
 NGINX_CONF="/etc/nginx/sites-available/ihome"
 echo "  🌐 同步 nginx 配置..."
@@ -76,7 +106,7 @@ else
 fi
 sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
 sudo nginx -t && sudo nginx -s reload
-echo "  ✅ nginx 已同步并重载（含 /ws/ WebSocket 代理、gzip、安全头）"
+echo "  ✅ nginx 已同步并重载（含 8081 HTTP+HTTPS 兼容、/ws/ WebSocket、gzip、安全头）"
 
 # 配置 systemd (Linux) 或 launchd (macOS)
 if [[ "$OSTYPE" == "darwin"* ]]; then

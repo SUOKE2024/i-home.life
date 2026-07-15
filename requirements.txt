@@ -5,6 +5,7 @@ aiosqlite>=0.22.0
 asyncpg>=0.30.0
 paseto>=2.0.0
 cryptography>=47.0.0
+bcrypt>=5.0.0
 webauthn>=2.0.0
 pydantic>=2.13.0
 pydantic-settings>=2.0.0

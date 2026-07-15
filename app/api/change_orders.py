@@ -11,6 +11,7 @@ from app.schemas.change_order import (
     ChangeOrderReview,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import change_order_service
 from app.ws import ws_manager
 
@@ -23,6 +24,7 @@ async def list_change_orders(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     orders = await change_order_service.get_change_orders(db, project_id)
     return [ChangeOrderResponse.model_validate(o) for o in orders]
 
@@ -33,6 +35,7 @@ async def create_change_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     payload = data.model_dump()
     payload["submitted_by"] = current_user.name
     order = await change_order_service.create_change_order(db, payload)
@@ -50,6 +53,7 @@ async def get_change_order(
     order = await change_order_service.get_change_order(db, change_id)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
+    await verify_project_access(project_id=order.project_id, current_user=current_user, db=db)
     return ChangeOrderResponse.model_validate(order)
 
 
@@ -60,6 +64,10 @@ async def review_change_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    existing = await change_order_service.get_change_order(db, change_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     order = await change_order_service.review_change_order(db, change_id, data.model_dump(), current_user.name)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
@@ -88,6 +96,10 @@ async def cancel_change_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    existing = await change_order_service.get_change_order(db, change_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     order = await change_order_service.cancel_change_order(db, change_id)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")

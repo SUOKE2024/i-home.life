@@ -286,7 +286,9 @@ document.getElementById('login-form').addEventListener('submit',async function(e
     document.getElementById('login-overlay').style.display='none';
     document.getElementById('app').style.display='flex';
     await loadProfile();
-    showTab('dashboard');
+    const validTabs=['dashboard','projects','budgets','procurement','construction','settlements','materials','users','quality'];
+    const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
+    showTab(initialTab);
     toast('登录成功');
   }catch(err){
     loginErr.textContent=err.message;loginErr.style.display='block';
@@ -858,7 +860,9 @@ async function toggleUserStatus(uid,currentlyActive){
       document.getElementById('login-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       await loadProfile();
-      showTab('dashboard');
+      const validTabs=['dashboard','projects','budgets','procurement','construction','settlements','materials','users','quality'];
+      const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
+      showTab(initialTab);
     }
   }catch(e){
     // Show login form, backend not available

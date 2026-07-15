@@ -1,9 +1,8 @@
 """产品/服务 API — 供应商发布产品、AI 辅助内容发布"""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import JSONResponse
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -11,7 +10,8 @@ from app.models.user import User
 from app.models.product import Product
 from app.models.procurement import Supplier
 from app.auth import get_current_user
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, ProductCardData
+from app.rbac import verify_project_access
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.agents.procurement import ProcurementAgent
 from app.ws import ws_manager
 
@@ -226,6 +226,8 @@ async def publish_product(
 
     # 通过 WebSocket 推送产品发布事件
     if project_id:
+        # 校验项目归属，防止向无权访问的项目广播
+        await verify_project_access(project_id=project_id, current_user=current_user, db=db)
         tags = json.loads(product.tags) if product.tags else []
         price_range = ""
         if product.price_min and product.price_max:

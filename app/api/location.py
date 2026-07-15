@@ -30,10 +30,13 @@ async def _amap_get(path: str, **params) -> dict:
 async def search_places(keywords: str, city: str = "", limit: int = 10):
     """搜索附近楼盘/小区 — 高德 POI 搜索"""
     try:
-        data = await _amap_get("/place/text", keywords=keywords, city=city, types="120300|120302|120303", offset=str(limit))
+        data = await _amap_get(
+            "/place/text", keywords=keywords, city=city,
+            types="120300|120302|120303", offset=str(limit),
+        )
     except Exception:
         return {"pois": [], "hint": "高德 API 不可用或未配置 KEY"}
-    
+
     pois = data.get("pois", [])
     return {
         "count": len(pois),
@@ -58,11 +61,11 @@ async def geocode(address: str, city: str = ""):
         data = await _amap_get("/geocode/geo", address=address, city=city)
     except Exception:
         return {"error": "高德 API 不可用或未配置 KEY"}
-    
+
     geos = data.get("geocodes", [])
     if not geos:
         return {"error": "未找到匹配地址", "count": 0}
-    
+
     g = geos[0]
     lng, lat = g.get("location", ",").split(",") if g.get("location") else ("", "")
     return {
@@ -82,15 +85,21 @@ async def geocode(address: str, city: str = ""):
 async def autocomplete(keywords: str, city: str = "北京", limit: int = 8):
     """地址输入智能提示 — 合并 POI 搜索 + 地理编码"""
     result = {"pois": [], "locations": []}
-    
+
     # POI 搜索（楼盘/小区）
     try:
-        poi_data = await _amap_get("/place/text", keywords=keywords, city=city, types="120300|120302|120303|120000", offset=str(limit))
+        poi_data = await _amap_get(
+            "/place/text", keywords=keywords, city=city,
+            types="120300|120302|120303|120000", offset=str(limit),
+        )
         for p in poi_data.get("pois", [])[:limit]:
-            result["pois"].append({"name": p.get("name"), "address": p.get("address"), "location": p.get("location"), "type": "poi"})
+            result["pois"].append({
+                "name": p.get("name"), "address": p.get("address"),
+                "location": p.get("location"), "type": "poi",
+            })
     except Exception:
         pass
-    
+
     # IP 定位(仅首次，用于确定当前城市)
     try:
         ip_data = await _amap_get("/ip")
@@ -102,5 +111,5 @@ async def autocomplete(keywords: str, city: str = "北京", limit: int = 8):
         }
     except Exception:
         pass
-    
+
     return result

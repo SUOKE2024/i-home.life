@@ -150,7 +150,7 @@ async def test_ar_session_full_lifecycle(client: AsyncClient):
     assert "accuracy_report" in data
 
     # 4. 查询会话详情
-    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}")
+    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}", headers=headers)
     assert resp.status_code == 200
     detail = resp.json()
     assert detail["status"] == "completed"
@@ -174,7 +174,7 @@ async def test_ar_session_list_by_project(client: AsyncClient):
             "device_capability": {"platform": "ios", "has_lidar": True, "arkit_version": "7.0"},
         }, headers=headers)
 
-    resp = await client.get(f"/api/surveys/ar/sessions/project/{project_id}")
+    resp = await client.get(f"/api/surveys/ar/sessions/project/{project_id}", headers=headers)
     assert resp.status_code == 200
     sessions = resp.json()
     assert len(sessions) >= 2
@@ -259,7 +259,7 @@ async def test_ar_accuracy_with_calibration_points(client: AsyncClient):
     assert resp.status_code == 201
 
     # 获取精度报告
-    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}/accuracy")
+    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}/accuracy", headers=headers)
     assert resp.status_code == 200
     report = resp.json()
     assert report["total_count"] == 2
@@ -300,7 +300,7 @@ async def test_ar_accuracy_level_high(client: AsyncClient):
             "unit": "m",
         }, headers=headers)
 
-    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}/accuracy")
+    resp = await client.get(f"/api/surveys/ar/sessions/{session_id}/accuracy", headers=headers)
     report = resp.json()
     assert report["accuracy_level"] == "high"
     assert report["rms_error_cm"] < 2.0
@@ -331,7 +331,7 @@ async def test_ar_wall_features_crud(client: AsyncClient):
     assert auto_count > 0
 
     # 列出自动识别的特征
-    resp = await client.get(f"/api/surveys/ar/features/{session_id}")
+    resp = await client.get(f"/api/surveys/ar/features/{session_id}", headers=headers)
     assert resp.status_code == 200
     features = resp.json()
     assert len(features) == auto_count
@@ -360,7 +360,7 @@ async def test_ar_wall_features_crud(client: AsyncClient):
     assert new_feature["detected_by"] == "manual"
 
     # 按房间过滤
-    resp = await client.get(f"/api/surveys/ar/features/{session_id}?room_name=主卧")
+    resp = await client.get(f"/api/surveys/ar/features/{session_id}?room_name=主卧", headers=headers)
     assert resp.status_code == 200
     filtered = resp.json()
     assert all(f["room_name"] == "主卧" for f in filtered)
@@ -428,7 +428,7 @@ async def test_ar_apply_to_survey(client: AsyncClient):
     assert result["rooms_added"] > 0
 
     # 验证 Survey 已创建
-    resp = await client.get(f"/api/surveys/project/{project_id}")
+    resp = await client.get(f"/api/surveys/project/{project_id}", headers=headers)
     assert resp.status_code == 200
     surveys = resp.json()
     assert any(s["id"] == result["survey_id"] for s in surveys)

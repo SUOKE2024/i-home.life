@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203, W503
+max-complexity = 15
+exclude = .git, __pycache__, alembic, data, htmlcov, .venv, build, dist
+per-file-ignores =
+    app/database.py: E501

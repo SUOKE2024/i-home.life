@@ -1,7 +1,6 @@
 """F8-F9 土建模块服务层 — 结构属性管理 + 工程量计算"""
 
 import math
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -361,7 +360,10 @@ async def delete_load_estimate(db: AsyncSession, estimate_id: str) -> bool:
     return True
 
 
-def compute_load_estimates(usage: str, area_m2: float, floor_level: int | None = None, include_seismic: bool = False) -> dict:
+def compute_load_estimates(
+    usage: str, area_m2: float,
+    floor_level: int | None = None, include_seismic: bool = False,
+) -> dict:
     """自动计算荷载估算 (参考 GB 50009)
 
     Args:
@@ -525,7 +527,7 @@ MATERIAL_PRICES = {
     "concrete_c30": 450.0,   # C30 商品混凝土 元/m³
     "concrete_c35": 480.0,   # C35 商品混凝土 元/m³
     "rebar": 5.5,            # 钢筋 元/kg
-    "formwork_plywood": 45.0, # 木模板 元/m²
+    "formwork_plywood": 45.0,  # 木模板 元/m²
     "formwork_steel": 18.0,  # 钢模板(租赁) 元/m²/次
 }
 
@@ -536,7 +538,7 @@ MORTAR_RATIO = 0.23  # 砂浆占砌体总体积比例 (含灰缝)
 # 钢筋配筋率参考 (按混凝土体积)
 REBAR_RATIO_SLAB = 0.08   # 楼板配筋率 80 kg/m³
 REBAR_RATIO_BEAM = 0.12   # 梁配筋率 120 kg/m³
-REBAR_RATIO_COLUMN = 0.15 # 柱配筋率 150 kg/m³
+REBAR_RATIO_COLUMN = 0.15  # 柱配筋率 150 kg/m³
 
 
 def calc_brickwork(wall_length_m: float, wall_height_m: float, wall_thickness_m: float) -> dict:
@@ -563,7 +565,10 @@ def calc_brickwork(wall_length_m: float, wall_height_m: float, wall_thickness_m:
         "mortar_unit": "m³",
         "brick_unit_price": MATERIAL_PRICES["brick"],
         "mortar_unit_price": MATERIAL_PRICES["mortar"],
-        "total_material_cost": round(brick_count * MATERIAL_PRICES["brick"] + mortar_volume * MATERIAL_PRICES["mortar"], 2),
+        "total_material_cost": round(
+            brick_count * MATERIAL_PRICES["brick"]
+            + mortar_volume * MATERIAL_PRICES["mortar"], 2
+        ),
     }
 
 

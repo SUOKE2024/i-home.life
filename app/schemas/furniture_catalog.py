@@ -8,7 +8,10 @@ from pydantic import BaseModel, Field
 
 class FurnitureCatalogItemCreate(BaseModel):
     category: str = Field(description="品类: living_room/dining_room/bedroom/study/kitchen/bathroom/outdoor")
-    subcategory: str = Field(description="子品类: sofa/bed/dining_table/chair/coffee_table/wardrobe/bookshelf/desk/tv_cabinet/shoe_cabinet/nightstand")
+    subcategory: str = Field(
+        description="子品类: sofa/bed/dining_table/chair/coffee_table/"
+                    "wardrobe/bookshelf/desk/tv_cabinet/shoe_cabinet/nightstand"
+    )
     name: str
     brand: str | None = None
     model: str | None = None

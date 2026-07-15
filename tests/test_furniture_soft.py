@@ -45,8 +45,8 @@ def _ensure_routers_registered() -> None:
 _ensure_routers_registered()
 
 
-import pytest
-from httpx import AsyncClient
+import pytest  # noqa: E402
+from httpx import AsyncClient  # noqa: E402
 
 
 async def _register_and_login(client: AsyncClient, phone: str = "13900270001", name: str = "家具软装测试") -> str:
@@ -99,12 +99,18 @@ async def test_furniture_create_and_get_design(client: AsyncClient):
     design_id = data["id"]
 
     # 查询单个
-    get_resp = await client.get(f"/api/custom-furniture/designs/{design_id}")
+    get_resp = await client.get(
+        f"/api/custom-furniture/designs/{design_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get_resp.status_code == 200
     assert get_resp.json()["id"] == design_id
 
     # 列表
-    list_resp = await client.get(f"/api/custom-furniture/designs/project/{project_id}")
+    list_resp = await client.get(
+        f"/api/custom-furniture/designs/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == 1
 
@@ -143,7 +149,10 @@ async def test_furniture_parametric_design(client: AsyncClient):
     assert "drawer" in types
 
     # 列出模块
-    list_resp = await client.get(f"/api/custom-furniture/designs/{design_id}/modules")
+    list_resp = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/modules",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == len(modules)
 
@@ -172,14 +181,20 @@ async def test_furniture_compute_panels_and_price(client: AsyncClient):
     )
 
     # 板材计算
-    panels = await client.get(f"/api/custom-furniture/designs/{design_id}/panels")
+    panels = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/panels",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert panels.status_code == 200
     pdata = panels.json()
     assert pdata["total_panel_area_m2"] > 0
     assert pdata["panel_sheets"] > 0
 
     # 价格估算
-    price = await client.get(f"/api/custom-furniture/designs/{design_id}/price")
+    price = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/price",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert price.status_code == 200
     price_data = price.json()
     assert price_data["total_price"] > 0
@@ -223,12 +238,18 @@ async def test_furniture_generate_and_query_bom(client: AsyncClient):
     assert "door" in types
 
     # 总价更新
-    design = await client.get(f"/api/custom-furniture/designs/{design_id}")
+    design = await client.get(
+        f"/api/custom-furniture/designs/{design_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert design.json()["total_price"] > 0
     assert design.json()["status"] == "quoted"
 
     # 查询 BOM
-    query = await client.get(f"/api/custom-furniture/designs/{design_id}/bom")
+    query = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/bom",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert query.status_code == 200
     assert len(query.json()) == len(boms)
 
@@ -279,7 +300,10 @@ async def test_furniture_validation_wardrobe_depth(client: AsyncClient):
         f"/api/custom-furniture/designs/{design_id}/parametric",
         headers={"Authorization": f"Bearer {token}"},
     )
-    v = await client.get(f"/api/custom-furniture/designs/{design_id}/validation")
+    v = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/validation",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert v.status_code == 200
     vdata = v.json()
     assert vdata["valid"] is False
@@ -307,7 +331,10 @@ async def test_furniture_validation_door_width(client: AsyncClient):
         f"/api/custom-furniture/designs/{design_id}/parametric",
         headers={"Authorization": f"Bearer {token}"},
     )
-    v = await client.get(f"/api/custom-furniture/designs/{design_id}/validation")
+    v = await client.get(
+        f"/api/custom-furniture/designs/{design_id}/validation",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert v.status_code == 200
     # tv_cabinet 宽 1500 → door_count = max(2, 1500//500)=3, 单门宽 500, 应通过
     vdata = v.json()
@@ -371,7 +398,10 @@ async def test_furniture_delete_design(client: AsyncClient):
     )
     assert dele.status_code == 204
     # 再次查询应 404
-    get = await client.get(f"/api/custom-furniture/designs/{design_id}")
+    get = await client.get(
+        f"/api/custom-furniture/designs/{design_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 404
 
 
@@ -401,12 +431,18 @@ async def test_soft_create_and_get_scheme(client: AsyncClient):
     scheme_id = data["id"]
 
     # 查询
-    get = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}")
+    get = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 200
     assert get.json()["id"] == scheme_id
 
     # 列表
-    lst = await client.get(f"/api/soft-furnishing/schemes/project/{project_id}")
+    lst = await client.get(
+        f"/api/soft-furnishing/schemes/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -434,11 +470,17 @@ async def test_soft_ai_match(client: AsyncClient):
     assert len(data["recommended_items"]) > 0
 
     # 校验已写入配色 + 单品
-    scheme = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}")
+    scheme = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     sdata = scheme.json()
     assert sdata["color_scheme"] is not None
 
-    items = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/items")
+    items = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/items",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert items.status_code == 200
     assert len(items.json()) > 0
 
@@ -457,7 +499,10 @@ async def test_soft_color_harmony(client: AsyncClient):
         f"/api/soft-furnishing/schemes/{scheme_id}/ai-match",
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/color-harmony")
+    resp = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/color-harmony",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert "score" in data
@@ -476,7 +521,10 @@ async def test_soft_color_harmony_no_scheme_color(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     scheme_id = create.json()["id"]
-    resp = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/color-harmony")
+    resp = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/color-harmony",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     assert resp.json()["score"] == 0.0
 
@@ -502,7 +550,10 @@ async def test_soft_budget_usage(client: AsyncClient):
         json={"item_type": "rug", "name": "羊毛地毯", "price": 1680, "quantity": 2},
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/budget")
+    resp = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/budget",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     data = resp.json()
     # 4280 + 1680*2 = 7640
@@ -528,7 +579,10 @@ async def test_soft_budget_warning_and_over(client: AsyncClient):
         json={"item_type": "sofa", "name": "真皮沙发", "price": 6000, "quantity": 1},
         headers={"Authorization": f"Bearer {token}"},
     )
-    resp = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/budget")
+    resp = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/budget",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.json()["status"] == "over"
 
 
@@ -594,12 +648,18 @@ async def test_soft_storage_crud_and_capacity(client: AsyncClient):
     assert add.json()["total_capacity_l"] == 1000
 
     # 列表
-    lst = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}/storage")
+    lst = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}/storage",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
     # 容量计算
-    cap = await client.get(f"/api/soft-furnishing/storage/{storage_id}/capacity")
+    cap = await client.get(
+        f"/api/soft-furnishing/storage/{storage_id}/capacity",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert cap.status_code == 200
     cdata = cap.json()
     assert cdata["total_capacity_l"] == 1000
@@ -638,5 +698,8 @@ async def test_soft_delete_scheme(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert dele.status_code == 204
-    get = await client.get(f"/api/soft-furnishing/schemes/{scheme_id}")
+    get = await client.get(
+        f"/api/soft-furnishing/schemes/{scheme_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 404

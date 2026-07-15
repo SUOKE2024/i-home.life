@@ -24,7 +24,8 @@ class ServiceWorker(Base):
     # 角色：designer / supervisor / estimator
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     # 角色专属属性（JSON）
-    # designer: {"design_styles": ["modern","minimal"], "software": ["AutoCAD","SketchUp"], "portfolio_count": 50, "awards": 2}
+    # designer: {"design_styles": ["modern","minimal"], "software": ["AutoCAD","SketchUp"],
+    #   "portfolio_count": 50, "awards": 2}
     # supervisor: {"phases": ["mep","masonry"], "certificate": "监理工程师", "supervised_projects": 80}
     # estimator: {"budget_types": ["main","soft"], "accuracy_rate": 0.92, "estimated_projects": 120}
     role_attributes: Mapped[str | None] = mapped_column(Text, nullable=True)

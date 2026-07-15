@@ -354,9 +354,10 @@ nginx -t
 nginx -s reload</code></pre>
 
   <h3>3.2 完整 Nginx 配置</h3>
+  <p class="section-desc">生产环境使用 HTTP（IP 直接访问），避免 SSL 证书域名不匹配问题。未来启用域名+SSL 后可切换为 HTTPS。</p>
   <pre><code>server {
     listen 8081;
-    server_name i-home.life www.i-home.life;
+    server_name i-home.life www.i-home.life 118.31.223.213;
 
     # 隐藏 Nginx 版本号
     server_tokens off;
@@ -493,7 +494,10 @@ flutter build hap --release
       <tr><td><code>DEEPSEEK_MODEL</code></td><td>deepseek-chat</td><td>DeepSeek 模型名称</td></tr>
       <tr><td><code>AMAP_API_KEY</code></td><td>（空）</td><td>高德地图 Web API Key（地址补全/定位）</td></tr>
       <tr><td><code>CORS_ORIGINS</code></td><td>localhost:3000,5173</td><td>CORS 白名单（DEBUG=false 时生效）</td></tr>
-      <tr><td><code>REDIS_URL</code></td><td>（空）</td><td>Redis 连接地址（留空降级为内存字典，v1.0.1 新增）</td></tr>
+      <tr><td><code>REDIS_URL</code></td><td>（空）</td><td>Redis 连接地址（留空降级为内存字典，v1.0.1 新增；v1.0.5 起 WebAuthn 挑战存储亦使用此配置）</td></tr>
+      <tr><td><code>WEBAUTHN_RP_ID</code></td><td>localhost</td><td>WebAuthn RP ID，必须与 Origin 的 host 一致（生产环境为域名或 IP，v1.0.5 新增）</td></tr>
+      <tr><td><code>WEBAUTHN_ORIGIN</code></td><td>http://localhost:8766</td><td>WebAuthn Origin（客户端来源，含协议+host+端口，v1.0.5 新增）</td></tr>
+      <tr><td><code>WEBAUTHN_CHALLENGE_TTL</code></td><td>120</td><td>WebAuthn 挑战 TTL 秒数（v1.0.5 新增）</td></tr>
       <tr><td><code>OSS_ENDPOINT</code></td><td>（空）</td><td>阿里云 OSS 端点（留空使用本地文件存储，v1.0.1 新增）</td></tr>
       <tr><td><code>OSS_ACCESS_KEY</code></td><td>（空）</td><td>OSS 访问密钥 ID（v1.0.1 新增）</td></tr>
       <tr><td><code>OSS_SECRET_KEY</code></td><td>（空）</td><td>OSS 访问密钥（保密，v1.0.1 新增）</td></tr>
@@ -536,7 +540,13 @@ OSS_REGION=cn-hangzhou
 
 # 向量数据库（留空禁用 RAG，支持 Qdrant/Milvus）
 VECTOR_DB_URL=http://localhost:6333
-VECTOR_DB_COLLECTION=ihome_knowledge</code></pre>
+VECTOR_DB_COLLECTION=ihome_knowledge
+
+# WebAuthn / Passkey（v1.0.5 新增）
+# RP ID 必须与 WEBAUTHN_ORIGIN 的 host 一致；多 worker 部署时务必启用 Redis
+WEBAUTHN_RP_ID=118.31.223.213
+WEBAUTHN_ORIGIN=https://118.31.223.213:8081
+WEBAUTHN_CHALLENGE_TTL=120</code></pre>
   </div>
 
   <div class="callout danger">
@@ -655,7 +665,7 @@ bash scripts/deploy.sh logs
     <h3>问题 6：CORS 跨域错误</h3>
     <p><strong>原因</strong>：<code>DEBUG=false</code> 时 CORS 仅允许白名单来源。</p>
     <p><strong>解决</strong>：在 <code>.env</code> 中配置 <code>CORS_ORIGINS</code>，添加前端域名：</p>
-    <pre><code>CORS_ORIGINS=["https://i-home.life", "https://www.i-home.life"]</code></pre>
+    <pre><code>CORS_ORIGINS=["http://118.31.223.213:8081","http://i-home.life:8081","http://localhost:8766"]</code></pre>
   </div>
 
   <div class="card">
@@ -675,6 +685,18 @@ ls flutter_app/ohos/signing/
 cat flutter_app/ohos/OHOS_UPGRADE_GUIDE.md</code></pre>
   </div>
 
+  <div class="card">
+    <h3>问题 8：数据库 Schema 漂移（no such column）</h3>
+    <p><strong>原因</strong>：模型新增字段后，<code>init_db()</code> 的 <code>create_all</code> 只创建不存在的表，不会给已有表添加新列，导致 <code>OperationalError: no such column</code>。</p>
+    <p><strong>解决</strong>：v1.0.8 起已内置轻量级迁移机制（<code>app/database.py</code> 的 <code>_run_lightweight_migrations()</code>），启动时自动检测并 ALTER TABLE。手动修复：</p>
+    <pre><code># 备份数据库
+cp data/ihome.db data/ihome.db.bak.$(date +%Y%m%d%H%M%S)
+
+# 添加缺失列
+sqlite3 data/ihome.db "ALTER TABLE users ADD COLUMN sub_role VARCHAR(30)"
+sqlite3 data/ihome.db "ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0 NOT NULL"</code></pre>
+  </div>
+
   <div class="callout success">
     <div class="callout-label">获取帮助</div>
     <p>如以上方案未能解决问题，请查看完整日志（<code>data/server.log</code>）或联系技术支持：support@i-home.life。</p>
@@ -682,8 +704,8 @@ cat flutter_app/ohos/OHOS_UPGRADE_GUIDE.md</code></pre>
 </section>
 
 <footer class="doc-footer" role="contentinfo">
-  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.1</p>
-  <p>本指南最后更新于 2026-07-12</p>
+  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.8</p>
+  <p>本指南最后更新于 2026-07-15</p>
   <div class="footer-links">
     <a href="../../web/index.html">返回主站</a>
     <a href="user-guide.html">用户使用指南</a>

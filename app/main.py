@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 import uuid
@@ -22,8 +21,16 @@ from app.metrics import (
     http_requests_total,
     metrics_response,
 )
-from app.api import auth, projects, materials, budgets, procurement, construction, settlements, floorplans, voice, files, agents, surveys, location, change_orders, takeoff, mep, payments, chat, crews, workers, lighting, kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog, smart_home, scene_automation, procurement_enhanced, appliance, structural
+from app.api import (
+    auth, projects, materials, budgets, procurement, construction, settlements,
+    floorplans, voice, files, agents, surveys, location, change_orders, takeoff,
+    mep, payments, chat, crews, workers, lighting, kitchen, bathroom,
+    custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep,
+    hard_decoration, door_window_waterproof, furniture_catalog, smart_home,
+    scene_automation, procurement_enhanced, appliance, structural,
+)
 from app.api import identity, products, tasks, points
+from app.api import notifications
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -70,6 +77,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     configure_logging(debug=settings.debug)
     yield
+    # 应用关闭时清理 WebAuthn 挑战存储（关闭 Redis 连接）
+    from app.services.webauthn_service import close_challenge_store
+    await close_challenge_store()
 
 
 app = FastAPI(
@@ -83,8 +93,6 @@ app = FastAPI(
 )
 
 # CORS: 生产环境从 .env 读取白名单; DEBUG 模式下放开以方便本地联调
-if not settings.debug:
-    settings.validate_paseto_key()
 _cors_origins = (
     ["*"] if settings.debug else (settings.cors_origins or ["http://localhost:3000"])
 )
@@ -182,7 +190,7 @@ api_router.include_router(files.router)         # /api/files/*
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(location.router)      # /api/location/*
-api_router.include_router(change_orders.router) # /api/change-orders/*
+api_router.include_router(change_orders.router)  # /api/change-orders/*
 api_router.include_router(takeoff.router)       # /api/takeoff/*
 api_router.include_router(mep.router)           # /api/mep/*
 api_router.include_router(payments.router)      # /api/payments/*
@@ -209,6 +217,7 @@ api_router.include_router(identity.router)             # /api/identity/*
 api_router.include_router(products.router)             # /api/products/*
 api_router.include_router(tasks.router)                # /api/tasks/*
 api_router.include_router(points.router)               # /api/points/*
+api_router.include_router(notifications.router)       # /api/notifications/*
 app.include_router(api_router)
 
 # ── 全局异常处理 ──
@@ -243,9 +252,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.exception_handler(401)
-async def unauthorized_handler(request: Request, exc: Exception):
-    # 保留业务层原有的错误详情（如登录失败），否则用通用文案
+@app.exception_handler(StarletteHTTPException)
+async def unauthorized_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code != 401:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=getattr(exc, "headers", None) or {},
+        )
     detail = getattr(exc, 'detail', None) or "认证失败，请重新登录"
     return JSONResponse(
         status_code=401,
@@ -337,12 +351,15 @@ async def metrics():
 
 @app.websocket("/ws/{project_id}")
 async def websocket_endpoint(websocket: WebSocket, project_id: str):
-    """WebSocket 实时通信端点 — 需 PASETO Token 认证
+    """WebSocket 实时通信端点 — 需 PASETO Token 认证 + 项目归属校验
 
     客户端通过 query 参数传递 token: ws://host/ws/{project_id}?token=xxx
     """
     import logging
+    from sqlalchemy import select as sql_select
     from app.auth.paseto_handler import verify_token, TokenExpiredError, TokenInvalidError
+    from app.database import async_session
+    from app.models.project import Project
     from app.ws import ws_manager
 
     logger = logging.getLogger(__name__)
@@ -367,6 +384,17 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
     if not user_id:
         await websocket.close(code=4001, reason="令牌格式无效")
         return
+
+    # ── 项目归属校验: 防止越权连接任意项目 WS ──
+    async with async_session() as db:
+        result = await db.execute(sql_select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            await websocket.close(code=4004, reason="项目不存在")
+            return
+        if user_role != "admin" and project.owner_id != user_id:
+            await websocket.close(code=4003, reason="无权访问此项目")
+            return
 
     await ws_manager.connect(websocket, project_id)
     # 认证成功后通知客户端

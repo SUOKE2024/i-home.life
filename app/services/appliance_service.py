@@ -1,6 +1,6 @@
 """F19 电器品类库 + F20 电器点位规划 服务层"""
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.appliance import ApplianceCategory, Appliance, AppliancePoint, ApplianceLoadCalc
@@ -232,22 +232,86 @@ SUBCATEGORY_CIRCUIT_MAP: dict[str, str] = {
 
 # 电器子类型 → 安装要求 (给水/排水/燃气/墙孔)
 SUBCATEGORY_EMBEDDING_MAP: dict[str, dict] = {
-    "air_conditioner": {"water_supply": False, "drainage": True, "gas_supply": False, "wall_hole": "φ65mm (空调孔)", "embedding_notes": "需预留空调孔和室外机位置,插座16A布置在室内机附近"},
-    "refrigerator": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": None, "embedding_notes": "冰箱两侧预留100mm散热空间,电源10A插座地面以上300mm"},
-    "washing_machine": {"water_supply": True, "drainage": True, "gas_supply": False, "wall_hole": None, "embedding_notes": "预留冷/热水给水口、专用排水口和防水插座"},
-    "water_heater": {"water_supply": True, "drainage": False, "gas_supply": True, "wall_hole": "φ80mm (排气孔)", "embedding_notes": "预埋燃气管道,预留强排烟道,强制通风,插座16A带漏保"},
-    "tv": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": "φ50mm (穿线管)", "embedding_notes": "预埋φ50mm穿线管从电视墙到电视柜,墙面留置86暗盒,预留网线和HDMI穿线"},
-    "range_hood": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": "φ160mm (排烟孔)", "embedding_notes": "预埋止逆阀和排烟管道,插座布置在吊顶内"},
-    "cooktop": {"water_supply": False, "drainage": False, "gas_supply": True, "wall_hole": None, "embedding_notes": "预埋燃气管道,台面开孔尺寸按型号确定"},
-    "dishwasher": {"water_supply": True, "drainage": True, "gas_supply": False, "wall_hole": None, "embedding_notes": "预留冷/热水给水口和排水口,防水插座"},
-    "steam_oven": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": None, "embedding_notes": "嵌入式安装需预留散热空间,16A插座"},
-    "microwave": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": None, "embedding_notes": "单独10A插座,不建议与其他大功率电器共用回路"},
-    "water_purifier": {"water_supply": True, "drainage": True, "gas_supply": False, "wall_hole": None, "embedding_notes": "预埋专用给水管路和废水排放管,预留RO膜更换操作空间"},
-    "garbage_disposal": {"water_supply": False, "drainage": True, "gas_supply": False, "wall_hole": None, "embedding_notes": "水槽下方预留防水插座,排水管接口匹配Φ40mm"},
-    "robot_vacuum": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": None, "embedding_notes": "基站附近预留地面插座,基站需离墙至少0.5m"},
-    "vacuum_cleaner": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": None, "embedding_notes": "充电底座附近预留插座"},
-    "dehumidifier": {"water_supply": False, "drainage": True, "gas_supply": False, "wall_hole": None, "embedding_notes": "预留排水管道,排水口位置低于除湿机水箱"},
-    "fresh_air_system": {"water_supply": False, "drainage": False, "gas_supply": False, "wall_hole": "φ110mm×2 (进/排风)", "embedding_notes": "预埋进风和排风管道,主机吊顶安装预留检修口"},
+    "air_conditioner": {
+        "water_supply": False, "drainage": True, "gas_supply": False,
+        "wall_hole": "φ65mm (空调孔)",
+        "embedding_notes": "需预留空调孔和室外机位置,插座16A布置在室内机附近",
+    },
+    "refrigerator": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "冰箱两侧预留100mm散热空间,电源10A插座地面以上300mm",
+    },
+    "washing_machine": {
+        "water_supply": True, "drainage": True, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "预留冷/热水给水口、专用排水口和防水插座",
+    },
+    "water_heater": {
+        "water_supply": True, "drainage": False, "gas_supply": True,
+        "wall_hole": "φ80mm (排气孔)",
+        "embedding_notes": "预埋燃气管道,预留强排烟道,强制通风,插座16A带漏保",
+    },
+    "tv": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": "φ50mm (穿线管)",
+        "embedding_notes": "预埋φ50mm穿线管从电视墙到电视柜,墙面留置86暗盒,预留网线和HDMI穿线",
+    },
+    "range_hood": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": "φ160mm (排烟孔)",
+        "embedding_notes": "预埋止逆阀和排烟管道,插座布置在吊顶内",
+    },
+    "cooktop": {
+        "water_supply": False, "drainage": False, "gas_supply": True,
+        "wall_hole": None,
+        "embedding_notes": "预埋燃气管道,台面开孔尺寸按型号确定",
+    },
+    "dishwasher": {
+        "water_supply": True, "drainage": True, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "预留冷/热水给水口和排水口,防水插座",
+    },
+    "steam_oven": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "嵌入式安装需预留散热空间,16A插座",
+    },
+    "microwave": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "单独10A插座,不建议与其他大功率电器共用回路",
+    },
+    "water_purifier": {
+        "water_supply": True, "drainage": True, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "预埋专用给水管路和废水排放管,预留RO膜更换操作空间",
+    },
+    "garbage_disposal": {
+        "water_supply": False, "drainage": True, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "水槽下方预留防水插座,排水管接口匹配Φ40mm",
+    },
+    "robot_vacuum": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "基站附近预留地面插座,基站需离墙至少0.5m",
+    },
+    "vacuum_cleaner": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "充电底座附近预留插座",
+    },
+    "dehumidifier": {
+        "water_supply": False, "drainage": True, "gas_supply": False,
+        "wall_hole": None,
+        "embedding_notes": "预留排水管道,排水口位置低于除湿机水箱",
+    },
+    "fresh_air_system": {
+        "water_supply": False, "drainage": False, "gas_supply": False,
+        "wall_hole": "φ110mm×2 (进/排风)",
+        "embedding_notes": "预埋进风和排风管道,主机吊顶安装预留检修口",
+    },
 }
 
 
@@ -354,7 +418,11 @@ async def compute_load_calc(db: AsyncSession, project_id: str) -> dict:
     await db.execute(
         select(ApplianceLoadCalc).where(ApplianceLoadCalc.project_id == project_id)
     )
-    existing = (await db.execute(select(ApplianceLoadCalc).where(ApplianceLoadCalc.project_id == project_id))).scalars().all()
+    existing = (
+        await db.execute(
+            select(ApplianceLoadCalc).where(ApplianceLoadCalc.project_id == project_id)
+        )
+    ).scalars().all()
     for e in existing:
         await db.delete(e)
     await db.flush()

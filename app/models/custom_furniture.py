@@ -66,7 +66,8 @@ class FurnitureModule(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     design_id: Mapped[str] = mapped_column(String(36), ForeignKey("custom_furniture_designs.id"), nullable=False)
     module_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    # module_type: top(顶板) / bottom(底板) / side(侧板) / back(背板) / shelf(层板) / drawer(抽屉) / door(门板) / hanging_rod(挂衣杆) / mirror(镜面)
+    # module_type: top(顶板) / bottom(底板) / side(侧板) / back(背板) / shelf(层板) /
+    #   drawer(抽屉) / door(门板) / hanging_rod(挂衣杆) / mirror(镜面)
     position_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     width: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # 宽 mm

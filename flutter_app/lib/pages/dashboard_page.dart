@@ -29,7 +29,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _error = null;
     });
     final api = ApiClient();
-    final result = await api.getList('/api/projects');
+    final result = await api.getList('/projects');
     if (result.isSuccess) {
       final projects = result.data as List;
       setState(() {

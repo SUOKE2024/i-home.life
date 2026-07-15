@@ -17,9 +17,10 @@ mkdir -p ./data
 PYTHON="${PYTHON:-python3}"
 _exec() { curl -sf "$@" 2>/dev/null || echo '{"error":"request_failed"}'; }
 _json() { $PYTHON -c "import sys,json;print(json.load(sys.stdin)$1)" 2>/dev/null || echo "N/A"; }
+_json_len() { $PYTHON -c "import sys,json;print(len(json.load(sys.stdin)$1))" 2>/dev/null || echo "N/A"; }
 
 echo "# i-home.life 全链路 Demo 报告" > "$REPORT"
-echo "**时间**: $(date '+%Y-%m-%d %H:%M:%S') | **版本**: v0.3.0" >> "$REPORT"
+echo "**时间**: $(date '+%Y-%m-%d %H:%M:%S') | **版本**: v1.0.10" >> "$REPORT"
 echo "" >> "$REPORT"
 
 step() {
@@ -105,7 +106,7 @@ check "BOM 清单: 3 项, 合计¥$bom_total"
 step 9 "生成预算"
 BUDGET=$(_exec -X POST "$API/api/budgets/generate-from-bom/$PROJ_ID" -H "$AUTH")
 BUDGET_TOTAL=$(echo "$BUDGET" | _json "['total_estimated']")
-BUDGET_LINES=$(echo "$BUDGET" | _json "len(['lines'])")
+BUDGET_LINES=$(echo "$BUDGET" | _json_len "['lines']")
 check "预算: ¥$BUDGET_TOTAL ($BUDGET_LINES 行)"
 
 # === Step 10: Construction ===

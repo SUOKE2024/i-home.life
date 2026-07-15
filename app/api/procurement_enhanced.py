@@ -322,7 +322,10 @@ async def resolve_dispute(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     resolution = body.get("resolution")
     if resolution not in ("refunded", "supplier_received"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="resolution 必须为 refunded 或 supplier_received")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="resolution 必须为 refunded 或 supplier_received",
+        )
     try:
         payment = await svc.resolve_dispute(db, escrow_id, resolution)
     except ValueError as e:

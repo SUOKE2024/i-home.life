@@ -86,7 +86,11 @@ class ProcurementAgent(BaseAgent):
             delivery = q.get("delivery_days", 7)
             rating = q.get("rating", 4.0)
             # 综合得分 = 价格分(60%) + 交期分(25%) + 评级分(15%)
-            price_score = 100 - (total / max(qt.get("unit_price", 1) * qt.get("quantity", 1) for qt in quotations) * 100) if total > 0 else 50
+            max_total = max(
+                qt.get("unit_price", 1) * qt.get("quantity", 1)
+                for qt in quotations
+            )
+            price_score = 100 - (total / max_total * 100) if total > 0 else 50
             delivery_score = max(0, 100 - (delivery - 3) * 10)  # 3天=100分, 每多1天扣10分
             rating_score = (rating / 5.0) * 100
             composite = round(price_score * 0.6 + delivery_score * 0.25 + rating_score * 0.15, 2)
@@ -196,17 +200,21 @@ class ProcurementAgent(BaseAgent):
 
     async def generate_content_publish_reply(self, message: str, user_name: str = "") -> str:
         """辅助供应商在聊天中发布产品/服务"""
-        prompt = f"""你是索克家居的内容发布助手。供应商 {user_name} 想要发布产品/服务。
+        prompt = (
+            f"""你是索克家居的内容发布助手。供应商 {user_name} 想要发布产品/服务。
 
 用户消息：{message}
 
 请按以下步骤协助：
 1. 如果消息包含产品名称、类别、价格、规格等信息，提取并整理
 2. 如果信息不完整，引导供应商补充缺失信息
-3. 用 JSON 格式回复：{{"product_info": {{"name": "...", "category": "...", "price_range": "...", "description": "...", "tags": [...]}}, "missing_fields": [...], "reply": "对供应商的回复"}}
+3. 用 JSON 格式回复：{{"product_info": {{"name": "...", "category": "...", """
+            f""""price_range": "...", "description": "...", "tags": [...]}}, """
+            f""""missing_fields": [...], "reply": "对供应商的回复"}}
 
 如果用户消息中信息完整，直接在 reply 中生成产品预览卡片格式的回复。
 如果信息不完整，在 reply 中友好地询问缺失信息，并在 missing_fields 中列出。"""
+        )
         try:
             result = await self.think(prompt)
             return result

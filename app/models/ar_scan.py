@@ -28,7 +28,8 @@ class ScanSession(Base):
     survey_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("surveys.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="AR 扫描")
     scanner: Mapped[str | None] = mapped_column(String(100), nullable=True)              # 扫描人
-    device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)         # iPhone 15 Pro / MatePad Pro 13.2 等
+    # 设备型号: iPhone 15 Pro / MatePad Pro 13.2 等
+    device_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     platform: Mapped[str] = mapped_column(String(20), nullable=False, default="ios")
     # platform: ios / android / harmonyos / web
     scan_method: Mapped[str] = mapped_column(String(30), nullable=False, default="lidar")
@@ -141,7 +142,7 @@ class MeasurementPoint(Base):
     reference_value: Mapped[float] = mapped_column(Float, nullable=False)                # 人工参考值(钢尺/激光仪)
     unit: Mapped[str] = mapped_column(String(10), nullable=False, default="m")           # m / cm / ㎡
     deviation: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)         # 偏差=ar_value-reference_value
-    deviation_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0) # 偏差百分比
+    deviation_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)  # 偏差百分比
     measured_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

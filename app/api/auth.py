@@ -8,11 +8,9 @@ from app.models.webauthn_credential import WebAuthnCredential
 from app.schemas.user import UserCreate, UserLogin, TokenResponse, UserResponse
 from app.schemas.webauthn import (
     WebAuthnRegisterBeginRequest,
-    WebAuthnRegisterBeginResponse,
     WebAuthnRegisterCompleteRequest,
     WebAuthnRegisterCompleteResponse,
     WebAuthnLoginBeginRequest,
-    WebAuthnLoginBeginResponse,
     WebAuthnLoginCompleteRequest,
     WebAuthnLoginCompleteResponse,
     WebAuthnCredentialResponse,

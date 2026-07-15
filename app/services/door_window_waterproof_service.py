@@ -263,8 +263,6 @@ def compute_material_quantity(area: float, thickness_mm: float, layers: int = 2)
     """
     # 每平米每毫米厚度用量约 1.2 kg (含损耗)
     usage_per_m2_per_mm = 1.2
-    # 单遍用量
-    single_layer_kg = area * (thickness_mm / layers) * usage_per_m2_per_mm
     # 总用量
     total_kg = area * thickness_mm * usage_per_m2_per_mm
     # 损耗 5%

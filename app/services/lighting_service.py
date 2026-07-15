@@ -213,11 +213,6 @@ def generate_ai_scheme(
     # 色温规划
     color_temp = plan_color_temp(scheme_type, room_type)
 
-    # 根据面积估算总光通量 (lux × 面积 / (CU × MF))
-    lux_range = ROOM_ILLUMINANCE_RANGE.get(room_type, (100, 300))
-    target_lux = (lux_range[0] + lux_range[1]) / 2
-    required_lumens = target_lux * room_area / (UTILIZATION_COEFFICIENT * MAINTENANCE_COEFFICIENT)
-
     # 生成灯具列表
     fixtures = []
     if scheme_type == "none_main":

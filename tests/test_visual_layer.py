@@ -9,8 +9,8 @@ import pytest
 from httpx import AsyncClient
 
 # 导入模型以注册到 Base.metadata (使 conftest 的 setup_db 能创建表)
-from app.models.vr_panorama import VRPanorama, VRScene
-from app.models.ai_image import AIImageJob, AIImagePreset
+from app.models.vr_panorama import VRPanorama, VRScene  # noqa: F401
+from app.models.ai_image import AIImageJob, AIImagePreset  # noqa: F401
 
 # 注册路由到 app (主代理集成前,测试需手动挂载)
 # 注意: app.main 在末尾挂载了 StaticFiles 到 "/" 路径,会拦截后续添加的路由,
@@ -477,7 +477,7 @@ async def test_vr_delete_panorama(client: AsyncClient):
 
 def test_compute_scene_duration_basic():
     """单元测试: 场景时长估算"""
-    from app.services.vr_panorama_service import compute_scene_duration, VRScene
+    from app.services.vr_panorama_service import compute_scene_duration
 
     # 3 个全景,fade 过渡
     scene = VRScene(
@@ -494,7 +494,7 @@ def test_compute_scene_duration_basic():
 
 def test_compute_scene_duration_empty():
     """单元测试: 空场景时长为 0"""
-    from app.services.vr_panorama_service import compute_scene_duration, VRScene
+    from app.services.vr_panorama_service import compute_scene_duration
 
     scene = VRScene(id="s2", project_id="p1", name="空场景")
     assert compute_scene_duration(scene) == 0.0
@@ -502,7 +502,7 @@ def test_compute_scene_duration_empty():
 
 def test_compute_scene_duration_warp():
     """单元测试: warp 过渡比 fade 快"""
-    from app.services.vr_panorama_service import compute_scene_duration, VRScene
+    from app.services.vr_panorama_service import compute_scene_duration
 
     scene_fade = VRScene(
         id="s3", project_id="p1", name="fade",
@@ -887,7 +887,7 @@ def test_validate_prompt_too_long():
 
 def test_compute_cost():
     """单元测试: 成本计算 (steps × 0.01 元)"""
-    from app.services.ai_image_service import compute_cost, AIImageJob
+    from app.services.ai_image_service import compute_cost
 
     job = AIImageJob(
         id="j1",

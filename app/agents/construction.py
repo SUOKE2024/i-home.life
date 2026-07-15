@@ -219,7 +219,11 @@ class ConstructionAgent(BaseAgent):
             "issues": task_data.get("issues", []),
             "materials_used": task_data.get("materials_used", []),
             "tomorrow_plan": task_data.get("tomorrow_plan", []),
-            "reply": f"施工日报已生成：完成 {len(task_data.get('completed_tasks', []))} 项，进行中 {len(task_data.get('ongoing_tasks', []))} 项，问题 {len(task_data.get('issues', []))} 项",
+            "reply": (
+                f"施工日报已生成：完成 {len(task_data.get('completed_tasks', []))} 项，"
+                f"进行中 {len(task_data.get('ongoing_tasks', []))} 项，"
+                f"问题 {len(task_data.get('issues', []))} 项"
+            ),
         }
 
     @staticmethod
@@ -308,7 +312,8 @@ class ConstructionAgent(BaseAgent):
         """根据位置、项目类型和所需工种生成任务发布卡片列表
 
         Args:
-            project_info: {"project_id": str, "project_name": str, "address": str, "project_type": str, "total_area": float}
+            project_info: {"project_id": str, "project_name": str, "address": str,
+                           "project_type": str, "total_area": float}
             sub_roles: 需要发布的工种列表，为空则按项目类型自动推断
             location: 位置信息（用于匹配附近工人）
 
@@ -443,7 +448,12 @@ def _compute_expected_progress(start_date: datetime, current_date: datetime, tot
     return round(min(expected, 100.0), 2)
 
 
-def manage_progress(project_id: str, tasks: list[dict], current_date: datetime | None = None, milestones: list[dict] | None = None) -> dict:
+def manage_progress(  # noqa: C901
+    project_id: str,
+    tasks: list[dict],
+    current_date: datetime | None = None,
+    milestones: list[dict] | None = None,
+) -> dict:
     """F37 AI 进度管理 — 预警 + 里程碑跟踪
 
     输入：施工任务列表（含 phase, status, start_date, end_date 等）
@@ -713,7 +723,13 @@ RECTIFICATION_TEMPLATES = {
 }
 
 
-def detect_quality_issues(project_id: str, phase: str, inspection_results: list[dict], task_id: str | None = None, inspection_id: str | None = None) -> dict:
+def detect_quality_issues(
+    project_id: str,
+    phase: str,
+    inspection_results: list[dict],
+    task_id: str | None = None,
+    inspection_id: str | None = None,
+) -> dict:
     """F38 AI 质量问题检测 — 基于质检结果自动识别质量问题
 
     输入：
@@ -821,7 +837,11 @@ def detect_quality_issues(project_id: str, phase: str, inspection_results: list[
         suggested_order = {
             "project_id": project_id,
             "title": f"{phase_name}阶段质量问题整改单",
-            "description": f"AI 自动检测到 {len(detected_issues)} 项质量问题（严重 {severity_count['critical']}，高 {severity_count['high']}，中 {severity_count['medium']}，低 {severity_count['low']}）",
+            "description": (
+                f"AI 自动检测到 {len(detected_issues)} 项质量问题"
+                f"（严重 {severity_count['critical']}，高 {severity_count['high']}，"
+                f"中 {severity_count['medium']}，低 {severity_count['low']}）"
+            ),
             "phase": phase,
             "priority": priority,
             "cost": _estimate_rectification_cost(detected_issues),
@@ -830,7 +850,8 @@ def detect_quality_issues(project_id: str, phase: str, inspection_results: list[
 
     summary = (
         f"AI 质量问题检测完成：{phase} 阶段共检测到 {len(detected_issues)} 项质量问题"
-        f"（严重 {severity_count['critical']}，高 {severity_count['high']}，中 {severity_count['medium']}，低 {severity_count['low']}）"
+        f"（严重 {severity_count['critical']}，高 {severity_count['high']}，"
+        f"中 {severity_count['medium']}，低 {severity_count['low']}）"
     )
 
     return {

@@ -29,6 +29,7 @@ async def upload_file(
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "text/plain", "application/zip",
+        "application/octet-stream",
         "model/vnd.usdz+zip", "model/gltf-binary", "model/gltf+json",
     }
     if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:

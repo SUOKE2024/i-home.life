@@ -19,7 +19,7 @@ def generate_kitchen_layout(design: KitchenDesign) -> list[dict]:
     """
     layout = design.layout_type
     w = design.room_width
-    l = design.room_length
+    length = design.room_length
     ch = design.counter_height
     cd = design.counter_depth
 
@@ -27,34 +27,33 @@ def generate_kitchen_layout(design: KitchenDesign) -> list[dict]:
 
     if layout == "I":
         # 一字型: 沿一面墙布置
-        components.extend(_gen_i_layout(w, l, ch, cd))
+        components.extend(_gen_i_layout(w, length, ch, cd))
     elif layout == "L":
         # L 型: 沿两面相邻墙布置
-        components.extend(_gen_l_layout(w, l, ch, cd))
+        components.extend(_gen_l_layout(w, length, ch, cd))
     elif layout == "U":
         # U 型: 沿三面墙布置
-        components.extend(_gen_u_layout(w, l, ch, cd))
+        components.extend(_gen_u_layout(w, length, ch, cd))
     elif layout == "G":
         # G 型: U 型 + 半岛
-        components.extend(_gen_u_layout(w, l, ch, cd))
-        components.extend(_gen_peninsula(w, l, ch, cd))
+        components.extend(_gen_u_layout(w, length, ch, cd))
+        components.extend(_gen_peninsula(w, length, ch, cd))
     elif layout == "double_i":
         # 双一字型: 两面平行墙
-        components.extend(_gen_i_layout(w, l, ch, cd))
-        components.extend(_gen_i_layout(w, l, ch, cd, offset_y=l - cd / 1000))
+        components.extend(_gen_i_layout(w, length, ch, cd))
+        components.extend(_gen_i_layout(w, length, ch, cd, offset_y=length - cd / 1000))
     elif layout == "island":
         # 岛台型: 一字 + 岛台
-        components.extend(_gen_i_layout(w, l, ch, cd))
-        components.extend(_gen_island(w, l, ch, cd))
+        components.extend(_gen_i_layout(w, length, ch, cd))
+        components.extend(_gen_island(w, length, ch, cd))
     else:
-        components.extend(_gen_l_layout(w, l, ch, cd))
+        components.extend(_gen_l_layout(w, length, ch, cd))
 
     return components
 
 
-def _gen_i_layout(w: float, l: float, ch: float, cd: float, offset_y: float = 0.0) -> list[dict]:
+def _gen_i_layout(w: float, length: float, ch: float, cd: float, offset_y: float = 0.0) -> list[dict]:
     """一字型布局"""
-    cd_m = cd / 1000  # mm → m
     components = []
 
     # 冰箱 (左侧)
@@ -146,9 +145,9 @@ def _gen_i_layout(w: float, l: float, ch: float, cd: float, offset_y: float = 0.
     return components
 
 
-def _gen_l_layout(w: float, l: float, ch: float, cd: float) -> list[dict]:
+def _gen_l_layout(w: float, length: float, ch: float, cd: float) -> list[dict]:
     """L 型布局"""
-    components = _gen_i_layout(w, l, ch, cd)
+    components = _gen_i_layout(w, length, ch, cd)
     # 转角延伸段
     components.append({
         "component_type": "cabinet_base",
@@ -169,9 +168,9 @@ def _gen_l_layout(w: float, l: float, ch: float, cd: float) -> list[dict]:
     return components
 
 
-def _gen_u_layout(w: float, l: float, ch: float, cd: float) -> list[dict]:
+def _gen_u_layout(w: float, length: float, ch: float, cd: float) -> list[dict]:
     """U 型布局"""
-    components = _gen_l_layout(w, l, ch, cd)
+    components = _gen_l_layout(w, length, ch, cd)
     # 另一侧墙
     components.append({
         "component_type": "cabinet_base",
@@ -192,28 +191,28 @@ def _gen_u_layout(w: float, l: float, ch: float, cd: float) -> list[dict]:
     return components
 
 
-def _gen_island(w: float, l: float, ch: float, cd: float) -> list[dict]:
+def _gen_island(w: float, length: float, ch: float, cd: float) -> list[dict]:
     """岛台"""
     return [{
         "component_type": "island",
         "brand": "欧派",
         "width": 1200.0, "depth": 800.0, "height": 850.0,
         "position_x": (w * 1000 - 1200) / 2,
-        "position_y": (l * 1000 - 800) / 2,
+        "position_y": (length * 1000 - 800) / 2,
         "position_z": 0.0,
         "material": "颗粒板", "color": "木纹",
         "price": 8800.0,
     }]
 
 
-def _gen_peninsula(w: float, l: float, ch: float, cd: float) -> list[dict]:
+def _gen_peninsula(w: float, length: float, ch: float, cd: float) -> list[dict]:
     """半岛"""
     return [{
         "component_type": "island",
         "brand": "欧派",
         "width": 1000.0, "depth": 600.0, "height": 850.0,
         "position_x": 2800.0,
-        "position_y": (l * 1000 - 600) / 2,
+        "position_y": (length * 1000 - 600) / 2,
         "position_z": 0.0,
         "material": "颗粒板", "color": "木纹",
         "price": 6800.0,
@@ -365,7 +364,6 @@ def validate_kitchen_compliance(design: KitchenDesign) -> dict:
         checks.append({"item": "抽油烟机距灶台 650-750mm", "passed": False, "message": "缺少抽油烟机或灶台"})
 
     # 4. 燃气表距灶台 ≥ 500mm
-    gas_meter = _find_component(components, "stove")
     if stove:
         # 假设燃气表在灶台侧方 500mm 处，这里检查灶台距侧墙
         gas_dist = min(stove.position_x, stove.position_y)

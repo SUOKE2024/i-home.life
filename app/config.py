@@ -1,10 +1,19 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "allow"}
+
+    @model_validator(mode="after")
+    def _validate_paseto_key(self):
+        if not self.debug and self.paseto_secret_key == "change-me-to-a-random-32-byte-key-minimum":
+            raise ValueError("PASETO_SECRET_KEY 不能使用默认值。请在 .env 中设置强密钥。")
+        if len(self.paseto_secret_key.encode()) < 32:
+            raise ValueError("PASETO_SECRET_KEY 长度不足 32 字节。")
+        return self
 
     app_name: str = "i-home.life"
     app_version: str = "1.0.0"
@@ -35,17 +44,17 @@ class Settings(BaseSettings):
     paseto_token_expire_minutes: int = 60 * 24
 
     # ── WebAuthn / FIDO2 / Passkey ──
-    # RP (Relying Party) ID: 生产环境应设置为域名，如 "i-home.life"
+    # RP (Relying Party) ID: 必须与 webauthn_origin 的 host 一致（WebAuthn 规范要求）
+    # 开发环境: localhost
+    # 生产环境: 域名或 IP，如 "i-home.life" 或 "118.31.223.213"
     webauthn_rp_id: str = "localhost"
-    # Origin: 客户端来源，开发环境通常为 http://localhost:PORT
-    # 生产环境为 https://i-home.life
+    # Origin: 客户端来源（含协议+host+端口）
+    # 开发环境: http://localhost:8766
+    # 生产环境: http://118.31.223.213:8081（HTTP 模式，Passkey 需 HTTPS 不可用）
+    #          或 https://i-home.life:8081（启用域名+SSL 后可用 Passkey）
     webauthn_origin: str = "http://localhost:8766"
-
-    def validate_paseto_key(self):
-        if not self.debug and self.paseto_secret_key == "change-me-to-a-random-32-byte-key-minimum":
-            raise RuntimeError("PASETO_SECRET_KEY 不能使用默认值。请在 .env 中设置强密钥。")
-        if len(self.paseto_secret_key.encode()) < 32:
-            raise RuntimeError(f"PASETO_SECRET_KEY 长度不足 32 字节。")
+    # WebAuthn 挑战 TTL（秒）— 挑战过期后需重新发起
+    webauthn_challenge_ttl: int = 120
 
     # DeepSeek V4
     deepseek_api_key: str = ""

@@ -40,7 +40,12 @@ class ApplianceCreate(BaseModel):
     name: str
     brand: str | None = None
     model: str | None = None
-    subcategory: str = Field(description="子类型: air_conditioner/refrigerator/washing_machine/water_heater/tv/range_hood/cooktop/dishwasher/steam_oven/microwave/water_purifier/garbage_disposal/robot_vacuum/vacuum_cleaner/dehumidifier/fresh_air_system")
+    subcategory: str = Field(
+        description="子类型: air_conditioner/refrigerator/washing_machine/"
+                    "water_heater/tv/range_hood/cooktop/dishwasher/steam_oven/"
+                    "microwave/water_purifier/garbage_disposal/robot_vacuum/"
+                    "vacuum_cleaner/dehumidifier/fresh_air_system"
+    )
     spec: str | None = None
     power_rating: float | None = None
     energy_label: str | None = None

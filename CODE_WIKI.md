@@ -121,7 +121,7 @@
 │
 ├── app/                              # 后端应用 (FastAPI)
 │   ├── api/                          # 34 个路由模块 (321 端点)
-│   │   ├── auth.py                   # 认证 (register/login/me)
+│   │   ├── auth.py                   # 认证 (register/login/me + WebAuthn/Passkey 注册/登录/凭证管理)
 │   │   ├── projects.py               # 项目管理
 │   │   ├── materials.py              # 物料 + BOM + Excel导出
 │   │   ├── budgets.py                # 预算管理
@@ -151,6 +151,9 @@
 │   ├── models/                       # 72 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
 │   ├── services/                     # 业务逻辑层
+│   │   ├── webauthn_service.py       # FIDO2/WebAuthn/Passkey 服务 (Redis+内存挑战存储, v1.0.5)
+│   │   ├── identity_service.py       # 实名认证 (阿里云/腾讯云身份证核验)
+│   │   └── user_service.py           # 用户注册/登录
 │   ├── auth/                         # PASETO Token 认证
 │   ├── database.py                   # 异步引擎 + 会话工厂
 │   └── main.py                       # FastAPI 入口
@@ -186,9 +189,10 @@
 │   ├── bench-matepad.sh              # MatePad 性能验收脚本
 │   └── seed.py                       # 种子数据 (225 SKU)
 │
-├── tests/                            # 测试套件 (302 pass / 9 skipped)
+├── tests/                            # 测试套件 (455 pass / 1 fail / 9 skipped, v1.0.5)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
+│   ├── test_webauthn.py              # WebAuthn/Passkey 全链路 (28, v1.0.5)
 │   ├── test_projects.py              # 项目 CRUD (4)
 │   ├── test_materials.py             # 物料 + BOM (7)
 │   ├── test_budgets_and_agents.py    # 预算 + Agent (7)

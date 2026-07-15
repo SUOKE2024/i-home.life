@@ -107,7 +107,11 @@ class SettlementAgent(BaseAgent):
             "paid_amount": round(paid_amount, 2),
             "total_payable": round(total_payable, 2),
             "trigger": milestone["trigger"],
-            "reply": f"已生成「{milestone['name']}」结算单：应付 ¥{total_payable:,.2f}（含合同 {milestone['payment_ratio']*100:.0f}% + 变更 ¥{change_amount:,.0f} - 扣款 ¥{deduction_amount:,.0f} - 已付 ¥{paid_amount:,.0f}）",
+            "reply": (
+                f"已生成「{milestone['name']}」结算单：应付 ¥{total_payable:,.2f}"
+                f"（含合同 {milestone['payment_ratio']*100:.0f}% + 变更 ¥{change_amount:,.0f}"
+                f" - 扣款 ¥{deduction_amount:,.0f} - 已付 ¥{paid_amount:,.0f}）"
+            ),
         }
 
     def detect_anomalies(self, settlement_data: dict) -> dict:
@@ -208,8 +212,13 @@ class SettlementAgent(BaseAgent):
     def generate_reconciliation(self, settlement_data: dict) -> dict:
         """生成对账单"""
         contract = settlement_data.get("contract_amount", 0)
-        changes_authorized = sum(c.get("amount", 0) for c in settlement_data.get("change_orders", []) if c.get("authorized"))
-        changes_unauthorized = sum(c.get("amount", 0) for c in settlement_data.get("change_orders", []) if not c.get("authorized"))
+        change_orders = settlement_data.get("change_orders", [])
+        changes_authorized = sum(
+            c.get("amount", 0) for c in change_orders if c.get("authorized")
+        )
+        changes_unauthorized = sum(
+            c.get("amount", 0) for c in change_orders if not c.get("authorized")
+        )
         procurement_actual = settlement_data.get("procurement_actual", 0)
         labor_actual = settlement_data.get("labor_actual", 0)
         anomalies = self.detect_anomalies(settlement_data)
@@ -231,7 +240,11 @@ class SettlementAgent(BaseAgent):
                 "critical": anomalies["critical_count"],
                 "warning": anomalies["warning_count"],
             },
-            "reply": f"对账单已生成：合同 ¥{contract:,.0f} + 已授权变更 ¥{changes_authorized:,.0f} - 扣款 ¥{deduction:,.0f} - 未授权 ¥{changes_unauthorized:,.0f} = 应付 ¥{payable:,.0f}",
+            "reply": (
+                f"对账单已生成：合同 ¥{contract:,.0f} + 已授权变更 ¥{changes_authorized:,.0f}"
+                f" - 扣款 ¥{deduction:,.0f} - 未授权 ¥{changes_unauthorized:,.0f}"
+                f" = 应付 ¥{payable:,.0f}"
+            ),
         }
 
     def list_milestones(self) -> dict:
@@ -297,4 +310,3 @@ class SettlementAgent(BaseAgent):
                 + ("⚠ 检测到严重异常，已标记需人工复核。" if review_required else "✓ 未触发人工复核。")
             ),
         }
-

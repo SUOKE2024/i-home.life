@@ -482,9 +482,11 @@ def parse_natural_language_scene(text: str) -> dict:
             "播放": "play", "暂停": "pause",
         }
         action = action_map.get(verb, "turn_on")
-        device_type_map = {"灯": "light", "窗帘": "curtain", "空调": "thermostat", "电视": "tv", "音箱": "speaker", "插座": "socket", "开关": "switch"}
+        device_type_map = {
+            "灯": "light", "窗帘": "curtain", "空调": "thermostat",
+            "电视": "tv", "音箱": "speaker", "插座": "socket", "开关": "switch",
+        }
         device_type = device_type_map.get(device, "light")
-        device_name = f"{room}{device}".strip() if room else device
         actions = [{"device_id": device_type, "action": action, "params": {}}]
         scene_name = scene_name or f"{room}{device}{verb}".strip()
 

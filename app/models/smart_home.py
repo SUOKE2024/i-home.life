@@ -48,7 +48,8 @@ class SmartDevice(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=False)
     device_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    # device_type: light / switch / socket / sensor / camera / lock / curtain / speaker / thermostat / air_purifier / robot_vacuum
+    # device_type: light / switch / socket / sensor / camera / lock / curtain /
+    #   speaker / thermostat / air_purifier / robot_vacuum
     device_name: Mapped[str] = mapped_column(String(200), nullable=False)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)

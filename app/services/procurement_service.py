@@ -23,7 +23,7 @@ def is_valid_status_transition(current: str, target: str) -> bool:
 
 
 async def get_suppliers(db: AsyncSession, category: str | None = None) -> list[Supplier]:
-    stmt = select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
+    stmt = select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.rating.desc())
     if category:
         stmt = stmt.where(Supplier.category == category)
     result = await db.execute(stmt)

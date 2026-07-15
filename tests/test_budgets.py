@@ -41,8 +41,16 @@ async def test_create_budget(client: AsyncClient):
         json={
             "project_id": proj_id,
             "lines": [
-                {"category": "硬装", "name": "墙面处理", "estimated_amount": 20000.0, "unit": "㎡", "quantity": 100, "unit_price": 200},
-                {"category": "软装", "name": "灯具", "estimated_amount": 5000.0, "unit": "套", "quantity": 1, "unit_price": 5000},
+                {
+                    "category": "硬装", "name": "墙面处理",
+                    "estimated_amount": 20000.0, "unit": "㎡",
+                    "quantity": 100, "unit_price": 200,
+                },
+                {
+                    "category": "软装", "name": "灯具",
+                    "estimated_amount": 5000.0, "unit": "套",
+                    "quantity": 1, "unit_price": 5000,
+                },
             ],
         },
         headers={"Authorization": f"Bearer {token}"},
@@ -87,7 +95,13 @@ async def test_get_budget(client: AsyncClient):
         "/api/budgets",
         json={
             "project_id": proj_id,
-            "lines": [{"category": "测试", "name": "测试项", "estimated_amount": 1000.0, "unit": "项", "quantity": 1, "unit_price": 1000}],
+            "lines": [
+                {
+                    "category": "测试", "name": "测试项",
+                    "estimated_amount": 1000.0, "unit": "项",
+                    "quantity": 1, "unit_price": 1000,
+                },
+            ],
         },
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -138,7 +152,11 @@ async def test_update_budget_line(client: AsyncClient):
         json={
             "project_id": proj_id,
             "lines": [
-                {"category": "硬装", "name": "水电", "estimated_amount": 10000.0, "unit": "项", "quantity": 1, "unit_price": 10000},
+                {
+                    "category": "硬装", "name": "水电",
+                    "estimated_amount": 10000.0, "unit": "项",
+                    "quantity": 1, "unit_price": 10000,
+                },
             ],
         },
         headers={"Authorization": f"Bearer {token}"},
@@ -466,7 +484,7 @@ async def test_f13_apply_template_default_area(client: AsyncClient):
     assert data["scale"] == 1.0
     assert data["applied_area"] == tpl["area"]
     # 验算总价
-    expected_total = round(sum(l["unit_price"] * l["quantity"] for l in tpl["lines"]), 2)
+    expected_total = round(sum(line["unit_price"] * line["quantity"] for line in tpl["lines"]), 2)
     assert data["total_estimated"] == expected_total
     assert len(data["lines"]) == len(tpl["lines"])
 

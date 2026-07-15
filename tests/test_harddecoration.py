@@ -59,8 +59,8 @@ def _ensure_routers_registered() -> None:
 _ensure_routers_registered()
 
 
-import pytest
-from httpx import AsyncClient
+import pytest  # noqa: E402
+from httpx import AsyncClient  # noqa: E402
 
 
 async def _register_and_login(client: AsyncClient, phone: str, name: str) -> str:
@@ -115,7 +115,10 @@ async def test_mep_kb_create_and_get_plan(client: AsyncClient):
     assert get_resp.json()["id"] == plan_id
 
     # 列表
-    list_resp = await client.get(f"/api/mep-kb/plans/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    list_resp = await client.get(
+        f"/api/mep-kb/plans/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == 1
 
@@ -353,7 +356,10 @@ async def test_hd_create_and_get_scheme(client: AsyncClient):
     assert get.json()["id"] == scheme_id
 
     # 列表
-    lst = await client.get(f"/api/hard-decoration/schemes/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/hard-decoration/schemes/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -582,12 +588,18 @@ async def test_dw_create_and_get(client: AsyncClient):
     spec_id = data["id"]
 
     # 查询
-    get = await client.get(f"/api/door-window-waterproof/door-windows/{spec_id}", headers={"Authorization": f"Bearer {token}"})
+    get = await client.get(
+        f"/api/door-window-waterproof/door-windows/{spec_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 200
     assert get.json()["id"] == spec_id
 
     # 列表
-    lst = await client.get(f"/api/door-window-waterproof/door-windows/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/door-window-waterproof/door-windows/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -661,7 +673,10 @@ async def test_dw_delete(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert dele.status_code == 204
-    get = await client.get(f"/api/door-window-waterproof/door-windows/{spec_id}", headers={"Authorization": f"Bearer {token}"})
+    get = await client.get(
+        f"/api/door-window-waterproof/door-windows/{spec_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 404
 
 
@@ -694,12 +709,18 @@ async def test_wp_create_and_get(client: AsyncClient):
     plan_id = data["id"]
 
     # 查询
-    get = await client.get(f"/api/door-window-waterproof/waterproof/{plan_id}", headers={"Authorization": f"Bearer {token}"})
+    get = await client.get(
+        f"/api/door-window-waterproof/waterproof/{plan_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 200
     assert get.json()["id"] == plan_id
 
     # 列表
-    lst = await client.get(f"/api/door-window-waterproof/waterproof/project/{project_id}", headers={"Authorization": f"Bearer {token}"})
+    lst = await client.get(
+        f"/api/door-window-waterproof/waterproof/project/{project_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert lst.status_code == 200
     assert len(lst.json()) == 1
 
@@ -904,5 +925,8 @@ async def test_wp_delete(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert dele.status_code == 204
-    get = await client.get(f"/api/door-window-waterproof/waterproof/{plan_id}", headers={"Authorization": f"Bearer {token}"})
+    get = await client.get(
+        f"/api/door-window-waterproof/waterproof/{plan_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert get.status_code == 404

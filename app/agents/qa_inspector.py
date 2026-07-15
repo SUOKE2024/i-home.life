@@ -64,11 +64,27 @@ ACCEPTANCE_ITEMS = [
 DEFECT_CATEGORIES = [
     {"code": "hollow", "name": "空鼓", "severity": "high", "description": "瓷砖/墙面空鼓，敲击有空音", "rectification": "拆除空鼓部位重新施工"},
     {"code": "crack", "name": "裂缝", "severity": "high", "description": "墙面/瓷砖/吊顶出现裂缝", "rectification": "排查裂缝原因，修补或返工"},
-    {"code": "leak", "name": "渗漏", "severity": "critical", "description": "水管/防水/管道渗漏", "rectification": "立即排查渗漏点，重做防水/更换管道"},
-    {"code": "color_diff", "name": "色差", "severity": "medium", "description": "墙面/瓷砖存在可见色差", "rectification": "重新涂刷/更换有色差材料"},
-    {"code": "flatness", "name": "平整度", "severity": "medium", "description": "墙面/地面/吊顶平整度不达标", "rectification": "打磨找平或返工处理"},
+    {
+        "code": "leak", "name": "渗漏", "severity": "critical",
+        "description": "水管/防水/管道渗漏",
+        "rectification": "立即排查渗漏点，重做防水/更换管道",
+    },
+    {
+        "code": "color_diff", "name": "色差", "severity": "medium",
+        "description": "墙面/瓷砖存在可见色差",
+        "rectification": "重新涂刷/更换有色差材料",
+    },
+    {
+        "code": "flatness", "name": "平整度", "severity": "medium",
+        "description": "墙面/地面/吊顶平整度不达标",
+        "rectification": "打磨找平或返工处理",
+    },
     {"code": "gap", "name": "缝隙", "severity": "medium", "description": "瓷砖缝隙/柜门缝隙不均匀", "rectification": "调整缝隙至标准范围"},
-    {"code": "installation", "name": "安装", "severity": "medium", "description": "灯具/卫浴/橱柜安装不当", "rectification": "重新调整安装位置和紧固度"},
+    {
+        "code": "installation", "name": "安装", "severity": "medium",
+        "description": "灯具/卫浴/橱柜安装不当",
+        "rectification": "重新调整安装位置和紧固度",
+    },
     {"code": "other", "name": "其他", "severity": "low", "description": "其他工艺缺陷", "rectification": "根据具体情况整改"},
 ]
 
@@ -112,7 +128,7 @@ class QAInspectorAgent(BaseAgent):
 
 请用中文回复，注重专业性和准确性，给出明确的验收结论和整改建议。"""
 
-    def generate_acceptance_report(self, project_data: dict) -> dict:
+    def generate_acceptance_report(self, project_data: dict) -> dict:  # noqa: C901
         """生成验收报告（分项验收 + 总体验收结论）
 
         project_data 结构：
@@ -554,7 +570,7 @@ def list_defect_categories() -> dict:
     return {
         "categories": DEFECT_CATEGORIES,
         "total": len(DEFECT_CATEGORIES),
-        "reply": f"共 {len(DEFECT_CATEGORIES)} 个缺陷类别：{ '、'.join(c['name'] for c in DEFECT_CATEGORIES) }",
+        "reply": f"共 {len(DEFECT_CATEGORIES)} 个缺陷类别：{'、'.join(c['name'] for c in DEFECT_CATEGORIES)}",
     }
 
 

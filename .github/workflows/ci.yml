@@ -87,3 +87,66 @@ jobs:
         run: |
           flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --max-complexity=15
           flake8 tests/ --max-line-length=120 --extend-ignore=E203,W503
+
+  deploy:
+    # 仅 main 分支 push 后,且所有前置 job 通过后触发自动部署
+    needs: [backend-test, frontend-smoke, lint]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync web assets
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            web/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/web/
+
+      - name: Sync backend
+        run: |
+          rsync -avz --delete \
+            --exclude='.venv/' --exclude='__pycache__/' --exclude='*.pyc' \
+            --exclude='data/' --exclude='.git/' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            app/ alembic/ alembic.ini requirements.txt scripts/ \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/
+
+      - name: Install deps & migrate & restart
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} '
+            cd /opt/ihome && \
+            source .venv/bin/activate && \
+            pip install -r requirements.txt --quiet && \
+            alembic upgrade head && \
+            sudo systemctl restart ihome.service || systemctl restart ihome.service
+            '
+
+      - name: Health check
+        run: |
+          for i in {1..10}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.DEPLOY_HOST }}:8081/api/health || echo 000)
+            if [ "$status" = "200" ]; then
+              echo "Deploy succeeded, health check passed"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Health check failed after 30s"
+          exit 1
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::warning::Deploy failed, please check logs: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'journalctl -u ihome.service -n 100'"

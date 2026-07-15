@@ -11,6 +11,7 @@ from app.schemas.settlement import (
     SettlementResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import settlement_service
 from app.agents.settlement import SettlementAgent
 from app.ws import ws_manager
@@ -57,6 +58,7 @@ async def get_settlement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.get_settlement(db, project_id)
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
@@ -69,6 +71,7 @@ async def create_settlement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     existing = await settlement_service.get_settlement(db, data.project_id)
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该项目已有结算单")
@@ -78,12 +81,17 @@ async def create_settlement(
     return resp
 
 
-@router.post("/generate-from-budget/{project_id}", response_model=SettlementResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/generate-from-budget/{project_id}",
+    response_model=SettlementResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def generate_from_budget(
     project_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.generate_from_budget(db, project_id)
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="未找到预算，请先创建预算")
@@ -98,6 +106,7 @@ async def confirm_settlement(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.confirm_settlement(db, project_id)
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
@@ -158,6 +167,7 @@ async def attach_anomalies(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.attach_anomalies(
         db, project_id, data.anomalies, data.auto_mark_lines
     )
@@ -176,6 +186,7 @@ async def request_review(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.request_review(
         db, project_id, data.reason, data.reviewer_id or str(current_user.id)
     )
@@ -192,6 +203,7 @@ async def approve_review(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     settlement = await settlement_service.approve_review(db, project_id, str(current_user.id))
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
@@ -233,6 +245,7 @@ async def export_reconciliation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     payload = await settlement_service.export_reconciliation(db, project_id)
     if not payload:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")

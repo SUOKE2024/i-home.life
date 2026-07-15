@@ -39,7 +39,10 @@ class SmartHomeSchemeResponse(BaseModel):
 
 
 class SmartDeviceCreate(BaseModel):
-    device_type: str = Field(description="设备类型: light/switch/socket/sensor/camera/lock/curtain/speaker/thermostat/air_purifier/robot_vacuum")
+    device_type: str = Field(
+        description="设备类型: light/switch/socket/sensor/camera/lock/curtain/"
+                    "speaker/thermostat/air_purifier/robot_vacuum"
+    )
     device_name: str
     brand: str | None = None
     model: str | None = None

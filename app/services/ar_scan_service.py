@@ -56,7 +56,7 @@ METHOD_PROFILES = {
 DEGRADATION_CHAIN = ["lidar", "visual_slam", "photogrammetry", "manual"]
 
 
-def detect_device_capability(capability: dict) -> dict:
+def detect_device_capability(capability: dict) -> dict:  # noqa: C901
     """根据客户端上报的硬件能力,推荐扫描方法与降级链。
 
     Args:
@@ -260,7 +260,7 @@ def process_point_cloud(point_count: int, total_area: float) -> dict:
 # 精度校验算法
 # ──────────────────────────────────────────────────────────────
 
-def compute_accuracy_report(
+def compute_accuracy_report(  # noqa: C901
     points: list[MeasurementPoint],
     session: ScanSession,
     recommended_method: str | None = None,

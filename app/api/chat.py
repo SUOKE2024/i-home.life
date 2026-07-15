@@ -13,6 +13,7 @@ from app.schemas.chat import (
     ChatRoomResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import chat_service
 from app.ws import ws_manager
 
@@ -50,6 +51,7 @@ async def get_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     room = await chat_service.get_or_create_room(db, project_id)
     return ChatRoomResponse.model_validate(room)
 
@@ -61,6 +63,7 @@ async def list_messages(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     msgs = await chat_service.get_messages(db, project_id, limit=limit)
     return [_to_response(m) for m in msgs]
 
@@ -71,6 +74,7 @@ async def send_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     msg = await chat_service.send_message(
         db,
         project_id=data.project_id,
@@ -97,6 +101,8 @@ async def mark_message_read(
     msg = await chat_service.mark_read(db, message_id, current_user.id)
     if not msg:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="消息不存在")
+    # 校验消息所属项目的访问权限
+    await verify_project_access(project_id=msg.project_id, current_user=current_user, db=db)
     return _to_response(msg)
 
 
@@ -106,5 +112,6 @@ async def unread_count(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     count = await chat_service.get_unread_count(db, project_id, current_user.id)
     return {"project_id": project_id, "unread_count": count}

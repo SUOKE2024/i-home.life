@@ -105,7 +105,7 @@ async def seed():
             phone="13800138000",
             name="张先生",
             role="homeowner",
-            hashed_password=_hash_password("123456")[0],
+            hashed_password=_hash_password("123456"),
         )
         db.add(demo_user)
 

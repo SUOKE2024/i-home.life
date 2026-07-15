@@ -30,7 +30,7 @@ class SseEvent {
 
 /// SSE 流式聊天客户端
 ///
-/// 通过 POST 请求 `/api/agents/chat/stream` 获取服务端推送的 SSE 事件流，
+/// 通过 POST 请求 `/agents/chat/stream` 获取服务端推送的 SSE 事件流，
 /// 解析 `data: {json}\n\n` 格式并转换为 [SseEvent] 流。
 class SseService {
   final ApiClient _api = ApiClient();
@@ -49,7 +49,7 @@ class SseService {
   }) async* {
     final token = _api.token;
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/agents/chat/stream');
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/agents/chat/stream');
 
     final body = <String, dynamic>{
       'message': message,

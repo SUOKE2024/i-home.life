@@ -87,7 +87,10 @@ async def update_issue_status(
         return None
     # 校验状态机
     if not _validate_transition(issue.status, new_status, ISSUE_STATUS_TRANSITIONS):
-        raise ValueError(f"非法状态流转: {issue.status} → {new_status} (允许: {ISSUE_STATUS_TRANSITIONS.get(issue.status, set())})")
+        raise ValueError(
+            f"非法状态流转: {issue.status} → {new_status} "
+            f"(允许: {ISSUE_STATUS_TRANSITIONS.get(issue.status, set())})"
+        )
     issue.status = new_status
     if resolution:
         issue.resolution = resolution
@@ -163,7 +166,10 @@ async def update_order_status(
         return None
     # 校验状态机
     if not _validate_transition(order.status, new_status, ORDER_STATUS_TRANSITIONS):
-        raise ValueError(f"非法状态流转: {order.status} → {new_status} (允许: {ORDER_STATUS_TRANSITIONS.get(order.status, set())})")
+        raise ValueError(
+            f"非法状态流转: {order.status} → {new_status} "
+            f"(允许: {ORDER_STATUS_TRANSITIONS.get(order.status, set())})"
+        )
     order.status = new_status
     if new_status == "completed":
         order.completed_at = datetime.now(timezone.utc)

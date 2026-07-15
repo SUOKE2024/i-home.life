@@ -1,6 +1,5 @@
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 
 from app.auth.paseto_handler import create_token
 from app.models.user import User
@@ -251,7 +250,7 @@ async def test_login_token_works_for_me(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_disabled_user_cannot_access_me(client: AsyncClient, db_session):
     """被禁用用户即使持有有效 token，访问 /me 也应返回 403"""
-    hashed, _ = _hash_password("test123456")
+    hashed = _hash_password("test123456")
     disabled_user = User(
         phone="13900011111",
         name="被禁用用户",

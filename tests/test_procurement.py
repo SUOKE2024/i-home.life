@@ -46,7 +46,10 @@ async def _create_material(client: AsyncClient, headers: dict, name: str = "æµ‹è
     return mat_resp.json()["id"]
 
 
-async def _create_order(client: AsyncClient, headers: dict, project_id: str, supplier_id: str, material_id: str) -> dict:
+async def _create_order(
+    client: AsyncClient, headers: dict, project_id: str,
+    supplier_id: str, material_id: str,
+) -> dict:
     resp = await client.post(
         "/api/procurement/orders",
         json={

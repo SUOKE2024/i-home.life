@@ -16,6 +16,7 @@ from app.schemas.service_worker import (
     WorkerMatchResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import worker_service
 from app.services.worker_service import parse_json_field
 from app.ws import ws_manager
@@ -118,6 +119,7 @@ async def match_workers(
     db: AsyncSession = Depends(get_db),
 ):
     """F35 智能匹配：按角色 + 多维评分（设计师/监理/预算师）"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     matches = await worker_service.match_workers(
         db,
         project_id=data.project_id,
@@ -151,6 +153,7 @@ async def list_project_matches(
     db: AsyncSession = Depends(get_db),
 ):
     """查询项目服务者匹配记录"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     result = await db.execute(
         select(ServiceWorkerMatch)
         .where(ServiceWorkerMatch.project_id == project_id)
@@ -176,5 +179,7 @@ async def update_match_status(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="匹配记录不存在")
     refreshed = await _load_match_with_worker(db, match_id)
     resp = _match_to_response(refreshed)
+    # 校验项目归属（通过 match.project_id）
+    await verify_project_access(project_id=refreshed.project_id, current_user=current_user, db=db)
     await ws_manager.broadcast_to_project(refreshed.project_id, "worker.status_changed", resp.model_dump())
     return resp

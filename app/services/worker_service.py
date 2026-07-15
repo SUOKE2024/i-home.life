@@ -58,6 +58,35 @@ def parse_json_field(value: str | None, default):
 
 # ── 多维评分算法 ──
 
+
+def _compute_price_score(
+    hourly_rate: int, budget: int | None
+) -> tuple[int, str | None]:
+    """价格评分（10 分）"""
+    if budget:
+        if hourly_rate <= budget:
+            return 10, f"时薪 ¥{hourly_rate} ≤ 预算 ¥{budget}"
+        over = (hourly_rate - budget) / budget
+        return max(0, int(10 * (1 - over))), None
+    return 5, None
+
+
+def _compute_location_score(
+    worker_city: str | None,
+    worker_district: str | None,
+    city: str | None,
+    district: str | None,
+) -> tuple[int, str | None]:
+    """地域评分（10 分）"""
+    if city and worker_city:
+        if worker_city == city:
+            if district and worker_district == district:
+                return 10, f"同城同区（{city} {district}）"
+            return 7, f"同城（{city}）"
+        return 3, None
+    return 5, None
+
+
 def _compute_designer_score(
     worker: ServiceWorker,
     city: str | None,
@@ -118,30 +147,19 @@ def _compute_designer_score(
         reasons.append(f"获奖设计师（{awards} 项）")
 
     # 5. 价格（10 分）
-    if budget_hourly:
-        if worker.hourly_rate <= budget_hourly:
-            price_score = 10
-            reasons.append(f"时薪 ¥{worker.hourly_rate} ≤ 预算 ¥{budget_hourly}")
-        else:
-            over = (worker.hourly_rate - budget_hourly) / budget_hourly
-            price_score = max(0, int(10 * (1 - over)))
-    else:
-        price_score = 5
+    price_score, price_reason = _compute_price_score(
+        worker.hourly_rate, budget_hourly
+    )
+    if price_reason:
+        reasons.append(price_reason)
     breakdown["price"] = price_score
 
     # 6. 地域（10 分）
-    if city and worker.city:
-        if worker.city == city:
-            loc_score = 7
-            if district and worker.district == district:
-                loc_score = 10
-                reasons.append(f"同城同区（{city} {district}）")
-            else:
-                reasons.append(f"同城（{city}）")
-        else:
-            loc_score = 3
-    else:
-        loc_score = 5
+    loc_score, loc_reason = _compute_location_score(
+        worker.city, worker.district, city, district
+    )
+    if loc_reason:
+        reasons.append(loc_reason)
     breakdown["location"] = loc_score
 
     total = sum(breakdown.values())

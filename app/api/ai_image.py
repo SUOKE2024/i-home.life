@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.models.user import User
 from app.schemas.ai_image import (
     AIImageJobCreate,
@@ -31,6 +32,7 @@ async def create_job(
     user: User = Depends(get_current_user),
 ):
     """创建图生图任务。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     # 校验提示词
     if body.prompt:
         is_valid, error = ai_image_service.validate_prompt(body.prompt)
@@ -53,6 +55,7 @@ async def list_jobs(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await verify_project_access(project_id=project_id, current_user=user, db=db)
     return await ai_image_service.list_jobs(db, project_id, status_filter)
 
 
@@ -65,6 +68,7 @@ async def get_job(
     job = await ai_image_service.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=job.project_id, current_user=user, db=db)
     return job
 
 
@@ -78,6 +82,7 @@ async def process_job(
     job = await ai_image_service.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=job.project_id, current_user=user, db=db)
     if job.status not in ("queued", "failed"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -103,6 +108,7 @@ async def get_job_status(
     job = await ai_image_service.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=job.project_id, current_user=user, db=db)
     return {
         "id": job.id,
         "status": job.status,
@@ -122,6 +128,7 @@ async def delete_job(
     job = await ai_image_service.get_job(db, job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=job.project_id, current_user=user, db=db)
     project_id = job.project_id
     deleted = await ai_image_service.delete_job(db, job_id)
     if not deleted:
@@ -197,6 +204,7 @@ async def batch_render(
     user: User = Depends(get_current_user),
 ):
     """批量渲染 (body: project_id, floorplan_id, preset_ids)。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     jobs = await ai_image_service.batch_render(
         db, body.project_id, body.floorplan_id, body.preset_ids, body.input_image_url
     )

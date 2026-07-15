@@ -69,6 +69,7 @@ async def create_quotation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _verify_project_owner(db, data.project_id, current_user)
     quotation = await procurement_service.create_quotation(db, data.model_dump())
     resp = QuotationResponse.model_validate(quotation)
     await ws_manager.broadcast_to_project(data.project_id, "quotation.created", resp.model_dump())
@@ -81,6 +82,7 @@ async def get_quotations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _verify_project_owner(db, project_id, current_user)
     quotations = await procurement_service.get_quotations(db, project_id)
     return [QuotationResponse.model_validate(q) for q in quotations]
 

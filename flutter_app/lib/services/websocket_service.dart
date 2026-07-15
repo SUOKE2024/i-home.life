@@ -57,7 +57,8 @@ class WebSocketService {
     } else {
       wsBase = base
           .replaceFirst(RegExp(r'^http://'), 'ws://')
-          .replaceFirst(RegExp(r'^https://'), 'wss://');
+          .replaceFirst(RegExp(r'^https://'), 'wss://')
+          .replaceFirst(RegExp(r'/api$'), '');
     }
     return Uri.parse(
       '$wsBase/ws/${Uri.encodeComponent(_projectId!)}?token=${Uri.encodeQueryComponent(_token!)}',

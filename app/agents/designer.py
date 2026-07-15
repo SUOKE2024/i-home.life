@@ -195,7 +195,7 @@ class DesignerAgent(BaseAgent):
         "through_bedroom_penalty": True,  # 穿越卧室严重扣分
     }
 
-    def analyze_circulation(self, rooms: list[dict]) -> dict:
+    def analyze_circulation(self, rooms: list[dict]) -> dict:  # noqa: C901
         """F28 智能布局动线分析
 
         rooms 结构：
@@ -410,7 +410,11 @@ class DesignerAgent(BaseAgent):
                 "卫生间": "bathroom", "书房": "study", "阳台": "balcony",
                 "餐厅": "dining_room", "走廊": "hallway", "储藏间": "other",
             }
-            actions.append({"action": "add_room", "name": name, "roomType": type_map.get(name, "living_room"), "w": w, "h": h, "x": 0, "y": 0})
+            actions.append({
+                "action": "add_room", "name": name,
+                "roomType": type_map.get(name, "living_room"),
+                "w": w, "h": h, "x": 0, "y": 0,
+            })
 
         if "删除" in message or "移除" in message:
             name_match = re.search(r"(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊|储藏间)", message)
@@ -421,8 +425,10 @@ class DesignerAgent(BaseAgent):
             name_match = re.search(r"(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊)", message)
             dir_match = re.search(r"(左|右|上|下|东|西|南|北)", message)
             dist_match = re.search(r"(\d+(?:\.\d+)?)\s*[米m]", message)
-            dx = float(dist_match.group(1)) * (1 if dir_match and dir_match.group(1) in ("右") else -1 if dir_match and dir_match.group(1) == "左" else 0)
-            dy = float(dist_match.group(1)) * (1 if dir_match and dir_match.group(1) in ("下") else -1 if dir_match and dir_match.group(1) == "上" else 0)
+            dist = float(dist_match.group(1))
+            dir_name = dir_match.group(1) if dir_match else None
+            dx = dist * (1 if dir_name == "右" else -1 if dir_name == "左" else 0)
+            dy = dist * (1 if dir_name == "下" else -1 if dir_name == "上" else 0)
             if name_match:
                 actions.append({"action": "move_room", "name": name_match.group(1), "dx": dx, "dy": dy})
 

@@ -1,15 +1,13 @@
 """积分系统 API — 积分账户、流水、排名、商城、兑换"""
-import json
-
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
 from app.models.points import (
-    PointsAccount, PointsTransaction, PointsRule,
-    PointsMallItem, PointsRedemption, PointsRanking,
+    PointsTransaction, PointsRule,
+    PointsMallItem, PointsRedemption,
 )
 from app.auth import get_current_user
 from app.rbac import allow_admin
@@ -78,7 +76,7 @@ async def get_rules(
     db: AsyncSession = Depends(get_db),
 ):
     """获取积分规则列表"""
-    stmt = select(PointsRule).where(PointsRule.is_active == True)
+    stmt = select(PointsRule).where(PointsRule.is_active.is_(True))
     result = await db.execute(stmt)
     rules = result.scalars().all()
     return [PointsRuleResponse.model_validate(r) for r in rules]
@@ -115,7 +113,7 @@ async def get_mall_items(
     db: AsyncSession = Depends(get_db),
 ):
     """获取积分商城商品列表"""
-    conditions = [PointsMallItem.is_active == True]
+    conditions = [PointsMallItem.is_active.is_(True)]
     if category:
         conditions.append(PointsMallItem.category == category)
 
@@ -202,4 +200,4 @@ async def recompute_ranking(
 ):
     """重新计算排行榜（管理员）"""
     count = await points_service.recompute_ranking(db, year=year)
-    return {"message": f"排行榜已更新", "count": count}
+    return {"message": "排行榜已更新", "count": count}

@@ -9,7 +9,7 @@ from openpyxl import Workbook
 
 from app.database import get_db
 from app.models.user import User
-from app.models.material import BOMItem, Material, MaterialCategory
+from app.models.material import BOMItem, Material
 from app.schemas.material import (
     MaterialCategoryCreate,
     MaterialCategoryResponse,
@@ -21,6 +21,7 @@ from app.schemas.material import (
     BOMGenerateResponse,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.models.project import Project
 from app.services import material_service
 from app.ws import ws_manager
@@ -83,6 +84,7 @@ async def add_bom_item(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     bom_item = await material_service.add_bom_item(db, data.model_dump())
     from sqlalchemy import select as sa_select
 
@@ -247,6 +249,7 @@ async def delete_bom_item(
     if not bom_item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="BOM项不存在")
     project_id = bom_item.project_id
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     deleted = await material_service.delete_bom_item(db, bom_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="BOM项不存在")
@@ -274,7 +277,7 @@ async def auto_match_bom(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     if current_user.role != "admin" and project.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
-    from sqlalchemy import select as sa_select, or_, and_
+    from sqlalchemy import select as sa_select
 
     # 获取项目的 BOM
     bom_result = await db.execute(

@@ -420,13 +420,19 @@ def recommend_storage_solution(room_name: str, room_area: float, family_size: in
     room_lower = room_name or ""
     if "卧" in room_lower:
         suggestions = [
-            {"storage_type": "衣柜", "capacity_l": recommended_total * 0.5, "compartment_count": 6, "reason": "卧室主收纳,挂衣+折叠分区"},
+            {
+                "storage_type": "衣柜", "capacity_l": recommended_total * 0.5,
+                "compartment_count": 6, "reason": "卧室主收纳,挂衣+折叠分区",
+            },
             {"storage_type": "吊柜", "capacity_l": recommended_total * 0.2, "compartment_count": 4, "reason": "利用墙面顶部空间"},
             {"storage_type": "地柜", "capacity_l": recommended_total * 0.3, "compartment_count": 4, "reason": "床尾/窗边储物"},
         ]
     elif "厨" in room_lower:
         suggestions = [
-            {"storage_type": "厨柜", "capacity_l": recommended_total * 0.7, "compartment_count": 8, "reason": "厨房主收纳,分区存放"},
+            {
+                "storage_type": "厨柜", "capacity_l": recommended_total * 0.7,
+                "compartment_count": 8, "reason": "厨房主收纳,分区存放",
+            },
             {"storage_type": "吊柜", "capacity_l": recommended_total * 0.3, "compartment_count": 4, "reason": "上方轻物收纳"},
         ]
     elif "书" in room_lower or "工作" in room_lower:

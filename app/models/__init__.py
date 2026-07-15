@@ -29,7 +29,9 @@ from app.models.door_window_waterproof import DoorWindowSpec, WaterproofPlan
 from app.models.furniture_catalog import FurnitureCatalogItem
 from app.models.smart_home import SmartHomeScheme, SmartDevice
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
-from app.models.procurement_enhanced import PriceComparison, PriceComparisonItem, EscrowPayment, LogisticsTracking, SampleRequest
+from app.models.procurement_enhanced import (
+    PriceComparison, PriceComparisonItem, EscrowPayment, LogisticsTracking, SampleRequest,
+)
 
 # F19-F20 电器品类库 + 电器点位规划
 from app.models.appliance import ApplianceCategory, Appliance, AppliancePoint, ApplianceLoadCalc
@@ -49,6 +51,7 @@ from app.models.points import (
 )
 from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
 from app.models.webauthn_credential import WebAuthnCredential
+from app.models.device_token import DeviceToken
 
 __all__ = [
     "User",
@@ -150,4 +153,5 @@ __all__ = [
     "OrchestratorTask",
     "TaskCandidate",
     "WebAuthnCredential",
+    "DeviceToken",
 ]

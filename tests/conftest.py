@@ -8,14 +8,17 @@ os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_{os.getpid()}.db"
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
+import pytest  # noqa: F401, E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
 
-from app.config import get_settings
-from app.database import async_session, init_db, Base, engine
-from app.main import app
-from app.models import User, Project, Floor, Room, MaterialCategory, Material, BOMItem
+from app.config import get_settings  # noqa: F401, E402
+from app.database import async_session, init_db, Base, engine  # noqa: F401, E402
+from app.main import app  # noqa: E402
+from app.models import (  # noqa: F401, E402
+    User, Project, Floor, Room,
+    MaterialCategory, Material, BOMItem,
+)
 
 
 @pytest_asyncio.fixture(scope="session")
