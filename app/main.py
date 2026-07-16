@@ -23,11 +23,11 @@ from app.metrics import (
 )
 from app.api import (
     auth, projects, materials, budgets, procurement, construction, settlements,
-    floorplans, voice, files, agents, surveys, location, change_orders, takeoff,
-    mep, payments, chat, crews, workers, lighting, kitchen, bathroom,
-    custom_furniture, soft_furnishing, vr_panorama, ai_image, kitchen_bath_mep,
-    hard_decoration, door_window_waterproof, furniture_catalog, smart_home,
-    scene_automation, procurement_enhanced, appliance, structural,
+    floorplans, voice, voice_realtime, files, agents, surveys, location,
+    change_orders, takeoff, mep, payments, chat, crews, workers, lighting,
+    kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
+    kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
+    smart_home, scene_automation, procurement_enhanced, appliance, structural,
 )
 from app.api import identity, products, tasks, points
 from app.api import notifications
@@ -186,6 +186,7 @@ api_router.include_router(construction.router)  # /api/construction/*
 api_router.include_router(settlements.router)   # /api/settlements/*
 api_router.include_router(floorplans.router)    # /api/floorplans/*
 api_router.include_router(voice.router)         # /api/voice/*
+api_router.include_router(voice_realtime.router)  # /api/voice/* (实时语音)
 api_router.include_router(files.router)         # /api/files/*
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(surveys.router)       # /api/surveys/*

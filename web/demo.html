@@ -1660,8 +1660,8 @@ sup a:hover { color: var(--gold); }
       .then(function (data) {
         backendOnline = true;
         if (statusBadge) { statusBadge.className = 'api-status online'; }
-        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.0.3'); }
-        if (demoInfo) { demoInfo.textContent = '后端已连接 · ' + (data.version || 'v1.0.3'); }
+        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.1.0'); }
+        if (demoInfo) { demoInfo.textContent = '后端已连接 · ' + (data.version || 'v1.1.0'); }
         // 尝试登录获取 token
         return fetch(BACKEND_URL + '/api/auth/login', {
           method: 'POST',

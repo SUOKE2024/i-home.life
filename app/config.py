@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.0.0"
+    app_version: str = "1.1.0"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL
@@ -44,16 +44,8 @@ class Settings(BaseSettings):
     paseto_token_expire_minutes: int = 60 * 24
 
     # ── WebAuthn / FIDO2 / Passkey ──
-    # RP (Relying Party) ID: 必须与 webauthn_origin 的 host 一致（WebAuthn 规范要求）
-    # 开发环境: localhost
-    # 生产环境: 域名或 IP，如 "i-home.life" 或 "118.31.223.213"
     webauthn_rp_id: str = "localhost"
-    # Origin: 客户端来源（含协议+host+端口）
-    # 开发环境: http://localhost:8766
-    # 生产环境: http://118.31.223.213:8081（HTTP 模式，Passkey 需 HTTPS 不可用）
-    #          或 https://i-home.life:8081（启用域名+SSL 后可用 Passkey）
     webauthn_origin: str = "http://localhost:8766"
-    # WebAuthn 挑战 TTL（秒）— 挑战过期后需重新发起
     webauthn_challenge_ttl: int = 120
 
     # DeepSeek V4
@@ -65,6 +57,27 @@ class Settings(BaseSettings):
     glm_api_key: str = ""
     glm_api_base: str = "https://open.bigmodel.cn/api/paas/v4"
     glm_model: str = "glm-4-plus"
+
+    # ── Qwen-Audio-3.0-Realtime (阿里云百炼) ──
+    qwen_audio_api_key: str = ""          # DashScope API Key
+    qwen_audio_model: str = "qwen-audio-3.0-realtime-flash"  # flash | plus
+    qwen_audio_ws_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"  # 百炼 WebSocket
+    qwen_audio_voice: str = "cherry"      # 默认音色: cherry / zhidan / longxiaochun 等
+
+    # ── 语音服务 ──
+    voice_asr_model: str = "qwen-audio-3.0-realtime"  # ASR 模型 (复用 Qwen-Audio)
+    voice_tts_model: str = "qwen3-tts"                # TTS 模型
+    voice_emotion_detection: bool = True               # 是否启用情绪检测
+    voice_emotion_sensitivity: float = 0.6             # 情绪检测灵敏度 (0-1)
+    voice_duplex_mode: bool = True                     # 是否启用双工模式
+    voice_vad_threshold: float = 0.5                   # VAD 阈值 (0-1)
+    voice_max_recording_seconds: int = 300             # 单次最大录音时长（秒）
+
+    # ── Agent FunctionCall / MCP ──
+    agent_function_call_enabled: bool = True           # 是否启用 FunctionCall
+    agent_function_call_max_rounds: int = 5            # 单次对话最大工具调用轮数
+    # MCP 工具服务器地址 (留空则仅使用内置工具)
+    agent_mcp_server_url: str = ""
 
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 

@@ -485,7 +485,7 @@ flutter build hap --release
     <thead><tr><th>变量名</th><th>默认值</th><th>说明</th></tr></thead>
     <tbody>
       <tr><td><code>APP_NAME</code></td><td>i-home.life</td><td>应用名称</td></tr>
-      <tr><td><code>APP_VERSION</code></td><td>1.0.0</td><td>应用版本</td></tr>
+      <tr><td><code>APP_VERSION</code></td><td>1.1.0</td><td>应用版本</td></tr>
       <tr><td><code>DEBUG</code></td><td>true</td><td>调试模式（生产环境必须设为 false）</td></tr>
       <tr><td><code>DATABASE_URL</code></td><td>sqlite+aiosqlite:///./data/ihome.db</td><td>数据库连接字符串</td></tr>
       <tr><td><code>PASETO_SECRET_KEY</code></td><td>change-me-...</td><td>PASETO 令牌加密密钥（必须更换）</td></tr>
@@ -511,7 +511,7 @@ flutter build hap --release
   <div class="callout">
     <div class="callout-label">.env 文件示例</div>
     <pre style="margin:8px 0 0"><code>APP_NAME=i-home.life
-APP_VERSION=1.0.0
+APP_VERSION=1.1.0
 DEBUG=false
 
 # 数据库（开发用 SQLite，生产切换 PostgreSQL）
@@ -572,7 +572,7 @@ GET /api/health
 {
   "status": "ok",
   "app": "i-home.life",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "domain": "i-home.life"
 }</code></pre>
   </div>

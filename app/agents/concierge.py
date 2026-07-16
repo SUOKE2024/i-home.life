@@ -165,6 +165,46 @@ ESCALATION_RULES = [
 # 多模态输入类型
 INPUT_MODALITIES = ["text", "voice", "image"]
 
+# 情绪感知回复策略
+EMOTION_RESPONSE_STRATEGIES = {
+    "anxious": {
+        "prefix": "我理解您现在可能有些着急，请放心，我马上帮您处理。",
+        "tone": "安抚",
+        "urgency_boost": True,
+    },
+    "angry": {
+        "prefix": "非常抱歉给您带来了不愉快的体验，我已经记录您的问题，优先为您处理。",
+        "tone": "道歉+共情",
+        "urgency_boost": True,
+        "force_escalation": True,
+    },
+    "sad": {
+        "prefix": "我能感受到您的失落，装修确实是一件费心的事，让我来帮您分担。",
+        "tone": "共情+支持",
+        "urgency_boost": True,
+    },
+    "tired": {
+        "prefix": "装修确实很辛苦，您辛苦了。让我来为您分担一些吧。",
+        "tone": "关怀",
+        "urgency_boost": False,
+    },
+    "excited": {
+        "prefix": "太好了！看到您这么开心我也很高兴！",
+        "tone": "积极互动",
+        "urgency_boost": False,
+    },
+    "happy": {
+        "prefix": "很高兴能帮到您！",
+        "tone": "积极互动",
+        "urgency_boost": False,
+    },
+    "hesitant": {
+        "prefix": "不着急，您可以慢慢考虑。如果您需要更多信息帮助决策，我随时在这里。",
+        "tone": "耐心引导",
+        "urgency_boost": False,
+    },
+}
+
 
 class ConciergeAgent(BaseAgent):
     agent_name = "concierge"
@@ -174,6 +214,14 @@ class ConciergeAgent(BaseAgent):
 1. 7×24 小时多模态对话（支持文本、语音、图片输入）
 2. 知识问答（装修规范、国标、产品目录、常见问题）
 3. 复杂问题升级到人工客服
+4. 感知用户情绪，动态调整回复语气和策略
+
+情绪感知与共情回复：
+- 检测到用户焦虑/着急 → 安抚语气 + 快速响应 + 优先处理
+- 检测到用户愤怒/不满 → 先道歉共情 + 立即升级人工
+- 检测到用户疲惫/低落 → 柔和语调 + 给予支持和鼓励
+- 检测到用户开心/满意 → 积极互动 + 表达感谢
+- 中性情绪 → 保持专业亲和的客服语调
 
 服务准则：
 - 友善、专业、耐心，始终以用户满意为目标
@@ -188,7 +236,7 @@ class ConciergeAgent(BaseAgent):
 - 退款请求 → 转财务人工审核
 - 预算账目争议 → 转人工核实
 
-请用中文回复，语气亲切专业，给出明确的解答或引导。"""
+请用中文回复，语气亲切专业，根据用户情绪调整回复风格，给出明确的解答或引导。"""
 
     def answer_faq(self, question: str) -> dict:
         """FAQ 知识问答（基于预置知识库匹配）
@@ -321,6 +369,53 @@ class ConciergeAgent(BaseAgent):
                 "您好，我是索克家居 AI 客服。您的问题我已记录，"
                 "稍后将由人工客服为您解答。您也可以拨打客服热线 400-xxx-xxxx。"
             )
+
+    def generate_emotion_aware_reply(
+        self, user_message: str, emotion: dict | None = None
+    ) -> dict:
+        """生成情绪感知增强回复
+
+        Args:
+            user_message: 用户消息
+            emotion: 情绪检测结果 {"label": "anxious", "confidence": 0.8}
+
+        Returns:
+            {"reply": str, "emotion_label": str, "force_escalation": bool, "urgency_boost": bool}
+        """
+        # 情绪标签中文映射
+        _emotion_names = {
+            "anxious": "焦虑", "excited": "兴奋", "tired": "疲惫", "calm": "平静",
+            "angry": "愤怒", "sad": "难过", "happy": "开心", "hesitant": "犹豫",
+            "confident": "自信", "neutral": "中性",
+        }
+
+        emotion_label = emotion.get("label", "neutral") if emotion else "neutral"
+        strategy = EMOTION_RESPONSE_STRATEGIES.get(emotion_label, {})
+
+        # 基础回复
+        faq_result = self.answer_faq(user_message)
+        if faq_result["found"]:
+            base_reply = faq_result["answer"]
+        else:
+            classify = self.classify_inquiry(user_message)
+            if classify["need_human"]:
+                base_reply = "您好，您的问题需要人工客服协助处理，正在为您转接人工客服，请稍候。"
+            else:
+                base_reply = "您好，我是索克家居 AI 客服。您的问题我已收到，请告诉我更多细节，我来帮您解答。"
+
+        # 根据情绪添加前缀
+        prefix = strategy.get("prefix", "")
+        if prefix:
+            base_reply = f"{prefix}\n\n{base_reply}"
+
+        return {
+            "reply": base_reply,
+            "emotion_label": emotion_label,
+            "emotion_name": _emotion_names.get(emotion_label, emotion_label),
+            "tone": strategy.get("tone", "专业亲和"),
+            "force_escalation": strategy.get("force_escalation", False),
+            "urgency_boost": strategy.get("urgency_boost", False),
+        }
 
     @staticmethod
     def detect_concierge_intent(message: str) -> str:
