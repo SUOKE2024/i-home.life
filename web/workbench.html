@@ -71,6 +71,8 @@
     <div class="attach-item" role="menuitem" data-action="photo" tabindex="0">📷 拍照</div>
     <div class="attach-item" role="menuitem" data-action="file" tabindex="0">📁 文件</div>
     <div class="attach-item" role="menuitem" data-action="location" tabindex="0">📍 位置</div>
+    <div class="attach-item" role="menuitem" data-action="batch-import" tabindex="0">📊 批量导入</div>
+    <div class="attach-item" role="menuitem" data-action="camera-scan" tabindex="0">📸 拍照上架</div>
   </div>
 
   <!-- 新消息通知 toast -->
@@ -124,6 +126,79 @@
         <p class="cp-error" id="cp-error" role="alert" hidden></p>
         <button type="submit" class="btn btn-primary cp-submit" id="cp-submit-btn">创建项目</button>
       </form>
+    </div>
+  </div>
+
+  <!-- 批量导入产品对话框 -->
+  <div class="create-project-dialog" id="batch-upload-dialog" role="dialog" aria-label="批量导入产品" aria-modal="true">
+    <div class="create-project-card" style="max-width:480px">
+      <div class="create-project-header">
+        <span>📊 批量导入产品</span>
+        <button class="create-project-close" id="batch-upload-close" aria-label="关闭">×</button>
+      </div>
+      <div id="batch-upload-body">
+        <div class="cp-field">
+          <label class="cp-label">上传产品数据文件</label>
+          <p style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">
+            支持 .xlsx 和 .csv 格式。每次最多 500 个产品。
+          </p>
+          <input type="file" id="batch-file-input" accept=".xlsx,.csv" style="display:none">
+        </div>
+        <div id="batch-file-status" style="font-size:12px;color:var(--text-muted);margin-bottom:12px">未选择文件</div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-primary" id="batch-select-file-btn" style="flex:1">选择文件</button>
+          <a href="#" id="batch-download-template" class="btn" style="flex:1;background:var(--bg-card);border:1px solid var(--border);color:var(--text);text-align:center;text-decoration:none;line-height:2">下载模板</a>
+        </div>
+        <p id="batch-upload-error" role="alert" style="color:var(--danger);font-size:11px;margin-top:8px" hidden></p>
+        <div id="batch-upload-progress" style="margin-top:12px" hidden>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px" id="batch-progress-text">上传中...</div>
+          <div class="progress-bar"><div class="progress-bar-fill" id="batch-progress-fill" style="width:0%"></div></div>
+        </div>
+        <div id="batch-upload-result" style="margin-top:12px" hidden>
+          <div style="font-size:12px" id="batch-result-text"></div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="batch-result-ai"></div>
+        </div>
+        <button type="button" class="btn btn-primary cp-submit" id="batch-upload-btn" style="width:100%;margin-top:12px" disabled>上传并创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 拍照上架对话框 -->
+  <div class="create-project-dialog" id="camera-scan-dialog" role="dialog" aria-label="拍照上架产品" aria-modal="true">
+    <div class="create-project-card" style="max-width:480px">
+      <div class="create-project-header">
+        <span>📸 拍照上架</span>
+        <button class="create-project-close" id="camera-scan-close" aria-label="关闭">×</button>
+      </div>
+      <div id="camera-scan-body">
+        <!-- 拍照区域 -->
+        <div id="camera-preview-area" style="width:100%;min-height:200px;background:var(--bg-deep);border-radius:12px;overflow:hidden;margin-bottom:12px;position:relative;display:flex;align-items:center;justify-content:center">
+          <video id="camera-video" autoplay playsinline style="width:100%;max-height:300px;object-fit:contain;display:none"></video>
+          <canvas id="camera-canvas" style="display:none"></canvas>
+          <div id="camera-placeholder" style="text-align:center;color:var(--text-muted);padding:40px">
+            <div style="font-size:48px;margin-bottom:8px">📸</div>
+            <div style="font-size:13px">点击下方按钮拍照</div>
+          </div>
+        </div>
+        <!-- 拍照后预览 -->
+        <div id="camera-captured-preview" hidden>
+          <img id="camera-captured-img" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;margin-bottom:8px">
+        </div>
+        <!-- 文字补充 -->
+        <div class="cp-field" id="camera-context-field" hidden>
+          <label class="cp-label">补充信息（语音/文字）</label>
+          <input class="cp-input" type="text" id="camera-context-input" placeholder="如：佛山产 58元/㎡ #防滑 #灰色" maxlength="500" autocomplete="off">
+        </div>
+        <!-- 按钮 -->
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button type="button" class="btn btn-primary" id="camera-capture-btn" style="flex:1">📷 拍照</button>
+          <button type="button" class="btn" id="camera-retake-btn" style="flex:1;background:var(--bg-card);border:1px solid var(--border);color:var(--text);display:none">🔄 重拍</button>
+        </div>
+        <button type="button" class="btn btn-primary cp-submit" id="camera-scan-btn" style="width:100%" disabled>🔍 识别产品</button>
+        <p id="camera-scan-error" role="alert" style="color:var(--danger);font-size:11px;margin-top:8px" hidden></p>
+        <!-- 识别结果 -->
+        <div id="camera-scan-result" style="margin-top:12px" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -968,6 +1043,7 @@
       quality: 'qa_inspector',
       settlement: 'settlement',
       support: 'concierge',
+      admin: 'admin',
     };
     const agentType = agentTypeMap[route.agent] || 'orchestrator';
 
@@ -1052,7 +1128,7 @@
                 if (data.event === 'meta') {
                   // 更新 agent 类型和 meta 信息
                   const agentKey = data.agent_type || 'master';
-                  const reverseMap = { orchestrator: 'master', design: 'design', budget: 'budget', procurement: 'procurement', construction: 'construction', qa_inspector: 'quality', settlement: 'settlement', concierge: 'support' };
+                  const reverseMap = { orchestrator: 'master', design: 'design', budget: 'budget', procurement: 'procurement', construction: 'construction', qa_inspector: 'quality', settlement: 'settlement', concierge: 'support', admin: 'admin' };
                   const frontendKey = reverseMap[agentKey] || 'master';
                   placeholder.className = placeholder.className.replace(/agent-\S+/, 'agent-' + frontendKey);
                   const ai = AgentRouter.getAgentInfo(frontendKey);
@@ -1087,10 +1163,11 @@
             const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
             if (resp.reply) {
               const reverseMap = {
-                orchestrator: 'master', design: 'design', budget: 'budget',
-                procurement: 'procurement', construction: 'construction',
-                qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
-              };
+            orchestrator: 'master', design: 'design', budget: 'budget',
+            procurement: 'procurement', construction: 'construction',
+            qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+            admin: 'admin',
+          };
               const agentKey = reverseMap[resp.agent_type] || route.agent;
               renderMessage({
                 type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
@@ -1125,6 +1202,7 @@
           orchestrator: 'master', design: 'design', budget: 'budget',
           procurement: 'procurement', construction: 'construction',
           qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+          admin: 'admin',
         };
         const agentKey = reverseMap[resp.agent_type] || route.agent;
         renderMessage({
@@ -1315,6 +1393,10 @@
       openFilePicker();
     } else if (action === 'location') {
       shareLocation();
+    } else if (action === 'batch-import') {
+      openBatchUploadDialog();
+    } else if (action === 'camera-scan') {
+      openCameraScanDialog();
     }
   });
 
@@ -1513,6 +1595,7 @@
     { key: 'quality',     name: '质检 Agent', emoji: '✅', color: 'var(--agent-quality)' },
     { key: 'settlement',  name: '结算 Agent', emoji: '🧾', color: 'var(--agent-settlement)' },
     { key: 'support',     name: '客服 Agent', emoji: '🎧', color: 'var(--agent-support)' },
+    { key: 'admin',       name: '管理 Agent', emoji: '⚙️', color: 'var(--accent)', adminOnly: true },
   ];
   let mentionActive = false;
   let mentionFilter = '';
@@ -1523,12 +1606,16 @@
     const filtered = filter
       ? AGENTS.filter(a => a.key.includes(filter) || a.name.includes(filter) || a.emoji.includes(filter))
       : AGENTS;
-    if (filtered.length === 0) {
+    // 非管理员不显示管理 Agent
+    const visible = currentUser && currentUser.role === 'admin'
+      ? filtered
+      : filtered.filter(a => !a.adminOnly);
+    if (visible.length === 0) {
       mentionPopup.innerHTML = '<div class="mention-item" style="color:var(--text-muted);cursor:default;pointer-events:none;">无匹配 Agent</div>';
       mentionPopup.classList.add('open');
       return;
     }
-    mentionPopup.innerHTML = filtered.map((a, i) =>
+    mentionPopup.innerHTML = visible.map((a, i) =>
       `<div class="mention-item${i === mentionIdx ? ' active' : ''}" data-key="${a.key}" data-idx="${i}" role="option" aria-selected="${i === mentionIdx}">
         <span class="mention-item-emoji">${a.emoji}</span>
         <span class="mention-item-name" style="color:${a.color}">${a.name}</span>
@@ -1782,6 +1869,419 @@
     }
   });
 
+  // ============ 批量导入产品 ============
+  const batchUploadDialog = document.getElementById('batch-upload-dialog');
+  const batchUploadClose = document.getElementById('batch-upload-close');
+  const batchFileInput = document.getElementById('batch-file-input');
+  const batchFileStatus = document.getElementById('batch-file-status');
+  const batchSelectFileBtn = document.getElementById('batch-select-file-btn');
+  const batchDownloadTemplate = document.getElementById('batch-download-template');
+  const batchUploadBtn = document.getElementById('batch-upload-btn');
+  const batchUploadError = document.getElementById('batch-upload-error');
+  const batchUploadProgress = document.getElementById('batch-upload-progress');
+  const batchProgressText = document.getElementById('batch-progress-text');
+  const batchProgressFill = document.getElementById('batch-progress-fill');
+  const batchUploadResult = document.getElementById('batch-upload-result');
+  const batchResultText = document.getElementById('batch-result-text');
+  const batchResultAi = document.getElementById('batch-result-ai');
+
+  let _selectedBatchFile = null;
+
+  function openBatchUploadDialog() {
+    // 重置状态
+    _selectedBatchFile = null;
+    batchFileInput.value = '';
+    batchFileStatus.textContent = '未选择文件';
+    batchUploadBtn.disabled = true;
+    batchUploadError.hidden = true;
+    batchUploadProgress.hidden = true;
+    batchUploadResult.hidden = true;
+    batchUploadDialog.classList.add('open');
+    // 设置模板下载链接
+    batchDownloadTemplate.href = ApiClient.BASE_URL + '/api/products/batch/template';
+    batchDownloadTemplate.download = 'product_batch_template.xlsx';
+  }
+
+  function closeBatchUploadDialog() {
+    batchUploadDialog.classList.remove('open');
+  }
+
+  batchUploadClose.addEventListener('click', closeBatchUploadDialog);
+  batchUploadDialog.addEventListener('click', (e) => {
+    if (e.target === batchUploadDialog) closeBatchUploadDialog();
+  });
+
+  batchSelectFileBtn.addEventListener('click', () => {
+    batchFileInput.click();
+  });
+
+  batchFileInput.addEventListener('change', () => {
+    const file = batchFileInput.files[0];
+    if (!file) {
+      _selectedBatchFile = null;
+      batchFileStatus.textContent = '未选择文件';
+      batchUploadBtn.disabled = true;
+      return;
+    }
+    _selectedBatchFile = file;
+    const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+    batchFileStatus.textContent = `已选择: ${file.name} (${sizeMB} MB)`;
+    batchFileStatus.style.color = 'var(--success)';
+    batchUploadBtn.disabled = false;
+    batchUploadError.hidden = true;
+  });
+
+  batchDownloadTemplate.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const token = ApiClient.getToken();
+    try {
+      const resp = await fetch(ApiClient.BASE_URL + '/api/products/batch/template', {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      if (!resp.ok) throw new Error('下载失败');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'product_batch_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (_) {
+      batchUploadError.textContent = '模板下载失败，请稍后重试';
+      batchUploadError.hidden = false;
+    }
+  });
+
+  batchUploadBtn.addEventListener('click', async () => {
+    if (!_selectedBatchFile) return;
+
+    batchUploadBtn.disabled = true;
+    batchUploadBtn.textContent = '上传中...';
+    batchUploadError.hidden = true;
+    batchUploadProgress.hidden = false;
+    batchUploadResult.hidden = true;
+
+    const formData = new FormData();
+    formData.append('file', _selectedBatchFile);
+    formData.append('ai_assisted', 'true');
+
+    const token = ApiClient.getToken();
+    try {
+      // 模拟进度
+      batchProgressText.textContent = '正在解析文件...';
+      batchProgressFill.style.width = '30%';
+
+      const resp = await fetch(ApiClient.BASE_URL + '/api/products/batch/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+
+      batchProgressText.textContent = '正在创建产品...';
+      batchProgressFill.style.width = '70%';
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.detail || `服务器错误 (${resp.status})`);
+      }
+
+      const data = await resp.json();
+
+      batchProgressFill.style.width = '100%';
+      batchProgressText.textContent = '完成!';
+
+      // 显示结果
+      batchUploadResult.hidden = false;
+      if (data.failed_count === 0) {
+        batchResultText.innerHTML = `✅ 全部 <strong>${data.success_count}</strong> 个产品创建成功`;
+        batchResultText.style.color = 'var(--success)';
+      } else {
+        batchResultText.innerHTML = `⚠️ 成功 <strong>${data.success_count}</strong> 个，失败 <strong>${data.failed_count}</strong> 个`;
+        batchResultText.style.color = data.failed_count > 0 ? 'var(--warning)' : 'var(--success)';
+      }
+
+      if (data.ai_jobs_pending > 0) {
+        batchResultAi.textContent = `🤖 AI 文案生成中 (${data.ai_jobs_pending} 个产品)...`;
+        // 后台轮询 AI 进度
+        if (data.batch_id) {
+          pollAIJobStatus(data.batch_id);
+        }
+      } else {
+        batchResultAi.textContent = '';
+      }
+
+      // 在工作台显示结果消息
+      renderMessage({
+        type: 'system', content: `── 批量导入完成: ${data.success_count} 成功 / ${data.failed_count} 失败 ──`,
+      });
+
+      // 如果有失败项，显示失败详情
+      if (data.results) {
+        const failedItems = data.results.filter(r => !r.success);
+        if (failedItems.length > 0) {
+          const failedList = failedItems.slice(0, 5).map(r =>
+            `- 第${r.row}行 "${r.name}": ${r.error || '创建失败'}`
+          ).join('\n');
+          renderMessage({
+            type: 'text', agent: 'procurement', timestamp: new Date().toISOString(),
+            content: `⚠️ 以下产品创建失败:\n${failedList}${failedItems.length > 5 ? '\n... 共 ' + failedItems.length + ' 个失败' : ''}`,
+          });
+        }
+      }
+
+    } catch (err) {
+      batchProgressFill.style.width = '0%';
+      batchProgressText.textContent = '上传失败';
+      batchUploadError.textContent = err.message || '上传失败，请检查文件格式';
+      batchUploadError.hidden = false;
+    }
+
+    batchUploadBtn.disabled = false;
+    batchUploadBtn.textContent = '上传并创建';
+    setTimeout(() => {
+      batchUploadProgress.hidden = true;
+      batchProgressFill.style.width = '0%';
+    }, 3000);
+  });
+
+  async function pollAIJobStatus(batchId) {
+    const token = ApiClient.getToken();
+    let pollCount = 0;
+    const maxPolls = 60; // 最多轮询 5 分钟
+
+    const check = async () => {
+      if (pollCount >= maxPolls) {
+        batchResultAi.textContent = '🤖 AI 文案生成超时，请稍后检查产品状态';
+        return;
+      }
+      pollCount++;
+      try {
+        const resp = await fetch(ApiClient.BASE_URL + `/api/products/batch/ai-jobs/${batchId}`, {
+          headers: { 'Authorization': 'Bearer ' + token },
+        });
+        if (!resp.ok) return;
+        const job = await resp.json();
+        if (job.in_progress) {
+          batchResultAi.textContent = `🤖 AI 文案生成中... ${job.completed}/${job.total} 完成`;
+          setTimeout(check, 5000);
+        } else {
+          batchResultAi.textContent = `✅ AI 文案生成完成: ${job.completed} 成功${job.failed > 0 ? ` / ${job.failed} 失败` : ''}`;
+        }
+      } catch (_) {
+        batchResultAi.textContent = '🤖 AI 文案生成中...';
+      }
+    };
+    setTimeout(check, 3000);
+  }
+
+  // ============ 拍照上架 ============
+  const cameraScanDialog = document.getElementById('camera-scan-dialog');
+  const cameraScanClose = document.getElementById('camera-scan-close');
+  const cameraVideo = document.getElementById('camera-video');
+  const cameraCanvas = document.getElementById('camera-canvas');
+  const cameraPlaceholder = document.getElementById('camera-placeholder');
+  const cameraCapturedPreview = document.getElementById('camera-captured-preview');
+  const cameraCapturedImg = document.getElementById('camera-captured-img');
+  const cameraContextField = document.getElementById('camera-context-field');
+  const cameraContextInput = document.getElementById('camera-context-input');
+  const cameraCaptureBtn = document.getElementById('camera-capture-btn');
+  const cameraRetakeBtn = document.getElementById('camera-retake-btn');
+  const cameraScanBtn = document.getElementById('camera-scan-btn');
+  const cameraScanError = document.getElementById('camera-scan-error');
+  const cameraScanResult = document.getElementById('camera-scan-result');
+
+  let _cameraStream = null;
+  let _capturedImageBlob = null;
+
+  function openCameraScanDialog() {
+    cameraScanDialog.classList.add('open');
+    _capturedImageBlob = null;
+    cameraVideo.style.display = 'none';
+    cameraCanvas.style.display = 'none';
+    cameraPlaceholder.style.display = '';
+    cameraCapturedPreview.hidden = true;
+    cameraContextField.hidden = true;
+    cameraRetakeBtn.style.display = 'none';
+    cameraCaptureBtn.style.display = '';
+    cameraScanBtn.disabled = true;
+    cameraScanError.hidden = true;
+    cameraScanResult.hidden = true;
+    cameraScanResult.innerHTML = '';
+    cameraContextInput.value = '';
+    startCamera();
+  }
+
+  function closeCameraScanDialog() {
+    stopCamera();
+    cameraScanDialog.classList.remove('open');
+  }
+
+  cameraScanClose.addEventListener('click', closeCameraScanDialog);
+  cameraScanDialog.addEventListener('click', (e) => {
+    if (e.target === cameraScanDialog) closeCameraScanDialog();
+  });
+
+  async function startCamera() {
+    try {
+      _cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      cameraVideo.srcObject = _cameraStream;
+      cameraVideo.style.display = '';
+      cameraPlaceholder.style.display = 'none';
+    } catch (_) {
+      cameraPlaceholder.innerHTML = '<div style="font-size:24px;margin-bottom:8px">⚠️</div><div style="font-size:12px">无法访问摄像头<br>请检查权限或使用文件上传</div>';
+    }
+  }
+
+  function stopCamera() {
+    if (_cameraStream) {
+      _cameraStream.getTracks().forEach(t => t.stop());
+      _cameraStream = null;
+    }
+  }
+
+  cameraCaptureBtn.addEventListener('click', () => {
+    if (!_cameraStream) return;
+
+    const video = cameraVideo;
+    const canvas = cameraCanvas;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // 压缩为 WebP
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      _capturedImageBlob = blob;
+
+      // 显示预览
+      const url = URL.createObjectURL(blob);
+      cameraCapturedImg.src = url;
+      cameraCapturedPreview.hidden = false;
+      cameraContextField.hidden = false;
+      cameraCaptureBtn.style.display = 'none';
+      cameraRetakeBtn.style.display = '';
+      cameraScanBtn.disabled = false;
+      cameraScanError.hidden = true;
+      cameraScanResult.hidden = true;
+    }, 'image/webp', 0.85);
+
+    // 暂停视频预览
+    cameraVideo.style.display = 'none';
+    cameraPlaceholder.style.display = '';
+  });
+
+  cameraRetakeBtn.addEventListener('click', () => {
+    _capturedImageBlob = null;
+    cameraCapturedPreview.hidden = true;
+    cameraContextField.hidden = true;
+    cameraCaptureBtn.style.display = '';
+    cameraRetakeBtn.style.display = 'none';
+    cameraScanBtn.disabled = true;
+    cameraVideo.style.display = '';
+    cameraPlaceholder.style.display = 'none';
+    cameraContextInput.value = '';
+  });
+
+  cameraScanBtn.addEventListener('click', async () => {
+    if (!_capturedImageBlob) return;
+
+    cameraScanBtn.disabled = true;
+    cameraScanBtn.textContent = '识别中...';
+    cameraScanError.hidden = true;
+    cameraScanResult.hidden = true;
+
+    const formData = new FormData();
+    formData.append('image', _capturedImageBlob, 'product.webp');
+    formData.append('context', cameraContextInput.value.trim());
+
+    const token = ApiClient.getToken();
+    try {
+      const resp = await fetch(ApiClient.BASE_URL + '/api/products/camera/scan', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.detail || `识别失败 (${resp.status})`);
+      }
+
+      const result = await resp.json();
+      cameraScanResult.hidden = false;
+      cameraScanResult.innerHTML = _buildRecognitionResultCard(result);
+
+    } catch (err) {
+      cameraScanError.textContent = err.message || '识别失败，请重试';
+      cameraScanError.hidden = false;
+    }
+
+    cameraScanBtn.disabled = false;
+    cameraScanBtn.textContent = '🔍 识别产品';
+  });
+
+  function _buildRecognitionResultCard(result) {
+    const confidencePercent = Math.round((result.confidence || 0) * 100);
+    const confidenceColor = confidencePercent >= 80 ? 'var(--success)' : (confidencePercent >= 50 ? 'var(--warning)' : 'var(--danger)');
+    const fallbackNote = result.fallback ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">⚠️ AI 识别不可用，为估算结果</div>' : '';
+
+    const tags = (result.tags || []).slice(0, 6).map(t => `<span class="product-tag">#${t}</span>`).join(' ');
+
+    return `
+      <div class="msg-card" style="border-color:var(--accent);margin-top:0">
+        <div class="msg-card-title">📦 ${_escape(result.name || '未识别')}</div>
+        <div class="msg-card-row"><span>分类</span><strong>${_escape(result.category_cn || '其他')}</strong></div>
+        ${result.material ? `<div class="msg-card-row"><span>材质</span><strong>${_escape(result.material)}</strong></div>` : ''}
+        ${result.color ? `<div class="msg-card-row"><span>颜色</span><strong>${_escape(result.color)}</strong></div>` : ''}
+        ${result.style ? `<div class="msg-card-row"><span>风格</span><strong>${_escape(result.style)}</strong></div>` : ''}
+        <div class="msg-card-row"><span>置信度</span><strong style="color:${confidenceColor}">${confidencePercent}%</strong></div>
+        ${result.suggested_price ? `<div class="msg-card-row"><span>建议价格</span><strong style="color:var(--warning)">¥${result.suggested_price}/${result.suggested_unit || '个'}</strong></div>` : ''}
+        ${tags ? `<div class="product-tags">${tags}</div>` : ''}
+        ${fallbackNote}
+        <div class="product-actions" style="margin-top:8px">
+          <button class="approval-btn approve" onclick="confirmCameraProduct('${_escape((result.name || '').replace(/'/g, '\\\''))}', '${_escape(result.category_code || 'other')}', '${_escape(result.category_cn || '')}', '${_escape(result.material || '')}', '${_escape(result.color || '')}', '${_escape(result.style || '')}', '${result.suggested_price || 0}', '${_escape(result.suggested_unit || '个')}', '${(result.tags || []).join(',')}')">确认创建</button>
+          <button class="approval-btn" onclick="document.getElementById('camera-context-input').focus();document.getElementById('camera-scan-btn').click()">修改重试</button>
+        </div>
+      </div>`;
+  }
+
+  // 全局函数供卡片按钮调用
+  window.confirmCameraProduct = async function(name, category, categoryCn, material, color, style, price, unit, tags) {
+    const priceVal = parseFloat(price) || 0;
+    const formData = new FormData();
+    formData.append('name', name);
+    formData.append('category', category);
+    formData.append('description', `${categoryCn} ${name} ${material ? '材质'+material : ''} ${color ? color+'色' : ''} ${style || ''}`.trim());
+    formData.append('price_min', priceVal > 0 ? priceVal : '');
+    formData.append('price_max', '');
+    formData.append('unit', unit);
+    formData.append('tags', tags);
+    formData.append('ai_assisted', 'true');
+
+    const token = ApiClient.getToken();
+    try {
+      const resp = await fetch(ApiClient.BASE_URL + '/api/products/camera/confirm', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+      if (!resp.ok) throw new Error('创建失败');
+      const product = await resp.json();
+      cameraScanResult.innerHTML = `<div style="color:var(--success);font-size:14px;text-align:center;padding:16px">✅ 产品「${_escape(product.name)}」创建成功！</div>`;
+      renderMessage({ type: 'system', content: `── 📸 拍照上架完成: ${_escape(product.name)} ──` });
+      setTimeout(closeCameraScanDialog, 2000);
+    } catch (err) {
+      cameraScanError.textContent = '创建失败: ' + (err.message || '未知错误');
+      cameraScanError.hidden = false;
+    }
+  };
+
   // ============ 消息搜索 ============
   let _searchTerm = '';
 
@@ -1963,6 +2463,16 @@
       // 4. 关闭创建项目弹窗
       if (createDialog.classList.contains('open')) {
         closeCreateDialog();
+        return;
+      }
+      // 4b. 关闭批量导入弹窗
+      if (batchUploadDialog.classList.contains('open')) {
+        closeBatchUploadDialog();
+        return;
+      }
+      // 4c. 关闭拍照上架弹窗
+      if (cameraScanDialog.classList.contains('open')) {
+        closeCameraScanDialog();
         return;
       }
       // 5. 关闭项目选择器

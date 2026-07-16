@@ -610,6 +610,148 @@ const MessageRenderers = {
     return `<div class="msg-collab" tabindex="0" role="button" aria-label="展开协作详情">${links}</div>`;
   },
 
+  // ── 管理后台：平台统计卡片 ──
+
+  renderStatsCard(msg) {
+    const agentInfo = { name: '管理', emoji: '⚙️', color: 'var(--accent)' };
+    const s = msg.payload || {};
+    return `<div class="msg agent agent-admin">
+      <div class="msg-meta"><strong style="color:var(--accent)">⚙️ 管理 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📊 平台数据统计</div>
+        <div class="stats-grid-inline">
+          <div class="stat-item-inline"><span class="stat-num">${(s.total_projects || 0).toLocaleString()}</span><span class="stat-lbl">总项目</span></div>
+          <div class="stat-item-inline"><span class="stat-num">${(s.active_projects || 0).toLocaleString()}</span><span class="stat-lbl">活跃项目</span></div>
+          <div class="stat-item-inline"><span class="stat-num">${(s.total_users || 0).toLocaleString()}</span><span class="stat-lbl">总用户</span></div>
+          <div class="stat-item-inline"><span class="stat-num">${(s.weekly_new_users || 0).toLocaleString()}</span><span class="stat-lbl">本周新增</span></div>
+          <div class="stat-item-inline"><span class="stat-num">${(s.pending_verifications || 0).toLocaleString()}</span><span class="stat-lbl">待审核</span></div>
+          <div class="stat-item-inline"><span class="stat-num">${(s.total_materials || 0).toLocaleString()}</span><span class="stat-lbl">材料SKU</span></div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  // ── 管理后台：用户信息卡片 ──
+
+  renderUserCard(msg) {
+    const p = msg.payload || {};
+    const roleLabels = { homeowner: '业主', designer: '设计师', contractor: '施工方', supplier: '供应商', admin: '管理员' };
+    const roleLabel = roleLabels[p.role] || p.role || '未知';
+    const statusColor = p.is_active ? 'var(--success)' : 'var(--danger)';
+    const statusText = p.is_active ? '活跃' : '已禁用';
+    return `<div class="msg agent agent-admin">
+      <div class="msg-meta"><strong style="color:var(--accent)">⚙️ 管理 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">👤 用户信息</div>
+        <div class="msg-card-row"><span>姓名</span><strong>${this._escape(p.name || '—')}</strong></div>
+        <div class="msg-card-row"><span>手机</span><strong>${this._escape(p.phone || '—')}</strong></div>
+        <div class="msg-card-row"><span>角色</span><strong style="color:var(--accent)">${roleLabel}</strong></div>
+        ${p.sub_role ? `<div class="msg-card-row"><span>子角色</span><strong>${this._escape(p.sub_role)}</strong></div>` : ''}
+        <div class="msg-card-row"><span>状态</span><strong style="color:${statusColor}">${statusText}</strong></div>
+        <div class="msg-card-row"><span>ID</span><strong style="font-size:10px;color:var(--text-muted)">${this._escape((p.id || '').slice(0, 8))}</strong></div>
+      </div>
+    </div>`;
+  },
+
+  // ── 管理后台：用户列表卡片 ──
+
+  renderUserListCard(msg) {
+    const p = msg.payload || {};
+    const users = p.users || [];
+    const roleLabels = { homeowner: '业主', designer: '设计师', contractor: '施工方', supplier: '供应商', admin: '管理员' };
+    const rows = users.map(u => {
+      const roleLabel = roleLabels[u.role] || u.role || '未知';
+      const statusDot = u.is_active ? '<span style="color:var(--success)">●</span>' : '<span style="color:var(--danger)">●</span>';
+      return `<div class="msg-card-row">
+        <span>${statusDot} ${this._escape(u.name || u.phone || '—')}</span>
+        <strong style="font-size:11px">${roleLabel} · <span style="color:var(--text-muted);font-size:10px">${this._escape((u.id || '').slice(0, 6))}</span></strong>
+      </div>`;
+    }).join('');
+    const more = users.length >= (p.limit || 20) ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">显示前 ${users.length} 条结果</div>` : '';
+    return `<div class="msg agent agent-admin">
+      <div class="msg-meta"><strong style="color:var(--accent)">⚙️ 管理 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">👥 用户列表 · ${users.length} 人</div>
+        ${rows || '<div class="msg-card-row"><span>暂无数据</span></div>'}
+        ${more}
+      </div>
+    </div>`;
+  },
+
+  // ── 供应链：产品创建确认卡片 ──
+
+  renderProductCreateCard(msg) {
+    const p = msg.payload || {};
+    const catLabels = { tile: '瓷砖', flooring: '地板', cabinet: '橱柜', paint: '涂料', lighting: '灯具', appliance: '家电', curtain: '窗帘', custom_furniture: '定制家具', service: '服务', other: '其他' };
+    const catLabel = catLabels[p.category] || p.category || '—';
+    const priceStr = p.price_min ? `¥${p.price_min.toLocaleString()}${p.price_max ? ' - ¥' + p.price_max.toLocaleString() : ''}${p.unit ? '/' + this._escape(p.unit) : ''}` : '—';
+    const tags = (p.tags || []).map(t => `<span class="product-tag">#${this._escape(t)}</span>`).join(' ');
+    return `<div class="msg agent agent-procurement">
+      <div class="msg-meta"><strong style="color:var(--agent-procurement)">🛒 采购 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card product-card">
+        <div class="msg-card-title">📦 新${catLabel} · ${this._escape(p.name || '未命名')}</div>
+        <div class="msg-card-row"><span>类别</span><strong>${catLabel}</strong></div>
+        <div class="msg-card-row"><span>价格</span><strong style="color:var(--warning)">${priceStr}</strong></div>
+        ${p.description ? `<div class="product-desc">${this._escape(p.description)}</div>` : ''}
+        ${tags ? `<div class="product-tags">${tags}</div>` : ''}
+        <div class="product-actions">
+          <button class="approval-btn approve" data-product-action="create-confirm">确认创建</button>
+          <button class="approval-btn" data-product-action="edit">修改信息</button>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  // ── 供应链：产品列表卡片 ──
+
+  renderProductListCard(msg) {
+    const p = msg.payload || {};
+    const products = p.products || [];
+    const catLabels = { tile: '瓷砖', flooring: '地板', cabinet: '橱柜', paint: '涂料', lighting: '灯具', appliance: '家电', curtain: '窗帘', custom_furniture: '定制家具', service: '服务', other: '其他' };
+    const statusLabels = { draft: '草稿', published: '已发布', archived: '已归档' };
+    const statusColors = { draft: 'var(--text-muted)', published: 'var(--success)', archived: 'var(--danger)' };
+    const rows = products.map(prod => {
+      const catLabel = catLabels[prod.category] || prod.category || '—';
+      const priceStr = prod.price_min ? `¥${prod.price_min}` : '—';
+      const statusColor = statusColors[prod.status] || 'var(--text-muted)';
+      const statusLabel = statusLabels[prod.status] || prod.status;
+      return `<div class="msg-card-row">
+        <span>📦 ${this._escape(prod.name || '未命名')} <small style="color:var(--text-muted)">[${catLabel}]</small></span>
+        <strong style="font-size:11px">${priceStr} · <span style="color:${statusColor}">${statusLabel}</span></strong>
+      </div>`;
+    }).join('');
+    const more = products.length >= (p.limit || 20) ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">共 ${products.length} 个产品</div>` : '';
+    return `<div class="msg agent agent-procurement">
+      <div class="msg-meta"><strong style="color:var(--agent-procurement)">🛒 采购 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📋 我的产品 · ${products.length} 个</div>
+        ${rows || '<div class="msg-card-row"><span>暂无产品</span></div>'}
+        ${more}
+      </div>
+    </div>`;
+  },
+
+  // ── 供应链：报价卡片 ──
+
+  renderQuotationCard(msg) {
+    const p = msg.payload || {};
+    return `<div class="msg agent agent-procurement">
+      <div class="msg-meta"><strong style="color:var(--agent-procurement)">🛒 采购 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📝 报价单</div>
+        ${p.material_name ? `<div class="msg-card-row"><span>物料</span><strong>${this._escape(p.material_name)}</strong></div>` : ''}
+        ${p.project_name ? `<div class="msg-card-row"><span>项目</span><strong>${this._escape(p.project_name)}</strong></div>` : ''}
+        <div class="msg-card-row"><span>单价</span><strong>¥${(p.unit_price || 0).toLocaleString()}</strong></div>
+        <div class="msg-card-row"><span>数量</span><strong>${p.quantity || 0} ${this._escape(p.unit || '')}</strong></div>
+        <div class="msg-card-row"><span>总价</span><strong style="color:var(--warning)">¥${(p.total_price || 0).toLocaleString()}</strong></div>
+        ${p.delivery_days ? `<div class="msg-card-row"><span>交期</span><strong>${p.delivery_days} 天</strong></div>` : ''}
+        <div class="product-actions">
+          <button class="approval-btn approve" data-quotation-action="send">发送报价</button>
+        </div>
+      </div>
+    </div>`;
+  },
+
   // 按消息类型分发
   render(msg, currentUserRole) {
     switch (msg.type) {
@@ -635,6 +777,12 @@ const MessageRenderers = {
       case 'orchestrator_task': return this.renderOrchestratorTaskCard(msg);
       case 'points_card': return this.renderPointsCard(msg);
       case 'narrative': return this.renderNarrativeCard(msg);
+      case 'stats_card': return this.renderStatsCard(msg);
+      case 'user_card': return this.renderUserCard(msg);
+      case 'user_list_card': return this.renderUserListCard(msg);
+      case 'product_create_card': return this.renderProductCreateCard(msg);
+      case 'product_list_card': return this.renderProductListCard(msg);
+      case 'quotation_card': return this.renderQuotationCard(msg);
       default: return this.renderText(msg);
     }
   },

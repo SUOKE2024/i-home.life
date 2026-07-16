@@ -1024,6 +1024,38 @@ body {
 .agent-settlement .msg-bubble { border-left-color: var(--agent-settlement); }
 .agent-support .msg-bubble { border-left-color: var(--agent-support); }
 
+/* Admin Agent 样式 */
+.agent-admin .msg-bubble { border-left-color: var(--accent); }
+.agent-admin .msg-card { border-color: var(--accent); }
+
+/* 内联统计网格 */
+.stats-grid-inline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+.stat-item-inline {
+  text-align: center;
+  padding: 8px 6px;
+  background: rgba(201, 151, 59, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(201, 151, 59, 0.12);
+}
+.stat-num {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent-bright);
+  line-height: 1.2;
+}
+.stat-lbl {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 /* 协作链路 */
 .msg-collab {
   font-size: 10px;

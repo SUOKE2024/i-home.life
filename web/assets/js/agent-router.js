@@ -24,7 +24,8 @@ const AgentRouter = {
     {
       agent: 'procurement',
       label: '🛒 采购',
-      keywords: ['采购', '买', '订购', '下单', '物流', '到货', '发货', '什么时候到', '供应商', '比价', '地砖', '瓷砖', '地板', '涂料', '材料'],
+      keywords: ['采购', '买', '订购', '下单', '物流', '到货', '发货', '什么时候到', '供应商', '比价', '地砖', '瓷砖', '地板', '涂料', '材料',
+                 '发布产品', '上架', '我的产品', '修改产品', '下架', '库存', '报价', '改价格', '产品管理'],
     },
     {
       agent: 'quality',
@@ -45,6 +46,13 @@ const AgentRouter = {
       agent: 'master',
       label: '🏠 总控',
       keywords: ['总控', '统筹', '协调', '概况', '整体', '总结', '汇报', '状态', '什么时候完工', '还要多久'],
+    },
+    {
+      agent: 'admin',
+      label: '⚙️ 管理',
+      keywords: ['用户管理', '角色管理', '权限管理', '平台统计', '管理员', '禁用用户',
+                 '启用用户', '审核认证', '修改角色', '用户列表', '设为管理员',
+                 '平台数据', '全部项目', '所有用户', '实名认证'],
     },
   ],
 
@@ -108,6 +116,7 @@ const AgentRouter = {
       quality:     { name: '质检',   emoji: '✅', color: 'var(--agent-quality)' },
       settlement:  { name: '结算',   emoji: '🧾', color: 'var(--agent-settlement)' },
       support:     { name: '客服',   emoji: '🎧', color: 'var(--agent-support)' },
+      admin:       { name: '管理',   emoji: '⚙️', color: 'var(--accent)' },
     };
     return map[agentKey] || map.master;
   },

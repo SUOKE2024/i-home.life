@@ -1,4 +1,4 @@
-"""F35 服务者匹配路由 — 设计师/监理/预算师档案 + 智能匹配"""
+"""F35 服务者匹配路由 — 设计师/监理/预算师/木工/水电安装工/窗帘安装工档案 + 智能匹配"""
 
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -118,7 +118,7 @@ async def match_workers(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """F35 智能匹配：按角色 + 多维评分（设计师/监理/预算师）"""
+    """F35 智能匹配：按角色 + 多维评分（设计师/监理/预算师/木工/水电安装工/窗帘安装工）"""
     await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     matches = await worker_service.match_workers(
         db,
@@ -129,6 +129,9 @@ async def match_workers(
         required_styles=data.required_styles,
         required_phases=data.required_phases,
         required_budget_types=data.required_budget_types,
+        required_skills=data.required_skills,
+        required_specialties=data.required_specialties,
+        required_curtain_types=data.required_curtain_types,
         budget_hourly_rate_max=data.budget_hourly_rate_max,
         budget_daily_rate_max=data.budget_daily_rate_max,
         min_rating=data.min_rating,

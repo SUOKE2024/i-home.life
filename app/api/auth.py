@@ -33,7 +33,20 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 # ═══════════════════════════════════════════
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="用户注册",
+    description="使用手机号和密码创建新账户，成功后返回 PASETO Token 和用户信息。",
+    response_description="注册成功，返回访问令牌和用户信息",
+    responses={
+        201: {"description": "注册成功"},
+        400: {"description": "请求参数无效"},
+        409: {"description": "手机号已注册"},
+    },
+    tags=["认证"],
+)
 async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     existing = await db.execute(select(User).where(User.phone == data.phone))
     if existing.scalar_one_or_none():
@@ -51,7 +64,19 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    summary="用户登录",
+    description="使用手机号和密码登录，验证成功后返回 PASETO Token 和用户信息。",
+    response_description="登录成功，返回访问令牌和用户信息",
+    responses={
+        200: {"description": "登录成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "手机号或密码错误"},
+    },
+    tags=["认证"],
+)
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     user = await authenticate_user(db, data.phone, data.password)
     if not user:
@@ -68,7 +93,17 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    summary="获取当前用户信息",
+    description="根据 PASETO Token 返回当前登录用户的账户信息。",
+    response_description="当前用户信息",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
 async def me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 

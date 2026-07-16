@@ -34,9 +34,9 @@ void main() {
 
     // 验证每个 tab 的标签文本（标签可能同时出现在子页面 AppBar 和导航栏中）
     expect(find.text('工作台'), findsAtLeastNWidgets(1));
+    expect(find.text('概览'), findsAtLeastNWidgets(1));
     expect(find.text('项目'), findsAtLeastNWidgets(1));
     expect(find.text('设计台'), findsAtLeastNWidgets(1));
-    expect(find.text('AI助手'), findsAtLeastNWidgets(1));
     expect(find.text('物料'), findsAtLeastNWidgets(1));
     expect(find.text('更多'), findsAtLeastNWidgets(1));
   });
@@ -69,9 +69,9 @@ void main() {
     final pc = ProjectContext();
     await pc.loadProjects();
 
-    // 设置足够大的屏幕以显示所有 26 个功能项
-    // 2 列 × 13 行，每张卡片约 252px 高 + 间距 + 标题/选择器 ≈ 3600px
-    tester.view.physicalSize = const Size(800, 4200);
+    // 设置足够大的屏幕以显示所有 32 个功能项
+    // 2 列 × 16 行，每张卡片约 252px 高 + 间距 + 标题/选择器 ≈ 4600px
+    tester.view.physicalSize = const Size(800, 4800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -87,7 +87,7 @@ void main() {
     await tester.tap(find.text('更多'));
     await tester.pumpAndSettle();
 
-    // 验证所有 26 个功能项标题
+    // 验证所有 32 个功能项标题
     final expectedItems = [
       '项目详情',
       '预算',
@@ -115,10 +115,19 @@ void main() {
       '工程量',
       '任务管理',
       '产品库',
+      '定制家具',
+      '厨卫水电',
+      '工程队匹配',
+      '服务者匹配',
+      '场景编辑',
+      '协作聊天',
     ];
 
     for (final title in expectedItems) {
       expect(find.text(title), findsOneWidget, reason: '应显示功能项: $title');
     }
+
+    // 确认功能项总数为 32
+    expect(expectedItems.length, 32);
   });
 }

@@ -2,39 +2,21 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.0.4 · 全链路功能补全 + Flutter 页面完善 + 全量测试通过（2026-07-14）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 5 视图 + 8 Agent 全链路 + Flutter 41 页面 + ARIA 无障碍 + PASETO 认证 + WebSocket 安全
+> v1.1.0 · 全链路功能补全 + 代码质量优化 + 项目冗余清理（2026-07-16）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 5 视图 + 8 Agent 全链路 + Flutter 40 页面 + ARIA 无障碍 + PASETO 认证 + WebSocket 安全
 
 ## 最近更新
 
-### 2026-07-15 · v1.0.5
+### 2026-07-16 · v1.1.0
 
-- **生物识别认证全链路修复**:
-  - P0: 修复生产环境 WebAuthn RP ID 与 Origin 不匹配（RP ID 改为 `118.31.223.213`）
-  - P0: WebAuthn 挑战存储重构为 Redis+内存降级，带 TTL 自动过期，多 worker 部署共享挑战
-  - P1: Flutter 端集成 `local_auth` 实现真实指纹/面容登录（鸿蒙优雅降级），修复明文密码存储隐患改为 token 快速登录
-  - P1: 新增 28 个 WebAuthn 全链路测试用例（挑战存储层、注册/登录 begin/complete、凭证管理、鉴权隔离、配置正确性）
-- **测试用例**: 455 通过 / 1 失败（预存）/ 9 跳过
-
-### 2026-07-14 · v1.0.4
-
-- **Flutter 页面补全**: 新增 6 个页面（定制家具 F27 / 厨卫水电 F18 / 工程队匹配 F36 / 服务者匹配 F35 / 场景编辑 F32 / 协作聊天 F40），页面总数 35 → 41
-- **"更多"导航完善**: home_page.dart 注册新增页面入口，全部 32 个二级功能模块可通过项目选择器访问
-- **API 端点**: 436 端点（40 模块），实际统计修正
-- **数据模型**: 96 个 ORM 类（38 文件），含 structural 结构承载力计算
-- **测试用例**: 426 通过 / 2 失败（预存）/ 9 跳过
-
-### 2026-07-12 · v1.0.3
-
-- **WebSocket 安全加固**: PASETO Token 认证 + 异常日志 + 消息发送者注入
-- **数据库迁移补全**: 新增 Phase 3 迁移，覆盖全部 96 个 ORM 模型
-- **孤儿模块集成**: 电器 (F19-F20) + 土建结构 (F8-F9) API 路由创建并注册，62 个新端点
-- **状态机校验**: 质量问题 + 整改单状态流转校验，防止非法状态跳转
-- **D-5 修复**: workbench.html 角色切换欢迎消息正确显示角色标识
-- **Chat 游标分页**: 实现基于消息 ID 的 cursor 分页
-- **家具品类库 Seed**: 15 条家具数据初始化（客厅/卧室/餐厅/书房/玄关 + 4 种风格）
-- **Flutter 导航完善**: 14 个页面全部接入，新增"更多"Tab + 项目选择器
-- **SQLite 连接池优化**: StaticPool 解决文件锁定和 selectinload 兼容问题
+- **代码质量优化**:
+  - 修复 `datetime.utcnow()` 弃用警告 → `datetime.now(timezone.utc)`
+  - 修复 pytest-asyncio event_loop 弃用警告 → 使用 `asyncio_default_fixture_loop_scope`
+  - pytest.ini 移除未安装的 `-n auto` / `--cov` 选项
+- **Flutter 页面修复**: `design_deepening_page.dart` 从 mock 数据重构为对接 `/api/floorplans` 真实 API（含 CRUD、loading/error/empty 状态）
+- **Web 前端完善**: `our-story.html` 从重定向页面重写为完整品牌故事页（愿景/AI 团队/技术栈）
+- **项目冗余清理**: 删除 `dogfood-output/report.md`（历史 QA 产物）、`alembic/versions/README.md`（模板说明）、清理全部 `__pycache__/` 目录
+- **测试用例**: 584 通过 / 0 失败 / 9 跳过
 
 ## 快速启动
 
@@ -58,7 +40,7 @@ open web/3d-viewer.html   # 3D 效果图
 ```
 i-home.life/
 ├── app/
-│   ├── api/           # 40 个路由模块 (436 端点)
+│   ├── api/           # 40 个路由模块 (436+ 端点)
 │   │   ├── auth.py          # 认证 (register/login/me)
 │   │   ├── projects.py      # 项目管理
 │   │   ├── materials.py     # 物料 + BOM + Excel导出
@@ -108,19 +90,19 @@ i-home.life/
 │   │   ├── qa_inspector.py  # 质检 (验收报告/缺陷识别/设计比对/整改建议)
 │   │   ├── concierge.py     # 客服 (FAQ 知识库/咨询分类/升级规则)
 │   │   └── settlement.py    # 结算 (里程碑/异常检测/对账单)
-│   ├── models/        # 96 个 ORM 模型 (38 文件)
-│   ├── schemas/       # 40 个 Pydantic 验证模块
-│   ├── services/      # 39 个业务服务 (12,281 行)
+│   ├── models/        # 80+ ORM 模型 (38 文件)
+│   ├── schemas/       # 40+ Pydantic 验证模块
+│   ├── services/      # 43 个业务服务
 │   └── auth/          # PASETO Token 认证
 ├── flutter_app/       # 跨平台 App (iOS/iPadOS/Android/HarmonyOS)
 │   └── lib/
-│       ├── pages/     # 41 个页面 (详细列表见下方)
+│       ├── pages/     # 40 个页面 (详细列表见下方)
 │       ├── services/  # API/WebSocket/SSE/离线缓存/通知/Agent路由
 │       ├── widgets/   # 消息卡片/表情选择器/加载骨架/错误重试
 │       ├── models/    # 数据模型
 │       └── theme/     # 索克家居主题 (明/暗)
 ├── flutter_app/ohos/  # HarmonyOS 适配 (3.35.7-ohos-0.0.3, API 23+)
-├── web/              # 前端页面 (15 HTML + 8 JS + 1 CSS = 20,133 行)
+├── web/              # 前端页面 (17 HTML + 8 JS + 1 CSS)
 │   ├── index.html, demo.html, workbench.html, admin.html
 │   ├── studio.html, 3d-viewer.html, vr-viewer.html
 │   ├── materials.html, project-detail.html, quality-report.html
@@ -129,10 +111,10 @@ i-home.life/
 ├── assets/           # 品牌资源与文档 (logo/截图/壁纸)
 ├── alembic/          # 数据库迁移 (Alembic, SQLite/PostgreSQL 双库)
 ├── scripts/          # 运维脚本 (部署/测试/验收/HarmonyOS)
-└── tests/            # 24 测试文件, 433 测试函数
+└── tests/            # 33 测试文件, 593 测试函数
 ```
 
-### Flutter 页面完整列表 (41 个)
+### Flutter 页面完整列表 (40 个)
 
 | 页面 | 功能 | 编号 |
 |------|------|------|
@@ -304,7 +286,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 426 passed, 2 failed (预存), 9 skipped
+# 当前: 584 passed, 0 failed, 9 skipped
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异
@@ -346,4 +328,4 @@ bash scripts/deploy.sh status
 
 ## 许可证
 
-内部项目，Phase 1 MVP 交付。全链路功能完整度 91%。
+内部项目，Phase 1 MVP 交付。全链路功能完整度 90%。

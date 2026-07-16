@@ -1,17 +1,186 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>品牌故事 · 索克家居 i-home.life</title>
-    <meta http-equiv="refresh" content="0;url=./demo.html">
-    <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        p { color: #666; }
-        a { color: #1677ff; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="索克家居 · AI 自治运营装修平台，连接业主、设计师、工长与供应商">
+<meta property="og:title" content="关于我们 · 索克家居">
+<meta property="og:description" content="AI 自治运营装修平台的故事与愿景">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260716b">
+<link rel="manifest" href="manifest.json">
+<title>关于我们 · 索克家居</title>
+<style>
+  .story-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(160deg, #1a1a2e 0%, var(--bg-deep) 100%);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  .story-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+  .story-hero {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .story-hero h1 {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-bright), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+  .story-hero .tagline {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .story-section {
+    margin-bottom: 40px;
+  }
+  .story-section h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .story-section p {
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .agent-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    text-align: center;
+  }
+  .agent-emoji {
+    font-size: 32px;
+    margin-bottom: 8px;
+  }
+  .agent-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .agent-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .story-footer {
+    text-align: center;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .story-footer a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  .story-footer a:hover { color: var(--accent-bright); }
+  @media (max-width: 480px) {
+    .story-container { padding: 24px 16px 48px; }
+    .story-hero h1 { font-size: 26px; }
+    .agent-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
 </head>
 <body>
-<p>正在跳转... <a href="./demo.html">点击查看演示</a></p>
+<div class="story-page">
+<div class="story-container">
+  <div class="story-hero">
+    <h1>索克家居</h1>
+    <p class="tagline">AI 自治运营装修平台 — 让装修像聊天一样简单。</p>
+  </div>
+
+  <div class="story-section">
+    <h2>我们的愿景</h2>
+    <p>装修行业长期以来面临信息不对称、流程繁琐、预算失控等痛点。索克家居致力于用 AI 技术重塑家装体验，打造一个连接业主、设计师、工长、供应商的全链路自治运营平台。</p>
+    <p>我们相信，通过 8 个专业 AI Agent 的协作，可以将传统数月工期缩短 30% 以上，同时大幅降低沟通成本和预算超支风险。</p>
+  </div>
+
+  <div class="story-section">
+    <h2>AI 智能体团队</h2>
+    <p>我们的平台部署 8 个专业 AI Agent，7×24 小时全天候为您服务：</p>
+    <div class="agent-grid">
+      <div class="agent-card" style="--agent-color: var(--agent-master)">
+        <div class="agent-emoji">🏠</div>
+        <div class="agent-name">总控 Agent</div>
+        <div class="agent-desc">意图理解、任务分发、全程协调</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-design)">
+        <div class="agent-emoji">📐</div>
+        <div class="agent-name">设计 Agent</div>
+        <div class="agent-desc">平面布局、3D建模、效果图生成</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-budget)">
+        <div class="agent-emoji">💰</div>
+        <div class="agent-name">预算 Agent</div>
+        <div class="agent-desc">成本估算、预算跟踪、费用预警</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-procurement)">
+        <div class="agent-emoji">🛒</div>
+        <div class="agent-name">采购 Agent</div>
+        <div class="agent-desc">物料匹配、询价比价、订单管理</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-construction)">
+        <div class="agent-emoji">🔨</div>
+        <div class="agent-name">施工 Agent</div>
+        <div class="agent-desc">进度管理、工人调度、里程碑跟踪</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-quality)">
+        <div class="agent-emoji">✅</div>
+        <div class="agent-name">质检 Agent</div>
+        <div class="agent-desc">质量检测、缺陷识别、验收报告</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-settlement)">
+        <div class="agent-emoji">🧾</div>
+        <div class="agent-name">结算 Agent</div>
+        <div class="agent-desc">费用结算、付款管理、财务对账</div>
+      </div>
+      <div class="agent-card" style="--agent-color: var(--agent-support)">
+        <div class="agent-emoji">🎧</div>
+        <div class="agent-name">客服 Agent</div>
+        <div class="agent-desc">7×24 咨询、问题升级、售后支持</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="story-section">
+    <h2>技术支持</h2>
+    <p>平台基于 FastAPI + Flutter 技术栈构建，支持 iOS、Android、HarmonyOS 及 Web 多端运行。核心能力包括：</p>
+    <p>PASETO 安全认证 · WebAuthn/Passkey 无密码登录 · WebSocket 实时协同 · 多 LLM 驱动 AI 决策（DeepSeek / GLM / Qwen-Audio）· ECharts 数据可视化 · AR 空间扫描 · VR 全景漫游</p>
+  </div>
+
+  <div class="story-footer">
+    <a href="index.html">← 返回首页</a>
+  </div>
+</div>
+</div>
+<script src="assets/js/analytics.js?v=20260716b"></script>
 </body>
 </html>

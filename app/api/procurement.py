@@ -44,7 +44,16 @@ class CompareRequest(BaseModel):
     quotations: list[QuotationItem]
 
 
-@router.get("/suppliers", response_model=list[SupplierResponse])
+@router.get(
+    "/suppliers",
+    response_model=list[SupplierResponse],
+    summary="获取供应商列表",
+    description="获取系统中的供应商列表，可按物料品类筛选。",
+    response_description="供应商列表",
+    responses={
+        200: {"description": "获取成功"},
+    },
+)
 async def list_suppliers(
     category: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
@@ -53,7 +62,19 @@ async def list_suppliers(
     return [SupplierResponse.model_validate(s) for s in suppliers]
 
 
-@router.post("/suppliers", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/suppliers",
+    response_model=SupplierResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建供应商",
+    description="在系统中添加一个新的供应商信息。",
+    response_description="创建成功，返回供应商信息",
+    responses={
+        201: {"description": "创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
 async def create_supplier(
     data: SupplierCreate,
     current_user: User = Depends(get_current_user),
@@ -63,7 +84,21 @@ async def create_supplier(
     return SupplierResponse.model_validate(supplier)
 
 
-@router.post("/quotations", response_model=QuotationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/quotations",
+    response_model=QuotationResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建报价单",
+    description="为项目的采购需求创建一个新的供应商报价单。",
+    response_description="创建成功，返回报价单信息",
+    responses={
+        201: {"description": "创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+)
 async def create_quotation(
     data: QuotationCreate,
     current_user: User = Depends(get_current_user),
@@ -76,7 +111,19 @@ async def create_quotation(
     return resp
 
 
-@router.get("/quotations/{project_id}", response_model=list[QuotationResponse])
+@router.get(
+    "/quotations/{project_id}",
+    response_model=list[QuotationResponse],
+    summary="获取项目报价单列表",
+    description="获取指定项目的所有供应商报价单。",
+    response_description="报价单列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+)
 async def get_quotations(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -87,7 +134,21 @@ async def get_quotations(
     return [QuotationResponse.model_validate(q) for q in quotations]
 
 
-@router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/orders",
+    response_model=OrderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建采购订单",
+    description="根据报价单创建一个新的采购订单，将报价转化为正式采购订单。",
+    response_description="创建成功，返回订单信息",
+    responses={
+        201: {"description": "创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+)
 async def create_order(
     data: OrderCreate,
     current_user: User = Depends(get_current_user),
@@ -100,7 +161,19 @@ async def create_order(
     return resp
 
 
-@router.get("/orders/{project_id}", response_model=list[OrderResponse])
+@router.get(
+    "/orders/{project_id}",
+    response_model=list[OrderResponse],
+    summary="获取项目采购订单列表",
+    description="获取指定项目的所有采购订单。",
+    response_description="订单列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+)
 async def get_project_orders(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -111,7 +184,19 @@ async def get_project_orders(
     return [OrderResponse.model_validate(o) for o in orders]
 
 
-@router.get("/orders/detail/{order_id}", response_model=OrderResponse)
+@router.get(
+    "/orders/detail/{order_id}",
+    response_model=OrderResponse,
+    summary="获取订单详情",
+    description="根据订单 ID 获取采购订单的详细信息。",
+    response_description="订单详情",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
 async def get_order_detail(
     order_id: str,
     current_user: User = Depends(get_current_user),
@@ -124,7 +209,20 @@ async def get_order_detail(
     return OrderResponse.model_validate(order)
 
 
-@router.patch("/orders/{order_id}", response_model=OrderResponse)
+@router.patch(
+    "/orders/{order_id}",
+    response_model=OrderResponse,
+    summary="更新采购订单",
+    description="根据订单 ID 更新采购订单的部分信息。",
+    response_description="更新成功，返回订单信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
 async def update_order(
     order_id: str,
     data: OrderUpdate,
@@ -141,7 +239,20 @@ async def update_order(
     return resp
 
 
-@router.patch("/orders/{order_id}/status", response_model=OrderResponse)
+@router.patch(
+    "/orders/{order_id}/status",
+    response_model=OrderResponse,
+    summary="更新订单状态",
+    description="更新采购订单的状态（如：待确认、进行中、已发货、已完成、已取消）。",
+    response_description="更新成功，返回订单信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "无效的状态值"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
 async def update_order_status(
     order_id: str,
     status_val: str = Query(..., alias="status"),
@@ -163,7 +274,19 @@ async def update_order_status(
     return resp
 
 
-@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/orders/{order_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除采购订单",
+    description="根据订单 ID 删除采购订单。",
+    response_description="删除成功，无返回内容",
+    responses={
+        204: {"description": "删除成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
 async def delete_order(
     order_id: str,
     current_user: User = Depends(get_current_user),
@@ -178,7 +301,15 @@ async def delete_order(
 
 
 # ── F33 自动比价报告 ──
-@router.post("/compare")
+@router.post(
+    "/compare",
+    summary="AI 自动比价",
+    description="AI 对多个供应商报价进行自动对比分析，生成最高性价比推荐。",
+    responses={
+        200: {"description": "比价成功"},
+        400: {"description": "请求参数无效"},
+    },
+)
 async def compare_quotations(
     data: CompareRequest,
     current_user: User = Depends(get_current_user),
@@ -187,7 +318,15 @@ async def compare_quotations(
     return agent.generate_comparison_report([q.model_dump() for q in data.quotations])
 
 
-@router.get("/recommend-suppliers")
+@router.get(
+    "/recommend-suppliers",
+    summary="AI 供应商推荐",
+    description="AI 根据物料品类智能推荐合适的供应商。",
+    responses={
+        200: {"description": "推荐成功"},
+        400: {"description": "请求参数无效"},
+    },
+)
 async def recommend_suppliers(
     category: str = Query(..., description="物料品类"),
     current_user: User = Depends(get_current_user),

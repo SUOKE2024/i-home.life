@@ -10,7 +10,10 @@ class ServiceWorkerCreate(BaseModel):
     avatar_url: str | None = None
     city: str | None = None
     district: str | None = None
-    role: str  # designer / supervisor / estimator
+    role: str = Field(
+        ...,
+        description="角色：designer / supervisor / estimator / carpenter / plumber_electrician / curtain_installer",
+    )
     role_attributes: dict | None = None
     qualification: str = "B"
     rating: float = 4.0
@@ -53,13 +56,33 @@ class WorkerMatchRequest(BaseModel):
     """服务者匹配请求"""
 
     project_id: str
-    role: str = Field(..., description="designer / supervisor / estimator")
+    role: str = Field(
+        ...,
+        description="designer / supervisor / estimator / carpenter / plumber_electrician / curtain_installer",
+    )
     city: str | None = None
     district: str | None = None
-    # 通用筛选
+    # 设计师筛选
     required_styles: list[str] | None = Field(default=None, description="设计师：风格偏好")
+    # 监理筛选
     required_phases: list[str] | None = Field(default=None, description="监理：擅长阶段")
+    # 预算师筛选
     required_budget_types: list[str] | None = Field(default=None, description="预算师：预算类型")
+    # 木工筛选
+    required_skills: list[str] | None = Field(
+        default=None,
+        description="木工：技能类型（furniture/door_window/cabinet/flooring/ceiling）",
+    )
+    # 水电安装工筛选
+    required_specialties: list[str] | None = Field(
+        default=None,
+        description="水电安装工：专业领域（water_supply/drainage/electrical/gas/heating）",
+    )
+    # 窗帘安装工筛选
+    required_curtain_types: list[str] | None = Field(
+        default=None,
+        description="窗帘安装工：窗帘类型（roller/roman/motorized/fabric/sheer）",
+    )
     budget_hourly_rate_max: int | None = None
     budget_daily_rate_max: int | None = None
     min_rating: float = 0.0

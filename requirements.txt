@@ -15,6 +15,7 @@ alembic>=1.18.0
 pendulum>=3.2.0
 openpyxl>=3.0.0
 python-multipart>=0.0.5
+Pillow>=10.0.0
 redis>=5.2.0
 oss2>=2.19.0
 qdrant-client>=1.12.0

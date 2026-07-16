@@ -2,9 +2,9 @@
 
 # i-home.life（索克家居）Code Wiki
 
-> **版本**：v5.1
-> **最后更新**：2026-07-11
-> **项目状态**：Phase 1-4 后端全链路完成（302 测试通过，8 AI Agent，34 路由 319 端点，72 张数据表），Web 管理后台已上线，v1.0.1 ARIA 无障碍 + 支付完善
+> **版本**：v5.2
+> **最后更新**：2026-07-16
+> **项目状态**：Phase 1-4 后端全链路完成（584 测试通过，8 AI Agent，39 路由，80+ ORM 模型），Web + Flutter 多端上线，v1.1.0 代码质量优化
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 

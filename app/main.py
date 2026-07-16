@@ -31,6 +31,9 @@ from app.api import (
 )
 from app.api import identity, products, tasks, points
 from app.api import notifications
+from app.api import admin
+from app.api import product_batch
+from app.api import camera_scan
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -179,6 +182,8 @@ async def request_tracking_middleware(request: Request, call_next):
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)          # /api/auth/*
 api_router.include_router(projects.router)      # /api/projects/*
+api_router.include_router(product_batch.router) # /api/products/batch/* (must be before products)
+api_router.include_router(camera_scan.router)  # /api/products/camera/* (must be before products)
 api_router.include_router(materials.router)     # /api/materials/*
 api_router.include_router(budgets.router)       # /api/budgets/*
 api_router.include_router(procurement.router)   # /api/procurement/*
@@ -219,6 +224,7 @@ api_router.include_router(products.router)             # /api/products/*
 api_router.include_router(tasks.router)                # /api/tasks/*
 api_router.include_router(points.router)               # /api/points/*
 api_router.include_router(notifications.router)       # /api/notifications/*
+api_router.include_router(admin.router)             # /api/admin/*
 app.include_router(api_router)
 
 # ── 全局异常处理 ──
@@ -248,26 +254,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "error": True,
             "detail": "服务器内部错误，请稍后重试",
             "status_code": 500,
-            "path": request.url.path,
-        },
-    )
-
-
-@app.exception_handler(StarletteHTTPException)
-async def unauthorized_handler(request: Request, exc: StarletteHTTPException):
-    if exc.status_code != 401:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers=getattr(exc, "headers", None) or {},
-        )
-    detail = getattr(exc, 'detail', None) or "认证失败，请重新登录"
-    return JSONResponse(
-        status_code=401,
-        content={
-            "error": True,
-            "detail": detail,
-            "status_code": 401,
             "path": request.url.path,
         },
     )

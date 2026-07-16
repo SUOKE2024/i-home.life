@@ -1,4 +1,4 @@
-"""F35 服务者匹配模型 — 设计师/监理/预算师档案 + 评分 + 匹配"""
+"""F35 服务者匹配模型 — 设计师/监理/预算师/木工/水电安装工/窗帘安装工档案 + 评分 + 匹配"""
 
 import uuid
 from datetime import datetime
@@ -8,9 +8,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+# 支持的所有服务者角色
+SUPPORTED_ROLES = (
+    "designer",             # 设计师
+    "supervisor",           # 监理
+    "estimator",            # 预算师
+    "carpenter",            # 木工
+    "plumber_electrician",  # 水电安装工
+    "curtain_installer",    # 窗帘安装工
+)
+
 
 class ServiceWorker(Base):
-    """服务者档案（设计师 / 监理 / 预算师）"""
+    """服务者档案（设计师 / 监理 / 预算师 / 木工 / 水电安装工 / 窗帘安装工）"""
 
     __tablename__ = "service_workers"
 
@@ -21,13 +31,19 @@ class ServiceWorker(Base):
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     district: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # 角色：designer / supervisor / estimator
+    # 角色：designer / supervisor / estimator / carpenter / plumber_electrician / curtain_installer
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     # 角色专属属性（JSON）
     # designer: {"design_styles": ["modern","minimal"], "software": ["AutoCAD","SketchUp"],
     #   "portfolio_count": 50, "awards": 2}
     # supervisor: {"phases": ["mep","masonry"], "certificate": "监理工程师", "supervised_projects": 80}
     # estimator: {"budget_types": ["main","soft"], "accuracy_rate": 0.92, "estimated_projects": 120}
+    # carpenter: {"skills": ["furniture","door_window","cabinet","flooring","ceiling"], "certificate": "木工证",
+    #   "tool_level": "专业"}
+    # plumber_electrician: {"specialties": ["water_supply","drainage","electrical","gas","heating"],
+    #   "license_type": "电工证", "certificate": "水电工上岗证"}
+    # curtain_installer: {"curtain_types": ["roller","roman","motorized","fabric","sheer"],
+    #   "motorized_install": true, "brand_experience": ["杜亚","somfy"]}
     role_attributes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # 资质等级：A/B/C/D

@@ -86,6 +86,40 @@ async def _run_lightweight_migrations():
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
 
+        # RBAC 权限表：检查并创建 permissions 和 role_permissions 表
+        # 这些表可能已在 create_all 中创建；若 SQLite 增量模式，则手动添加
+        _has_permissions = bool(await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "permissions")
+        ))
+        if not _has_permissions:
+            await conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS permissions ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  code VARCHAR(100) UNIQUE NOT NULL,"
+                "  name VARCHAR(200) NOT NULL,"
+                "  resource VARCHAR(100) NOT NULL,"
+                "  action VARCHAR(50) NOT NULL,"
+                "  description VARCHAR(500),"
+                "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE permissions")
+
+        _has_role_permissions = bool(await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "role_permissions")
+        ))
+        if not _has_role_permissions:
+            await conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS role_permissions ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  role VARCHAR(30) NOT NULL,"
+                "  permission_code VARCHAR(100) NOT NULL REFERENCES permissions(code),"
+                "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+                "  UNIQUE(role, permission_code)"
+                ")"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE role_permissions")
+
 
 async def init_db():
     async with engine.begin() as conn:
@@ -482,5 +516,21 @@ async def init_db():
 
         for fur_data in furniture_items:
             db.add(FurnitureCatalogItem(**fur_data))
+
+        # ── RBAC 权限种子数据 ──
+        from app.models.permission import Permission, RolePermission
+        from app.rbac import DEFAULT_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS
+
+        # 检查是否已有权限数据
+        perm_result = await db.execute(select(func.count()).select_from(Permission))
+        if perm_result.scalar() == 0:
+            for perm_data in DEFAULT_PERMISSIONS:
+                db.add(Permission(**perm_data))
+            await db.flush()
+
+            # 插入默认角色权限映射
+            for role, perm_codes in DEFAULT_ROLE_PERMISSIONS.items():
+                for code in perm_codes:
+                    db.add(RolePermission(role=role, permission_code=code))
 
         await db.commit()

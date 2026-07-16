@@ -1,10 +1,12 @@
 import asyncio
+import json
 
 from sqlalchemy import select
 
 from app.database import async_session, init_db
 from app.models.material import MaterialCategory, Material
 from app.models.procurement import Supplier
+from app.models.service_worker import ServiceWorker
 from app.services.user_service import _hash_password
 from app.models.user import User
 
@@ -109,8 +111,93 @@ async def seed():
         )
         db.add(demo_user)
 
+        # 服务者种子数据（包含所有 6 个工种）
+        workers = [
+            # 设计师
+            ServiceWorker(
+                name="陈设计", role="designer", city="深圳", district="南山区",
+                role_attributes=json.dumps({"design_styles": ["modern", "minimal", "japanese"], "software": ["AutoCAD", "SketchUp", "3dsMax"], "portfolio_count": 80, "awards": 3}, ensure_ascii=False),
+                qualification="A", rating=4.8, completed_projects=80, years_of_experience=10,
+                hourly_rate=300, daily_rate=1500, status="available",
+                introduction="10年资深室内设计师，擅长现代极简与日式风格",
+            ),
+            ServiceWorker(
+                name="林设计", role="designer", city="深圳", district="福田区",
+                role_attributes=json.dumps({"design_styles": ["modern", "industrial", "scandinavian"], "software": ["AutoCAD", "Revit"], "portfolio_count": 45, "awards": 1}, ensure_ascii=False),
+                qualification="B", rating=4.5, completed_projects=45, years_of_experience=6,
+                hourly_rate=250, daily_rate=1200, status="available",
+                introduction="擅长工业风与北欧风设计",
+            ),
+            # 监理
+            ServiceWorker(
+                name="王监理", role="supervisor", city="深圳", district="宝安区",
+                role_attributes=json.dumps({"phases": ["mep", "masonry", "carpentry", "painting"], "certificate": "国家注册监理工程师", "supervised_projects": 120}, ensure_ascii=False),
+                qualification="A", rating=4.9, completed_projects=120, years_of_experience=15,
+                hourly_rate=250, daily_rate=1200, status="available",
+                introduction="国家注册监理工程师，监理项目超百套",
+            ),
+            ServiceWorker(
+                name="赵监理", role="supervisor", city="深圳", district="龙华区",
+                role_attributes=json.dumps({"phases": ["masonry", "carpentry", "acceptance"], "certificate": "监理工程师", "supervised_projects": 65}, ensure_ascii=False),
+                qualification="B", rating=4.6, completed_projects=65, years_of_experience=8,
+                hourly_rate=200, daily_rate=1000, status="available",
+            ),
+            # 预算师
+            ServiceWorker(
+                name="李预算", role="estimator", city="深圳", district="福田区",
+                role_attributes=json.dumps({"budget_types": ["main", "soft", "smart_home"], "accuracy_rate": 0.95, "estimated_projects": 150}, ensure_ascii=False),
+                qualification="A", rating=4.7, completed_projects=150, years_of_experience=12,
+                hourly_rate=200, daily_rate=1000, status="available",
+                introduction="精准预算，误差控制在5%以内",
+            ),
+            # 木工
+            ServiceWorker(
+                name="周木工", role="carpenter", city="深圳", district="龙岗区",
+                role_attributes=json.dumps({"skills": ["furniture", "cabinet", "door_window", "flooring"], "certificate": "高级木工证", "tool_level": "专业"}, ensure_ascii=False),
+                qualification="A", rating=4.8, completed_projects=90, years_of_experience=18,
+                hourly_rate=180, daily_rate=900, status="available",
+                introduction="18年经验老木工，擅长定制家具与实木工艺",
+            ),
+            ServiceWorker(
+                name="吴木工", role="carpenter", city="深圳", district="宝安区",
+                role_attributes=json.dumps({"skills": ["furniture", "ceiling", "flooring"], "certificate": "中级木工证", "tool_level": "标准"}, ensure_ascii=False),
+                qualification="B", rating=4.5, completed_projects=50, years_of_experience=8,
+                hourly_rate=150, daily_rate=750, status="available",
+            ),
+            # 水电安装工
+            ServiceWorker(
+                name="郑水电", role="plumber_electrician", city="深圳", district="南山区",
+                role_attributes=json.dumps({"specialties": ["water_supply", "drainage", "electrical", "gas"], "license_type": "高级电工证", "certificate": "水电工上岗证"}, ensure_ascii=False),
+                qualification="A", rating=4.9, completed_projects=110, years_of_experience=14,
+                hourly_rate=160, daily_rate=800, status="available",
+                introduction="持高级电工证，水电改造一把好手",
+            ),
+            ServiceWorker(
+                name="冯水电", role="plumber_electrician", city="深圳", district="龙华区",
+                role_attributes=json.dumps({"specialties": ["water_supply", "electrical", "heating"], "license_type": "中级电工证", "certificate": "水电工上岗证"}, ensure_ascii=False),
+                qualification="B", rating=4.6, completed_projects=60, years_of_experience=7,
+                hourly_rate=140, daily_rate=700, status="available",
+            ),
+            # 窗帘安装工
+            ServiceWorker(
+                name="孙窗帘", role="curtain_installer", city="深圳", district="福田区",
+                role_attributes=json.dumps({"curtain_types": ["roller", "roman", "motorized", "fabric", "sheer"], "motorized_install": True, "brand_experience": ["杜亚", "somfy", "亨特"]}, ensure_ascii=False),
+                qualification="A", rating=4.8, completed_projects=200, years_of_experience=10,
+                hourly_rate=120, daily_rate=600, status="available",
+                introduction="10年窗帘安装经验，精通电动窗帘安装调试",
+            ),
+            ServiceWorker(
+                name="钱窗帘", role="curtain_installer", city="深圳", district="罗湖区",
+                role_attributes=json.dumps({"curtain_types": ["roller", "roman", "fabric"], "motorized_install": False, "brand_experience": ["如鱼得水"]}, ensure_ascii=False),
+                qualification="B", rating=4.5, completed_projects=120, years_of_experience=6,
+                hourly_rate=100, daily_rate=500, status="available",
+            ),
+        ]
+        for w in workers:
+            db.add(w)
+
         await db.commit()
-        print(f"种子数据: {len(CATEGORIES)} 分类, {len(MATERIALS)} 物料, {len(SUPPLIERS)} 供应商, 1 用户")
+        print(f"种子数据: {len(CATEGORIES)} 分类, {len(MATERIALS)} 物料, {len(SUPPLIERS)} 供应商, 1 用户, {len(workers)} 服务者")
         print("演示账户: 13800138000 / 123456")
 
 

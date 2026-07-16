@@ -20,6 +20,7 @@ from app.agents.construction import ConstructionAgent
 from app.agents.settlement import SettlementAgent
 from app.agents.qa_inspector import QAInspectorAgent
 from app.agents.concierge import ConciergeAgent
+from app.agents.admin import AdminAgent
 from app.config import get_settings
 from app.ws import ws_manager
 
@@ -179,23 +180,35 @@ async def chat_with_agent(  # noqa: C901
         }
 
         if intent in ("content_publish",):
-            # 内容发布：复用 ProcurementAgent 的内容发布能力
+            # 检测是否为产品管理类意图（创建/修改/下架/库存）
             proc_agent = ProcurementAgent()
             try:
-                if MOCK_MODE:
-                    reply = (
-                        "**产品发布助手**\n\n"
-                        "检测到您要发布产品，请提供以下信息：\n\n"
-                        "1. **产品名称**：如「800×800灰色防滑地砖」\n"
-                        "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
-                        "3. **价格区间**：如「50-80元/㎡」\n"
-                        "4. **产品描述**：材质、规格、产地、卖点等\n"
-                        "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
-                        "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
-                    )
+                product_intent = ProcurementAgent.classify_product_intent(data.message)
+                if product_intent != "create_product" or any(
+                    kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
+                ):
+                    # 产品管理操作
+                    if MOCK_MODE:
+                        reply = proc_agent.handle_product_request(data.message, current_user.name)
+                    else:
+                        reply = await proc_agent.think(
+                            f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                        )
                 else:
-                    # 使用 ProcurementAgent 生成内容发布引导
-                    reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+                    # 内容发布引导
+                    if MOCK_MODE:
+                        reply = (
+                            "**产品发布助手**\n\n"
+                            "检测到您要发布产品，请提供以下信息：\n\n"
+                            "1. **产品名称**：如「800×800灰色防滑地砖」\n"
+                            "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
+                            "3. **价格区间**：如「50-80元/㎡」\n"
+                            "4. **产品描述**：材质、规格、产地、卖点等\n"
+                            "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
+                            "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
+                        )
+                    else:
+                        reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
                 return AgentResponse(
                     agent_type="content_publisher", reply=reply,
                     suggestions=suggestions_map["content_publisher"],
@@ -300,6 +313,18 @@ async def chat_with_agent(  # noqa: C901
             finally:
                 await conc_agent.close()
 
+        elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
+            admin_agent = AdminAgent()
+            try:
+                if MOCK_MODE:
+                    reply = admin_agent.handle_admin_request(data.message, current_user.name)
+                else:
+                    reply = await admin_agent.think(data.message, user_ctx)
+                suggestions = ["查看用户列表", "修改用户角色", "平台统计", "审核认证"]
+                return AgentResponse(agent_type="admin", reply=reply, suggestions=suggestions)
+            finally:
+                await admin_agent.close()
+
         else:
             reply, suggestions = _mock_agent_reply(data.message, "orchestrator")
             return AgentResponse(agent_type="orchestrator", reply=reply, suggestions=suggestions)
@@ -352,19 +377,30 @@ async def chat_stream(  # noqa: C901
         if intent in ("content_publish",):
             proc_agent = ProcurementAgent()
             try:
-                if MOCK_MODE:
-                    reply = (
-                        "**产品发布助手**\n\n"
-                        "检测到您要发布产品，请提供以下信息：\n\n"
-                        "1. **产品名称**：如「800×800灰色防滑地砖」\n"
-                        "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
-                        "3. **价格区间**：如「50-80元/㎡」\n"
-                        "4. **产品描述**：材质、规格、产地、卖点等\n"
-                        "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
-                        "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
-                    )
+                product_intent = ProcurementAgent.classify_product_intent(data.message)
+                if product_intent != "create_product" or any(
+                    kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
+                ):
+                    if MOCK_MODE:
+                        reply = proc_agent.handle_product_request(data.message, current_user.name)
+                    else:
+                        reply = await proc_agent.think(
+                            f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                        )
                 else:
-                    reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+                    if MOCK_MODE:
+                        reply = (
+                            "**产品发布助手**\n\n"
+                            "检测到您要发布产品，请提供以下信息：\n\n"
+                            "1. **产品名称**：如「800×800灰色防滑地砖」\n"
+                            "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
+                            "3. **价格区间**：如「50-80元/㎡」\n"
+                            "4. **产品描述**：材质、规格、产地、卖点等\n"
+                            "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
+                            "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
+                        )
+                    else:
+                        reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
             finally:
                 await proc_agent.close()
         elif intent in ("design",):
@@ -444,6 +480,15 @@ async def chat_stream(  # noqa: C901
                     reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
             finally:
                 await conc_agent.close()
+        elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
+            admin_agent = AdminAgent()
+            try:
+                if MOCK_MODE:
+                    reply = admin_agent.handle_admin_request(data.message, current_user.name)
+                else:
+                    reply = await admin_agent.think(data.message, user_ctx)
+            finally:
+                await admin_agent.close()
         else:
             reply, _ = _mock_agent_reply(data.message, "orchestrator")
 

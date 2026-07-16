@@ -38,6 +38,15 @@ router = APIRouter(prefix="/procurement-enhanced", tags=["采购增强"])
     "/comparisons",
     response_model=PriceComparisonDetailResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="从 BOM 生成比价报告",
+    description="根据项目的物料清单（BOM）自动生成供应商价格对比报告，包含各物料的多供应商报价对比。",
+    response_description="创建成功，返回比价报告详情",
+    responses={
+        201: {"description": "比价报告创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
 )
 async def create_comparison(
     data: ComparisonCreateRequest,
@@ -66,6 +75,13 @@ async def create_comparison(
 @router.get(
     "/comparisons/project/{project_id}",
     response_model=list[PriceComparisonResponse],
+    summary="获取项目比价报告列表",
+    description="获取指定项目的所有比价报告列表。",
+    response_description="比价报告列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
 )
 async def list_project_comparisons(
     project_id: str,
@@ -79,6 +95,14 @@ async def list_project_comparisons(
 @router.get(
     "/comparisons/{comparison_id}",
     response_model=PriceComparisonDetailResponse,
+    summary="获取比价报告详情",
+    description="根据报告 ID 获取单份比价报告的详细内容，包含各物料的价格对比明细。",
+    response_description="比价报告详情",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        404: {"description": "比价报告不存在"},
+    },
 )
 async def get_comparison(
     comparison_id: str,
@@ -94,6 +118,13 @@ async def get_comparison(
 @router.get(
     "/comparisons/{comparison_id}/items",
     response_model=list[PriceComparisonItemResponse],
+    summary="获取比价报告明细行",
+    description="获取指定比价报告中各物料的供应商报价明细列表。",
+    response_description="比价明细行列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
 )
 async def list_comparison_items(
     comparison_id: str,
@@ -104,7 +135,18 @@ async def list_comparison_items(
     return [PriceComparisonItemResponse.model_validate(i) for i in items]
 
 
-@router.post("/ai-match", response_model=AiMatchResult)
+@router.post(
+    "/ai-match",
+    response_model=AiMatchResult,
+    summary="AI 供应商匹配",
+    description="AI 根据 BOM 物料属性和用户所在地区，智能匹配最合适的供应商。",
+    response_description="匹配结果和推荐供应商",
+    responses={
+        200: {"description": "匹配成功"},
+        400: {"description": "请求参数无效"},
+        404: {"description": "BOM 物料不存在"},
+    },
+)
 async def ai_match(
     data: AiMatchRequest,
     current_user: User = Depends(get_current_user),
@@ -128,7 +170,18 @@ async def ai_match(
     )
 
 
-@router.delete("/comparisons/{comparison_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/comparisons/{comparison_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="删除比价报告",
+    description="根据报告 ID 删除指定的比价报告。",
+    response_description="删除成功，无返回内容",
+    responses={
+        204: {"description": "删除成功"},
+        401: {"description": "未登录或 Token 无效"},
+        404: {"description": "比价报告不存在"},
+    },
+)
 async def delete_comparison(
     comparison_id: str,
     current_user: User = Depends(get_current_user),
@@ -146,6 +199,15 @@ async def delete_comparison(
     "/escrow",
     response_model=EscrowPaymentResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="创建担保支付",
+    description="为采购订单创建担保支付记录，资金由平台托管，在确认收货后释放给供应商。",
+    response_description="创建成功，返回担保支付信息",
+    responses={
+        201: {"description": "担保支付创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
 )
 async def create_escrow(
     data: EscrowCreateRequest,
@@ -170,7 +232,18 @@ async def create_escrow(
     return resp
 
 
-@router.get("/escrow/{escrow_id}", response_model=EscrowPaymentResponse)
+@router.get(
+    "/escrow/{escrow_id}",
+    response_model=EscrowPaymentResponse,
+    summary="获取担保支付详情",
+    description="根据支付 ID 获取担保支付的详细信息，包含支付状态和金额。",
+    response_description="担保支付详情",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def get_escrow(
     escrow_id: str,
     current_user: User = Depends(get_current_user),
@@ -185,6 +258,13 @@ async def get_escrow(
 @router.get(
     "/escrow/order/{order_id}",
     response_model=list[EscrowPaymentResponse],
+    summary="按订单查询担保支付",
+    description="根据采购订单 ID 查询该订单的所有担保支付记录。",
+    response_description="担保支付记录列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
 )
 async def list_order_escrow(
     order_id: str,
@@ -196,7 +276,20 @@ async def list_order_escrow(
     return [EscrowPaymentResponse.model_validate(p) for p in items]
 
 
-@router.post("/escrow/{escrow_id}/pay", response_model=EscrowPaymentResponse)
+@router.post(
+    "/escrow/{escrow_id}/pay",
+    response_model=EscrowPaymentResponse,
+    summary="买家付款",
+    description="买家向担保账户付款，资金由平台托管。",
+    response_description="付款成功，返回担保支付信息",
+    responses={
+        200: {"description": "付款成功"},
+        400: {"description": "支付失败"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def buyer_pay(
     escrow_id: str,
     current_user: User = Depends(get_current_user),
@@ -223,7 +316,20 @@ async def buyer_pay(
     return resp
 
 
-@router.post("/escrow/{escrow_id}/release", response_model=EscrowPaymentResponse)
+@router.post(
+    "/escrow/{escrow_id}/release",
+    response_model=EscrowPaymentResponse,
+    summary="释放资金给供应商",
+    description="确认收货后，将平台托管的资金释放给供应商。",
+    response_description="释放成功，返回担保支付信息",
+    responses={
+        200: {"description": "释放成功"},
+        400: {"description": "释放失败"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def release_to_supplier(
     escrow_id: str,
     current_user: User = Depends(get_current_user),
@@ -250,7 +356,20 @@ async def release_to_supplier(
     return resp
 
 
-@router.post("/escrow/{escrow_id}/refund", response_model=EscrowPaymentResponse)
+@router.post(
+    "/escrow/{escrow_id}/refund",
+    response_model=EscrowPaymentResponse,
+    summary="申请退款",
+    description="买家发起退款申请，资金将退回买家账户。",
+    response_description="退款申请已提交",
+    responses={
+        200: {"description": "退款申请成功"},
+        400: {"description": "退款申请失败"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def request_refund(
     escrow_id: str,
     data: EscrowRefundRequest,
@@ -278,7 +397,20 @@ async def request_refund(
     return resp
 
 
-@router.post("/escrow/{escrow_id}/dispute", response_model=EscrowPaymentResponse)
+@router.post(
+    "/escrow/{escrow_id}/dispute",
+    response_model=EscrowPaymentResponse,
+    summary="发起争议",
+    description="买家对交易发起争议，资金将冻结等待平台介入裁决。",
+    response_description="争议已发起",
+    responses={
+        200: {"description": "争议发起成功"},
+        400: {"description": "争议发起失败"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def request_dispute(
     escrow_id: str,
     data: EscrowRefundRequest,
@@ -306,7 +438,20 @@ async def request_dispute(
     return resp
 
 
-@router.post("/escrow/{escrow_id}/resolve", response_model=EscrowPaymentResponse)
+@router.post(
+    "/escrow/{escrow_id}/resolve",
+    response_model=EscrowPaymentResponse,
+    summary="解决争议",
+    description="对争议进行裁决，可选择退款给买家或放款给供应商。",
+    response_description="争议已解决",
+    responses={
+        200: {"description": "争议解决成功"},
+        400: {"description": "无效的裁决结果或解决失败"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "担保支付不存在"},
+    },
+)
 async def resolve_dispute(
     escrow_id: str,
     body: dict,
@@ -347,6 +492,15 @@ async def resolve_dispute(
     "/logistics",
     response_model=LogisticsTrackingResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="创建物流单",
+    description="为采购订单创建物流追踪单，记录承运商、发货地和收货地信息。",
+    response_description="创建成功，返回物流追踪信息",
+    responses={
+        201: {"description": "物流单创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
 )
 async def create_logistics(
     data: LogisticsCreateRequest,
@@ -373,7 +527,18 @@ async def create_logistics(
     return resp
 
 
-@router.get("/logistics/{tracking_id}", response_model=LogisticsTrackingResponse)
+@router.get(
+    "/logistics/{tracking_id}",
+    response_model=LogisticsTrackingResponse,
+    summary="获取物流详情",
+    description="根据物流单 ID 获取物流追踪的详细信息。",
+    response_description="物流追踪详情",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        404: {"description": "物流单不存在"},
+    },
+)
 async def get_logistics(
     tracking_id: str,
     current_user: User = Depends(get_current_user),
@@ -385,7 +550,20 @@ async def get_logistics(
     return LogisticsTrackingResponse.model_validate(tracking)
 
 
-@router.patch("/logistics/{tracking_id}", response_model=LogisticsTrackingResponse)
+@router.patch(
+    "/logistics/{tracking_id}",
+    response_model=LogisticsTrackingResponse,
+    summary="更新物流轨迹",
+    description="更新物流单的追踪状态、当前位置和描述信息。",
+    response_description="更新成功，返回物流追踪信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "物流单不存在"},
+    },
+)
 async def update_logistics(
     tracking_id: str,
     data: LogisticsUpdateRequest,
@@ -419,6 +597,13 @@ async def update_logistics(
 @router.get(
     "/logistics/order/{order_id}",
     response_model=list[LogisticsTrackingResponse],
+    summary="按订单查询物流",
+    description="根据采购订单 ID 查询该订单的所有物流追踪记录。",
+    response_description="物流追踪列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
 )
 async def get_order_logistics(
     order_id: str,
@@ -435,6 +620,15 @@ async def get_order_logistics(
     "/samples",
     response_model=SampleRequestResponse,
     status_code=status.HTTP_201_CREATED,
+    summary="索要样品",
+    description="向供应商索要物料样品，用于质量评估和选品确认。",
+    response_description="创建成功，返回样品索要信息",
+    responses={
+        201: {"description": "样品索要创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
 )
 async def create_sample(
     data: SampleCreateRequest,
@@ -462,6 +656,13 @@ async def create_sample(
 @router.get(
     "/samples/project/{project_id}",
     response_model=list[SampleRequestResponse],
+    summary="获取项目样品索要列表",
+    description="获取指定项目的所有样品索要记录。",
+    response_description="样品索要列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
 )
 async def list_project_samples(
     project_id: str,
@@ -472,7 +673,20 @@ async def list_project_samples(
     return [SampleRequestResponse.model_validate(s) for s in items]
 
 
-@router.patch("/samples/{sample_id}", response_model=SampleRequestResponse)
+@router.patch(
+    "/samples/{sample_id}",
+    response_model=SampleRequestResponse,
+    summary="更新样品状态",
+    description="更新样品索要的处理状态（如：待处理、已寄出、已收到、已确认）。",
+    response_description="更新成功，返回样品索要信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "样品索要不存在"},
+    },
+)
 async def update_sample(
     sample_id: str,
     data: SampleUpdateRequest,

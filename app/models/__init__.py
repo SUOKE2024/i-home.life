@@ -52,6 +52,7 @@ from app.models.points import (
 from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
 from app.models.webauthn_credential import WebAuthnCredential
 from app.models.device_token import DeviceToken
+from app.models.permission import Permission, RolePermission
 
 __all__ = [
     "User",
@@ -154,4 +155,6 @@ __all__ = [
     "TaskCandidate",
     "WebAuthnCredential",
     "DeviceToken",
+    "Permission",
+    "RolePermission",
 ]

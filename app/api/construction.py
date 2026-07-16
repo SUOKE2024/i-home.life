@@ -103,7 +103,20 @@ def _milestone_to_response(ms) -> MilestoneTrackerResponse:
     )
 
 
-@router.get("/tasks/{project_id}", response_model=list[TaskResponse])
+@router.get(
+    "/tasks/{project_id}",
+    response_model=list[TaskResponse],
+    summary="获取施工任务列表",
+    description="获取指定项目的所有施工任务列表。",
+    response_description="任务列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_tasks(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -119,7 +132,21 @@ async def list_tasks(
     return [TaskResponse.model_validate(t) for t in tasks]
 
 
-@router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tasks",
+    response_model=TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建施工任务",
+    description="为指定项目创建一个新的施工任务，包含任务名称、阶段、工期等信息。",
+    response_description="创建成功，返回任务信息",
+    responses={
+        201: {"description": "创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_task(
     data: TaskCreate,
     current_user: User = Depends(get_current_user),
@@ -132,7 +159,21 @@ async def create_task(
     return resp
 
 
-@router.patch("/tasks/{task_id}/status", response_model=TaskResponse)
+@router.patch(
+    "/tasks/{task_id}/status",
+    response_model=TaskResponse,
+    summary="更新任务状态",
+    description="更新施工任务的状态（如：待开始、进行中、已完成、已延期）。",
+    response_description="更新成功，返回任务信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "无效的状态值"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "任务不存在"},
+    },
+    tags=["施工管理"],
+)
 async def update_task_status(
     task_id: str,
     status_val: str,
@@ -148,7 +189,21 @@ async def update_task_status(
     return resp
 
 
-@router.post("/logs", response_model=LogResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/logs",
+    response_model=LogResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="添加施工日志",
+    description="为施工任务添加施工日志，记录施工进度、现场情况和发现的问题。",
+    response_description="创建成功，返回日志信息",
+    responses={
+        201: {"description": "日志创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def add_log(
     data: LogCreate,
     current_user: User = Depends(get_current_user),
@@ -167,7 +222,18 @@ async def add_log(
     return resp
 
 
-@router.get("/logs/{task_id}", response_model=list[LogResponse])
+@router.get(
+    "/logs/{task_id}",
+    response_model=list[LogResponse],
+    summary="获取任务施工日志",
+    description="获取指定施工任务的所有施工日志记录。",
+    response_description="日志列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+    tags=["施工管理"],
+)
 async def get_logs(
     task_id: str,
     current_user: User = Depends(get_current_user),
@@ -177,7 +243,21 @@ async def get_logs(
     return [LogResponse.model_validate(log) for log in logs]
 
 
-@router.post("/inspections", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/inspections",
+    response_model=InspectionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建质量检查",
+    description="为施工任务创建质量检查记录，包含检查结果和照片。",
+    response_description="创建成功，返回检查记录",
+    responses={
+        201: {"description": "检查记录创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_inspection(
     data: InspectionCreate,
     current_user: User = Depends(get_current_user),
@@ -194,7 +274,18 @@ async def create_inspection(
     return resp
 
 
-@router.get("/inspections/{task_id}", response_model=list[InspectionResponse])
+@router.get(
+    "/inspections/{task_id}",
+    response_model=list[InspectionResponse],
+    summary="获取任务检查记录",
+    description="获取指定施工任务的所有质量检查记录。",
+    response_description="检查记录列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+    tags=["施工管理"],
+)
 async def get_inspections(
     task_id: str,
     current_user: User = Depends(get_current_user),
@@ -205,7 +296,16 @@ async def get_inspections(
 
 
 # ── F37 施工计划生成（Gantt 排期） ──
-@router.post("/plan")
+@router.post(
+    "/plan",
+    summary="AI 生成施工计划",
+    description="AI 根据房屋面积和装修档次生成施工计划，包含 Gantt 排期和各阶段任务安排。",
+    responses={
+        200: {"description": "生成成功"},
+        400: {"description": "请求参数无效"},
+    },
+    tags=["施工管理"],
+)
 async def generate_construction_plan(
     data: ConstructionPlanRequest,
     current_user: User = Depends(get_current_user),
@@ -215,7 +315,15 @@ async def generate_construction_plan(
 
 
 # ── F38 质检清单查询 ──
-@router.get("/quality-checklist/{phase}")
+@router.get(
+    "/quality-checklist/{phase}",
+    summary="获取质检清单",
+    description="根据施工阶段获取对应的质量检查清单和验收标准。",
+    responses={
+        200: {"description": "获取成功"},
+    },
+    tags=["施工管理"],
+)
 async def get_quality_checklist(
     phase: str,
     current_user: User = Depends(get_current_user),
@@ -225,7 +333,16 @@ async def get_quality_checklist(
 
 
 # ── F38 AI 图像质检 ──
-@router.post("/inspections/analyze")
+@router.post(
+    "/inspections/analyze",
+    summary="AI 图像质检分析",
+    description="AI 对施工现场照片进行图像分析，自动检测质量问题与设计偏差。",
+    responses={
+        200: {"description": "分析成功"},
+        400: {"description": "请求参数无效"},
+    },
+    tags=["施工管理"],
+)
 async def analyze_inspection_images(
     data: InspectionAnalyzeRequest,
     current_user: User = Depends(get_current_user),
@@ -236,7 +353,18 @@ async def analyze_inspection_images(
 
 # ── F37 AI 进度管理（预警 + 里程碑跟踪） ──
 
-@router.post("/progress-analysis")
+@router.post(
+    "/progress-analysis",
+    summary="AI 进度分析",
+    description="AI 基于任务列表分析项目进度，自动生成进度预警和里程碑跟踪报告。",
+    responses={
+        200: {"description": "分析成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def analyze_project_progress(
     data: ProgressAnalysisRequest,
     current_user: User = Depends(get_current_user),
@@ -254,7 +382,20 @@ async def analyze_project_progress(
     return result
 
 
-@router.get("/progress-alerts/{project_id}", response_model=list[ProgressAlertResponse])
+@router.get(
+    "/progress-alerts/{project_id}",
+    response_model=list[ProgressAlertResponse],
+    summary="获取进度预警列表",
+    description="查询项目的进度预警列表，可按状态和严重度筛选。",
+    response_description="预警列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_progress_alerts(
     project_id: str,
     status_filter: str | None = Query(default=None, alias="status"),
@@ -273,7 +414,21 @@ async def list_progress_alerts(
     return [_alert_to_response(a) for a in alerts]
 
 
-@router.post("/progress-alerts", response_model=ProgressAlertResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/progress-alerts",
+    response_model=ProgressAlertResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建进度预警",
+    description="手动创建项目进度预警，标记延期或风险任务。",
+    response_description="创建成功，返回预警信息",
+    responses={
+        201: {"description": "预警创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_progress_alert(
     data: ProgressAlertCreate,
     current_user: User = Depends(get_current_user),
@@ -287,7 +442,20 @@ async def create_progress_alert(
     return resp
 
 
-@router.patch("/progress-alerts/{alert_id}/resolve", response_model=ProgressAlertResponse)
+@router.patch(
+    "/progress-alerts/{alert_id}/resolve",
+    response_model=ProgressAlertResponse,
+    summary="解决进度预警",
+    description="将进度预警标记为已解决，记录解决人和备注信息。",
+    response_description="已解决的预警信息",
+    responses={
+        200: {"description": "解决成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "预警记录不存在"},
+    },
+    tags=["施工管理"],
+)
 async def resolve_progress_alert(
     alert_id: str,
     data: ResolveAlertRequest,
@@ -304,7 +472,20 @@ async def resolve_progress_alert(
     return resp
 
 
-@router.get("/milestones/{project_id}", response_model=list[MilestoneTrackerResponse])
+@router.get(
+    "/milestones/{project_id}",
+    response_model=list[MilestoneTrackerResponse],
+    summary="获取里程碑列表",
+    description="查询项目的里程碑跟踪列表，展示各里程碑的计划和实际完成情况。",
+    response_description="里程碑列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_milestones(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -321,7 +502,20 @@ async def list_milestones(
     return [_milestone_to_response(m) for m in milestones]
 
 
-@router.post("/milestones", response_model=MilestoneTrackerResponse)
+@router.post(
+    "/milestones",
+    response_model=MilestoneTrackerResponse,
+    summary="创建/更新里程碑",
+    description="创建或更新项目的里程碑跟踪记录。",
+    response_description="里程碑记录",
+    responses={
+        200: {"description": "创建/更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def upsert_milestone(
     data: dict,
     current_user: User = Depends(get_current_user),
@@ -335,7 +529,21 @@ async def upsert_milestone(
     return resp
 
 
-@router.patch("/milestones/{milestone_id}/complete", response_model=MilestoneTrackerResponse)
+@router.patch(
+    "/milestones/{milestone_id}/complete",
+    response_model=MilestoneTrackerResponse,
+    summary="完成里程碑",
+    description="标记里程碑为已完成，记录实际完成日期和完成百分比。",
+    response_description="已完成的里程碑记录",
+    responses={
+        200: {"description": "标记成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "里程碑记录不存在"},
+    },
+    tags=["施工管理"],
+)
 async def complete_milestone(
     milestone_id: str,
     data: CompleteMilestoneRequest,
@@ -431,7 +639,18 @@ def _assessment_to_response(a) -> QualityAssessmentResponse:
     )
 
 
-@router.post("/quality-detect")
+@router.post(
+    "/quality-detect",
+    summary="AI 质量问题检测",
+    description="AI 基于质检结果自动识别质量问题，按严重度分类并生成整改建议。",
+    responses={
+        200: {"description": "检测成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def detect_quality_problems(
     data: QualityDetectRequest,
     current_user: User = Depends(get_current_user),
@@ -450,7 +669,21 @@ async def detect_quality_problems(
     return result
 
 
-@router.post("/quality-issues", response_model=QualityIssueResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/quality-issues",
+    response_model=QualityIssueResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建质量问题",
+    description="创建质量问题记录，包含问题描述、严重度、位置和检测标准。",
+    response_description="创建成功，返回质量问题记录",
+    responses={
+        201: {"description": "质量问题创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_quality_issue(
     data: QualityIssueCreate,
     current_user: User = Depends(get_current_user),
@@ -464,7 +697,20 @@ async def create_quality_issue(
     return resp
 
 
-@router.get("/quality-issues/{project_id}", response_model=list[QualityIssueResponse])
+@router.get(
+    "/quality-issues/{project_id}",
+    response_model=list[QualityIssueResponse],
+    summary="获取质量问题列表",
+    description="查询项目的质量问题列表，可按阶段、状态和严重度筛选。",
+    response_description="质量问题列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_quality_issues(
     project_id: str,
     phase: str | None = None,
@@ -486,7 +732,21 @@ async def list_quality_issues(
     return [_issue_to_response(i) for i in issues]
 
 
-@router.patch("/quality-issues/{issue_id}/status", response_model=QualityIssueResponse)
+@router.patch(
+    "/quality-issues/{issue_id}/status",
+    response_model=QualityIssueResponse,
+    summary="更新质量问题状态",
+    description="更新质量问题的处理状态（整改/验收），记录解决方案和验收人。",
+    response_description="更新后的质量问题记录",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "质量问题不存在"},
+    },
+    tags=["施工管理"],
+)
 async def update_quality_issue_status(
     issue_id: str,
     data: QualityIssueUpdate,
@@ -508,7 +768,21 @@ async def update_quality_issue_status(
     return resp
 
 
-@router.post("/rectification-orders", response_model=RectificationOrderResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/rectification-orders",
+    response_model=RectificationOrderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建整改单",
+    description="创建整改单并自动生成单号，同步关联质量问题状态。",
+    response_description="创建成功，返回整改单信息",
+    responses={
+        201: {"description": "整改单创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_rectification_order(
     data: RectificationOrderCreate,
     current_user: User = Depends(get_current_user),
@@ -522,7 +796,20 @@ async def create_rectification_order(
     return resp
 
 
-@router.get("/rectification-orders/{project_id}", response_model=list[RectificationOrderResponse])
+@router.get(
+    "/rectification-orders/{project_id}",
+    response_model=list[RectificationOrderResponse],
+    summary="获取整改单列表",
+    description="查询项目的整改单列表，可按状态筛选。",
+    response_description="整改单列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_rectification_orders(
     project_id: str,
     status_filter: str | None = Query(default=None, alias="status"),
@@ -540,7 +827,21 @@ async def list_rectification_orders(
     return [_order_to_response(o) for o in orders]
 
 
-@router.patch("/rectification-orders/{order_id}/status", response_model=RectificationOrderResponse)
+@router.patch(
+    "/rectification-orders/{order_id}/status",
+    response_model=RectificationOrderResponse,
+    summary="更新整改单状态",
+    description="更新整改单的处理状态，并同步关联的质量问题状态。",
+    response_description="更新后的整改单",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "无效的状态值"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "整改单不存在"},
+    },
+    tags=["施工管理"],
+)
 async def update_rectification_order_status(
     order_id: str,
     new_status: str = Query(..., description="pending/in_progress/completed/verified/closed"),
@@ -557,7 +858,21 @@ async def update_rectification_order_status(
     return resp
 
 
-@router.post("/quality-assessments", response_model=QualityAssessmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/quality-assessments",
+    response_model=QualityAssessmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="创建质量评估汇总",
+    description="创建项目的质量评估汇总，统计通过/未通过项并计算评分。",
+    response_description="创建成功，返回质量评估汇总",
+    responses={
+        201: {"description": "评估汇总创建成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
 async def create_quality_assessment(
     data: QualityAssessmentCreate,
     current_user: User = Depends(get_current_user),
@@ -571,7 +886,20 @@ async def create_quality_assessment(
     return resp
 
 
-@router.get("/quality-assessments/{project_id}", response_model=list[QualityAssessmentResponse])
+@router.get(
+    "/quality-assessments/{project_id}",
+    response_model=list[QualityAssessmentResponse],
+    summary="获取质量评估列表",
+    description="查询项目的所有质量评估汇总记录。",
+    response_description="质量评估列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def list_quality_assessments(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -588,7 +916,19 @@ async def list_quality_assessments(
     return [_assessment_to_response(a) for a in assessments]
 
 
-@router.post("/logs/analyze-defects")
+@router.post(
+    "/logs/analyze-defects",
+    summary="AI 施工日志缺陷分析",
+    description="AI 分析施工日志中的文本描述，通过关键词匹配和缺陷类别库进行交叉检测，"
+    "按严重度（critical/high/medium/low）分类返回潜在问题。",
+    responses={
+        200: {"description": "分析成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
 async def analyze_construction_logs(
     project_id: str,
     current_user: User = Depends(get_current_user),

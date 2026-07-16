@@ -77,9 +77,9 @@ source venv/bin/activate
 echo "    安装 Python 依赖..."
 MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 pip install -q --upgrade pip -i "$MIRROR" 2>&1 | tail -1
-pip install -q -i "$MIRROR" fastapi 'uvicorn[standard]' sqlalchemy asyncpg aiosqlite 'passlib[bcrypt]' \
+pip install -q -i "$MIRROR" fastapi 'uvicorn[standard]' sqlalchemy asyncpg aiosqlite bcrypt \
   'python-multipart' openpyxl httpx pydantic-settings structlog aiofiles \
-  pillow requests 'python-jose[cryptography]' webauthn paseto prometheus-client pendulum 2>&1 | tail -1
+  pillow requests webauthn paseto prometheus-client pendulum cryptography 2>&1 | tail -1
 
 # 初始化数据库（建表）
 echo "    初始化数据库..."
@@ -136,7 +136,7 @@ REMOTE_SCRIPT
 
     rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
 
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && pip install -q fastapi uvicorn[standard] sqlalchemy asyncpg aiosqlite 'passlib[bcrypt]' 'python-multipart' openpyxl httpx pydantic-settings structlog aiofiles pillow requests 'python-jose[cryptography]' webauthn 2>&1 | tail -1 && systemctl restart ihome && echo '✅ 后端已重启'"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && pip install -q fastapi uvicorn[standard] sqlalchemy asyncpg aiosqlite bcrypt python-multipart openpyxl httpx pydantic-settings structlog aiofiles pillow requests webauthn paseto prometheus-client pendulum cryptography 2>&1 | tail -1 && systemctl restart ihome && echo '✅ 后端已重启'"
     ;;
 
   web)
@@ -161,7 +161,8 @@ REMOTE_SCRIPT
     ssh "$REMOTE_HOST" "systemctl status ihome --no-pager 2>/dev/null | head -10"
     echo ""
     echo "--- 健康检查 ---"
-    curl -s http://118.31.223.213:8081/health 2>/dev/null && echo "" || echo "  ❌ 无法连接"
+    echo -n "  HTTP:  " && curl -s -w "HTTP %{http_code}\n" http://118.31.223.213:8081/health 2>/dev/null || echo "  ❌ 无法连接"
+    echo -n "  HTTPS: " && curl -sk -w "HTTP %{http_code}\n" https://118.31.223.213:8081/health 2>/dev/null || echo "  ❌ 无法连接"
     echo ""
     echo "--- 资源文件 ---"
     ssh "$REMOTE_HOST" "echo '  LOGO:    ' && ls ${WEB_DEPLOY_DIR}/assets/images/icons/desktop/suoke-logo-*.png 2>/dev/null | wc -l | xargs echo '    files'; echo '  壁纸:    ' && ls ${WEB_DEPLOY_DIR}/assets/images/wallpaper/*.webp 2>/dev/null | wc -l | xargs echo '    files'; echo '  用户头像:' && ls ${WEB_DEPLOY_DIR}/assets/images/avatars/hand-drawn-profiles/*.png 2>/dev/null | wc -l | xargs echo '    files'"
@@ -193,7 +194,8 @@ esac
 echo ""
 echo -e "${BLUE}╔════════════════════════════════════════════╗"
 echo -e "║  部署完成                                   ║"
-echo -e "║  URL:   http://118.31.223.213:8081         ║"
+echo -e "║  HTTP:  http://118.31.223.213:8081         ║"
+echo -e "║  HTTPS: https://118.31.223.213:8081        ║"
 echo -e "║  API:   http://118.31.223.213:8081/api     ║"
 echo -e "║  文档:  http://118.31.223.213:8081/api/docs║"
 echo -e "╚════════════════════════════════════════════╝${NC}"

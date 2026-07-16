@@ -1,4 +1,3 @@
-import asyncio
 import os
 import sys
 
@@ -19,13 +18,6 @@ from app.models import (  # noqa: F401, E402
     User, Project, Floor, Room,
     MaterialCategory, Material, BOMItem,
 )
-
-
-@pytest_asyncio.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest_asyncio.fixture(autouse=True)

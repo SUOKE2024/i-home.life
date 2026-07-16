@@ -1,12 +1,373 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=admin.html#quality">
-  <title>质检管理 - 索克家居</title>
-  <script>location.replace('admin.html#quality');</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="索克家居质检管理 - 质量问题追踪、整改单流转、质量评估、AI 图像质检">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<title>质检管理 · 索克家居</title>
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260716b">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg-deep: #08080f; --bg-panel: #12121d; --bg-card: #1a1a2a;
+  --border: #1e1e32; --border-active: #2a2a45;
+  --text-primary: #e8e6e1; --text-secondary: #8a8894; --text-muted: #5a5866;
+  --accent: #c9973b; --accent-bright: #e0aa4a; --accent-glow: rgba(201,151,59,0.15);
+  --success: #4a9e6e; --warning: #d4a040; --danger: #e05555; --info: #5b8ec4;
+  --radius: 12px; --radius-sm: 8px; --radius-lg: 16px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Noto Sans SC', sans-serif;
+  background: var(--bg-deep); color: var(--text-primary);
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+/* Topbar */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,8,15,0.9); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border); padding: 12px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.topbar-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.topbar-brand .logo { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--accent); }
+.topbar-brand .sub { font-size: 0.6rem; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border); background: transparent;
+  color: var(--text-secondary); transition: all 0.25s; text-decoration: none;
+  font-family: inherit; display: inline-flex; align-items: center; gap: 5px;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent-bright); }
+.btn-accent { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+.btn-accent:hover { background: var(--accent-bright); }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+.btn-danger:hover { background: rgba(224,85,85,0.1); }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 28px 24px 80px; }
+
+.page-header { margin-bottom: 28px; }
+.page-header h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 700; color: var(--accent-bright); }
+.page-header p { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+
+/* Tab Navigation */
+.tab-nav {
+  display: flex; gap: 0; margin-bottom: 24px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden; width: fit-content;
+}
+.tab-nav button {
+  padding: 10px 20px; border: none; background: transparent;
+  color: var(--text-secondary); cursor: pointer; font-family: inherit;
+  font-size: 0.78rem; font-weight: 500; transition: all 0.2s;
+  border-right: 1px solid var(--border);
+}
+.tab-nav button:last-child { border-right: none; }
+.tab-nav button:hover { color: var(--text-primary); background: rgba(255,255,255,0.03); }
+.tab-nav button.active { color: var(--accent-bright); background: var(--accent-glow); }
+
+/* Stats Grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px;
+}
+.stat-card .sc-icon { font-size: 1.3rem; margin-bottom: 6px; }
+.stat-card .sc-value { font-size: 1.6rem; font-weight: 800; color: var(--accent-bright); line-height: 1.1; }
+.stat-card .sc-label { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-card.warn .sc-value { color: var(--warning); }
+.stat-card.danger .sc-value { color: var(--danger); }
+
+/* Card */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;
+}
+.card h3 { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card h3 .badge { font-size: 0.6rem; padding: 2px 8px; border-radius: 10px; background: var(--accent-glow); color: var(--accent-bright); }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--text-muted); font-weight: 500; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+tr:hover { background: rgba(255,255,255,0.015); }
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 0.65rem; font-weight: 500;
+}
+.tag-green { background: rgba(74,158,110,0.15); color: var(--success); }
+.tag-yellow { background: rgba(212,160,64,0.15); color: var(--warning); }
+.tag-red { background: rgba(224,85,85,0.15); color: var(--danger); }
+.tag-blue { background: rgba(91,142,196,0.15); color: var(--info); }
+.tag-muted { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; gap: 0; position: relative; padding-left: 24px; }
+.timeline::before {
+  content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+  width: 2px; background: var(--border);
+}
+.tl-item { position: relative; padding: 12px 0 12px 20px; }
+.tl-item::before {
+  content: ''; position: absolute; left: -21px; top: 18px;
+  width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border);
+  background: var(--bg-deep);
+}
+.tl-item.current::before { border-color: var(--accent); background: var(--accent); }
+.tl-item.done::before { border-color: var(--success); background: var(--success); }
+.tl-item .tl-date { font-size: 0.65rem; color: var(--text-muted); margin-bottom: 2px; }
+.tl-item .tl-title { font-size: 0.82rem; color: var(--text-primary); font-weight: 600; }
+.tl-item .tl-desc { font-size: 0.72rem; color: var(--text-secondary); }
+
+/* Action buttons row */
+.action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.mini-btn {
+  padding: 4px 10px; border-radius: 6px; font-size: 0.65rem; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: transparent;
+  color: var(--text-secondary); transition: all 0.2s; font-family: inherit;
+}
+.mini-btn:hover { border-color: var(--accent); color: var(--accent-bright); }
+.mini-btn.danger { border-color: var(--danger); color: var(--danger); }
+.mini-btn.danger:hover { background: rgba(224,85,85,0.1); }
+.mini-btn.success { border-color: var(--success); color: var(--success); }
+.mini-btn.success:hover { background: rgba(74,158,110,0.1); }
+
+/* Footer */
+footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); margin-top: 32px; }
+footer p { font-size: 0.72rem; color: var(--text-muted); }
+footer a { color: var(--accent); text-decoration: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .topbar { padding: 10px 16px; }
+  .wrap { padding: 20px 14px 60px; }
+  .tab-nav { width: 100%; overflow-x: auto; }
+}
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .topbar-brand .sub { display: none; }
+  .page-header h1 { font-size: 1.4rem; }
+}
+</style>
 </head>
 <body>
-  <p>正在跳转到 <a href="admin.html#quality">质检管理</a>…</p>
-</body>
-</html>
+
+<nav class="topbar" role="navigation" aria-label="顶部导航">
+  <a href="index.html" class="topbar-brand">
+    <span class="logo">索克家居</span>
+    <span class="sub">i-home.life</span>
+  </a>
+  <div class="topbar-actions">
+    <a href="index.html" class="btn">返回首页</a>
+    <a href="dashboard.html" class="btn">数据仪表盘</a>
+    <a href="workbench.html" class="btn btn-accent">工作台</a>
+  </div>
+</nav>
+
+<main class="wrap" role="main">
+  <div class="page-header">
+    <h1>质检管理</h1>
+    <p>质量检验 · 问题追踪 · 整改闭环 · AI 图像质检 · 最后更新：<span id="update-time">--</span></p>
+  </div>
+
+  <!-- Tab Navigation -->
+  <nav class="tab-nav" role="tablist" aria-label="质检管理标签页">
+    <button role="tab" class="active" aria-selected="true" id="tab-issues">质量问题</button>
+    <button role="tab" id="tab-inspections">质检记录</button>
+    <button role="tab" id="tab-rectification">整改单</button>
+    <button role="tab" id="tab-checklist">质检清单</button>
+  </nav>
+
+  <!-- Statistics -->
+  <div class="stats-grid" role="region" aria-label="质检统计数据">
+    <div class="stat-card">
+      <div class="sc-icon">🔍</div>
+      <div class="sc-value">156</div>
+      <div class="sc-label">质检总次数</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-icon">✅</div>
+      <div class="sc-value">87.2%</div>
+      <div class="sc-label">一次通过率</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="sc-icon">⚠️</div>
+      <div class="sc-value">8</div>
+      <div class="sc-label">待处理问题</div>
+    </div>
+    <div class="stat-card danger">
+      <div class="sc-icon">🔴</div>
+      <div class="sc-value">2</div>
+      <div class="sc-label">严重缺陷</div>
+    </div>
+    <div class="stat-card">
+      <div class="sc-icon">🤖</div>
+      <div class="sc-value">89</div>
+      <div class="sc-label">AI 图像质检</div>
+    </div>
+  </div>
+
+  <!-- Quality Issues Table -->
+  <div class="card" aria-labelledby="issues-title">
+    <h3 id="issues-title">质量问题列表 <span class="badge">当前活跃</span></h3>
+    <table aria-label="质量问题列表">
+      <thead>
+        <tr><th>编号</th><th>项目</th><th>阶段</th><th>问题描述</th><th>严重度</th><th>状态</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>QI-20260701</td><td>万科城市花园</td><td>水电</td>
+          <td>客厅墙面插座高度不一致，偏差 3cm</td>
+          <td><span class="tag tag-yellow">一般</span></td>
+          <td><span class="tag tag-yellow">待整改</span></td>
+          <td>
+            <div class="action-row">
+              <button class="mini-btn">查看</button>
+              <button class="mini-btn success">通过</button>
+              <button class="mini-btn danger">驳回</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>QI-20260703</td><td>中关村公馆</td><td>瓦工</td>
+          <td>卫生间墙砖空鼓面积超标（>15%）</td>
+          <td><span class="tag tag-red">严重</span></td>
+          <td><span class="tag tag-red">整改中</span></td>
+          <td>
+            <div class="action-row">
+              <button class="mini-btn">查看</button>
+              <button class="mini-btn success">复检</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>QI-20260705</td><td>陆家嘴花园</td><td>木工</td>
+          <td>吊顶拼接缝隙 > 3mm，不合规</td>
+          <td><span class="tag tag-yellow">一般</span></td>
+          <td><span class="tag tag-green">已关闭</span></td>
+          <td><button class="mini-btn">查看详情</button></td>
+        </tr>
+        <tr>
+          <td>QI-20260708</td><td>衡山公寓</td><td>水电</td>
+          <td>强电与弱电管线间距不足 30cm</td>
+          <td><span class="tag tag-red">严重</span></td>
+          <td><span class="tag tag-red">整改中</span></td>
+          <td>
+            <div class="action-row">
+              <button class="mini-btn">查看</button>
+              <button class="mini-btn success">复检</button>
+              <button class="mini-btn danger">驳回</button>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>QI-20260710</td><td>珠江帝景</td><td>油漆</td>
+          <td>墙面乳胶漆色差明显</td>
+          <td><span class="tag tag-yellow">一般</span></td>
+          <td><span class="tag tag-green">已关闭</span></td>
+          <td><button class="mini-btn">查看详情</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Rectification Timeline -->
+  <div class="card" aria-labelledby="rect-title">
+    <h3 id="rect-title">整改单流转 <span class="badge">最新 5 条</span></h3>
+    <div class="timeline">
+      <div class="tl-item done">
+        <div class="tl-date">2026-07-16 09:30</div>
+        <div class="tl-title">RO-20260716-001 已关闭</div>
+        <div class="tl-desc">客厅插座高度偏差 — 已完成整改并复检通过</div>
+      </div>
+      <div class="tl-item current">
+        <div class="tl-date">2026-07-16 08:15</div>
+        <div class="tl-title">RO-20260716-002 整改中</div>
+        <div class="tl-desc">卫生间空鼓填补 — 施工方正进行修整</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-date">2026-07-15 16:40</div>
+        <div class="tl-title">RO-20260715-001 已分配</div>
+        <div class="tl-desc">强弱电间距不足 — 已指派工长处理</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-date">2026-07-15 11:20</div>
+        <div class="tl-title">RO-20260715-002 已关闭</div>
+        <div class="tl-desc">吊顶拼接缝隙 — 已修复并确认</div>
+      </div>
+      <div class="tl-item done">
+        <div class="tl-date">2026-07-14 14:05</div>
+        <div class="tl-title">RO-20260714-001 已关闭</div>
+        <div class="tl-desc">墙面漆色差 — 已重新涂刷并验收</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quality Assessment -->
+  <div class="card" aria-labelledby="assess-title">
+    <h3 id="assess-title">质量评估记录 <span class="badge">最近评估</span></h3>
+    <table aria-label="质量评估记录">
+      <thead>
+        <tr><th>评估编号</th><th>项目</th><th>阶段</th><th>评分</th><th>评估人</th><th>日期</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>QA-007</td><td>万科城市花园</td><td>水电阶段</td>
+          <td><span class="tag tag-green">92 分</span></td>
+          <td>李监理</td><td>2026-07-16</td>
+          <td><button class="mini-btn">查看报告</button></td>
+        </tr>
+        <tr>
+          <td>QA-006</td><td>陆家嘴花园</td><td>瓦工阶段</td>
+          <td><span class="tag tag-green">88 分</span></td>
+          <td>AI 质检</td><td>2026-07-15</td>
+          <td><button class="mini-btn">查看报告</button></td>
+        </tr>
+        <tr>
+          <td>QA-005</td><td>中关村公馆</td><td>水电阶段</td>
+          <td><span class="tag tag-yellow">75 分</span></td>
+          <td>王监理</td><td>2026-07-14</td>
+          <td><button class="mini-btn">查看报告</button></td>
+        </tr>
+        <tr>
+          <td>QA-004</td><td>衡山公寓</td><td>木工阶段</td>
+          <td><span class="tag tag-green">90 分</span></td>
+          <td>AI 质检</td><td>2026-07-13</td>
+          <td><button class="mini-btn">查看报告</button></td>
+        </tr>
+        <tr>
+          <td>QA-003</td><td>珠江帝景</td><td>油漆阶段</td>
+          <td><span class="tag tag-green">95 分</span></td>
+          <td>李监理</td><td>2026-07-12</td>
+          <td><button class="mini-btn">查看报告</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- QC Checklist -->
+  <div class="card" aria-labelledby="qc-title">
+    <h3 id="qc-title">质检清单 <span class="badge">按阶段</span></h3>
+    <table aria-label="质检清单">
+      <thead>
+        <tr><th>阶段</th><th>检查项</th><th>标准</th><th>关键控制点</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>水电改造</td><td>管线敷设规范</td><td>GB 50303-2015</td><td

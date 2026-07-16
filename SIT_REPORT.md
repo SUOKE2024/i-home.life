@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 项目 | 索克家居 i-home.life |
-| 版本 | v1.0.4 |
-| 测试日期 | 2026-07-12 (v1.0.0→v1.0.4 同日迭代) |
+| 版本 | v1.1.0 |
+| 测试日期 | 2026-07-16 |
 | 测试环境 | 远程生产 `http://118.31.223.213:8081` + 本地 pytest |
 | 数据库 | SQLite (85+ 张业务表) + StaticPool |
 | 认证 | PASETO v4.local (TokenExpiredError/TokenInvalidError 独立异常) |

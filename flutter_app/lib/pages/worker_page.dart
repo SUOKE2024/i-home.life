@@ -3,7 +3,7 @@ import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
-/// 服务者匹配页面 (F35) — 设计师/监理/预算师
+/// 服务者匹配页面 (F35) — 设计师/监理/预算师/木工/水电安装工/窗帘安装工
 class WorkerPage extends StatefulWidget {
   final String projectId;
   const WorkerPage({super.key, required this.projectId});
@@ -26,6 +26,9 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
     'designer': '设计师',
     'supervisor': '监理',
     'estimator': '预算师',
+    'carpenter': '木工',
+    'plumber_electrician': '水电安装工',
+    'curtain_installer': '窗帘安装工',
   };
 
   @override

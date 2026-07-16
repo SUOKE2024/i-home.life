@@ -14,7 +14,7 @@ class AppConfig {
   ///       原生端务必通过 dart-define 注入完整绝对地址。
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: '',
+    defaultValue: 'http://localhost:8766/api',
   );
 
   static const String appName = 'i-home.life';

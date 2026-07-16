@@ -1,6 +1,6 @@
 """积分系统模型 — 积分账户、流水、规则、排名、商城、兑换"""
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import String, DateTime, ForeignKey, func, Text, Integer, Boolean, Float
 from sqlalchemy.orm import Mapped, mapped_column
@@ -26,7 +26,7 @@ class PointsAccount(Base):
     # 年度统计（用于排名）
     year_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     year_spent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    year_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=lambda: datetime.utcnow().year)
+    year_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=lambda: datetime.now(timezone.utc).year)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
