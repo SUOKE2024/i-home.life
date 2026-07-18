@@ -382,6 +382,16 @@ async def list_order_escrow(db: AsyncSession, order_id: str) -> list[EscrowPayme
     return list(result.scalars().all())
 
 
+async def list_project_escrow(db: AsyncSession, project_id: str) -> list[EscrowPayment]:
+    """按项目查询担保支付记录。"""
+    result = await db.execute(
+        select(EscrowPayment)
+        .where(EscrowPayment.project_id == project_id)
+        .order_by(EscrowPayment.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 async def buyer_pay(db: AsyncSession, escrow_id: str) -> EscrowPayment | None:
     """买家付款（资金进入平台担保账户）。"""
     payment = await get_escrow(db, escrow_id)
@@ -528,6 +538,16 @@ async def get_order_logistics(db: AsyncSession, order_id: str) -> list[Logistics
     result = await db.execute(
         select(LogisticsTracking)
         .where(LogisticsTracking.order_id == order_id)
+        .order_by(LogisticsTracking.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def list_project_logistics(db: AsyncSession, project_id: str) -> list[LogisticsTracking]:
+    """按项目查询物流追踪记录。"""
+    result = await db.execute(
+        select(LogisticsTracking)
+        .where(LogisticsTracking.project_id == project_id)
         .order_by(LogisticsTracking.created_at.desc())
     )
     return list(result.scalars().all())

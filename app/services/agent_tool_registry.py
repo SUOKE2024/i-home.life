@@ -6,7 +6,7 @@
 - FunctionCall 协议适配
 """
 
-import json
+import asyncio
 import logging
 from typing import Any, Callable, Coroutine
 
@@ -63,9 +63,6 @@ class AgentTool:
         except Exception as e:
             logger.error(f"tool_execution_error: tool={self.name}, error={e}")
             return {"error": str(e)}
-
-
-import asyncio
 
 
 # ── 内置工具实现 ──
@@ -309,6 +306,10 @@ class ToolRegistry:
 
     def get_openai_schemas(self) -> list[dict]:
         return [t.to_openai_schema() for t in self._tools.values()]
+
+    def get_openai_schemas_for_category(self, category: str) -> list[dict]:
+        """获取指定类别的工具 OpenAI schemas"""
+        return [t.to_openai_schema() for t in self.list_tools(category)]
 
     def get_qwen_schemas(self) -> list[dict]:
         return [t.to_qwen_schema() for t in self._tools.values()]

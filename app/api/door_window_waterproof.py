@@ -15,6 +15,7 @@ from app.schemas.door_window_waterproof import (
     WaterproofAreaRequest,
 )
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.services import door_window_waterproof_service as svc
 from app.ws import ws_manager
 
@@ -47,6 +48,7 @@ async def list_door_windows(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目门窗选型"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     specs = await svc.list_door_windows(db, project_id)
     return [DoorWindowSpecResponse.model_validate(s) for s in specs]
 
@@ -61,6 +63,7 @@ async def get_door_window(
     spec = await svc.get_door_window(db, spec_id)
     if not spec:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="门窗选型不存在")
+    await verify_project_access(project_id=spec.project_id, current_user=current_user, db=db)
     return DoorWindowSpecResponse.model_validate(spec)
 
 
@@ -119,6 +122,7 @@ async def list_waterproofs(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目防水方案"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     plans = await svc.list_waterproofs(db, project_id)
     return [WaterproofPlanResponse.model_validate(p) for p in plans]
 
@@ -133,6 +137,7 @@ async def get_waterproof(
     plan = await svc.get_waterproof(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="防水方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     return WaterproofPlanResponse.model_validate(plan)
 
 
@@ -147,6 +152,7 @@ async def compute_waterproof_area_endpoint(
     plan = await svc.get_waterproof(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="防水方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     result = svc.compute_waterproof_area(plan.room_type, data.room_width, data.room_length, data.wall_height_mm)
     return {"plan_id": plan_id, **result}
 
@@ -161,6 +167,7 @@ async def validate_waterproof(
     plan = await svc.get_waterproof(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="防水方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     result = svc.validate_waterproof_spec(plan)
     return {"plan_id": plan_id, **result}
 

@@ -2,10 +2,24 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.0 · 全链路功能补全 + 代码质量优化 + 项目冗余清理（2026-07-16）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 5 视图 + 8 Agent 全链路 + Flutter 40 页面 + ARIA 无障碍 + PASETO 认证 + WebSocket 安全
+> v1.1.1 · AI 推理稳定性优化 + WebSocket 心跳 + 冗余清理（2026-07-18）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 5 视图 + 9 Agent 全链路 + Flutter 41 页面 + ARIA 无障碍 + PASETO 认证 + WebSocket 安全
 
 ## 最近更新
+
+### 2026-07-18 · v1.1.1
+
+- **AI 推理稳定性优化**:
+  - 修复 `reasoning_content` fallback 逻辑：v1.0.16 引入的 fallback 把 LLM 内部思维链当作回复返回，导致用户偶发看到 "我们需要理解用户需求..." 等内部推理内容。改为返回友好错误消息（含 `finish_reason` 便于排查）
+  - 新增 content 为空自动重试：当 LLM 返回 `content=""` 且 `finish_reason="length"`（reasoning 占满 token 配额）时，自动降温到 0.3 重试 1 次，给 content 输出留出空间
+  - 优化 `DesignerAgent` system_prompt：精简 JSON 格式说明，添加 "直接输出 JSON，不要推理" 指令，减少 reasoning token 消耗
+- **WebSocket 心跳机制**:
+  - 客户端 `{"event":"ping"}` → 服务端自动回复 `{"event":"pong"}`
+  - 服务端无活动 300s 后发送 ping 探测，30s 内无回复则断开僵尸连接
+  - 防止客户端异常断开（未发送 close 帧）导致的僵尸连接积累
+- **健康检查优化**: 磁盘空间三级阈值（ok >15% / warning 5-15% / critical <5%），替代原二级阈值
+- **项目冗余清理**: 清理 `data/test_*.db` 测试数据库 678 个（释放 617MB）、`__pycache__/` 目录、`.pytest_cache`、`htmlcov/`
+- **测试用例**: 670 通过 / 0 失败 / 9 跳过（新增 3 项 reasoning_content 回归测试）
 
 ### 2026-07-16 · v1.1.0
 
@@ -81,7 +95,7 @@ i-home.life/
 │   │   ├── points.py        # 积分系统
 │   │   ├── location.py      # 地理位置
 │   │   └── agents.py        # AI Agent 路由 (含 F28 动线分析)
-│   ├── agents/        # 8 个 AI Agent (业务逻辑版)
+│   ├── agents/        # 9 个 AI Agent (业务逻辑版)
 │   │   ├── orchestrator.py  # 总控 (意图路由, 含 settlement)
 │   │   ├── designer.py      # 设计 (9套布局 + NL 修改 + F28 动线分析)
 │   │   ├── budget.py        # 预算 (多方案对比/偏差预警/模板库)
@@ -274,7 +288,7 @@ i-home.life/
 | AC-3 | 3D 墙体拉伸 < 3s | ✅ Three.js sync3D |
 | AC-4 | 平立剖自动生成 | ✅ 5 视图 (俯视 + 4向立面) |
 | AC-5 | DXF 导出兼容 | ✅ R12 POLYLINE |
-| AC-6 | Agent 响应 < 3s | ✅ 8 Agent + 混合路由 |
+| AC-6 | Agent 响应 < 3s | 9 Agent + 混合路由 |
 | AC-7 | Agent 完成率 85% | ✅ 9套布局 + NL指令 |
 | AC-8 | iPad 30fps | ✅ 基准测试就绪 |
 | AC-9 | 崩溃率 < 0.1% | ✅ 验收脚本就绪 |

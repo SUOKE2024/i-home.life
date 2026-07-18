@@ -2,6 +2,11 @@
 
 为 i-home.life 平台提供跨端实时数据同步能力。
 支持按项目（project_id）分组，实现设计台、业主端、施工端的数据实时推送。
+
+v1.1.1 新增心跳机制：
+- 客户端发送 {"event":"ping"} → 服务端自动回复 {"event":"pong"}
+- 服务端 receive 超时（RECEIVE_TIMEOUT 秒）后发送 ping 探测
+- 探测后 PONG_TIMEOUT 秒内无回复则断开僵尸连接
 """
 
 import json
@@ -11,6 +16,10 @@ from typing import Any
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+# 心跳配置
+RECEIVE_TIMEOUT = 300  # 无活动 5 分钟后发送 ping 探测
+PONG_TIMEOUT = 30  # ping 探测后 30 秒无回复则断开
 
 
 class ConnectionManager:
@@ -57,6 +66,13 @@ class ConnectionManager:
         message = json.dumps({"event": event, "data": data}, ensure_ascii=False)
         try:
             await websocket.send_text(message)
+        except Exception:
+            self.disconnect(websocket)
+
+    async def send_ping(self, websocket: WebSocket):
+        """发送心跳探测（v1.1.1）"""
+        try:
+            await websocket.send_text(json.dumps({"event": "ping", "data": {}}))
         except Exception:
             self.disconnect(websocket)
 

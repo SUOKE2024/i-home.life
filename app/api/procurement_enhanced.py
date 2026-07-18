@@ -9,6 +9,7 @@ from app.models.project import Project
 from app.models.material import BOMItem
 from app.models.procurement import ProcurementOrder
 from app.auth import get_current_user
+from app.rbac import verify_project_access
 from app.schemas.procurement_enhanced import (
     ComparisonCreateRequest,
     PriceComparisonResponse,
@@ -88,6 +89,8 @@ async def list_project_comparisons(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：校验项目归属，防止任意用户读取他人项目比价报告
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     items = await svc.list_project_comparisons(db, project_id)
     return [PriceComparisonResponse.model_validate(c) for c in items]
 
@@ -112,6 +115,8 @@ async def get_comparison(
     comparison = await svc.get_comparison(db, comparison_id)
     if not comparison:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="比价报告不存在")
+    # IDOR 修复：校验项目归属，防止任意用户读取他人比价报告详情
+    await verify_project_access(project_id=comparison.project_id, current_user=current_user, db=db)
     return PriceComparisonDetailResponse.model_validate(comparison)
 
 
@@ -131,6 +136,11 @@ async def list_comparison_items(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验比价报告归属项目，再列出明细
+    comparison = await svc.get_comparison(db, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="比价报告不存在")
+    await verify_project_access(project_id=comparison.project_id, current_user=current_user, db=db)
     items = await svc.list_comparison_items(db, comparison_id)
     return [PriceComparisonItemResponse.model_validate(i) for i in items]
 
@@ -159,6 +169,8 @@ async def ai_match(
     bom_item = result.scalar_one_or_none()
     if not bom_item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="BOM 物料不存在")
+    # IDOR 修复：校验 BOM 物料所属项目的归属
+    await verify_project_access(project_id=bom_item.project_id, current_user=current_user, db=db)
 
     match = await svc.ai_match_suppliers(db, bom_item, location=data.location)
     return AiMatchResult(
@@ -187,6 +199,11 @@ async def delete_comparison(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 先校验项目归属，再执行删除（防止 IDOR：任意用户删除他人比价报告）
+    existing = await svc.get_comparison(db, comparison_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="比价报告不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     ok = await svc.delete_comparison(db, comparison_id)
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="比价报告不存在")
@@ -252,6 +269,8 @@ async def get_escrow(
     payment = await svc.get_escrow(db, escrow_id)
     if not payment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="担保支付不存在")
+    # IDOR 修复：校验担保支付所属项目的归属（防止泄露他人财务信息）
+    await verify_project_access(project_id=payment.project_id, current_user=current_user, db=db)
     return EscrowPaymentResponse.model_validate(payment)
 
 
@@ -272,7 +291,34 @@ async def list_order_escrow(
     db: AsyncSession = Depends(get_db),
 ):
     """按订单查询担保支付记录"""
+    # IDOR 修复：先校验订单所属项目的归属，再列出担保支付
+    order = await db.get(ProcurementOrder, order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="采购订单不存在")
+    await verify_project_access(project_id=order.project_id, current_user=current_user, db=db)
     items = await svc.list_order_escrow(db, order_id)
+    return [EscrowPaymentResponse.model_validate(p) for p in items]
+
+
+@router.get(
+    "/escrow/project/{project_id}",
+    response_model=list[EscrowPaymentResponse],
+    summary="按项目查询担保支付",
+    description="根据项目 ID 查询该项目的所有担保支付记录。",
+    response_description="担保支付记录列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
+async def list_project_escrow_endpoint(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """按项目查询担保支付记录"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    items = await svc.list_project_escrow(db, project_id)
     return [EscrowPaymentResponse.model_validate(p) for p in items]
 
 
@@ -547,6 +593,8 @@ async def get_logistics(
     tracking = await svc.get_logistics(db, tracking_id)
     if not tracking:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="物流单不存在")
+    # IDOR 修复：校验物流单所属项目的归属
+    await verify_project_access(project_id=tracking.project_id, current_user=current_user, db=db)
     return LogisticsTrackingResponse.model_validate(tracking)
 
 
@@ -610,7 +658,34 @@ async def get_order_logistics(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验订单所属项目的归属，再列出物流追踪
+    order = await db.get(ProcurementOrder, order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="采购订单不存在")
+    await verify_project_access(project_id=order.project_id, current_user=current_user, db=db)
     items = await svc.get_order_logistics(db, order_id)
+    return [LogisticsTrackingResponse.model_validate(t) for t in items]
+
+
+@router.get(
+    "/logistics/project/{project_id}",
+    response_model=list[LogisticsTrackingResponse],
+    summary="按项目查询物流",
+    description="根据项目 ID 查询该项目的所有物流追踪记录。",
+    response_description="物流追踪列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
+async def list_project_logistics_endpoint(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """按项目查询物流追踪记录"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    items = await svc.list_project_logistics(db, project_id)
     return [LogisticsTrackingResponse.model_validate(t) for t in items]
 
 
@@ -669,6 +744,8 @@ async def list_project_samples(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：校验项目归属，防止任意用户读取他人项目样品索要记录
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     items = await svc.list_project_samples(db, project_id)
     return [SampleRequestResponse.model_validate(s) for s in items]
 

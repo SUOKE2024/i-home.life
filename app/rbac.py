@@ -91,6 +91,28 @@ async def verify_project_access(
     )
 
 
+async def verify_project_chat_access(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Project:
+    """验证项目聊天访问权限：admin/owner/所有认证角色（F40 三方协作）"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+
+    if current_user.role == "admin":
+        return project
+
+    if project.owner_id == current_user.id:
+        return project
+
+    # F40 三方协作：允许所有认证角色参与项目群聊
+    # （homeowner/designer/contractor/supplier）
+    return project
+
+
 # ── 预设权限检查器（按资源 + 操作命名） ──
 
 # 用户管理
@@ -132,9 +154,12 @@ DEFAULT_PERMISSIONS = [
     {"code": "budget:write", "name": "编辑预算", "resource": "budget", "action": "write", "description": "创建/修改预算"},
 
     # 平台管理
-    {"code": "platform:manage", "name": "平台管理", "resource": "platform", "action": "manage", "description": "平台统计、配置管理"},
-    {"code": "platform:identity_review", "name": "身份认证审核", "resource": "platform", "action": "write", "description": "审核用户实名认证"},
-    {"code": "platform:points_manage", "name": "积分管理", "resource": "platform", "action": "manage", "description": "管理积分规则和手动发放"},
+    {"code": "platform:manage", "name": "平台管理", "resource": "platform",
+     "action": "manage", "description": "平台统计、配置管理"},
+    {"code": "platform:identity_review", "name": "身份认证审核", "resource": "platform",
+     "action": "write", "description": "审核用户实名认证"},
+    {"code": "platform:points_manage", "name": "积分管理", "resource": "platform",
+     "action": "manage", "description": "管理积分规则和手动发放"},
 ]
 
 

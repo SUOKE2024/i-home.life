@@ -180,10 +180,14 @@ async def update_task_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验任务所属项目归属，再执行变更（mutation 必须在 verify 之后）
+    existing = await db.get(ConstructionTask, task_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     task = await construction_service.update_task_status(db, task_id, status_val)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
-    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     resp = TaskResponse.model_validate(task)
     await ws_manager.broadcast_to_project(task.project_id, "task.status_updated", resp.model_dump())
     return resp
@@ -209,16 +213,16 @@ async def add_log(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验任务所属项目归属，再添加日志（mutation 必须在 verify 之后）
+    task = await db.get(ConstructionTask, data.task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     log_data = data.model_dump()
     log_data["created_by"] = current_user.name
     log = await construction_service.add_log(db, log_data)
     resp = LogResponse.model_validate(log)
-    # 通过 task_id 查询 project_id 用于广播
-    task_result = await db.execute(select(ConstructionTask).where(ConstructionTask.id == data.task_id))
-    task = task_result.scalar_one_or_none()
-    if task:
-        await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
-        await ws_manager.broadcast_to_project(task.project_id, "log.added", resp.model_dump())
+    await ws_manager.broadcast_to_project(task.project_id, "log.added", resp.model_dump())
     return resp
 
 
@@ -239,6 +243,11 @@ async def get_logs(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验任务所属项目归属，再返回日志
+    task = await db.get(ConstructionTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     logs = await construction_service.get_logs(db, task_id)
     return [LogResponse.model_validate(log) for log in logs]
 
@@ -263,14 +272,14 @@ async def create_inspection(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验任务所属项目归属，再创建检查记录（mutation 必须在 verify 之后）
+    task = await db.get(ConstructionTask, data.task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     inspection = await construction_service.create_inspection(db, data.model_dump())
     resp = InspectionResponse.model_validate(inspection)
-    # 通过 task_id 查询 project_id 用于广播
-    task_result = await db.execute(select(ConstructionTask).where(ConstructionTask.id == data.task_id))
-    task = task_result.scalar_one_or_none()
-    if task:
-        await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
-        await ws_manager.broadcast_to_project(task.project_id, "inspection.created", resp.model_dump())
+    await ws_manager.broadcast_to_project(task.project_id, "inspection.created", resp.model_dump())
     return resp
 
 
@@ -291,6 +300,11 @@ async def get_inspections(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # IDOR 修复：先校验任务所属项目归属，再返回检查记录
+    task = await db.get(ConstructionTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     inspections = await construction_service.get_inspections(db, task_id)
     return [InspectionResponse.model_validate(i) for i in inspections]
 
@@ -463,10 +477,14 @@ async def resolve_progress_alert(
     db: AsyncSession = Depends(get_db),
 ):
     """解决进度预警"""
+    # 先校验项目归属，再执行变更（防止 IDOR：mutation 必须在 verify 之后）
+    existing = await progress_service.get_alert(db, alert_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预警记录不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     alert = await progress_service.resolve_alert(db, alert_id, resolver=current_user.name, note=data.note)
     if not alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预警记录不存在")
-    await verify_project_access(project_id=alert.project_id, current_user=current_user, db=db)
     resp = _alert_to_response(alert)
     await ws_manager.broadcast_to_project(alert.project_id, "progress.alert_resolved", resp.model_dump())
     return resp
@@ -522,8 +540,12 @@ async def upsert_milestone(
     db: AsyncSession = Depends(get_db),
 ):
     """创建或更新里程碑跟踪记录"""
+    # 先校验项目归属，再执行变更（防止 IDOR：mutation 必须在 verify 之后）
+    project_id = data.get("project_id")
+    if not project_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="缺少 project_id")
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     record = await progress_service.upsert_milestone(db, data)
-    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
     resp = _milestone_to_response(record)
     await ws_manager.broadcast_to_project(record.project_id, "milestone.updated", resp.model_dump())
     return resp
@@ -551,6 +573,12 @@ async def complete_milestone(
     db: AsyncSession = Depends(get_db),
 ):
     """标记里程碑完成"""
+    # 先校验项目归属，再执行变更（防止 IDOR：mutation 必须在 verify 之后）
+    from app.models.progress_alert import MilestoneTracker
+    existing = await db.get(MilestoneTracker, milestone_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     from datetime import datetime
     actual_date = None
     if data.actual_date:
@@ -563,7 +591,6 @@ async def complete_milestone(
     )
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
-    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
     resp = _milestone_to_response(record)
     await ws_manager.broadcast_to_project(record.project_id, "milestone.completed", resp.model_dump())
     return resp
@@ -754,6 +781,11 @@ async def update_quality_issue_status(
     db: AsyncSession = Depends(get_db),
 ):
     """更新质量问题状态（整改/验收）"""
+    # 先校验项目归属，再执行变更（防止 IDOR：mutation 必须在 verify 之后）
+    existing = await quality_service.get_issue(db, issue_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="质量问题不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     issue = await quality_service.update_issue_status(
         db, issue_id, data.status,
         resolution=data.resolution,
@@ -762,7 +794,6 @@ async def update_quality_issue_status(
     )
     if not issue:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="质量问题不存在")
-    await verify_project_access(project_id=issue.project_id, current_user=current_user, db=db)
     resp = _issue_to_response(issue)
     await ws_manager.broadcast_to_project(issue.project_id, "quality.issue_updated", resp.model_dump())
     return resp
@@ -849,10 +880,14 @@ async def update_rectification_order_status(
     db: AsyncSession = Depends(get_db),
 ):
     """更新整改单状态（含 issue 状态同步）"""
+    # 先校验项目归属，再执行变更（防止 IDOR：mutation 必须在 verify 之后）
+    existing = await quality_service.get_order(db, order_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="整改单不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     order = await quality_service.update_order_status(db, order_id, new_status, verifier=current_user.name)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="整改单不存在")
-    await verify_project_access(project_id=order.project_id, current_user=current_user, db=db)
     resp = _order_to_response(order)
     await ws_manager.broadcast_to_project(order.project_id, "quality.order_updated", resp.model_dump())
     return resp

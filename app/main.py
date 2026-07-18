@@ -182,7 +182,7 @@ async def request_tracking_middleware(request: Request, call_next):
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)          # /api/auth/*
 api_router.include_router(projects.router)      # /api/projects/*
-api_router.include_router(product_batch.router) # /api/products/batch/* (must be before products)
+api_router.include_router(product_batch.router)  # /api/products/batch/* (must be before products)
 api_router.include_router(camera_scan.router)  # /api/products/camera/* (must be before products)
 api_router.include_router(materials.router)     # /api/materials/*
 api_router.include_router(budgets.router)       # /api/budgets/*
@@ -302,13 +302,19 @@ async def health_check_detail():
         checks["redis"] = {"status": "disabled"}
 
     # 磁盘空间（检查项目所在分区）
+    # v1.1.1: 三级阈值 — ok (>15%) / warning (5-15%) / critical (<5%)
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         usage = shutil.disk_usage(base_dir)
         free_percent = round(usage.free / usage.total * 100, 2)
-        disk_status = "ok" if free_percent > 10 else "warning"
-        if disk_status != "ok":
+        if free_percent < 5:
+            disk_status = "critical"
             overall = "degraded"
+        elif free_percent < 15:
+            disk_status = "warning"
+            overall = "degraded"
+        else:
+            disk_status = "ok"
         checks["disk"] = {
             "status": disk_status,
             "free_percent": free_percent,
@@ -337,7 +343,7 @@ async def metrics():
 
 
 @app.websocket("/ws/{project_id}")
-async def websocket_endpoint(websocket: WebSocket, project_id: str):
+async def websocket_endpoint(websocket: WebSocket, project_id: str):  # noqa: C901
     """WebSocket 实时通信端点 — 需 PASETO Token 认证 + 项目归属校验
 
     客户端通过 query 参数传递 token: ws://host/ws/{project_id}?token=xxx
@@ -391,18 +397,45 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):
         "role": user_role,
     })
     try:
+        import asyncio
+        import json as _json
+        from app.ws import RECEIVE_TIMEOUT, PONG_TIMEOUT
         while True:
-            data = await websocket.receive_text()
-            import json
             try:
-                msg = json.loads(data)
+                data = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=RECEIVE_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                # 无活动超时：发送 ping 探测，等待 pong 或任意消息
+                await ws_manager.send_ping(websocket)
+                try:
+                    await asyncio.wait_for(
+                        websocket.receive_text(), timeout=PONG_TIMEOUT
+                    )
+                    # 收到任意消息（含 pong）即视为存活，继续循环
+                    continue
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        f"WebSocket 心跳超时断开僵尸连接: project={project_id}, user={user_id}"
+                    )
+                    await websocket.close(code=4002, reason="心跳超时")
+                    break
+            try:
+                msg = _json.loads(data)
                 event = msg.get("event", "message")
+                # v1.1.1: 客户端 ping 自动回复 pong（心跳保活）
+                if event == "ping":
+                    await ws_manager.send_to(websocket, "pong", {})
+                    continue
+                if event == "pong":
+                    # 服务端主动 ping 的回复，无需处理
+                    continue
                 payload_data = msg.get("data", {})
                 # 注入发送者信息
                 payload_data["_sender_id"] = user_id
                 payload_data["_sender_role"] = user_role
                 await ws_manager.broadcast_to_project(project_id, event, payload_data)
-            except json.JSONDecodeError:
+            except _json.JSONDecodeError:
                 await ws_manager.send_to(websocket, "error", {"message": "消息格式无效，需为合法 JSON"})
             except Exception as e:
                 logger.warning(f"WebSocket 消息处理异常: project={project_id}, error={e}")

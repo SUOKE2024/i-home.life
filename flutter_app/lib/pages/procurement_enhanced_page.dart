@@ -212,7 +212,7 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
       _error = null;
     });
     final result = await widget.api.procPriceComparisons(
-      projectId: widget.projectId,
+      widget.projectId,
     );
     if (result.isSuccess) {
       final data = result.data;
@@ -400,7 +400,7 @@ class _EscrowTabState extends State<_EscrowTab>
       _error = null;
     });
     final result = await widget.api.procEscrowPayments(
-      projectId: widget.projectId,
+      widget.projectId,
     );
     if (result.isSuccess) {
       final data = result.data;
@@ -611,7 +611,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
       _loading = true;
       _error = null;
     });
-    final result = await widget.api.procLogistics(projectId: widget.projectId);
+    final result = await widget.api.procLogistics(widget.projectId);
     if (result.isSuccess) {
       final data = result.data;
       _items = data is List ? data : (data['items'] as List? ?? []);
@@ -637,7 +637,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
   }
 
   Future<void> _track(String id) async {
-    final result = await widget.api.procTrackLogistics(id);
+    final result = await widget.api.procGetLogistics(id);
     if (!mounted) return;
     if (!result.isSuccess) {
       widget.toast('查询失败: ${result.error}');
@@ -862,7 +862,7 @@ class _SampleTabState extends State<_SampleTab>
       _error = null;
     });
     final result = await widget.api.procSampleRequests(
-      projectId: widget.projectId,
+      widget.projectId,
     );
     if (result.isSuccess) {
       final data = result.data;

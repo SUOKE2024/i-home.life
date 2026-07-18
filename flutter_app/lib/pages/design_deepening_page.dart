@@ -191,7 +191,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
       return const LoadingSkeleton(itemCount: 3, itemHeight: 160);
     }
     if (_error != null) {
-      return ErrorRetry(message: _error!, onRetry: _loadPlans);
+      return ErrorRetryWidget(message: _error!, onRetry: _loadPlans);
     }
     if (_plans.isEmpty) {
       return Center(

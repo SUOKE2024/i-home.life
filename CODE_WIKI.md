@@ -131,14 +131,14 @@
 │   │   ├── floorplans.py             # 户型方案存储
 │   │   ├── voice.py                  # 语音处理
 │   │   ├── files.py                  # 文件上传/下载
-│   │   ├── agents.py                 # AI Agent 路由 (mock + LLM 双模式, 8 Agent)
+│   │   ├── agents.py                 # AI Agent 路由 (mock + LLM 双模式, 9 Agent)
 │   │   ├── payments.py               # 支付管理
 │   │   ├── chat.py                   # 三方协作 IM
 │   │   ├── crews.py                  # 工程队匹配
 │   │   ├── surveys.py                # AR 测量数据
 │   │   ├── layouts.py                # 智能布局动线分析
 │   │   └── ...                       # 其他路由模块
-│   ├── agents/                       # 8 个 AI Agent
+│   ├── agents/                       # 9 个 AI Agent
 │   │   ├── orchestrator.py           # 总控 (意图路由 + fallback_classify)
 │   │   ├── designer.py               # 设计 (9套布局 + 修改意图识别)
 │   │   ├── budget.py                 # 预算分析
@@ -205,11 +205,6 @@
 │   ├── test_qa_inspector_concierge.py  # 质检 + 客服 Agent (31)
 │   └── ...                           # 其他测试模块
 │
-├── _shared/                          # 共享静态资源
-│   └── js/
-│       ├── echarts.min.js            # ECharts 图表库
-│       └── mermaid.min.js            # Mermaid 图表库
-│
 ├── assets/                           # 静态资源（截图、图标）
 │
 ├── .gitignore                        # Git 忽略规则
@@ -236,7 +231,7 @@
 | §2 市场与竞品分析 | 6 款竞品功能对比 | 23 维 × 7 产品热力图 |
 | §3 产品定位 | 一句话定位 + 平台支持 + 目标用户 | 设备优先级矩阵 |
 | §4 多平台多角色适配 | 四端分离架构 + 端-平台覆盖矩阵 | 5 端 × 6 平台覆盖表 |
-| §5 AI 智能体架构 | 8 个 Agent 定义 + 协作机制 + 自主权分级 | Mermaid 流程图 |
+| §5 AI 智能体架构 | 9 个 Agent 定义 + 协作机制 + 自主权分级 | Mermaid 流程图 |
 | §6 用户画像与场景 | 用户旅程 + 3 个典型场景 | 端到端流程 Mermaid 图 |
 | §7 功能需求 | 40 项功能需求详情 | F1—F40 功能矩阵表 |
 | §8 系统架构 | 分层架构图 + 技术决策表 | 12 项技术决策 |
@@ -322,7 +317,7 @@ state = {
 | Planner 5D | 设计+软装+移动端 | AI 渲染生成 |
 | MagicPlan | AR 测量+移动端 | 无 |
 | Procore | 施工管理+工程队匹配 | 无 |
-| **索克家居** | **23 项全覆盖** | **8 Agent** |
+| **索克家居** | **23 项全覆盖** | **9 Agent** |
 
 ---
 
@@ -339,8 +334,8 @@ state = {
 | 样式策略 | CSS 变量主题系统、响应式布局、打印友好 |
 
 **外部依赖**：
-- `_shared/js/echarts.min.js`
-- `_shared/js/mermaid.min.js`
+- `assets/js/echarts.min.js`
+- `assets/js/mermaid.min.js`
 
 ### 5.2 `interactive-demo.html`
 

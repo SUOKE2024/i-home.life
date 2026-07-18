@@ -196,13 +196,17 @@ async def list_presets(
 async def apply_preset(
     db: AsyncSession,
     preset_id: str,
-    input_image_url: str,
+    project_id: str,
+    floorplan_id: str | None = None,
+    input_image_url: str = "",
     customizations: dict | None = None,
 ) -> AIImageJob | None:
     """应用预设模板 — 一键创建图生图任务并触发处理。
 
     Args:
         preset_id: 预设模板 ID
+        project_id: 项目 ID (由调用方校验归属后传入,防止 IDOR)
+        floorplan_id: 户型 ID (可选)
         input_image_url: 输入图像 URL
         customizations: 用户自定义参数 (覆盖预设默认参数)
     Returns:
@@ -222,10 +226,10 @@ async def apply_preset(
     preset.usage_count = (preset.usage_count or 0) + 1
     await db.commit()
 
-    # 创建任务
+    # 创建任务 — project_id 由调用方显式传入(已校验归属)
     job_data = {
-        "project_id": default_params.get("project_id", "default-project"),
-        "floorplan_id": default_params.get("floorplan_id"),
+        "project_id": project_id,
+        "floorplan_id": floorplan_id or default_params.get("floorplan_id"),
         "job_type": default_params.get("job_type", "style_transfer"),
         "input_image_url": input_image_url,
         "prompt": preset.prompt_template,

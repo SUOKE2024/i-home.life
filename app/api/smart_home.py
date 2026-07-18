@@ -48,6 +48,7 @@ async def list_schemes_by_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     schemes = await svc.list_schemes_by_project(db, project_id)
     return [SmartHomeSchemeResponse.model_validate(s) for s in schemes]
 
@@ -61,6 +62,7 @@ async def get_scheme(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return SmartHomeSchemeResponse.model_validate(scheme)
 
 
@@ -122,6 +124,7 @@ async def wiring_plan(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     result = await svc.plan_wiring(db, scheme)
     return WiringPlanResult(**result)
 
@@ -138,6 +141,7 @@ async def protocol_advice(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     devices = scheme.devices or await svc.list_devices(db, scheme_id)
     result = svc.recommend_protocol(scheme.hub_brand, devices)
     return ProtocolAdviceResult(**result)
@@ -155,6 +159,7 @@ async def compute_price(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     result = await svc.compute_total_price(db, scheme)
     return PriceComputeResult(**result)
 
@@ -185,6 +190,10 @@ async def list_devices(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     devices = await svc.list_devices(db, scheme_id)
     return [SmartDeviceResponse.model_validate(d) for d in devices]
 
@@ -195,6 +204,15 @@ async def delete_device(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import select
+    from app.models.smart_home import SmartDevice
+    result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
+    scheme = await svc.get_scheme(db, device.scheme_id)
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     deleted = await svc.delete_device(db, device_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")

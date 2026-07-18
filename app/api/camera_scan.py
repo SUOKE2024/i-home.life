@@ -3,7 +3,7 @@
 import uuid
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -126,7 +126,9 @@ async def confirm_scan_product(
 
     # AI 辅助文案生成
     if ai_assisted:
-        from app.services.ai_copy_service import _build_marketing_prompt, _parse_ai_response, _generate_fallback_description
+        from app.services.ai_copy_service import (
+            _build_marketing_prompt, _parse_ai_response, _generate_fallback_description,
+        )
         from app.agents.procurement import ProcurementAgent
         try:
             prompt = _build_marketing_prompt(product)

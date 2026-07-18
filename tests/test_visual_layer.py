@@ -779,9 +779,9 @@ async def test_ai_apply_preset(client: AsyncClient):
         "/api/ai-image/jobs/apply-preset",
         json={
             "preset_id": preset_id,
+            "project_id": project_id,
             "input_image_url": "https://example.com/room.jpg",
             "customizations": {
-                "project_id": project_id,
                 "num_inference_steps": 25,
             },
         },
@@ -792,10 +792,52 @@ async def test_ai_apply_preset(client: AsyncClient):
     assert data["input_image_url"] == "https://example.com/room.jpg"
     assert data["prompt"] == "modern minimalist interior, bright, clean lines, neutral colors"
     assert data["status"] == "queued"
+    assert data["project_id"] == project_id
 
     # 预设使用次数应增加
     resp = await client.get(f"/api/ai-image/presets/{preset_id}", headers=headers)
     assert resp.json()["usage_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_ai_apply_preset_idor_blocked(client: AsyncClient):
+    """应用预设模板 IDOR 防护 — 用户不能向他人项目创建任务(应返回 403)"""
+    token_a, headers_a = await _register_and_login(client, "13900009995a")
+    project_id_a = await _create_project(client, headers_a, "OwnerA 项目")
+    preset_id = await _create_preset(client, headers_a, "现代简约")
+
+    # 用户 B 登录
+    token_b, headers_b = await _register_and_login(client, "13900009995b")
+
+    # B 试图向 A 的项目应用预设 → 应被 403 拒绝
+    resp = await client.post(
+        "/api/ai-image/jobs/apply-preset",
+        json={
+            "preset_id": preset_id,
+            "project_id": project_id_a,
+            "input_image_url": "https://example.com/room.jpg",
+        },
+        headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_ai_apply_preset_project_not_found(client: AsyncClient):
+    """应用预设模板 — 不存在的 project_id 应返回 404"""
+    token, headers = await _register_and_login(client, "13900009995c")
+    preset_id = await _create_preset(client, headers, "现代简约")
+
+    resp = await client.post(
+        "/api/ai-image/jobs/apply-preset",
+        json={
+            "preset_id": preset_id,
+            "project_id": "nonexistent-project-id",
+            "input_image_url": "https://example.com/room.jpg",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

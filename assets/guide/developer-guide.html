@@ -426,8 +426,28 @@ def verify_token(token: str) -> dict | None:
   </div>
 
   <div class="card">
+    <h3>Voice Realtime WebSocket</h3>
+    <pre><code>ws://host:port/api/voice/realtime?token={paseto_token}</code></pre>
+    <p>基于阿里云 Qwen-Audio-3.0-Realtime 的实时语音对话端点（v1.1.0 新增）。真双工 WebSocket 桥接，客户端 ↔ 后端 ↔ Qwen-Audio Realtime 全链路流式传输。</p>
+    <p><strong>协议：</strong></p>
+    <ul>
+      <li>客户端发送 <code>{"type":"audio","data":"&lt;base64_pcm16&gt;"}</code> 流式音频块</li>
+      <li>客户端发送 <code>{"type":"audio_end"}</code> 提交音频缓冲区</li>
+      <li>客户端发送 <code>{"type":"interrupt"}</code> 打断当前 AI 响应的</li>
+      <li>客户端发送 <code>{"type":"text","content":"..."}</code> 文本输入</li>
+      <li>服务端推送 <code>{"type":"transcript_delta","text":"..."}</code> 流式转写</li>
+      <li>服务端推送 <code>{"type":"audio_delta","data":"&lt;base64&gt;"}</code> 流式音频</li>
+      <li>服务端推送 <code>{"type":"tool_call","name":"...","result":{...}}</code> FunctionCall 结果</li>
+    </ul>
+    <p>支持 5 个内置工具（FunctionCall）：预算查询、设计布局、物料搜索、施工进度、质量检测。模型自主判断调用时机，工具结果写回对话上下文供后续追问衔接。</p>
+    <p>认证方式：PASETO token 通过 query parameter 传输，WebSocket 握手阶段校验。项目归属通过 <code>project_id</code> 参数 + IDOR 校验（<code>verify_project_access</code>）。</p>
+    <div class="fi-ep">端点：<code>/api/voice/realtime</code> | <code>/api/voice/process-enhanced</code> (REST 降级)</div>
+  </div>
+
+  <div class="card">
     <h3>核心实现</h3>
     <p>WebSocket 管理器（<code>app/ws.py</code>）维护每个项目的连接池，支持 <code>connect</code>、<code>disconnect</code>、<code>broadcast_to_project</code>、<code>send_to</code> 方法。在 <code>app/main.py</code> 中注册 <code>/ws/{project_id}</code> 路由，接收 JSON 消息并按 event 分发广播。</p>
+    <p>Voice Realtime 实现（<code>app/services/voice_realtime_service.py</code> + <code>app/api/voice_realtime.py</code>）使用双 Task 架构：主 Task 接收客户端消息并转发至 Qwen-Audio Realtime，后台 Task 接收 Qwen-Audio Realtime 事件并转发至客户端。</p>
   </div>
 
   <div class="callout info">
@@ -593,7 +613,7 @@ bash scripts/bench-matepad.sh</code></pre>
 </section>
 
 <footer class="doc-footer" role="contentinfo">
-  <p>索克家居 i-home.life · AI 智能装修平台 · v1.0.1</p>
+  <p>索克家居 i-home.life · AI 智能装修平台 · v1.1.0</p>
   <p>本指南最后更新于 2026-07-12</p>
   <div class="footer-links">
     <a href="../../web/index.html">返回主站</a>

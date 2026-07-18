@@ -40,6 +40,7 @@ async def list_designs(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目厨房设计"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     designs = await kitchen_service.list_designs(db, project_id)
     return [KitchenDesignResponse.model_validate(d) for d in designs]
 
@@ -54,6 +55,7 @@ async def get_design(
     design = await kitchen_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     return KitchenDesignResponse.model_validate(design)
 
 
@@ -100,6 +102,7 @@ async def analyze_workflow(
     design = await kitchen_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     result = kitchen_service.analyze_kitchen_workflow(design)
     return {"design_id": design_id, **result}
 
@@ -114,6 +117,7 @@ async def validate_compliance(
     design = await kitchen_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     result = kitchen_service.validate_kitchen_compliance(design)
     return {"design_id": design_id, **result}
 
@@ -149,6 +153,10 @@ async def list_components(
     db: AsyncSession = Depends(get_db),
 ):
     """列出厨房组件"""
+    design = await kitchen_service.get_design(db, design_id)
+    if not design:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     components = await kitchen_service.list_components(db, design_id)
     return [KitchenComponentResponse.model_validate(c) for c in components]
 
@@ -160,6 +168,17 @@ async def delete_component(
     db: AsyncSession = Depends(get_db),
 ):
     """删除厨房组件"""
+    from sqlalchemy import select
+    from app.models.kitchen import KitchenComponent
+    result = await db.execute(
+        select(KitchenComponent).where(KitchenComponent.id == component_id)
+    )
+    component = result.scalar_one_or_none()
+    if not component:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房组件不存在")
+    design = await kitchen_service.get_design(db, component.design_id)
+    if design:
+        await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     deleted = await kitchen_service.delete_component(db, component_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房组件不存在")

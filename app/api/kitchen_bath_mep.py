@@ -44,6 +44,7 @@ async def list_plans(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目厨卫水电方案"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     plans = await svc.list_plans(db, project_id)
     return [KitchenBathMEPPlanResponse.model_validate(p) for p in plans]
 
@@ -58,6 +59,7 @@ async def get_plan(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     return KitchenBathMEPPlanResponse.model_validate(plan)
 
 
@@ -127,6 +129,7 @@ async def design_circuits(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     # 从已有点位提取设备清单
     devices: list[str] = []
     seen = set()
@@ -151,6 +154,7 @@ async def validate_equipotential(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     result = svc.validate_bathroom_equipotential(plan)
     return {"plan_id": plan_id, **result}
 
@@ -165,6 +169,7 @@ async def plan_gas(
     plan = await svc.get_plan(db, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     result = svc.plan_gas_pipe(plan)
     return {"plan_id": plan_id, **result}
 
@@ -196,6 +201,10 @@ async def list_points(
     db: AsyncSession = Depends(get_db),
 ):
     """列出点位"""
+    plan = await svc.get_plan(db, plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     points = await svc.list_points(db, plan_id)
     return [MEPPointResponse.model_validate(p) for p in points]
 
@@ -207,6 +216,15 @@ async def delete_point(
     db: AsyncSession = Depends(get_db),
 ):
     """删除点位"""
+    from sqlalchemy import select
+    from app.models.kitchen_bath_mep import MEPPoint
+    result = await db.execute(select(MEPPoint).where(MEPPoint.id == point_id))
+    point = result.scalar_one_or_none()
+    if not point:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="点位不存在")
+    plan = await svc.get_plan(db, point.plan_id)
+    if plan:
+        await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     deleted = await svc.delete_point(db, point_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="点位不存在")

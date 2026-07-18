@@ -435,6 +435,10 @@ const ApiClient = {
   async getOrderEscrow(orderId) {
     return this.request(`/api/procurement-enhanced/escrow/order/${orderId}`);
   },
+  // F34 按项目查询担保支付
+  async getEscrowPaymentsByProject(projectId) {
+    return this.request(`/api/procurement-enhanced/escrow/project/${projectId}`);
+  },
   // F34 买家付款
   async buyerPayEscrow(escrowId) {
     return this.request(`/api/procurement-enhanced/escrow/${escrowId}/pay`, { method: 'POST' });
@@ -486,6 +490,10 @@ const ApiClient = {
   // F34 按订单查询物流
   async getOrderLogistics(orderId) {
     return this.request(`/api/procurement-enhanced/logistics/order/${orderId}`);
+  },
+  // F34 按项目查询物流追踪
+  async getLogisticsByProject(projectId) {
+    return this.request(`/api/procurement-enhanced/logistics/project/${projectId}`);
   },
 
   // F34 样品索要
@@ -1119,6 +1127,15 @@ const ApiClient = {
   },
   async addHardDecorationCeiling(schemeId, data) {
     return this.request(`/api/hard-decoration/schemes/${schemeId}/ceilings`, { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getHardDecorationFloors(schemeId) {
+    return this.request(`/api/hard-decoration/schemes/${schemeId}/floors`);
+  },
+  async getHardDecorationWalls(schemeId) {
+    return this.request(`/api/hard-decoration/schemes/${schemeId}/walls`);
+  },
+  async getHardDecorationCeilings(schemeId) {
+    return this.request(`/api/hard-decoration/schemes/${schemeId}/ceilings`);
   },
   async deleteHardDecorationScheme(schemeId) {
     return this.request(`/api/hard-decoration/schemes/${schemeId}`, { method: 'DELETE' });

@@ -67,9 +67,9 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     setState(() => _loading = false);
   }
 
-  Future<void> _loadWaterproofs(String specId) async {
+  Future<void> _loadWaterproofs() async {
     setState(() => _waterproofLoading = true);
-    final result = await _api.doorWinListWaterproof(specId);
+    final result = await _api.doorWinListWaterproof(widget.projectId);
     if (result.isSuccess) {
       setState(() => _waterproofs = (result.data as List?) ?? []);
     } else {
@@ -84,7 +84,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
 
   void _selectSpec(Map<String, dynamic> spec) {
     setState(() => _selectedSpec = spec);
-    _loadWaterproofs(spec['id'] as String);
+    _loadWaterproofs();
     _tabController.animateTo(1);
   }
 
@@ -241,7 +241,6 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
       );
       return;
     }
-    final specId = _selectedSpec!['id'] as String;
     final formKey = GlobalKey<FormState>();
     String area = '';
     String waterproofLevel = 'level_2';
@@ -345,14 +344,13 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
 
     if (confirmed != true) return;
 
-    final result = await _api.doorWinAddWaterproof(specId, {
-      'spec_id': specId,
-      'area': area,
-      'waterproof_level': waterproofLevel,
-      'material': material,
-      'construction_method': constructionMethod,
+    final result = await _api.doorWinAddWaterproof({
+      'project_id': widget.projectId,
+      'room_name': area.isEmpty ? (_selectedSpec?['room_name'] ?? '默认房间') : area,
+      'room_type': 'bathroom',
+      'waterproof_material': material,
       'thickness_mm': double.tryParse(thicknessStr) ?? 1.5,
-      'height_mm': double.tryParse(heightStr) ?? 300,
+      'wall_height_mm': double.tryParse(heightStr)?.toInt() ?? 300,
     });
     if (result.isSuccess) {
       if (mounted) {
@@ -360,7 +358,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           const SnackBar(content: Text('防水方案已添加')),
         );
       }
-      await _loadWaterproofs(specId);
+      await _loadWaterproofs();
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -419,17 +417,17 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     }
   }
 
-  // ── 验证规格 ──
+  // ── 验证防水方案 ──
 
   Future<void> _validateSpec() async {
-    if (_selectedSpec == null) {
+    if (_waterproofs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择门窗规格')),
+        const SnackBar(content: Text('暂无防水方案可验证，请先添加')),
       );
       return;
     }
-    final specId = _selectedSpec!['id'] as String;
-    final result = await _api.doorWinValidate(specId);
+    final planId = _waterproofs.last['id'] as String;
+    final result = await _api.doorWinValidateWaterproof(planId);
     if (!mounted) return;
     if (!result.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(

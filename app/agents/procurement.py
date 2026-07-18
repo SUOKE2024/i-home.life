@@ -1,6 +1,9 @@
 """采购 Agent — 供应商匹配、询价比价、采购订单生成、产品发布管理"""
 
 from app.agents.base import BaseAgent
+from app.services.agent_tool_registry import tool_registry
+
+_PROCUREMENT_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("procurement")
 
 
 # 物料品类 → 推荐供应商（mock 数据）
@@ -38,6 +41,7 @@ PRODUCT_UNIT_MAP = {
 
 class ProcurementAgent(BaseAgent):
     agent_name = "procurement"
+    tools = _PROCUREMENT_TOOL_SCHEMAS
     system_prompt = """你是索克家居（i-home.life）AI 采购 Agent。
 
 你的职责：
@@ -235,7 +239,7 @@ class ProcurementAgent(BaseAgent):
         return "create_product"
 
     @staticmethod
-    def extract_product_info(message: str) -> dict:
+    def extract_product_info(message: str) -> dict:  # noqa: C901
         """从自然语言中提取产品信息"""
         import re
 
@@ -307,7 +311,6 @@ class ProcurementAgent(BaseAgent):
             info["name"] = message[:30].strip()
 
         # 提取描述：取标签部分之前的长文本
-        desc_parts = []
         if info["name"] and info["name"] in message:
             remaining = message[message.index(info["name"]) + len(info["name"]):]
             # 去除价格相关信息
@@ -322,8 +325,6 @@ class ProcurementAgent(BaseAgent):
 
     def handle_product_request(self, message: str, user_name: str) -> str:
         """处理产品管理请求（mock 模式）"""
-        import json
-
         intent = self.classify_product_intent(message)
 
         if intent == "create_product":
@@ -350,7 +351,7 @@ class ProcurementAgent(BaseAgent):
                     "3. **价格**：如「58元/㎡」或「50-80元/㎡」\n"
                     "4. **标签**：#防滑 #灰色 #客厅\n"
                     "5. **描述**：材质、产地、卖点等（可选）\n\n"
-                    f"示例：`上架 800×800 灰色防滑地砖，佛山产，58元/㎡ #防滑 #灰色`"
+                    "示例：`上架 800×800 灰色防滑地砖，佛山产，58元/㎡ #防滑 #灰色`"
                 )
 
         elif intent == "list_my_products":

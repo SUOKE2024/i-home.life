@@ -246,3 +246,64 @@ async def test_voice_empty_text_rejected(client: AsyncClient):
         json={"text": ""},
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_voice_process_no_project_id_ok(client: AsyncClient):
+    """不带 project_id 调用 /voice/process 应正常处理(不触发归属检查)"""
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": "13900004015", "name": "Voice无项目", "password": "test123456"},
+    )
+    token = resp.json()["access_token"]
+    resp = await client.post(
+        "/api/voice/process",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "你好"},
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_voice_process_project_not_owned(client: AsyncClient):
+    """传入他人 project_id 调用 /voice/process 应返回 403(防越权)"""
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": "13900004016", "name": "OwnerA", "password": "test123456"},
+    )
+    token_a = resp.json()["access_token"]
+    proj_resp = await client.post(
+        "/api/projects",
+        headers={"Authorization": f"Bearer {token_a}"},
+        json={"name": "A项目", "address": "地址A"},
+    )
+    project_id_a = proj_resp.json()["id"]
+
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": "13900004017", "name": "OwnerB", "password": "test123456"},
+    )
+    token_b = resp.json()["access_token"]
+
+    resp = await client.post(
+        "/api/voice/process",
+        headers={"Authorization": f"Bearer {token_b}"},
+        json={"text": "你好", "project_id": project_id_a},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_voice_process_project_not_found(client: AsyncClient):
+    """传入不存在的 project_id 调用 /voice/process 应返回 404"""
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": "13900004018", "name": "NotFound", "password": "test123456"},
+    )
+    token = resp.json()["access_token"]
+    resp = await client.post(
+        "/api/voice/process",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "你好", "project_id": "nonexistent-project-id"},
+    )
+    assert resp.status_code == 404

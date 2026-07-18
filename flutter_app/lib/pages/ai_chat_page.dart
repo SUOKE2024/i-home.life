@@ -13,6 +13,7 @@ import '../services/agent_router.dart';
 import '../services/api.dart';
 import '../services/project_context.dart';
 import '../services/sse_service.dart';
+import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
@@ -32,10 +33,11 @@ class _AIChatPageState extends State<AIChatPage> {
   final _scrollCtrl = ScrollController();
   final List<ChatMessage> _messages = [];
   final SseService _sse = SseService();
+  final VoiceRealtimeService _voice = VoiceRealtimeService();
   final WebSocketService _ws = WebSocketService();
-
   String _selectedAgent = 'master';
   bool _isLoading = false;
+  bool _isVoiceMode = false;
   String? _currentProjectId;
 
   StreamSubscription<SseEvent>? _sseSub;
@@ -79,7 +81,22 @@ class _AIChatPageState extends State<AIChatPage> {
     _sseSub?.cancel();
     _wsUnsubscribe?.call();
     _ws.close();
+    _voice.disconnect();
     super.dispose();
+  }
+
+  // ── 语音模式 ──
+
+  void _toggleVoiceMode() {
+    setState(() => _isVoiceMode = !_isVoiceMode);
+    if (_isVoiceMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('语音模式已开启 — 说出问题，AI Agent 实时回复'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   // ── WebSocket 连接 ──
@@ -809,6 +826,25 @@ class _AIChatPageState extends State<AIChatPage> {
               ),
             ),
             const SizedBox(width: 8),
+            // 语音按钮
+            GestureDetector(
+              onTap: _toggleVoiceMode,
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _isVoiceMode ? SuokeDesignTokens.accent : SuokeDesignTokens.inputBg,
+                  borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+                  border: Border.all(color: _isVoiceMode ? SuokeDesignTokens.accent : SuokeDesignTokens.border),
+                ),
+                child: Icon(
+                  Icons.mic,
+                  color: _isVoiceMode ? Colors.black : SuokeDesignTokens.textSecondary,
+                  size: 22,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             // 发送按钮
             Container(
               decoration: const BoxDecoration(
@@ -984,7 +1020,7 @@ class _AIChatPageState extends State<AIChatPage> {
                 Text('AI 智能装修助手',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
                 const SizedBox(height: 6),
-                Text('8 个 AI Agent 7×24',
+                Text('9 个 AI Agent 7×24',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
                 Text('在线服务',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),

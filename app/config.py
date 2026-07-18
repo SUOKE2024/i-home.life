@@ -70,7 +70,10 @@ class Settings(BaseSettings):
     voice_emotion_detection: bool = True               # 是否启用情绪检测
     voice_emotion_sensitivity: float = 0.6             # 情绪检测灵敏度 (0-1)
     voice_duplex_mode: bool = True                     # 是否启用双工模式
+    voice_turn_detection: str = "server_vad"          # 轮次检测模式: server_vad | smart_turn | none(push-to-talk)
     voice_vad_threshold: float = 0.5                   # VAD 阈值 (0-1)
+    voice_vad_silence_ms: int = 800                    # VAD 静音检测毫秒
+    voice_audio_prompt_enabled: bool = False           # 是否启用说话人增强（声纹锁定，针对多人场景）
     voice_max_recording_seconds: int = 300             # 单次最大录音时长（秒）
 
     # ── Agent FunctionCall / MCP ──

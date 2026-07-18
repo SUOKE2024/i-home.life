@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="索克家居 · AI 自治运营群聊工作台">
 <meta property="og:title" content="工作台 · 索克家居">
-<meta property="og:description" content="AI 自治运营群聊工作台，8 AI 智能体 7×24 服务">
+<meta property="og:description" content="AI 自治运营群聊工作台，9 AI 智能体 7×24 服务">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="索克家居">
 <meta name="theme-color" content="#08080f">
@@ -16,17 +16,17 @@
 <meta http-equiv="Expires" content="0">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260716a" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260716a" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260716a" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260716a" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260716a" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260718b" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260718b" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260718b" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260718b" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260718b" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260716a">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260718b">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebApplication","name":"索克家居工作台","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"},"description":"AI 自治运营群聊工作台，8 AI 智能体 7×24 服务"}
+{"@context":"https://schema.org","@type":"WebApplication","name":"索克家居工作台","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"},"description":"AI 自治运营群聊工作台，9 AI 智能体 7×24 服务"}
 </script>
 </head>
 <body>
@@ -231,10 +231,10 @@
   </footer>
 </div>
 
-<script src="assets/js/api-client.js?v=20260716a"></script>
-<script src="assets/js/im-client.js?v=20260716a"></script>
-<script src="assets/js/agent-router.js?v=20260716a"></script>
-<script src="assets/js/message-renderers.js?v=20260716a"></script>
+<script src="assets/js/api-client.js?v=20260718b"></script>
+<script src="assets/js/im-client.js?v=20260718b"></script>
+<script src="assets/js/agent-router.js?v=20260718b"></script>
+<script src="assets/js/message-renderers.js?v=20260718b"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -726,7 +726,7 @@
     // 总控 Agent 欢迎消息
     renderMessage({
       type: 'text', agent: 'master', timestamp: new Date().toISOString(),
-      content: `欢迎，${currentUser?.name || roleLabel}。我是总控 Agent，已协调 8 个 AI 智能体为你的项目服务。你可以直接在群里提问，例如"现在预算还剩多少"或"施工进度怎么样"。`,
+      content: `欢迎，${currentUser?.name || roleLabel}。我是总控 Agent，已协调 9 个 AI 智能体为你的项目服务。你可以直接在群里提问，例如"现在预算还剩多少"或"施工进度怎么样"。`,
     });
 
     // 建立 WebSocket 实时连接（在历史消息加载后，避免顺序错乱）
@@ -1036,7 +1036,7 @@
     // 映射 agent key 到后端 agent_type
     const agentTypeMap = {
       master: 'orchestrator',
-      design: 'design',
+      design: 'designer',
       budget: 'budget',
       procurement: 'procurement',
       construction: 'construction',
@@ -1046,6 +1046,14 @@
       admin: 'admin',
     };
     const agentType = agentTypeMap[route.agent] || 'orchestrator';
+
+    // 后端 agent_type → 前端 agent key（单一定义，全局复用）
+    const reverseMap = {
+      orchestrator: 'master', designer: 'design', budget: 'budget',
+      procurement: 'procurement', construction: 'construction',
+      qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+      admin: 'admin', content_publisher: 'procurement',
+    };
 
     // 从消息流提取最近 10 轮对话（最多 20 条消息）作为上下文
     const history = [];
@@ -1093,7 +1101,7 @@
             },
             body: JSON.stringify({
               message: text,
-              agent_type: 'orchestrator',
+              agent_type: agentType,
               project_id: projectId,
               history: history,
             }),
@@ -1128,7 +1136,6 @@
                 if (data.event === 'meta') {
                   // 更新 agent 类型和 meta 信息
                   const agentKey = data.agent_type || 'master';
-                  const reverseMap = { orchestrator: 'master', design: 'design', budget: 'budget', procurement: 'procurement', construction: 'construction', qa_inspector: 'quality', settlement: 'settlement', concierge: 'support', admin: 'admin' };
                   const frontendKey = reverseMap[agentKey] || 'master';
                   placeholder.className = placeholder.className.replace(/agent-\S+/, 'agent-' + frontendKey);
                   const ai = AgentRouter.getAgentInfo(frontendKey);
@@ -1162,12 +1169,6 @@
           try {
             const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
             if (resp.reply) {
-              const reverseMap = {
-            orchestrator: 'master', design: 'design', budget: 'budget',
-            procurement: 'procurement', construction: 'construction',
-            qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
-            admin: 'admin',
-          };
               const agentKey = reverseMap[resp.agent_type] || route.agent;
               renderMessage({
                 type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
@@ -1198,12 +1199,6 @@
       const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
       if (resp.reply) {
         // 映射 agent_type 回前端 agent key
-        const reverseMap = {
-          orchestrator: 'master', design: 'design', budget: 'budget',
-          procurement: 'procurement', construction: 'construction',
-          qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
-          admin: 'admin',
-        };
         const agentKey = reverseMap[resp.agent_type] || route.agent;
         renderMessage({
           type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
@@ -2682,7 +2677,7 @@
   init();
 })();
 </script>
-<script src="assets/js/analytics.js?v=20260716a"></script>
+<script src="assets/js/analytics.js?v=20260718b"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

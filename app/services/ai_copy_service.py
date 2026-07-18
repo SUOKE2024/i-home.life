@@ -5,8 +5,7 @@ import json
 import logging
 from datetime import datetime
 
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.models.product import Product
 from app.agents.procurement import ProcurementAgent

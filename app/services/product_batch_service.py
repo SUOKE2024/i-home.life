@@ -5,13 +5,10 @@ import io
 import json
 import logging
 import uuid
-from datetime import datetime
-from typing import IO
 
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import insert
 
 from app.models.product import Product
 from app.models.user import User
@@ -245,7 +242,8 @@ def generate_template_excel() -> bytes:
 
     # 示例数据
     sample_data = [
-        ["800×800 灰色防滑地砖", "瓷砖", 58, 68, "㎡", "佛山产 R10防滑 亮面", "防滑,灰色,客厅,地砖", "in_stock", "https://example.com/img/floor.jpg"],
+        ["800×800 灰色防滑地砖", "瓷砖", 58, 68, "㎡", "佛山产 R10防滑 亮面",
+         "防滑,灰色,客厅,地砖", "in_stock", "https://example.com/img/floor.jpg"],
         ["北欧简约三人沙发", "定制家具", 4500, 5500, "件", "棉麻面料 实木框架 2100×850×800mm", "北欧,简约,沙发,客厅", "in_stock", ""],
         ["LED 无主灯套装", "灯具", 1680, 2680, "套", "全屋 12灯 4000K 含轨道灯+筒灯+射灯", "LED,无主灯,智能", "in_stock", ""],
         ["净味乳胶漆 18L", "涂料", 580, 680, "桶", "净味配方 即刷即住", "乳胶漆,净味", "in_stock", ""],

@@ -35,7 +35,9 @@ class RolePermission(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     role: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     # homeowner / designer / contractor / supplier / admin
-    permission_code: Mapped[str] = mapped_column(String(100), ForeignKey("permissions.code"), nullable=False, index=True)
+    permission_code: Mapped[str] = mapped_column(
+        String(100), ForeignKey("permissions.code"), nullable=False, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     permission = relationship("Permission")

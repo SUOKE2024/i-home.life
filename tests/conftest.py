@@ -5,6 +5,10 @@ import sys
 # 使用 PID 隔离，避免并发测试运行时 SQLite 文件锁定
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_{os.getpid()}.db"
 
+# 禁用 Qwen-Audio API Key，强制语音测试走 mock 模式
+# 避免测试中建立真实 WebSocket 连接导致缓慢（~5-7s/test）
+os.environ["QWEN_AUDIO_API_KEY"] = ""
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: F401, E402

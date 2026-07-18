@@ -1,26 +1,34 @@
 """实时语音 WebSocket 端点 —— 对接 Qwen-Audio-3.0-Realtime
 
 提供全双工实时语音交互能力：
-- WebSocket 连接 (ws://host/api/voice/realtime/{session_id}?token=xxx)
-- 流式语音识别 + 情感检测
-- Agent 意图分类 + 工具调用
-- 流式 TTS 语音合成
+- WebSocket 连接 (ws://host/api/voice/realtime?token=xxx)
+- 真双工：客户端 ↔ 后端 ↔ Qwen-Audio-3.0-Realtime (WebSocket 桥接)
+- 流式语音识别 + 流式音频输出
+- FunctionCall 工具自主调用
+- 双工打断 (barge-in)
+- Mock 模式降级（无 API Key 时可用）
 """
 
 import asyncio
 import json
 import logging
-import time
+import re
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.concierge import check_escalation
+from app.agents.orchestrator import OrchestratorAgent
 from app.auth.paseto_handler import verify_token, TokenExpiredError, TokenInvalidError
+from app.auth import get_current_user
 from app.config import get_settings
+from app.database import get_db, async_session
+from app.models.user import User
+from app.models.project import Project
 from app.services.voice_realtime_service import voice_session_manager, VoiceRealtimeSession
 from app.services.agent_tool_registry import tool_registry
-from app.agents.orchestrator import OrchestratorAgent
-from app.agents.concierge import ConciergeAgent
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -29,6 +37,15 @@ router = APIRouter(prefix="/voice", tags=["实时语音"])
 
 # ── 会话实例映射：websocket_id → session ──
 _active_voice_ws: dict[int, VoiceRealtimeSession] = {}
+
+# ── 索克家居语音助手系统指令 ──
+VOICE_SYSTEM_INSTRUCTIONS = (
+    "你是索克生活 APP 的智能语音助手，专注于装修、家居和设计领域。"
+    "你可以帮助用户进行：装修预算分析、设计方案推荐、物料搜索、施工进度查询、质量检测。"
+    "当用户提出与装修相关的问题时，主动调用合适的工具获取信息。"
+    "保持友好、专业的语气。如果用户情绪低落，给予适当的安慰和帮助。"
+    "所有价格以人民币计价，所有工期以工作日为准。"
+)
 
 
 class VoiceTextRequest(BaseModel):
@@ -54,6 +71,8 @@ class VoiceTextResponse(BaseModel):
 @router.post("/process-enhanced", response_model=VoiceTextResponse)
 async def process_voice_enhanced(
     data: VoiceTextRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """增强版语音文本处理：情绪检测 + Agent 路由 + 自动工具调用
 
@@ -62,12 +81,21 @@ async def process_voice_enhanced(
     - 自动工具调用 (FunctionCall)
     - 是否需要人工升级判断
     """
+    # 校验项目归属（若指定了 project_id），防止越权发起会话
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
     text = data.text
 
     # 1. 情绪检测
     emotion = None
     if data.emotion_enabled and settings.voice_emotion_detection:
-        session = voice_session_manager.create_session(user_id="api", project_id=data.project_id)
+        session = voice_session_manager.create_session(user_id=current_user.id, project_id=data.project_id)
         try:
             await session.connect()
             emotion = await session._detect_emotion_from_text(text)
@@ -76,35 +104,40 @@ async def process_voice_enhanced(
 
     # 2. 意图分类
     intent = "general"
-    from app.agents.orchestrator import OrchestratorAgent
     if not settings.deepseek_api_key and not settings.glm_api_key:
         classification = OrchestratorAgent.fallback_classify(text)
     else:
         agent = OrchestratorAgent()
         try:
+            # classify_intent 内部已对 LLM 失败做 fallback 到 fallback_classify
             classification = await agent.classify_intent(text)
         finally:
             await agent.close()
     intent = classification.get("intent", "general")
 
-    # 3. 自动工具调用
-    tool_calls = []
+    # 3. 路由到专业 Agent 管道（修复语音→Agent 断点）
     reply = ""
+    tool_calls = []
     actions = []
 
-    if settings.agent_function_call_enabled and intent != "general":
-        tool_calls = await _auto_tool_call(intent, text)
-        if tool_calls:
-            reply = _format_tool_results(intent, tool_calls)
-        else:
-            reply = _get_enhanced_reply(text, intent, emotion)
+    if intent != "general":
+        try:
+            reply = await _route_voice_to_agent(text, intent, current_user.name)
+        except Exception as e:
+            logger.warning(f"route_voice_to_agent_failed: intent={intent}, error={e}")
+            # 降级：硬编码工具调用 + 模板回复
+            if settings.agent_function_call_enabled:
+                tool_calls = await _auto_tool_call(intent, text)
+                if tool_calls:
+                    reply = _format_tool_results(intent, tool_calls)
+            if not reply:
+                reply = _get_enhanced_reply(text, intent, emotion)
     else:
         reply = _get_enhanced_reply(text, intent, emotion)
 
     # 4. 升级判断
     need_escalation = False
     if settings.voice_duplex_mode:
-        from app.agents.concierge import check_escalation
         esc_result = check_escalation(text)
         need_escalation = esc_result.get("need_human", False)
 
@@ -119,13 +152,137 @@ async def process_voice_enhanced(
     )
 
 
+# ── Agent 管道路由（修复语音→Agent 断点） ──
+
+async def _route_voice_to_agent(text: str, intent: str, user_name: str, context: str = "") -> str:  # noqa: C901
+    """将语音意图路由到专业 Agent 管道，获取 LLM 驱动的回复。
+
+    替代原有的 _auto_tool_call() + _get_enhanced_reply() 硬编码模板，
+    使语音路径享有与文本路径同等的 Agent 推理能力。
+
+    Args:
+        text: 用户文本
+        intent: 意图分类结果
+        user_name: 用户名（用于上下文）
+        context: 可选的对话历史上下文
+
+    Returns:
+        LLM 生成的专业回复文本
+    """
+    from app.agents.designer import DesignerAgent
+    from app.agents.budget import BudgetAgent
+    from app.agents.procurement import ProcurementAgent
+    from app.agents.construction import ConstructionAgent
+    from app.agents.qa_inspector import QAInspectorAgent
+    from app.agents.settlement import SettlementAgent
+    from app.agents.concierge import ConciergeAgent
+
+    user_ctx = f"用户: {user_name}"
+    if context:
+        user_ctx = f"{context}\n{user_ctx}"
+    mock_mode = not settings.deepseek_api_key and not settings.glm_api_key
+
+    # ── design ──
+    if intent in ("design",):
+        agent = DesignerAgent()
+        try:
+            if mock_mode:
+                layouts = await agent.generate_layouts(text)
+                reply = layouts.get("reply", _get_enhanced_reply(text, intent, None))
+            else:
+                raw_reply = await agent.think(text, user_ctx)
+                from app.api.agents import _extract_reply_from_llm_json
+                reply = _extract_reply_from_llm_json(raw_reply)
+        finally:
+            await agent.close()
+        return reply
+
+    # ── budget ──
+    if intent in ("budget",):
+        agent = BudgetAgent()
+        try:
+            if mock_mode:
+                reply = _get_enhanced_reply(text, intent, None)
+            else:
+                result = await agent.think_with_tools(text, user_ctx)
+                reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
+        finally:
+            await agent.close()
+        return reply
+
+    # ── procurement ──
+    if intent in ("procurement",):
+        agent = ProcurementAgent()
+        try:
+            if mock_mode:
+                reply = _get_enhanced_reply(text, intent, None)
+            else:
+                result = await agent.think_with_tools(text, user_ctx)
+                reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
+        finally:
+            await agent.close()
+        return reply
+
+    # ── construction ──
+    if intent in ("construction",):
+        agent = ConstructionAgent()
+        try:
+            if mock_mode:
+                reply = _get_enhanced_reply(text, intent, None)
+            else:
+                result = await agent.think_with_tools(text, user_ctx)
+                reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
+        finally:
+            await agent.close()
+        return reply
+
+    # ── qa_inspector ──
+    if intent in ("qa_inspector",):
+        agent = QAInspectorAgent()
+        try:
+            if mock_mode:
+                reply = _get_enhanced_reply(text, intent, None)
+            else:
+                reply = await agent.think(text, user_ctx)
+        finally:
+            await agent.close()
+        return reply
+
+    # ── settlement ──
+    if intent in ("settlement",):
+        agent = SettlementAgent()
+        try:
+            if mock_mode:
+                reply = _get_enhanced_reply(text, intent, None)
+            else:
+                reply = await agent.think(text, user_ctx)
+        finally:
+            await agent.close()
+        return reply
+
+    # ── concierge ──
+    if intent in ("concierge",):
+        agent = ConciergeAgent()
+        try:
+            if mock_mode:
+                reply = agent.answer_faq(text)
+            else:
+                reply = await agent.generate_response(text, user_ctx)
+        finally:
+            await agent.close()
+        return reply
+
+    # ── general / 其他 ──
+    return _get_enhanced_reply(text, intent, None)
+
+
+# ── 原有辅助函数（保留用于降级和特殊情况） ──
+
 async def _auto_tool_call(intent: str, text: str) -> list[dict]:
     """根据意图自动选择并执行工具调用"""
     results = []
 
     # 解析文本中的关键参数
-    import re
-
     area_match = re.search(r"(\d+)\s*[平㎡m²]", text)
     area = float(area_match.group(1)) if area_match else 0
 
@@ -238,20 +395,217 @@ def _get_enhanced_reply(text: str, intent: str, emotion: dict | None) -> str:
     return base_reply
 
 
+# ── Realtime 事件转发 ──
+
+async def _qwen_events_to_client(  # noqa: C901
+    websocket: WebSocket,
+    session: VoiceRealtimeSession,
+    user_id: str,
+) -> None:
+    """后台任务：接收 Qwen-Audio Realtime 事件并转发给客户端。
+
+    处理的事件类型：
+    - 转写: response.audio_transcript.delta / .done
+    - 音频输出: response.audio.delta / .done
+    - 语音活动: input_audio_buffer.speech_started / .stopped
+    - 工具调用: response.function_call_arguments.done → 执行 → 写回
+    - 响应生命周期: response.done, error
+    """
+    try:
+        async for event in session.receive_events():
+            event_type = event.get("type", "")
+
+            # ── 转写事件 ──
+            if event_type == "response.audio_transcript.delta":
+                await websocket.send_json({
+                    "type": "transcript_delta",
+                    "text": event.get("delta", ""),
+                })
+
+            elif event_type == "response.audio_transcript.done":
+                await websocket.send_json({
+                    "type": "transcript_done",
+                    "text": event.get("transcript", ""),
+                    "is_final": True,
+                })
+
+            # ── 音频输出事件 ──
+            elif event_type == "response.audio.delta":
+                await websocket.send_json({
+                    "type": "audio_delta",
+                    "data": event.get("delta", ""),
+                })
+
+            elif event_type == "response.audio.done":
+                await websocket.send_json({"type": "audio_done"})
+
+            # ── 语音活动事件（用于双工打断） ──
+            elif event_type == "input_audio_buffer.speech_started":
+                await websocket.send_json({"type": "speech_started"})
+
+            elif event_type == "input_audio_buffer.speech_stopped":
+                await websocket.send_json({"type": "speech_stopped"})
+
+            # ── 工具调用事件 ──
+            elif event_type == "response.function_call_arguments.done":
+                call_id = event.get("call_id", "")
+                func_name = event.get("name", "")
+                try:
+                    args = json.loads(event.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    args = {}
+
+                try:
+                    result = await tool_registry.execute(func_name, args)
+                    await websocket.send_json({
+                        "type": "tool_call",
+                        "name": func_name,
+                        "arguments": args,
+                        "result": result,
+                    })
+                    await session.send_function_call_output(call_id, result)
+                except Exception as e:
+                    logger.error(f"tool_execute_error: {func_name}: {e}")
+                    await session.send_function_call_output(
+                        call_id, {"error": f"工具执行失败: {e}"}
+                    )
+
+            # ── 响应完成 ──
+            elif event_type == "response.done":
+                await websocket.send_json({
+                    "type": "response_done",
+                    "usage": event.get("response", {}).get("usage", {}),
+                })
+
+            # ── 错误 ──
+            elif event_type == "error":
+                error_info = event.get("error", event)
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(error_info.get("message", error_info)),
+                    "code": error_info.get("code", "unknown"),
+                })
+
+            # ── 其他事件 ──
+            elif event_type in ("session.created", "session.updated"):
+                logger.debug(f"voice_realtime: {event_type}")
+            elif event_type in (
+                "conversation.item.created",
+                "response.created",
+                "response.output_item.added",
+                "response.content_part.added",
+                "response.content_part.done",
+                "response.output_item.done",
+                "input_audio_buffer.committed",
+                "conversation.item.input_audio_transcription.delta",
+                "conversation.item.input_audio_transcription.completed",
+            ):
+                # 内部事件，仅日志
+                pass
+
+    except Exception as e:
+        logger.info(f"qwen_events_to_client 结束: user={user_id}, reason={e}")
+
+
+# ── Mock 模式处理 ──
+
+async def _handle_mock_audio(
+    websocket: WebSocket,
+    session: VoiceRealtimeSession,
+    audio_data: bytes,
+    audio_format: str,
+) -> None:
+    """Mock 模式下的音频处理（ASR → 意图分类 → 工具调用 → TTS）"""
+    transcript = await session.transcribe(audio_data, audio_format)
+
+    await websocket.send_json({
+        "type": "transcript",
+        "text": transcript["text"],
+        "is_final": transcript.get("is_final", True),
+        "confidence": transcript.get("confidence", 0),
+    })
+
+    if settings.voice_emotion_detection:
+        emotion = await session.detect_emotion_from_audio(audio_data)
+        await websocket.send_json({"type": "emotion", "data": emotion})
+
+    text = transcript["text"]
+    if text and transcript.get("is_final"):
+        session.add_to_context("user", text)
+        intent_result = OrchestratorAgent.fallback_classify(text)
+        intent_name = intent_result.get("intent", "general")
+
+        # 路由到专业 Agent 管道（修复语音→Agent 断点）
+        # 传递语音会话上下文，实现跨轮次对话记忆
+        voice_context = ""
+        if session._conversation_context:
+            ctx_lines = []
+            for c in session._conversation_context[-10:]:
+                ctx_lines.append(f"{c.get('role', 'user')}: {c.get('content', '')[:500]}")
+            voice_context = "\n".join(ctx_lines)
+        try:
+            reply = await _route_voice_to_agent(text, intent_name, "user", voice_context)
+        except Exception as e:
+            logger.warning(f"mock_agent_route_failed: intent={intent_name}, error={e}")
+            # 降级：硬编码工具调用 + 模板回复
+            if settings.agent_function_call_enabled and intent_name != "general":
+                tool_results = await _auto_tool_call(intent_name, text)
+                for tr in tool_results:
+                    await websocket.send_json({
+                        "type": "tool_call",
+                        "name": tr["tool"],
+                        "result": tr["result"],
+                    })
+            reply = _get_enhanced_reply(text, intent_name, transcript.get("emotion"))
+        session.add_to_context("assistant", reply, intent_name)
+
+        audio_response = None
+        if settings.qwen_audio_api_key:
+            audio_response = await session.synthesize_speech(reply)
+            if audio_response:
+                audio_response = audio_response.hex()
+
+        await websocket.send_json({
+            "type": "reply",
+            "text": reply,
+            "intent": intent_name,
+            "audio": audio_response,
+        })
+
+        esc = check_escalation(text)
+        if esc.get("need_human"):
+            await websocket.send_json({
+                "type": "escalation",
+                "reason": esc.get("reason", ""),
+                "urgency": esc.get("urgency", "low"),
+            })
+
+
 # ── WebSocket 端点：实时语音双工会话 ──
 
 @router.websocket("/realtime")
-async def voice_realtime_websocket(websocket: WebSocket):
+async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     """实时语音双工会话 WebSocket 端点
 
-    协议：
-    - 客户端发送 JSON: {"type": "audio", "data": "<base64>", "format": "pcm16"}
+    协议（Realtime 模式）：
+    - 客户端发送 JSON:
+      {"type": "audio", "data": "<base64_pcm16>", "format": "pcm16"}
+      {"type": "audio_end"}                          # 提交音频缓冲区
+      {"type": "text", "content": "..."}              # 文本输入
+      {"type": "interrupt"}                           # 打断当前响应
+      {"type": "ping"}                                # 心跳
+      {"type": "get_emotion_trend"}                   # 获取情绪趋势
     - 服务端推送 JSON:
-      {"type": "transcript", "text": "...", "is_final": true}
-      {"type": "emotion", "data": {...}}
-      {"type": "reply", "text": "...", "audio": "<base64_wav>"}
-      {"type": "tool_call", "name": "...", "result": {...}}
-      {"type": "escalation", "reason": "..."}
+      {"type": "connected", "session_id": "...", "mode": "realtime|mock"}
+      {"type": "transcript_delta", "text": "..."}     # 流式转写
+      {"type": "transcript_done", "text": "...", "is_final": true}
+      {"type": "audio_delta", "data": "<base64>"}     # 流式音频
+      {"type": "audio_done"}
+      {"type": "speech_started"}                       # 用户开始说话
+      {"type": "speech_stopped"}                       # 用户停止说话
+      {"type": "tool_call", "name": "...", "result": {...}}  # FunctionCall
+      {"type": "response_done", "usage": {...}}
+      {"type": "emotion_trend", "data": {...}}
       {"type": "error", "message": "..."}
     """
     # 认证
@@ -267,27 +621,52 @@ async def voice_realtime_websocket(websocket: WebSocket):
         return
 
     user_id = payload.get("sub")
+    user_role = payload.get("role", "homeowner")
     project_id = websocket.query_params.get("project_id")
 
     if not user_id:
         await websocket.close(code=4001, reason="令牌格式无效")
         return
 
+    # ── 项目归属校验: 若指定 project_id 必须验证用户对该项目的访问权限 ──
+    if project_id:
+        async with async_session() as db:
+            result = await db.execute(select(Project).where(Project.id == project_id))
+            project = result.scalar_one_or_none()
+            if not project:
+                await websocket.close(code=4004, reason="项目不存在")
+                return
+            if user_role != "admin" and project.owner_id != user_id:
+                await websocket.close(code=4003, reason="无权访问此项目")
+                return
+
     await websocket.accept()
 
-    # 创建会话
+    # 创建并连接会话
     session = voice_session_manager.create_session(user_id, project_id)
-    await session.connect()
+    conn_result = await session.connect()
+    is_realtime = conn_result.get("mode") == "realtime"
 
     ws_id = id(websocket)
     _active_voice_ws[ws_id] = session
+
+    # ── Realtime 模式：初始化会话 + 启动后台事件转发 ──
+    qwen_task: asyncio.Task | None = None
+    if is_realtime:
+        await session.init_realtime_session(
+            tools=tool_registry.get_qwen_schemas(),
+            instructions=VOICE_SYSTEM_INSTRUCTIONS,
+        )
+        qwen_task = asyncio.create_task(
+            _qwen_events_to_client(websocket, session, user_id)
+        )
 
     try:
         # 发送欢迎消息
         await websocket.send_json({
             "type": "connected",
             "session_id": session._session_id,
-            "mode": "realtime" if settings.qwen_audio_api_key else "mock",
+            "mode": conn_result.get("mode", "mock"),
             "emotion_enabled": settings.voice_emotion_detection,
             "duplex_enabled": settings.voice_duplex_mode,
             "tool_call_enabled": settings.agent_function_call_enabled,
@@ -298,100 +677,60 @@ async def voice_realtime_websocket(websocket: WebSocket):
             msg = json.loads(raw)
             msg_type = msg.get("type", "")
 
+            # ── 音频输入 ──
             if msg_type == "audio":
-                # 收到音频数据 → ASR
                 audio_b64 = msg.get("data", "")
-                try:
-                    audio_data = bytes.fromhex(audio_b64) if audio_b64 else b""
-                except (ValueError, TypeError):
-                    audio_data = audio_b64.encode() if isinstance(audio_b64, str) else audio_b64
+                audio_format = msg.get("format", "pcm16")
 
-                # ASR 转写
-                transcript = await session.transcribe(audio_data, msg.get("format", "pcm16"))
+                if is_realtime:
+                    # 真双工：直接转发音频到 Qwen-Audio Realtime
+                    await session.send_input_audio_buffer_append(audio_b64)
+                else:
+                    # Mock/降级模式
+                    try:
+                        audio_data = bytes.fromhex(audio_b64) if audio_b64 else b""
+                    except (ValueError, TypeError):
+                        audio_data = (
+                            audio_b64.encode()
+                            if isinstance(audio_b64, str) else audio_b64
+                        )
+                    await _handle_mock_audio(websocket, session, audio_data, audio_format)
 
-                await websocket.send_json({
-                    "type": "transcript",
-                    "text": transcript["text"],
-                    "is_final": transcript.get("is_final", True),
-                    "confidence": transcript.get("confidence", 0),
-                })
+            # ── 音频结束标记 ──
+            elif msg_type == "audio_end":
+                if is_realtime:
+                    await session.send_input_audio_buffer_commit()
 
-                # 情绪检测
-                if settings.voice_emotion_detection:
-                    emotion = await session.detect_emotion_from_audio(audio_data)
-                    await websocket.send_json({
-                        "type": "emotion",
-                        "data": emotion,
-                    })
+            # ── 打断 ──
+            elif msg_type == "interrupt":
+                if is_realtime:
+                    await session.send_response_cancel()
+                    await session.send_input_audio_buffer_clear()
+                    await websocket.send_json({"type": "interrupt_ack"})
 
-                # 意图处理
-                text = transcript["text"]
-                if text and transcript.get("is_final"):
-                    # 添加到上下文
+            # ── 文本输入 ──
+            elif msg_type == "text":
+                text = msg.get("content", "")
+                if is_realtime:
+                    await session.send_text_input(text)
+                else:
+                    # Mock 模式文本处理
                     session.add_to_context("user", text)
-
-                    # 意图分类
                     intent = OrchestratorAgent.fallback_classify(text)
                     intent_name = intent.get("intent", "general")
-
-                    # 自动工具调用
-                    if settings.agent_function_call_enabled and intent_name != "general":
-                        tool_results = await _auto_tool_call(intent_name, text)
-                        for tr in tool_results:
-                            await websocket.send_json({
-                                "type": "tool_call",
-                                "name": tr["tool"],
-                                "result": tr["result"],
-                            })
-
-                    # 生成回复
-                    reply = _get_enhanced_reply(text, intent_name, transcript.get("emotion"))
+                    reply = _get_enhanced_reply(text, intent_name, None)
                     session.add_to_context("assistant", reply, intent_name)
-
-                    # TTS 合成
-                    audio_response = None
-                    if settings.qwen_audio_api_key:
-                        audio_response = await session.synthesize_speech(reply)
-                        if audio_response:
-                            audio_response = audio_response.hex()
-
                     await websocket.send_json({
                         "type": "reply",
                         "text": reply,
                         "intent": intent_name,
-                        "audio": audio_response,
                     })
 
-                    # 升级检查
-                    from app.agents.concierge import check_escalation
-                    esc = check_escalation(text)
-                    if esc.get("need_human"):
-                        await websocket.send_json({
-                            "type": "escalation",
-                            "reason": esc.get("reason", ""),
-                            "urgency": esc.get("urgency", "low"),
-                        })
-
-            elif msg_type == "text":
-                # 文本消息（用于快速测试）
-                text = msg.get("content", "")
-                session.add_to_context("user", text)
-
-                intent = OrchestratorAgent.fallback_classify(text)
-                intent_name = intent.get("intent", "general")
-
-                reply = _get_enhanced_reply(text, intent_name, None)
-                session.add_to_context("assistant", reply, intent_name)
-
-                await websocket.send_json({
-                    "type": "reply",
-                    "text": reply,
-                    "intent": intent_name,
-                })
-
+            # ── 心跳 ──
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
 
+            # ── 情绪趋势查询 ──
             elif msg_type == "get_emotion_trend":
                 trend = session.get_emotion_trend()
                 await websocket.send_json({
@@ -408,5 +747,12 @@ async def voice_realtime_websocket(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        # 取消后台任务
+        if qwen_task and not qwen_task.done():
+            qwen_task.cancel()
+            try:
+                await qwen_task
+            except asyncio.CancelledError:
+                pass
         _active_voice_ws.pop(ws_id, None)
         await session.close()

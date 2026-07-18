@@ -200,7 +200,7 @@ class ApiClient {
   // ── F18 厨卫水电 (MEP-KB) ──
 
   Future<Result<dynamic>> mepListPlans(String projectId) =>
-      get('/mep-kb/plans?project_id=$projectId');
+      get('/mep-kb/plans/project/$projectId');
   Future<Result<dynamic>> mepCreatePlan(Map<String, dynamic> body) =>
       post('/mep-kb/plans', body);
   Future<Result<dynamic>> mepGetPlan(String planId) =>
@@ -250,46 +250,46 @@ class ApiClient {
   // ── F21 硬装 ──
 
   Future<Result<dynamic>> hardDecoListSchemes(String projectId) =>
-      get('/hard-decoration/schemes?project_id=$projectId');
+      get('/hard-decoration/schemes/project/$projectId');
   Future<Result<dynamic>> hardDecoCreateScheme(Map<String, dynamic> body) =>
       post('/hard-decoration/schemes', body);
   Future<Result<dynamic>> hardDecoGetScheme(String schemeId) =>
       get('/hard-decoration/schemes/$schemeId');
-  Future<Result<dynamic>> hardDecoUpdateScheme(String schemeId, Map<String, dynamic> body) =>
-      put('/hard-decoration/schemes/$schemeId', body);
   Future<Result<dynamic>> hardDecoDeleteScheme(String schemeId) =>
       delete('/hard-decoration/schemes/$schemeId');
   Future<Result<dynamic>> hardDecoListFloors(String schemeId) =>
-      get('/hard-decoration/schemes/$schemeId/floor');
+      get('/hard-decoration/schemes/$schemeId/floors');
   Future<Result<dynamic>> hardDecoListWalls(String schemeId) =>
-      get('/hard-decoration/schemes/$schemeId/wall');
+      get('/hard-decoration/schemes/$schemeId/walls');
   Future<Result<dynamic>> hardDecoListCeilings(String schemeId) =>
-      get('/hard-decoration/schemes/$schemeId/ceiling');
-  Future<Result<dynamic>> hardDecoListTileLayout(String schemeId) =>
-      get('/hard-decoration/schemes/$schemeId/tile-layout');
+      get('/hard-decoration/schemes/$schemeId/ceilings');
+  Future<Result<dynamic>> hardDecoTileLayout(String schemeId, Map<String, dynamic> body) =>
+      post('/hard-decoration/schemes/$schemeId/tile-layout', body);
   Future<Result<dynamic>> hardDecoAddFloor(String schemeId, Map<String, dynamic> body) =>
-      post('/hard-decoration/schemes/$schemeId/floor', body);
+      post('/hard-decoration/schemes/$schemeId/floors', body);
   Future<Result<dynamic>> hardDecoAddWall(String schemeId, Map<String, dynamic> body) =>
-      post('/hard-decoration/schemes/$schemeId/wall', body);
+      post('/hard-decoration/schemes/$schemeId/walls', body);
+  Future<Result<dynamic>> hardDecoAddCeiling(String schemeId, Map<String, dynamic> body) =>
+      post('/hard-decoration/schemes/$schemeId/ceilings', body);
 
   // ── F23 门窗防水 ──
 
   Future<Result<dynamic>> doorWinListSpecs(String projectId) =>
-      get('/door-window-waterproof/specs?project_id=$projectId');
+      get('/door-window-waterproof/door-windows/project/$projectId');
   Future<Result<dynamic>> doorWinCreateSpec(Map<String, dynamic> body) =>
-      post('/door-window-waterproof/specs', body);
+      post('/door-window-waterproof/door-windows', body);
   Future<Result<dynamic>> doorWinGetSpec(String specId) =>
-      get('/door-window-waterproof/specs/$specId');
-  Future<Result<dynamic>> doorWinUpdateSpec(String specId, Map<String, dynamic> body) =>
-      put('/door-window-waterproof/specs/$specId', body);
+      get('/door-window-waterproof/door-windows/$specId');
   Future<Result<dynamic>> doorWinDeleteSpec(String specId) =>
-      delete('/door-window-waterproof/specs/$specId');
-  Future<Result<dynamic>> doorWinListWaterproof(String specId) =>
-      get('/door-window-waterproof/specs/$specId/waterproof');
-  Future<Result<dynamic>> doorWinValidate(String specId) =>
-      post('/door-window-waterproof/specs/$specId/validate', {});
-  Future<Result<dynamic>> doorWinAddWaterproof(String specId, Map<String, dynamic> body) =>
-      post('/door-window-waterproof/specs/$specId/waterproof', body);
+      delete('/door-window-waterproof/door-windows/$specId');
+  Future<Result<dynamic>> doorWinListWaterproof(String projectId) =>
+      get('/door-window-waterproof/waterproof/project/$projectId');
+  Future<Result<dynamic>> doorWinGetWaterproof(String planId) =>
+      get('/door-window-waterproof/waterproof/$planId');
+  Future<Result<dynamic>> doorWinValidateWaterproof(String planId) =>
+      get('/door-window-waterproof/waterproof/$planId/validation');
+  Future<Result<dynamic>> doorWinAddWaterproof(Map<String, dynamic> body) =>
+      post('/door-window-waterproof/waterproof', body);
 
   // ── F26 家具品类库 ──
 
@@ -393,13 +393,11 @@ class ApiClient {
   // ── F31 智能家居 ──
 
   Future<Result<dynamic>> smartHomeListSchemes(String projectId) =>
-      get('/smart-home/schemes?project_id=$projectId');
+      get('/smart-home/schemes/project/$projectId');
   Future<Result<dynamic>> smartHomeCreateScheme(Map<String, dynamic> body) =>
       post('/smart-home/schemes', body);
   Future<Result<dynamic>> smartHomeGetScheme(String schemeId) =>
       get('/smart-home/schemes/$schemeId');
-  Future<Result<dynamic>> smartHomeUpdateScheme(String schemeId, Map<String, dynamic> body) =>
-      put('/smart-home/schemes/$schemeId', body);
   Future<Result<dynamic>> smartHomeDeleteScheme(String schemeId) =>
       delete('/smart-home/schemes/$schemeId');
   Future<Result<dynamic>> smartHomeListDevices(String schemeId) =>
@@ -409,63 +407,65 @@ class ApiClient {
   Future<Result<dynamic>> smartHomeWiring(String schemeId) =>
       get('/smart-home/schemes/$schemeId/wiring');
   Future<Result<dynamic>> smartHomeProtocol(String schemeId) =>
-      get('/smart-home/schemes/$schemeId/protocol');
+      get('/smart-home/schemes/$schemeId/protocol-advice');
   Future<Result<dynamic>> smartHomeAddDevice(String schemeId, Map<String, dynamic> body) =>
       post('/smart-home/schemes/$schemeId/devices', body);
 
   // ── F32 场景编辑 ──
 
-  Future<Result<dynamic>> sceneListScenes(String schemeId) =>
-      get('/scene-automation/scenes?scheme_id=$schemeId');
+  Future<Result<dynamic>> sceneListScenes(String projectId) =>
+      get('/scene-automation/scenes/project/$projectId');
   Future<Result<dynamic>> sceneCreateScene(Map<String, dynamic> body) =>
       post('/scene-automation/scenes', body);
   Future<Result<dynamic>> sceneGetScene(String sceneId) =>
       get('/scene-automation/scenes/$sceneId');
   Future<Result<dynamic>> sceneUpdateScene(String sceneId, Map<String, dynamic> body) =>
-      put('/scene-automation/scenes/$sceneId', body);
+      patch('/scene-automation/scenes/$sceneId', body);
   Future<Result<dynamic>> sceneDeleteScene(String sceneId) =>
       delete('/scene-automation/scenes/$sceneId');
   Future<Result<dynamic>> sceneSimulate(String sceneId) =>
       post('/scene-automation/scenes/$sceneId/simulate', {});
   Future<Result<dynamic>> sceneParseNl(String text) =>
-      post('/scene-automation/scenes/parse-nl', {'text': text});
+      post('/scene-automation/scenes/parse', {'text': text});
   Future<Result<dynamic>> sceneValidate(String sceneId) =>
       post('/scene-automation/scenes/$sceneId/validate', {});
-  Future<Result<dynamic>> sceneListEcosystems() =>
-      get('/scene-automation/ecosystems');
+  Future<Result<dynamic>> sceneListEcosystems(String projectId) =>
+      get('/scene-automation/ecosystems/project/$projectId');
 
   // ── F33/F34 采购增强 ──
 
-  Future<Result<dynamic>> procPriceComparisons({String? projectId}) =>
-      get('/procurement-enhanced/price-comparisons${projectId != null ? '?project_id=$projectId' : ''}');
+  Future<Result<dynamic>> procPriceComparisons(String projectId) =>
+      get('/procurement-enhanced/comparisons/project/$projectId');
   Future<Result<dynamic>> procCreatePriceComparison(Map<String, dynamic> body) =>
-      post('/procurement-enhanced/price-comparisons', body);
+      post('/procurement-enhanced/comparisons', body);
   Future<Result<dynamic>> procGetPriceComparison(String id) =>
-      get('/procurement-enhanced/price-comparisons/$id');
-  Future<Result<dynamic>> procEscrowPayments({String? projectId}) =>
-      get('/procurement-enhanced/escrow-payments${projectId != null ? '?project_id=$projectId' : ''}');
+      get('/procurement-enhanced/comparisons/$id');
+  Future<Result<dynamic>> procDeletePriceComparison(String id) =>
+      delete('/procurement-enhanced/comparisons/$id');
+  Future<Result<dynamic>> procEscrowPayments(String projectId) =>
+      get('/procurement-enhanced/escrow/project/$projectId');
   Future<Result<dynamic>> procCreateEscrowPayment(Map<String, dynamic> body) =>
-      post('/procurement-enhanced/escrow-payments', body);
+      post('/procurement-enhanced/escrow', body);
   Future<Result<dynamic>> procGetEscrowPayment(String id) =>
-      get('/procurement-enhanced/escrow-payments/$id');
+      get('/procurement-enhanced/escrow/$id');
   Future<Result<dynamic>> procConfirmEscrow(String id) =>
-      post('/procurement-enhanced/escrow-payments/$id/confirm', {});
-  Future<Result<dynamic>> procLogistics({String? projectId}) =>
-      get('/procurement-enhanced/logistics${projectId != null ? '?project_id=$projectId' : ''}');
+      post('/procurement-enhanced/escrow/$id/release', {});
+  Future<Result<dynamic>> procEscrowPay(String id) =>
+      post('/procurement-enhanced/escrow/$id/pay', {});
+  Future<Result<dynamic>> procEscrowRefund(String id, Map<String, dynamic> body) =>
+      post('/procurement-enhanced/escrow/$id/refund', body);
+  Future<Result<dynamic>> procLogistics(String projectId) =>
+      get('/procurement-enhanced/logistics/project/$projectId');
   Future<Result<dynamic>> procCreateLogistics(Map<String, dynamic> body) =>
       post('/procurement-enhanced/logistics', body);
   Future<Result<dynamic>> procGetLogistics(String id) =>
       get('/procurement-enhanced/logistics/$id');
-  Future<Result<dynamic>> procTrackLogistics(String id) =>
-      get('/procurement-enhanced/logistics/$id/track');
-  Future<Result<dynamic>> procSampleRequests({String? projectId}) =>
-      get('/procurement-enhanced/sample-requests${projectId != null ? '?project_id=$projectId' : ''}');
+  Future<Result<dynamic>> procSampleRequests(String projectId) =>
+      get('/procurement-enhanced/samples/project/$projectId');
   Future<Result<dynamic>> procCreateSampleRequest(Map<String, dynamic> body) =>
-      post('/procurement-enhanced/sample-requests', body);
-  Future<Result<dynamic>> procGetSampleRequest(String id) =>
-      get('/procurement-enhanced/sample-requests/$id');
+      post('/procurement-enhanced/samples', body);
   Future<Result<dynamic>> procApproveSample(String id) =>
-      post('/procurement-enhanced/sample-requests/$id/approve', {});
+      patch('/procurement-enhanced/samples/$id', {'status': 'approved'});
 
   // ── 用户 & 项目 ──
 
@@ -554,11 +554,14 @@ class ApiClient {
   Future<Result<dynamic>> aiImageGetJobStatus(String jobId) =>
       get('/ai-image/jobs/$jobId/status');
   Future<Result<dynamic>> aiImageApplyPreset(
-          String presetId, String inputImageUrl, Map<String, dynamic> customizations) =>
+          String presetId, String projectId, String inputImageUrl,
+          [Map<String, dynamic>? customizations, String? floorplanId]) =>
       post('/ai-image/jobs/apply-preset', {
         'preset_id': presetId,
+        'project_id': projectId,
+        if (floorplanId != null) 'floorplan_id': floorplanId,
         'input_image_url': inputImageUrl,
-        'customizations': customizations,
+        'customizations': customizations ?? {},
       });
 
   // ── VR 全景 ──

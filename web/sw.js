@@ -4,10 +4,10 @@
  * - 静态资源：缓存优先（stale-while-revalidate）
  * - API 请求：网络优先，失败降级缓存
  * - WebSocket：不拦截
- * 版本：1.0.14
+ * 版本：1.0.18
  * ============================================ */
 
-const CACHE_VERSION = 'suoke-v1.0.14';
+const CACHE_VERSION = 'suoke-v1.0.18';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -33,13 +33,14 @@ const PRECACHE_URLS = [
   '/assets/js/im-client.js',
   '/assets/js/agent-router.js',
   '/assets/js/message-renderers.js',
-  '/assets/js/demo-narrative.js',
-  '/assets/js/story-narrative.js',
   '/assets/js/analytics.js',
   '/assets/js/echarts.min.js',
   '/assets/images/icons/desktop/suoke-favicon-32.png',
   '/assets/images/icons/desktop/suoke-logo-128.png',
   '/assets/images/icons/desktop/suoke-logo-512.png',
+  '/assets/guide/user-guide.html',
+  '/assets/legal/privacy-policy.html',
+  '/assets/legal/terms-of-service.html',
 ];
 
 // 不缓存的路径（API、WebSocket、后端资源）

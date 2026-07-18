@@ -23,7 +23,8 @@ CATEGORY_CN_TO_CODE = {
     "灯具": "lighting", "灯": "lighting", "吊灯": "lighting", "吸顶灯": "lighting", "筒灯": "lighting", "射灯": "lighting",
     "家电": "appliance", "空调": "appliance", "冰箱": "appliance", "洗衣机": "appliance", "洗碗机": "appliance", "电视": "appliance",
     "窗帘": "curtain", "百叶窗": "curtain", "纱帘": "curtain",
-    "定制家具": "custom_furniture", "沙发": "custom_furniture", "餐桌": "custom_furniture", "床": "custom_furniture", "书柜": "custom_furniture", "鞋柜": "custom_furniture",
+    "定制家具": "custom_furniture", "沙发": "custom_furniture", "餐桌": "custom_furniture",
+    "床": "custom_furniture", "书柜": "custom_furniture", "鞋柜": "custom_furniture",
     "服务": "service",
     "其他": "other",
 }

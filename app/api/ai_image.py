@@ -184,9 +184,15 @@ async def apply_preset(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """应用预设模板 (body: preset_id, input_image_url, customizations)。"""
+    """应用预设模板 (body: preset_id, project_id, input_image_url, customizations)。"""
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
     job = await ai_image_service.apply_preset(
-        db, body.preset_id, body.input_image_url, body.customizations
+        db,
+        body.preset_id,
+        body.project_id,
+        body.floorplan_id,
+        body.input_image_url,
+        body.customizations,
     )
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预设模板不存在")

@@ -66,23 +66,36 @@ class BaseAgent:
                     "Authorization": f"Bearer {cfg['api_key']()}",
                     "Content-Type": "application/json",
                 },
-                timeout=httpx.Timeout(60.0),
+                # 120s 容纳 DeepSeek-V4-Pro 推理模型的 reasoning + generation
+                # （复杂设计 JSON 生成可达 60-90s）。原 60s + max_retries=1 = 120s
+                # 会导致 designer agent 偶发超时后重试再次超时，总耗时 >120s。
+                timeout=httpx.Timeout(120.0),
             )
         return self._clients[provider]
 
     # ── 核心对话 ──────────────────────────────────────────────
 
-    async def _chat(self, messages: list[dict], max_retries: int = 1, with_tools: bool = False) -> str | dict:
+    # content 为空时自动重试的最大次数（仅 finish_reason="length" 时触发）
+    _EMPTY_CONTENT_RETRIES = 1
+
+    async def _chat(self, messages: list[dict], max_retries: int = 0, with_tools: bool = False) -> str | dict:
         """调用 LLM，自动按 self.provider 路由到对应供应商。
 
         Args:
             messages: 对话消息列表
-            max_retries: 最大重试次数
+            max_retries: 最大重试次数（默认 0 — 推理模型单次调用可达 60-90s，
+                重试会导致总耗时 >120s，对用户不可接受）
             with_tools: 是否启用 FunctionCall 工具调用
 
         Returns:
             str: 普通对话返回文本
             dict: 启用工具调用时返回 {"content": str, "tool_calls": [...]}
+
+        Note:
+            v1.1.1 新增 content 为空自动重试：当 LLM 返回 content="" 且
+            finish_reason="length"（reasoning 占满 token 配额）时，自动重试
+            ``_EMPTY_CONTENT_RETRIES`` 次。重试时温度降至 0.3 以减少 reasoning
+            token 消耗，给 content 输出留出空间。
         """
         provider = self.provider
         cfg = PROVIDER_REGISTRY[provider]
@@ -92,7 +105,9 @@ class BaseAgent:
             "model": cfg["model"](),
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 2048,
+            # 8192 tokens 容纳 DeepSeek-V4-Pro 等推理模型的 reasoning_content
+            # + 最终输出。2048 会导致 reasoning 占满 token 后输出被截断。
+            "max_tokens": 8192,
         }
 
         if with_tools and self.tools:
@@ -100,7 +115,10 @@ class BaseAgent:
             request_body["tool_choice"] = "auto"
 
         last_error = None
-        for attempt in range(max_retries + 1):
+        # 总尝试次数 = 网络错误重试 + content 为空重试 + 首次尝试
+        total_attempts = max_retries + 1 + self._EMPTY_CONTENT_RETRIES
+        empty_content_retries_used = 0
+        for attempt in range(total_attempts):
             try:
                 response = await client.post(cfg["chat_path"], json=request_body)
                 response.raise_for_status()
@@ -108,8 +126,31 @@ class BaseAgent:
                 choice = data["choices"][0]
                 msg = choice.get("message", {})
 
+                # DeepSeek-V4-Pro / GLM-4.5+ 等 reasoning 模型可能将内容放在
+                # reasoning_content 字段，content 字段为空。reasoning_content 是
+                # LLM 内部思维链，不应作为用户回复返回。
+                content = msg.get("content") or ""
+                if not content:
+                    reasoning_len = len(msg.get("reasoning_content", "") or "")
+                    finish = choice.get("finish_reason")
+                    logger.warning(
+                        "%s._chat: content 为空 (attempt=%d, reasoning_len=%d, finish=%s)",
+                        self.agent_name, attempt, reasoning_len, finish,
+                    )
+                    # v1.1.1: finish_reason="length" 表示 reasoning 占满 token，
+                    # 降温重试可给 content 输出留出空间
+                    if (finish == "length"
+                            and empty_content_retries_used < self._EMPTY_CONTENT_RETRIES):
+                        request_body["temperature"] = 0.3
+                        empty_content_retries_used += 1
+                        continue
+                    content = (
+                        "抱歉，AI 推理超时，请稍后重试或简化您的问题。"
+                        f"(finish_reason={finish})"
+                    )
+
                 if with_tools:
-                    result = {"content": msg.get("content", ""), "tool_calls": []}
+                    result = {"content": content, "tool_calls": []}
                     tool_calls = msg.get("tool_calls", [])
                     for tc in tool_calls:
                         func = tc.get("function", {})
@@ -123,7 +164,7 @@ class BaseAgent:
                             "arguments": args,
                         })
                     return result
-                return msg.get("content", "")
+                return content
             except Exception as e:
                 last_error = e
                 if attempt < max_retries:
@@ -140,6 +181,65 @@ class BaseAgent:
             messages.append({"role": "assistant", "content": context})
         messages.append({"role": "user", "content": user_message})
         return await self._chat(messages)
+
+    async def _chat_stream(self, messages: list[dict]):
+        """流式调用 LLM，逐 chunk 产出 content 文本。
+
+        使用 OpenAI 兼容的 ``stream: true`` 参数，服务端以 SSE 格式
+        （``data: {json}\\n\\n``）推送增量 token。本方法仅 yield ``content``
+        字段的增量文本，跳过 reasoning_content（推理模型的内部思维链）。
+        """
+        provider = self.provider
+        cfg = PROVIDER_REGISTRY[provider]
+        client = await self._get_client(provider)
+
+        request_body = {
+            "model": cfg["model"](),
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 8192,
+            "stream": True,
+        }
+
+        response = await client.send(
+            client.build_request("POST", cfg["chat_path"], json=request_body),
+            stream=True,
+        )
+        response.raise_for_status()
+
+        async for line in response.aiter_lines():
+            if not line or not line.startswith("data: "):
+                continue
+            payload = line[6:].strip()
+            if payload == "[DONE]":
+                break
+            try:
+                chunk = json.loads(payload)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            choice = chunk.get("choices", [{}])[0]
+            delta = choice.get("delta", {})
+            # 仅采集 content 字段，跳过 reasoning_content（内部思维链）
+            piece = delta.get("content") or ""
+            if piece:
+                yield piece
+
+    async def think_stream(self, user_message: str, context: str = ""):
+        """流式版 think()：拼接 system prompt + 上下文 → 逐 chunk 产出。
+
+        Usage::
+
+            async for chunk in agent.think_stream("帮我设计客厅"):
+                print(chunk, end="", flush=True)
+        """
+        messages = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        if context:
+            messages.append({"role": "assistant", "content": context})
+        messages.append({"role": "user", "content": user_message})
+        async for chunk in self._chat_stream(messages):
+            yield chunk
 
     async def think_with_tools(
         self, user_message: str, context: str = "", max_rounds: int | None = None
@@ -182,13 +282,27 @@ class BaseAgent:
                 }
 
             # 执行工具调用
-            messages.append({"role": "assistant", "content": result.get("content"), "tool_calls": [
-                {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"], ensure_ascii=False)}}
-                for tc in tool_calls
-            ]} if result.get("content") else {"role": "assistant", "tool_calls": [
-                {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"], ensure_ascii=False)}}
-                for tc in tool_calls
-            ]})
+            def _tool_call_msg(tc):
+                return {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc["arguments"], ensure_ascii=False),
+                    },
+                }
+
+            if result.get("content"):
+                messages.append({
+                    "role": "assistant",
+                    "content": result.get("content"),
+                    "tool_calls": [_tool_call_msg(tc) for tc in tool_calls],
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "tool_calls": [_tool_call_msg(tc) for tc in tool_calls],
+                })
 
             from app.services.agent_tool_registry import tool_registry
 

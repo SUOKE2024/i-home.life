@@ -9,6 +9,7 @@ class ChatMessageCreate(BaseModel):
     message_type: str = Field(default="text")
     mentions: list[str] = []
     reply_to_id: str | None = None
+    thread_root_id: str | None = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -21,7 +22,9 @@ class ChatMessageResponse(BaseModel):
     message_type: str
     mentions: list[str] = []
     reply_to_id: str | None = None
+    thread_root_id: str | None = None
     read_by: list[str] = []
+    is_deleted: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

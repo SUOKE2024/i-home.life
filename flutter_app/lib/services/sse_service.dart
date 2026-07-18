@@ -92,19 +92,25 @@ class SseService {
           .transform(utf8.decoder)
           .transform(const LineSplitter());
 
+      // 跟踪是否已收到后端发送的 done 事件，避免重复发出
+      bool receivedDone = false;
+
       await for (final line in lineStream) {
         if (line.isEmpty) continue;
         if (!line.startsWith('data: ')) continue;
 
         final jsonStr = line.substring(6);
         if (jsonStr == '[DONE]') {
+          receivedDone = true;
           yield SseEvent(type: SseEventType.done);
           continue;
         }
 
         try {
           final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-          final msgType = data['type'] as String?;
+          // 后端 /agents/chat/stream 使用 "event" 字段标识事件类型
+          // (兼容旧版本/第三方实现也允许 "type")
+          final msgType = (data['event'] ?? data['type']) as String?;
 
           if (msgType == 'meta') {
             yield SseEvent(
@@ -116,6 +122,9 @@ class SseService {
               type: SseEventType.token,
               content: data['content'] as String? ?? '',
             );
+          } else if (msgType == 'done') {
+            receivedDone = true;
+            yield SseEvent(type: SseEventType.done);
           } else {
             // 未知类型当作 token 文本处理
             final content = data['content'] as String?;
@@ -132,7 +141,10 @@ class SseService {
         }
       }
 
-      yield SseEvent(type: SseEventType.done);
+      // 仅在后端未发送 done 事件时补发（如连接异常断开）
+      if (!receivedDone) {
+        yield SseEvent(type: SseEventType.done);
+      }
     } finally {
       response?.stream.drain();
       client.close();

@@ -14,6 +14,7 @@ from app.schemas.scene_automation import (
     EcosystemIntegrationCreate,
     EcosystemIntegrationResponse,
     SceneSimulateResult,
+    SceneValidateResult,
     SceneRecommendResult,
     SceneParseResult,
     SceneSyncResult,
@@ -49,6 +50,7 @@ async def list_scenes_by_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     scenes = await svc.list_scenes_by_project(db, project_id)
     return [SceneAutomationResponse.model_validate(s) for s in scenes]
 
@@ -81,6 +83,7 @@ async def get_scene(
     scene = await svc.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
     return SceneAutomationResponse.model_validate(scene)
 
 
@@ -125,12 +128,31 @@ async def delete_scene(
 
 
 @router.post("/scenes/{scene_id}/simulate", response_model=SceneSimulateResult)
-async def simulate_scene(scene_id: str, db: AsyncSession = Depends(get_db)):
+async def simulate_scene(
+    scene_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     scene = await svc.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
     result = await svc.simulate_scene(db, scene)
     return SceneSimulateResult(**result)
+
+
+@router.post("/scenes/{scene_id}/validate", response_model=SceneValidateResult)
+async def validate_scene(
+    scene_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    scene = await svc.get_scene(db, scene_id)
+    if not scene:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
+    result = await svc.validate_scene(db, scene)
+    return SceneValidateResult(**result)
 
 
 @router.post("/scenes/{scene_id}/sync", response_model=SceneSyncResult)
@@ -179,6 +201,7 @@ async def list_ecosystems_by_project(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     ecos = await svc.list_ecosystems_by_project(db, project_id)
     return [EcosystemIntegrationResponse.model_validate(e) for e in ecos]
 
@@ -189,6 +212,15 @@ async def delete_ecosystem(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from sqlalchemy import select
+    from app.models.scene_automation import EcosystemIntegration
+    result = await db.execute(
+        select(EcosystemIntegration).where(EcosystemIntegration.id == ecosystem_id)
+    )
+    eco = result.scalar_one_or_none()
+    if not eco:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="生态对接不存在")
+    await verify_project_access(project_id=eco.project_id, current_user=current_user, db=db)
     deleted = await svc.delete_ecosystem(db, ecosystem_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="生态对接不存在")

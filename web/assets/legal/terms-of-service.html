@@ -3,24 +3,351 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="索克家居（i-home.life）服务条款 — 使用 8 个 AI 智能体驱动的全链路家居装修建造平台的服务条款。">
+    <meta name="theme-color" content="#08080f">
     <title>服务条款 · 索克家居 i-home.life</title>
+    <link rel="stylesheet" href="../css/common.css">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.8; color: #333; }
-        h1 { text-align: center; color: #1677ff; }
-        h2 { margin-top: 30px; color: #555; }
+        /* ── 法律文档页面专用样式 ── */
+        body {
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            line-height: 1.8;
+            padding: 24px 20px 64px;
+        }
+
+        .legal-shell {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .legal-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            margin-bottom: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            font-weight: 500;
+            transition: all var(--transition);
+        }
+        .legal-back:hover,
+        .legal-back:focus-visible {
+            color: var(--accent-bright);
+            border-color: var(--accent);
+            background: var(--bg-card-hover);
+        }
+
+        .legal-header {
+            padding: 32px 28px;
+            margin-bottom: 24px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+        }
+        .legal-header h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 8px;
+            letter-spacing: 0.02em;
+        }
+        .legal-meta {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+        }
+        .legal-meta .updated {
+            color: var(--accent-bright);
+            font-weight: 600;
+        }
+        .legal-intro {
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .legal-section {
+            padding: 24px 28px;
+            margin-bottom: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            scroll-margin-top: 24px;
+        }
+        .legal-section h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+        .legal-section h2 .sec-num {
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+        .legal-section p {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            margin-bottom: 10px;
+        }
+        .legal-section p:last-child {
+            margin-bottom: 0;
+        }
+        .legal-section strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .legal-section ul {
+            list-style: none;
+            margin: 8px 0 12px;
+            padding: 0;
+        }
+        .legal-section ul li {
+            position: relative;
+            padding-left: 18px;
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            margin-bottom: 6px;
+        }
+        .legal-section ul li::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 12px;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+        .legal-section ul li strong {
+            color: var(--text-primary);
+        }
+
+        .legal-section code {
+            font-family: 'SF Mono', Menlo, Consolas, monospace;
+            font-size: 0.82em;
+            padding: 2px 6px;
+            background: var(--bg-deep);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--accent-bright);
+        }
+
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 10px;
+            margin: 12px 0 4px;
+        }
+        .agent-grid li {
+            background: var(--bg-deep);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px 10px 26px;
+            font-size: 0.82rem;
+        }
+        .agent-grid li::before {
+            top: 18px;
+            left: 12px;
+        }
+
+        .legal-contact {
+            background: var(--bg-panel);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+        }
+        .legal-contact a {
+            color: var(--accent-bright);
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+        .legal-contact a:hover,
+        .legal-contact a:focus-visible {
+            color: var(--accent);
+        }
+
+        .legal-footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            margin-top: 32px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── 响应式 ── */
+        @media (max-width: 1024px) {
+            .legal-header,
+            .legal-section {
+                padding: 24px;
+            }
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 16px 14px 48px;
+            }
+            .legal-header {
+                padding: 24px 20px;
+            }
+            .legal-header h1 {
+                font-size: 1.5rem;
+            }
+            .legal-section {
+                padding: 20px 18px;
+            }
+            .legal-section h2 {
+                font-size: 1rem;
+            }
+            .legal-section p,
+            .legal-section ul li {
+                font-size: 0.84rem;
+            }
+            .agent-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 480px) {
+            body {
+                padding: 12px 10px 36px;
+            }
+            .legal-header {
+                padding: 20px 16px;
+                margin-bottom: 16px;
+            }
+            .legal-header h1 {
+                font-size: 1.3rem;
+            }
+            .legal-section {
+                padding: 18px 14px;
+                margin-bottom: 12px;
+            }
+            .legal-section h2 {
+                font-size: 0.95rem;
+                flex-wrap: wrap;
+            }
+            .legal-back {
+                font-size: 0.72rem;
+                padding: 6px 10px;
+            }
+        }
+
+        /* ── 无障碍：减少动效 ── */
+        @media (prefers-reduced-motion: reduce) {
+            .legal-back,
+            .legal-contact a {
+                transition: none;
+            }
+        }
     </style>
 </head>
 <body>
-<h1>服务条款</h1>
-<p>最后更新日期：2025年</p>
-<p>欢迎使用索克家居（i-home.life）AI驱动的全链路智能家居装修建造平台。使用本服务即表示您同意以下条款。</p>
-<h2>1. 服务说明</h2>
-<p>i-home.life提供从设计到施工的一站式装修管理服务，包括但不限于：AI智能设计、预算管理、物料采购、施工进度跟踪、质检验收、结算支付。</p>
-<h2>2. 用户责任</h2>
-<p>用户应提供真实、准确的信息。用户对账号活动负责，不得将账号用于非法目的。</p>
-<h2>3. 服务免责</h2>
-<p>AI生成的设计方案仅供参考，实际施工应遵循专业设计师和工程师的意见。因不可抗力导致的损失，平台不承担责任。</p>
-<h2>4. 联系方式</h2>
-<p>如有任何问题，请联系：support@i-home.life</p>
+    <a href="#legal-main" class="skip-link">跳到主要内容</a>
+
+    <main class="legal-shell" id="legal-main" role="main" aria-labelledby="legal-title">
+        <a href="../../index.html" class="legal-back" aria-label="返回首页">
+            <span aria-hidden="true">←</span> 返回首页
+        </a>
+
+        <header class="legal-header">
+            <h1 id="legal-title">服务条款</h1>
+            <p class="legal-meta">最后更新日期：<time datetime="2026-07" class="updated">2026年7月</time></p>
+            <p class="legal-intro">
+                欢迎使用索克家居（i-home.life）AI 驱动的全链路智能家居装修建造平台。使用本服务即表示您同意以下条款。
+            </p>
+        </header>
+
+        <section class="legal-section" aria-labelledby="sec-1">
+            <h2 id="sec-1"><span class="sec-num">1.</span> 服务说明</h2>
+            <p>i-home.life 提供从设计到施工的一站式装修管理服务，由 <strong>8 个 AI 智能体</strong>协同驱动，并通过 <strong>SSE 真实 LLM 流式输出</strong>实时呈现生成过程：</p>
+            <ul class="agent-grid">
+                <li><strong>Orchestrator</strong>：总调度，负责任务编排与流程协调。</li>
+                <li><strong>Designer</strong>：AI 设计师，生成方案与户型布局。</li>
+                <li><strong>Budget</strong>：预算管理，控制成本与报价。</li>
+                <li><strong>Procurement</strong>：物料采购，对接供应链。</li>
+                <li><strong>Construction</strong>：施工管理，跟踪进度与现场。</li>
+                <li><strong>Settlement</strong>：结算支付，对账与开票。</li>
+                <li><strong>QAInspector</strong>：质检验收，把控工程质量。</li>
+                <li><strong>Concierge</strong>：客户管家，承接咨询与售后。</li>
+            </ul>
+            <p>
+                平台还提供以下增强体验：<strong>SSE 流式接口</strong>实时输出 AI 思考与生成过程；<strong>真实 LLM 流式</strong>对话与方案生成；
+                <strong>AR/VR 查看器</strong>用于沉浸式预览装修效果；<strong>3D 查看器</strong>用于查看户型、家具与材质的三维模型。
+            </p>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-2">
+            <h2 id="sec-2"><span class="sec-num">2.</span> 用户责任</h2>
+            <p>使用本服务时，您承诺：</p>
+            <ul>
+                <li>提供真实、准确、完整的注册信息，并对账号活动的真实性负责。</li>
+                <li>妥善保管账号凭据（PASETO 令牌、Passkey 等），不得将账号出借、转让或共享给他人。</li>
+                <li>不得将账号用于任何非法目的或损害平台利益的行为。</li>
+                <li><strong>负责任地使用 AI</strong>：不得滥用、攻击、提示词注入或试图越狱（jailbreak）任何 AI 智能体；不得利用 AI 生成违法、侵权或有害内容。</li>
+                <li>不得对 AI 智能体进行批量刷量、自动化压测或干扰其他用户的正常使用。</li>
+                <li>不得反向工程、爬取、镜像平台数据或模型输出（经书面授权除外）。</li>
+            </ul>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-3">
+            <h2 id="sec-3"><span class="sec-num">3.</span> 服务免责</h2>
+            <ul>
+                <li><strong>AI 生成内容仅供参考</strong>：由 8 个 AI 智能体生成的设计方案、预算报价、采购建议等均为参考性建议，不构成专业工程意见；实际施工应遵循持证设计师与工程师的判断。</li>
+                <li><strong>LLM 响应延迟</strong>：由于采用真实 LLM 流式推理，部分推理类模型的单次响应可能存在 <strong>20–40 秒</strong>的延迟，请您耐心等待；平台不对响应时效作绝对保证。</li>
+                <li><strong>不可抗力</strong>：因网络、电力、第三方服务中断、自然灾害等不可抗力导致的损失，平台不承担责任。</li>
+                <li><strong>服务变更</strong>：平台保留随时调整、暂停或终止部分或全部服务的权利，并将提前通过公告或通知告知用户。</li>
+            </ul>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-4">
+            <h2 id="sec-4"><span class="sec-num">4.</span> AI 服务说明</h2>
+            <p>本平台的核心服务由大语言模型（LLM）驱动的 AI 智能体提供，您理解并同意：</p>
+            <ul>
+                <li><strong>能力边界</strong>：AI 智能体基于概率模型生成回答，可能存在事实性错误、偏差或不准确之处，重要决策请以人工复核为准。</li>
+                <li><strong>流式输出</strong>：服务通过 SSE（Server-Sent Events）实现真实 LLM 流式输出，内容会逐 token 增量呈现；若网络中断，已生成内容可能不完整。</li>
+                <li><strong>会话记录</strong>：为改进服务质量，AI 对话与语音会话内容可能被记录用于审计与模型优化（在去标识化的前提下）。</li>
+                <li><strong>多智能体协作</strong>：8 个智能体之间通过内部协议协作，偶发的协调失败或任务重试属于正常现象。</li>
+                <li><strong>使用限制</strong>：平台可能根据资源情况对单用户的 AI 调用频次、并发数与上下文长度设置合理上限。</li>
+            </ul>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-5">
+            <h2 id="sec-5"><span class="sec-num">5.</span> 知识产权</h2>
+            <ul>
+                <li><strong>平台内容</strong>：本服务的界面、代码、模型、商标、文案等知识产权归索克家居或其权利人所有，未经书面授权不得复制、传播或商用。</li>
+                <li><strong>用户生成内容</strong>：您上传的户型图、设计偏好、项目数据等内容，知识产权归您所有；您授予平台在提供服务范围内的非排他性、免费使用许可。</li>
+                <li><strong>AI 生成内容</strong>：在遵守适用法律的前提下，AI 智能体为您生成的设计方案、文案、3D 模型等内容，您可在本平台服务范围内使用；平台不对 AI 生成内容的商用合法性作绝对担保，您应自行评估其不侵犯第三方权利。</li>
+                <li><strong>侵权处理</strong>：如认为平台内容侵犯您的知识产权，请通过下方联系方式提交侵权通知，我们将在法定期限内处理。</li>
+            </ul>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-6">
+            <h2 id="sec-6"><span class="sec-num">6.</span> 服务变更与终止</h2>
+            <p>
+                平台有权根据业务发展调整服务内容、定价或功能模块，相关变更将通过公告或站内信通知。
+               如您违反本条款，平台有权限制、暂停或终止您的账号使用权限。您可随时通过「设置 — 账号管理」申请注销账号。
+            </p>
+        </section>
+
+        <section class="legal-section legal-contact" aria-labelledby="sec-7">
+            <h2 id="sec-7"><span class="sec-num">7.</span> 联系方式</h2>
+            <p>
+                如对本服务条款有任何疑问，请联系：
+                <a href="mailto:support@i-home.life">support@i-home.life</a>
+            </p>
+        </section>
+
+        <footer class="legal-footer" role="contentinfo">
+            <p>© 2026 索克家居 i-home.life · 本条款最后更新于 2026年7月</p>
+        </footer>
+    </main>
 </body>
 </html>

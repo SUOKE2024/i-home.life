@@ -639,7 +639,10 @@ async def test_scene_trigger_validation_invalid_cron(client: AsyncClient):
     )
     scene_id = create.json()["id"]
 
-    resp = await client.post(f"/api/scene-automation/scenes/{scene_id}/simulate")
+    resp = await client.post(
+        f"/api/scene-automation/scenes/{scene_id}/simulate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["would_execute"] is False
@@ -663,7 +666,10 @@ async def test_scene_trigger_validation_valid_cron(client: AsyncClient):
     )
     scene_id = create.json()["id"]
 
-    resp = await client.post(f"/api/scene-automation/scenes/{scene_id}/simulate")
+    resp = await client.post(
+        f"/api/scene-automation/scenes/{scene_id}/simulate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200
     data = resp.json()
     # 动作列表为空 → 不会执行
@@ -707,7 +713,10 @@ async def test_scene_action_validation_with_devices(client: AsyncClient):
     )
     scene_id = create.json()["id"]
 
-    resp = await client.post(f"/api/scene-automation/scenes/{scene_id}/simulate")
+    resp = await client.post(
+        f"/api/scene-automation/scenes/{scene_id}/simulate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["would_execute"] is True
@@ -726,7 +735,10 @@ async def test_scene_action_validation_with_devices(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     scene_id2 = create2.json()["id"]
-    resp2 = await client.post(f"/api/scene-automation/scenes/{scene_id2}/simulate")
+    resp2 = await client.post(
+        f"/api/scene-automation/scenes/{scene_id2}/simulate",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert resp2.status_code == 200
     data2 = resp2.json()
     assert data2["would_execute"] is False

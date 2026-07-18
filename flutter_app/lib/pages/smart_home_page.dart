@@ -95,9 +95,9 @@ class _SmartHomePageState extends State<SmartHomePage>
     setState(() => _devicesLoading = false);
   }
 
-  Future<void> _loadScenes(String schemeId) async {
+  Future<void> _loadScenes() async {
     setState(() => _scenesLoading = true);
-    final result = await _api.sceneListScenes(schemeId);
+    final result = await _api.sceneListScenes(widget.projectId);
     if (result.isSuccess) {
       setState(() {
         _scenes = _extractList(result.data, 'scenes');
@@ -109,7 +109,7 @@ class _SmartHomePageState extends State<SmartHomePage>
   }
 
   Future<void> _loadEcosystems() async {
-    final result = await _api.sceneListEcosystems();
+    final result = await _api.sceneListEcosystems(widget.projectId);
     if (result.isSuccess) {
       setState(() {
         _ecosystems = _extractList(result.data, 'ecosystems');
@@ -209,7 +209,7 @@ class _SmartHomePageState extends State<SmartHomePage>
       _selectedScheme = scheme;
     });
     _loadDevices(id);
-    _loadScenes(id);
+    _loadScenes();
     _tabController.animateTo(1);
     _showSuccess('已选择方案：${scheme['name'] ?? ''}');
   }
@@ -237,15 +237,30 @@ class _SmartHomePageState extends State<SmartHomePage>
   Future<void> _createScene(
       String name, String trigger, String actions) async {
     if (_selectedSchemeId == null) return;
+    dynamic triggerCond;
+    dynamic actionsList;
+    try {
+      triggerCond = trigger.isEmpty ? null : jsonDecode(trigger);
+    } catch (_) {
+      _showError('触发条件 JSON 格式无效');
+      return;
+    }
+    try {
+      actionsList = actions.isEmpty ? null : jsonDecode(actions);
+    } catch (_) {
+      _showError('动作列表 JSON 格式无效');
+      return;
+    }
     final result = await _api.sceneCreateScene({
+      'project_id': widget.projectId,
       'scheme_id': _selectedSchemeId,
-      'name': name,
-      'trigger_condition': trigger,
-      'actions': actions,
+      'scene_name': name,
+      'trigger_condition': triggerCond,
+      'actions': actionsList,
     });
     if (result.isSuccess) {
       _showSuccess('场景已创建');
-      _loadScenes(_selectedSchemeId!);
+      _loadScenes();
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -255,9 +270,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     final result = await _api.sceneDeleteScene(sceneId);
     if (result.isSuccess) {
       _showSuccess('场景已删除');
-      if (_selectedSchemeId != null) {
-        _loadScenes(_selectedSchemeId!);
-      }
+      _loadScenes();
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -277,8 +290,9 @@ class _SmartHomePageState extends State<SmartHomePage>
     if (result.isSuccess) {
       final data = result.data;
       final valid = (data is Map) ? data['valid'] : false;
-      final reason = (data is Map) ? (data['reason'] ?? '') : '';
-      _showSuccess(valid ? '场景验证通过' : '验证未通过：$reason');
+      final errors = (data is Map) ? (data['errors'] as List?) ?? [] : [];
+      final msg = valid ? '场景验证通过' : '验证未通过：${errors.join('; ')}';
+      _showSuccess(msg);
     } else {
       _showError('验证失败：${result.error}');
     }
@@ -303,12 +317,13 @@ class _SmartHomePageState extends State<SmartHomePage>
   Future<void> _saveParsedScene() async {
     if (_parsedScene == null || _selectedSchemeId == null) return;
     final body = Map<String, dynamic>.from(_parsedScene!);
+    body['project_id'] = widget.projectId;
     body['scheme_id'] = _selectedSchemeId;
     final result = await _api.sceneCreateScene(body);
     if (result.isSuccess) {
       _showSuccess('场景已保存');
       setState(() => _parsedScene = null);
-      _loadScenes(_selectedSchemeId!);
+      _loadScenes();
     } else {
       _showError('保存失败：${result.error}');
     }
@@ -761,7 +776,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                   foregroundColor: _primaryText,
                   side: const BorderSide(color: _borderColor),
                 ),
-                onPressed: () => _loadScenes(_selectedSchemeId!),
+                onPressed: () => _loadScenes(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('刷新'),
               ),

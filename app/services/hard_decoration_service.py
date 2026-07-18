@@ -297,6 +297,15 @@ async def add_floor(db: AsyncSession, data: dict) -> HardDecorationFloor:
     return floor
 
 
+async def list_floors(db: AsyncSession, scheme_id: str) -> list[HardDecorationFloor]:
+    result = await db.execute(
+        select(HardDecorationFloor)
+        .where(HardDecorationFloor.scheme_id == scheme_id)
+        .order_by(HardDecorationFloor.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 # ── 墙面方案 CRUD ──
 
 async def add_wall(db: AsyncSession, data: dict) -> WallFinish:
@@ -315,6 +324,15 @@ async def add_wall(db: AsyncSession, data: dict) -> WallFinish:
     return wall
 
 
+async def list_walls(db: AsyncSession, scheme_id: str) -> list[WallFinish]:
+    result = await db.execute(
+        select(WallFinish)
+        .where(WallFinish.scheme_id == scheme_id)
+        .order_by(WallFinish.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 # ── 吊顶方案 CRUD ──
 
 async def add_ceiling(db: AsyncSession, data: dict) -> CeilingDesign:
@@ -328,3 +346,12 @@ async def add_ceiling(db: AsyncSession, data: dict) -> CeilingDesign:
     await db.commit()
     await db.refresh(ceiling)
     return ceiling
+
+
+async def list_ceilings(db: AsyncSession, scheme_id: str) -> list[CeilingDesign]:
+    result = await db.execute(
+        select(CeilingDesign)
+        .where(CeilingDesign.scheme_id == scheme_id)
+        .order_by(CeilingDesign.created_at.desc())
+    )
+    return list(result.scalars().all())

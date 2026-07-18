@@ -210,6 +210,27 @@ async def validate_actions(db: AsyncSession, actions: list | None, devices: list
     return {"valid": len(errors) == 0, "errors": errors}
 
 
+# ── 场景校验 ──
+
+
+async def validate_scene(db: AsyncSession, scene: SceneAutomation) -> dict:
+    """场景校验 (触发条件 + 动作合法性)，返回 {valid, errors}"""
+    trig_check = validate_trigger(scene.trigger_condition)
+
+    devices: list[SmartDevice] = []
+    if scene.scheme_id:
+        result = await db.execute(
+            select(SmartDevice).where(SmartDevice.scheme_id == scene.scheme_id)
+        )
+        devices = list(result.scalars().all())
+
+    action_check = await validate_actions(db, scene.actions, devices)
+
+    valid = trig_check["valid"] and action_check["valid"]
+    errors = list(trig_check["errors"]) + list(action_check["errors"])
+    return {"valid": valid, "errors": errors}
+
+
 # ── 场景模拟执行 ──
 
 

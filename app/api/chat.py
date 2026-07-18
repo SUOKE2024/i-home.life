@@ -13,7 +13,7 @@ from app.schemas.chat import (
     ChatRoomResponse,
 )
 from app.auth import get_current_user
-from app.rbac import verify_project_access
+from app.rbac import verify_project_chat_access
 from app.services import chat_service
 from app.ws import ws_manager
 
@@ -27,9 +27,15 @@ def _to_response(msg) -> ChatMessageResponse:
     except Exception:
         mentions = []
     try:
-        read_by = json.loads(msg.read_by or "[]")
+        read_raw = json.loads(msg.read_by or "{}")
     except Exception:
-        read_by = []
+        read_raw = {}
+    # read_by 存储格式：{"user_id": "ISO_timestamp"}（dict）
+    # 响应格式：user_id 列表（backward compatible）
+    if isinstance(read_raw, dict):
+        read_by = list(read_raw.keys())
+    else:
+        read_by = read_raw
     return ChatMessageResponse(
         id=msg.id,
         project_id=msg.project_id,
@@ -40,7 +46,9 @@ def _to_response(msg) -> ChatMessageResponse:
         message_type=msg.message_type,
         mentions=mentions,
         reply_to_id=msg.reply_to_id,
+        thread_root_id=getattr(msg, 'thread_root_id', None),
         read_by=read_by,
+        is_deleted=getattr(msg, 'is_deleted', False),
         created_at=msg.created_at,
     )
 
@@ -51,7 +59,7 @@ async def get_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    await verify_project_chat_access(project_id=project_id, current_user=current_user, db=db)
     room = await chat_service.get_or_create_room(db, project_id)
     return ChatRoomResponse.model_validate(room)
 
@@ -63,7 +71,7 @@ async def list_messages(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    await verify_project_chat_access(project_id=project_id, current_user=current_user, db=db)
     msgs = await chat_service.get_messages(db, project_id, limit=limit)
     return [_to_response(m) for m in msgs]
 
@@ -74,7 +82,7 @@ async def send_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
+    await verify_project_chat_access(project_id=data.project_id, current_user=current_user, db=db)
     msg = await chat_service.send_message(
         db,
         project_id=data.project_id,
@@ -85,6 +93,7 @@ async def send_message(
         message_type=data.message_type,
         mentions=data.mentions,
         reply_to_id=data.reply_to_id,
+        thread_root_id=data.thread_root_id,
     )
     resp = _to_response(msg)
     # 通过 WebSocket 实时推送
@@ -102,7 +111,7 @@ async def mark_message_read(
     if not msg:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="消息不存在")
     # 校验消息所属项目的访问权限
-    await verify_project_access(project_id=msg.project_id, current_user=current_user, db=db)
+    await verify_project_chat_access(project_id=msg.project_id, current_user=current_user, db=db)
     return _to_response(msg)
 
 
@@ -112,6 +121,27 @@ async def unread_count(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    await verify_project_chat_access(project_id=project_id, current_user=current_user, db=db)
     count = await chat_service.get_unread_count(db, project_id, current_user.id)
     return {"project_id": project_id, "unread_count": count}
+
+
+@router.delete("/messages/{message_id}", status_code=status.HTTP_200_OK)
+async def delete_message(
+    message_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """软删除消息（仅消息发送者或 admin 可删除）"""
+    msg = await chat_service.soft_delete_message(db, message_id)
+    if not msg:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="消息不存在或已删除")
+    # 权限校验：仅发送者本人或 admin 可删除
+    if current_user.role != "admin" and msg.sender_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权删除此消息")
+    await verify_project_chat_access(project_id=msg.project_id, current_user=current_user, db=db)
+    # 通知客户端消息已删除
+    await ws_manager.broadcast_to_project(msg.project_id, "chat.message_deleted", {
+        "message_id": message_id,
+    })
+    return {"message_id": message_id, "deleted": True}

@@ -11,7 +11,6 @@ from app.models.project import Project
 from app.models.material import Material
 from app.models.procurement import Supplier
 from app.models.identity_verification import IdentityVerification
-from app.auth import get_current_user
 from app.rbac import (
     allow_admin,
     require_user_read,
@@ -22,7 +21,6 @@ from app.rbac import (
 from app.schemas.user import UserResponse
 from app.schemas.permission import (
     PermissionResponse,
-    RolePermissionResponse,
     RolePermissionsFull,
     UpdateUserRoleRequest,
     UpdateUserStatusRequest,
@@ -85,6 +83,13 @@ async def update_user_role(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"无效角色。有效角色: {', '.join(valid_roles)}",
+        )
+
+    # 防止权限提升：只有 admin 可以将用户提升为 admin 角色
+    if data.role == "admin" and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="无权将用户提升为管理员角色",
         )
 
     result = await db.execute(select(User).where(User.id == user_id))
@@ -195,9 +200,6 @@ async def update_role_permissions(
             )
 
     # 删除旧权限
-    await db.execute(
-        select(RolePermission).where(RolePermission.role == role)
-    )
     old = (await db.execute(
         select(RolePermission).where(RolePermission.role == role)
     )).scalars().all()

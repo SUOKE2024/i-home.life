@@ -334,5 +334,17 @@ async def recommend_for_room(
     db: AsyncSession = Depends(get_db),
 ):
     """按房间推荐电器"""
+    # 校验房间所属项目的访问权限 (Room → Floor → Project)
+    from sqlalchemy import select
+    from app.models.project import Room, Floor
+    room_result = await db.execute(select(Room).where(Room.id == room_id))
+    room = room_result.scalar_one_or_none()
+    if room:
+        floor_result = await db.execute(select(Floor).where(Floor.id == room.floor_id))
+        floor = floor_result.scalar_one_or_none()
+        if floor:
+            await verify_project_access(
+                project_id=floor.project_id, current_user=current_user, db=db
+            )
     result = await svc.recommend_for_room(db, room_id)
     return result

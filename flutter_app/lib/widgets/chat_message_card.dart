@@ -214,27 +214,40 @@ class ChatMessageCard extends StatelessWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.75,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: bubbleColor,
               borderRadius: radius,
-              border: leftBorderColor != null
-                  ? Border(
-                      left: BorderSide(color: leftBorderColor, width: 3),
-                      top: const BorderSide(color: _border),
-                      right: const BorderSide(color: _border),
-                      bottom: const BorderSide(color: _border),
-                    )
-                  : Border.all(color: _accent.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: _border.withValues(alpha: 0.4),
+                width: 1,
+              ),
             ),
-            child: SelectableText(
-              message.content ?? '',
-              enableInteractiveSelection: true,
-              cursorColor: leftBorderColor ?? _accent,
-              style: const TextStyle(
-                fontSize: 14,
-                color: _textPrimary,
-                height: 1.5,
+            child: ClipRRect(
+              borderRadius: radius,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (leftBorderColor != null)
+                      Container(width: 3, color: leftBorderColor),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: SelectableText(
+                          message.content ?? '',
+                          enableInteractiveSelection: true,
+                          cursorColor: leftBorderColor ?? _accent,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: _textPrimary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -556,9 +569,13 @@ class ChatMessageCard extends StatelessWidget {
                 children: [
                   Icon(icon, size: 14, color: iconColor),
                   const SizedBox(width: 6),
-                  Text(_esc(label),
-                      style: const TextStyle(fontSize: 12, color: _textPrimary)),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(_esc(label),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, color: _textPrimary)),
+                  ),
+                  const SizedBox(width: 6),
                   Text('¥${_fmtNum(paid)} / ¥${_fmtNum(ttl)}',
                       style: const TextStyle(fontSize: 11, color: _textSecondary)),
                   const SizedBox(width: 6),

@@ -146,6 +146,7 @@ async def list_project_matches(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     result = await db.execute(
         select(CrewMatch)
         .where(CrewMatch.project_id == project_id)

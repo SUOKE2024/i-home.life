@@ -1,6 +1,11 @@
 """预算 Agent — 分项预算、多方案对比、实时追踪、模板库"""
 
 from app.agents.base import BaseAgent
+from app.services.agent_tool_registry import tool_registry
+
+
+# ── FunctionCall 工具：从 tool_registry 获取 budget 类别工具 schema ──
+_BUDGET_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("budget")
 
 
 # 装修等级单价（元/㎡）
@@ -65,6 +70,7 @@ BUDGET_TEMPLATES = {
 
 class BudgetAgent(BaseAgent):
     agent_name = "budget"
+    tools = _BUDGET_TOOL_SCHEMAS
     system_prompt = """你是索克家居（i-home.life）AI 预算 Agent。
 
 你的职责：

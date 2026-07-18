@@ -100,6 +100,8 @@ class ApplyPresetRequest(BaseModel):
     """应用预设模板"""
 
     preset_id: str
+    project_id: str
+    floorplan_id: str | None = None
     input_image_url: str
     customizations: dict = Field(default_factory=dict)
 

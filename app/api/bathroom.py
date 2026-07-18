@@ -40,6 +40,7 @@ async def list_designs(
     db: AsyncSession = Depends(get_db),
 ):
     """列出项目卫生间设计"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     designs = await bathroom_service.list_designs(db, project_id)
     return [BathroomDesignResponse.model_validate(d) for d in designs]
 
@@ -54,6 +55,7 @@ async def get_design(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     return BathroomDesignResponse.model_validate(design)
 
 
@@ -100,6 +102,7 @@ async def compute_drain(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     result = bathroom_service.compute_drain_slope(design)
     return {"design_id": design_id, **result}
 
@@ -114,6 +117,7 @@ async def validate_waterproof(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     result = bathroom_service.validate_waterproof(design)
     return {"design_id": design_id, **result}
 
@@ -128,6 +132,7 @@ async def analyze_ventilation(
     design = await bathroom_service.get_design(db, design_id)
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     result = bathroom_service.analyze_ventilation(design)
     return {"design_id": design_id, **result}
 
@@ -163,6 +168,10 @@ async def list_fixtures(
     db: AsyncSession = Depends(get_db),
 ):
     """列出卫浴设备"""
+    design = await bathroom_service.get_design(db, design_id)
+    if not design:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     fixtures = await bathroom_service.list_fixtures(db, design_id)
     return [BathroomFixtureResponse.model_validate(f) for f in fixtures]
 
@@ -174,6 +183,16 @@ async def delete_fixture(
     db: AsyncSession = Depends(get_db),
 ):
     """删除卫浴设备"""
+    # 查找 fixture → design → project 校验归属
+    from sqlalchemy import select
+    from app.models.bathroom import BathroomFixture
+    result = await db.execute(select(BathroomFixture).where(BathroomFixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫浴设备不存在")
+    design = await bathroom_service.get_design(db, fixture.design_id)
+    if design:
+        await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
     deleted = await bathroom_service.delete_fixture(db, fixture_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫浴设备不存在")

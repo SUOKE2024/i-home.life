@@ -1018,6 +1018,85 @@ async def test_list_order_escrow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_list_project_escrow(client: AsyncClient):
+    """F34 按项目查询担保支付记录（v1.0.16 新增）"""
+    token, headers = await _register_and_login(client, "13900009050")
+    project_id = await _create_project(client, headers, "项目担保列表测试")
+    supplier_ids = await _create_suppliers(client, headers, "kitchen_bath")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="kitchen_bath",
+        material_sku="PE-PRJ-ESC-001",
+        material_name="项目担保马桶",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    # 创建 2 笔担保支付
+    for _ in range(2):
+        resp = await client.post(
+            "/api/procurement-enhanced/escrow",
+            json={"order_id": order_id}, headers=headers,
+        )
+        assert resp.status_code == 201
+
+    # 按项目查询
+    resp = await client.get(
+        f"/api/procurement-enhanced/escrow/project/{project_id}", headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert len(items) == 2
+    assert all(it["project_id"] == project_id for it in items)
+
+    # 跨用户访问应被拒绝
+    _, headers_b = await _register_and_login(client, "13900009051")
+    resp = await client.get(
+        f"/api/procurement-enhanced/escrow/project/{project_id}", headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_project_logistics(client: AsyncClient):
+    """F34 按项目查询物流追踪记录（v1.0.16 新增）"""
+    token, headers = await _register_and_login(client, "13900009052")
+    project_id = await _create_project(client, headers, "项目物流列表测试")
+    supplier_ids = await _create_suppliers(client, headers, "custom_furniture")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="custom_furniture",
+        material_sku="PE-PRJ-LOG-001",
+        material_name="项目物流衣柜",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    # 创建 2 个物流单
+    for carrier in ["sf_express", "jd_logistics"]:
+        resp = await client.post(
+            "/api/procurement-enhanced/logistics",
+            json={"order_id": order_id, "carrier": carrier, "ship_from": "广州", "ship_to": "上海"},
+            headers=headers,
+        )
+        assert resp.status_code == 201
+
+    # 按项目查询
+    resp = await client.get(
+        f"/api/procurement-enhanced/logistics/project/{project_id}", headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert len(items) == 2
+    assert all(it["project_id"] == project_id for it in items)
+
+    # 跨用户访问应被拒绝
+    _, headers_b = await _register_and_login(client, "13900009053")
+    resp = await client.get(
+        f"/api/procurement-enhanced/logistics/project/{project_id}", headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_escrow_cross_user_forbidden(client: AsyncClient):
     """F34 跨用户访问担保支付应被拒绝"""
     token_a, headers_a = await _register_and_login(client, "13900009047")

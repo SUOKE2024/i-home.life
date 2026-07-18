@@ -120,9 +120,13 @@ class TestVoiceSession:
         assert session.model == "qwen-audio-3.0-realtime-flash"
 
     @pytest.mark.asyncio
-    async def test_session_connect_mock(self):
+    async def test_session_connect_mock(self, monkeypatch):
         """测试 mock 模式会话连接"""
         from app.services.voice_realtime_service import VoiceRealtimeSession
+        import app.services.voice_realtime_service as vrs
+
+        # 强制 mock 模式：清空 API Key，避免测试环境配了真实 Key 走 realtime 路径
+        monkeypatch.setattr(vrs.settings, "qwen_audio_api_key", None)
 
         session = VoiceRealtimeSession(user_id="test_008")
         try:
@@ -358,7 +362,6 @@ class TestConciergeEmotion:
     def test_emotion_strategies_complete(self):
         """测试所有情绪策略都有定义"""
         from app.agents.concierge import EMOTION_RESPONSE_STRATEGIES
-        from app.services.voice_realtime_service import EMOTION_LABELS
 
         # 所有基本情绪标签都有对应策略
         essential = ["anxious", "angry", "sad", "tired", "happy", "excited", "hesitant"]
@@ -413,6 +416,83 @@ class TestFunctionCall:
 
 class TestEnhancedVoiceAPI:
     """增强语音 API 测试"""
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_requires_auth(self, client):
+        """未认证调用 /voice/process-enhanced 应返回 401（鉴权缺失修复回归）"""
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            json={"text": "你好", "emotion_enabled": False},
+        )
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_with_auth_no_project(self, client):
+        """已认证但不带 project_id 应正常处理（不触发项目归属检查）"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999100", "name": "Voice测试", "password": "test123456"},
+        )
+        assert resp.status_code == 201
+        token = resp.json()["access_token"]
+
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": "100平的装修预算", "emotion_enabled": False},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["transcript"] == "100平的装修预算"
+        assert "reply" in data
+        assert "intent" in data
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_project_not_owned(self, client):
+        """已认证但传入他人 project_id 应返回 403（防越权发起会话）"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999101", "name": "OwnerA", "password": "test123456"},
+        )
+        token_a = resp.json()["access_token"]
+        # Owner A 创建项目
+        proj_resp = await client.post(
+            "/api/projects",
+            headers={"Authorization": f"Bearer {token_a}"},
+            json={"name": "A的项目", "address": "地址A"},
+        )
+        project_id_a = proj_resp.json()["id"]
+
+        # Owner B 登录
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999102", "name": "OwnerB", "password": "test123456"},
+        )
+        token_b = resp.json()["access_token"]
+
+        # B 试图用 A 的 project_id 调用 voice/process-enhanced
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token_b}"},
+            json={"text": "100平装修预算", "project_id": project_id_a, "emotion_enabled": False},
+        )
+        assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_project_not_found(self, client):
+        """已认证但传入不存在的 project_id 应返回 404"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999103", "name": "NotFoundTest", "password": "test123456"},
+        )
+        token = resp.json()["access_token"]
+
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": "你好", "project_id": "nonexistent-project-id"},
+        )
+        assert resp.status_code == 404
 
     @pytest.mark.asyncio
     async def test_auto_tool_call_budget(self):
@@ -482,3 +562,284 @@ class TestEnhancedVoiceAPI:
 
         reply_neutral = _get_enhanced_reply("你好", "concierge", {"label": "neutral"})
         assert "理解您的心情" not in reply_neutral
+
+
+# ── Realtime 协议方法测试 ──
+
+class TestRealtimeProtocol:
+    """Qwen-Audio-3.0-Realtime 原生协议方法测试"""
+
+    @pytest.mark.asyncio
+    async def test_init_realtime_session_no_error(self):
+        """init_realtime_session 调用不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_001")
+        try:
+            conn = await session.connect()
+            await session.init_realtime_session(
+                tools=[{"type": "function", "function": {"name": "test", "parameters": {}}}],
+                modalities=["text", "audio"],
+            )
+            assert conn["mode"] in ("mock", "realtime", "fallback")
+            assert conn["session_id"]
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_send_audio_buffer_append_no_error(self):
+        """send_input_audio_buffer_append/commit 不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_002")
+        try:
+            await session.connect()
+            await session.send_input_audio_buffer_append("base64encodedaudiodata")
+            await session.send_input_audio_buffer_commit()
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_send_text_input_no_error(self):
+        """send_text_input 不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_003")
+        try:
+            await session.connect()
+            await session.send_text_input("测试语音输入")
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_send_response_cancel_no_error(self):
+        """send_response_cancel/clear 不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_004")
+        try:
+            await session.connect()
+            await session.send_response_cancel()
+            await session.send_input_audio_buffer_clear()
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_send_function_call_output_no_error(self):
+        """send_function_call_output 不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_005")
+        try:
+            await session.connect()
+            await session.send_function_call_output("call_123", {"result": "ok"})
+        finally:
+            await session.close()
+
+    def test_is_realtime_property_exists(self):
+        """is_realtime 属性存在且返回 bool"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_007")
+        result = session.is_realtime
+        assert isinstance(result, bool)
+
+    @pytest.mark.asyncio
+    async def test_multiple_protocol_calls_no_error(self):
+        """连续多次协议方法调用不抛异常"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="test_rt_008")
+        try:
+            await session.connect()
+            await session.init_realtime_session(
+                tools=[{
+                    "type": "function",
+                    "function": {
+                        "name": "get_budget",
+                        "description": "Query renovation budget",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "area": {"type": "number"},
+                                "style": {"type": "string"},
+                            },
+                            "required": ["area"],
+                        },
+                    },
+                }],
+            )
+            await session.send_input_audio_buffer_append("chunk1")
+            await session.send_input_audio_buffer_append("chunk2")
+            await session.send_input_audio_buffer_commit()
+            await session.send_response_cancel()
+            await session.send_function_call_output("call_xyz", {"total": 160000})
+        finally:
+            await session.close()
+
+
+# ── 工具注册表 FunctionCall schema 测试 ──
+
+class TestFunctionCallSchemas:
+    """工具注册表的 FunctionCall schema 生成测试"""
+
+    def test_qwen_schemas_count(self):
+        """get_qwen_schemas 返回正确数量的工具 schema"""
+        from app.services.agent_tool_registry import tool_registry
+
+        schemas = tool_registry.get_qwen_schemas()
+        assert len(schemas) >= 5  # 5 个内置工具
+        for s in schemas:
+            assert s["type"] == "function"
+            assert "name" in s["function"]
+            assert "parameters" in s["function"]
+
+    def test_tool_schema_has_required_fields(self):
+        """每个工具的 schema 都有 name/description/parameters"""
+        from app.services.agent_tool_registry import tool_registry
+
+        for tool in tool_registry.list_tools():
+            schema = tool.to_qwen_schema()
+            assert schema["type"] == "function"
+            func = schema["function"]
+            assert "name" in func
+            assert "description" in func
+            assert "parameters" in func
+            assert isinstance(func["description"], str)
+            assert len(func["description"]) > 10  # 描述不能太短
+            assert "type" in func["parameters"]
+            assert func["parameters"]["type"] == "object"
+
+    def test_tool_execute_get_budget(self):
+        """测试工具执行：get_budget"""
+        import asyncio
+        from app.services.agent_tool_registry import tool_registry
+
+        result = asyncio.run(tool_registry.execute("get_budget", {"area": 120, "style": "modern"}))
+        assert "tiers" in result
+        assert result["area"] == 120
+        assert "comfort" in result["tiers"]
+
+    def test_tool_execute_nonexistent(self):
+        """测试执行不存在的工具"""
+        import asyncio
+        from app.services.agent_tool_registry import tool_registry
+
+        result = asyncio.run(tool_registry.execute("nonexistent_tool", {}))
+        assert "error" in result
+
+    def test_tool_schema_for_category(self):
+        """测试按类别获取 schema"""
+        from app.services.agent_tool_registry import tool_registry
+
+        budget_schemas = tool_registry.get_openai_schemas_for_category("budget")
+        assert len(budget_schemas) == 1
+        assert budget_schemas[0]["function"]["name"] == "get_budget"
+
+
+# ── REST 端点回归测试 ──
+
+class TestVoiceRestEndpoints:
+    """REST 语音端点回归测试"""
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_anxious_emotion(self, client):
+        """测试 process-enhanced 感知焦虑情绪"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999108", "name": "EmotionUser", "password": "test123456"},
+        )
+        token = resp.json()["access_token"]
+
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": "我的装修又延期了，很着急怎么办", "emotion_enabled": True},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "reply" in data
+        assert data["emotion"] is not None
+        # 应检测到焦虑
+        assert data["emotion"]["label"] in ("anxious", "neutral")
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_design_intent(self, client):
+        """测试 process-enhanced 设计意图路由"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999109", "name": "DesignUser", "password": "test123456"},
+        )
+        token = resp.json()["access_token"]
+
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": "120平现代简约客厅设计方案", "emotion_enabled": False},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "reply" in data
+        assert len(data["reply"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_process_enhanced_procurement_intent(self, client):
+        """测试 process-enhanced 采购意图路由"""
+        resp = await client.post(
+            "/api/auth/register",
+            json={"phone": "13900999110", "name": "ProcureUser", "password": "test123456"},
+        )
+        token = resp.json()["access_token"]
+
+        resp = await client.post(
+            "/api/voice/process-enhanced",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"text": "我想找一些瓷砖材料", "emotion_enabled": False},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "reply" in data
+
+
+# ── VoiceRealTimeSession 完整生命周期测试 ──
+
+class TestSessionLifecycle:
+    """VoiceRealtimeSession 完整生命周期测试"""
+
+    @pytest.mark.asyncio
+    async def test_full_lifecycle(self):
+        """完整生命周期：创建 → 连接 → 使用 → 关闭"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="lifecycle_001")
+        try:
+            conn = await session.connect()
+            assert conn["mode"] in ("mock", "realtime", "fallback")
+            assert conn["session_id"]
+
+            session.add_to_context("user", "hello")
+            session.add_to_context("assistant", "hi there")
+            ctx = session.get_context()
+            assert len(ctx) == 2
+
+            trend = session.get_emotion_trend()
+            assert "trend" in trend
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_context_limit(self):
+        """对话上下文应在超过 20 条后自动裁剪"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="ctx_001")
+        try:
+            await session.connect()
+            for i in range(25):
+                session.add_to_context("user", f"msg_{i}")
+            ctx = session.get_context(last_n=30)
+            assert len(ctx) == 20
+            assert ctx[0]["content"] == "msg_5"
+            assert ctx[-1]["content"] == "msg_24"
+        finally:
+            await session.close()

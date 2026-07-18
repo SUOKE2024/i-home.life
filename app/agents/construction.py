@@ -3,6 +3,9 @@
 from datetime import datetime, timezone
 
 from app.agents.base import BaseAgent
+from app.services.agent_tool_registry import tool_registry
+
+_CONSTRUCTION_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("construction")
 
 
 # 标准施工阶段（8 阶段）
@@ -57,6 +60,7 @@ QUALITY_CHECKLISTS = {
 
 class ConstructionAgent(BaseAgent):
     agent_name = "construction"
+    tools = _CONSTRUCTION_TOOL_SCHEMAS
     system_prompt = """你是索克家居（i-home.life）AI 施工 Agent。
 
 你的职责：

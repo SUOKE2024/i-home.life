@@ -492,6 +492,14 @@ flutter build hap --release
       <tr><td><code>DEEPSEEK_API_KEY</code></td><td>（空）</td><td>DeepSeek AI API Key（留空使用 mock 模式）</td></tr>
       <tr><td><code>DEEPSEEK_API_BASE</code></td><td>https://api.deepseek.com</td><td>DeepSeek API 基础地址</td></tr>
       <tr><td><code>DEEPSEEK_MODEL</code></td><td>deepseek-chat</td><td>DeepSeek 模型名称</td></tr>
+      <tr><td><code>QWEN_AUDIO_API_KEY</code></td><td>（空）</td><td>阿里云百炼 DashScope API Key（v1.1.0 新增 - 实时语音，留空使用 mock 模式）</td></tr>
+      <tr><td><code>QWEN_AUDIO_MODEL</code></td><td>qwen-audio-3.0-realtime-flash</td><td>Qwen-Audio 实时语音模型（v1.1.0 新增 - flash | plus）</td></tr>
+      <tr><td><code>QWEN_AUDIO_WS_URL</code></td><td>wss://dashscope.aliyuncs.com/api-ws/v1/realtime</td><td>百炼 Realtime WebSocket 地址（v1.1.0 新增）</td></tr>
+      <tr><td><code>QWEN_AUDIO_VOICE</code></td><td>cherry</td><td>默认音色（v1.1.0 新增 - cherry/zhidan/longxiaochun 等）</td></tr>
+      <tr><td><code>VOICE_EMOTION_DETECTION</code></td><td>true</td><td>是否启用情绪检测（v1.1.0 新增）</td></tr>
+      <tr><td><code>AGENT_FUNCTION_CALL_ENABLED</code></td><td>true</td><td>是否启用 Agent FunctionCall 工具调用（v1.1.0 新增）</td></tr>
+      <tr><td><code>VOICE_TURN_DETECTION</code></td><td>server_vad</td><td>轮次检测模式（v1.1.0 新增 - server_vad|smart_turn|none）</td></tr>
+      <tr><td><code>VOICE_AUDIO_PROMPT_ENABLED</code></td><td>false</td><td>声纹锁定（v1.1.0 新增 - 工地多人场景建议启用）</td></tr>
       <tr><td><code>AMAP_API_KEY</code></td><td>（空）</td><td>高德地图 Web API Key（地址补全/定位）</td></tr>
       <tr><td><code>CORS_ORIGINS</code></td><td>localhost:3000,5173</td><td>CORS 白名单（DEBUG=false 时生效）</td></tr>
       <tr><td><code>REDIS_URL</code></td><td>（空）</td><td>Redis 连接地址（留空降级为内存字典，v1.0.1 新增；v1.0.5 起 WebAuthn 挑战存储亦使用此配置）</td></tr>

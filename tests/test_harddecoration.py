@@ -554,6 +554,116 @@ async def test_hd_delete_scheme(client: AsyncClient):
     assert get.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_hd_list_floors_walls_ceilings(client: AsyncClient):
+    """硬装方案子资源列表：地面/墙面/吊顶 GET 端点（v1.0.16 新增）"""
+    token = await _register_and_login(client, "13900300016", "硬装子资源")
+    project_id = await _create_project(client, token, "硬装子资源项目")
+    create = await client.post(
+        "/api/hard-decoration/schemes",
+        json={"project_id": project_id, "room_name": "客厅", "scheme_type": "floor"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create.status_code == 201, create.text
+    scheme_id = create.json()["id"]
+
+    # 添加地面方案
+    floor_resp = await client.post(
+        f"/api/hard-decoration/schemes/{scheme_id}/floors",
+        json={
+            "scheme_id": scheme_id,
+            "material_type": "tile",
+            "coverage_area": 25.0,
+            "unit_price": 80.0,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert floor_resp.status_code == 201, floor_resp.text
+    floor_id = floor_resp.json()["id"]
+
+    # 添加墙面方案
+    wall_resp = await client.post(
+        f"/api/hard-decoration/schemes/{scheme_id}/walls",
+        json={
+            "scheme_id": scheme_id,
+            "finish_type": "paint",
+            "coverage_area": 60.0,
+            "unit_price": 35.0,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert wall_resp.status_code == 201, wall_resp.text
+    wall_id = wall_resp.json()["id"]
+
+    # 添加吊顶方案
+    ceiling_resp = await client.post(
+        f"/api/hard-decoration/schemes/{scheme_id}/ceilings",
+        json={
+            "scheme_id": scheme_id,
+            "ceiling_type": "flat",
+            "total_area": 25.0,
+            "unit_price": 120.0,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert ceiling_resp.status_code == 201, ceiling_resp.text
+    ceiling_id = ceiling_resp.json()["id"]
+
+    # 列出地面方案
+    floors_list = await client.get(
+        f"/api/hard-decoration/schemes/{scheme_id}/floors",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert floors_list.status_code == 200, floors_list.text
+    floors_data = floors_list.json()
+    assert len(floors_data) == 1
+    assert floors_data[0]["id"] == floor_id
+    assert floors_data[0]["material_type"] == "tile"
+
+    # 列出墙面方案
+    walls_list = await client.get(
+        f"/api/hard-decoration/schemes/{scheme_id}/walls",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert walls_list.status_code == 200, walls_list.text
+    walls_data = walls_list.json()
+    assert len(walls_data) == 1
+    assert walls_data[0]["id"] == wall_id
+    assert walls_data[0]["finish_type"] == "paint"
+
+    # 列出吊顶方案
+    ceilings_list = await client.get(
+        f"/api/hard-decoration/schemes/{scheme_id}/ceilings",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert ceilings_list.status_code == 200, ceilings_list.text
+    ceilings_data = ceilings_list.json()
+    assert len(ceilings_data) == 1
+    assert ceilings_data[0]["id"] == ceiling_id
+    assert ceilings_data[0]["ceiling_type"] == "flat"
+
+    # 空列表场景：新建一个 scheme 验证返回 []
+    empty_create = await client.post(
+        "/api/hard-decoration/schemes",
+        json={"project_id": project_id, "room_name": "空房间", "scheme_type": "floor"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    empty_scheme_id = empty_create.json()["id"]
+    empty_list = await client.get(
+        f"/api/hard-decoration/schemes/{empty_scheme_id}/floors",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert empty_list.status_code == 200
+    assert empty_list.json() == []
+
+    # 不存在的 scheme → 404
+    not_found = await client.get(
+        "/api/hard-decoration/schemes/nonexistent-scheme-id/floors",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert not_found.status_code == 404
+
+
 # ════════════════════════════════════════════════════════════════
 # F23 门窗/防水工程
 # ════════════════════════════════════════════════════════════════

@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
 from app.models.user import User
+from app.models.project import Project
 from app.auth import get_current_user
 
 router = APIRouter(prefix="/voice", tags=["语音"])
@@ -23,7 +27,17 @@ class VoiceResponse(BaseModel):
 async def process_voice(
     data: VoiceMessage,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    # 校验项目归属(若指定了 project_id),与 /voice/process-enhanced 保持一致
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
     text = data.text
     intent = "general"
 

@@ -1,6 +1,9 @@
 """质检 Agent — 照片比对、缺陷识别、验收报告生成"""
 
 from app.agents.base import BaseAgent
+from app.services.agent_tool_registry import tool_registry
+
+_QA_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("qa")
 
 
 # 各阶段验收项目（分项验收清单）
@@ -103,6 +106,7 @@ DEFECT_KEYWORD_MAP = {
 
 class QAInspectorAgent(BaseAgent):
     agent_name = "qa_inspector"
+    tools = _QA_TOOL_SCHEMAS
     system_prompt = """你是索克家居（i-home.life）AI 质检 Agent。
 
 你的职责：

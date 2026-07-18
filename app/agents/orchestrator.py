@@ -1,6 +1,9 @@
 import json
+import logging
 
 from app.agents.base import BaseAgent
+
+logger = logging.getLogger(__name__)
 
 
 class OrchestratorAgent(BaseAgent):
@@ -47,7 +50,11 @@ class OrchestratorAgent(BaseAgent):
     )
 
     async def classify_intent(self, message: str) -> dict:
-        """用 LLM 分类用户意图"""
+        """用 LLM 分类用户意图
+
+        LLM 调用失败时打印 warning 日志（避免静默降级），并回退到 fallback_classify
+        规则分类，使意图路由至少与 /voice/process 行为一致。
+        """
         try:
             result = await self.think(message)
             result = result.strip()
@@ -60,8 +67,15 @@ class OrchestratorAgent(BaseAgent):
                 end = result.find("```", start)
                 result = result[start:end].strip()
             return json.loads(result)
-        except Exception:
-            return {"intent": "general", "reasoning": "LLM分类失败，使用通用意图", "reply": ""}
+        except Exception as e:
+            logger.warning(
+                "classify_intent_llm_failed: msg=%r provider=%s error=%s; "
+                "fallback to rule-based classify",
+                message[:80], self.provider, e,
+            )
+            fallback = self.fallback_classify(message)
+            fallback["reasoning"] = f"LLM分类失败({e})，使用规则分类"
+            return fallback
 
     @staticmethod
     def fallback_classify(message: str) -> dict:
@@ -75,7 +89,7 @@ class OrchestratorAgent(BaseAgent):
             "budget": ["预算", "价格", "费用", "成本", "报价", "多少钱", "估算", "花费"],
             "procurement": ["采购", "材料", "物料", "建材", "供应商", "购买", "买", "订单", "询价"],
             "construction": ["施工", "进度", "排期", "工期", "阶段", "完工", "招工", "找人", "派工", "发布任务", "安排工人", "要一个",
-                            "木工", "水电", "窗帘安装", "安装工", "电工", "水工"],
+                             "木工", "水电", "窗帘安装", "安装工", "电工", "水工"],
             "qa_inspector": ["质检", "验收", "缺陷", "整改", "返工", "空鼓", "裂缝", "渗漏", "色差", "平整度", "工艺缺陷", "验收报告"],
             "concierge": ["咨询", "帮助", "投诉", "售后", "FAQ", "常见问题", "客服", "转人工", "保修", "报修", "退款"],
             "content_publish": ["发布", "上架", "产品", "商品", "推广", "上新", "介绍产品", "发布产品",

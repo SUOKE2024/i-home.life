@@ -1,6 +1,5 @@
 """管理 Agent — 处理管理员意图，执行平台管理操作"""
 
-import json
 import logging
 
 from app.agents.base import BaseAgent

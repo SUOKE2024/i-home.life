@@ -8,10 +8,9 @@
 - 工具调用 (FunctionCall)
 """
 
-import asyncio
 import json
 import logging
-from typing import AsyncIterator, Callable
+from typing import Any, AsyncGenerator
 
 import httpx
 
@@ -19,6 +18,15 @@ from app.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+# websockets 是 FastAPI/uvicorn 的传递依赖（实测 v16+ 可用）
+# 仅在 qwen_audio_api_key 配置时才会实际使用 WebSocket 连接
+try:
+    import websockets  # noqa: F401
+    _HAS_WEBSOCKETS = True
+except ImportError:  # pragma: no cover
+    _HAS_WEBSOCKETS = False
 
 
 # ── 情绪标签映射 ──
@@ -50,7 +58,7 @@ class VoiceRealtimeSession:
         self.project_id = project_id
         self.model = model or settings.qwen_audio_model
         self.voice = voice or settings.qwen_audio_voice
-        self._ws: httpx.AsyncClient | None = None
+        self._ws: Any | None = None
         self._session_id: str | None = None
         self._emotion_history: list[dict] = []
         self._conversation_context: list[dict] = []
@@ -67,33 +75,217 @@ class VoiceRealtimeSession:
             self._session_id = f"mock_session_{self.user_id}"
             return {"mode": "mock", "session_id": self._session_id}
 
+        if not _HAS_WEBSOCKETS:
+            logger.warning(
+                "voice_realtime: websockets 库未安装，降级为 mock 模式"
+                "（pip install websockets 启用实时语音）"
+            )
+            self._session_id = f"mock_session_{self.user_id}"
+            return {"mode": "mock", "session_id": self._session_id}
+
         try:
-            # 使用 httpx AsyncClient 作为 WebSocket 客户端（简化实现）
-            # 生产环境建议使用 websockets 库
+            # 使用 websockets 库建立百炼 Realtime WebSocket 连接
+            # 协议: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
             headers = {
                 "Authorization": f"Bearer {settings.qwen_audio_api_key}",
                 "X-DashScope-DataInspection": "enable",
             }
-            self._ws = httpx.AsyncClient(
-                base_url=settings.qwen_audio_ws_url,
-                headers=headers,
-                timeout=httpx.Timeout(120.0),
+            self._ws = await websockets.connect(
+                settings.qwen_audio_ws_url,
+                additional_headers=headers,
+                open_timeout=30,
+                max_size=2 ** 20,  # 1MB 音频帧
             )
             self._session_id = f"qwen_audio_{self.user_id}_{id(self)}"
             logger.info(f"voice_realtime: 会话已创建 session={self._session_id}")
             return {"mode": "realtime", "session_id": self._session_id}
         except Exception as e:
-            logger.error(f"voice_realtime: 连接失败 {e}")
+            logger.error(f"voice_realtime: 连接失败 {e}，降级为 fallback 模式")
+            self._ws = None
             self._session_id = f"fallback_session_{self.user_id}"
             return {"mode": "fallback", "session_id": self._session_id, "error": str(e)}
 
     async def close(self):
         """关闭会话"""
-        if self._ws:
-            await self._ws.aclose()
+        if self._ws is not None:
+            try:
+                # websockets v14+ ClientConnection 用 close()，
+                # 旧版 WebSocketClientProtocol 也支持 close()（aclose 已废弃）
+                await self._ws.close()
+            except Exception as e:
+                logger.warning(f"voice_realtime: close 异常 {e}")
             self._ws = None
         self._session_id = None
         logger.info("voice_realtime: 会话已关闭")
+
+    # ── Qwen-Audio-3.0-Realtime 原生协议方法 ──
+
+    async def init_realtime_session(
+        self,
+        tools: list[dict] | None = None,
+        modalities: list[str] | None = None,
+        turn_detection: dict | None = None,
+        instructions: str | None = None,
+    ) -> None:
+        """初始化 Realtime 会话 —— 发送 session.update 配置。
+
+        必须在 connect() 成功（mode == "realtime"）后调用。
+        参数对齐 Qwen-Audio-3.0-Realtime 的 session.update 事件 schema。
+
+        Args:
+            tools: FunctionCall 工具 schema 列表
+            modalities: 模态列表，默认 ["text", "audio"]
+            turn_detection: 轮次检测配置（None 则从 settings 读取）
+            instructions: 系统指令/角色设定
+        """
+        if self._ws is None:
+            logger.warning("voice_realtime: 未连接，跳过 session.update")
+            return
+
+        # 轮次检测模式：
+        #   server_vad: 声学 VAD（默认，适合安静环境）
+        #   smart_turn: 声学+语义智能检测（过滤"嗯""啊"，适合嘈杂工地）
+        #   none: push-to-talk 手动控制
+        if turn_detection is None:
+            td_type = settings.voice_turn_detection
+            if td_type in ("smart_turn", "server_vad"):
+                turn_detection = {
+                    "type": td_type,
+                    "threshold": settings.voice_vad_threshold,
+                    "silence_duration_ms": settings.voice_vad_silence_ms,
+                }
+            elif td_type == "none":
+                turn_detection = None  # push-to-talk
+            else:
+                turn_detection = {
+                    "type": "server_vad",
+                    "threshold": 0.5,
+                    "silence_duration_ms": 800,
+                }
+
+        session_cfg: dict[str, Any] = {
+            "modalities": modalities or ["text", "audio"],
+            "voice": self.voice,
+        }
+        if turn_detection is not None:
+            session_cfg["turn_detection"] = turn_detection
+        if tools:
+            session_cfg["tools"] = tools
+        if instructions:
+            session_cfg["instructions"] = instructions
+
+        # 说话人增强：传入目标用户预录音频样本，锁定声纹，屏蔽旁人 + 背景噪声
+        # 适用于工地现场（多人嘈杂）场景
+        if settings.voice_audio_prompt_enabled:
+            session_cfg["audio_prompt"] = {
+                "enabled": True,
+                "mode": "speaker_focus",
+            }
+
+        await self._send_raw_json({
+            "type": "session.update",
+            "session": session_cfg,
+        })
+        logger.info(
+            "voice_realtime: session.update sent "
+            f"modalities={session_cfg['modalities']} "
+            f"turn_detection={turn_detection.get('type') if turn_detection else 'manual'} "
+            f"tools={len(tools) if tools else 0} "
+            f"audio_prompt={settings.voice_audio_prompt_enabled}"
+        )
+
+    async def send_input_audio_buffer_append(self, audio_b64: str) -> None:
+        """发送音频块到 Realtime 缓冲区"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({
+            "type": "input_audio_buffer.append",
+            "audio": audio_b64,
+        })
+
+    async def send_input_audio_buffer_commit(self) -> None:
+        """提交音频缓冲区，触发模型推理"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({"type": "input_audio_buffer.commit"})
+
+    async def send_input_audio_buffer_clear(self) -> None:
+        """清空音频缓冲区（用于取消当前输入）"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({"type": "input_audio_buffer.clear"})
+
+    async def send_text_input(self, text: str) -> None:
+        """发送文本输入（创建 user message 并触发响应）"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": text}],
+            },
+        })
+        await self._send_raw_json({"type": "response.create"})
+
+    async def send_response_create(self) -> None:
+        """触发模型生成响应"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({"type": "response.create"})
+
+    async def send_response_cancel(self) -> None:
+        """取消当前正在生成的响应（用于双工打断）"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({"type": "response.cancel"})
+
+    async def send_function_call_output(self, call_id: str, output: dict) -> None:
+        """写入工具调用结果并触发后续推理"""
+        if self._ws is None:
+            return
+        await self._send_raw_json({
+            "type": "conversation.item.create",
+            "item": {
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": json.dumps(output, ensure_ascii=False),
+            },
+        })
+        await self._send_raw_json({"type": "response.create"})
+
+    async def receive_events(self) -> AsyncGenerator[dict[str, Any], None]:
+        """异步生成器：逐条接收 Realtime 服务端事件。
+
+        Yields:
+            JSON 事件字典，如 {"type": "response.audio.delta", ...}
+            连接断开时自动结束迭代。
+        """
+        if self._ws is None:
+            return
+        try:
+            async for raw in self._ws:
+                try:
+                    yield json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.warning(f"voice_realtime: 无效 JSON: {str(raw)[:100]}")
+        except Exception as e:
+            logger.warning(f"voice_realtime: receive_events 异常: {e}")
+
+    async def _send_raw_json(self, msg: dict) -> None:
+        """发送原始 JSON 到 Qwen-Audio Realtime WS（内部使用）"""
+        if self._ws is None:
+            return
+        try:
+            await self._ws.send(json.dumps(msg, ensure_ascii=False))
+        except Exception as e:
+            logger.error(f"voice_realtime: send_raw_json 失败: {e}")
+
+    @property
+    def is_realtime(self) -> bool:
+        """是否处于真实 Realtime 连接模式"""
+        return self._ws is not None and self._session_id is not None
 
     # ── 语音识别 (ASR) ──
 
@@ -325,9 +517,9 @@ class VoiceRealtimeSession:
             negative = {"anxious", "angry", "sad", "tired"}
             positive = {"happy", "excited", "confident"}
 
-            first_neg = sum(1 for l in first_half if l in negative)
-            second_neg = sum(1 for l in second_half if l in negative)
-            second_pos = sum(1 for l in second_half if l in positive)
+            first_neg = sum(1 for lbl in first_half if lbl in negative)
+            second_neg = sum(1 for lbl in second_half if lbl in negative)
+            second_pos = sum(1 for lbl in second_half if lbl in positive)
 
             if second_neg > first_neg:
                 trend = "declining"
