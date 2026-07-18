@@ -774,7 +774,7 @@ sup a:hover { color: var(--gold); }
     <h1>索克家居 · <em>i-home.life</em><br>AI 驱动的全链路智能家居建造平台</h1>
     <p class="subtitle">9 个 AI 智能体 7×24 自治运营，覆盖注册→设计→BOM→预算→采购→施工→质检→结算→客服全流程。让装修像打车一样简单。</p>
     <div class="hero-badges">
-      <span class="badge">8 AI Agent</span>
+      <span class="badge">9 AI Agent</span>
       <span class="badge">40 API 模块</span>
       <span class="badge">FastAPI + PASETO</span>
       <span class="badge">WebSocket 实时推送</span>
@@ -798,7 +798,7 @@ sup a:hover { color: var(--gold); }
 
   <!-- ═══ Stats Bar ═══ -->
   <div class="stats reveal" id="statsSection" role="list" aria-label="项目核心数据">
-    <div class="stat" role="listitem"><div class="num" data-count="8">8</div><div class="label">AI 智能体</div></div>
+    <div class="stat" role="listitem"><div class="num" data-count="9">9</div><div class="label">AI 智能体</div></div>
     <div class="stat" role="listitem"><div class="num" data-count="40">40</div><div class="label">API 模块</div></div>
     <div class="stat" role="listitem"><div class="num" data-count="437">437</div><div class="label">测试用例</div></div>
     <div class="stat" role="listitem"><div class="num" data-count="437">437</div><div class="label">总路由</div></div>
@@ -862,7 +862,7 @@ sup a:hover { color: var(--gold); }
       </div>
       <div class="link">进入工作室 →</div>
     </a>
-    <a class="entrance-card" href="/api/docs" target="_blank" rel="noopener" aria-label="API 文档">
+    <a class="entrance-card" href="http://118.31.223.213:8081/api/docs" target="_blank" rel="noopener" aria-label="API 文档">
       <div class="icon" style="background:linear-gradient(135deg,#fce4ec,#f8bbd0)" aria-hidden="true">📖</div>
       <h3>API 文档</h3>
       <p>Swagger UI 在线交互，40 个模块 437 路由可直接测试调用</p>
@@ -1057,8 +1057,8 @@ sup a:hover { color: var(--gold); }
   <p class="section-lead">公开链接 · API 文档 · 操作指南</p>
 
   <div class="callout">
-    <p>👉 <strong>公开体验链接</strong>：<a href="/" target="_blank" rel="noopener">i-home.life</a></p>
-    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a href="/api/docs" target="_blank" rel="noopener">/api/docs</a></p>
+    <p>👉 <strong>公开体验链接</strong>：<a href="http://118.31.223.213:8081" target="_blank" rel="noopener">118.31.223.213</a></p>
+    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a href="http://118.31.223.213:8081/api/docs" target="_blank" rel="noopener">http://118.31.223.213:8081/api/docs</a></p>
   </div>
 
   <h3>体验方式</h3>
@@ -1406,10 +1406,10 @@ sup a:hover { color: var(--gold); }
   <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:56px;height:56px;border-radius:12px;margin-bottom:12px;" loading="lazy">
   <h3>索克家居 · i-home.life</h3>
   <p>AI 驱动的全链路智能家居建造平台 · v1.0.3</p>
-  <p style="margin-top:4px;font-size:0.75rem">FastAPI + DeepSeek/GLM · 8 AI Agent · WebSocket · 437 路由 · 437 测试 · 100% 由 TRAE 开发</p>
+  <p style="margin-top:4px;font-size:0.75rem">FastAPI + DeepSeek/GLM · 9 AI Agent · WebSocket · 437 路由 · 437 测试 · 100% 由 TRAE 开发</p>
   <div class="footer-links">
     <a href="#inline-demo-section">体验 Demo</a>
-    <a href="/api/docs" target="_blank">API 文档</a>
+    <a href="http://118.31.223.213:8081/api/docs" target="_blank">API 文档</a>
     <a href="https://forum.trae.cn/t/topic/73483" target="_blank">报名帖</a>
     <a href="https://github.com/SUOKE2024/i-home.life" target="_blank">GitHub</a>
   </div>
@@ -1599,7 +1599,7 @@ sup a:hover { color: var(--gold); }
     return msg;
   }
 
-  // ── 发送消息 ──
+  // ── 发送消息（SSE 流式优先） ──
   function sendMessage(message) {
     if (!message || !message.trim()) return;
     addMessage('user', message);
@@ -1609,29 +1609,8 @@ sup a:hover { color: var(--gold); }
     var typing = showTyping();
 
     if (backendOnline && token) {
-      // 真实 API 调用
-      fetch(BACKEND_URL + '/api/agents/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ message: message })
-      }).then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      }).then(function (data) {
-        if (typing) typing.remove();
-        var respText = data.reply || data.response || data.message || JSON.stringify(data);
-        var agentName = data.agent_type || data.agent || 'AI Agent';
-        addMessage('agent', respText, agentName);
-      }).catch(function (err) {
-        if (typing) typing.remove();
-        // API 失败，降级到 mock
-        var mock = getMockResponse(message);
-        setTimeout(function () {
-          addMessage('agent', mock.text, mock.agent);
-        }, 500);
-      }).finally(function () {
-        if (sendBtn) sendBtn.disabled = false;
-      });
+      // 尝试 SSE 流式调用
+      sendWithSSE(message, typing);
     } else {
       // 离线 mock 模式
       var mock = getMockResponse(message);
@@ -1641,6 +1620,110 @@ sup a:hover { color: var(--gold); }
         if (sendBtn) sendBtn.disabled = false;
       }, 800 + Math.random() * 600);
     }
+  }
+
+  // ── SSE 流式调用 ──
+  function sendWithSSE(message, typing) {
+    var fullText = '';
+    var agentName = 'AI Agent';
+    var streamFailed = false;
+
+    fetch(BACKEND_URL + '/api/agents/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'text/event-stream'
+      },
+      body: JSON.stringify({ message: message })
+    }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (typing) typing.remove();
+
+      // 创建流式消息容器
+      var streamMsg = document.createElement('div');
+      streamMsg.className = 'inline-msg agent';
+      streamMsg.innerHTML = '<span class="agent-name">AI Agent</span><span class="agent-content" id="streamContent"></span>';
+      chatBox.appendChild(streamMsg);
+      var contentEl = streamMsg.querySelector('#streamContent');
+
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+
+      function pump() {
+        return reader.read().then(function (result) {
+          if (result.done) {
+            if (streamFailed) return;
+            // 流结束，更新最终 agent 名称
+            streamMsg.querySelector('.agent-name').textContent = agentName;
+            if (sendBtn) sendBtn.disabled = false;
+            return;
+          }
+
+          buffer += decoder.decode(result.value, { stream: true });
+          var lines = buffer.split('\n');
+          // 保留最后一个不完整的行
+          buffer = lines.pop() || '';
+
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (!line || !line.startsWith('data: ')) continue;
+
+            try {
+              var data = JSON.parse(line.slice(6));
+              if (data.event === 'meta' && data.agent_type) {
+                agentName = data.agent_type;
+              } else if (data.event === 'token' && data.content) {
+                fullText += data.content;
+                contentEl.textContent = fullText;
+                chatBox.scrollTop = chatBox.scrollHeight;
+              } else if (data.event === 'done') {
+                if (sendBtn) sendBtn.disabled = false;
+              }
+            } catch (e) {
+              // 跳过解析失败的行
+            }
+          }
+
+          return pump();
+        });
+      }
+
+      return pump();
+    }).catch(function () {
+      streamFailed = true;
+      // SSE 失败，降级到非流式 API
+      if (typing && typing.parentNode) typing.remove();
+      sendWithNonStream(message);
+    });
+  }
+
+  // ── 非流式 API 调用（SSE 降级） ──
+  function sendWithNonStream(message) {
+    var typing = showTyping();
+    fetch(BACKEND_URL + '/api/agents/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ message: message })
+    }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }).then(function (data) {
+      if (typing) typing.remove();
+      var respText = data.reply || data.response || data.message || JSON.stringify(data);
+      var agentName = data.agent_type || data.agent || 'AI Agent';
+      addMessage('agent', respText, agentName);
+    }).catch(function () {
+      if (typing) typing.remove();
+      // API 完全失败，降级到 mock
+      var mock = getMockResponse(message);
+      setTimeout(function () {
+        addMessage('agent', mock.text, mock.agent);
+      }, 500);
+    }).finally(function () {
+      if (sendBtn) sendBtn.disabled = false;
+    });
   }
 
   // ── 事件绑定 ──
@@ -1659,13 +1742,13 @@ sup a:hover { color: var(--gold); }
 
   // ── 后端健康检查 ──
   function checkBackend() {
-    fetch(BACKEND_URL + '/health', { method: 'GET', mode: 'cors' })
+    fetch(BACKEND_URL + '/health', { method: 'GET' })
       .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
       .then(function (data) {
         backendOnline = true;
         if (statusBadge) { statusBadge.className = 'api-status online'; }
-        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.1.0'); }
-        if (demoInfo) { demoInfo.textContent = '后端已连接 · ' + (data.version || 'v1.1.0'); }
+        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.1.0') + ' · SSE 流式'; }
+        if (demoInfo) { demoInfo.textContent = '实时响应 · ' + (data.version || 'v1.1.0'); }
         // 尝试登录获取 token
         return fetch(BACKEND_URL + '/api/auth/login', {
           method: 'POST',
@@ -1677,7 +1760,7 @@ sup a:hover { color: var(--gold); }
       .then(function (data) {
         if (data && data.access_token) {
           token = data.access_token;
-          addMessage('system', '✓ 已连接后端 API，AI 智能体就绪');
+          addMessage('system', '✓ 已连接后端 API，SSE 流式 AI 实时响应就绪');
         }
       })
       .catch(function () {

@@ -651,13 +651,13 @@ async def chat_stream(  # noqa: C901
                 paragraphs = reply.split("\n\n")
                 for p_idx, para in enumerate(paragraphs):
                     if p_idx > 0:
-                        yield f"data: {json.dumps({'event': 'token', 'content': '\n\n'})}\n\n"
+                        yield f"data: {json.dumps({'event': 'token', 'content': chr(10) + chr(10)})}\n\n"
                         await asyncio.sleep(0.1)
 
                     lines = para.split("\n")
                     for l_idx, line in enumerate(lines):
                         if l_idx > 0:
-                            yield f"data: {json.dumps({'event': 'token', 'content': '\n'})}\n\n"
+                            yield f"data: {json.dumps({'event': 'token', 'content': chr(10)})}\n\n"
                             await asyncio.sleep(0.03)
 
                         sents = line.replace("？", "?\x00").replace("！", "!\x00").replace("。", "。\x00").split("\x00")
