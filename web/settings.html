@@ -15,13 +15,43 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="preload" href="assets/css/workbench.css?v=20260718b" as="style">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260718b">
+<link rel="preload" href="assets/css/workbench.css?v=20260719c" as="style">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260719c">
 <link rel="manifest" href="manifest.json">
 <title>设置 · 索克家居</title>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebPage","name":"设置 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"}}
 </script>
+
+<style>
+/* 壁纸选择器样式 */
+.wallpaper-popover {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7); z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+}
+.wallpaper-popover-inner {
+  background: var(--bg-card, #1a1a2e); border-radius: 16px;
+  padding: 20px; max-width: 520px; width: 90%; max-height: 80vh;
+  overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.wallpaper-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; margin-top: 8px;
+}
+.wallpaper-thumb {
+  aspect-ratio: 16/10; border-radius: 8px; background-size: cover;
+  background-position: center; cursor: pointer; border: 2px solid transparent;
+  transition: border-color 0.2s, transform 0.15s; position: relative;
+}
+.wallpaper-thumb:hover { transform: scale(1.03); }
+.wallpaper-thumb.selected { border-color: var(--accent, #4fc3f7); }
+.wallpaper-thumb.selected::after {
+  content: '✓'; position: absolute; top: 4px; right: 6px;
+  color: var(--accent, #4fc3f7); font-weight: bold; font-size: 14px;
+  text-shadow: 0 0 4px rgba(0,0,0,0.8);
+}
+</style>
 </head>
 <body>
 <a href="#account-section" class="skip-link">跳到主内容</a>
@@ -107,6 +137,26 @@
           <span>🔇 勿扰时段</span>
           <span class="settings-item-value">22:00-08:00</span>
         </div>
+        <div class="settings-item" id="wallpaper-item" style="cursor:pointer" aria-label="选择壁纸" tabindex="0" role="button">
+          <span>🖼️ 工作台壁纸</span>
+          <span class="settings-item-value" id="wallpaper-label">默认暗色</span>
+        </div>
+        <!-- 壁纸选择弹窗 -->
+        <div class="wallpaper-popover" id="wallpaper-popover" style="display:none" role="dialog" aria-label="壁纸选择器">
+          <div class="wallpaper-popover-inner">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <span style="font-weight:600">选择壁纸</span>
+              <button class="btn btn-secondary" id="wallpaper-close-btn" style="padding:4px 12px;font-size:12px" aria-label="关闭">✕</button>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:13px;color:var(--text-secondary)">
+              <input type="checkbox" id="wallpaper-random" style="accent-color:var(--accent)"> 随机切换壁纸（每次刷新随机选择）
+            </label>
+            <div class="wallpaper-grid" id="wallpaper-grid" role="radiogroup" aria-label="壁纸缩略图">
+              <!-- JS 动态生成 18 张壁纸缩略图 -->
+            </div>
+            <button class="btn btn-primary" id="wallpaper-reset-btn" style="margin-top:12px;width:100%" aria-label="恢复默认壁纸">恢复默认暗色壁纸</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -127,7 +177,7 @@
   </section>
 </main>
 
-<script src="assets/js/api-client.js?v=20260718b"></script>
+<script src="assets/js/api-client.js?v=20260719c"></script>
 <script>
 (function() {
   // ============ 头像选择器 ============
@@ -307,10 +357,87 @@
     window.location.href = 'index.html';
   });
 
+  // ============ 壁纸选择器 ============
+  const wallpaperBasePath = 'assets/images/wallpaper/';
+  const WALLPAPER_COUNT = 18;
+  const wallpaperGrid = document.getElementById('wallpaper-grid');
+  const wallpaperLabel = document.getElementById('wallpaper-label');
+  const wallpaperPopover = document.getElementById('wallpaper-popover');
+  const wallpaperRandomCb = document.getElementById('wallpaper-random');
+  let currentWallpaper = localStorage.getItem('wallpaper') || '';
+  let currentWallpaperRandom = localStorage.getItem('wallpaper-random') === 'true';
+
+  wallpaperRandomCb.checked = currentWallpaperRandom;
+  const wallpaperImgNums = Array.from({length: WALLPAPER_COUNT}, (_, i) => i + 2640);
+
+  function getWallpaperLabel() {
+    if (currentWallpaperRandom) return '随机';
+    if (!currentWallpaper) return '默认暗色';
+    return 'IMG_' + currentWallpaper.split('_')[1];
+  }
+
+  // 应用壁纸到工作台（通过 localStorage 通信）
+  function applyWallpaper(filename) {
+    localStorage.setItem('wallpaper', filename);
+    localStorage.setItem('wallpaper-random', wallpaperRandomCb.checked);
+    currentWallpaper = filename;
+    currentWallpaperRandom = wallpaperRandomCb.checked;
+    wallpaperLabel.textContent = getWallpaperLabel();
+    wallpaperGrid.querySelectorAll('.wallpaper-thumb').forEach(t => {
+      t.classList.toggle('selected', t.dataset.wallpaper === filename);
+    });
+    // 通知工作台刷新壁纸（如果打开）
+    window.dispatchEvent(new StorageEvent('storage', {key: 'wallpaper'}));
+  }
+
+  // 生成壁纸缩略图网格
+  wallpaperImgNums.forEach(num => {
+    const filename = `IMG_${num}.webp`;
+    const thumb = document.createElement('div');
+    thumb.className = 'wallpaper-thumb';
+    thumb.style.backgroundImage = `url('${wallpaperBasePath}${filename}')`;
+    thumb.dataset.wallpaper = filename;
+    thumb.setAttribute('role', 'radio');
+    thumb.setAttribute('aria-checked', currentWallpaper === filename ? 'true' : 'false');
+    thumb.setAttribute('aria-label', '壁纸 ' + (num - 2639));
+    thumb.tabIndex = 0;
+    if (currentWallpaper === filename) thumb.classList.add('selected');
+    thumb.addEventListener('click', () => applyWallpaper(filename));
+    thumb.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyWallpaper(filename); });
+    wallpaperGrid.appendChild(thumb);
+  });
+
+  // 切换随机模式
+  wallpaperRandomCb.addEventListener('change', () => {
+    if (wallpaperRandomCb.checked && currentWallpaper) {
+      applyWallpaper(currentWallpaper); // 保存当前状态但启用随机
+    } else if (!wallpaperRandomCb.checked) {
+      currentWallpaperRandom = false;
+      localStorage.setItem('wallpaper-random', 'false');
+      wallpaperLabel.textContent = getWallpaperLabel();
+    }
+  });
+
+  // 重置壁纸
+  document.getElementById('wallpaper-reset-btn').addEventListener('click', () => {
+    applyWallpaper('');
+  });
+
+  // 打开/关闭弹窗
+  document.getElementById('wallpaper-item').addEventListener('click', () => {
+    wallpaperPopover.style.display = 'flex';
+  });
+  document.getElementById('wallpaper-close-btn').addEventListener('click', () => {
+    wallpaperPopover.style.display = 'none';
+  });
+  wallpaperPopover.addEventListener('click', (e) => {
+    if (e.target === wallpaperPopover) wallpaperPopover.style.display = 'none';
+  });
+
   loadUser();
 })();
 </script>
-<script src="assets/js/analytics.js?v=20260718b"></script>
+<script src="assets/js/analytics.js?v=20260719c"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

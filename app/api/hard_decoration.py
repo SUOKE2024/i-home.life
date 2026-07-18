@@ -20,7 +20,7 @@ from app.schemas.hard_decoration import (
     CeilingDesignRequest,
 )
 from app.auth import get_current_user
-from app.rbac import verify_project_access
+from app.rbac import verify_project_access, verify_project_collaborator_access
 from app.services import hard_decoration_service as svc
 from app.ws import ws_manager
 
@@ -49,8 +49,8 @@ async def list_schemes(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """列出项目硬装方案"""
-    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    """列出项目硬装方案（F40 协作：允许 designer/contractor/supplier 查看）"""
+    await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     schemes = await svc.list_schemes(db, project_id)
     return [HardDecorationSchemeResponse.model_validate(s) for s in schemes]
 
@@ -61,11 +61,11 @@ async def get_scheme(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """硬装方案详情"""
+    """硬装方案详情（F40 协作：允许 designer/contractor/supplier 查看）"""
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
-    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    await verify_project_collaborator_access(project_id=scheme.project_id, current_user=current_user, db=db)
     return HardDecorationSchemeResponse.model_validate(scheme)
 
 
@@ -164,7 +164,7 @@ async def list_floors(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
-    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    await verify_project_collaborator_access(project_id=scheme.project_id, current_user=current_user, db=db)
     floors = await svc.list_floors(db, scheme_id)
     return [FloorPlanResponse.model_validate(f) for f in floors]
 
@@ -199,7 +199,7 @@ async def list_walls(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
-    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    await verify_project_collaborator_access(project_id=scheme.project_id, current_user=current_user, db=db)
     walls = await svc.list_walls(db, scheme_id)
     return [WallFinishResponse.model_validate(w) for w in walls]
 
@@ -234,7 +234,7 @@ async def list_ceilings(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
-    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    await verify_project_collaborator_access(project_id=scheme.project_id, current_user=current_user, db=db)
     ceilings = await svc.list_ceilings(db, scheme_id)
     return [CeilingDesignResponse.model_validate(c) for c in ceilings]
 

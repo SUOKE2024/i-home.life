@@ -7,9 +7,9 @@ import io
 from app.database import get_db
 from app.models.user import User
 from app.models.file_attachment import FileAttachment
-from app.models.project import Project
 from app.schemas.file_attachment import FileAttachmentResponse, FileAttachmentListItem
 from app.auth import get_current_user
+from app.rbac import verify_project_collaborator_access
 
 router = APIRouter(prefix="/files", tags=["文件"])
 
@@ -34,13 +34,8 @@ async def upload_file(
     }
     if file.content_type and file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支持的文件类型: {file.content_type}")
-    # 项目归属权检查
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-    if current_user.role != "admin" and project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    # 项目协作权限检查（F40 三方协作：允许 designer/contractor/supplier 上传文件）
+    await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     contents = await file.read()
     attachment = FileAttachment(
         project_id=project_id,
@@ -63,12 +58,7 @@ async def list_files(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-    if current_user.role != "admin" and project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     query = select(FileAttachment).where(FileAttachment.project_id == project_id)
     if category:
         query = query.where(FileAttachment.category == category)
@@ -87,13 +77,7 @@ async def download_file(
     attachment = result.scalar_one_or_none()
     if not attachment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-    # 项目归属权检查
-    result = await db.execute(select(Project).where(Project.id == attachment.project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-    if current_user.role != "admin" and project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_collaborator_access(project_id=attachment.project_id, current_user=current_user, db=db)
     return StreamingResponse(
         io.BytesIO(attachment.file_data),
         media_type=attachment.content_type,
@@ -111,12 +95,6 @@ async def delete_file(
     attachment = result.scalar_one_or_none()
     if not attachment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
-    # 项目归属权检查
-    result = await db.execute(select(Project).where(Project.id == attachment.project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-    if current_user.role != "admin" and project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_collaborator_access(project_id=attachment.project_id, current_user=current_user, db=db)
     await db.delete(attachment)
     await db.commit()

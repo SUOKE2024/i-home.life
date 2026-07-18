@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.1.0"
+    app_version: str = "1.1.10"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL
@@ -81,6 +81,22 @@ class Settings(BaseSettings):
     agent_function_call_max_rounds: int = 5            # 单次对话最大工具调用轮数
     # MCP 工具服务器地址 (留空则仅使用内置工具)
     agent_mcp_server_url: str = ""
+
+    # ── L4 自适应学习（PRD §5.4 Phase 5 末项，提前布局）──
+    # 启用后 chat 端点会注入用户历史正向反馈作为 few-shot 示例
+    # 仅在非 MOCK_MODE（有 LLM API Key）时实际生效，测试环境不受影响
+    agent_learning_enabled: bool = True
+    agent_learning_max_examples: int = 3  # 单次注入的最大 few-shot 示例数
+
+    # ── 3D 渲染引擎（PRD §7.1）──
+    # 启用后前端按需加载 Filament WASM，可与 Three.js 切换
+    filament_enabled: bool = True
+    filament_cdn_url: str = "https://cdn.jsdelivr.net/npm/filament-js@1.54.6"
+
+    # ── CAD 几何内核（PRD §7.1）──
+    # 启用后前端按需加载 OpenCascade.js 进行真实布尔运算
+    opencascade_enabled: bool = True
+    opencascade_cdn_url: str = "https://cdn.jsdelivr.net/npm/opencascade.js@0.2.5/dist/opencascade.wasm.js"
 
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 

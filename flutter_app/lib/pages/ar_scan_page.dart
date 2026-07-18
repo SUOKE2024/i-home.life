@@ -50,6 +50,10 @@ class _ARScanPageState extends State<ARScanPage> {
   String _arkitVersion = '';
   String _arcoreVersion = '';
   String _arEngineVersion = '';
+  // 传感器能力
+  bool _hasGyroscope = false;
+  bool _hasAccelerometer = false;
+  bool _hasMagnetometer = false;
 
   // 推荐方法
   String _recommendedMethod = 'manual';
@@ -176,6 +180,10 @@ class _ARScanPageState extends State<ARScanPage> {
       'platform': _platform.name,
       'device_model': _deviceModel,
       'has_lidar': _hasLidar,
+      'has_depth_sensor': _hasLidar,
+      'has_gyroscope': _hasGyroscope,
+      'has_accelerometer': _hasAccelerometer,
+      'has_magnetometer': _hasMagnetometer,
       'supports_roomplan': _supportsRoomplan,
       'arkit_version': _arkitVersion,
       'arcore_version': _arcoreVersion,
@@ -214,6 +222,10 @@ class _ARScanPageState extends State<ARScanPage> {
         'platform': _platform.name,
         'device_model': _deviceModel,
         'has_lidar': _hasLidar,
+        'has_depth_sensor': _hasLidar,
+        'has_gyroscope': _hasGyroscope,
+        'has_accelerometer': _hasAccelerometer,
+        'has_magnetometer': _hasMagnetometer,
         'supports_roomplan': _supportsRoomplan,
         'arkit_version': _arkitVersion,
         'arcore_version': _arcoreVersion,

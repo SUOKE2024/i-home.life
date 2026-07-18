@@ -81,5 +81,18 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+		<string>camera</string>
+		<string>arkit</string>
+		<string>gyroscope</string>
+		<string>accelerometer</string>
+		<string>magnetometer</string>
+	</array>
+	<key>NSSensorUsageDescription</key>
+	<string>索克家居使用运动传感器（陀螺仪、加速度计）进行 AR 空间测量和水平校准</string>
+	<key>NSMotionUsageDescription</key>
+	<string>索克家居使用运动与健身传感器数据辅助 AR 空间测量精度校准</string>
 </dict>
 </plist>

@@ -1042,6 +1042,54 @@ data: {<span class="c-key">"total_tokens"</span>: <span class="c-num">1284</span
                 </table>
             </div>
             <p>系统会自动检测设备能力并降级，用户无需手动选择；首次使用需授予相机权限。</p>
+
+            <h3>拍照上架</h3>
+            <p>
+                供应商可通过<strong>拍照上架</strong>功能快速录入产品信息：
+            </p>
+            <ul>
+                <li>使用设备摄像头拍摄产品照片（瓷砖、地板、涂料、灯具、家电等），系统自动裁剪压缩。</li>
+                <li>多模态 AI 视觉识别（DeepSeek Vision / GLM-4V）自动分析产品名称、分类、材质、颜色、风格等属性。</li>
+                <li>识别结果支持手动调整后一键创建产品，AI 自动生成营销文案。</li>
+                <li>支持的产品类别：瓷砖、地板、橱柜、涂料、灯具、家电、窗帘、定制家具、服务等 9 大类。</li>
+            </ul>
+            <p class="note">⚠ 拍照上架仅开放给已实名认证的供应商用户使用。</p>
+
+            <h3>智能家居摄像头</h3>
+            <p>
+                平台支持将智能摄像头（如小米、海康威视等品牌）接入智能家居系统，
+                实现装修现场远程巡检、安防监控和场景联动。
+            </p>
+            <ul>
+                <li>支持 Wi-Fi 或 RJ45 有线连接，保证视频流传输稳定。</li>
+                <li>可配置场景自动化：如「离家模式」自动开启所有摄像头录像。</li>
+                <li>摄像头的设备能力包括：开始录像、停止录像、切换模式。</li>
+            </ul>
+
+            <h3>传感器支持</h3>
+            <p>
+                平台充分利用设备传感器提升测量精度和用户体验：
+            </p>
+            <div class="table-wrap" role="region" aria-label="传感器支持概览" tabindex="0">
+                <table>
+                    <caption class="sr-only">平台传感器支持概览</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">传感器</th>
+                            <th scope="col">用途</th>
+                            <th scope="col">支持平台</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>LiDAR 激光雷达</td><td>高精度空间测量 (±1cm)，自动生成户型</td><td>iPhone 12 Pro / iPad Pro 2020+</td></tr>
+                        <tr><td>陀螺仪</td><td>AR 视角跟踪 / 水平仪校准</td><td>iOS / Android / HarmonyOS</td></tr>
+                        <tr><td>加速度计</td><td>倾斜补偿 / 运动轨迹追踪</td><td>iOS / Android / HarmonyOS</td></tr>
+                        <tr><td>磁力计</td><td>朝向检测 / 房间方向标注 / AR 对齐</td><td>iOS / Android / HarmonyOS</td></tr>
+                        <tr><td>GPS</td><td>地理位置标记 / 施工进度定位</td><td>全部平台</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="note">⚠ 传感器功能需客户端授予相应权限。Web 端通过浏览器传感器 API 自动适配，移动端通过设备原生 SDK 调用。</p>
         </section>
 
         <!-- 6. 认证与安全 -->

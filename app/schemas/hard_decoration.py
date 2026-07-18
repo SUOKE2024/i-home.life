@@ -2,12 +2,12 @@
 
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 
 class HardDecorationSchemeCreate(BaseModel):
     project_id: str
-    room_name: str
+    room_name: str = Field(description="房间名称（如：主卧、客厅）。也支持传 name 字段作为别名）")
     scheme_type: str = "floor"
     # scheme_type: floor / wall / ceiling
     floor_area: float = 0.0
@@ -16,6 +16,14 @@ class HardDecorationSchemeCreate(BaseModel):
     total_budget: float = 0.0
     status: str = "draft"
     notes: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_name_alias(cls, values: Any) -> Any:
+        """允许前端传 name 作为 room_name 的别名，提升 API 一致性"""
+        if isinstance(values, dict) and "name" in values and "room_name" not in values:
+            values["room_name"] = values.pop("name")
+        return values
 
 
 class HardDecorationSchemeResponse(BaseModel):
@@ -126,13 +134,19 @@ class CeilingDesignResponse(BaseModel):
 
 
 class TileLayoutRequest(BaseModel):
-    """瓷砖排版请求"""
+    """瓷砖排版请求
 
-    room_width: float
-    room_length: float
-    tile_width: float
-    tile_length: float
-    pattern: str = "直铺"
+    单位约定：
+    - room_width / room_length: 房间尺寸，单位：米 (m)
+    - tile_width / tile_length: 瓷砖尺寸，单位：毫米 (mm)
+      （若误传米为单位，如 0.6，会自动按 m 处理；建议传 600 表示 600mm）
+    """
+
+    room_width: float = Field(description="房间宽度，单位：米 (m)", examples=[4.0])
+    room_length: float = Field(description="房间长度，单位：米 (m)", examples=[5.0])
+    tile_width: float = Field(description="瓷砖宽度，单位：毫米 (mm)", examples=[600])
+    tile_length: float = Field(description="瓷砖长度，单位：毫米 (mm)", examples=[600])
+    pattern: str = Field(default="直铺", description="铺法：直铺/人字拼/鱼骨拼/工字铺/菱形")
 
 
 class PaintUsageRequest(BaseModel):

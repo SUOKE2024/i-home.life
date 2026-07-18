@@ -336,3 +336,57 @@ class BaseAgent:
         for client in self._clients.values():
             await client.aclose()
         self._clients.clear()
+
+    # ── L4 自适应学习（PRD §5.4 Phase 5 末项，提前布局）──
+
+    @staticmethod
+    async def get_user_preference_hint(
+        user_id: str, agent_name: str, db=None, max_examples: int = 3
+    ) -> str:
+        """查询用户对该 agent 的历史正向反馈，构造 few-shot 示例提示。
+
+        当 settings.agent_learning_enabled=True 时，由 chat 端点调用并拼接到
+        user_message 前，让 LLM 参考用户过往满意回复的风格/内容偏好。
+
+        Args:
+            user_id: 用户 ID
+            agent_name: Agent 名称（designer/budget/...）
+            db: 异步数据库会话；为 None 时返回空字符串（兼容无 DB 场景）
+            max_examples: 最大示例数
+
+        Returns:
+            few-shot 示例字符串；无正向反馈或未启用学习时返回空字符串
+        """
+        if not settings.agent_learning_enabled or db is None:
+            return ""
+        try:
+            from sqlalchemy import select, desc
+            from app.models.agent_feedback import AgentFeedback
+            stmt = (
+                select(AgentFeedback)
+                .where(
+                    AgentFeedback.user_id == user_id,
+                    AgentFeedback.agent_name == agent_name,
+                    AgentFeedback.feedback_type == "like",
+                )
+                .order_by(desc(AgentFeedback.created_at))
+                .limit(max_examples)
+            )
+            result = await db.execute(stmt)
+            rows = result.scalars().all()
+            if not rows:
+                return ""
+            examples = []
+            for r in rows:
+                # 截断避免 prompt 过长
+                um = r.user_message[:200]
+                ar = r.agent_reply[:400]
+                examples.append(f"用户: {um}\n优质回复: {ar}")
+            return (
+                "以下是该用户过往满意回复示例，请参考其风格与内容偏好：\n\n"
+                + "\n\n---\n\n".join(examples)
+                + "\n\n---\n\n"
+            )
+        except Exception as e:
+            logger.warning("BaseAgent.get_user_preference_hint 失败: %s", e)
+            return ""

@@ -190,6 +190,9 @@ def _parse_recognition_result(content: str, context: str = "") -> dict:
 
 def _try_parse_json(text: str) -> dict:
     """尝试解析 JSON，失败则用正则提取"""
+    if not text:
+        return {"confidence": 0.6, "name": "未识别产品", "category": "其他"}
+
     # 清除 markdown 代码块
     if "```json" in text:
         text = text.split("```json")[1].split("```")[0].strip()

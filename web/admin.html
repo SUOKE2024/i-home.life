@@ -344,17 +344,16 @@ async function renderTab(tab){
 
 async function renderDashboard(c){
   try{
-    const [projects,materials,users,changeOrders] = await Promise.allSettled([
+    const [projects,materials,users] = await Promise.allSettled([
       api('GET','/api/projects'),api('GET','/api/materials?limit=500'),
-      api('GET','/api/auth/users?limit=100'),api('GET','/api/change-orders?status=pending')
+      api('GET','/api/admin/users')
     ]);
     const projList=projects.status==='fulfilled'?projects.value||[]:[];
     const matData=materials.status==='fulfilled'?materials.value:null;
     const matCount=matData&&Array.isArray(matData)?matData.length:(matData&&typeof matData==='object'?(matData.total||Object.keys(matData).length||'-'):'-');
     const userList=users.status==='fulfilled'?users.value||[]:[];
     const userCount=Array.isArray(userList)?userList.length||1:'-';  // 至少有 demo 用户
-    const changeOrderList=changeOrders.status==='fulfilled'?changeOrders.value||[]:[];
-    const pendingCount=Array.isArray(changeOrderList)?changeOrderList.length:'-';
+    const pendingCount='-';
 
     // 本周新增
     const now=new Date();
@@ -648,11 +647,15 @@ async function renderProcurement(c){
   }catch(e){document.getElementById('supplier-list').innerHTML='<p style="color:var(--text-muted)">加载失败</p>';}
 
   try{
-    const orders=await api('GET','/api/procurement/orders');
+    const projects=await api('GET','/api/projects')||[];
+    const orders=[];
+    for(const p of projects.slice(0,20)){
+      try{const o=await api('GET','/api/procurement/orders/'+p.id);if(o&&o.length)orders.push(...o.map(x=>({...x,_project_name:p.name})));}catch(e){}
+    }
     const ol=document.getElementById('order-list');
     if(orders&&orders.length){
-      ol.innerHTML=`<table role="table" aria-label="采购订单列表"><thead><tr><th scope="col">订单号</th><th scope="col">金额</th><th scope="col">状态</th><th scope="col">创建时间</th></tr></thead><tbody>
-        ${orders.slice(0,10).map(o=>`<tr><td>${o.id||o.order_no||'-'}</td><td>${fmtMoney(o.total_amount)}</td><td><span class="tag ${o.status==='confirmed'?'tag-green':o.status==='pending'?'tag-yellow':'tag-muted'}">${o.status||'-'}</span></td><td>${fmtDate(o.created_at)}</td></tr>`).join('')}
+      ol.innerHTML=`<table role="table" aria-label="采购订单列表"><thead><tr><th scope="col">订单号</th><th scope="col">项目</th><th scope="col">金额</th><th scope="col">状态</th><th scope="col">创建时间</th></tr></thead><tbody>
+        ${orders.slice(0,10).map(o=>`<tr><td>${o.id||o.order_no||'-'}</td><td>${o._project_name||'-'}</td><td>${fmtMoney(o.total_amount)}</td><td><span class="tag ${o.status==='confirmed'?'tag-green':o.status==='pending'?'tag-yellow':'tag-muted'}">${o.status||'-'}</span></td><td>${fmtDate(o.created_at)}</td></tr>`).join('')}
       </tbody></table>`;
     }else{ol.innerHTML='<p style="color:var(--text-muted);font-size:0.78rem">暂无采购订单</p>';}
   }catch(e){document.getElementById('order-list').innerHTML='<p style="color:var(--text-muted)">加载失败</p>';}
@@ -705,11 +708,15 @@ async function renderConstruction(c){
     }catch(err){toast('创建失败: '+err.message);}
   });
   try{
-    const tasks=await api('GET','/api/construction/tasks');
+    const projects=await api('GET','/api/projects')||[];
+    const tasks=[];
+    for(const p of projects.slice(0,20)){
+      try{const t=await api('GET','/api/construction/tasks/'+p.id);if(t&&t.length)tasks.push(...t.map(x=>({...x,_project_name:p.name})));}catch(e){}
+    }
     const tl=document.getElementById('task-list');
     if(tasks&&tasks.length){
-      tl.innerHTML=`<table role="table" aria-label="施工任务列表"><thead><tr><th scope="col">任务</th><th scope="col">阶段</th><th scope="col">状态</th><th scope="col">开始</th><th scope="col">结束</th></tr></thead><tbody>
-        ${tasks.slice(0,10).map(t=>`<tr><td>${t.name||t.task_name||'-'}</td><td>${t.phase||'-'}</td><td><span class="tag ${t.status==='completed'?'tag-green':t.status==='in_progress'?'tag-yellow':'tag-muted'}">${t.status||'-'}</span></td><td>${fmtDate(t.start_date)}</td><td>${fmtDate(t.end_date)}</td></tr>`).join('')}
+      tl.innerHTML=`<table role="table" aria-label="施工任务列表"><thead><tr><th scope="col">项目</th><th scope="col">任务</th><th scope="col">阶段</th><th scope="col">状态</th><th scope="col">开始</th><th scope="col">结束</th></tr></thead><tbody>
+        ${tasks.slice(0,10).map(t=>`<tr><td>${t._project_name||'-'}</td><td>${t.name||t.task_name||'-'}</td><td>${t.phase||'-'}</td><td><span class="tag ${t.status==='completed'?'tag-green':t.status==='in_progress'?'tag-yellow':'tag-muted'}">${t.status||'-'}</span></td><td>${fmtDate(t.start_date)}</td><td>${fmtDate(t.end_date)}</td></tr>`).join('')}
       </tbody></table>`;
     }else{tl.innerHTML='<p style="color:var(--text-muted);font-size:0.78rem">暂无施工任务</p>';}
   }catch(e){document.getElementById('task-list').innerHTML='<p style="color:var(--text-muted)">加载失败</p>';}
@@ -778,11 +785,22 @@ async function renderQuality(c){
       <div id="quality-list"><div class="loading-wrap"><span class="spinner"></span></div></div>
     </div>`;
   try{
-    const inspections=await api('GET','/api/construction/inspections');
+    const projects=await api('GET','/api/projects')||[];
+    const inspections=[];
+    for(const p of projects.slice(0,10)){
+      try{
+        const tasks=await api('GET','/api/construction/tasks/'+p.id);
+        if(tasks&&tasks.length){
+          for(const t of tasks.slice(0,5)){
+            try{const insp=await api('GET','/api/construction/inspections/'+t.id);if(insp&&insp.length)inspections.push(...insp.map(x=>({...x,_task_name:t.name||t.task_name,_project_name:p.name})));}catch(e){}
+          }
+        }
+      }catch(e){}
+    }
     const ql=document.getElementById('quality-list');
     if(inspections&&inspections.length){
-      ql.innerHTML=`<table role="table" aria-label="质检记录列表"><thead><tr><th scope="col">检验结果</th><th scope="col">阶段</th><th scope="col">检验日期</th><th scope="col">备注</th></tr></thead><tbody>
-        ${inspections.slice(0,10).map(i=>`<tr><td><span class="tag ${i.result==='pass'?'tag-green':i.result==='fail'?'tag-red':'tag-yellow'}">${i.result||'-'}</span></td><td>${i.phase||'-'}</td><td>${fmtDate(i.inspection_date||i.created_at)}</td><td>${i.notes||'-'}</td></tr>`).join('')}
+      ql.innerHTML=`<table role="table" aria-label="质检记录列表"><thead><tr><th scope="col">项目</th><th scope="col">任务</th><th scope="col">检验结果</th><th scope="col">阶段</th><th scope="col">检验日期</th><th scope="col">备注</th></tr></thead><tbody>
+        ${inspections.slice(0,10).map(i=>`<tr><td>${i._project_name||'-'}</td><td>${i._task_name||'-'}</td><td><span class="tag ${i.result==='pass'?'tag-green':i.result==='fail'?'tag-red':'tag-yellow'}">${i.result||'-'}</span></td><td>${i.phase||'-'}</td><td>${fmtDate(i.inspection_date||i.created_at)}</td><td>${i.notes||'-'}</td></tr>`).join('')}
       </tbody></table>`;
     }else{ql.innerHTML='<p style="color:var(--text-muted);font-size:0.78rem">暂无质检记录</p>';}
   }catch(e){document.getElementById('quality-list').innerHTML='<p style="color:var(--text-muted)">加载失败</p>';}
@@ -799,7 +817,7 @@ async function renderUsers(c){
     </div>`;
 
   let allUsers=[];
-  try{allUsers=await api('GET','/api/auth/users?limit=100')||[];}catch(e){}
+  try{allUsers=await api('GET','/api/admin/users')||[];}catch(e){}
   if(!Array.isArray(allUsers))allUsers=[];
 
   function renderUserTable(users){
@@ -833,7 +851,7 @@ async function renderUsers(c){
 
 async function viewUserDetail(uid){
   try{
-    const u=await api('GET','/api/auth/users/'+uid);
+    const u=await api('GET','/api/admin/users/'+uid);
     alert('用户详情:\n手机号: '+(u.phone||'-')+'\n姓名: '+(u.name||u.username||'-')+'\n角色: '+(u.role||'user')+'\n注册时间: '+fmtDate(u.created_at)+'\n状态: '+(u.is_active!==false?'正常':'已禁用'));
   }catch(e){toast('获取用户详情失败: '+e.message);}
 }
@@ -842,7 +860,7 @@ async function toggleUserStatus(uid,currentlyActive){
   const action=currentlyActive?'禁用':'启用';
   if(!confirm('确定要'+action+'该用户吗？'))return;
   try{
-    await api('PATCH','/api/auth/users/'+uid,{is_active:!currentlyActive});
+    await api('PUT','/api/admin/users/'+uid+'/status',{is_active:!currentlyActive});
     toast('用户已'+action);
     showTab('users');
   }catch(e){toast(action+'失败: '+e.message);}

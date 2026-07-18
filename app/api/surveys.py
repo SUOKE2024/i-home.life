@@ -71,8 +71,20 @@ async def device_check():
             },
             "accelerometer": {
                 "supported_platforms": ["iOS", "Android", "HarmonyOS"],
-                "api": "DeviceOrientation API",
-                "capabilities": ["level_detection", "angle_measurement"]
+                "api": "DeviceMotionEvent / Flutter sensors_plus",
+                "capabilities": ["level_detection", "angle_measurement", "tilt_compensation", "motion_tracking"]
+            },
+            "gyroscope": {
+                "supported_platforms": ["iOS 4+", "Android 2.3+", "HarmonyOS 3+"],
+                "api": "DeviceOrientationEvent / Flutter sensors_plus",
+                "capabilities": ["orientation_3dof", "angular_velocity", "rotation_vector"],
+                "use_case": "AR 视角跟踪 / 水平仪校准"
+            },
+            "magnetometer": {
+                "supported_platforms": ["iOS", "Android", "HarmonyOS"],
+                "api": "Magnetometer API / Flutter sensors_plus",
+                "capabilities": ["heading_angle", "compass_direction", "magnetic_field_strength"],
+                "use_case": "朝向检测 / 房间方向标注 / AR 对齐"
             }
         },
         "recommended_workflow": {

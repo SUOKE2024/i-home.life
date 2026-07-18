@@ -19,7 +19,7 @@ from app.services.project_service import (
 )
 from app.ws import ws_manager
 
-router = APIRouter(prefix="/projects", tags=["项目"])
+router = APIRouter(prefix="/projects", tags=["项目管理"])
 
 
 @router.get(
@@ -32,7 +32,6 @@ router = APIRouter(prefix="/projects", tags=["项目"])
         200: {"description": "获取成功"},
         401: {"description": "未登录或 Token 无效"},
     },
-    tags=["项目管理"],
 )
 async def list_projects(
     current_user: User = Depends(get_current_user),
@@ -54,7 +53,6 @@ async def list_projects(
         403: {"description": "无权访问该项目"},
         404: {"description": "项目不存在"},
     },
-    tags=["项目管理"],
 )
 async def get_project_detail(
     project_id: str,
@@ -81,7 +79,6 @@ async def get_project_detail(
         400: {"description": "请求参数无效"},
         401: {"description": "未登录或 Token 无效"},
     },
-    tags=["项目管理"],
 )
 async def create_project_handler(
     data: ProjectCreate,
@@ -107,7 +104,6 @@ async def create_project_handler(
         403: {"description": "无权修改该项目"},
         404: {"description": "项目不存在"},
     },
-    tags=["项目管理"],
 )
 async def update_project_handler(
     project_id: str,
@@ -139,7 +135,6 @@ async def update_project_handler(
         403: {"description": "无权删除该项目"},
         404: {"description": "项目不存在"},
     },
-    tags=["项目管理"],
 )
 async def delete_project_handler(
     project_id: str,

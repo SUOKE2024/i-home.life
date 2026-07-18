@@ -1774,6 +1774,45 @@ const ApiClient = {
     return this.request(`/api/products/${productId}/publish`, { method: 'POST' });
   },
 
+  // 拍照上架 camera_scan
+  async cameraScanProduct(formData) {
+    return this.request('/api/products/camera/scan', {
+      method: 'POST',
+      body: formData,
+      headers: {},  // let browser set multipart/form-data boundary
+    });
+  },
+  async cameraConfirmProduct(formData) {
+    return this.request('/api/products/camera/confirm', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  // ============ 批量产品上传 / AI 文案 ============
+
+  // 批量上传产品（Excel/CSV）
+  async uploadProductBatch(formData, aiAssisted = false) {
+    const url = aiAssisted
+      ? '/api/products/batch/upload?ai_assisted=true'
+      : '/api/products/batch/upload';
+    return this.request(url, {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  },
+
+  // 获取批量上传模板下载链接
+  async getBatchUploadTemplate() {
+    return this.request('/api/products/batch/template');
+  },
+
+  // 查询 AI 文案生成任务状态
+  async getAICopyJobStatus(batchId) {
+    return this.request(`/api/products/batch/ai-jobs/${batchId}`);
+  },
+
   // ============ 通知 / 设备推送令牌 ============
 
   // 注册/更新设备推送令牌（每用户每平台仅保留一条活跃记录）

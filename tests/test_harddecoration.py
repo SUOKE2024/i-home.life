@@ -402,6 +402,64 @@ async def test_hd_tile_layout_patterns(client: AsyncClient, pattern: str):
 
 
 @pytest.mark.asyncio
+async def test_hd_tile_layout_unit_compat(client: AsyncClient):
+    """瓷砖排版 - 单位兼容：瓷砖尺寸误传 m 应自动换算为 mm
+
+    回归测试：前端误传 tile_width=0.6 (m) 而非 600 (mm) 时，
+    服务层应自动识别并换算，避免 full_tiles 异常膨胀到千万级。
+    """
+    token = await _register_and_login(client, "13900300021", "单位兼容")
+    project_id = await _create_project(client, token, "单位兼容项目")
+    create = await client.post(
+        "/api/hard-decoration/schemes",
+        json={"project_id": project_id, "room_name": "客厅", "scheme_type": "floor"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    scheme_id = create.json()["id"]
+
+    # 传 m 单位（0.6）应自动换算为 600 mm
+    resp_m = await client.post(
+        f"/api/hard-decoration/schemes/{scheme_id}/tile-layout",
+        json={"room_width": 4.0, "room_length": 5.0, "tile_width": 0.6, "tile_length": 0.6, "pattern": "直铺"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp_m.status_code == 200, resp_m.text
+    data_m = resp_m.json()
+    # 4m × 5m = 20㎡，0.6m × 0.6m = 0.36㎡，整砖数应在 50 块量级
+    assert data_m["full_tiles"] < 100, f"瓷砖数异常: {data_m['full_tiles']}（应自动换算 m→mm）"
+    assert data_m["tile_area_m2"] == 0.36, f"单砖面积应为 0.36㎡，实际: {data_m['tile_area_m2']}"
+
+    # 传 mm 单位（600）应正常工作，结果与 m 单位一致
+    resp_mm = await client.post(
+        f"/api/hard-decoration/schemes/{scheme_id}/tile-layout",
+        json={"room_width": 4.0, "room_length": 5.0, "tile_width": 600, "tile_length": 600, "pattern": "直铺"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp_mm.status_code == 200
+    data_mm = resp_mm.json()
+    assert data_m["full_tiles"] == data_mm["full_tiles"], "m 单位与 mm 单位结果应一致"
+
+
+@pytest.mark.asyncio
+async def test_hd_scheme_create_accept_name_alias(client: AsyncClient):
+    """硬装方案创建 - 支持传 name 作为 room_name 的别名
+
+    回归测试：前端传 name 字段应被接受并映射到 room_name。
+    """
+    token = await _register_and_login(client, "13900300022", "别名测试")
+    project_id = await _create_project(client, token, "别名项目")
+    # 传 name 而非 room_name
+    resp = await client.post(
+        "/api/hard-decoration/schemes",
+        json={"project_id": project_id, "name": "主卧", "scheme_type": "floor"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["room_name"] == "主卧", f"name 别名未映射到 room_name，实际: {data['room_name']}"
+
+
+@pytest.mark.asyncio
 async def test_hd_paint_usage(client: AsyncClient):
     """涂料用量计算"""
     token = await _register_and_login(client, "13900300012", "涂料用量")

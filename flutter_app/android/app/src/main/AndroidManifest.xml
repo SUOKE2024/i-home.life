@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 摄像头权限：拍照上架 / AR 测量 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- ARCore / Google Play Services for AR (可选) -->
+    <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
+    <!-- 传感器权限（高采样率） -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+    <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
     <application
         android:label="ihome_app"
         android:name="${applicationName}"

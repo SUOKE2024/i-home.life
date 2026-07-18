@@ -34,6 +34,8 @@ from app.api import notifications
 from app.api import admin
 from app.api import product_batch
 from app.api import camera_scan
+from app.api import config as config_api
+from app.api import cad_import
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -95,9 +97,16 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# CORS: 生产环境从 .env 读取白名单; DEBUG 模式下放开以方便本地联调
+# CORS: 生产环境从 .env 读取白名单; DEBUG 模式下列出常用本地开发端口
 _cors_origins = (
-    ["*"] if settings.debug else (settings.cors_origins or ["http://localhost:3000"])
+    settings.cors_origins
+    if settings.cors_origins
+    else (
+        ["http://localhost:3000", "http://localhost:5173", "http://localhost:8084",
+         "http://localhost:8085", "http://localhost:5500", "http://localhost:8000"]
+        if settings.debug
+        else ["http://localhost:3000"]
+    )
 )
 app.add_middleware(
     CORSMiddleware,
@@ -225,6 +234,8 @@ api_router.include_router(tasks.router)                # /api/tasks/*
 api_router.include_router(points.router)               # /api/points/*
 api_router.include_router(notifications.router)       # /api/notifications/*
 api_router.include_router(admin.router)             # /api/admin/*
+api_router.include_router(config_api.router)        # /api/config/*
+api_router.include_router(cad_import.router)       # /api/cad-import/*
 app.include_router(api_router)
 
 # ── 全局异常处理 ──

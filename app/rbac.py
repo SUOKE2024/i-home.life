@@ -97,6 +97,19 @@ async def verify_project_chat_access(
     db: AsyncSession = Depends(get_db),
 ) -> Project:
     """验证项目聊天访问权限：admin/owner/所有认证角色（F40 三方协作）"""
+    return await verify_project_collaborator_access(project_id, current_user, db)
+
+
+async def verify_project_collaborator_access(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Project:
+    """验证项目协作访问权限：admin/owner/designer/contractor/supplier（F40 三方协作）
+
+    chat、文件共享、设计查看等协作场景使用此函数。
+    与 verify_project_access 的区别：允许非 owner 的认证角色访问。
+    """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -108,9 +121,16 @@ async def verify_project_chat_access(
     if project.owner_id == current_user.id:
         return project
 
-    # F40 三方协作：允许所有认证角色参与项目群聊
-    # （homeowner/designer/contractor/supplier）
-    return project
+    # F40 三方协作：允许协作角色（designer/contractor/supplier）查看项目
+    # 注意：homeowner 不在协作角色列表中，非 owner 的 homeowner 无权访问
+    allowed_roles = {"designer", "contractor", "supplier"}
+    if current_user.role in allowed_roles:
+        return project
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="无权访问此项目",
+    )
 
 
 # ── 预设权限检查器（按资源 + 操作命名） ──

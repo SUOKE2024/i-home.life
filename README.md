@@ -2,12 +2,69 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.1 · AI 推理稳定性优化 + WebSocket 心跳 + 冗余清理（2026-07-18）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 5 视图 + 9 Agent 全链路 + Flutter 41 页面 + ARIA 无障碍 + PASETO 认证 + WebSocket 安全
+> v1.1.10 · Filament 渲染引擎 + OpenCascade.js 真实布尔运算 + DWG 后端解析 + L4 偏好学习注入（2026-07-19）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 10 Agent 全链路 + L4 偏好学习 + 461 API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
 
 ## 最近更新
 
-### 2026-07-18 · v1.1.1
+### 2026-07-19 · v1.1.10
+
+- **Filament 渲染引擎迁移**（PRD §7.1）:
+  - [web/studio.html](web/studio.html) 新增「🎮 切换 3D 引擎」按钮，支持 Three.js ↔ Filament 双引擎切换
+  - `loadFilament()` 按需加载 Filament WASM 1.54.6（cdn.jsdelivr.net），初始化 Engine/Renderer/Scene
+  - `toggleRenderer()` / `renderWithFilament()` 实现 PBR 渲染路径，保留 Three.js 作为默认引擎保证兼容性
+  - [app/config.py](app/config.py) `filament_enabled` 默认改为 `True`（按需加载，不影响首屏）
+- **OpenCascade.js 真实布尔运算**（PRD §7.1）:
+  - [web/studio.html](web/studio.html) 布尔运算按钮组（∪ 并 / ∖ 差 / ∩ 交）
+  - `loadOpenCascade()` 加载完整 opencascade.wasm.js（取代仅支持导入的 occt-import-js）
+  - `booleanOperation()` 实现真实 BRepAlgoAPI_Fuse / Cut / Common 布尔运算 + BRepBndLib AABB 包围盒计算
+  - WASM 失败时降级到 AABB 近似运算保证可用性
+  - [app/config.py](app/config.py) `opencascade_enabled` 默认改为 `True`，`opencascade_cdn_url` 指向完整 WASM 版本
+- **DWG/DXF 后端真实解析**（PRD §7.1）:
+  - 新增 [app/api/cad_import.py](app/api/cad_import.py)：`POST /api/cad-import/dxf` 端点
+  - DXF 解析使用 ezdxf 1.4.4 库：支持 LINE / LWPOLYLINE / CIRCLE / ARC / TEXT 实体 + 边界框计算
+  - DWG 转换使用系统 dwg2dxf 命令（LibreDWG），未安装时返回 422 + 安装指引
+  - [requirements.txt](requirements.txt) 新增 `ezdxf>=1.4.0` 依赖
+  - [app/main.py](app/main.py) 注册 `/api/cad-import/*` 路由
+  - [web/studio.html](web/studio.html) `importCADFile()` 优先调用后端 API，失败降级到前端解析
+  - 7 项新增测试覆盖端点（DXF 解析 / 几何字段 / 认证 / 文件类型 / 损坏文件 / DWG 转换器缺失）
+- **L4 自适应学习注入**（PRD §5.4 Phase 5 末项）:
+  - [app/api/agents.py](app/api/agents.py) `/agents/chat` 端点在 intent 确定后注入 `BaseAgent.get_user_preference_hint()` few-shot 示例
+  - 仅在 `agent_learning_enabled=True` 且非 MOCK_MODE 时生效，测试环境不受影响
+  - 5 项新增测试覆盖：无数据返回空 / 禁用返回空 / 有反馈返回示例 / agent 过滤 / dislike 排除
+- **版本号一致性升级**: 7 个 HTML `?v=20260719b` → `?v=20260719c`（35 处统一），[web/sw.js](web/sw.js) `CACHE_VERSION` `suoke-v1.0.24` → `suoke-v1.0.25`，[app/config.py](app/config.py) `app_version` `1.1.9` → `1.1.10`，[.github/workflows/ci.yml](.github/workflows/ci.yml) `APP_VERSION` `1.1.9` → `1.1.10`
+
+### 2026-07-19 · v1.1.9
+
+- **DWG/DXF 文件导入**（PRD §7.1 长线计划）:
+  - [web/studio.html](web/studio.html) 新增「📥 导入 DWG/DXF」按钮 + 隐藏 file input
+  - DXF R12/R14 文本格式前端直接解析：支持 LINE / LWPOLYLINE / CIRCLE / ARC 实体，每段转换为 0.15m 厚 rect 墙体
+  - DWG 闭源格式：前端检测到 .dwg 时弹出转换指引（ODA File Converter / LibreDWG / AutoCAD 另存为 DXF）
+- **L4 自适应学习基础**（PRD §5.4 Phase 5 末项，提前布局）:
+  - 新增 [app/models/agent_feedback.py](app/models/agent_feedback.py)：AgentFeedback 表（user_id/agent_name/message_hash/feedback_type/rating/comment/user_message/agent_reply）
+  - 新增 [POST /api/agents/feedback](app/api/agents.py) 端点：记录用户 like/dislike 反馈
+  - 新增 [BaseAgent.get_user_preference_hint()](app/agents/base.py)：查询用户历史正向反馈构造 few-shot 示例提示
+  - [app/config.py](app/config.py) 新增 `agent_learning_enabled` + `agent_learning_max_examples` 配置（默认 False，可选启用）
+  - 6 项新增测试覆盖（like/dislike/invalid type/unauth/feature flags/preference hint）
+- **OpenCascade.js 按需加载框架**（PRD §7.1 长线计划）:
+  - [web/studio.html](web/studio.html) 新增「⬭ 布尔运算 (OpenCascade)」按钮
+  - `loadOpenCascade()` 动态加载 CDN（按需，不影响首屏性能）
+  - `booleanOperation(op)` 实现 union/intersect 的 AABB 近似运算 + difference 占位提示
+  - 启动前先查询 `/api/config/feature-flags` 检查 opencascade_enabled 开关
+- **Filament 集成配置层**（PRD §7.1 长线计划）:
+  - [app/config.py](app/config.py) 新增 `filament_enabled` + `filament_cdn_url` 配置（默认 False，保持 Three.js r128）
+- **配置查询 API**: 新增 [app/api/config.py](app/api/config.py) 提供 `GET /api/config/feature-flags`，前端可查询长线技术决策的开关状态
+- **版本号一致性升级**: 7 个 HTML `?v=20260719a` → `?v=20260719b`（35 处统一），[web/sw.js](web/sw.js) `CACHE_VERSION` `suoke-v1.0.23` → `suoke-v1.0.24`，[app/config.py](app/config.py) `app_version` `1.1.8` → `1.1.9`
+
+### 2026-07-19 · v1.1.8
+
+- **PRD 对照评估修复**（对照 PRD v3.0 §12 AC-4）:
+  - **任意剖切面**: [web/studio.html](web/studio.html) 平立剖视图新增「✂ 剖面」按钮，用户在画布点击两点定义剖切线，沿剖切线计算与所有墙体 rect 边界交点，自动生成剖面图（含墙体斜线填充、房间名标注、A-B 端点标记、水平距离标尺、高度标尺）。补齐 PRD §12 AC-4「平立剖自动生成」中缺失的"任意剖切面"子项
+  - 视图模式从 5 个扩展为 6 个：平面 / 正立面 / 背立面 / 左立面 / 右立面 / 任意剖面
+- **版本号一致性升级**: 7 个 HTML `?v=20260718d` → `?v=20260719a`（35 处统一），[web/sw.js](web/sw.js) `CACHE_VERSION` `suoke-v1.0.22` → `suoke-v1.0.23`，[app/config.py](app/config.py) `app_version` `1.1.7` → `1.1.8`
+- **冗余清理**: 删除根目录 4 个过时文档（`SIT_REPORT.md` v1.1.1 / `UAT_REPORT.md` v1.1.1 / `UAT_TEST_PLAN.md` v1.0.0 / `test_endpoints.sh` 与 `scripts/e2e-*.sh` 重复），清理全部 `__pycache__/` 和 `.pytest_cache/`
+
+### 2026-07-18 · v1.1.7
 
 - **AI 推理稳定性优化**:
   - 修复 `reasoning_content` fallback 逻辑：v1.0.16 引入的 fallback 把 LLM 内部思维链当作回复返回，导致用户偶发看到 "我们需要理解用户需求..." 等内部推理内容。改为返回友好错误消息（含 `finish_reason` 便于排查）
@@ -54,7 +111,7 @@ open web/3d-viewer.html   # 3D 效果图
 ```
 i-home.life/
 ├── app/
-│   ├── api/           # 40 个路由模块 (436+ 端点)
+│   ├── api/           # 46 个路由模块 (461 端点)
 │   │   ├── auth.py          # 认证 (register/login/me)
 │   │   ├── projects.py      # 项目管理
 │   │   ├── materials.py     # 物料 + BOM + Excel导出
@@ -95,16 +152,18 @@ i-home.life/
 │   │   ├── points.py        # 积分系统
 │   │   ├── location.py      # 地理位置
 │   │   └── agents.py        # AI Agent 路由 (含 F28 动线分析)
-│   ├── agents/        # 9 个 AI Agent (业务逻辑版)
-│   │   ├── orchestrator.py  # 总控 (意图路由, 含 settlement)
+│   ├── agents/        # 10 个 AI Agent (业务逻辑版)
+│   │   ├── orchestrator.py  # 总控 (意图路由)
 │   │   ├── designer.py      # 设计 (9套布局 + NL 修改 + F28 动线分析)
 │   │   ├── budget.py        # 预算 (多方案对比/偏差预警/模板库)
 │   │   ├── procurement.py   # 采购 (比价报告/采购计划/供应商匹配)
 │   │   ├── construction.py  # 施工 (Gantt 排期/质检清单/AI 图像质检 + F37 进度 + F38 质量)
 │   │   ├── qa_inspector.py  # 质检 (验收报告/缺陷识别/设计比对/整改建议)
+│   │   ├── settlement.py    # 结算 (里程碑/异常检测/对账单)
 │   │   ├── concierge.py     # 客服 (FAQ 知识库/咨询分类/升级规则)
-│   │   └── settlement.py    # 结算 (里程碑/异常检测/对账单)
-│   ├── models/        # 80+ ORM 模型 (38 文件)
+│   │   ├── admin.py         # 管理员 (审计日志/平台运营)
+│   │   └── content_publisher.py  # 内容发布 (方案/案例/资讯)
+│   ├── models/        # 80+ ORM 模型 (41 文件)
 │   ├── schemas/       # 40+ Pydantic 验证模块
 │   ├── services/      # 43 个业务服务
 │   └── auth/          # PASETO Token 认证
@@ -125,10 +184,10 @@ i-home.life/
 ├── assets/           # 品牌资源与文档 (logo/截图/壁纸)
 ├── alembic/          # 数据库迁移 (Alembic, SQLite/PostgreSQL 双库)
 ├── scripts/          # 运维脚本 (部署/测试/验收/HarmonyOS)
-└── tests/            # 33 测试文件, 593 测试函数
+└── tests/            # 42 测试文件, 737 测试用例
 ```
 
-### Flutter 页面完整列表 (40 个)
+### Flutter 页面完整列表 (41 个)
 
 | 页面 | 功能 | 编号 |
 |------|------|------|
@@ -277,7 +336,7 @@ i-home.life/
 | 身份 | /identity/verify, /identity/status | 4端点 |
 | 位置 | /location/ip, /location/nearby | 3端点 |
 | 语音 | /voice/asr | 1端点 |
-| **合计** | | **436 端点** |
+| **合计** | | **461 端点** |
 
 ## 验收标准
 
@@ -286,9 +345,9 @@ i-home.life/
 | AC-1 | 2D CAD 精确绘图 | ✅ 15工具 + 正交 + 捕捉 |
 | AC-2 | 对象捕捉 98% | ✅ snapPoints + nearestSnap |
 | AC-3 | 3D 墙体拉伸 < 3s | ✅ Three.js sync3D |
-| AC-4 | 平立剖自动生成 | ✅ 5 视图 (俯视 + 4向立面) |
+| AC-4 | 平立剖自动生成 | ✅ 6 视图 (俯视 + 4向立面 + 任意剖切面) |
 | AC-5 | DXF 导出兼容 | ✅ R12 POLYLINE |
-| AC-6 | Agent 响应 < 3s | 9 Agent + 混合路由 |
+| AC-6 | Agent 响应 < 3s | 10 Agent + 混合路由 |
 | AC-7 | Agent 完成率 85% | ✅ 9套布局 + NL指令 |
 | AC-8 | iPad 30fps | ✅ 基准测试就绪 |
 | AC-9 | 崩溃率 < 0.1% | ✅ 验收脚本就绪 |
@@ -300,7 +359,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 584 passed, 0 failed, 9 skipped
+# 当前: 750 passed, 9 skipped, 0 failed (2026-07-19 v1.1.10 基线, +12 新增 CAD 导入 + L4 注入测试)
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异

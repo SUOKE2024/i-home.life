@@ -7,9 +7,12 @@ from app.agents.construction import ConstructionAgent
 from app.agents.settlement import SettlementAgent
 from app.agents.qa_inspector import QAInspectorAgent
 from app.agents.concierge import ConciergeAgent
+from app.agents.content_publisher import ContentPublisherAgent
+from app.agents.admin import AdminAgent
 
 __all__ = [
     "BaseAgent", "OrchestratorAgent", "DesignerAgent", "BudgetAgent",
     "ProcurementAgent", "ConstructionAgent", "SettlementAgent",
-    "QAInspectorAgent", "ConciergeAgent",
+    "QAInspectorAgent", "ConciergeAgent", "ContentPublisherAgent",
+    "AdminAgent",
 ]

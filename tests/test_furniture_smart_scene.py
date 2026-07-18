@@ -622,6 +622,45 @@ async def test_scene_crud(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_scene_create_accept_name_alias(client: AsyncClient):
+    """场景创建 - 支持传 name 作为 scene_name 的别名
+
+    回归测试：前端传 name 字段应被接受并映射到 scene_name，提升 API 一致性。
+    """
+    token = await _register_and_login(client, "13900300031", "场景别名")
+    project_id = await _create_project(client, token, "场景别名项目")
+
+    # 传 name 而非 scene_name
+    resp = await client.post(
+        "/api/scene-automation/scenes",
+        json={
+            "project_id": project_id,
+            "name": "观影模式",
+            "scene_type": "manual",
+            "actions": [{"device_id": "light", "action": "turn_off"}],
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["scene_name"] == "观影模式", f"name 别名未映射到 scene_name，实际: {data['scene_name']}"
+
+    # 同时传 name 和 scene_name 时，scene_name 优先（不被 name 覆盖）
+    resp2 = await client.post(
+        "/api/scene-automation/scenes",
+        json={
+            "project_id": project_id,
+            "name": "应被忽略",
+            "scene_name": "睡眠模式",
+            "scene_type": "manual",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp2.status_code == 201
+    assert resp2.json()["scene_name"] == "睡眠模式", "scene_name 应优先于 name 别名"
+
+
+@pytest.mark.asyncio
 async def test_scene_trigger_validation_invalid_cron(client: AsyncClient):
     token = await _register_and_login(client, "13900300021", "触发校验")
     project_id = await _create_project(client, token, "触发校验项目")

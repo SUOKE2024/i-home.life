@@ -21,6 +21,7 @@ from app.agents.construction import ConstructionAgent
 from app.agents.settlement import SettlementAgent
 from app.agents.qa_inspector import QAInspectorAgent
 from app.agents.concierge import ConciergeAgent
+from app.agents.content_publisher import ContentPublisherAgent
 from app.agents.admin import AdminAgent
 from app.config import get_settings
 from app.ws import ws_manager
@@ -264,6 +265,26 @@ async def chat_with_agent(  # noqa: C901
             classification = await agent.classify_intent(data.message)
             intent = classification.get("intent", "general")
 
+        # L4 自适应学习：注入用户历史正向反馈作为 few-shot 示例提示
+        # 仅在 agent_learning_enabled=True 且非 MOCK_MODE 时生效
+        if settings.agent_learning_enabled and not MOCK_MODE:
+            from app.agents.base import BaseAgent
+            # intent → agent_name 映射（与下方路由分支一致）
+            intent_to_agent = {
+                "design": "designer", "budget": "budget",
+                "procurement": "procurement", "construction": "construction",
+                "settlement": "settlement", "qa_inspector": "qa_inspector",
+                "concierge": "concierge", "content_publish": "content_publisher",
+                "admin": "admin",
+            }
+            agent_name_for_hint = intent_to_agent.get(intent, "orchestrator")
+            preference_hint = await BaseAgent.get_user_preference_hint(
+                current_user.id, agent_name_for_hint, db,
+                max_examples=settings.agent_learning_max_examples,
+            )
+            if preference_hint:
+                user_ctx = f"{preference_hint}\n{user_ctx}"
+
         # Route to specialized agent based on intent
         suggestions_map = {
             "designer": ["调整方案", "查看材料清单", "不同风格对比"],
@@ -277,41 +298,32 @@ async def chat_with_agent(  # noqa: C901
         }
 
         if intent in ("content_publish",):
-            # 检测是否为产品管理类意图（创建/修改/下架/库存）
-            proc_agent = ProcurementAgent()
+            # 使用专用的 ContentPublisherAgent 处理产品管理/内容发布
+            cp_agent = ContentPublisherAgent()
             try:
-                product_intent = ProcurementAgent.classify_product_intent(data.message)
+                product_intent = ContentPublisherAgent.classify_intent(data.message)
                 if product_intent != "create_product" or any(
                     kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
                 ):
                     # 产品管理操作
                     if MOCK_MODE:
-                        reply = proc_agent.handle_product_request(data.message, current_user.name)
+                        reply = cp_agent.handle_product_request(data.message, current_user.name)
                     else:
-                        reply = await proc_agent.think(
+                        reply = await cp_agent.think(
                             f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
                         )
                 else:
                     # 内容发布引导
                     if MOCK_MODE:
-                        reply = (
-                            "**产品发布助手**\n\n"
-                            "检测到您要发布产品，请提供以下信息：\n\n"
-                            "1. **产品名称**：如「800×800灰色防滑地砖」\n"
-                            "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
-                            "3. **价格区间**：如「50-80元/㎡」\n"
-                            "4. **产品描述**：材质、规格、产地、卖点等\n"
-                            "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
-                            "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
-                        )
+                        reply = cp_agent.handle_product_request(data.message, current_user.name)
                     else:
-                        reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+                        reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
                 return AgentResponse(
                     agent_type="content_publisher", reply=reply,
                     suggestions=suggestions_map["content_publisher"],
                 )
             finally:
-                await proc_agent.close()
+                await cp_agent.close()
 
         if intent in ("design",):
             des_agent = DesignerAgent()
@@ -508,34 +520,26 @@ async def chat_stream(  # noqa: C901
 
         # 获取回复文本（与 /chat 相同逻辑）
         if intent in ("content_publish",):
-            proc_agent = ProcurementAgent()
+            # 使用专用的 ContentPublisherAgent 处理产品管理/内容发布
+            cp_agent = ContentPublisherAgent()
             try:
-                product_intent = ProcurementAgent.classify_product_intent(data.message)
+                product_intent = ContentPublisherAgent.classify_intent(data.message)
                 if product_intent != "create_product" or any(
                     kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
                 ):
                     if MOCK_MODE:
-                        reply = proc_agent.handle_product_request(data.message, current_user.name)
+                        reply = cp_agent.handle_product_request(data.message, current_user.name)
                     else:
-                        reply = await proc_agent.think(
+                        reply = await cp_agent.think(
                             f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
                         )
                 else:
                     if MOCK_MODE:
-                        reply = (
-                            "**产品发布助手**\n\n"
-                            "检测到您要发布产品，请提供以下信息：\n\n"
-                            "1. **产品名称**：如「800×800灰色防滑地砖」\n"
-                            "2. **产品类别**：瓷砖/地板/涂料/橱柜/卫浴/灯具/家电/窗帘/定制家具/其他\n"
-                            "3. **价格区间**：如「50-80元/㎡」\n"
-                            "4. **产品描述**：材质、规格、产地、卖点等\n"
-                            "5. **标签**：如「#防滑 #灰色 #客厅 #地砖」\n\n"
-                            "示例：我要上架一款800×800的灰色防滑地砖，广东佛山产，50元/㎡起"
-                        )
+                        reply = cp_agent.handle_product_request(data.message, current_user.name)
                     else:
-                        reply = await proc_agent.generate_content_publish_reply(data.message, current_user.name)
+                        reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
             finally:
-                await proc_agent.close()
+                await cp_agent.close()
         elif intent in ("design",):
             des_agent = DesignerAgent()
             try:
@@ -636,7 +640,14 @@ async def chat_stream(  # noqa: C901
         # SSE 流式推送
         async def generate_sse():
             # 先发送 agent_type 元信息
-            yield f"data: {json.dumps({'event': 'meta', 'agent_type': intent})}\n\n"
+            # 将 intent 反向映射为 agent_type，与非流式接口返回值保持一致
+            # （如 intent="design" → agent_type="designer"）
+            _intent_to_agent_type = {
+                "design": "designer",
+                "content_publish": "content_publisher",
+            }
+            agent_type_meta = _intent_to_agent_type.get(intent, intent)
+            yield f"data: {json.dumps({'event': 'meta', 'agent_type': agent_type_meta})}\n\n"
             await asyncio.sleep(0.05)
 
             if stream_agent is not None:
@@ -1226,3 +1237,45 @@ def _mock_qa_inspection() -> str:
         "2. 瓷砖空鼓率检测需复检\n\n"
         "建议整改后复验，确认全部合格后签署验收报告。"
     )
+
+
+# ── L4 自适应学习：用户反馈收集（PRD §5.4 Phase 5 末项，提前布局）──
+
+class AgentFeedbackRequest(BaseModel):
+    """用户对 Agent 回复的反馈"""
+    agent_name: str = Field(min_length=1, max_length=50)
+    feedback_type: str = Field(pattern="^(like|dislike)$")
+    rating: int | None = Field(default=None, ge=1, le=5)
+    comment: str = Field(default="", max_length=500)
+    user_message: str = Field(min_length=1, max_length=2000)
+    agent_reply: str = Field(min_length=1, max_length=8000)
+
+
+@router.post("/feedback", status_code=status.HTTP_201_CREATED)
+async def submit_agent_feedback(
+    payload: AgentFeedbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """记录用户对 Agent 回复的反馈，用于 L4 自适应学习。
+
+    - feedback_type="like"：正向反馈，BaseAgent.think() 后续会将该轮对话
+      作为 few-shot 示例注入到同 agent 的 prompt，提升回复质量
+    - feedback_type="dislike"：负向反馈，用于离线分析识别低满意度场景
+    """
+    import hashlib
+    from app.models.agent_feedback import AgentFeedback
+    message_hash = hashlib.sha256(payload.user_message.encode()).hexdigest()
+    feedback = AgentFeedback(
+        user_id=current_user.id,
+        agent_name=payload.agent_name,
+        message_hash=message_hash,
+        feedback_type=payload.feedback_type,
+        rating=payload.rating,
+        comment=payload.comment or None,
+        user_message=payload.user_message,
+        agent_reply=payload.agent_reply,
+    )
+    db.add(feedback)
+    await db.commit()
+    return {"status": "recorded", "feedback_id": feedback.id, "agent_learning_enabled": settings.agent_learning_enabled}

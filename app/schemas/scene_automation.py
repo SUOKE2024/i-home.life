@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── 场景 ──
@@ -12,13 +12,21 @@ from pydantic import BaseModel, Field
 class SceneAutomationCreate(BaseModel):
     project_id: str
     scheme_id: str | None = None
-    scene_name: str
+    scene_name: str = Field(description="场景名称（如：回家模式）。也支持传 name 字段作为别名）")
     scene_type: str = "manual"
     # scene_type: manual / scheduled / triggered / geo
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
     enabled: bool = True
     priority: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_name_alias(cls, values: Any) -> Any:
+        """允许前端传 name 作为 scene_name 的别名，提升 API 一致性"""
+        if isinstance(values, dict) and "name" in values and "scene_name" not in values:
+            values["scene_name"] = values.pop("name")
+        return values
 
 
 class SceneAutomationUpdate(BaseModel):
@@ -28,6 +36,14 @@ class SceneAutomationUpdate(BaseModel):
     actions: list[dict[str, Any]] | None = None
     enabled: bool | None = None
     priority: int | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_name_alias(cls, values: Any) -> Any:
+        """允许前端传 name 作为 scene_name 的别名"""
+        if isinstance(values, dict) and "name" in values and "scene_name" not in values:
+            values["scene_name"] = values.pop("name")
+        return values
 
 
 class SceneAutomationResponse(BaseModel):

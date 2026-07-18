@@ -485,3 +485,147 @@ async def test_confirm_payment_not_found(client: AsyncClient):
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+# ── 14. 生产 schema 迁移回归测试 ──
+
+
+class TestLightweightMigrations:
+    """验证 _run_lightweight_migrations 能正确为 payments/settlements 表添加缺失列。
+
+    背景：生产数据库可能先于模型字段创建，create_all 不会给已有表添加新列。
+    v1.1.3 发现 _run_lightweight_migrations 缺少 payments/settlements 迁移，导致 500。
+    """
+
+    @pytest.mark.asyncio
+    async def test_migration_adds_payment_f15_columns(self, db_session):
+        """模拟数据库缺少 F15 字段，迁移后应有 stage_code 等列"""
+        from sqlalchemy import text, inspect
+        from app.database import _run_lightweight_migrations
+
+        # 先通过 create_all 建表，然后手动删掉 F15 字段模拟生产状态
+        async with db_session.bind.begin() as conn:
+            # 删除 F15 独有的列以模拟生产状态
+            f15_columns = ["stage_code", "stage_order", "due_at", "invoice_no", "invoice_url", "invoiced_at"]
+            for col in f15_columns:
+                try:
+                    await conn.execute(text(f"ALTER TABLE payments DROP COLUMN {col}"))
+                except Exception:
+                    pass  # 列可能不存在
+
+            # 确认列已被删除
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("payments")]
+            cols_before = await conn.run_sync(_cols)
+            for col in f15_columns:
+                assert col not in cols_before, f"列 {col} 应已被删除"
+
+            await conn.commit()
+
+        # 运行迁移
+        await _run_lightweight_migrations()
+
+        # 验证列已添加
+        async with db_session.bind.begin() as conn:
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("payments")]
+
+            cols_after = await conn.run_sync(_cols)
+            for col in f15_columns:
+                assert col in cols_after, f"迁移后应存在列 {col}"
+
+    @pytest.mark.asyncio
+    async def test_migration_adds_settlement_f14_columns(self, db_session):
+        """模拟数据库缺少 F14 字段，迁移后应有 anomaly_count 等列"""
+        from sqlalchemy import text, inspect
+        from app.database import _run_lightweight_migrations
+
+        async with db_session.bind.begin() as conn:
+            f14_settlement_cols = ["anomaly_count", "critical_anomaly_count",
+                                   "suggested_deduction", "review_required",
+                                   "review_reason", "reviewed_by"]
+            for col in f14_settlement_cols:
+                try:
+                    await conn.execute(text(f"ALTER TABLE settlements DROP COLUMN {col}"))
+                except Exception:
+                    pass
+
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("settlements")]
+            cols_before = await conn.run_sync(_cols)
+            for col in f14_settlement_cols:
+                assert col not in cols_before
+
+            await conn.commit()
+
+        await _run_lightweight_migrations()
+
+        async with db_session.bind.begin() as conn:
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("settlements")]
+            cols_after = await conn.run_sync(_cols)
+            for col in f14_settlement_cols:
+                assert col in cols_after
+
+    @pytest.mark.asyncio
+    async def test_migration_adds_settlement_line_f14_columns(self, db_session):
+        """模拟数据库缺少 F14 settlement_lines 字段"""
+        from sqlalchemy import text, inspect
+        from app.database import _run_lightweight_migrations
+
+        async with db_session.bind.begin() as conn:
+            f14_line_cols = ["is_anomaly", "anomaly_type", "anomaly_severity", "anomaly_detail"]
+            for col in f14_line_cols:
+                try:
+                    await conn.execute(text(f"ALTER TABLE settlement_lines DROP COLUMN {col}"))
+                except Exception:
+                    pass
+
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("settlement_lines")]
+            cols_before = await conn.run_sync(_cols)
+            for col in f14_line_cols:
+                assert col not in cols_before
+
+            await conn.commit()
+
+        await _run_lightweight_migrations()
+
+        async with db_session.bind.begin() as conn:
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("settlement_lines")]
+            cols_after = await conn.run_sync(_cols)
+            for col in f14_line_cols:
+                assert col in cols_after
+
+    @pytest.mark.asyncio
+    async def test_migration_is_idempotent(self, db_session):
+        """迁移应幂等：已有列时重复运行不应报错"""
+        from app.database import _run_lightweight_migrations
+
+        # 初次运行（列已存在）
+        await _run_lightweight_migrations()
+        # 再次运行（幂等验证）
+        await _run_lightweight_migrations()  # 不应抛出异常
+
+    @pytest.mark.asyncio
+    async def test_migration_adds_file_attachment_message_id(self, db_session):
+        """验证 file_attachments.message_id 迁移：直接运行迁移，确认列存在（幂等验证）"""
+        from sqlalchemy import inspect
+        from app.database import _run_lightweight_migrations, engine
+
+        # SQLite 不支持 DROP COLUMN，故直接运行迁移验证幂等性
+        await _run_lightweight_migrations()
+
+        async with engine.begin() as conn:
+            def _cols(sync_conn):
+                ins = inspect(sync_conn)
+                return [c["name"] for c in ins.get_columns("file_attachments")]
+            cols = await conn.run_sync(_cols)
+            assert "message_id" in cols, f"迁移后应存在 message_id 列，实际列: {cols}"

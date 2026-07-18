@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
@@ -902,6 +903,60 @@ class ApiClient {
   /// 查询当前供应商的产品
   Future<Result<dynamic>> productMine({int offset = 0, int limit = 20}) =>
       get('/products/mine?offset=$offset&limit=$limit');
+
+  // ── 拍照上架 camera_scan ──
+
+  /// 拍照识别产品（需已认证供应商）
+  Future<Result<dynamic>> cameraScan(Uint8List imageBytes, String filename, {String? context}) async {
+    try {
+      final request = http.MultipartRequest('POST', _uri('/products/camera/scan'));
+      if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
+      request.files.add(http.MultipartFile.fromBytes('image', imageBytes, filename: filename));
+      if (context != null) request.fields['context'] = context;
+      final streamed = await _send(() => request.send());
+      final res = await http.Response.fromStream(streamed);
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  /// 确认拍照识别结果并创建产品
+  Future<Result<dynamic>> cameraConfirm(Map<String, dynamic> body) =>
+      post('/products/camera/confirm', body);
+
+  // ── AR 空间测量 ar_scan ──
+
+  Future<Result<dynamic>> arDeviceCapability(Map<String, dynamic> body) =>
+      post('/surveys/ar/device-capability', body);
+  Future<Result<dynamic>> arCreateSession(Map<String, dynamic> body) =>
+      post('/surveys/ar/sessions', body);
+  Future<Result<dynamic>> arListSessions(String projectId) =>
+      get('/surveys/ar/sessions/project/$projectId');
+  Future<Result<dynamic>> arGetSession(String sessionId) =>
+      get('/surveys/ar/sessions/$sessionId');
+  Future<Result<dynamic>> arUpdateSession(String sessionId, Map<String, dynamic> body) =>
+      patch('/surveys/ar/sessions/$sessionId', body);
+  Future<Result<dynamic>> arStartScan(String sessionId) =>
+      post('/surveys/ar/sessions/$sessionId/start', {});
+  Future<Result<dynamic>> arProcessScan(String sessionId, Map<String, dynamic> body) =>
+      post('/surveys/ar/sessions/$sessionId/process', body);
+  Future<Result<dynamic>> arGetAccuracy(String sessionId) =>
+      get('/surveys/ar/sessions/$sessionId/accuracy');
+  Future<Result<dynamic>> arApplySession(String sessionId) =>
+      post('/surveys/ar/sessions/$sessionId/apply', {});
+  Future<Result<dynamic>> arDeleteSession(String sessionId) =>
+      delete('/surveys/ar/sessions/$sessionId');
+  Future<Result<dynamic>> arAddFeature(Map<String, dynamic> body) =>
+      post('/surveys/ar/features', body);
+  Future<Result<dynamic>> arListFeatures(String sessionId) =>
+      get('/surveys/ar/features/$sessionId');
+  Future<Result<dynamic>> arDeleteFeature(String featureId) =>
+      delete('/surveys/ar/features/$featureId');
+  Future<Result<dynamic>> arAddPoint(Map<String, dynamic> body) =>
+      post('/surveys/ar/points', body);
+  Future<Result<dynamic>> arListPoints(String sessionId) =>
+      get('/surveys/ar/points/$sessionId');
 
   // ── 响应处理 ──
 

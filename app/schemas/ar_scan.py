@@ -163,6 +163,9 @@ class DeviceCapabilityRequest(BaseModel):
     os_version: str | None = None
     has_lidar: bool = False
     has_depth_sensor: bool = False
+    has_gyroscope: bool = False
+    has_accelerometer: bool = False
+    has_magnetometer: bool = False
     arkit_version: str | None = None
     arcore_version: str | None = None
     ar_engine_version: str | None = None

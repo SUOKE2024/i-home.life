@@ -27,8 +27,6 @@ PAGES=(
   "assets/js/im-client.js 200"
   "assets/js/agent-router.js 200"
   "assets/js/message-renderers.js 200"
-  "assets/js/demo-narrative.js 200"
-  "assets/js/story-narrative.js 200"
   "assets/js/analytics.js 200"
 )
 

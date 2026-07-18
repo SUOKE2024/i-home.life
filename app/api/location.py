@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from app.config import get_settings
 
-router = APIRouter(prefix="/location", tags=["location"])
+router = APIRouter(prefix="/location", tags=["位置服务"])
 settings = get_settings()
 
 

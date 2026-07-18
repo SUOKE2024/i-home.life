@@ -28,10 +28,16 @@ def generate_tile_layout(
     Args:
         room_width: 房间宽度 (m)
         room_length: 房间长度 (m)
-        tile_width: 砖宽 (mm)
-        tile_length: 砖长 (mm)
+        tile_width: 砖宽 (mm)，若 < 10 视为 m 自动换算（兼容前端误传）
+        tile_length: 砖长 (mm)，若 < 10 视为 m 自动换算（兼容前端误传）
         pattern: 直铺 / 人字拼 / 鱼骨拼 / 工字铺 / 菱形
     """
+    # 单位兼容：瓷砖尺寸若 < 10（不可能的 mm 值），视为 m 自动换算为 mm
+    # 避免前端误传 0.6 (m) 导致 full_tiles 异常膨胀到千万级
+    if tile_width < 10:
+        tile_width = tile_width * 1000
+    if tile_length < 10:
+        tile_length = tile_length * 1000
     # 房间面积 (m²)
     room_area = room_width * room_length
     # 单砖面积 (m²)

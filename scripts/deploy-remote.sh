@@ -73,19 +73,18 @@ fi
 
 source venv/bin/activate
 
-# 安装/更新依赖（使用阿里云镜像加速）
+# 安装/更新依赖（使用阿里云镜像加速，从 requirements.txt 读取完整列表）
 echo "    安装 Python 依赖..."
 MIRROR="https://mirrors.aliyun.com/pypi/simple/"
 pip install -q --upgrade pip -i "$MIRROR" 2>&1 | tail -1
-pip install -q -i "$MIRROR" fastapi 'uvicorn[standard]' sqlalchemy asyncpg aiosqlite bcrypt \
-  'python-multipart' openpyxl httpx pydantic-settings structlog aiofiles \
-  pillow requests webauthn paseto prometheus-client pendulum cryptography 2>&1 | tail -1
+pip install -q -i "$MIRROR" -r requirements.txt 2>&1 | tail -3
 
 # 初始化数据库（建表）
 echo "    初始化数据库..."
 mkdir -p data
 PYTHONPATH=. python -c "
 import asyncio
+import app.models  # 触发所有模型注册到 Base.metadata，否则 create_all 只创建已导入的表
 from app.database import init_db
 asyncio.run(init_db())
 " 2>&1 | tail -1
@@ -136,7 +135,7 @@ REMOTE_SCRIPT
 
     rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
 
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && pip install -q fastapi uvicorn[standard] sqlalchemy asyncpg aiosqlite bcrypt python-multipart openpyxl httpx pydantic-settings structlog aiofiles pillow requests webauthn paseto prometheus-client pendulum cryptography 2>&1 | tail -1 && systemctl restart ihome && echo '✅ 后端已重启'"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && pip install -q -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt 2>&1 | tail -3 && systemctl restart ihome && echo '✅ 后端已重启'"
     ;;
 
   web)

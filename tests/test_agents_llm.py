@@ -383,6 +383,46 @@ async def test_chat_stream_sse_contract(client: AsyncClient, force_mock_mode):
 
 
 @pytest.mark.asyncio
+async def test_chat_stream_meta_agent_type_designer(client: AsyncClient, force_mock_mode):
+    """验证 SSE meta 事件的 agent_type 与非流式接口返回值一致
+
+    显式指定 agent_type=designer 时，流式响应 meta 事件应返回 "designer"
+    （而非 intent 名 "design"）。非流式 /agents/chat 返回 agent_type="designer"，
+    流式接口 meta 事件必须保持一致，否则前端根据 meta.agent_type 路由会出错。
+    本测试锁定该契约，防止回归（曾出现 meta 返回 intent="design" 的 bug）。
+    """
+    import json as _json
+
+    token = await _register(client, "13900005029")
+    resp = await client.post(
+        "/api/agents/chat/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "设计现代简约客厅", "agent_type": "designer"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+
+    # 解析第一个 meta 事件
+    for line in resp.text.split("\n"):
+        if line.startswith("data: "):
+            payload = line[6:].strip()
+            if not payload:
+                continue
+            try:
+                event = _json.loads(payload)
+            except _json.JSONDecodeError:
+                continue
+            if event.get("event") == "meta":
+                assert "agent_type" in event, "meta 事件必须包含 agent_type"
+                assert event["agent_type"] == "designer", (
+                    f"meta 事件 agent_type 应为 'designer'（与非流式接口一致），"
+                    f"实际: {event['agent_type']}（可能是 intent 名 'design'）"
+                )
+                return
+    pytest.fail("未找到 meta 事件")
+
+
+@pytest.mark.asyncio
 async def test_chat_stream_requires_auth(client: AsyncClient):
     """/agents/chat/stream 必须认证"""
     resp = await client.post(
@@ -724,3 +764,111 @@ async def test_chat_normal_content_not_affected(monkeypatch):
         assert result == "已为您生成3套方案", f"正常 content 应原样返回，实际: {result}"
     finally:
         await agent.close()
+
+
+# === L4 自适应学习: AgentFeedback 端点 + 偏好学习 (v1.1.9) ===
+
+
+@pytest.mark.asyncio
+async def test_agent_feedback_like_recorded(client: AsyncClient, force_mock_mode):
+    """POST /agents/feedback 应记录用户正向反馈"""
+    token = await _register(client, "13900005100")
+    resp = await client.post(
+        "/api/agents/feedback",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "agent_name": "designer",
+            "feedback_type": "like",
+            "rating": 5,
+            "comment": "方案很满意",
+            "user_message": "帮我设计三室两厅",
+            "agent_reply": "已为您生成3套方案...",
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["status"] == "recorded"
+    assert "feedback_id" in data
+    assert "agent_learning_enabled" in data
+
+
+@pytest.mark.asyncio
+async def test_agent_feedback_dislike_recorded(client: AsyncClient, force_mock_mode):
+    """POST /agents/feedback 应支持 dislike 类型"""
+    token = await _register(client, "13900005101")
+    resp = await client.post(
+        "/api/agents/feedback",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "agent_name": "budget",
+            "feedback_type": "dislike",
+            "rating": 2,
+            "comment": "预算偏高",
+            "user_message": "126平预算多少",
+            "agent_reply": "约18万...",
+        },
+    )
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_agent_feedback_invalid_type_rejected(client: AsyncClient, force_mock_mode):
+    """feedback_type 应限制为 like/dislike"""
+    token = await _register(client, "13900005102")
+    resp = await client.post(
+        "/api/agents/feedback",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "agent_name": "designer",
+            "feedback_type": "neutral",
+            "user_message": "test",
+            "agent_reply": "test",
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_agent_feedback_unauth_rejected(client: AsyncClient):
+    """未认证应返回 401"""
+    resp = await client.post(
+        "/api/agents/feedback",
+        json={
+            "agent_name": "designer",
+            "feedback_type": "like",
+            "user_message": "test",
+            "agent_reply": "test",
+        },
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_feature_flags_endpoint(client: AsyncClient, force_mock_mode):
+    """GET /config/feature-flags 应返回长线技术决策的开关状态"""
+    token = await _register(client, "13900005103")
+    resp = await client.get(
+        "/api/config/feature-flags",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # 默认值：filament/opencascade/learning 均为 False（长线计划未启用）
+    assert "filament_enabled" in data
+    assert "opencascade_enabled" in data
+    assert "agent_learning_enabled" in data
+    assert "agent_function_call_enabled" in data
+    assert "vector_db_url_configured" in data
+
+
+@pytest.mark.asyncio
+async def test_base_agent_preference_hint_disabled(client: AsyncClient, force_mock_mode):
+    """agent_learning_enabled=False 时 get_user_preference_hint 应返回空字符串"""
+    from app.agents.base import BaseAgent
+    from app.database import async_session
+
+    async with async_session() as db:
+        hint = await BaseAgent.get_user_preference_hint(
+            user_id="any", agent_name="designer", db=db
+        )
+        assert hint == ""

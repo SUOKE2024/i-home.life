@@ -30,7 +30,7 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
-async def _run_lightweight_migrations():
+async def _run_lightweight_migrations():  # noqa: C901
     """轻量级 schema 迁移：为已有表添加缺失列。
 
     SQLAlchemy 的 create_all 只创建不存在的表，不会给已有表添加新列。
@@ -38,6 +38,7 @@ async def _run_lightweight_migrations():
     生产环境中应在 init_db() 后自动调用。
     """
     from sqlalchemy import text, inspect
+    import logging
 
     async with engine.begin() as conn:
         def _get_table_columns(sync_conn, table_name):
@@ -60,7 +61,6 @@ async def _run_lightweight_migrations():
                     await conn.execute(
                         text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
                     )
-                    import logging
                     logging.getLogger("ihome").info(
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
@@ -81,7 +81,6 @@ async def _run_lightweight_migrations():
                     await conn.execute(
                         text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
                     )
-                    import logging
                     logging.getLogger("ihome").info(
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
@@ -104,6 +103,87 @@ async def _run_lightweight_migrations():
                 ")"
             ))
             logging.getLogger("ihome").info("migration: CREATE TABLE permissions")
+
+        # 检查 payments 表（F15 分阶段支付 / 电子发票字段）
+        payment_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "payments")
+        )
+        if payment_cols is not None:
+            payment_migrations = [
+                ("payments", "stage_code", "VARCHAR(30)"),
+                ("payments", "stage_order", "INTEGER DEFAULT 0 NOT NULL"),
+                ("payments", "due_at", "TIMESTAMP"),
+                ("payments", "invoice_no", "VARCHAR(50)"),
+                ("payments", "invoice_url", "VARCHAR(500)"),
+                ("payments", "invoiced_at", "TIMESTAMP"),
+            ]
+            for table, column, coltype in payment_migrations:
+                if column not in payment_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # 检查 settlements 表（F14 异常检测与人工复核字段）
+        settlement_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "settlements")
+        )
+        if settlement_cols is not None:
+            settlement_migrations = [
+                ("settlements", "anomaly_count", "INTEGER DEFAULT 0 NOT NULL"),
+                ("settlements", "critical_anomaly_count", "INTEGER DEFAULT 0 NOT NULL"),
+                ("settlements", "suggested_deduction", "FLOAT DEFAULT 0.0 NOT NULL"),
+                ("settlements", "review_required", "BOOLEAN DEFAULT 0 NOT NULL"),
+                ("settlements", "review_reason", "VARCHAR(500)"),
+                ("settlements", "reviewed_by", "VARCHAR(36)"),
+            ]
+            for table, column, coltype in settlement_migrations:
+                if column not in settlement_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # 检查 settlement_lines 表（F14 异常标记字段）
+        settlement_line_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "settlement_lines")
+        )
+        if settlement_line_cols is not None:
+            settlement_line_migrations = [
+                ("settlement_lines", "is_anomaly", "BOOLEAN DEFAULT 0 NOT NULL"),
+                ("settlement_lines", "anomaly_type", "VARCHAR(50)"),
+                ("settlement_lines", "anomaly_severity", "VARCHAR(20)"),
+                ("settlement_lines", "anomaly_detail", "VARCHAR(500)"),
+            ]
+            for table, column, coltype in settlement_line_migrations:
+                if column not in settlement_line_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # 检查 file_attachments 表（message_id 外键字段）
+        fa_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "file_attachments")
+        )
+        if fa_cols is not None:
+            fa_migrations = [
+                ("file_attachments", "message_id", "VARCHAR(36)"),
+            ]
+            for table, column, coltype in fa_migrations:
+                if column not in fa_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
 
         _has_role_permissions = bool(await conn.run_sync(
             lambda sync_conn: _get_table_columns(sync_conn, "role_permissions")

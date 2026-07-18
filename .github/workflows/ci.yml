@@ -30,7 +30,7 @@ jobs:
           DATABASE_URL: "sqlite+aiosqlite:///./data/test_${{ github.run_id }}.db"
           SECRET_KEY: "ci-test-secret-key-64-chars-random-string-xxxxxxxxxxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.1.0"
+          APP_VERSION: "1.1.10"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto

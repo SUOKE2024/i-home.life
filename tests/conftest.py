@@ -9,6 +9,10 @@ os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_{os.getpid()}.db"
 # 避免测试中建立真实 WebSocket 连接导致缓慢（~5-7s/test）
 os.environ["QWEN_AUDIO_API_KEY"] = ""
 
+# 禁用 DeepSeek API Key，强制 voice agent 测试走 fallback/mock 模式
+# 避免真实 LLM 调用导致超时（deepseek-v4-pro 单次调用 60-90s，pytest timeout=60s）
+os.environ["DEEPSEEK_API_KEY"] = ""
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: F401, E402

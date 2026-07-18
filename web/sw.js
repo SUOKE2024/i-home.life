@@ -4,10 +4,10 @@
  * - 静态资源：缓存优先（stale-while-revalidate）
  * - API 请求：网络优先，失败降级缓存
  * - WebSocket：不拦截
- * 版本：1.0.18
+ * 版本：1.0.25
  * ============================================ */
 
-const CACHE_VERSION = 'suoke-v1.0.18';
+const CACHE_VERSION = 'suoke-v1.0.25';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
