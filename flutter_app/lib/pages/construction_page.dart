@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../theme/suoke_theme.dart';
 
 class ConstructionPage extends StatefulWidget {
   final String projectId;
@@ -105,9 +106,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.engineering, size: 64, color: Colors.grey),
+            const Icon(Icons.engineering, size: 64, color: SuokeDesignTokens.textSecondary),
             const SizedBox(height: 16),
-            const Text('暂无施工任务', style: TextStyle(color: Colors.grey)),
+            const Text('暂无施工任务', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _loadTasks,
@@ -127,11 +128,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
           final task = _tasks[index] as Map<String, dynamic>;
           final status = task['status'] as String? ?? 'pending';
           final statusColor = {
-            'pending': Colors.grey,
+            'pending': SuokeDesignTokens.textSecondary,
             'in_progress': Colors.blue,
             'completed': Colors.green,
             'delayed': Colors.red,
-          }[status] ?? Colors.grey;
+          }[status] ?? SuokeDesignTokens.textSecondary;
 
           return Card(
             child: ExpansionTile(
@@ -162,11 +163,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
                           child: Text(task['description']),
                         ),
                       if (task['assigned_to'] != null)
-                        Text('负责人：${task['assigned_to']}', style: const TextStyle(color: Colors.grey)),
+                        Text('负责人：${task['assigned_to']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
                       if (task['start_date'] != null)
-                        Text('开始：${task['start_date']}', style: const TextStyle(color: Colors.grey)),
+                        Text('开始：${task['start_date']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
                       if (task['end_date'] != null)
-                        Text('结束：${task['end_date']}', style: const TextStyle(color: Colors.grey)),
+                        Text('结束：${task['end_date']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
                     ],
                   ),
                 ),
@@ -184,9 +185,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.schedule, size: 64, color: Colors.grey),
+            const Icon(Icons.schedule, size: 64, color: SuokeDesignTokens.textSecondary),
             const SizedBox(height: 16),
-            const Text('生成施工 Gantt 排期', style: TextStyle(color: Colors.grey)),
+            const Text('生成施工 Gantt 排期', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _generatePlan,
@@ -213,7 +214,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('面积：${_plan!['total_area']}㎡ · 档次：${_plan!['tier']}',
-                    style: const TextStyle(color: Colors.grey)),
+                    style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
               ],
             ),
           ),

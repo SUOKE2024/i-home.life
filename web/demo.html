@@ -21,6 +21,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="索克家居">
 <title>索克家居 · i-home.life — AI 驱动的全链路智能家居建造平台</title>
+<!-- v1.2.1 性能优化: 预连接第三方 CDN -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<!-- 预加载关键字体 -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" as="style" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap"></noscript>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,600&family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -396,6 +404,17 @@ sup a { color: var(--terracotta); text-decoration: none; font-weight: 600; font-
 sup a:hover { color: var(--gold); }
 
 /* ═══ Responsive ═══ */
+@media (max-width: 1024px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .card-grid { grid-template-columns: repeat(2, 1fr); }
+  .module-grid { grid-template-columns: repeat(2, 1fr); }
+  .tech-grid { grid-template-columns: repeat(3, 1fr); }
+  .features { grid-template-columns: repeat(3, 1fr); }
+  .container { padding: 0 20px 60px; margin-top: -40px; }
+  .hero { padding: 56px 20px 80px; }
+  .hero h1 { font-size: 28px; }
+}
+
 @media (max-width: 767px) {
   .hero { padding: 48px 16px 72px; }
   .hero h1 { font-size: 22px; }
@@ -419,6 +438,19 @@ sup a:hover { color: var(--gold); }
   .story-section .story-highlight p { font-size: 13px; }
   .story-section .story-ending { font-size: 15px; }
   header { padding: 48px 16px 32px; }
+}
+
+@media (max-width: 480px) {
+  .cards { grid-template-columns: 1fr; }
+  .card-grid { grid-template-columns: 1fr; }
+  .module-grid { grid-template-columns: 1fr; }
+  .tech-grid { grid-template-columns: repeat(2, 1fr); }
+  .features { grid-template-columns: repeat(2, 1fr); }
+  .hero-badges { flex-wrap: wrap; gap: 6px; }
+  .hero-badges .badge { font-size: 11px; padding: 3px 8px; }
+  .hero-meta { flex-direction: column; gap: 6px; font-size: 12px; }
+  .stats { flex-wrap: wrap; justify-content: center; }
+  .stat { min-width: 70px; }
 }
 
 @media (max-width: 400px) {
@@ -768,7 +800,7 @@ sup a:hover { color: var(--gold); }
 <div class="hero">
   <div class="hero-inner">
     <div class="hero-logo-wrap">
-      <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" loading="lazy" width="88" height="88">
+      <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" decoding="async" loading="lazy" width="88" height="88">
     </div>
     <div class="hero-tag">TRAE AI 创造力大赛 · 社会服务赛道 · 初赛 Demo</div>
     <h1>索克家居 · <em>i-home.life</em><br>AI 驱动的全链路智能家居建造平台</h1>
@@ -828,6 +860,17 @@ sup a:hover { color: var(--gold); }
         <span class="tag">实时推送</span>
       </div>
       <div class="link">进入工作台 →</div>
+    </a>
+    <a class="entrance-card" href="timeline.html" aria-label="全链路装修向导">
+      <div class="icon" style="background:linear-gradient(135deg,#e8f5e9,#c8e6c9)" aria-hidden="true">🗺️</div>
+      <h3>全链路装修向导</h3>
+      <p>7 阶段装修流程可视化引导，从立项到交付逐步推进，新用户友好引导</p>
+      <div class="meta">
+        <span class="tag">7 阶段</span>
+        <span class="tag">流程引导</span>
+        <span class="tag">进度追踪</span>
+      </div>
+      <div class="link">开始装修之旅 →</div>
     </a>
     <a class="entrance-card" href="3d-viewer.html" aria-label="3D 模型查看器">
       <div class="icon" style="background:linear-gradient(135deg,#e3f2fd,#bbdefb)" aria-hidden="true">🏗️</div>
@@ -1164,7 +1207,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> 移动端 CAD 需考虑 WASM 几何引擎加载性能；Apple Pencil 悬停预览与 Android S Pen 事件模型差异较大
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/01-competitor-research.png" alt="截图1：移动端CAD架构方案设计" loading="lazy">
+          <img src="assets/images/screenshots/01-competitor-research.png" alt="截图1：移动端CAD架构方案设计" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1187,7 +1230,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> 竞品功能对比维度需对齐自身产品实际能力边界；AI 化程度判断需区分「AI 辅助」与「AI Agent 自治」
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/02-prd-architecture.png" alt="截图2：竞品调研与PRD生成" loading="lazy">
+          <img src="assets/images/screenshots/02-prd-architecture.png" alt="截图2：竞品调研与PRD生成" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1210,7 +1253,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> 鸿蒙平板适配需用 DevEco Studio 编译 HAP；ohpm 包管理需要 --strict_ssl false
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/03-interactive-demo.png" alt="截图3：PRD v2.0更新" loading="lazy">
+          <img src="assets/images/screenshots/03-interactive-demo.png" alt="截图3：PRD v2.0更新" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1233,7 +1276,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> file:// 协议下无法解析相对路径 API，需检测协议类型进行适配；ECharts 图表数据不足时需降级 mock
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/04.png" alt="截图4：项目深化设计与Demo实现" loading="lazy">
+          <img src="assets/images/screenshots/04.png" alt="截图4：项目深化设计与Demo实现" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1256,7 +1299,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> 16 个端点存在 IDOR 漏洞，缺少 project.owner_id 校验；files.py 上传无类型限制
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/05.png" alt="截图5：全链路开发进度评估" loading="lazy">
+          <img src="assets/images/screenshots/05.png" alt="截图5：全链路开发进度评估" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1279,7 +1322,7 @@ sup a:hover { color: var(--gold); }
           <strong class="pitfall">踩坑:</strong> ECharts 在暗色主题下 tooltip 文字色与背景冲突；SSE Stream 在 Nginx 需禁用 X-Accel-Buffering
         </div>
         <div class="step-screenshot">
-          <img src="assets/images/screenshots/06.png" alt="截图6：设计系统与数据可视化" loading="lazy">
+          <img src="assets/images/screenshots/06.png" alt="截图6：设计系统与数据可视化" decoding="async" loading="lazy">
         </div>
       </div>
     </div>
@@ -1320,7 +1363,7 @@ sup a:hover { color: var(--gold); }
   <p class="section-lead">完整产品定义 · 功能矩阵 · 竞品对标 · 技术架构</p>
 
   <div class="callout">
-    <p>📄 <strong>完整 PRD 文档</strong>：<a href="house-design-platform-prd.html" target="_blank">索克家居 PRD v3.0（独立页面）</a> — 包含 23 维度竞品对比矩阵、9 Agent 能力定义、F1–F40 功能清单、AI 架构设计、技术路线图等完整内容。</p>
+    <p>📄 <strong>完整 PRD 文档</strong>：索克家居 PRD v3.0 — 包含 23 维度竞品对比矩阵、10 Agent（含 Orchestrator）能力定义、F1–F40 功能清单、AI 架构设计、技术路线图等完整内容。查看 <a href="assets/guide/user-guide.html" target="_blank">用户指南</a> 了解更多。</p>
   </div>
 
   <h3>产品定位</h3>
@@ -1342,7 +1385,7 @@ sup a:hover { color: var(--gold); }
     <div class="module-item"><strong>F12 物流跟踪</strong><span>订单物流全链路追踪</span></div>
   </div>
   <p style="text-align:center;margin-top:16px">
-    <a href="house-design-platform-prd.html" class="btn btn-outline" target="_blank" style="font-size:0.82rem">📖 查看完整 PRD v3.0（40 项功能清单 + 竞品矩阵 + 技术架构）</a>
+    <a href="assets/guide/user-guide.html" class="btn btn-outline" target="_blank" style="font-size:0.82rem">📖 查看用户指南（新功能：Sketch-to-3D · Matter 设备规划 · WebGPU 渲染）</a>
   </p>
 </section>
 
@@ -1403,7 +1446,7 @@ sup a:hover { color: var(--gold); }
     </ol>
   </div>
 
-  <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:56px;height:56px;border-radius:12px;margin-bottom:12px;" loading="lazy">
+  <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:56px;height:56px;border-radius:12px;margin-bottom:12px;" decoding="async" loading="lazy">
   <h3>索克家居 · i-home.life</h3>
   <p>AI 驱动的全链路智能家居建造平台 · v1.0.3</p>
   <p style="margin-top:4px;font-size:0.75rem">FastAPI + DeepSeek/GLM · 9 AI Agent · WebSocket · 437 路由 · 437 测试 · 100% 由 TRAE 开发</p>
@@ -1465,6 +1508,7 @@ sup a:hover { color: var(--gold); }
     </div>
     <div class="ar-calib-hint" id="arCalibHint">
       <p>📷 点击屏幕标记测量起点<br>建议先放置 A4 纸作为参考</p>
+      <p style="margin-top:6px;font-size:11px;opacity:0.7">⚠️ 测量结果为估算值（基于屏幕宽度参考），精度有限，仅供预估算参考。精确测量请使用专业激光测距仪。</p>
     </div>
     <div class="ar-results-panel" id="arResultsPanel" style="display:none">
       <h4>测量结果</h4>
@@ -1742,13 +1786,13 @@ sup a:hover { color: var(--gold); }
 
   // ── 后端健康检查 ──
   function checkBackend() {
-    fetch(BACKEND_URL + '/health', { method: 'GET' })
+    fetch(BACKEND_URL + '/api/health', { method: 'GET' })
       .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
       .then(function (data) {
         backendOnline = true;
         if (statusBadge) { statusBadge.className = 'api-status online'; }
-        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.1.0') + ' · SSE 流式'; }
-        if (demoInfo) { demoInfo.textContent = '实时响应 · ' + (data.version || 'v1.1.0'); }
+        if (statusText) { statusText.textContent = '后端在线 · ' + (data.version || 'v1.1.13') + ' · SSE 流式'; }
+        if (demoInfo) { demoInfo.textContent = '实时响应 · ' + (data.version || 'v1.1.13'); }
         // 尝试登录获取 token
         return fetch(BACKEND_URL + '/api/auth/login', {
           method: 'POST',

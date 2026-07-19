@@ -24,8 +24,8 @@ class ScanSession(Base):
     __tablename__ = "ar_scan_sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    survey_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("surveys.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    survey_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("surveys.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="AR 扫描")
     scanner: Mapped[str | None] = mapped_column(String(100), nullable=True)              # 扫描人
     # 设备型号: iPhone 15 Pro / MatePad Pro 13.2 等
@@ -57,11 +57,11 @@ class ScanSession(Base):
     # high: <2cm, medium: 2-5cm, low: >5cm
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="created")
     # status: created / scanning / uploaded / processing / completed / failed
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     survey = relationship("Survey", foreign_keys=[survey_id])
@@ -89,7 +89,7 @@ class WallFeature(Base):
     __tablename__ = "ar_wall_features"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id: Mapped[str] = mapped_column(String(36), ForeignKey("ar_scan_sessions.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(36), ForeignKey("ar_scan_sessions.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)                  # 所属房间
     wall_id: Mapped[str | None] = mapped_column(String(50), nullable=True)               # 墙体编号 wall_n
     feature_type: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -107,7 +107,7 @@ class WallFeature(Base):
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.95)        # AI 识别置信度 0-1
     detected_by: Mapped[str] = mapped_column(String(20), nullable=False, default="ai")
     # detected_by: ai / manual
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session = relationship("ScanSession", back_populates="wall_features")
 
@@ -133,7 +133,7 @@ class MeasurementPoint(Base):
     __tablename__ = "ar_measurement_points"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id: Mapped[str] = mapped_column(String(36), ForeignKey("ar_scan_sessions.id"), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(36), ForeignKey("ar_scan_sessions.id"), nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(100), nullable=False)                      # 测点标识: 主卧-对角线
     room_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     point_type: Mapped[str] = mapped_column(String(20), nullable=False, default="distance")
@@ -143,7 +143,7 @@ class MeasurementPoint(Base):
     unit: Mapped[str] = mapped_column(String(10), nullable=False, default="m")           # m / cm / ㎡
     deviation: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)         # 偏差=ar_value-reference_value
     deviation_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)  # 偏差百分比
-    measured_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     session = relationship("ScanSession", back_populates="measurement_points")

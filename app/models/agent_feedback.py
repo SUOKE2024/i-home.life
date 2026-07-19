@@ -19,7 +19,7 @@ class AgentFeedback(Base):
     __tablename__ = "agent_feedbacks"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     agent_name: Mapped[str] = mapped_column(String(50), nullable=False)  # designer/budget/...
     message_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA256(user_message)
     feedback_type: Mapped[str] = mapped_column(String(20), nullable=False)  # like/dislike
@@ -27,4 +27,4 @@ class AgentFeedback(Base):
     comment: Mapped[str] = mapped_column(Text, nullable=True)  # 用户文字反馈
     user_message: Mapped[str] = mapped_column(Text, nullable=False)  # 原始用户消息（用于 few-shot）
     agent_reply: Mapped[str] = mapped_column(Text, nullable=False)  # Agent 回复内容
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

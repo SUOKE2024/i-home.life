@@ -6,8 +6,6 @@ import json
 import logging
 import uuid
 
-from openpyxl import load_workbook, Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -40,6 +38,8 @@ VALID_STOCK_STATUS = {"in_stock", "pre_order", "out_of_stock"}
 
 async def parse_excel_file(file_content: bytes) -> list[BatchProductRow]:
     """解析 Excel 文件（.xlsx），返回产品行列表"""
+    # v1.1.14: 延迟导入 openpyxl，减少应用启动时间和内存占用
+    from openpyxl import load_workbook
     workbook = load_workbook(filename=io.BytesIO(file_content), read_only=True)
     sheet = workbook.active
     rows = list(sheet.iter_rows(values_only=True))
@@ -210,6 +210,9 @@ async def batch_create_products(
 
 def generate_template_excel() -> bytes:
     """生成示例 Excel 模板"""
+    # v1.1.14: 延迟导入 openpyxl，减少应用启动时间和内存占用
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     wb = Workbook()
     ws = wb.active
     ws.title = "产品批量导入模板"

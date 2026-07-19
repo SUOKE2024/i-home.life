@@ -55,14 +55,19 @@ async def upload_file(
 async def list_files(
     project_id: str,
     category: str = Query(default=None),
+    skip: int = Query(0, ge=0, description="分页偏移量"),
+    limit: int = Query(100, ge=1, le=500, description="每页数量"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """列出项目附件（v1.1.14: 支持 skip/limit 分页）"""
     await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     query = select(FileAttachment).where(FileAttachment.project_id == project_id)
     if category:
         query = query.where(FileAttachment.category == category)
-    result = await db.execute(query.order_by(FileAttachment.created_at.desc()))
+    result = await db.execute(
+        query.order_by(FileAttachment.created_at.desc()).offset(skip).limit(limit)
+    )
     attachments = result.scalars().all()
     return [FileAttachmentListItem.model_validate(a) for a in attachments]
 

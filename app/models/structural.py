@@ -15,8 +15,8 @@ class LoadBearingWall(Base):
     __tablename__ = "load_bearing_walls"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    room_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("rooms.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    room_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("rooms.id"), nullable=True, index=True)
     wall_name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_load_bearing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # True: 承重墙, False: 非承重墙
@@ -29,8 +29,8 @@ class LoadBearingWall(Base):
     material: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 材料: 砖砌体 / 钢筋混凝土 / 加气混凝土
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     room = relationship("Room")
@@ -42,7 +42,7 @@ class Beam(Base):
     __tablename__ = "beams"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     beam_name: Mapped[str] = mapped_column(String(100), nullable=False)
     beam_type: Mapped[str] = mapped_column(String(30), nullable=False, default="main_beam")
     # beam_type: main_beam(主梁) / secondary_beam(次梁) / ring_beam(圈梁)
@@ -59,8 +59,8 @@ class Beam(Base):
     position_desc: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 位置描述: 客厅横梁 / 卧室上方
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -71,7 +71,7 @@ class Column(Base):
     __tablename__ = "columns"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     column_name: Mapped[str] = mapped_column(String(100), nullable=False)
     column_type: Mapped[str] = mapped_column(String(30), nullable=False, default="rectangular")
     # column_type: rectangular(矩形柱) / circular(圆形柱) / l_shape(L形) / t_shape(T形)
@@ -85,8 +85,8 @@ class Column(Base):
     concrete_grade: Mapped[str | None] = mapped_column(String(10), nullable=True)
     position_desc: Mapped[str | None] = mapped_column(String(200), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -97,7 +97,7 @@ class FloorSlab(Base):
     __tablename__ = "floor_slabs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     slab_name: Mapped[str] = mapped_column(String(100), nullable=False)
     slab_type: Mapped[str] = mapped_column(String(30), nullable=False, default="solid")
     # slab_type: solid(实心板) / hollow(空心板) / composite(叠合板)
@@ -112,8 +112,8 @@ class FloorSlab(Base):
     rebar_spacing_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 钢筋间距 (mm)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -124,7 +124,7 @@ class FoundationType(Base):
     __tablename__ = "foundation_types"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     found_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # found_type: strip(条形基础) / isolated(独立基础) / raft(筏板基础) / pile(桩基础)
     #            / caisson(沉井基础) / stepped(阶梯基础)
@@ -139,8 +139,8 @@ class FoundationType(Base):
     is_selected: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 是否为项目选定方案
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -151,7 +151,7 @@ class StructureLoadEstimate(Base):
     __tablename__ = "structure_load_estimates"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     load_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # load_type: dead_load(恒载) / live_load(活载) / wind_load(风载) / snow_load(雪载) / seismic(地震)
     load_value_kn_m2: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -165,8 +165,8 @@ class StructureLoadEstimate(Base):
     usage: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # 使用功能: 住宅 / 办公 / 商业 / 屋面
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -177,7 +177,7 @@ class BayCompliance(Base):
     __tablename__ = "bay_compliance"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     bay_width_m: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # 开间 (m)
@@ -194,8 +194,8 @@ class BayCompliance(Base):
     checks: Mapped[str | None] = mapped_column(JSON, nullable=True)
     # 详细检查结果 (JSON)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 
@@ -206,7 +206,7 @@ class QuantityCalculation(Base):
     __tablename__ = "quantity_calculations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     calc_name: Mapped[str] = mapped_column(String(100), nullable=False)
     calc_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # calc_type: brickwork(砖砌体) / concrete(混凝土) / formwork(模板) / rebar(钢筋) / total(汇总)
@@ -227,8 +227,8 @@ class QuantityCalculation(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / confirmed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     line_items = relationship("QuantityLineItem", back_populates="calculation", cascade="all, delete-orphan")
@@ -240,7 +240,7 @@ class QuantityLineItem(Base):
     __tablename__ = "quantity_line_items"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    calculation_id: Mapped[str] = mapped_column(String(36), ForeignKey("quantity_calculations.id"), nullable=False)
+    calculation_id: Mapped[str] = mapped_column(String(36), ForeignKey("quantity_calculations.id"), nullable=False, index=True)
     material_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # material_type: brick(标准砖) / mortar(砂浆) / concrete(混凝土) / rebar(钢筋)
     #               / formwork_plywood(模板木板) / formwork_steel(钢模板) / scaffolding(脚手架)
@@ -250,6 +250,6 @@ class QuantityLineItem(Base):
     # unit: m³ / kg / m² / 块 / 根 / 套
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     calculation = relationship("QuantityCalculation", back_populates="line_items")

@@ -224,6 +224,14 @@ const ApiClient = {
     });
   },
 
+  // L4 自适应学习：Agent 反馈
+  async submitAgentFeedback(data) {
+    return this.request('/api/agents/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // 各专业 Agent
   async chatDesign(message, projectId = null) {
     return this.request('/api/agents/design', {
@@ -273,6 +281,51 @@ const ApiClient = {
   // 质量问题
   async getQualityIssues(projectId) {
     return this.request(`/api/construction/quality-issues/${projectId}`);
+  },
+  // 获取项目所有任务的质检记录（聚合）
+  async getProjectInspections(projectId) {
+    const tasks = await this.getConstructionTasks(projectId);
+    const taskList = Array.isArray(tasks) ? tasks : (tasks.items || []);
+    const allInspections = [];
+    for (const task of taskList) {
+      try {
+        const inspections = await this.getInspections(task.id);
+        const list = Array.isArray(inspections) ? inspections : [];
+        list.forEach(inv => { inv._task_id = task.id; inv._task_name = task.title || task.name || ''; });
+        allInspections.push(...list);
+      } catch (_) { /* 任务无质检记录时跳过 */ }
+    }
+    return allInspections;
+  },
+  // F38 AI 图像质检分析
+  async analyzeInspectionImages(data) {
+    return this.request('/api/construction/inspections/analyze', {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+  // 创建质检记录
+  async createInspection(data) {
+    return this.request('/api/construction/inspections', {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
+
+  // 任务池（F36 工程队匹配）
+  async getTaskPool(claimRole = null, limit = 50) {
+    const params = new URLSearchParams();
+    if (claimRole) params.append('claim_role', claimRole);
+    params.append('limit', limit);
+    return this.request(`/api/tasks/pool?${params}`);
+  },
+  // 申领任务
+  async claimTask(taskId) {
+    return this.request('/api/tasks/claim', {
+      method: 'POST', body: JSON.stringify({ task_id: taskId }),
+    });
+  },
+  // 项目关联任务
+  async getProjectTasks(projectId) {
+    return this.request(`/api/tasks/project/${projectId}`);
   },
 
   // 预算

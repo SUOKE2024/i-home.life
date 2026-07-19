@@ -28,8 +28,8 @@ class PointsAccount(Base):
     year_spent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     year_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=lambda: datetime.now(timezone.utc).year)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class PointsTransaction(Base):
@@ -37,8 +37,8 @@ class PointsTransaction(Base):
     __tablename__ = "points_transactions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_accounts.id"), nullable=False)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_accounts.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     amount: Mapped[int] = mapped_column(Integer, nullable=False)  # 正数=获得, 负数=扣减
     transaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
     # earn / spend / penalty / reward / adjust / redeem / bonus
@@ -51,7 +51,7 @@ class PointsTransaction(Base):
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PointsRule(Base):
@@ -68,7 +68,7 @@ class PointsRule(Base):
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PointsMallItem(Base):
@@ -97,7 +97,7 @@ class PointsMallItem(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PointsRedemption(Base):
@@ -105,9 +105,9 @@ class PointsRedemption(Base):
     __tablename__ = "points_redemptions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
-    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_accounts.id"), nullable=False)
-    item_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_mall_items.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_accounts.id"), nullable=False, index=True)
+    item_id: Mapped[str] = mapped_column(String(36), ForeignKey("points_mall_items.id"), nullable=False, index=True)
     item_name: Mapped[str] = mapped_column(String(200), nullable=False)
     points_spent: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -116,12 +116,12 @@ class PointsRedemption(Base):
     discount_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     discount_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     discount_max: Mapped[float | None] = mapped_column(Float, nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     # active / used / expired / refunded
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PointsRanking(Base):
@@ -129,7 +129,7 @@ class PointsRanking(Base):
     __tablename__ = "points_rankings"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     # homeowner / designer / contractor / supplier
     year: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -139,4 +139,4 @@ class PointsRanking(Base):
     year_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)  # 排名
 
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

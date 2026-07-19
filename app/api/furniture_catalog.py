@@ -29,6 +29,8 @@ async def list_furniture(
     price_min: float | None = Query(None, description="最低价"),
     price_max: float | None = Query(None, description="最高价"),
     keyword: str | None = Query(None, description="关键词"),
+    skip: int = Query(0, ge=0, description="分页偏移量"),
+    limit: int = Query(50, ge=1, le=200, description="每页数量"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -43,7 +45,7 @@ async def list_furniture(
         "price_max": price_max,
         "keyword": keyword,
     }
-    items = await svc.search_furniture(db, filters)
+    items = await svc.search_furniture(db, filters, skip=skip, limit=limit)
     return [FurnitureCatalogItemResponse.model_validate(i) for i in items]
 
 

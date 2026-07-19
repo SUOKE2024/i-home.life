@@ -14,17 +14,26 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260719c" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260719c" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260719c" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260719c" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260719c" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260720e" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260720e" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260720e" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260720e" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260720e" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260719c">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260720e">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
+<!-- v1.2.1 性能优化: 预连接第三方 CDN -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<!-- 预加载关键字体 -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" as="style" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap"></noscript>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"索克家居工作台","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"},"description":"AI 自治运营群聊工作台，9 AI 智能体 7×24 服务"}
 </script>
@@ -36,8 +45,51 @@
 
 <!-- 工作台主容器 -->
 <div class="workbench" role="application" aria-label="项目群聊工作台">
+  <!-- 方案 B：左侧进度侧边栏 -->
+  <nav class="stage-sidebar" id="stage-sidebar" role="navigation" aria-label="项目阶段导航">
+    <div class="stage-item completed" data-stage="project" data-label="立项" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 1：项目立项 · 已完成" title="项目立项 · 已完成">
+      <div class="stage-dot"></div>
+      <span class="stage-label">立项</span>
+    </div>
+    <div class="stage-item active" data-stage="design" data-label="设计" data-link="studio.html" role="button" tabindex="0" aria-label="阶段 2：方案设计 · 进行中" aria-current="step" title="方案设计 · 进行中">
+      <div class="stage-dot"></div>
+      <span class="stage-label">设计</span>
+    </div>
+    <div class="stage-item" data-stage="budget" data-label="预算" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 3：预算规划 · 待开始" title="预算规划 · 待开始">
+      <div class="stage-dot"></div>
+      <span class="stage-label">预算</span>
+    </div>
+    <div class="stage-item" data-stage="procurement" data-label="采购" data-link="materials.html" role="button" tabindex="0" aria-label="阶段 4：物料采购 · 待开始" title="物料采购 · 待开始">
+      <div class="stage-dot"></div>
+      <span class="stage-label">采购</span>
+    </div>
+    <div class="stage-item" data-stage="construction" data-label="施工" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 5：施工管理 · 待开始" title="施工管理 · 待开始">
+      <div class="stage-dot"></div>
+      <span class="stage-label">施工</span>
+    </div>
+    <div class="stage-item" data-stage="quality" data-label="质检" data-link="quality-report.html" role="button" tabindex="0" aria-label="阶段 6：质量验收 · 待开始" title="质量验收 · 待开始">
+      <div class="stage-dot"></div>
+      <span class="stage-label">质检</span>
+    </div>
+    <div class="stage-item" data-stage="settlement" data-label="结算" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 7：结算交付 · 待开始" title="结算交付 · 待开始">
+      <div class="stage-dot"></div>
+      <span class="stage-label">结算</span>
+    </div>
+    <!-- 底部整体进度 -->
+    <a class="stage-progress" id="stage-progress-btn" href="timeline.html" title="整体进度 · 点击查看全链路时间线" aria-label="整体进度 0%，点击查看全链路时间线">
+      <svg class="stage-progress-ring" viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="17" fill="none" stroke="#1e1e32" stroke-width="2.5"/>
+        <circle class="stage-progress-fill" id="stage-progress-fill" cx="20" cy="20" r="17" fill="none" stroke="#c9973b" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 106.8"/>
+      </svg>
+      <span class="stage-progress-text" id="stage-progress-text">0%</span>
+    </a>
+  </nav>
+
+  <!-- 主内容区 -->
+  <div class="workbench-main" id="workbench-main">
   <!-- 顶栏 -->
   <header class="chat-header" role="banner">
+    <button class="stage-toggle" id="stage-toggle-btn" aria-label="显示阶段导航" title="阶段导航">☰</button>
     <a href="index.html" class="chat-back" aria-label="返回首页">‹</a>
     <div class="chat-title-block">
       <div class="chat-title" id="chat-title">加载中…</div>
@@ -46,7 +98,7 @@
     <button class="chat-new-project" id="new-project-btn" aria-label="新建项目" title="新建项目">+</button>
     <button class="chat-search-btn" id="chat-search-btn" aria-label="搜索消息" title="搜索消息">🔍</button>
     <a href="settings.html" class="chat-avatar" id="chat-avatar-btn" aria-label="设置" title="设置">
-      <img id="chat-avatar-img" src="" alt="用户头像" class="chat-avatar-img">
+      <img id="chat-avatar-img" alt="用户头像" class="chat-avatar-img" loading="lazy" decoding="async">
     </a>
   </header>
 
@@ -56,6 +108,16 @@
     <span class="search-count" id="search-count"></span>
     <button class="search-close" id="search-close" aria-label="关闭搜索">×</button>
   </div>
+
+  <!-- 快捷导航工具栏 -->
+  <nav class="quick-nav" id="quick-nav" aria-label="快捷功能导航">
+    <a href="studio.html" class="quick-nav-link" id="nav-studio" title="设计工作台" target="_blank">📐 设计台</a>
+    <a href="project-detail.html" class="quick-nav-link" id="nav-detail" title="项目详情">📋 详情</a>
+    <a href="materials.html" class="quick-nav-link" id="nav-materials" title="物料管理">📦 物料</a>
+    <a href="quality-report.html" class="quick-nav-link" id="nav-quality" title="质量报告">✅ 质检</a>
+    <a href="3d-viewer.html" class="quick-nav-link" id="nav-3d" title="3D 预览" target="_blank">🏠 3D</a>
+    <a href="vr-viewer.html" class="quick-nav-link" id="nav-vr" title="VR 全景" target="_blank">🥽 VR</a>
+  </nav>
 
   <!-- 消息流 -->
   <main class="message-list" id="message-list" role="log" aria-live="polite" aria-label="消息流">
@@ -182,7 +244,7 @@
         </div>
         <!-- 拍照后预览 -->
         <div id="camera-captured-preview" hidden>
-          <img id="camera-captured-img" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;margin-bottom:8px">
+          <img id="camera-captured-img" style="width:100%;max-height:200px;object-fit:contain;border-radius:8px;margin-bottom:8px" loading="lazy" decoding="async">
         </div>
         <!-- 文字补充 -->
         <div class="cp-field" id="camera-context-field" hidden>
@@ -229,12 +291,13 @@
     <button class="input-emoji" id="emoji-btn" aria-label="表情" aria-expanded="false">😊</button>
     <button class="input-voice" id="voice-btn" aria-label="语音输入">🎤</button>
   </footer>
+  </div><!-- /.workbench-main -->
 </div>
 
-<script src="assets/js/api-client.js?v=20260719c"></script>
-<script src="assets/js/im-client.js?v=20260719c"></script>
-<script src="assets/js/agent-router.js?v=20260719c"></script>
-<script src="assets/js/message-renderers.js?v=20260719c"></script>
+<script src="assets/js/api-client.js?v=20260720e"></script>
+<script src="assets/js/im-client.js?v=20260720e"></script>
+<script src="assets/js/agent-router.js?v=20260720e"></script>
+<script src="assets/js/message-renderers.js?v=20260720e"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -312,6 +375,41 @@
     const filename = stored || randomAvatar();
     avatarImg.src = AVATAR_BASE + filename;
   }
+
+  // ============ 全局常量 ============
+  // HTML 转义工具（防止 XSS，全局复用）
+  function _escape(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  // 后端 sender_role → 前端 agent key（IM 消息显示用）
+  const ROLE_TO_AGENT = {
+    homeowner: 'master', owner: 'master', admin: 'master',
+    designer: 'design',
+    contractor: 'construction', foreman: 'construction',
+    supplier: 'procurement',
+  };
+  // 前端 agent key → 后端 agent_type（发送消息路由用）
+  const AGENT_KEY_TO_TYPE = {
+    master: 'orchestrator', design: 'designer', budget: 'budget',
+    procurement: 'procurement', construction: 'construction',
+    quality: 'qa_inspector', settlement: 'settlement',
+    support: 'concierge', admin: 'admin',
+  };
+  // 后端 agent_type → 前端 agent key（接收流式回复用，与 AGENT_KEY_TO_TYPE 互为逆映射）
+  const TYPE_TO_AGENT_KEY = {
+    orchestrator: 'master', designer: 'design', budget: 'budget',
+    procurement: 'procurement', construction: 'construction',
+    qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
+    admin: 'admin', content_publisher: 'procurement',
+  };
+  // 滚动监听器是否已绑定（防止 loadProjectMessages 重复调用时多次绑定）
+  let _scrollListenerBound = false;
 
   // ============ 消息渲染 ============
   let _lastRenderedDate = null;
@@ -409,9 +507,8 @@
     if (_pullDistance >= PULL_THRESHOLD && listEl.scrollTop <= 0) {
       refreshText.textContent = '刷新中…';
       refreshIndicator.classList.add('refreshing');
-      // 重新加载项目消息
+      // 重新加载项目消息（_lastRenderedDate 在 loadProjectMessages 内部重置）
       try {
-        _lastRenderedDate = null;
         listEl.innerHTML = '';
         listEl.appendChild(refreshIndicator);
         await loadProjectMessages();
@@ -428,6 +525,10 @@
 
   // ============ 从业务数据聚合消息流 ============
   async function loadProjectMessages() {
+    // 重置日期与发送者去重状态（防止跨项目串扰）
+    _lastRenderedDate = null;
+    _lastSenderKey = null;
+
     // 系统通知
     renderMessage({ type: 'system', content: `── ${new Date().toLocaleDateString('zh-CN')} · 项目启动 ──` });
 
@@ -452,6 +553,73 @@
       }
     } catch (e) {
       // 施工任务不可达时跳过
+    }
+
+    // 加载进度预警（F37）
+    try {
+      const alerts = await ApiClient.getProgressAlerts(projectId);
+      const alertList = Array.isArray(alerts) ? alerts : (alerts.items || []);
+      if (alertList.length > 0) {
+        renderMessage({
+          type: 'progress_alert_card', agent: 'construction', timestamp: new Date().toISOString(),
+          payload: { alerts: alertList },
+        });
+      }
+    } catch (e) {
+      // 进度预警不可达时跳过
+    }
+
+    // 加载质检记录（F38）
+    try {
+      const inspections = await ApiClient.getProjectInspections(projectId);
+      if (Array.isArray(inspections) && inspections.length > 0) {
+        inspections.slice(0, 5).forEach(inv => {
+          renderMessage({
+            type: 'inspection_card', agent: 'quality', timestamp: inv.created_at || new Date().toISOString(),
+            payload: inv,
+          });
+        });
+      }
+    } catch (e) {
+      // 质检不可达时跳过
+    }
+
+    // 加载质量问题清单（F38）
+    try {
+      const qualityIssues = await ApiClient.getQualityIssues(projectId);
+      const qiList = Array.isArray(qualityIssues) ? qualityIssues : (qualityIssues.items || []);
+      if (qiList.length > 0) {
+        renderMessage({
+          type: 'quality_issue_card', agent: 'quality', timestamp: new Date().toISOString(),
+          payload: { issues: qiList },
+        });
+      }
+    } catch (e) {
+      // 质量问题不可达时跳过
+    }
+
+    // 加载任务池（F36 工程队匹配）
+    try {
+      const taskPool = await ApiClient.getTaskPool(null, 10);
+      const claimTasks = Array.isArray(taskPool) ? taskPool : (taskPool.tasks || []);
+      if (claimTasks.length > 0) {
+        claimTasks.slice(0, 3).forEach(task => {
+          renderMessage({
+            type: 'task_claim', agent: 'master', timestamp: task.created_at || new Date().toISOString(),
+            payload: {
+              task_id: task.id,
+              title: task.title || '待分配任务',
+              description: task.description || '',
+              claim_role: task.claim_role || 'designer',
+              project_name: task.project_name || projectInfo?.name || '',
+              candidates: task.candidates || [],
+              claim_deadline: task.claim_deadline || '',
+            },
+          });
+        });
+      }
+    } catch (e) {
+      // 任务池不可达时跳过
     }
 
     // 加载预算
@@ -562,9 +730,11 @@
       // 结算单不存在时跳过
     }
 
-    // 加载采购订单列表卡片
+    // 加载采购订单列表卡片（同时缓存以供 F34 复用）
+    let _cachedOrders = null;
     try {
       const ordersResp = await ApiClient.getProcurementOrders(projectId);
+      _cachedOrders = ordersResp;
       const orders = Array.isArray(ordersResp) ? ordersResp : (ordersResp.items || []);
       if (orders.length > 0) {
         renderMessage({
@@ -605,11 +775,11 @@
       // 比价报告不可达时跳过
     }
 
-    // 加载采购订单关联的物流/担保支付卡片（F34）
-    try {
-      const orders = await ApiClient.getProcurementOrders(projectId);
-      const orderList = Array.isArray(orders) ? orders : (orders.items || []);
-      for (const order of orderList.slice(0, 5)) {
+    // 加载采购订单关联的物流/担保支付卡片（F34）- 复用 _cachedOrders 避免重复请求
+    if (_cachedOrders) {
+      try {
+        const orderList = Array.isArray(_cachedOrders) ? _cachedOrders : (_cachedOrders.items || []);
+        for (const order of orderList.slice(0, 5)) {
         // 物流追踪
         try {
           const trackings = await ApiClient.getOrderLogistics(order.id);
@@ -643,9 +813,10 @@
             });
           });
         } catch (_) {}
+        }
+      } catch (e) {
+        // 物流/担保支付数据不可达时跳过
       }
-    } catch (e) {
-      // 采购订单不可达时跳过
     }
 
     // 加载样品索要卡片（F34）
@@ -678,28 +849,26 @@
         const history = await ApiClient.getChatMessages(projectId, HISTORY_PAGE_SIZE);
         const msgs = Array.isArray(history) ? history : (history.items || []);
         _historyHasMore = msgs.length >= HISTORY_PAGE_SIZE;
+        // 在累加之前记录是否为首次加载，避免与 msgs.length 比较的歧义
+        const wasFirstLoad = _historyLoadedCount === 0;
         _historyLoadedCount += msgs.length;
 
-        const roleToAgent = {
-          homeowner: 'master', owner: 'master', admin: 'master',
-          designer: 'design',
-          contractor: 'construction', foreman: 'construction',
-          supplier: 'procurement',
-        };
+        if (msgs.length === 0) {
+          _historyHasMore = false;
+          return;
+        }
 
-        if (msgs.length === 0) return;
-
-        // 记录插入前的滚动高度
+        // 记录插入前的滚动高度（用于非首次加载时保持滚动位置）
         const prevScrollHeight = listEl.scrollHeight;
 
-        if (_historyLoadedCount === msgs.length) {
+        if (wasFirstLoad) {
           // 首次加载：显示日期分隔线
           renderDateSeparator('── 协作消息 ──');
         }
 
         msgs.forEach(m => {
           const isSelf = currentUser && m.sender_id === currentUser.id;
-          const agentKey = roleToAgent[m.sender_role] || 'master';
+          const agentKey = ROLE_TO_AGENT[m.sender_role] || 'master';
           renderMessage({
             type: 'text',
             is_self: !!isSelf,
@@ -711,8 +880,8 @@
           IMClient.markRendered(m.id);
         });
 
-        // 保持滚动位置（仅在非首次加载时）
-        if (_historyLoadedCount > msgs.length) {
+        // 保持滚动位置（仅在非首次加载时，避免新内容把视图顶下去）
+        if (!wasFirstLoad) {
           listEl.scrollTop = listEl.scrollHeight - prevScrollHeight;
         }
       } catch (e) {
@@ -732,16 +901,19 @@
     // 建立 WebSocket 实时连接（在历史消息加载后，避免顺序错乱）
     _connectIM();
 
-    // 无限滚动：滚动到顶部时加载更多历史
-    let _isLoadingHistory = false;
-    listEl.addEventListener('scroll', () => {
-      if (listEl.scrollTop < 80 && !_isLoadingHistory && _historyHasMore) {
-        _isLoadingHistory = true;
-        loadHistoryMessages().finally(() => {
-          _isLoadingHistory = false;
-        });
-      }
-    }, { passive: true });
+    // 无限滚动：滚动到顶部时加载更多历史（防止重复绑定监听器）
+    if (!_scrollListenerBound) {
+      _scrollListenerBound = true;
+      let _isLoadingHistory = false;
+      listEl.addEventListener('scroll', () => {
+        if (listEl.scrollTop < 80 && !_isLoadingHistory && _historyHasMore) {
+          _isLoadingHistory = true;
+          loadHistoryMessages().finally(() => {
+            _isLoadingHistory = false;
+          });
+        }
+      }, { passive: true });
+    }
   }
 
   // ============ WebSocket 实时消息 ============
@@ -773,13 +945,7 @@
     IMClient.markRendered(msgId);
 
     const isSelf = currentUser && data.sender_id === currentUser.id;
-    const roleToAgent = {
-      homeowner: 'master', owner: 'master', admin: 'master',
-      designer: 'design',
-      contractor: 'construction', foreman: 'construction',
-      supplier: 'procurement',
-    };
-    const agentKey = roleToAgent[data.sender_role] || 'master';
+    const agentKey = ROLE_TO_AGENT[data.sender_role] || 'master';
 
     // 页面非激活时显示通知 toast
     if (document.hidden && !isSelf) {
@@ -800,6 +966,54 @@
   window.addEventListener('beforeunload', () => {
     if (IMClient.ws) IMClient.close();
   });
+
+  // 通用输入对话框（替代原生 prompt，提供无障碍支持）
+  function _showInputDialog(title, placeholder) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'create-project-dialog open';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', title);
+      overlay.innerHTML = `
+        <div class="create-project-card" style="max-width:420px">
+          <div class="create-project-header">
+            <span>${_escape(title)}</span>
+            <button class="create-project-close" aria-label="关闭">×</button>
+          </div>
+          <div style="padding:8px 4px">
+            <input class="cp-input" type="text" placeholder="${_escape(placeholder || '')}" maxlength="200" autocomplete="off">
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button type="button" class="btn" data-action="cancel" style="flex:1;background:var(--bg-card);border:1px solid var(--border);color:var(--text);line-height:2">取消</button>
+              <button type="button" class="btn btn-primary" data-action="confirm" style="flex:1">确定</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      const input = overlay.querySelector('input');
+      const closeBtn = overlay.querySelector('.create-project-close');
+      const cancelBtn = overlay.querySelector('[data-action="cancel"]');
+      const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+
+      const cleanup = () => overlay.remove();
+      const cancel = () => { cleanup(); resolve(null); };
+      const confirm = () => {
+        const val = input.value.trim();
+        cleanup();
+        resolve(val || null);
+      };
+
+      setTimeout(() => input.focus(), 50);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); confirm(); }
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+      closeBtn.addEventListener('click', cancel);
+      cancelBtn.addEventListener('click', cancel);
+      confirmBtn.addEventListener('click', confirm);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cancel(); });
+    });
+  }
 
   // 新消息通知 toast
   let _toastTimer = null;
@@ -822,19 +1036,103 @@
 
   // ============ 审批按钮处理 ============
   listEl.addEventListener('click', async (e) => {
+    // 审批按钮
     const btn = e.target.closest('.approval-btn');
-    if (!btn) return;
-    const approvalId = btn.dataset.approvalId;
-    const decision = btn.dataset.decision;
-    btn.disabled = true;
-    btn.textContent = '处理中…';
-    try {
-      await ApiClient.approveChangeOrder(approvalId, decision);
-      btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
-    } catch (err) {
-      btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
+    if (btn) {
+      const approvalId = btn.dataset.approvalId;
+      const decision = btn.dataset.decision;
+      // 任务申领按钮
+      if (btn.dataset.candidateId && btn.dataset.taskId) {
+        btn.disabled = true;
+        btn.textContent = '处理中…';
+        try {
+          await ApiClient.claimTask(btn.dataset.taskId);
+          btn.textContent = '✓ 已申领';
+          renderMessage({
+            type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+            content: '任务已申领成功，已指派给你。',
+          });
+        } catch (err) {
+          btn.textContent = '✗ 失败';
+          btn.disabled = false;
+          const msg = err?.body?.detail?.message || err?.body?.detail || '申领失败';
+          renderMessage({
+            type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+            content: `任务申领失败：${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
+          });
+        }
+        return;
+      }
+      // 普通审批按钮
+      if (approvalId && decision) {
+        btn.disabled = true;
+        btn.textContent = '处理中…';
+        try {
+          await ApiClient.approveChangeOrder(approvalId, decision);
+          btn.textContent = decision === 'approve' ? '已同意' : '已驳回';
+          // 变更审批后刷新预算卡片（变更影响自动计算）
+          if (decision === 'approve' && projectId) {
+            try {
+              const budget = await ApiClient.getBudget(projectId);
+              const total = budget.total_estimated || 0;
+              const spent = budget.total_actual || 0;
+              if (budget && total) {
+                renderMessage({
+                  type: 'budget', agent: 'budget', timestamp: new Date().toISOString(),
+                  payload: {
+                    total: total, spent: spent, remaining: total - spent,
+                    note: '变更已审批，预算已更新',
+                  },
+                });
+              }
+            } catch (_) {}
+          }
+        } catch (err) {
+          // 失败：恢复按钮可点击状态并保留失败提示 1.5 秒
+          btn.textContent = '✗ 失败';
+          btn.disabled = false;
+          btn.style.opacity = 0.6;
+          setTimeout(() => {
+            btn.textContent = decision === 'approve' ? '同意' : '整改';
+            btn.style.opacity = '';
+          }, 1500);
+        }
+        return;
+      }
+      // 没有特定 ID 的按钮不拦截
+      return;
     }
-    btn.style.opacity = 0.6;
+  });
+
+  // ============ L4 反馈按钮处理 ============
+  listEl.addEventListener('click', async (e) => {
+    const fbBtn = e.target.closest('.feedback-btn');
+    if (!fbBtn || fbBtn.disabled) return;
+    const feedback = fbBtn.dataset.feedback;
+    const feedbackDiv = e.target.closest('.msg-feedback');
+    if (!feedbackDiv) return;
+    const agentKey = feedbackDiv.dataset.agent;
+    const msgEl = feedbackDiv.closest('.msg');
+    const bubble = msgEl ? msgEl.querySelector('.msg-bubble') : null;
+    const agentReply = bubble ? bubble.textContent.trim() : '';
+
+    // 映射前端 agent key 到后端 agent_name（复用全局常量）
+    const agentName = AGENT_KEY_TO_TYPE[agentKey] || agentKey;
+
+    fbBtn.disabled = true;
+    try {
+      await ApiClient.submitAgentFeedback({
+        agent_name: agentName,
+        feedback_type: feedback,
+        user_message: '（聊天工作台反馈）',
+        agent_reply: agentReply.slice(0, 500),
+      });
+      fbBtn.classList.add(feedback === 'like' ? 'liked' : 'disliked');
+      // 同时禁用另一个按钮
+      feedbackDiv.querySelectorAll('.feedback-btn').forEach(b => { b.disabled = true; });
+    } catch (_) {
+      fbBtn.disabled = false;
+    }
   });
 
   // ============ BOM 导出处理（F7） ============
@@ -1033,27 +1331,8 @@
 
     // 自然语言路由
     const route = AgentRouter.route(text);
-    // 映射 agent key 到后端 agent_type
-    const agentTypeMap = {
-      master: 'orchestrator',
-      design: 'designer',
-      budget: 'budget',
-      procurement: 'procurement',
-      construction: 'construction',
-      quality: 'qa_inspector',
-      settlement: 'settlement',
-      support: 'concierge',
-      admin: 'admin',
-    };
-    const agentType = agentTypeMap[route.agent] || 'orchestrator';
-
-    // 后端 agent_type → 前端 agent key（单一定义，全局复用）
-    const reverseMap = {
-      orchestrator: 'master', designer: 'design', budget: 'budget',
-      procurement: 'procurement', construction: 'construction',
-      qa_inspector: 'quality', settlement: 'settlement', concierge: 'support',
-      admin: 'admin', content_publisher: 'procurement',
-    };
+    // 映射 agent key 到后端 agent_type（复用全局常量）
+    const agentType = AGENT_KEY_TO_TYPE[route.agent] || 'orchestrator';
 
     // 从消息流提取最近 10 轮对话（最多 20 条消息）作为上下文
     const history = [];
@@ -1077,9 +1356,13 @@
 
     // 流式响应（有项目时使用 SSE 流式）
     if (projectId) {
+      // 移除已有占位（防止连续发送时 ID 冲突）
+      const existingPlaceholder = listEl.querySelector('.streaming-placeholder');
+      if (existingPlaceholder) existingPlaceholder.remove();
+
       // 创建打字指示器占位
       const agentInfo = AgentRouter.getAgentInfo('master');
-      const typingHTML = `<div class="msg agent agent-master" id="streaming-placeholder">
+      const typingHTML = `<div class="msg agent agent-master streaming-placeholder">
         <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${MessageRenderers._fmtTime(new Date().toISOString())}</div>
         <div class="msg-bubble typing-indicator">
           <span class="typing-dot"></span>
@@ -1108,8 +1391,8 @@
           });
           if (!resp.ok) throw new Error('Stream request failed: ' + resp.status);
 
-          // 找到占位消息元素并更新
-          const placeholder = document.getElementById('streaming-placeholder');
+          // 找到占位消息元素并更新（使用 class 避免 ID 冲突）
+          const placeholder = listEl.querySelector('.streaming-placeholder');
           if (!placeholder) return;
           const bubble = placeholder.querySelector('.msg-bubble');
           if (!bubble) return;
@@ -1136,7 +1419,7 @@
                 if (data.event === 'meta') {
                   // 更新 agent 类型和 meta 信息
                   const agentKey = data.agent_type || 'master';
-                  const frontendKey = reverseMap[agentKey] || 'master';
+                  const frontendKey = TYPE_TO_AGENT_KEY[agentKey] || 'master';
                   placeholder.className = placeholder.className.replace(/agent-\S+/, 'agent-' + frontendKey);
                   const ai = AgentRouter.getAgentInfo(frontendKey);
                   const metaEl = placeholder.querySelector('.msg-meta strong');
@@ -1153,12 +1436,12 @@
               }
             }
           }
-          // 移除 ID 属性，变为普通消息
-          placeholder.removeAttribute('id');
+          // 流式完成后移除 placeholder class，变为普通消息
+          placeholder.classList.remove('streaming-placeholder');
         } catch (e) {
           console.error('Stream chat error:', e);
-          // 移除占位
-          const placeholder = document.getElementById('streaming-placeholder');
+          // 移除占位（使用 class 选择器）
+          const placeholder = listEl.querySelector('.streaming-placeholder');
           if (placeholder) {
             const bubble = placeholder.querySelector('.msg-bubble');
             if (bubble && (bubble.classList.contains('typing-indicator') || bubble.textContent === '')) {
@@ -1169,7 +1452,7 @@
           try {
             const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
             if (resp.reply) {
-              const agentKey = reverseMap[resp.agent_type] || route.agent;
+              const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
               renderMessage({
                 type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
                 content: resp.reply,
@@ -1199,7 +1482,7 @@
       const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
       if (resp.reply) {
         // 映射 agent_type 回前端 agent key
-        const agentKey = reverseMap[resp.agent_type] || route.agent;
+        const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
         renderMessage({
           type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
           content: resp.reply,
@@ -1417,6 +1700,31 @@
         if (lastPhoto && resp.url) {
           lastPhoto.style.backgroundImage = `url('${resp.url}')`;
         }
+        // 触发 AI 质检分析（F38 拍照→质检）
+        if (resp.url && projectId) {
+          try {
+            const taskId = resp.task_id || null;
+            const analysisResult = await ApiClient.analyzeInspectionImages({
+              project_id: projectId,
+              image_urls: [resp.url],
+              task_id: taskId || '',
+              phase: 'construction',
+            });
+            if (analysisResult) {
+              renderMessage({
+                type: 'inspection_card', agent: 'quality', timestamp: new Date().toISOString(),
+                payload: {
+                  ...analysisResult,
+                  photos: [resp.url],
+                  check_item: file.name || '现场照片',
+                  _task_name: '施工质检',
+                },
+              });
+            }
+          } catch (_) {
+            // AI 质检不可达时静默降级
+          }
+        }
       } catch (_) {
         // 保持本地预览
       }
@@ -1492,8 +1800,8 @@
         content: `📍 ${address}\n🗺 https://uri.amap.com/marker?position=${longitude},${latitude}`,
       });
     } catch (err) {
-      // 定位失败，提供手动输入搜索
-      const query = prompt('无法自动定位。请输入地址搜索：', '');
+      // 定位失败，提供手动输入搜索（使用无障碍对话框替代原生 prompt）
+      const query = await _showInputDialog('无法自动定位', '请输入地址搜索，如：上海浦东陆家嘴');
       if (!query || !query.trim()) return;
       try {
         const result = await ApiClient.autocompleteLocation(query.trim());
@@ -1745,10 +2053,155 @@
     const navDetail = document.getElementById('nav-detail');
     const navMaterials = document.getElementById('nav-materials');
     const navQuality = document.getElementById('nav-quality');
+    const navStudio = document.getElementById('nav-studio');
+    const nav3d = document.getElementById('nav-3d');
+    const navVr = document.getElementById('nav-vr');
     if (navDetail) navDetail.href = `project-detail.html?id=${projectId}`;
     if (navMaterials) navMaterials.href = `materials.html?project_id=${projectId}`;
     if (navQuality) navQuality.href = `quality-report.html?project_id=${projectId}`;
+    if (navStudio) navStudio.href = `studio.html?project_id=${projectId}`;
+    if (nav3d) nav3d.href = `3d-viewer.html?project_id=${projectId}`;
+    if (navVr) navVr.href = `vr-viewer.html?project_id=${projectId}`;
+    // 更新侧边栏阶段进度
+    updateStageSidebar();
   }
+
+  // ============ 阶段侧边栏 ============
+  const STAGE_CONFIG = [
+    { key: 'project',     label: '立项', link: 'project-detail.html', order: 1  },
+    { key: 'design',      label: '设计', link: 'studio.html',         order: 2  },
+    { key: 'budget',      label: '预算', link: 'project-detail.html', order: 3  },
+    { key: 'procurement', label: '采购', link: 'materials.html',       order: 4  },
+    { key: 'construction',label: '施工', link: 'project-detail.html', order: 5  },
+    { key: 'quality',     label: '质检', link: 'quality-report.html',  order: 6  },
+    { key: 'settlement',  label: '结算', link: 'project-detail.html', order: 7  },
+  ];
+
+  // 根据项目状态计算当前活跃阶段
+  function _getActiveStageIndex(status) {
+    switch (status) {
+      case 'draft':     return 1; // 设计阶段
+      case 'design':    return 1; // 设计阶段
+      case 'pending':   return 0; // 立项阶段
+      case 'construction':
+      case 'in_progress': return 4; // 施工阶段
+      case 'completed': return 6; // 全部完成
+      default:          return 0;
+    }
+  }
+
+  // 根据活跃阶段计算整体进度百分比
+  function _getProgressPercent(activeIdx, status) {
+    if (status === 'completed') return 100;
+    // 每个阶段约占 14% (100/7≈14.3)
+    const basePct = Math.round((activeIdx / 7) * 100);
+    return Math.min(basePct, 99);
+  }
+
+  function updateStageSidebar() {
+    const status = projectInfo?.status || 'draft';
+    const activeIdx = _getActiveStageIndex(status);
+    const progressPct = _getProgressPercent(activeIdx, status);
+
+    // 更新所有阶段项
+    const items = document.querySelectorAll('.stage-item');
+    items.forEach((item, i) => {
+      const stageKey = item.dataset.stage;
+      const config = STAGE_CONFIG.find(s => s.key === stageKey);
+      if (!config) return;
+
+      // 重置类
+      item.classList.remove('completed', 'active');
+      item.removeAttribute('aria-current');
+
+      if (i < activeIdx) {
+        // 已完成
+        item.classList.add('completed');
+        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 已完成`);
+        item.title = `${config.label} · 已完成`;
+      } else if (i === activeIdx) {
+        // 进行中
+        item.classList.add('active');
+        item.setAttribute('aria-current', 'step');
+        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 进行中`);
+        item.title = `${config.label} · 进行中`;
+      } else {
+        // 待开始
+        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 待开始`);
+        item.title = `${config.label} · 待开始`;
+      }
+
+      // 更新链接（携带 project_id）
+      const link = config.link;
+      item.dataset.link = projectId ? `${link}?project_id=${projectId}` : link;
+    });
+
+    // 更新进度圆圈
+    const fill = document.getElementById('stage-progress-fill');
+    const text = document.getElementById('stage-progress-text');
+    const btn = document.getElementById('stage-progress-btn');
+    if (fill && text) {
+      const circumference = 2 * Math.PI * 17; // r=17 → ≈106.8
+      const dashLen = (progressPct / 100) * circumference;
+      fill.setAttribute('stroke-dasharray', `${dashLen} ${circumference}`);
+      text.textContent = `${progressPct}%`;
+    }
+    if (btn) {
+      btn.href = projectId ? `timeline.html?project_id=${projectId}` : 'timeline.html';
+      btn.setAttribute('aria-label', `整体进度 ${progressPct}%，点击查看全链路时间线`);
+    }
+  }
+
+  // 阶段点击处理
+  document.getElementById('stage-sidebar').addEventListener('click', (e) => {
+    const item = e.target.closest('.stage-item');
+    if (!item || !item.dataset.link) return;
+    window.location.href = item.dataset.link;
+  });
+
+  // 键盘支持
+  document.getElementById('stage-sidebar').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.stage-item');
+      if (item) {
+        e.preventDefault();
+        item.click();
+      }
+    }
+  });
+
+  // 移动端汉堡按钮切换侧边栏
+  const stageToggleBtn = document.getElementById('stage-toggle-btn');
+  const stageSidebar = document.getElementById('stage-sidebar');
+  let _stageOverlayBg = null;
+
+  function _openStageSidebar() {
+    stageSidebar.classList.add('overlay');
+    if (!_stageOverlayBg) {
+      _stageOverlayBg = document.createElement('div');
+      _stageOverlayBg.className = 'stage-overlay-bg';
+      _stageOverlayBg.addEventListener('click', _closeStageSidebar);
+      document.body.appendChild(_stageOverlayBg);
+    }
+    stageToggleBtn.setAttribute('aria-label', '隐藏阶段导航');
+  }
+
+  function _closeStageSidebar() {
+    stageSidebar.classList.remove('overlay');
+    if (_stageOverlayBg && _stageOverlayBg.parentNode) {
+      _stageOverlayBg.remove();
+      _stageOverlayBg = null;
+    }
+    stageToggleBtn.setAttribute('aria-label', '显示阶段导航');
+  }
+
+  stageToggleBtn.addEventListener('click', () => {
+    if (stageSidebar.classList.contains('overlay')) {
+      _closeStageSidebar();
+    } else {
+      _openStageSidebar();
+    }
+  });
 
   function renderProjectPicker() {
     if (!allProjects.length) {
@@ -2240,42 +2693,67 @@
         ${tags ? `<div class="product-tags">${tags}</div>` : ''}
         ${fallbackNote}
         <div class="product-actions" style="margin-top:8px">
-          <button class="approval-btn approve" onclick="confirmCameraProduct('${_escape((result.name || '').replace(/'/g, '\\\''))}', '${_escape(result.category_code || 'other')}', '${_escape(result.category_cn || '')}', '${_escape(result.material || '')}', '${_escape(result.color || '')}', '${_escape(result.style || '')}', '${result.suggested_price || 0}', '${_escape(result.suggested_unit || '个')}', '${(result.tags || []).join(',')}')">确认创建</button>
-          <button class="approval-btn" onclick="document.getElementById('camera-context-input').focus();document.getElementById('camera-scan-btn').click()">修改重试</button>
+          <button class="approval-btn approve" data-action="confirm-camera-product"
+            data-name="${_escape(result.name || '')}"
+            data-category="${_escape(result.category_code || 'other')}"
+            data-category-cn="${_escape(result.category_cn || '')}"
+            data-material="${_escape(result.material || '')}"
+            data-color="${_escape(result.color || '')}"
+            data-style="${_escape(result.style || '')}"
+            data-price="${result.suggested_price || 0}"
+            data-unit="${_escape(result.suggested_unit || '个')}"
+            data-tags="${_escape((result.tags || []).join(','))}">确认创建</button>
+          <button class="approval-btn" data-action="retry-camera-scan">修改重试</button>
         </div>
       </div>`;
   }
 
-  // 全局函数供卡片按钮调用
-  window.confirmCameraProduct = async function(name, category, categoryCn, material, color, style, price, unit, tags) {
-    const priceVal = parseFloat(price) || 0;
-    const formData = new FormData();
-    formData.append('name', name);
-    formData.append('category', category);
-    formData.append('description', `${categoryCn} ${name} ${material ? '材质'+material : ''} ${color ? color+'色' : ''} ${style || ''}`.trim());
-    formData.append('price_min', priceVal > 0 ? priceVal : '');
-    formData.append('price_max', '');
-    formData.append('unit', unit);
-    formData.append('tags', tags);
-    formData.append('ai_assisted', 'true');
+  // 拍照识别卡片按钮事件委托（避免内联 onclick 导致的 XSS 风险）
+  cameraScanResult.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
 
-    const token = ApiClient.getToken();
-    try {
-      const resp = await fetch(ApiClient.BASE_URL + '/api/products/camera/confirm', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + token },
-        body: formData,
-      });
-      if (!resp.ok) throw new Error('创建失败');
-      const product = await resp.json();
-      cameraScanResult.innerHTML = `<div style="color:var(--success);font-size:14px;text-align:center;padding:16px">✅ 产品「${_escape(product.name)}」创建成功！</div>`;
-      renderMessage({ type: 'system', content: `── 📸 拍照上架完成: ${_escape(product.name)} ──` });
-      setTimeout(closeCameraScanDialog, 2000);
-    } catch (err) {
-      cameraScanError.textContent = '创建失败: ' + (err.message || '未知错误');
-      cameraScanError.hidden = false;
+    if (action === 'confirm-camera-product') {
+      btn.disabled = true;
+      btn.textContent = '创建中…';
+      const priceVal = parseFloat(btn.dataset.price) || 0;
+      const formData = new FormData();
+      formData.append('name', btn.dataset.name);
+      formData.append('category', btn.dataset.category);
+      formData.append('description', `${btn.dataset.categoryCn} ${btn.dataset.name} ${btn.dataset.material ? '材质'+btn.dataset.material : ''} ${btn.dataset.color ? btn.dataset.color+'色' : ''} ${btn.dataset.style || ''}`.trim());
+      formData.append('price_min', priceVal > 0 ? priceVal : '');
+      formData.append('price_max', '');
+      formData.append('unit', btn.dataset.unit);
+      formData.append('tags', btn.dataset.tags);
+      formData.append('ai_assisted', 'true');
+
+      const token = ApiClient.getToken();
+      try {
+        const resp = await fetch(ApiClient.BASE_URL + '/api/products/camera/confirm', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token },
+          body: formData,
+        });
+        if (!resp.ok) throw new Error('创建失败');
+        const product = await resp.json();
+        cameraScanResult.innerHTML = `<div style="color:var(--success);font-size:14px;text-align:center;padding:16px">✅ 产品「${_escape(product.name)}」创建成功！</div>`;
+        renderMessage({ type: 'system', content: `── 📸 拍照上架完成: ${_escape(product.name)} ──` });
+        setTimeout(closeCameraScanDialog, 2000);
+      } catch (err) {
+        cameraScanError.textContent = '创建失败: ' + (err.message || '未知错误');
+        cameraScanError.hidden = false;
+        btn.disabled = false;
+        btn.textContent = '确认创建';
+      }
+      return;
     }
-  };
+
+    if (action === 'retry-camera-scan') {
+      cameraContextInput.focus();
+      cameraScanBtn.click();
+    }
+  });
 
   // ============ 消息搜索 ============
   let _searchTerm = '';
@@ -2475,17 +2953,17 @@
         closeProjectPicker();
         return;
       }
-      // 5. 关闭右键菜单
+      // 6. 关闭右键菜单
       if (!contextMenu.hasAttribute('hidden')) {
         hideContextMenu();
         return;
       }
-      // 6. 关闭 mention 弹窗
+      // 7. 关闭 mention 弹窗
       if (mentionPopup.classList.contains('open')) {
         mentionPopup.classList.remove('open');
         return;
       }
-      // 7. 取消输入框焦点
+      // 8. 取消输入框焦点
       if (document.activeElement === inputEl) {
         inputEl.blur();
         return;
@@ -2677,15 +3155,26 @@
   init();
 })();
 </script>
-<script src="assets/js/analytics.js?v=20260719c"></script>
+<script defer src="assets/js/analytics.js?v=20260720e"></script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('sw.js').catch(function(e) {
-      console.warn('SW 注册失败:', e);
-    });
-  });
-}
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').catch(function(e) {
+          console.warn('SW 注册失败:', e);
+        });
+      });
+    }
+
+    // 申请浏览器推送通知权限
+    if ('Notification' in window && Notification.permission === 'default') {
+      setTimeout(() => {
+        Notification.requestPermission().then(perm => {
+          if (perm === 'granted') {
+            console.log('[Workbench] Push notification permission granted');
+          }
+        });
+      }, 10000); // 延迟 10s，避免页面加载时立即弹出
+    }
 </script>
 </body>
 </html>

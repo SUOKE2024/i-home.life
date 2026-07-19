@@ -523,8 +523,9 @@ class TestLightweightMigrations:
 
             await conn.commit()
 
-        # 运行迁移
-        await _run_lightweight_migrations()
+        # 运行迁移（force=True 绕过 _schema_migrations 版本检查，
+        # 确保即使之前的测试已标记 version=1，仍能重新添加被 drop 的列）
+        await _run_lightweight_migrations(force=True)
 
         # 验证列已添加
         async with db_session.bind.begin() as conn:
@@ -561,7 +562,8 @@ class TestLightweightMigrations:
 
             await conn.commit()
 
-        await _run_lightweight_migrations()
+        # force=True 绕过版本检查，确保被 drop 的列能重新添加
+        await _run_lightweight_migrations(force=True)
 
         async with db_session.bind.begin() as conn:
             def _cols(sync_conn):
@@ -594,7 +596,8 @@ class TestLightweightMigrations:
 
             await conn.commit()
 
-        await _run_lightweight_migrations()
+        # force=True 绕过版本检查，确保被 drop 的列能重新添加
+        await _run_lightweight_migrations(force=True)
 
         async with db_session.bind.begin() as conn:
             def _cols(sync_conn):

@@ -285,7 +285,7 @@ async def test_e2e_project_cannot_see_other_users_project(client: AsyncClient):
     # B 不能查看 A 的项目
     resp = await client.get(f"/api/projects/{project_id}", headers=headers_b)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "无权访问该项目"
+    assert resp.json()["detail"] == "无权访问此项目"
 
     # B 不能修改 A 的项目
     resp = await client.patch(
@@ -294,12 +294,12 @@ async def test_e2e_project_cannot_see_other_users_project(client: AsyncClient):
         headers=headers_b,
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "无权修改该项目"
+    assert resp.json()["detail"] == "无权访问此项目"
 
     # B 不能删除 A 的项目
     resp = await client.delete(f"/api/projects/{project_id}", headers=headers_b)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "无权删除该项目"
+    assert resp.json()["detail"] == "无权访问此项目"
 
     # B 的列表为空
     resp = await client.get("/api/projects", headers=headers_b)

@@ -10,7 +10,7 @@
 <meta property="og:site_name" content="索克家居">
 <meta name="theme-color" content="#08080f">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260719c">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260720e">
 <link rel="manifest" href="manifest.json">
 <title>关于我们 · 索克家居</title>
 <style>
@@ -102,10 +102,26 @@
     font-size: 13px;
   }
   .story-footer a:hover { color: var(--accent-bright); }
+  @media (max-width: 1024px) {
+    .story-container { max-width: 640px; }
+    .agent-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  }
+  @media (max-width: 768px) {
+    .story-container { padding: 28px 16px 56px; }
+    .story-hero h1 { font-size: 22px; }
+    .story-hero .tagline { font-size: 14px; }
+    .story-section h2 { font-size: 18px; }
+    .agent-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .agent-card { padding: 12px; }
+    .agent-emoji { font-size: 26px; }
+  }
   @media (max-width: 480px) {
     .story-container { padding: 24px 16px 48px; }
     .story-hero h1 { font-size: 26px; }
     .agent-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
@@ -181,6 +197,6 @@
   </div>
 </div>
 </div>
-<script src="assets/js/analytics.js?v=20260719c"></script>
+<script defer src="assets/js/analytics.js?v=20260720e"></script>
 </body>
 </html>

@@ -42,8 +42,11 @@ async def _create_project(client: AsyncClient, token: str, name: str = "测试�
 
 @pytest.mark.asyncio
 async def test_list_categories(client: AsyncClient):
-    await _register_and_login(client)
-    response = await client.get("/api/materials/categories")
+    token = await _register_and_login(client)
+    response = await client.get(
+        "/api/materials/categories",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
 
 
@@ -62,8 +65,11 @@ async def test_create_category(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_list_materials(client: AsyncClient):
-    await _register_and_login(client)
-    response = await client.get("/api/materials?limit=10")
+    token = await _register_and_login(client)
+    response = await client.get(
+        "/api/materials?limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
 
 
@@ -105,7 +111,10 @@ async def test_get_material_by_id(client: AsyncClient):
     )
     mat_id = create_resp.json()["id"]
 
-    response = await client.get(f"/api/materials/{mat_id}")
+    response = await client.get(
+        f"/api/materials/{mat_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
     assert response.json()["name"] == "查找物料"
 
@@ -261,13 +270,20 @@ async def test_list_materials_by_category(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
 
-    resp_a = await client.get(f"/api/materials?category_id={cat_a_id}")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp_a = await client.get(
+        f"/api/materials?category_id={cat_a_id}",
+        headers=headers,
+    )
     assert resp_a.status_code == 200
     data_a = resp_a.json()
     assert len(data_a) == 2
     assert all(m["category_id"] == cat_a_id for m in data_a)
 
-    resp_b = await client.get(f"/api/materials?category_id={cat_b_id}")
+    resp_b = await client.get(
+        f"/api/materials?category_id={cat_b_id}",
+        headers=headers,
+    )
     assert len(resp_b.json()) == 1
 
 
@@ -283,14 +299,15 @@ async def test_search_materials_by_keyword(client: AsyncClient):
     )
 
     # 按名称搜索
-    resp = await client.get("/api/materials?keyword=立邦")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.get("/api/materials?keyword=立邦", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert len(data) == 1
     assert "立邦" in data[0]["name"]
 
     # 按 SKU 搜索
-    resp_sku = await client.get("/api/materials?keyword=SEARCH-TILE")
+    resp_sku = await client.get("/api/materials?keyword=SEARCH-TILE", headers=headers)
     assert len(resp_sku.json()) == 1
 
     # 按品牌搜索
@@ -300,9 +317,9 @@ async def test_search_materials_by_keyword(client: AsyncClient):
             "category_id": data[0]["category_id"], "name": "搜索品牌物料",
             "sku": "SEARCH-BRAND-001", "brand": "多乐士", "unit_price": 1.0,
         },
-        headers={"Authorization": f"Bearer {token}"},
+        headers=headers,
     )
-    resp_brand = await client.get("/api/materials?keyword=多乐士")
+    resp_brand = await client.get("/api/materials?keyword=多乐士", headers=headers)
     assert len(resp_brand.json()) == 1
 
 

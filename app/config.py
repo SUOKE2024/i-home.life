@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.1.10"
+    app_version: str = "1.1.15"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL
@@ -82,6 +82,28 @@ class Settings(BaseSettings):
     # MCP 工具服务器地址 (留空则仅使用内置工具)
     agent_mcp_server_url: str = ""
 
+    # ── MCP Server 暴露（v1.1.12 新增）──
+    # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具
+    # 兼容 MCP 2026-07-28 stateless 核心，支持 Nginx round-robin 负载均衡
+    mcp_enabled: bool = True
+
+    # ── AI 渲染（v1.1.12 新增，PRD §7.x）──
+    # 启用后 /api/ai-render/* 端点可用，支持 2D 效果图 / 3D 场景 / 照片重布置
+    # 复用 BaseAgent._chat() 调用 LLM，注入 L4 偏好示例
+    ai_render_enabled: bool = True
+
+    # ── 语音情绪路由（v1.1.12 新增）──
+    # 启用后在 _route_voice_to_agent 中根据用户情绪（anxious/angry/sad/tired/excited/happy）
+    # 注入系统指令前缀，调整 Agent 语气
+    # 需配合 voice_emotion_detection=True 使用
+    voice_emotion_routing_enabled: bool = True
+
+    # ── Qwen-Audio-3.0-Realtime 模型变体 ──
+    # 默认 flash（速度优先），可切换 plus（推理更强 + 情感感知 + 副语言）
+    # plus 模型自动启用 VOICE_SYSTEM_INSTRUCTIONS_PLUS 增强指令
+    # 取值：qwen-audio-3.0-realtime-flash | qwen-audio-3.0-realtime-plus
+    # qwen_audio_model 默认值见下方（保持 flash 以控制成本，plus 用于高价值场景）
+
     # ── L4 自适应学习（PRD §5.4 Phase 5 末项，提前布局）──
     # 启用后 chat 端点会注入用户历史正向反馈作为 few-shot 示例
     # 仅在非 MOCK_MODE（有 LLM API Key）时实际生效，测试环境不受影响
@@ -104,6 +126,17 @@ class Settings(BaseSettings):
 
     # 第三方身份核验
     aliyun_id_verify_appcode: str = ""  # 阿里云身份证实名认证 AppCode
+
+    # ── Agent Harness 统一编排（v1.2.0）──
+    harness_trace_enabled: bool = True
+    harness_trace_max_history: int = 500
+    harness_agent_timeout_seconds: int = 60
+    harness_max_retries: int = 1
+
+    # ── 在线进化闭环（v1.2.0）──
+    # 轨迹驱动的 Agent 自我改进：收集执行轨迹 → 分析失败模式 → 优化 prompt/降级策略
+    agent_evolution_enabled: bool = True
+    agent_evolution_trace_min_samples: int = 20  # 最小轨迹样本数
 
 
 @lru_cache

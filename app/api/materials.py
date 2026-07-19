@@ -5,8 +5,6 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 import io
 
-from openpyxl import Workbook
-
 from app.database import get_db
 from app.models.user import User
 from app.models.material import BOMItem, Material
@@ -30,7 +28,11 @@ router = APIRouter(prefix="/materials", tags=["物料"])
 
 
 @router.get("/categories", response_model=list[MaterialCategoryResponse])
-async def list_categories(db: AsyncSession = Depends(get_db)):
+async def list_categories(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """公开端点：物料分类列表（平台公共建材目录）"""
     categories = await material_service.get_categories(db)
     return [MaterialCategoryResponse.model_validate(c) for c in categories]
 
@@ -47,6 +49,7 @@ async def create_category(
 
 @router.get("", response_model=list[MaterialResponse])
 async def list_materials(
+    current_user: User = Depends(get_current_user),
     category_id: str | None = Query(None),
     keyword: str | None = Query(None, description="按名称/SKU/品牌模糊搜索"),
     skip: int = Query(0, ge=0),
@@ -61,7 +64,12 @@ async def list_materials(
 
 
 @router.get("/{material_id}", response_model=MaterialResponse)
-async def get_material(material_id: str, db: AsyncSession = Depends(get_db)):
+async def get_material(
+    material_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """公开端点：物料详情（平台公共建材目录）"""
     material = await material_service.get_material_by_id(db, material_id)
     if not material:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="物料不存在")
@@ -198,6 +206,8 @@ async def export_bom_excel(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="该项目暂无 BOM 数据，无法导出",
         )
+    # v1.1.14: 延迟导入 openpyxl，减少应用启动时间和内存占用
+    from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
     ws.title = "BOM 物料清单"

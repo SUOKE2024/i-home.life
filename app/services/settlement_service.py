@@ -8,6 +8,43 @@ from app.models.settlement import Settlement, SettlementLine
 from app.models.budget import Budget
 
 
+# ── 状态机定义 ──
+# draft      → submitted (提交) | disputed (争议)
+# submitted  → in_review (复核) | disputed (争议)
+# in_review  → approved (批准) | disputed (争议)
+# approved   → paid (已付)
+# paid       → 终态，不可再变
+# disputed   → 终态，不可再变
+VALID_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"submitted", "disputed"},
+    "submitted": {"in_review", "disputed"},
+    "in_review": {"approved", "disputed"},
+    "approved": {"paid"},
+    "paid": set(),
+    "disputed": set(),
+}
+
+
+class SettlementStateError(Exception):
+    """结算状态机校验失败"""
+
+    def __init__(self, current_status: str, action: str, allowed: set[str]):
+        self.current_status = current_status
+        self.action = action
+        self.allowed = allowed
+        super().__init__(
+            f"结算状态「{current_status}」不支持操作「{action}」，"
+            f"允许的目标状态: {sorted(allowed) or '无（终态）'}"
+        )
+
+
+def _assert_transition(settlement: Settlement, action: str, target: str) -> None:
+    """校验状态机：当前状态是否允许转换到 target"""
+    allowed = VALID_TRANSITIONS.get(settlement.status, set())
+    if target not in allowed:
+        raise SettlementStateError(settlement.status, action, allowed)
+
+
 async def get_settlement(db: AsyncSession, project_id: str) -> Settlement | None:
     result = await db.execute(
         select(Settlement)
@@ -84,7 +121,8 @@ async def confirm_settlement(db: AsyncSession, project_id: str) -> Settlement | 
         await db.refresh(settlement)
         return settlement
 
-    settlement.status = "confirmed"
+    _assert_transition(settlement, "confirm", "approved")
+    settlement.status = "approved"
     settlement.settled_at = datetime.now(timezone.utc)
 
     settlement.payable_amount = settlement.actual_amount or settlement.contract_amount
@@ -158,11 +196,12 @@ async def request_review(
     if not settlement:
         return None
 
+    _assert_transition(settlement, "request_review", "in_review")
     settlement.review_required = True
     settlement.review_reason = reason
     if reviewer_id:
         settlement.reviewed_by = reviewer_id
-    settlement.status = "review"
+    settlement.status = "in_review"
 
     await db.commit()
     await db.refresh(settlement)
@@ -179,9 +218,10 @@ async def approve_review(
     if not settlement:
         return None
 
+    _assert_transition(settlement, "approve_review", "approved")
     settlement.review_required = False
     settlement.reviewed_by = reviewer_id
-    settlement.status = "draft"
+    settlement.status = "approved"
 
     await db.commit()
     await db.refresh(settlement)
@@ -224,3 +264,46 @@ async def export_reconciliation(db: AsyncSession, project_id: str) -> dict | Non
         "lines": lines_payload,
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── 结算审批流状态变更 ──
+
+async def submit_settlement(db: AsyncSession, project_id: str) -> Settlement | None:
+    """提交结算：draft → submitted"""
+    settlement = await get_settlement(db, project_id)
+    if not settlement:
+        return None
+    _assert_transition(settlement, "submit", "submitted")
+    settlement.status = "submitted"
+    await db.commit()
+    await db.refresh(settlement)
+    return settlement
+
+
+async def mark_settlement_paid(db: AsyncSession, project_id: str) -> Settlement | None:
+    """标记已付款：approved → paid"""
+    settlement = await get_settlement(db, project_id)
+    if not settlement:
+        return None
+    _assert_transition(settlement, "mark_paid", "paid")
+    settlement.status = "paid"
+    settlement.settled_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(settlement)
+    return settlement
+
+
+async def mark_settlement_disputed(
+    db: AsyncSession, project_id: str, reason: str | None = None,
+) -> Settlement | None:
+    """标记争议：任意非终态 → disputed"""
+    settlement = await get_settlement(db, project_id)
+    if not settlement:
+        return None
+    _assert_transition(settlement, "raise_dispute", "disputed")
+    settlement.status = "disputed"
+    if reason:
+        settlement.review_reason = reason
+    await db.commit()
+    await db.refresh(settlement)
+    return settlement

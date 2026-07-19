@@ -24,8 +24,8 @@ class VRPanorama(Base):
     __tablename__ = "vr_panoramas"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     panorama_type: Mapped[str] = mapped_column(String(30), nullable=False, default="equirectangular")
     # panorama_type: equirectangular (等距柱状) / cubemap (立方体贴图)
@@ -45,8 +45,8 @@ class VRPanorama(Base):
     render_duration_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
     # status: queued / rendering / completed / failed
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project")
     floorplan = relationship("FloorPlan")
@@ -84,7 +84,7 @@ class VRScene(Base):
     __tablename__ = "vr_scenes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     panorama_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     # panorama_ids: JSON 有序列表 (按浏览顺序)
@@ -96,8 +96,8 @@ class VRScene(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     # status: active / archived
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 

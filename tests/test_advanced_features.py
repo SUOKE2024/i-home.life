@@ -172,6 +172,14 @@ async def test_milestone_tracking(client: AsyncClient):
     assert resp.status_code == 200
     assert len(resp.json()) == 1
 
+    # 标记进行中（pending → in_progress）
+    resp = await client.patch(
+        f"/api/construction/milestones/{milestone_id}/status?new_status=in_progress",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "in_progress"
+
     # 标记完成
     resp = await client.patch(
         f"/api/construction/milestones/{milestone_id}/complete",

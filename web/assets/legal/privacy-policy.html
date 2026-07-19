@@ -6,7 +6,7 @@
     <meta name="description" content="索克家居（i-home.life）隐私政策 — 说明我们如何收集、使用和保护您的个人信息。">
     <meta name="theme-color" content="#08080f">
     <title>隐私政策 · 索克家居 i-home.life</title>
-    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/workbench.css?v=20260720e">
     <style>
         /* ── 法律文档页面专用样式 ── */
         body {
@@ -235,6 +235,7 @@
         <a href="../../index.html" class="legal-back" aria-label="返回首页">
             <span aria-hidden="true">←</span> 返回首页
         </a>
+        <span style="float:right; font-size:0.72rem; color:var(--accent); padding:8px 0;">v1.2.0</span>
 
         <header class="legal-header">
             <h1 id="legal-title">隐私政策</h1>
@@ -250,6 +251,8 @@
             <p>我们仅收集提供 AI 智能装修服务所必需的信息，包括：</p>
             <ul>
                 <li><strong>账号信息</strong>：手机号码（用于账号注册与登录）、昵称、头像。</li>
+                <li><strong>Agent 执行轨迹</strong>：AI 智能体每次交互的输入、输出、耗时和 token 消耗记录，用于服务优化与问题排查。该数据以去标识化方式存储，不包含原始聊天内容中涉及的敏感个人信息。</li>
+                <li><strong>手绘草图数据</strong>：用户通过 Sketch-to-3D 功能上传的手绘户型图片，仅用于 AI 识别墙体、门窗和房间布局。识别完成后，结果数据与项目关联存储，原始图片将在 30 天后自动删除。</li>
                 <li><strong>认证凭据</strong>：基于 <strong>PASETO</strong>（非 JWT）的会话令牌，以及 <strong>WebAuthn / Passkey</strong> 生物特征认证（指纹、面容、平台通行密钥）的公钥凭据。我们不会存储您的原始生物特征数据，仅存储不可逆的公钥与签名。</li>
                 <li><strong>项目装修数据</strong>：户型、预算、物料清单、施工进度、设计偏好等。</li>
                 <li><strong>语音数据</strong>：与语音助手（Voice Agent）交互时的语音录入内容、转写文本，用于实时对话与情绪识别。</li>
@@ -263,7 +266,7 @@
             <p>收集的信息仅用于以下用途：</p>
             <ul>
                 <li>提供装修设计、预算、采购、施工管理、结算等核心服务；</li>
-                <li>支持与 <strong>AI 智能体（AI Agent）</strong>的交互，包括文本对话、语音对话与实时语音会话；</li>
+                <li>支持与 <strong>AI 智能体（AI Agent）</strong>的交互，包括文本对话、语音对话、实时语音会话与手绘草图识别；</li>
                 <li>进行<strong>语音情绪识别</strong>，以更好地理解您的需求并优化服务体验；</li>
                 <li>处理<strong>实时语音会话</strong>（Real-time Voice Sessions）的音频流，实现语音助手的即时响应；</li>
                 <li>改进服务质量、训练与优化模型效果（在去标识化的前提下）；</li>

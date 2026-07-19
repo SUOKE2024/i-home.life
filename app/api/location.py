@@ -1,8 +1,10 @@
 """高德地图定位服务 — 地址智能补全 + IP定位 + 附近楼盘搜索"""
 import httpx
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.config import get_settings
+from app.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/location", tags=["位置服务"])
 settings = get_settings()
@@ -27,7 +29,7 @@ async def _amap_get(path: str, **params) -> dict:
 
 
 @router.get("/search")
-async def search_places(keywords: str, city: str = "", limit: int = 10):
+async def search_places(keywords: str, city: str = "", limit: int = 10, current_user: User = Depends(get_current_user)):
     """搜索附近楼盘/小区 — 高德 POI 搜索"""
     try:
         data = await _amap_get(
@@ -55,7 +57,7 @@ async def search_places(keywords: str, city: str = "", limit: int = 10):
 
 
 @router.get("/geocode")
-async def geocode(address: str, city: str = ""):
+async def geocode(address: str, city: str = "", current_user: User = Depends(get_current_user)):
     """地址 → 经纬度 + 结构化地址"""
     try:
         data = await _amap_get("/geocode/geo", address=address, city=city)
@@ -82,7 +84,7 @@ async def geocode(address: str, city: str = ""):
 
 
 @router.get("/autocomplete")
-async def autocomplete(keywords: str, city: str = "北京", limit: int = 8):
+async def autocomplete(keywords: str, city: str = "北京", limit: int = 8, current_user: User = Depends(get_current_user)):
     """地址输入智能提示 — 合并 POI 搜索 + 地理编码"""
     result = {"pois": [], "locations": []}
 

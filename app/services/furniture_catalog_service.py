@@ -46,8 +46,13 @@ async def delete_item(db: AsyncSession, item_id: str) -> bool:
 # ── 多维筛选 ──
 
 
-async def search_furniture(db: AsyncSession, filters: dict) -> list[FurnitureCatalogItem]:
-    """多维筛选 (category/subcategory/brand/style/price_range/material/color)"""
+async def search_furniture(
+    db: AsyncSession, filters: dict, skip: int = 0, limit: int = 50
+) -> list[FurnitureCatalogItem]:
+    """多维筛选 (category/subcategory/brand/style/price_range/material/color)
+
+    v1.1.14: 添加 skip/limit 分页参数，避免大量家具数据一次性加载。
+    """
     stmt = select(FurnitureCatalogItem).where(FurnitureCatalogItem.status == "active")
 
     category = filters.get("category")
@@ -82,6 +87,9 @@ async def search_furniture(db: AsyncSession, filters: dict) -> list[FurnitureCat
 
     # 排序: 评分高 + 销量高
     stmt = stmt.order_by(FurnitureCatalogItem.rating.desc(), FurnitureCatalogItem.sales_count.desc())
+
+    # v1.1.14: 分页
+    stmt = stmt.offset(skip).limit(limit)
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

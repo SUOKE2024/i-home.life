@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 
 class KitchenPage extends StatefulWidget {
   final String projectId;
@@ -14,14 +15,6 @@ class _KitchenPageState extends State<KitchenPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   // 方案
   List<dynamic> _designs = [];
@@ -259,22 +252,22 @@ class _KitchenPageState extends State<KitchenPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: Text(title, style: const TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.cardBg,
+        title: Text(title, style: const TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
             child: SelectableText(
               content,
               style: const TextStyle(
-                  color: _secondaryText, fontFamily: 'monospace', fontSize: 13),
+                  color: SuokeDesignTokens.textSecondary, fontFamily: 'monospace', fontSize: 13),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭', style: TextStyle(color: _brandColor)),
+            child: const Text('关闭', style: TextStyle(color: SuokeDesignTokens.accent)),
           ),
         ],
       ),
@@ -286,16 +279,16 @@ class _KitchenPageState extends State<KitchenPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bgDeep,
       appBar: AppBar(
-        backgroundColor: _cardColor,
-        foregroundColor: _primaryText,
+        backgroundColor: SuokeDesignTokens.cardBg,
+        foregroundColor: SuokeDesignTokens.textPrimary,
         title: const Text('厨房设计'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSecondary,
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '厨房设计方案'),
             Tab(text: '组件列表'),
@@ -316,7 +309,7 @@ class _KitchenPageState extends State<KitchenPage>
 
   Widget _buildDesignsTab() {
     if (_designsLoading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return _buildErrorRetry(_error!, _loadDesigns);
@@ -338,8 +331,8 @@ class _KitchenPageState extends State<KitchenPage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bgDeep,
                   ),
                   onPressed: _showCreateDesignDialog,
                   icon: const Icon(Icons.add),
@@ -349,8 +342,8 @@ class _KitchenPageState extends State<KitchenPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.textPrimary,
+                  side: const BorderSide(color: SuokeDesignTokens.border),
                 ),
                 onPressed: _loadDesigns,
                 icon: const Icon(Icons.refresh),
@@ -361,7 +354,7 @@ class _KitchenPageState extends State<KitchenPage>
         ),
         Expanded(
           child: RefreshIndicator(
-            color: _brandColor,
+            color: SuokeDesignTokens.accent,
             onRefresh: _loadDesigns,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -382,11 +375,11 @@ class _KitchenPageState extends State<KitchenPage>
     final isSelected = _selectedDesignId == id;
     final budget = isSelected ? _calcBudget(_components) : 0.0;
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.cardBg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? _brandColor : _borderColor, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.border, width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -397,20 +390,20 @@ class _KitchenPageState extends State<KitchenPage>
             Row(
               children: [
                 Icon(Icons.kitchen,
-                    color: isSelected ? _brandColor : _primaryText, size: 20),
+                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textPrimary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     design['room_name'] ?? '未命名方案',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (isSelected)
                   const Icon(Icons.check_circle,
-                      color: _brandColor, size: 18),
+                      color: SuokeDesignTokens.accent, size: 18),
               ],
             ),
             const SizedBox(height: 8),
@@ -484,20 +477,20 @@ class _KitchenPageState extends State<KitchenPage>
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.cardBg,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.kitchen, color: _brandColor, size: 20),
+                  const Icon(Icons.kitchen, color: SuokeDesignTokens.accent, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedDesign?['room_name'] ?? _selectedDesignId}',
                       style: const TextStyle(
-                          color: _primaryText, fontWeight: FontWeight.w600),
+                          color: SuokeDesignTokens.textPrimary, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -512,8 +505,8 @@ class _KitchenPageState extends State<KitchenPage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bgDeep,
                   ),
                   onPressed: _showAddComponentDialog,
                   icon: const Icon(Icons.add),
@@ -523,8 +516,8 @@ class _KitchenPageState extends State<KitchenPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.textPrimary,
+                  side: const BorderSide(color: SuokeDesignTokens.border),
                 ),
                 onPressed: () => _loadComponents(_selectedDesignId!),
                 icon: const Icon(Icons.refresh),
@@ -537,7 +530,7 @@ class _KitchenPageState extends State<KitchenPage>
         Expanded(
           child: _componentsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _components.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.widgets,
@@ -563,10 +556,10 @@ class _KitchenPageState extends State<KitchenPage>
     final id = (comp['id'] ?? '').toString();
     final type = comp['component_type']?.toString() ?? '未分类';
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.cardBg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.border, width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -576,20 +569,20 @@ class _KitchenPageState extends State<KitchenPage>
           children: [
             Row(
               children: [
-                Icon(Icons.inventory_2, color: _brandColor, size: 20),
+                Icon(Icons.inventory_2, color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     type,
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 Text(
                   '¥${(comp['price'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}',
-                  style: const TextStyle(color: _brandColor, fontSize: 14),
+                  style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 14),
                 ),
               ],
             ),
@@ -636,15 +629,15 @@ class _KitchenPageState extends State<KitchenPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _secondaryText),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSecondary),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSecondary)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bgDeep,
             ),
             onPressed: onAction,
             icon: const Icon(Icons.add),
@@ -663,12 +656,12 @@ class _KitchenPageState extends State<KitchenPage>
           const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSecondary)),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bgDeep,
             ),
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
@@ -684,9 +677,9 @@ class _KitchenPageState extends State<KitchenPage>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: _secondaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: _primaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 13)),
       ],
     );
   }
@@ -701,9 +694,9 @@ class _KitchenPageState extends State<KitchenPage>
       height: 32,
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : _brandColor,
+          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : _borderColor),
+              color: isDanger ? Colors.redAccent : SuokeDesignTokens.border),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -726,30 +719,30 @@ class _KitchenPageState extends State<KitchenPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.cardBg,
           title: const Text('创建厨房设计方案',
-              style: TextStyle(color: _primaryText)),
+              style: TextStyle(color: SuokeDesignTokens.textPrimary)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   decoration: _inputDecoration('房间名称（如：主厨房）'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: layoutType,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.cardBg,
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   decoration: _inputDecoration('布局类型'),
                   items: layouts
                       .map((l) => DropdownMenuItem(
                           value: l,
                           child: Text(layoutLabels[l] ?? l,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  const TextStyle(color: SuokeDesignTokens.textPrimary))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => layoutType = v);
@@ -762,7 +755,7 @@ class _KitchenPageState extends State<KitchenPage>
                       child: TextField(
                         controller: widthCtrl,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: _primaryText),
+                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                         decoration: _inputDecoration('宽（m）'),
                       ),
                     ),
@@ -771,7 +764,7 @@ class _KitchenPageState extends State<KitchenPage>
                       child: TextField(
                         controller: lengthCtrl,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: _primaryText),
+                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                         decoration: _inputDecoration('长（m）'),
                       ),
                     ),
@@ -784,11 +777,11 @@ class _KitchenPageState extends State<KitchenPage>
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: _secondaryText)),
+                  style: TextStyle(color: SuokeDesignTokens.textSecondary)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandColor, foregroundColor: _bgColor),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bgDeep),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
@@ -817,22 +810,22 @@ class _KitchenPageState extends State<KitchenPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.cardBg,
         title: const Text('添加厨房组件',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                dropdownColor: _cardColor,
-                style: const TextStyle(color: _primaryText),
+                dropdownColor: SuokeDesignTokens.cardBg,
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                 decoration: _inputDecoration('组件类型'),
                 items: presetTypes
                     .map((t) => DropdownMenuItem(
                         value: t,
                         child: Text(t,
-                            style: const TextStyle(color: _primaryText))))
+                            style: const TextStyle(color: SuokeDesignTokens.textPrimary))))
                     .toList(),
                 onChanged: (v) {
                   if (v != null) {
@@ -843,25 +836,25 @@ class _KitchenPageState extends State<KitchenPage>
               const SizedBox(height: 12),
               TextField(
                 controller: typeCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                 decoration: _inputDecoration('或手动输入组件类型'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: brandCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                 decoration: _inputDecoration('品牌（可选）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: modelCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                 decoration: _inputDecoration('型号（可选）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                 decoration: _inputDecoration('材质（可选，如：不锈钢/实木）'),
               ),
             ],
@@ -871,11 +864,11 @@ class _KitchenPageState extends State<KitchenPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bgDeep),
             onPressed: () {
               final type = typeCtrl.text.trim();
               if (type.isEmpty) {
@@ -897,16 +890,16 @@ class _KitchenPageState extends State<KitchenPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.cardBg,
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: const Text('确定要删除此厨房设计方案吗？关联的组件也会被清除。此操作不可撤销。',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -927,16 +920,16 @@ class _KitchenPageState extends State<KitchenPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.cardBg,
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: const Text('确定要删除此组件吗？',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -956,20 +949,20 @@ class _KitchenPageState extends State<KitchenPage>
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: _secondaryText),
+      labelStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
       filled: true,
-      fillColor: _bgColor,
+      fillColor: SuokeDesignTokens.bgDeep,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _brandColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.accent),
       ),
     );
   }

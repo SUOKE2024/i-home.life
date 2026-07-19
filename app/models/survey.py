@@ -13,7 +13,7 @@ class Survey(Base):
     __tablename__ = "surveys"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="现场测量")
     surveyor: Mapped[str | None] = mapped_column(String(100), nullable=True)       # 测量人员
     # method: manual | lidar | visual | photo | voice_guided
@@ -28,8 +28,8 @@ class Survey(Base):
     device_info: Mapped[str | None] = mapped_column(Text, nullable=True)            # 设备信息 JSON {device,os,sensors}
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # draft | in_progress | completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)                  # 备注
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
 

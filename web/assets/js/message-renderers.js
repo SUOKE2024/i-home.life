@@ -14,7 +14,14 @@ const MessageRenderers = {
     const meta = isUser
       ? `<div class="msg-meta"><strong>${this._escape(displayName)}</strong> · ${this._fmtTime(msg.timestamp)}</div>`
       : `<div class="msg-meta"><strong style="color:${agentInfo.color}">${this._escape(displayName)}</strong> · ${this._fmtTime(msg.timestamp)}</div>`;
-    return `<div class="msg ${cls}">${meta}<div class="msg-bubble">${this._escape(msg.content)}</div>${this._renderCollab(msg)}</div>`;
+    // L4 自适应学习：Agent 消息底部添加反馈按钮
+    const feedbackHtml = !isUser && msg.agent
+      ? `<div class="msg-feedback" data-agent="${this._escape(msg.agent)}" data-msg-id="${this._escape(msg.id || '')}">
+          <button class="feedback-btn like" data-feedback="like" aria-label="有帮助" title="有帮助">👍</button>
+          <button class="feedback-btn dislike" data-feedback="dislike" aria-label="没帮助" title="没帮助">👎</button>
+        </div>`
+      : '';
+    return `<div class="msg ${cls}">${meta}<div class="msg-bubble">${this._escape(msg.content)}</div>${feedbackHtml}${this._renderCollab(msg)}</div>`;
   },
 
   // 任务卡片
@@ -25,10 +32,17 @@ const MessageRenderers = {
       const icon = t.status === 'done' ? '✓' : (t.status === 'in_progress' ? '…' : '');
       return `<div class="task-item ${statusCls}"><span class="task-check">${icon}</span><span>${this._escape(t.name)}</span></div>`;
     }).join('');
+    // 计算进度百分比
+    const total = tasks.length;
+    const done = msg.payload.tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
+    const inProgress = msg.payload.tasks.filter(t => t.status === 'in_progress' || t.status === 'doing').length;
+    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+    const progressLabel = percent > 0 ? `（${percent}% 完成）` : '';
     return `<div class="msg agent agent-${msg.agent || 'construction'}">
       <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
       <div class="msg-card">
-        <div class="msg-card-title">📋 ${this._escape(msg.payload.title || '今日任务')}</div>
+        <div class="msg-card-title">📋 ${this._escape(msg.payload.title || '今日任务')}${progressLabel}</div>
+        ${percent > 0 ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${percent}%"></div></div>` : ''}
         <div class="task-list">${tasks}</div>
       </div>
       ${this._renderCollab(msg)}
@@ -419,6 +433,97 @@ const MessageRenderers = {
     return `<div class="date-separator"><span>${this._escape(msg.content || '')}</span></div>`;
   },
 
+  // ── F38 质检报告卡片 ──
+
+  renderInspectionCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo('quality');
+    const p = msg.payload || {};
+    const STATUS_MAP = { passed: '合格', failed: '不合格', needs_review: '需复核', pending: '待检测' };
+    const STATUS_ICON = { passed: '✅', failed: '❌', needs_review: '⚠️', pending: '⏳' };
+    const STATUS_COLOR = { passed: 'var(--success)', failed: 'var(--danger)', needs_review: 'var(--warning)', pending: 'var(--text-muted)' };
+    const statusLabel = STATUS_MAP[p.status || p.result] || p.status || p.result || '未知';
+    const statusIcon = STATUS_ICON[p.status || p.result] || '❓';
+    const statusColor = STATUS_COLOR[p.status || p.result] || 'var(--text-muted)';
+
+    const photos = (p.photos || p.image_urls || []).map(url =>
+      `<div class="photo-thumb" style="background-image:url('${this._escape(url)}')" role="img" aria-label="质检照片" tabindex="0"></div>`
+    ).join('');
+
+    const issues = (p.issues || []).map((iss, idx) => {
+      const sevColor = { critical: 'var(--danger)', major: 'var(--warning)', minor: 'var(--info)', info: 'var(--text-muted)' }[iss.severity] || 'var(--text-muted)';
+      return `<div class="msg-card-row"><span style="color:${sevColor}">${idx + 1}. ${this._escape(iss.description || iss.name || '')}</span><strong>${this._escape(iss.severity || '')}</strong></div>`;
+    }).join('');
+
+    return `<div class="msg agent agent-quality">
+      <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🔍 质检报告 · ${this._escape(p.check_item || p.title || p._task_name || '')}</div>
+        <div class="msg-card-row"><span>检测结果</span><strong style="color:${statusColor}">${statusIcon} ${statusLabel}</strong></div>
+        ${p.score != null ? `<div class="msg-card-row"><span>评分</span><strong>${p.score}/100</strong></div>` : ''}
+        ${p.score != null ? `<div class="progress-bar"><div class="progress-bar-fill" style="width:${p.score}%;${p.score < 60 ? 'background:var(--danger)' : (p.score < 80 ? 'background:var(--warning)' : '')}"></div></div>` : ''}
+        ${p.deviation ? `<div class="msg-card-row"><span>偏差</span><strong style="color:${parseFloat(p.deviation) > 5 ? 'var(--danger)' : 'var(--warning)'}">${this._escape(String(p.deviation))}${p.deviation_unit || 'cm'}</strong></div>` : ''}
+        ${p.summary ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:6px">${this._escape(p.summary)}</div>` : ''}
+        ${photos ? `<div class="photo-grid">${photos}</div>` : ''}
+        ${issues ? `<div style="margin-top:6px;border-top:1px dashed var(--border);padding-top:6px">${issues}</div>` : ''}
+        ${p.recommendation ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">💡 ${this._escape(p.recommendation)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── F38 质量问题列表卡片 ──
+
+  renderQualityIssueCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo('quality');
+    const p = msg.payload || {};
+    const issues = p.issues || p.items || [];
+    if (issues.length === 0) return '';
+    const SEVERITY_ICON = { critical: '🔴', major: '🟠', minor: '🟡', info: '🔵' };
+    const STATUS_ICON = { open: '⬜', in_progress: '🔄', resolved: '✅', closed: '✔️' };
+    const rows = issues.slice(0, 6).map((iss, idx) => {
+      const sevIcon = SEVERITY_ICON[iss.severity] || '⚪';
+      const statusIcon = STATUS_ICON[iss.status] || '⬜';
+      return `<div class="msg-card-row">
+        <span>${sevIcon} ${idx + 1}. ${this._escape(iss.description || iss.title || '问题')} ${statusIcon}</span>
+        <strong>${this._escape(iss.location || iss.area || '')}</strong>
+      </div>`;
+    }).join('');
+    const more = issues.length > 6 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">… 共 ${issues.length} 个问题</div>` : '';
+    return `<div class="msg agent agent-quality">
+      <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">⚠️ 质量问题清单 · ${issues.length} 项</div>
+        ${rows || '<div class="msg-card-row"><span style="color:var(--success)">✅ 暂无问题</span></div>'}
+        ${more}
+      </div>
+    </div>`;
+  },
+
+  // ── F37 进度预警卡片 ──
+
+  renderProgressAlertCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo('construction');
+    const p = msg.payload || {};
+    const alerts = p.alerts || p.items || [];
+    if (alerts.length === 0) return '';
+    const SEVERITY_COLOR = { critical: 'var(--danger)', high: 'var(--warning)', medium: 'var(--info)', low: 'var(--text-muted)' };
+    const rows = alerts.slice(0, 5).map(a => {
+      const color = SEVERITY_COLOR[a.severity] || 'var(--text-muted)';
+      return `<div class="msg-card-row">
+        <span>${this._escape(a.message || a.description || a.task_name || '')}</span>
+        <strong style="color:${color}">${this._escape(a.severity || '')}</strong>
+      </div>`;
+    }).join('');
+    const more = alerts.length > 5 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px">… 共 ${alerts.length} 条预警</div>` : '';
+    return `<div class="msg agent agent-construction">
+      <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📡 进度预警 · ${alerts.length} 条</div>
+        ${rows}
+        ${more}
+      </div>
+    </div>`;
+  },
+
   // ── 新增：任务申领卡片（设计师/工长选择） ──
 
   renderTaskClaimCard(msg) {
@@ -783,6 +888,9 @@ const MessageRenderers = {
       case 'product_create_card': return this.renderProductCreateCard(msg);
       case 'product_list_card': return this.renderProductListCard(msg);
       case 'quotation_card': return this.renderQuotationCard(msg);
+      case 'inspection_card': return this.renderInspectionCard(msg);
+      case 'quality_issue_card': return this.renderQualityIssueCard(msg);
+      case 'progress_alert_card': return this.renderProgressAlertCard(msg);
       default: return this.renderText(msg);
     }
   },

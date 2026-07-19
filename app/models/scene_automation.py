@@ -15,8 +15,8 @@ class SceneAutomation(Base):
     __tablename__ = "scene_automations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    scheme_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    scheme_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=True, index=True)
     # 关联智能家居方案
     scene_name: Mapped[str] = mapped_column(String(200), nullable=False)
     scene_type: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
@@ -28,8 +28,8 @@ class SceneAutomation(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # 优先级,数值越大越优先
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     scheme = relationship("SmartHomeScheme")
@@ -41,17 +41,17 @@ class EcosystemIntegration(Base):
     __tablename__ = "ecosystem_integrations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     ecosystem: Mapped[str] = mapped_column(String(50), nullable=False)
     # ecosystem: homekit / mijia / harmonyos / alexa / google_home / tuya
     auth_status: Mapped[str] = mapped_column(String(20), nullable=False, default="disconnected")
     # auth_status: connected / disconnected / expired
     device_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 配置 JSON: {"token": "xxx", "hub_id": "xxx"}
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")

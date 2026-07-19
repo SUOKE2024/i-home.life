@@ -219,7 +219,12 @@ async def test_complete_milestone_idor_blocked(client: AsyncClient):
     )
     assert resp.status_code == 403, f"IDOR 未拦截: {resp.status_code} {resp.text}"
 
-    # owner 完成 → 应成功
+    # owner 完成 → 应成功（先更新到 in_progress）
+    resp = await client.patch(
+        f"/api/construction/milestones/{ms_id}/status?new_status=in_progress",
+        headers=owner_h,
+    )
+    assert resp.status_code == 200, resp.text
     resp = await client.patch(
         f"/api/construction/milestones/{ms_id}/complete",
         json={"actual_percent": 100.0},

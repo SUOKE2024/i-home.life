@@ -24,6 +24,9 @@ enum ChatMessageType {
   orchestrator_task,
   points_card,
   narrative,
+  inspection_card,
+  quality_issue_card,
+  progress_alert_card,
 }
 
 /// Agent 基本信息
@@ -58,6 +61,7 @@ class AgentInfo {
     'quality': AgentInfo(key: 'quality', name: '质检', emoji: '✅', color: qualityColor),
     'settlement': AgentInfo(key: 'settlement', name: '结算', emoji: '🧾', color: settlementColor),
     'support': AgentInfo(key: 'support', name: '客服', emoji: '🎧', color: supportColor),
+    'admin': AgentInfo(key: 'admin', name: '管理', emoji: '⚙️', color: masterColor),
   };
 
   static AgentInfo getByKey(String key) {
@@ -260,6 +264,12 @@ class ChatMessage {
         return ChatMessageType.points_card;
       case 'narrative':
         return ChatMessageType.narrative;
+      case 'inspection_card':
+        return ChatMessageType.inspection_card;
+      case 'quality_issue_card':
+        return ChatMessageType.quality_issue_card;
+      case 'progress_alert_card':
+        return ChatMessageType.progress_alert_card;
       default:
         return ChatMessageType.text;
     }
@@ -312,6 +322,12 @@ class ChatMessage {
         return 'points_card';
       case ChatMessageType.narrative:
         return 'narrative';
+      case ChatMessageType.inspection_card:
+        return 'inspection_card';
+      case ChatMessageType.quality_issue_card:
+        return 'quality_issue_card';
+      case ChatMessageType.progress_alert_card:
+        return 'progress_alert_card';
     }
   }
 }

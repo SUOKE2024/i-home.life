@@ -87,6 +87,12 @@ class ChatMessageCard extends StatelessWidget {
         child = _buildPointsCard();
       case ChatMessageType.narrative:
         child = _buildNarrativeCard();
+      case ChatMessageType.inspection_card:
+        child = _buildInspectionCard();
+      case ChatMessageType.quality_issue_card:
+        child = _buildQualityIssueCard();
+      case ChatMessageType.progress_alert_card:
+        child = _buildProgressAlertCard();
       case ChatMessageType.system:
         child = _buildSystemSeparator();
     }
@@ -251,7 +257,44 @@ class ChatMessageCard extends StatelessWidget {
               ),
             ),
           ),
+          // L4 自适应学习：Agent 消息底部反馈按钮
+          if (!isUser && message.agent != null)
+            _buildFeedbackRow(),
         ],
+      ),
+    );
+  }
+
+  /// L4 反馈按钮行
+  Widget _buildFeedbackRow() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _feedbackBtn('👍', 'like'),
+          const SizedBox(width: 4),
+          _feedbackBtn('👎', 'dislike'),
+        ],
+      ),
+    );
+  }
+
+  Widget _feedbackBtn(String label, String type) {
+    return GestureDetector(
+      onTap: () => onCardAction?.call('agent_feedback', {
+        'agent_key': message.agent,
+        'feedback_type': type,
+        'agent_reply': message.content ?? '',
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: _cardBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: _border),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
     );
   }
@@ -265,10 +308,23 @@ class ChatMessageCard extends StatelessWidget {
     final tasks = (p['tasks'] as List?) ?? [];
     final title = (p['title'] ?? '今日任务') as String;
 
+    // 计算进度百分比
+    final doneCount = tasks.where((t) {
+      final s = (t['status'] ?? '').toString();
+      return s == 'done' || s == 'completed';
+    }).length;
+    final percent = tasks.isNotEmpty ? (doneCount * 100 ~/ tasks.length) : 0;
+    final progressLabel = percent > 0 ? '（$percent% 完成）' : '';
+
     return _wrapCard(
       agentInfo: agentInfo,
-      title: '📋 ${_esc(title)}',
+      title: '📋 ${_esc(title)}$progressLabel',
       children: [
+        if (percent > 0) ...[
+          const SizedBox(height: 2),
+          _progressBar(percent),
+          const SizedBox(height: 4),
+        ],
         ...tasks.map(_buildTaskItem),
       ],
     );
@@ -1418,6 +1474,173 @@ class ChatMessageCard extends StatelessWidget {
               );
             }).toList(),
           ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 23. 质检报告卡片 (F38)
+  // ═══════════════════════════════════════════
+  Widget _buildInspectionCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('quality');
+    final status = (p['status'] ?? p['result'] ?? 'pending').toString();
+    final checkItem = p['check_item'] ?? p['title'] ?? p['_task_name'] ?? '';
+    final score = _num(p['score']);
+    final deviation = p['deviation'];
+    final deviationUnit = p['deviation_unit'] ?? 'cm';
+    final summary = p['summary'] as String?;
+    final recommendation = p['recommendation'] as String?;
+    final photos = (p['photos'] ?? p['image_urls'] as List?) ?? [];
+    final issues = p['issues'] as List?;
+
+    const statusMap = {
+      'passed': ('✅ 合格', _success),
+      'failed': ('❌ 不合格', _danger),
+      'needs_review': ('⚠️ 需复核', _warning),
+      'pending': ('⏳ 待检测', _textMuted),
+    };
+    final s = statusMap[status] ?? ('❓ $status', _textMuted);
+
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🔍 质检报告 · ${_esc(checkItem.toString())}',
+      children: [
+        _row('检测结果', _esc(s.$1), boldValue: true, valueColor: s.$2),
+        if (score > 0) ...[
+          _row('评分', '$score/100', boldValue: true),
+          _progressBar(score.toInt()),
+        ],
+        if (deviation != null)
+          _row('偏差',
+              '${deviation.toString()}$deviationUnit',
+              boldValue: true,
+              valueColor: _num(deviation) > 5 ? _danger : _warning),
+        if (summary != null && summary.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(_esc(summary),
+                style:
+                    const TextStyle(fontSize: 11, color: _textSecondary)),
+          ),
+        if (photos.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Wrap(
+              spacing: 6, runSpacing: 6,
+              children: photos.map((url) {
+                return Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _border),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.network(
+                      url.toString(),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.broken_image, size: 20, color: _textMuted),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        if (issues != null && issues.isNotEmpty) ...[
+          const Divider(color: _border, height: 1),
+          ...issues.asMap().entries.map((entry) {
+            final iss = entry.value as Map<String, dynamic>;
+            final sevColors = {
+              'critical': _danger, 'major': _warning,
+              'minor': _textSecondary, 'info': _textMuted,
+            };
+            final sevColor = sevColors[iss['severity']?.toString()] ?? _textMuted;
+            return _row(
+              '${entry.key + 1}. ${_esc(iss['description'] ?? iss['name'] ?? '')}',
+              _esc(iss['severity']?.toString() ?? ''),
+              boldValue: true, valueColor: sevColor,
+            );
+          }),
+        ],
+        if (recommendation != null && recommendation.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text('💡 ${_esc(recommendation)}',
+                style: const TextStyle(fontSize: 10, color: _accent)),
+          ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 24. 质量问题清单卡片 (F38)
+  // ═══════════════════════════════════════════
+  Widget _buildQualityIssueCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('quality');
+    final issues = (p['issues'] ?? p['items'] as List?) ?? [];
+    if (issues.isEmpty) return const SizedBox.shrink();
+
+    const sevIcons = {
+      'critical': '🔴', 'major': '🟠', 'minor': '🟡', 'info': '🔵',
+    };
+    const statusIcons = {
+      'open': '⬜', 'in_progress': '🔄', 'resolved': '✅', 'closed': '✔️',
+    };
+
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '⚠️ 质量问题清单 · ${issues.length} 项',
+      children: [
+        ...issues.take(6).toList().asMap().entries.map((entry) {
+          final iss = entry.value as Map<String, dynamic>;
+          final sev = iss['severity']?.toString() ?? '';
+          final status = iss['status']?.toString() ?? 'open';
+          return _row(
+            '${sevIcons[sev] ?? '⚪'} ${entry.key + 1}. ${_esc(iss['description'] ?? iss['title'] ?? '问题')} ${statusIcons[status] ?? '⬜'}',
+            _esc(iss['location'] ?? iss['area'] ?? ''),
+            boldValue: true,
+          );
+        }),
+        if (issues.length > 6)
+          Text('… 共 ${issues.length} 个问题',
+              style: const TextStyle(fontSize: 10, color: _textMuted)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 25. 进度预警卡片 (F37)
+  // ═══════════════════════════════════════════
+  Widget _buildProgressAlertCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('construction');
+    final alerts = (p['alerts'] ?? p['items'] as List?) ?? [];
+    if (alerts.isEmpty) return const SizedBox.shrink();
+
+    const sevColors = {
+      'critical': _danger, 'high': _warning,
+      'medium': _textSecondary, 'low': _textMuted,
+    };
+
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📡 进度预警 · ${alerts.length} 条',
+      children: [
+        ...alerts.take(5).map((a) {
+          final sev = a['severity']?.toString() ?? '';
+          return _row(
+            _esc(a['message'] ?? a['description'] ?? a['task_name'] ?? ''),
+            _esc(sev),
+            boldValue: true,
+            valueColor: sevColors[sev] ?? _textMuted,
+          );
+        }),
+        if (alerts.length > 5)
+          Text('… 共 ${alerts.length} 条预警',
+              style: const TextStyle(fontSize: 10, color: _textMuted)),
       ],
     );
   }

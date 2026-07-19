@@ -2,10 +2,69 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.10 · Filament 渲染引擎 + OpenCascade.js 真实布尔运算 + DWG 后端解析 + L4 偏好学习注入（2026-07-19）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 10 Agent 全链路 + L4 偏好学习 + 461 API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
+> v1.1.13 · PostgreSQL TIMESTAMP WITH TIME ZONE 全面兼容 + demo.html 响应式/版本号/健康检查路径修复（2026-07-20）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 10 Agent 全链路 + L4 偏好学习 + MCP 协议外露 + AI 渲染（2D/3D/restage）+ 语音情绪路由 + WebGPU 智能降级 + 475+ API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
 
 ## 最近更新
+
+### 2026-07-20 · v1.1.13 生产部署稳定性修复
+
+- **PostgreSQL + asyncpg + aware datetime 三层兼容性修复**:
+  - 数据库 schema：批量 `ALTER COLUMN TYPE TIMESTAMP WITH TIME ZONE`（100+ 列），生产 PostgreSQL 不再拒绝 `datetime.now(timezone.utc)` 写入
+  - ORM 模型：42 个 model 文件、209 处 `DateTime` → `DateTime(timezone=True)`（sed 批量替换）
+  - asyncpg 会话时区：[app/database.py](app/database.py) engine 配置新增 `connect_args={"server_settings": {"TimeZone": "UTC"}}`
+  - 修复后 chat/auth/register 等所有写入 datetime 的端点恢复正常（此前 HTTP 500）
+- **PostgreSQL 事务 aborted 陷阱修复**（[app/database.py](app/database.py)）:
+  - `_run_lightweight_migrations()` 中 `try/except SELECT` 检查 `_schema_migrations` 表存在性 → PostgreSQL 事务进入 aborted 状态
+  - 改用 `inspect.has_table()`（基于 `information_schema`，不污染事务）
+- **demo.html 前端质量修复**:
+  - 健康检查路径 `/health` → `/api/health`（符合 API 前缀约定）
+  - 硬编码 fallback 版本号 `v1.1.0` → `v1.1.13`
+  - 补全响应式断点：新增 `≤1024px` 和 `≤480px`（符合项目约定 ≤1024/≤768/≤480）
+  - 移除重复的 `Cache-Control/Pragma/Expires` meta 标签
+  - AR 测量添加精度警告提示（"测量结果为估算值，仅供预估算参考"）
+- **版本号统一升级**: `v=20260720c` → `v=20260720d`（12 个 HTML/JS 文件）+ sw.js `CACHE_VERSION` 同步升级
+- **清理**: 删除 13 个 /tmp/verify_*.py 临时脚本 + __pycache__/.pytest_cache/htmlcov/test_*.db
+
+### 2026-07-20 · v1.1.12
+
+- **MCP Server 协议外露**（PRD §5.x 长线计划，对标 MCP 2026-07-28 RC）:
+  - 新增 [app/mcp/server.py](app/mcp/server.py)：`MCPServer` 类纯 Python dict 实现 MCP 2026-07-28 协议（零新增依赖）
+  - 复用 [app/services/agent_tool_registry.py](app/services/agent_tool_registry.py) 的 5 个内置工具，自动暴露为 MCP 协议格式（name/description/inputSchema/annotations.category）
+  - 新增 [app/api/mcp.py](app/api/mcp.py)：4 个端点（`GET /api/mcp/manifest` 公开元信息 / `GET /api/mcp/tools` 工具列表 / `POST /api/mcp/tools/call` 调用工具 / `POST /api/mcp/sse` SSE 流式调用，兼容 stateless 核心）
+  - 支持 Nginx round-robin 多 worker 部署（移除 initialize 握手与协议级 session）
+  - 工具参数含 `project_id` 时自动调用 `verify_project_access` 校验项目归属，防止 IDOR
+  - 11 项新增测试覆盖（manifest/tools/5 个工具调用/越权/SSE/未认证）
+- **Qwen-Audio-3.0-Realtime Plus + 语音情绪路由**（PRD §6.x 语音增强）:
+  - [app/api/voice_realtime.py](app/api/voice_realtime.py) 新增 `VOICE_SYSTEM_INSTRUCTIONS_PLUS` 常量，Plus 模型自动启用情感感知 + 副语言处理指令
+  - 新增 `_get_emotion_aware_system_prefix(emotion)` 函数：根据情绪 label（anxious/angry/sad/tired/excited/happy）+ score（≥0.4 才注入）生成系统指令前缀，调整 Agent 语气
+  - `_route_voice_to_agent(text, intent, user_name, context, emotion)` 增加 emotion 参数，在 user_ctx 成型后注入情绪前缀
+  - `voice_realtime_websocket` 根据 `settings.qwen_audio_model.endswith("-plus")` 自动选择增强指令
+  - [app/services/voice_realtime_service.py](app/services/voice_realtime_service.py) 在 connect 日志中记录模型变体（plus/standard + emotion_aware on/off）
+  - 12 项新增测试覆盖（情绪前缀生成/路由注入/Plus 关键字/未认证）
+- **AI 渲染端点**（PRD §7.x 长线计划，对标 SpatialGen + DecoMind）:
+  - 新增 [app/services/ai_render_service.py](app/services/ai_render_service.py)：`AIRenderService` 类封装 2D/3D/restage 三种渲染能力
+  - 复用 `BaseAgent._chat()` 调用 LLM（DeepSeek/GLM），无 API Key 时走 mock 模式返回占位图
+  - 每个渲染方法自动调用 `BaseAgent.get_user_preference_hint()` 注入 L4 用户偏好
+  - 新增 [app/api/ai_render.py](app/api/ai_render.py)：4 个端点（`POST /api/ai-render/2d` 2D 效果图 / `POST /api/ai-render/3d` 3D 场景 / `POST /api/ai-render/restage` 照片重布置 / `GET /api/ai-render/capabilities` 风格与模式列表）
+  - 支持 7 种风格（modern/nordic/japanese/luxury/chinese/industrial/coastal）+ 2 种重布置模式（inpainting/full_regen）
+  - 11 项新增测试覆盖（mock 模式/越权/422/无照片/capabilities/未认证/L4 偏好注入）
+- **WebGPU mesh 阈值保护**（对标 Three.js issue #30560 性能瓶颈）:
+  - [web/studio.html](web/studio.html) 新增 `WEBGPU_MESH_THRESHOLD = 500` 常量与 `webgpuForcedOff` 标志
+  - `sync3D` 函数估算 mesh 数量（rect 元素 × 2），超过阈值时自动降级到 WebGL，避免 WebGPURenderer 在多 mesh CAD 场景下的 per-object UBO 瓶颈
+  - 单向降级策略：`webgpuForcedOff` 一旦置 true 不自动复位，避免阈值附近抖动
+  - 降级时完整 dispose 旧 renderer + 重建 WebGLRenderer，确保状态完备
+  - 新增 `#renderer-threshold-hint` 隐藏提示 span（默认 `display:none`，含 title 说明）
+- **配置层与版本号升级**:
+  - [app/config.py](app/config.py) 新增 4 个 feature flag：`mcp_enabled` / `ai_render_enabled` / `voice_emotion_routing_enabled`（默认 True）+ Qwen Plus 模型说明
+  - [app/api/config.py](app/api/config.py) `/api/config/feature-flags` 暴露新 flag + `qwen_audio_model_variant` 字段
+  - [app/main.py](app/main.py) 注册 `/api/mcp/*` + `/api/ai-render/*` 路由
+  - `app_version` `1.1.11` → `1.1.12`，12 个 HTML/JS 文件 `?v=20260719e` → `?v=20260720a`（47 处统一），[web/sw.js](web/sw.js) `CACHE_VERSION` `suoke-v20260719e` → `suoke-v20260720a`
+- **轻量迁移测试隔离修复**:
+  - [app/database.py](app/database.py) `_run_lightweight_migrations()` 新增 `force: bool = False` 参数，绕过 `_schema_migrations` 版本检查（测试场景使用）
+  - 末尾 INSERT 前增加 `CREATE TABLE IF NOT EXISTS _schema_migrations` 兜底，防止 force=True 时表不存在
+  - [tests/test_payments.py](tests/test_payments.py) 3 个 drop-and-readd 测试改用 `force=True`，修复 v1.1.12 性能优化引入的测试隔离问题
+- **项目冗余清理**: 清理全部 `__pycache__/` 目录、`.pytest_cache/`、`htmlcov/`、`data/test_*.db` 测试数据库
 
 ### 2026-07-19 · v1.1.10
 

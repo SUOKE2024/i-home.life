@@ -234,7 +234,7 @@ async def list_ceilings(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
-    await verify_project_collaborator_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     ceilings = await svc.list_ceilings(db, scheme_id)
     return [CeilingDesignResponse.model_validate(c) for c in ceilings]
 

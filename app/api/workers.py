@@ -152,16 +152,20 @@ async def match_workers(
 async def list_project_matches(
     project_id: str,
     role: str | None = None,
+    skip: int = Query(0, ge=0, description="分页偏移量"),
+    limit: int = Query(50, ge=1, le=200, description="每页数量"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """查询项目服务者匹配记录"""
+    """查询项目服务者匹配记录（v1.1.14: 支持 skip/limit 分页）"""
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     result = await db.execute(
         select(ServiceWorkerMatch)
         .where(ServiceWorkerMatch.project_id == project_id)
         .options(selectinload(ServiceWorkerMatch.worker))
         .order_by(ServiceWorkerMatch.match_score.desc())
+        .offset(skip)
+        .limit(limit)
     )
     matches = result.scalars().all()
     if role:

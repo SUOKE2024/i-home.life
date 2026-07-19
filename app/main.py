@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
+from starlette.middleware.gzip import GZipMiddleware
+
 from app.config import get_settings
 from app.database import init_db
 from app.logging_config import configure_logging
@@ -35,7 +37,11 @@ from app.api import admin
 from app.api import product_batch
 from app.api import camera_scan
 from app.api import config as config_api
+from app.api import harness_api
+from app.api import sketch_to_3d
 from app.api import cad_import
+from app.api import mcp as mcp_api
+from app.api import ai_render
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -48,13 +54,24 @@ _alert_status_window: deque = deque(maxlen=_ALERT_WINDOW_SIZE)
 
 
 def _extract_user_id(request: Request):
-    """从 Authorization 头解析 PASETO user_id，失败返回 None（不记录 token）。"""
+    """从 Authorization 头解析 PASETO user_id，失败返回 None（不记录 token）。
+
+    性能优化（v1.1.12）：将解析后的 payload 缓存到 request.state.paseto_payload，
+    get_current_user 优先复用缓存，避免同一请求 verify_token 被调用 2 次。
+    """
+    # 命中缓存：get_current_user 已先调用过
+    cached = getattr(request.state, "paseto_payload", None)
+    if cached is not None:
+        return cached.get("sub")
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         return None
     try:
         from app.auth.paseto_handler import verify_token
         payload = verify_token(auth_header[7:])
+        # 缓存到 request.state 供 get_current_user 复用
+        request.state.paseto_payload = payload
         return payload.get("sub")
     except Exception:
         return None
@@ -81,6 +98,12 @@ def _check_error_rate(status_code: int) -> None:
 async def lifespan(app: FastAPI):
     await init_db()
     configure_logging(debug=settings.debug)
+    # 生产环境检查: WebAuthn 挑战存储需要 Redis 实现多 worker 共享
+    if not settings.redis_url and not settings.debug:
+        logger.warning(
+            "WebAuthn 挑战存储: 未配置 Redis (redis_url)，"
+            "多 worker 部署下挑战将不共享，可能导致注册/登录失败。"
+        )
     yield
     # 应用关闭时清理 WebAuthn 挑战存储（关闭 Redis 连接）
     from app.services.webauthn_service import close_challenge_store
@@ -115,6 +138,37 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── GZip 压缩中间件（v1.2.1 性能优化）──
+# 压缩 JSON/HTML/CSS/JS/text 响应，典型节省 60-80% 带宽
+# minimum_size=500：仅压缩 ≥500B 的响应，避免小 body 压缩开销
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+# ── 静态资源缓存中间件（v1.2.1 性能优化）──
+# 为 /assets/ 下的 CSS/JS/图片/字体设置长期缓存头，
+# 配合前端版本号 v=YYYYMMDD 实现缓存失效
+@app.middleware("http")
+async def static_cache_middleware(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+
+    # 静态资源长期缓存（1 年），配合版本号参数触发更新
+    if path.startswith("/assets/") or any(
+        path.endswith(ext) for ext in (".css", ".js", ".woff2", ".png", ".jpg", ".svg", ".ico", ".webp")
+    ):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    # HTML 页面短期缓存（5 分钟），避免频繁加载
+    elif path.endswith(".html") and not path.startswith("/api/"):
+        response.headers["Cache-Control"] = "public, max-age=300, must-revalidate"
+    # API 响应不缓存
+    elif path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    # Service Worker 不缓存
+    elif path.endswith("sw.js"):
+        response.headers["Cache-Control"] = "no-cache"
+
+    return response
 
 
 # ── 请求追踪中间件：request_id / 结构化日志 / metrics / 异常率告警 ──
@@ -235,7 +289,12 @@ api_router.include_router(points.router)               # /api/points/*
 api_router.include_router(notifications.router)       # /api/notifications/*
 api_router.include_router(admin.router)             # /api/admin/*
 api_router.include_router(config_api.router)        # /api/config/*
+api_router.include_router(harness_api.router)        # /api/harness/*
+api_router.include_router(sketch_to_3d.router)    # /api/sketch-to-3d/* (v1.2.0)
 api_router.include_router(cad_import.router)       # /api/cad-import/*
+# v1.1.12 新增：MCP Server + AI 渲染端点（受 feature flag 控制，路由始终注册但端点内部校验）
+api_router.include_router(mcp_api.router)          # /api/mcp/* (MCP 2026-07-28)
+api_router.include_router(ai_render.router)        # /api/ai-render/* (2D/3D/restage)
 app.include_router(api_router)
 
 # ── 全局异常处理 ──

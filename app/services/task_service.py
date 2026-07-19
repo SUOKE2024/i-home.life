@@ -15,6 +15,43 @@ from app.models.construction_crew import ConstructionCrew
 
 logger = logging.getLogger(__name__)
 
+# ── 状态机定义 ──
+# pending     → claimed (申领) | cancelled (取消)
+# claimed     → in_progress (开始) | cancelled (取消)
+# in_progress → completed (完成) | failed (失败) | cancelled (取消)
+# completed   → 终态，不可再变
+# failed      → 终态，不可再变
+# cancelled   → 终态，不可再变
+VALID_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"claimed", "cancelled"},
+    "claimed": {"in_progress", "cancelled"},
+    "in_progress": {"completed", "failed", "cancelled"},
+    "completed": set(),
+    "failed": set(),
+    "cancelled": set(),
+}
+
+
+class TaskStateError(Exception):
+    """任务状态机校验失败"""
+
+    def __init__(self, current_status: str, action: str, allowed: set[str]):
+        self.current_status = current_status
+        self.action = action
+        self.allowed = allowed
+        super().__init__(
+            f"任务状态「{current_status}」不支持操作「{action}」，"
+            f"允许的目标状态: {sorted(allowed) or '无（终态）'}"
+        )
+
+
+def _assert_transition(task: OrchestratorTask, action: str, target: str) -> None:
+    """校验状态机：当前状态是否允许转换到 target"""
+    allowed = VALID_TRANSITIONS.get(task.status, set())
+    if target not in allowed:
+        raise TaskStateError(task.status, action, allowed)
+
+
 # ── 项目类型 → 标准任务流 ──
 
 PROJECT_TASK_FLOWS = {
@@ -250,6 +287,7 @@ async def assign_task(
     if not task:
         return None
 
+    _assert_transition(task, "assign", "in_progress")
     task.assigned_user_id = user_id
     task.status = "in_progress"
     task.started_at = datetime.now(timezone.utc)
@@ -289,6 +327,7 @@ async def complete_task(
     if not task:
         return None
 
+    _assert_transition(task, "complete", "completed")
     task.status = "completed"
     task.completed_at = datetime.now(timezone.utc)
     task.result = json.dumps(result, ensure_ascii=False) if result else None
@@ -319,3 +358,35 @@ async def get_task_pool(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+# ── 任务取消 / 失败 ──
+
+async def cancel_task(db: AsyncSession, task_id: str) -> OrchestratorTask | None:
+    """取消任务：任意非终态 → cancelled"""
+    stmt = select(OrchestratorTask).where(OrchestratorTask.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one_or_none()
+    if not task:
+        return None
+    _assert_transition(task, "cancel", "cancelled")
+    task.status = "cancelled"
+    task.completed_at = datetime.now(timezone.utc)
+    await db.flush()
+    return task
+
+
+async def fail_task(db: AsyncSession, task_id: str, reason: str | None = None) -> OrchestratorTask | None:
+    """标记任务失败：in_progress → failed"""
+    stmt = select(OrchestratorTask).where(OrchestratorTask.id == task_id)
+    result = await db.execute(stmt)
+    task = result.scalar_one_or_none()
+    if not task:
+        return None
+    _assert_transition(task, "fail", "failed")
+    task.status = "failed"
+    task.completed_at = datetime.now(timezone.utc)
+    if reason:
+        task.result = json.dumps({"error": reason}, ensure_ascii=False)
+    await db.flush()
+    return task

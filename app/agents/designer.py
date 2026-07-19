@@ -421,3 +421,66 @@ class DesignerAgent(BaseAgent):
                 actions.append({"action": "move_room", "name": name_match.group(1), "dx": dx, "dy": dy})
 
         return actions
+
+    async def generate_bim_layout(self, message: str) -> dict:
+        """P1: 生成结构化 BIM 兼容的布局数据（v1.2.0）。
+
+        相比 generate_layouts()，输出增加了：
+        - wall_thickness: 墙体厚度（mm）
+        - door_positions: 门窗位置和尺寸
+        - floor_height: 层高（mm）
+        - material_specs: 材料规格（含品牌、型号、厚度）
+        - bim_compatible: 标记为 BIM 兼容格式
+        """
+        _area = self._detect_area(message)  # noqa: F841 — 预留，后续版本按面积微调 BIM 参数
+        base_layout = await self.generate_layouts(message)
+
+        # 将基础布局增强为 BIM 结构化数据
+        bim_plans = []
+        for plan in base_layout["plans"]:
+            bim_rooms = []
+            for room in plan["rooms"]:
+                bim_room = {
+                    **room,
+                    "wall_thickness_mm": 120,  # 默认墙体厚度
+                    "floor_height_mm": 2800,   # 默认层高
+                    "door": {
+                        "width_mm": 900,
+                        "height_mm": 2100,
+                        "type": "swing",
+                        "material": "实木复合",
+                    },
+                    "window": {
+                        "width_mm": 1500,
+                        "height_mm": 1500,
+                        "sill_height_mm": 900,
+                        "type": "sliding" if room["type"] in ("living_room", "dining_room") else "casement",
+                    },
+                }
+                bim_rooms.append(bim_room)
+
+            # 材料规格
+            material_specs = {
+                "wall_material": {"type": "砖混", "thickness_mm": 120, "insulation": "EPS保温板50mm"},
+                "floor_material": {"type": "实木多层地板", "thickness_mm": 15, "brand": "大自然"},
+                "ceiling_material": {"type": "轻钢龙骨石膏板", "thickness_mm": 9.5},
+                "door_material": {"frame": "实木复合", "thickness_mm": 40, "brand": "TATA"},
+                "window_material": {"frame": "断桥铝", "glass": "双层中空Low-E", "brand": "凤铝"},
+                "paint": {"type": "净味乳胶漆", "brand": "立邦", "coverage_sqm_per_l": 12},
+            }
+
+            bim_plans.append({
+                **plan,
+                "rooms": bim_rooms,
+                "material_specs": material_specs,
+                "bim_compatible": True,
+                "bim_version": "IFC4",
+                "author": "索克家居 AI Designer v1.2.0",
+            })
+
+        return {
+            **base_layout,
+            "plans": bim_plans,
+            "bim_compatible": True,
+            "export_formats": ["IFC", "DXF", "JSON", "Revit"],
+        }

@@ -24,8 +24,8 @@ class AIImageJob(Base):
     __tablename__ = "ai_image_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True, index=True)
     job_type: Mapped[str] = mapped_column(String(30), nullable=False, default="style_transfer")
     # job_type: style_transfer / render_enhance / furnish_preview / material_replace / perspective_fix
     input_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
@@ -48,8 +48,8 @@ class AIImageJob(Base):
     progress_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     render_duration_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project")
     floorplan = relationship("FloorPlan")
@@ -75,8 +75,8 @@ class AIImagePreset(Base):
     preview_image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_public: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     @property
     def default_params_dict(self) -> dict:

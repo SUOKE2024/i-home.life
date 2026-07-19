@@ -661,6 +661,14 @@ async def delete_line_item(
     db: AsyncSession = Depends(get_db),
 ):
     """删除工程量明细"""
-    deleted = await svc.delete_line_item(db, item_id)
-    if not deleted:
+    from sqlalchemy import select
+    from app.models.structural import QuantityLineItem, QuantityCalculation
+    item_result = await db.execute(select(QuantityLineItem).where(QuantityLineItem.id == item_id))
+    item = item_result.scalar_one_or_none()
+    if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程量明细不存在")
+    calc_result = await db.execute(select(QuantityCalculation).where(QuantityCalculation.id == item.calculation_id))
+    calc = calc_result.scalar_one_or_none()
+    if calc:
+        await verify_project_access(project_id=calc.project_id, current_user=current_user, db=db)
+    await svc.delete_line_item(db, item_id)

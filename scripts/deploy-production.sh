@@ -129,7 +129,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         <string>--host</string>
         <string>0.0.0.0</string>
         <string>--port</string>
-        <string>8000</string>
+        <string>8001</string>
         <string>--workers</string>
         <string>4</string>
     </array>

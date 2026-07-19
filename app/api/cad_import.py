@@ -5,6 +5,7 @@ PRD §7.1: DWG/DXF 文件导入
 - DWG: 闭源二进制格式，尝试调用系统 dwg2dxf 命令（LibreDWG）转换后解析；
        未安装时返回 422 + 转换指引
 """
+import asyncio
 import logging
 import shutil
 import subprocess
@@ -194,12 +195,13 @@ async def import_dxf_file(
     content = await file.read()
 
     if name.endswith(".dxf"):
-        return _parse_dxf_bytes(content)
+        # v1.1.12 性能优化：ezdxf 解析为同步 CPU 密集型，移至线程池避免阻塞 event loop
+        return await asyncio.to_thread(_parse_dxf_bytes, content)
 
     if name.endswith(".dwg"):
         # 尝试用 LibreDWG 转换为 DXF 后解析
-        dxf_content = _try_convert_dwg(content)
-        result = _parse_dxf_bytes(dxf_content)
+        dxf_content = await asyncio.to_thread(_try_convert_dwg, content)
+        result = await asyncio.to_thread(_parse_dxf_bytes, dxf_content)
         result.file_type = "dwg"
         result.converted_from_dwg = True
         return result

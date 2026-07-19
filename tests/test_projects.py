@@ -272,7 +272,7 @@ async def test_get_other_user_project_returns_403(client: AsyncClient):
 
     response = await client.get(f"/api/projects/{project_id}", headers=headers_b)
     assert response.status_code == 403
-    assert response.json()["detail"] == "无权访问该项目"
+    assert response.json()["detail"] == "无权访问此项目"
 
 
 @pytest.mark.asyncio
@@ -291,7 +291,7 @@ async def test_update_other_user_project_returns_403(client: AsyncClient):
         headers=headers_b,
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "无权修改该项目"
+    assert response.json()["detail"] == "无权访问此项目"
 
 
 @pytest.mark.asyncio
@@ -306,7 +306,7 @@ async def test_delete_other_user_project_returns_403(client: AsyncClient):
 
     response = await client.delete(f"/api/projects/{project_id}", headers=headers_b)
     assert response.status_code == 403
-    assert response.json()["detail"] == "无权删除该项目"
+    assert response.json()["detail"] == "无权访问此项目"
 
 
 @pytest.mark.asyncio

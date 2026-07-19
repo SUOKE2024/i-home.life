@@ -4,10 +4,10 @@
  * - 静态资源：缓存优先（stale-while-revalidate）
  * - API 请求：网络优先，失败降级缓存
  * - WebSocket：不拦截
- * 版本：1.0.25
+ * 版本：20260720e（与其他 HTML 引用的 v=20260720e 版本号保持一致）
  * ============================================ */
 
-const CACHE_VERSION = 'suoke-v1.0.25';
+const CACHE_VERSION = 'suoke-v20260720e';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -28,13 +28,13 @@ const PRECACHE_URLS = [
   '/materials.html',
   '/quality-report.html',
   '/manifest.json',
-  '/assets/css/workbench.css',
-  '/assets/js/api-client.js',
-  '/assets/js/im-client.js',
-  '/assets/js/agent-router.js',
-  '/assets/js/message-renderers.js',
-  '/assets/js/analytics.js',
-  '/assets/js/echarts.min.js',
+  '/assets/css/workbench.css?v=20260720e',
+  '/assets/js/api-client.js?v=20260720e',
+  '/assets/js/im-client.js?v=20260720e',
+  '/assets/js/agent-router.js?v=20260720e',
+  '/assets/js/message-renderers.js?v=20260720e',
+  '/assets/js/analytics.js?v=20260720e',
+  '/assets/js/echarts.min.js?v=20260720e',
   '/assets/images/icons/desktop/suoke-favicon-32.png',
   '/assets/images/icons/desktop/suoke-logo-128.png',
   '/assets/images/icons/desktop/suoke-logo-512.png',

@@ -19,8 +19,8 @@ class ApplianceCategory(Base):
     code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     # code: major_appliance / kitchen_appliance / home_appliance
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     appliances = relationship(
         "Appliance",
@@ -36,7 +36,7 @@ class Appliance(Base):
     __tablename__ = "appliances"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    category_id: Mapped[str] = mapped_column(String(36), ForeignKey("appliance_categories.id"), nullable=False)
+    category_id: Mapped[str] = mapped_column(String(36), ForeignKey("appliance_categories.id"), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -61,8 +61,8 @@ class Appliance(Base):
     # 标签: ["节能", "静音", "智能"]
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     # status: active / discontinued
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     category = relationship("ApplianceCategory", back_populates="appliances")
     points = relationship(
@@ -78,9 +78,9 @@ class AppliancePoint(Base):
     __tablename__ = "appliance_points"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    room_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("rooms.id"), nullable=True)
-    appliance_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("appliances.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    room_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("rooms.id"), nullable=True, index=True)
+    appliance_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("appliances.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     # 点位名称,如"客厅空调插座"
     location: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -103,8 +103,8 @@ class AppliancePoint(Base):
     # 点位预估功率
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     # status: planned / completed
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     room = relationship("Room")
@@ -117,7 +117,7 @@ class ApplianceLoadCalc(Base):
     __tablename__ = "appliance_load_calcs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     circuit_name: Mapped[str] = mapped_column(String(100), nullable=False)
     # 回路名称
     total_power: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -136,7 +136,7 @@ class ApplianceLoadCalc(Base):
     # 超标警告信息
     appliance_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # 回路下电器数量
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")

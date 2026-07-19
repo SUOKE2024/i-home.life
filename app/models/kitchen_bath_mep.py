@@ -15,7 +15,7 @@ class KitchenBathMEPPlan(Base):
     __tablename__ = "kitchen_bath_mep_plans"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     room_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # room_type: kitchen(厨房) / bathroom(卫生间) / laundry(洗衣房) / balcony(阳台)
@@ -36,8 +36,8 @@ class KitchenBathMEPPlan(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     points = relationship("MEPPoint", back_populates="plan", cascade="all, delete-orphan")
@@ -49,7 +49,7 @@ class MEPPoint(Base):
     __tablename__ = "mep_points"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("kitchen_bath_mep_plans.id"), nullable=False)
+    plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("kitchen_bath_mep_plans.id"), nullable=False, index=True)
     point_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # point_type: water_inlet(给水) / drain(排水) / gas(燃气) / socket(插座) / switch(开关) / vent(通风)
     device: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -64,6 +64,6 @@ class MEPPoint(Base):
     power_w: Mapped[float | None] = mapped_column(Float, nullable=True)
     # 功率 (W)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     plan = relationship("KitchenBathMEPPlan", back_populates="points")

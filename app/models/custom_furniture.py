@@ -15,7 +15,7 @@ class CustomFurnitureDesign(Base):
     __tablename__ = "custom_furniture_designs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     furniture_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # furniture_type: wardrobe(衣柜) / cabinet(橱柜) / bookshelf(书柜) / shoe_cabinet(鞋柜) / tv_cabinet(电视柜) / bed(床) / door(门)
@@ -40,8 +40,8 @@ class CustomFurnitureDesign(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft(草稿) / designed(已设计) / quoted(已报价) / ordered(已下单) / produced(生产中) / delivered(已交付)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     modules = relationship(
@@ -64,7 +64,7 @@ class FurnitureModule(Base):
     __tablename__ = "furniture_modules"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("custom_furniture_designs.id"), nullable=False)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("custom_furniture_designs.id"), nullable=False, index=True)
     module_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # module_type: top(顶板) / bottom(底板) / side(侧板) / back(背板) / shelf(层板) /
     #   drawer(抽屉) / door(门板) / hanging_rod(挂衣杆) / mirror(镜面)
@@ -81,8 +81,8 @@ class FurnitureModule(Base):
     hardware_specs: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 五金规格,JSON 结构: {"slide": "450mm 缓冲", "hinge": "全阻尼"}
     price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     design = relationship("CustomFurnitureDesign", back_populates="modules")
 
@@ -93,7 +93,7 @@ class FurnitureBOM(Base):
     __tablename__ = "furniture_boms"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("custom_furniture_designs.id"), nullable=False)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("custom_furniture_designs.id"), nullable=False, index=True)
     item_name: Mapped[str] = mapped_column(String(200), nullable=False)
     item_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # item_type: panel(板材) / hardware(五金) / accessory(配件) / door(门板)
@@ -107,7 +107,7 @@ class FurnitureBOM(Base):
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     supplier: Mapped[str | None] = mapped_column(String(200), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     design = relationship("CustomFurnitureDesign", back_populates="boms")

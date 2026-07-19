@@ -48,9 +48,9 @@ class WebAuthnCredential(Base):
     # 是否已被吊销/移除
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     # 最后使用时间
-    last_used_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # 反向关联
     user = relationship("User", back_populates="webauthn_credentials")

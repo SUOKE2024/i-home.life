@@ -136,6 +136,33 @@ async def generate_from_budget(
 
 
 @router.post(
+    "/submit/{project_id}",
+    response_model=SettlementResponse,
+    summary="提交结算单",
+    description="提交结算单，将状态从 draft 变更为 submitted。",
+    response_description="提交后的结算单信息",
+    responses={
+        200: {"description": "提交成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "结算单不存在"},
+    },
+)
+async def submit_settlement(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    settlement = await settlement_service.submit_settlement(db, project_id)
+    if not settlement:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
+    resp = SettlementResponse.model_validate(settlement)
+    await ws_manager.broadcast_to_project(project_id, "settlement.submitted", resp.model_dump())
+    return resp
+
+
+@router.post(
     "/confirm/{project_id}",
     response_model=SettlementResponse,
     summary="确认结算单",

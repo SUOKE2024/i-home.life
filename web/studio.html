@@ -9,11 +9,19 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
+<!-- 预加载 Three.js WebGPU renderer 关键资源 -->
+<link rel="preload" href="https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.min.js" as="script" crossorigin>
 <title>索克家居 · 统一设计台</title>
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
 <link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+  }
+}
+</script>
 <style>
 :root{--bg:#12121d;--panel:#1a1a2e;--border:#2a2a45;--text:#e0e0e0;--accent:#c9973b;--muted:#5a5866}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -32,7 +40,7 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 .vg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .lg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 input[type=range]{width:100%;accent-color:var(--accent)}
-#main{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
+#main-content{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
 #toolbar{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--panel);flex-wrap:wrap}
 #toolbar button{padding:6px 12px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--text);cursor:pointer;font-size:0.7rem;font-family:inherit}
 #toolbar button.active{background:var(--accent);color:#111;border-color:var(--accent)}
@@ -59,7 +67,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   #sidebar-toggle{display:block}
   #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);transition:transform 0.3s ease}
   #sidebar.open{transform:translateX(0)}
-  #sidebar.open~#main #sidebar-overlay{display:block}
+  #sidebar.open~#main-content #sidebar-overlay{display:block}
   #canvas-area{flex-direction:column}
   #canvas-2d-wrap{border-right:none;border-bottom:1px solid var(--border)}
   #toolbar{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
@@ -104,6 +112,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" onerror="this.remove()">
 </head>
 <body>
+<a href="#main-content" class="skip-link">跳到主内容</a>
 <div id="loading" role="status" aria-live="polite"><div class="spinner" aria-hidden="true"></div><span style="font-size:0.7rem;color:var(--muted)">加载中...</span></div>
 <div id="app" style="display:none">
   <div id="sidebar" role="navigation" aria-label="设计台侧边栏">
@@ -146,7 +155,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <button onclick="resetAll()" aria-label="重置所有" style="width:100%;padding:6px;margin-top:4px;border:1px solid var(--border);border-radius:4px;background:0;color:var(--muted);cursor:pointer;font-size:0.65rem;font-family:inherit"><span aria-hidden="true">🔄</span> 重置</button>
     </div>
   </div>
-  <div id="main" role="main">
+  <main id="main-content">
     <button id="sidebar-toggle" aria-label="切换侧边栏菜单">☰</button>
     <div id="sidebar-overlay" aria-hidden="true"></div>
     <div id="toolbar" role="toolbar" aria-label="视图模式工具栏">
@@ -156,6 +165,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <button onclick="generate3DFrom2D()" aria-label="从2D生成3D" style="padding:6px 14px;border:1px solid #4a9;border-radius:4px;background:0;color:#4a9;cursor:pointer;font-size:0.7rem;font-family:inherit;font-weight:600"><span aria-hidden="true">🏗️</span> 生成3D</button>
       <span style="color:var(--muted);font-size:0.65rem;margin-left:8px;display:flex;align-items:center">正交:<span id="orthoBadge" style="color:var(--accent)">ON</span></span>
       <span style="color:var(--muted);font-size:0.65rem;margin-left:4px;display:flex;align-items:center">捕捉:<span id="snapBadge" style="color:var(--accent)">ON</span></span>
+      <span id="renderer-badge" style="margin-left:8px;padding:2px 8px;border-radius:4px;font-size:0.6rem;background:rgba(201,151,59,0.15);color:var(--accent)">WebGL2</span>
+      <span id="renderer-threshold-hint" title="mesh 数量超过 500 时自动降级到 WebGL" style="margin-left:4px;padding:2px 6px;border-radius:4px;font-size:0.55rem;background:rgba(100,100,120,0.15);color:var(--muted);display:none">阈值≥500→WebGL</span>
     </div>
     <div id="canvas-area">
       <div id="canvas-2d-wrap"><canvas id="c2d"></canvas><div id="status" role="status" aria-live="polite"></div></div>
@@ -181,7 +192,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <input id="aiCmd" placeholder="AI: 添加客厅 5×4 / 删除墙 / 生成户型 / 保存..." aria-label="AI 指令输入框">
       <button onclick="execAI()" aria-label="执行 AI 指令"><span aria-hidden="true">✨</span></button>
     </div>
-  </div>
+  </main>
 </div>
 
 <!-- DXF 导出预览模态 -->
@@ -196,7 +207,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
 </div>
 
-<script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
+
 // === DATA MODEL ===
 const PX_PER_M = 40;
 let elements = [];
@@ -233,6 +248,9 @@ function resize2D(){
 }
 
 function toWorld(cx,cy){return{x:(cx/scale2d-offset2d.x)/PX_PER_M,y:(cy/scale2d-offset2d.y)/PX_PER_M};}
+// toWorld 的反函数：世界坐标(米) -> 画布像素坐标
+// 与 draw2D 中的 ctx.translate(offset2d.x*scale2d, offset2d.y*scale2d) + ctx 坐标用 e.x*PX_PER_M 一致
+function toScreen(wx,wy){return{x:(wx*PX_PER_M+offset2d.x)*scale2d,y:(wy*PX_PER_M+offset2d.y)*scale2d};}
 function snap(v){return snapGrid>0?Math.round(v/snapGrid)*snapGrid:v;}
 function snapPoint(wp){
   if(snapGrid<=0)return wp;
@@ -320,6 +338,15 @@ function draw2D(){
       ctx.fillText(e.name||'',x+w/2,y+h/2);
       ctx.fillStyle='#888';ctx.font=`${8*scale2d}px 'DM Sans',sans-serif`;
       ctx.fillText((e.w*e.h).toFixed(1)+'㎡',x+w/2,y+h/2+12*scale2d);
+
+      // 选中态高亮（布尔运算选中元素）
+      if(e.selected){
+        ctx.strokeStyle='#ff8c00';ctx.lineWidth=3*scale2d;ctx.setLineDash([6*scale2d,3*scale2d]);
+        ctx.strokeRect(x-3,y-3,w+6,h+6);ctx.setLineDash([]);
+        // 四角控制点
+        ctx.fillStyle='#ff8c00';
+        [[x,y],[x+w,y],[x+w,y+h],[x,y+h]].forEach(([px,py])=>{ctx.beginPath();ctx.arc(px,py,4*scale2d,0,Math.PI*2);ctx.fill();});
+      }
 
       // Snap indicators
       const pts=snapPoints(e);
@@ -555,6 +582,20 @@ c2d.addEventListener('mousedown',e=>{
     if(name){elements.push({type:'annotation',x:wp.x,y:wp.y,name,w:0,h:0});draw2D();sync3D();}
   }
   else if(tool==='delete'){const hit=hitTest(wp.x,wp.y);if(hit>=0){elements.splice(hit,1);sync3D();draw2D();}}
+  else if(tool==='select'){
+    // 选择工具: 支持 Shift 多选 (布尔运算前置)
+    const hit=hitTest(wp.x,wp.y);
+    if(hit>=0){
+      if(e.shiftKey){
+        elements[hit].selected=!elements[hit].selected;
+      }else{
+        elements.forEach((el,i)=>{el.selected=(i===hit);});
+      }
+    }else if(!e.shiftKey){
+      elements.forEach(el=>{el.selected=false;});
+    }
+    draw2D();
+  }
   else if(tool==='move'){const hit=hitTest(wp.x,wp.y);if(hit>=0){dragTarget=elements[hit];dragStart=wp;dragOrig={x:dragTarget.x,y:dragTarget.y,rotate:dragTarget.rotate};}}
 });
 c2d.addEventListener('mousemove',e=>{
@@ -621,21 +662,53 @@ window.addEventListener('mouseup',function(){panStart2d=null;});
 let scene,camera,renderer3d,controls3d,clock3d;
 let meshWalls=[],meshFloors=[];
 let fpsFrames=0,fpsLast=performance.now();
+let rendererCapabilities = { webgpu: false, webgl2: false };
+// WebGPU mesh 阈值：CAD 场景 mesh >= WEBGPU_MESH_THRESHOLD 时强制 WebGL，
+// 避免 Three.js r183 WebGPURenderer 在多 mesh 场景下的 per-object UBO 瓶颈
+// (参考: https://github.com/mrdoob/three.js/issues/30560)
+const WEBGPU_MESH_THRESHOLD = 500;
+let webgpuForcedOff = false;
 
-function init3D(){
+async function init3D(){
   const wrap=document.getElementById('canvas-3d-wrap');
   scene=new THREE.Scene();scene.background=new THREE.Color(0x1a1a2e);
   camera=new THREE.PerspectiveCamera(60,wrap.clientWidth/wrap.clientHeight,0.1,100);
   camera.position.set(10,8,12);camera.lookAt(5,1.4,5);
-  renderer3d=new THREE.WebGLRenderer({antialias:true,canvas:document.getElementById('c3d')});
+
+  const canvas=document.getElementById('c3d');
+
+  // 尝试创建 WebGPU renderer（mesh 数量低于阈值时启用，否则强制 WebGL）
+  // Three.js r183 WebGPURenderer 在多 mesh CAD 场景下有 per-object UBO 瓶颈
+  try{
+    if('gpu' in navigator && !webgpuForcedOff){
+      try{
+        renderer3d=new WebGPURenderer({antialias:true,canvas:canvas});
+        await renderer3d.init();
+        rendererCapabilities.webgpu=true;
+        console.log('✅ WebGPU 渲染器已启用（mesh 阈值保护:'+WEBGPU_MESH_THRESHOLD+'）');
+      }catch(e){console.warn('WebGPU 不可用，降级到 WebGL2:',e.message);}
+    }
+  }catch(e){console.warn('WebGPU 检测失败:',e.message);}
+
+  // Fallback to WebGL2
+  if(!rendererCapabilities.webgpu){
+    renderer3d=new THREE.WebGLRenderer({antialias:true,canvas:canvas});
+    rendererCapabilities.webgl2=true;
+    console.log('⬇️ 降级到 WebGL2 渲染器');
+  }
+
   renderer3d.setSize(wrap.clientWidth,wrap.clientHeight);renderer3d.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer3d.shadowMap.enabled=true;
-  controls3d=new THREE.OrbitControls(camera,renderer3d.domElement);
+  controls3d=new OrbitControls(camera,renderer3d.domElement);
   controls3d.enableDamping=true;controls3d.dampingFactor=0.1;controls3d.target.set(5,1.4,5);controls3d.update();
   clock3d=new THREE.Clock();
   window.addEventListener('resize',()=>{resize2D();resize3D();});
   setupLights('day');
   animate3D();
+
+  // 更新渲染器标记
+  const badge=document.getElementById('renderer-badge');
+  if(badge)badge.textContent=rendererCapabilities.webgpu?'WebGPU':'WebGL2';
 }
 function resize3D(){
   const wrap=document.getElementById('canvas-3d-wrap');
@@ -651,15 +724,42 @@ function setupLights(preset){
     sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
     scene.add(sun);scene.add(new THREE.HemisphereLight(0x87ceeb,0x444422,0.4));
   }else if(preset==='night'){
-    scene.add(new THREE.DirectionalLight(0x4466aa,0.4).position.set(-5,15,-5));
+    // 修复: position.set 返回 Vector3 而非 Light，必须先创建灯再设置位置
+    const nightDir=new THREE.DirectionalLight(0x4466aa,0.4);
+    nightDir.position.set(-5,15,-5);
+    scene.add(nightDir);
   }else if(preset==='warm'){
-    scene.add(new THREE.DirectionalLight(0xffcc88,0.9).position.set(10,12,5));
+    // 修复: 同上
+    const warmDir=new THREE.DirectionalLight(0xffcc88,0.9);
+    warmDir.position.set(10,12,5);
+    scene.add(warmDir);
     scene.add(new THREE.HemisphereLight(0xffaa66,0x554422,0.5));
   }
 }
 function sync3D(){
   meshWalls.forEach(w=>scene.remove(w));meshFloors.forEach(f=>scene.remove(f));
   meshWalls=[];meshFloors=[];
+  // WebGPU mesh 阈值保护：若 mesh 数量超过阈值，强制降级到 WebGL
+  // 避免 Three.js r183 WebGPURenderer 在多 mesh 场景下的性能下降
+  const estimatedMeshCount = elements.filter(e=>e.type==='rect').length * 2; // 每个矩形约 2 个 mesh (墙+地)
+  if(rendererCapabilities.webgpu && estimatedMeshCount >= WEBGPU_MESH_THRESHOLD){
+    console.warn('⚠️ mesh 数量 '+estimatedMeshCount+' 超过 WebGPU 阈值 '+WEBGPU_MESH_THRESHOLD+'，降级到 WebGL');
+    webgpuForcedOff = true;
+    // 销毁当前 WebGPU renderer，创建 WebGL renderer
+    if(renderer3d && renderer3d.dispose) renderer3d.dispose();
+    const canvas = document.getElementById('c3d');
+    renderer3d = new THREE.WebGLRenderer({antialias:true,canvas:canvas});
+    renderer3d.setSize(canvas.clientWidth, canvas.clientHeight);
+    renderer3d.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    renderer3d.shadowMap.enabled = true;
+    rendererCapabilities.webgpu = false;
+    rendererCapabilities.webgl2 = true;
+    const badge=document.getElementById('renderer-badge');
+    if(badge)badge.textContent='WebGL2';
+  } else if(!webgpuForcedOff && !rendererCapabilities.webgpu && estimatedMeshCount < WEBGPU_MESH_THRESHOLD && 'gpu' in navigator){
+    // mesh 数量回落到阈值以下，可考虑切回 WebGPU（暂不自动切回，避免频繁切换）
+    console.log('mesh 数量 '+estimatedMeshCount+' 低于阈值，保持当前渲染器');
+  }
   const mat={wall:currentMat==='wood'?0xd4b896:currentMat==='tile'?0xd8d4ce:currentMat==='concrete'?0xb0aca8:0xe8e0d8,
              floor:currentMat==='wood'?0x8b6914:currentMat==='tile'?0xd0ccc6:currentMat==='concrete'?0x8a8782:0xc8b89a};
   elements.forEach((el,i)=>{
@@ -1362,8 +1462,9 @@ async function execAI(){
   const cmd=document.getElementById('aiCmd').value.trim();
   if(!cmd)return;
   document.getElementById('aiCmd').value='';
-  const ctx=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,name:e.name,roomType:e.roomType})),rooms});
-  const prompt=`户型数据: ${ctx}\n\n用户指令: ${cmd}\n\n请用JSON回复: {"reply":"文字解释","actions":[{"action":"add_room|delete_room|move_room","x":0,"y":0,"w":0,"h":0,"name":"","roomType":"","oldName":""}]}\n无需调用API,直接按格式输出。`;
+  // 重命名 ctx -> ctxJson 避免与全局 Canvas ctx (CanvasRenderingContext2D) 命名冲突
+  const ctxJson=JSON.stringify({elements:elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,name:e.name,roomType:e.roomType})),rooms});
+  const prompt=`户型数据: ${ctxJson}\n\n用户指令: ${cmd}\n\n请用JSON回复: {"reply":"文字解释","actions":[{"action":"add_room|delete_room|move_room","x":0,"y":0,"w":0,"h":0,"name":"","roomType":"","oldName":""}]}\n无需调用API,直接按格式输出。`;
   try{
     const res=await callAI(prompt);
     if(res&&res.actions)applyActions(res.actions,res.reply);
@@ -1472,13 +1573,17 @@ let authToken = '';
 let savedPlanId = null;
 
 async function apiLogin(){
-  try{
-    const resp = await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:'13800138000',password:'123456'})});
-    if(!resp.ok) return false;
-    const data = await resp.json();
-    authToken = data.access_token;
+  // 安全修复: 移除硬编码测试账号凭据
+  // 复用 localStorage 中已登录的 PASETO token（与 api-client.js 约定一致）
+  const existingToken = localStorage.getItem('paseto_token');
+  if(existingToken){
+    authToken = existingToken;
     return true;
-  }catch(e){return false;}
+  }
+  // 未登录: 提示用户跳转登录页
+  const go = confirm('此功能需要先登录。\n\n点击「确定」跳转到登录页，登录后返回设计台。');
+  if(go) window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+  return false;
 }
 
 async function createProjectIfNeeded(){
@@ -1492,10 +1597,23 @@ async function createProjectIfNeeded(){
 let projectId = null;
 
 async function savePlan(){
-  if(!authToken && !(await apiLogin())){alert('请先启动后端服务');return;}
+  if(!authToken && !(await apiLogin())){return;}
   if(!projectId){projectId=await createProjectIfNeeded();if(!projectId){alert('创建项目失败');return;}}
   const totalArea = elements.filter(e=>e.type==='rect').reduce((s,e)=>s+e.w*e.h,0);
-  const planData = {elements: elements.map(e=>({type:e.type,x:e.x,y:e.y,w:e.w,h:e.h,name:e.name,roomType:e.roomType})), rooms: rooms.map(r=>({name:r.name,type:r.type,w:r.w,h:r.h,area:r.area}))};
+  // 完整保存所有元素字段（door.side/window.side/line.x1y1x2y2/arc.x3y3 等）
+  // 仅排除运行时状态字段 selected
+  const planData = {
+    elements: elements.map(e=>{
+      const copy={...e};
+      delete copy.selected;
+      return copy;
+    }),
+    rooms: rooms.map(r=>({...r})),
+    // 保存设计台状态
+    wallHeight, currentLight, currentMat, currentWallMat,
+    layers: layers.map(l=>({...l})),
+    snapGrid,
+  };
   const name = prompt('方案名称:', '设计台户型 ' + new Date().toLocaleDateString('zh-CN'));
   if(!name) return;
   try{
@@ -1510,7 +1628,7 @@ async function savePlan(){
 }
 
 async function loadPlan(){
-  if(!authToken && !(await apiLogin())){alert('请先启动后端服务');return;}
+  if(!authToken && !(await apiLogin())){return;}
   if(!projectId){projectId=await createProjectIfNeeded();if(!projectId){alert('创建项目失败');return;}}
   try{
     const resp = await fetch(API+'/api/floorplans/project/'+projectId,{headers:{'Authorization':'Bearer '+authToken}});
@@ -1523,12 +1641,27 @@ async function loadPlan(){
     const fullResp = await fetch(API+'/api/floorplans/'+list[choice-1].id,{headers:{'Authorization':'Bearer '+authToken}});
     const plan = await fullResp.json();
     const planData = JSON.parse(plan.data);
-    if(planData.elements){elements=planData.elements.slice();}
-    if(planData.rooms){rooms=planData.rooms.slice();}
-    wallHeight = plan.wall_height || 2.8;
+    // 完整还原所有元素字段（包含 door/window/line/arc/dimension/annotation 的特有字段）
+    if(planData.elements){elements=planData.elements.map(e=>({...e,selected:false}));}
+    if(planData.rooms){rooms=planData.rooms.map(r=>({...r}));}
+    // 还原设计台状态
+    wallHeight = planData.wallHeight || plan.wall_height || 2.8;
+    if(planData.currentLight){currentLight=planData.currentLight;}
+    if(planData.currentMat){currentMat=planData.currentMat;}
+    if(planData.currentWallMat){currentWallMat=planData.currentWallMat;}
+    if(planData.layers){layers=planData.layers.map(l=>({...l}));renderLayerList();}
+    if(planData.snapGrid){snapGrid=planData.snapGrid;}
     savedPlanId = plan.id;
+    // 同步 UI 控件状态
     document.getElementById('wallH').value = wallHeight;
     document.getElementById('whVal').textContent = wallHeight.toFixed(1)+'m';
+    document.getElementById('gridSnap').value = snapGrid;
+    document.getElementById('gridVal').textContent = snapGrid.toFixed(1)+'m';
+    // 同步光照/材质按钮 active 状态
+    document.querySelectorAll('#lightBtns .tb').forEach(x=>x.classList.toggle('active', x.dataset.light===currentLight));
+    document.querySelectorAll('#matBtns .tb').forEach(x=>x.classList.toggle('active', x.dataset.mat===currentMat));
+    document.querySelectorAll('#wallMatBtns .tb').forEach(x=>x.classList.toggle('active', x.dataset.mat===currentWallMat));
+    setupLights(currentLight);
     draw2D();sync3D();
     alert('✅ 已加载: '+plan.name+' ('+rooms.length+'间)');
   }catch(e){alert('❌ 加载失败: '+e.message);}
@@ -1731,9 +1864,11 @@ async function loadOpenCascade(){
 async function booleanOperation(op){
   const selected = elements.filter(e=>e.type==='rect' && e.selected);
   if(selected.length < 2){
-    alert('⚠️ 布尔运算需要选中至少 2 个矩形墙体\n\n请在画布上点选 2 个或更多矩形（按住 Shift 多选），再执行布尔运算。\n\n操作类型：\n• union (并集): 合并两个矩形\n• difference (差集): 从第一个减去第二个\n• intersect (交集): 取重叠部分');
+    alert('⚠️ 布尔运算需要选中 2 个矩形墙体\n\n操作步骤:\n1. 切换到工具栏「✋ 选择」工具\n2. 点击第一个矩形 (橙色高亮)\n3. 按住 Shift 点击第二个矩形\n4. 点击「∪ 并 / ∖ 差 / ∩ 交」按钮\n\n当前选中: '+selected.length+' 个矩形');
     return;
   }
+  // 取消选中标记，避免后续误操作
+  selected.forEach(el=>{el.selected=false;});
   const [a, b] = selected;
   // 尝试加载 OpenCascade.js
   const occLoaded = await loadOpenCascade();
@@ -1838,22 +1973,30 @@ async function toggleRenderer(){
     useFilament = false;
     document.getElementById('c3d').style.display='block';
     draw2D();sync3D();
+    const badge=document.getElementById('renderer-badge');
+    if(badge)badge.textContent=rendererCapabilities.webgpu?'WebGPU':'WebGL2';
     alert('✅ 已切换到 Three.js 渲染器');
   }else{
-    // 切换到 Filament
+    // 切换到 Filament (实验性: 仅加载 WASM，渲染仍由 Three.js 处理)
     if(!await loadFilament()) return;
     useFilament = true;
     renderWithFilament();
-    alert('✅ 已切换到 Filament 渲染器（PBR）');
+    alert('⚠️ Filament 渲染器为实验性功能\n\n已加载 Filament WASM 模块（'+(filamentModule?'成功':'失败')+'），但完整 PBR 渲染集成仍在开发中，当前实际渲染仍由 Three.js 处理。');
   }
 }
 
 function renderWithFilament(){
   if(!filamentScene || !useFilament) return;
-  // 简化版：用 Filament 渲染所有 rect 为 box
-  // 完整实现需要创建 Material、Mesh、Light 等
-  // 此处为基础框架，实际渲染由 Three.js 处理
-  console.log('Filament 渲染器已启用，当前 elements:', elements.length);
+  // TODO: 完整 Filament 渲染集成
+  // 当前仅完成 Filament WASM 加载与 Engine/Renderer/Scene 初始化
+  // 完整实现需要：
+  //   1. 创建 Filament Material (PBR 参数: baseColor/metallic/roughness/reflectance)
+  //   2. 将 elements 中的 rect 转换为 Filament Mesh (Vertex + Index buffer)
+  //   3. 创建 Filament Light (DirectionalLight + AmbientLight)
+  //   4. 创建 Camera (PerspectiveCamera)
+  //   5. 调用 filamentRenderer.render(filamentScene, camera) 渲染循环
+  // 当前实现：仅打印状态日志，实际渲染仍由 Three.js animate3D() 处理
+  console.log('[Filament] WASM 已加载，待实现完整渲染。elements:', elements.length, 'engine:', !!filamentEngine);
 }
 
 (function() {
@@ -1911,10 +2054,9 @@ function renderWithFilament(){
     toast.classList.add('show');
     setTimeout(() => toast.classList.remove('show'), 2500);
     
-    // 调用 AI Image API
+    // 调用 AI Image API（复用全局 API 相对路径常量，与其他 fetch 一致）
     const token = localStorage.getItem('paseto_token');
-    if (token && window.ApiClient) {
-      const API = (window.ApiClient && window.ApiClient.BASE_URL) || (window.API_BASE_URL) || '';
+    if (token) {
       fetch(API + '/api/ai-image/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -1981,11 +2123,13 @@ document.getElementById('sidebar-overlay')?.addEventListener('click',()=>{
 
 // Init
 (async function(){
-  init3D();resize2D();resize3D();
+  await init3D();resize2D();resize3D();
   loadPreset('apartment_126');
   document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='flex';
-  apiLogin().then(ok=>ok?console.log('🔑 已连接后端'):console.log('💡 离线模式'));
+  // 静默检查登录态（不弹窗），保存/加载时再触发 apiLogin 引导跳转
+  const tok = localStorage.getItem('paseto_token');
+  if(tok){authToken = tok; console.log('🔑 已连接后端');}else{console.log('💡 离线模式（保存/加载时需登录）');}
 })();
 
 // Global error handling (AC-UI-5)
@@ -2002,6 +2146,13 @@ window.addEventListener('unhandledrejection', function(e){
   console.error('[Studio] 未处理的 Promise 拒绝:', e.reason);
   const status = document.getElementById('status');
   if (status) status.textContent = '⚠️ 操作失败: ' + ((e.reason?.message) || '网络错误');
+});
+
+// === 全局函数绑定（模块脚本中需要显式导出到 window） ===
+Object.assign(window, {
+  generateAllViews, addLayer, savePlan, loadPlan, importCADFile,
+  exportData, booleanOperation, toggleRenderer, resetAll,
+  startVoice, execAI, generate3DFrom2D, toggleLayer,
 });
 </script>
 </body>

@@ -164,17 +164,22 @@ async def update_budget_line(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 先校验项目归属，再执行数据库写入（防止 TOCTOU 越权）
+    from sqlalchemy import select
+    from app.models.budget import BudgetLine, Budget
+    bl_result = await db.execute(select(BudgetLine).where(BudgetLine.id == line_id))
+    existing = bl_result.scalar_one_or_none()
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预算行不存在")
+    budget_result = await db.execute(select(Budget).where(Budget.id == existing.budget_id))
+    budget = budget_result.scalar_one_or_none()
+    if budget:
+        await verify_project_access(project_id=budget.project_id, current_user=current_user, db=db)
     bl = await budget_service.update_budget_line(db, line_id, data)
     if not bl:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预算行不存在")
     resp = BudgetLineResponse.model_validate(bl)
-    # 通过 budget_id 查询 project_id 用于校验归属和广播
-    from sqlalchemy import select
-    from app.models.budget import Budget
-    budget_result = await db.execute(select(Budget).where(Budget.id == bl.budget_id))
-    budget = budget_result.scalar_one_or_none()
     if budget:
-        await verify_project_access(project_id=budget.project_id, current_user=current_user, db=db)
         await ws_manager.broadcast_to_project(budget.project_id, "budget.line_updated", resp.model_dump())
     return resp
 

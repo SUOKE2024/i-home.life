@@ -47,6 +47,15 @@ VOICE_SYSTEM_INSTRUCTIONS = (
     "所有价格以人民币计价，所有工期以工作日为准。"
 )
 
+# Qwen-Audio-3.0-Realtime Plus 增强指令（启用情感感知 + 副语言）
+VOICE_SYSTEM_INSTRUCTIONS_PLUS = (
+    VOICE_SYSTEM_INSTRUCTIONS
+    + "你使用 Qwen-Audio-3.0-Realtime Plus 模型，支持情感感知生成与副语言信息处理。"
+    "请根据用户语气动态调整回复的韵律、停顿和情感表达，"
+    "在用户语气焦急时简化回复、加快动作；在用户分享喜悦时给予积极回应。"
+    "能够识别笑声、叹息、犹豫等非语言信号并适当回应。"
+)
+
 
 class VoiceTextRequest(BaseModel):
     """语音文本处理请求"""
@@ -122,7 +131,7 @@ async def process_voice_enhanced(
 
     if intent != "general":
         try:
-            reply = await _route_voice_to_agent(text, intent, current_user.name)
+            reply = await _route_voice_to_agent(text, intent, current_user.name, emotion=emotion)
         except Exception as e:
             logger.warning(f"route_voice_to_agent_failed: intent={intent}, error={e}")
             # 降级：硬编码工具调用 + 模板回复
@@ -154,7 +163,37 @@ async def process_voice_enhanced(
 
 # ── Agent 管道路由（修复语音→Agent 断点） ──
 
-async def _route_voice_to_agent(text: str, intent: str, user_name: str, context: str = "") -> str:  # noqa: C901
+def _get_emotion_aware_system_prefix(emotion: dict | None) -> str:
+    """根据用户情绪生成 Agent 系统指令前缀。
+
+    Qwen-Audio-3.0-Realtime Plus 支持情感感知生成，但需要在 instructions 中
+    显式提示 Agent 根据情绪调整语气。情绪路由层在意图路由之前生效。
+    """
+    if not emotion:
+        return ""
+    label = emotion.get("label", "neutral")
+    score = float(emotion.get("score", 0))
+    if score < 0.4:
+        return ""  # 置信度低，不注入
+    prefixes = {
+        "anxious": "【用户情绪：焦虑】请用温和、安抚的语气，先确认用户需求再给出方案，避免一次性输出过多信息。",
+        "angry": "【用户情绪：不满】请用专业、歉意的语气，先承认问题再提供解决方案，避免推诿。",
+        "sad": "【用户情绪：低落】请用温暖、共情的语气，适度使用安慰性语言。",
+        "tired": "【用户情绪：疲惫】请简化回复，突出关键信息，避免长篇大论。",
+        "excited": "【用户情绪：兴奋】请用热情、积极的语气回应，与用户情绪共振。",
+        "happy": "【用户情绪：愉悦】请用轻松、明快的语气回应。",
+        "neutral": "",
+    }
+    return prefixes.get(label, "")
+
+
+async def _route_voice_to_agent(  # noqa: C901
+    text: str,
+    intent: str,
+    user_name: str,
+    context: str = "",
+    emotion: dict | None = None,
+) -> str:
     """将语音意图路由到专业 Agent 管道，获取 LLM 驱动的回复。
 
     替代原有的 _auto_tool_call() + _get_enhanced_reply() 硬编码模板，
@@ -180,6 +219,10 @@ async def _route_voice_to_agent(text: str, intent: str, user_name: str, context:
     user_ctx = f"用户: {user_name}"
     if context:
         user_ctx = f"{context}\n{user_ctx}"
+    # 情绪路由层：在意图路由之前注入情绪感知系统指令前缀
+    emotion_prefix = _get_emotion_aware_system_prefix(emotion)
+    if emotion_prefix:
+        user_ctx = f"{emotion_prefix}\n{user_ctx}" if user_ctx else emotion_prefix
     mock_mode = not settings.deepseek_api_key and not settings.glm_api_key
 
     # ── design ──
@@ -544,7 +587,10 @@ async def _handle_mock_audio(
                 ctx_lines.append(f"{c.get('role', 'user')}: {c.get('content', '')[:500]}")
             voice_context = "\n".join(ctx_lines)
         try:
-            reply = await _route_voice_to_agent(text, intent_name, "user", voice_context)
+            reply = await _route_voice_to_agent(
+                text, intent_name, "user", voice_context,
+                emotion=transcript.get("emotion"),
+            )
         except Exception as e:
             logger.warning(f"mock_agent_route_failed: intent={intent_name}, error={e}")
             # 降级：硬编码工具调用 + 模板回复
@@ -655,7 +701,11 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     if is_realtime:
         await session.init_realtime_session(
             tools=tool_registry.get_qwen_schemas(),
-            instructions=VOICE_SYSTEM_INSTRUCTIONS,
+            instructions=(
+                VOICE_SYSTEM_INSTRUCTIONS_PLUS
+                if settings.qwen_audio_model.endswith("-plus")
+                else VOICE_SYSTEM_INSTRUCTIONS
+            ),
         )
         qwen_task = asyncio.create_task(
             _qwen_events_to_client(websocket, session, user_id)

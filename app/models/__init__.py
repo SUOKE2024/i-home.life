@@ -158,4 +158,5 @@ __all__ = [
     "DeviceToken",
     "Permission",
     "RolePermission",
+    "AgentFeedback",
 ]

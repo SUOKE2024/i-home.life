@@ -82,6 +82,10 @@ async def approve_change_order(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    existing = await change_order_service.get_change_order(db, change_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     order = await change_order_service.approve_change_order(db, change_id, current_user.name)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")

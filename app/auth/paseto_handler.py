@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 import paseto
 from paseto.keys.symmetric_key import SymmetricKey
@@ -20,7 +21,13 @@ class TokenInvalidError(Exception):
     """Token 无效（签名错误/格式错误等）"""
 
 
+@lru_cache(maxsize=1)
 def _get_key() -> SymmetricKey:
+    """缓存 SymmetricKey 对象，避免每次请求重建。
+
+    密钥内容来自 settings.paseto_secret_key，进程生命周期内不变，
+    使用 lru_cache(maxsize=1) 实现模块级单例。
+    """
     key_bytes = settings.paseto_secret_key.encode()
     if len(key_bytes) < 32:
         logger.warning(

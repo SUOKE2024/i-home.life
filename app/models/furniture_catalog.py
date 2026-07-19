@@ -53,5 +53,5 @@ class FurnitureCatalogItem(Base):
     # 详细规格 JSON: {"材质": "实木", "产地": "中国"}
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     # status: active(在售) / discontinued(停售)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

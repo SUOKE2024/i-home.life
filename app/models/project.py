@@ -28,8 +28,8 @@ class Project(Base):
     scan_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     owner = relationship("User", back_populates="projects")
     floors = relationship("Floor", back_populates="project", cascade="all, delete-orphan")
@@ -45,7 +45,7 @@ class Floor(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     floor_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     area: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     project = relationship("Project", back_populates="floors")
     rooms = relationship("Room", back_populates="floor", cascade="all, delete-orphan")
@@ -62,7 +62,7 @@ class Room(Base):
     width: Mapped[float | None] = mapped_column(Float, nullable=True)
     height: Mapped[float | None] = mapped_column(Float, nullable=True)
     length: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     floor = relationship("Floor", back_populates="rooms")

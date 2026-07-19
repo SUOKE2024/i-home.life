@@ -15,7 +15,7 @@ class SmartHomeScheme(Base):
     __tablename__ = "smart_home_schemes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     room_type: Mapped[str] = mapped_column(String(50), nullable=False, default="living_room")
     # room_type: living_room / bedroom / kitchen / bathroom / entrance / study
@@ -28,8 +28,8 @@ class SmartHomeScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft(草稿) / planned(已规划) / installing(安装中) / completed(已完成)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     devices = relationship(
@@ -46,7 +46,7 @@ class SmartDevice(Base):
     __tablename__ = "smart_devices"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=False)
+    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=False, index=True)
     device_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # device_type: light / switch / socket / sensor / camera / lock / curtain /
     #   speaker / thermostat / air_purifier / robot_vacuum
@@ -70,7 +70,7 @@ class SmartDevice(Base):
     # 功能特性 JSON: {"调光": true, "色温": true}
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     # status: planned(已规划) / installed(已安装) / online(在线) / offline(离线)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     scheme = relationship("SmartHomeScheme", back_populates="devices")

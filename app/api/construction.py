@@ -596,6 +596,41 @@ async def complete_milestone(
     return resp
 
 
+@router.patch(
+    "/milestones/{milestone_id}/status",
+    response_model=MilestoneTrackerResponse,
+    summary="更新里程碑状态",
+    description="更新里程碑的状态（pending/in_progress/delayed/completed）。",
+    response_description="更新后的里程碑记录",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "无效的状态转换"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "里程碑记录不存在"},
+    },
+    tags=["施工管理"],
+)
+async def update_milestone_status(
+    milestone_id: str,
+    new_status: str = Query(..., description="目标状态: pending/in_progress/delayed/completed"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新里程碑状态（带状态机校验）"""
+    from app.models.progress_alert import MilestoneTracker
+    existing = await db.get(MilestoneTracker, milestone_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
+    record = await progress_service.update_milestone_status(db, milestone_id, new_status)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
+    resp = _milestone_to_response(record)
+    await ws_manager.broadcast_to_project(record.project_id, "milestone.status_changed", resp.model_dump())
+    return resp
+
+
 # ── F38 AI 质量管理（质量问题 + 整改单 + 质量评估） ──
 
 def _issue_to_response(issue) -> QualityIssueResponse:

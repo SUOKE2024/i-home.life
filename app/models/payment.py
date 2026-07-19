@@ -14,8 +14,10 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    settlement_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("settlements.id"), nullable=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    settlement_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("settlements.id"), nullable=True, index=True
+    )
     milestone_code: Mapped[str] = mapped_column(String(30), nullable=False, default="completion")
     # handover / plumbing / tiling / completion / warranty
 
@@ -23,7 +25,7 @@ class Payment(Base):
     stage_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
     # deposit(首付) / progress(进度款) / final(尾款) / warranty(质保金)
     stage_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    due_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 应付日期
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 应付日期
 
     amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     payment_method: Mapped[str] = mapped_column(String(30), nullable=False, default="bank_transfer")
@@ -43,15 +45,15 @@ class Payment(Base):
     # F15 电子发票
     invoice_no: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 发票号
     invoice_url: Mapped[str | None] = mapped_column(String(500), nullable=True)  # 发票文件 URL
-    invoiced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 开票时间
+    invoiced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # 开票时间
 
-    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    refunded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     refund_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     refund_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     settlement = relationship("Settlement", back_populates="payments")

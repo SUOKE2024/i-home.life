@@ -15,7 +15,7 @@ class BathroomDesign(Base):
     __tablename__ = "bathroom_designs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     layout_type: Mapped[str] = mapped_column(String(30), nullable=False, default="dry_wet_separation")
     # layout_type: dry_wet_separation(干湿分离) / three_separation(三分离) / traditional(传统)
@@ -33,8 +33,8 @@ class BathroomDesign(Base):
     # 地漏坡度，默认 1.5%
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     fixtures = relationship("BathroomFixture", back_populates="design", cascade="all, delete-orphan")
@@ -46,7 +46,7 @@ class BathroomFixture(Base):
     __tablename__ = "bathroom_fixtures"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("bathroom_designs.id"), nullable=False)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("bathroom_designs.id"), nullable=False, index=True)
     fixture_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # fixture_type: toilet(马桶) / basin(洗手盆) / bathtub(浴缸) / shower(淋浴) /
     #   urinal(小便器) / bidet(妇洗器) / mirror(镜子) / cabinet(浴室柜) /
@@ -63,6 +63,6 @@ class BathroomFixture(Base):
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)
     price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     design = relationship("BathroomDesign", back_populates="fixtures")

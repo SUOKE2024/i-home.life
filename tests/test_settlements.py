@@ -214,14 +214,32 @@ async def test_confirm_settlement(client: AsyncClient):
         headers=headers,
     )
 
+    # 提交结算 (draft → submitted)
+    resp = await client.post(
+        f"/api/settlements/submit/{project_id}",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "submitted"
+
+    # 请求复核 (submitted → in_review)
+    resp = await client.post(
+        f"/api/settlements/request-review/{project_id}",
+        json={"reason": "确认前复核"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "in_review"
+
+    # 批准复核 (in_review → approved)
     response = await client.post(
-        f"/api/settlements/confirm/{project_id}",
+        f"/api/settlements/approve-review/{project_id}",
         headers=headers,
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "confirmed"
-    assert data["settled_at"] is not None
+    assert data["status"] == "approved"
+    assert data["review_required"] is False
 
 
 @pytest.mark.asyncio
@@ -468,6 +486,14 @@ async def test_request_and_approve_review(client: AsyncClient):
     project_id = await _create_project(client, headers)
     await _create_settlement(client, headers, project_id)
 
+    # 先提交结算 (draft → submitted)
+    sub_resp = await client.post(
+        f"/api/settlements/submit/{project_id}",
+        headers=headers,
+    )
+    assert sub_resp.status_code == 200
+    assert sub_resp.json()["status"] == "submitted"
+
     # 1. 请求人工复核
     req_resp = await client.post(
         f"/api/settlements/request-review/{project_id}",
@@ -477,7 +503,7 @@ async def test_request_and_approve_review(client: AsyncClient):
     assert req_resp.status_code == 200
     req_data = req_resp.json()
     assert req_data["review_required"] is True
-    assert req_data["status"] == "review"
+    assert req_data["status"] == "in_review"
     assert req_data["review_reason"] == "需复核瓷砖升级变更"
     assert req_data["reviewed_by"] is not None
 
@@ -489,7 +515,7 @@ async def test_request_and_approve_review(client: AsyncClient):
     assert approve_resp.status_code == 200
     approve_data = approve_resp.json()
     assert approve_data["review_required"] is False
-    assert approve_data["status"] == "draft"
+    assert approve_data["status"] == "approved"
     assert approve_data["reviewed_by"] is not None
 
 

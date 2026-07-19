@@ -7,7 +7,6 @@ import logging
 import re
 
 import httpx
-from PIL import Image
 
 from app.config import get_settings
 
@@ -47,6 +46,8 @@ def preprocess_image(image_data: bytes, max_size: int = 1024, quality: int = 80)
     Returns:
         处理后的 WebP 字节
     """
+    # v1.1.14: 延迟导入 PIL，减少应用启动时间和内存占用
+    from PIL import Image
     img = Image.open(io.BytesIO(image_data))
 
     # 转换为 RGB（WebP 不支持 RGBA 透明度）

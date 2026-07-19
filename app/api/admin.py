@@ -132,6 +132,9 @@ async def update_user_status(
     user.is_active = data.is_active
     await db.commit()
     await db.refresh(user)
+    # 性能优化（v1.1.12）：禁用/启用用户后清除用户缓存
+    from app.auth import invalidate_user_cache
+    invalidate_user_cache(user.id)
     return UserResponse.model_validate(user)
 
 

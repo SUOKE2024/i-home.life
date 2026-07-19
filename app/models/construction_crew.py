@@ -37,8 +37,8 @@ class ConstructionCrew(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="available")
     introduction: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class CrewMatch(Base):
@@ -46,8 +46,8 @@ class CrewMatch(Base):
     __tablename__ = "crew_matches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    crew_id: Mapped[str] = mapped_column(String(36), ForeignKey("construction_crews.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    crew_id: Mapped[str] = mapped_column(String(36), ForeignKey("construction_crews.id"), nullable=False, index=True)
 
     # 匹配评分（0-100）
     match_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -59,8 +59,8 @@ class CrewMatch(Base):
     # 状态：pending / shortlisted / hired / rejected
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     crew = relationship("ConstructionCrew")

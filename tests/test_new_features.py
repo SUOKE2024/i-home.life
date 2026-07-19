@@ -302,8 +302,15 @@ async def test_crew_match(client: AsyncClient):
     assert resp.status_code == 200
     assert len(resp.json()) >= 1
 
-    # 更新状态：雇佣
+    # 更新状态：入围 → 雇佣
     match_id = matches[0]["id"]
+    resp = await client.post(
+        f"/api/crews/matches/{match_id}/status?new_status=shortlisted",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "shortlisted"
+
     resp = await client.post(
         f"/api/crews/matches/{match_id}/status?new_status=hired",
         headers=headers,

@@ -63,7 +63,7 @@ a{color:var(--accent-bright);text-decoration:none}
 #topbar .user button:hover{border-color:var(--accent);color:var(--accent)}
 #topbar .to-home{font-size:0.7rem;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;background:0;font-family:inherit;transition:all 0.15s}
 #topbar .to-home:hover{border-color:var(--accent);color:var(--accent)}
-#content{padding:20px;flex:1;overflow-y:auto}
+#main-content{padding:20px;flex:1;overflow-y:auto}
 
 /* ===== Cards & Tables ===== */
 .card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
@@ -165,7 +165,7 @@ td .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.65rem
 </head>
 <body>
 
-<a href="#content" class="skip-link">跳到主内容</a>
+<a href="#main-content" class="skip-link">跳到主内容</a>
 <div id="login-overlay">
   <div class="login-card">
     <h2>索克家居</h2>
@@ -213,7 +213,7 @@ td .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.65rem
         <button onclick="logout()">退出</button>
       </div>
     </div>
-    <div id="content" role="main" aria-live="polite" aria-label="管理后台内容区"></div>
+    <main id="main-content" aria-live="polite" aria-label="管理后台内容区"></main>
   </div>
 </div>
 
@@ -322,13 +322,13 @@ async function showTab(tab){
   const titles={dashboard:'📊 仪表盘',projects:'🏠 项目管理',budgets:'💰 预算管理',procurement:'📦 采购管理',
     construction:'🔨 施工管理',settlements:'📋 结算管理',materials:'🧱 物料库',users:'👥 用户管理',quality:'✅ 质检管理'};
   document.getElementById('page-title').textContent=titles[tab]||tab;
-  document.getElementById('content').innerHTML='<div class="loading-wrap"><span class="spinner"></span><br>加载中...</div>';
-  try{await renderTab(tab);}catch(e){document.getElementById('content').innerHTML='<div class="card"><p style="color:var(--danger)">加载失败: '+e.message+'</p></div>';}
+  document.getElementById('main-content').innerHTML='<div class="loading-wrap"><span class="spinner"></span><br>加载中...</div>';
+  try{await renderTab(tab);}catch(e){document.getElementById('main-content').innerHTML='<div class="card"><p style="color:var(--danger)">加载失败: '+e.message+'</p></div>';}
 }
 
 // ========== Tab Renderers ==========
 async function renderTab(tab){
-  const c=document.getElementById('content');
+  const c=document.getElementById('main-content');
   switch(tab){
     case 'dashboard':await renderDashboard(c);break;
     case 'projects':await renderProjects(c);break;
@@ -893,7 +893,7 @@ window.addEventListener('error', function(e){
   const msg = e.error?.message || e.message || '未知脚本错误';
   if (e.target === window) {
     console.error('[Admin] 全局错误:', msg);
-    const content = document.getElementById('content');
+    const content = document.getElementById('main-content');
     if (content && !content.querySelector('.error-banner')) {
       const banner = document.createElement('div');
       banner.className = 'card error-banner';

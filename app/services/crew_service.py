@@ -8,6 +8,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.construction_crew import ConstructionCrew, CrewMatch
 
 
+# ── 匹配状态机 ──
+# pending    → shortlisted (入围) | rejected (拒绝)
+# shortlisted → hired (雇佣) | rejected (拒绝)
+# hired      → 终态，不可再变
+# rejected   → 终态，不可再变
+MATCH_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"shortlisted", "rejected"},
+    "shortlisted": {"hired", "rejected"},
+    "hired": set(),
+    "rejected": set(),
+}
+
+
+class CrewMatchStateError(Exception):
+    """工程队匹配状态机校验失败"""
+
+    def __init__(self, current_status: str, action: str, allowed: set[str]):
+        self.current_status = current_status
+        self.action = action
+        self.allowed = allowed
+        super().__init__(
+            f"匹配状态「{current_status}」不支持操作「{action}」，"
+            f"允许的目标状态: {sorted(allowed) or '无（终态）'}"
+        )
+
+
+def _assert_match_transition(match: CrewMatch, action: str, target: str) -> None:
+    """校验匹配状态机"""
+    allowed = MATCH_TRANSITIONS.get(match.status, set())
+    if target not in allowed:
+        raise CrewMatchStateError(match.status, action, allowed)
+
+
 async def get_crew(db: AsyncSession, crew_id: str) -> ConstructionCrew | None:
     result = await db.execute(
         select(ConstructionCrew).where(ConstructionCrew.id == crew_id)
@@ -212,6 +245,7 @@ async def update_match_status(
     match = result.scalar_one_or_none()
     if not match:
         return None
+    _assert_match_transition(match, "update_status", status)
     match.status = status
     await db.commit()
     await db.refresh(match)

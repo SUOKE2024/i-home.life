@@ -472,6 +472,10 @@ class ApiClient {
 
   Future<Result<dynamic>> getCurrentUser() => get('/auth/me');
 
+  // L4 自适应学习：Agent 反馈
+  Future<Result<dynamic>> submitAgentFeedback(Map<String, dynamic> data) =>
+      post('/agents/feedback', data);
+
   // ── WebAuthn / FIDO2 / Passkey ──
 
   /// 注册：开始（需已登录）
@@ -776,6 +780,65 @@ class ApiClient {
       post('/change-orders/$changeId/approve', {});
   Future<Result<dynamic>> changeOrderCancel(String changeId) =>
       post('/change-orders/$changeId/cancel', {});
+
+  // ── 施工任务 & 质检 & 进度（对齐 Web 端） ──
+
+  /// F37 施工任务列表
+  Future<Result<dynamic>> constructionTasks(String projectId) =>
+      get('/construction/tasks/$projectId');
+
+  /// F37 施工日志
+  Future<Result<dynamic>> constructionLogs(String taskId) =>
+      get('/construction/logs/$taskId');
+
+  /// F38 质检记录
+  Future<Result<dynamic>> inspections(String taskId) =>
+      get('/construction/inspections/$taskId');
+
+  /// F38 获取项目所有质检记录（按任务聚合）
+  Future<Result<dynamic>> projectInspections(String projectId) async {
+    final tasksRes = await constructionTasks(projectId);
+    if (!tasksRes.isSuccess) return tasksRes;
+    final tasks = tasksRes.data is List ? tasksRes.data as List : (tasksRes.data['items'] as List? ?? []);
+    final allInspections = <Map<String, dynamic>>[];
+    for (final task in tasks) {
+      final taskId = (task as Map<String, dynamic>)['id']?.toString() ?? '';
+      if (taskId.isEmpty) continue;
+      try {
+        final invRes = await inspections(taskId);
+        if (invRes.isSuccess) {
+          final list = invRes.data is List ? invRes.data as List : [];
+          for (final inv in list) {
+            final m = Map<String, dynamic>.from(inv as Map);
+            m['_task_id'] = taskId;
+            m['_task_name'] = task['title'] ?? task['name'] ?? '';
+            allInspections.add(m);
+          }
+        }
+      } catch (_) {}
+    }
+    return Result.success(allInspections);
+  }
+
+  /// F38 AI 图像质检分析
+  Future<Result<dynamic>> analyzeInspectionImages(Map<String, dynamic> data) =>
+      post('/construction/inspections/analyze', data);
+
+  /// F38 创建质检记录
+  Future<Result<dynamic>> createInspection(Map<String, dynamic> data) =>
+      post('/construction/inspections', data);
+
+  /// F38 质量问题列表
+  Future<Result<dynamic>> qualityIssues(String projectId) =>
+      get('/construction/quality-issues/$projectId');
+
+  /// F37 进度预警
+  Future<Result<dynamic>> progressAlerts(String projectId) =>
+      get('/construction/progress-alerts/$projectId');
+
+  /// F37 里程碑
+  Future<Result<dynamic>> milestones(String projectId) =>
+      get('/construction/milestones/$projectId');
 
   // ── F9 工程量计算 ──
 

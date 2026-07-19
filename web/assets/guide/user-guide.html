@@ -6,7 +6,7 @@
     <meta name="description" content="索克家居（i-home.life）用户使用指南 — 全面介绍平台 AI 智能体、工作台、项目管理、设计工具、认证安全、语音功能与协作能力。">
     <meta name="theme-color" content="#08080f">
     <title>用户使用指南 · 索克家居 i-home.life</title>
-    <link rel="stylesheet" href="../css/common.css">
+    <link rel="stylesheet" href="../css/workbench.css?v=20260720e">
     <style>
         /* ── 用户指南页面专用样式 ── */
         body {
@@ -649,6 +649,7 @@
         <a href="../../index.html" class="guide-back" aria-label="返回首页">
             <span aria-hidden="true">←</span> 返回首页
         </a>
+        <span style="float:right; font-size:0.72rem; color:var(--accent); padding:8px 0;">v1.2.0</span>
 
         <header class="guide-header">
             <span class="eyebrow">User Guide · 用户使用指南</span>
@@ -658,8 +659,9 @@
                 · 适用于 Web 端与 Flutter 客户端
             </p>
             <p class="guide-intro">
-                本指南系统介绍 i-home.life 平台的核心能力，涵盖 9 个 AI 智能体的协作机制、群聊工作台的使用方法、
-                项目与设计工具、PASETO + WebAuthn 认证体系、实时语音对话，以及通知与团队协作流程。
+                本指南系统介绍 i-home.life <strong>v1.2.0</strong> 平台的核心能力，涵盖 9 个 AI 智能体的协作机制、
+                Agent Harness 统一调度、群聊工作台的使用方法、
+                项目与设计工具（含 Sketch-to-3D 手绘识别与 WebGPU 渲染）、PASETO + WebAuthn 认证体系、实时语音对话，以及通知与团队协作流程。
                 建议新用户先阅读「平台简介」与「工作台使用」两节，再按需查阅其他章节。
             </p>
         </header>
@@ -888,6 +890,18 @@
                     </tbody>
                 </table>
             </div>
+
+            <h3>Agent Harness（智能体统一管理）</h3>
+            <p>
+                <strong>Agent Harness</strong> 是 v1.2.0 引入的智能体统一管理层，负责 9 个 AI Agent 的
+                <strong>生命周期管理、上下文注入、能力发现和监控追踪</strong>。
+            </p>
+            <ul>
+                <li><strong>统一调度</strong>：所有 Agent 通过 Harness 注册与启动，Orchestrator 通过 Harness 获取可用 Agent 列表并动态路由。</li>
+                <li><strong>上下文注入</strong>：Harness 将项目信息、用户偏好、历史对话统一注入 Agent 上下文，减少重复配置。</li>
+                <li><strong>执行追踪</strong>：记录每次 Agent 调用的输入、输出、耗时和 token 消耗，便于调试与优化。</li>
+                <li><strong>能力发现</strong>：Agent 通过 Harness 声明自身能力（如「支持户型设计」「支持预算估算」），供 Orchestrator 智能匹配。</li>
+            </ul>
         </section>
 
         <!-- 3. 工作台使用 -->
@@ -991,8 +1005,9 @@ data: {<span class="c-key">"total_tokens"</span>: <span class="c-num">1284</span
 
             <h3>3D 查看器</h3>
             <ul>
-                <li>基于 WebGL 渲染，支持设计方案的全景 3D 预览。</li>
-                <li>可旋转、缩放、第一人称漫游，支持材质实时替换。</li>
+                <li>支持 <strong>WebGPU</strong> 优先渲染（v1.2.0），在不支持 WebGPU 的设备上自动降级为 WebGL。</li>
+                <li>WebGPU 相比 WebGL 提供<strong>更快的 3D 渲染性能</strong>，复杂场景下帧率提升 2–3 倍。</li>
+                <li>支持设计方案的全景 3D 预览，可旋转、缩放、第一人称漫游，支持材质实时替换。</li>
                 <li>无需安装插件，主流浏览器原生支持。</li>
             </ul>
 
@@ -1090,6 +1105,18 @@ data: {<span class="c-key">"total_tokens"</span>: <span class="c-num">1284</span
                 </table>
             </div>
             <p class="note">⚠ 传感器功能需客户端授予相应权限。Web 端通过浏览器传感器 API 自动适配，移动端通过设备原生 SDK 调用。</p>
+
+            <h3>Sketch-to-3D 手绘识别（v1.2.0 新增）</h3>
+            <p>
+                上传手绘户型草图，AI 自动识别墙体、门窗和房间布局，并生成 3D 设计方案。
+            </p>
+            <ul>
+                <li><strong>上传草图</strong>：支持 PNG / JPG / JPEG 格式，最大 10MB，推荐 1024×768 以上分辨率。</li>
+                <li><strong>AI 识别</strong>：自动检测墙体位置、门窗开口、房间数量和预估面积，输出结构化数据。</li>
+                <li><strong>3D 生成</strong>：基于识别结果，Designer Agent 自动生成 BIM 兼容的 3D 布局方案。</li>
+                <li><strong>风格选择</strong>：支持 modern / nordic / japanese / luxury / chinese 五种风格。</li>
+                <li><strong>提示</strong>：使用黑色笔在白纸上绘制，标注房间名称和尺寸，可显著提升识别准确率。</li>
+            </ul>
         </section>
 
         <!-- 6. 认证与安全 -->

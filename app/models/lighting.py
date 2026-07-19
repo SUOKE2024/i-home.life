@@ -15,7 +15,7 @@ class LightingScheme(Base):
     __tablename__ = "lighting_schemes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     scheme_type: Mapped[str] = mapped_column(String(30), nullable=False, default="main_light")
     # scheme_type: main_light(主灯)/none_main(无主灯)/mixed(混合)/scene(场景)
@@ -31,8 +31,8 @@ class LightingScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft(草稿) / completed(已完成)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     fixtures = relationship("LightingFixture", back_populates="scheme", cascade="all, delete-orphan")
@@ -44,7 +44,7 @@ class LightingFixture(Base):
     __tablename__ = "lighting_fixtures"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("lighting_schemes.id"), nullable=False)
+    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("lighting_schemes.id"), nullable=False, index=True)
     fixture_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # fixture_type: ceiling(吸顶)/pendant(吊灯)/spot(射灯)/strip(灯带)/track(轨道)/wall(壁灯)/panel(面板灯)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -59,6 +59,6 @@ class LightingFixture(Base):
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     dimmable: Mapped[bool] = mapped_column(default=False)
     smart_control: Mapped[bool] = mapped_column(default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("LightingScheme", back_populates="fixtures")

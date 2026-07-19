@@ -64,8 +64,8 @@ class ServiceWorker(Base):
     # 作品集 URL（JSON 数组）
     portfolio_urls: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # 关联匹配记录
     matches = relationship("ServiceWorkerMatch", back_populates="worker")
@@ -77,8 +77,8 @@ class ServiceWorkerMatch(Base):
     __tablename__ = "service_worker_matches"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
-    worker_id: Mapped[str] = mapped_column(String(36), ForeignKey("service_workers.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(36), ForeignKey("service_workers.id"), nullable=False, index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
 
     # 匹配评分（0-100）
@@ -91,8 +91,8 @@ class ServiceWorkerMatch(Base):
     # 状态：pending / shortlisted / hired / rejected
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     worker = relationship("ServiceWorker", back_populates="matches")

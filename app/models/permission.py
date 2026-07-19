@@ -22,7 +22,7 @@ class Permission(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     # 操作类型: read, create, update, delete, manage
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class RolePermission(Base):
@@ -38,6 +38,6 @@ class RolePermission(Base):
     permission_code: Mapped[str] = mapped_column(
         String(100), ForeignKey("permissions.code"), nullable=False, index=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     permission = relationship("Permission")

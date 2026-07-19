@@ -6,6 +6,41 @@ from app.models.budget import Budget, BudgetLine
 from app.models.material import BOMItem, Material
 
 
+# ── 状态机定义 ──
+# draft    → submitted (提交) | closed (关闭)
+# submitted → approved (批准) | closed (关闭)
+# approved  → executed (执行) | closed (关闭)
+# executed  → closed (关闭)
+# closed    → 终态，不可再变
+VALID_TRANSITIONS: dict[str, set[str]] = {
+    "draft": {"submitted", "closed"},
+    "submitted": {"approved", "closed"},
+    "approved": {"executed", "closed"},
+    "executed": {"closed"},
+    "closed": set(),
+}
+
+
+class BudgetStateError(Exception):
+    """预算状态机校验失败"""
+
+    def __init__(self, current_status: str, action: str, allowed: set[str]):
+        self.current_status = current_status
+        self.action = action
+        self.allowed = allowed
+        super().__init__(
+            f"预算状态「{current_status}」不支持操作「{action}」，"
+            f"允许的目标状态: {sorted(allowed) or '无（终态）'}"
+        )
+
+
+def _assert_transition(budget: Budget, action: str, target: str) -> None:
+    """校验状态机：当前状态是否允许转换到 target"""
+    allowed = VALID_TRANSITIONS.get(budget.status, set())
+    if target not in allowed:
+        raise BudgetStateError(budget.status, action, allowed)
+
+
 async def get_budget(db: AsyncSession, project_id: str) -> Budget | None:
     result = await db.execute(
         select(Budget)
@@ -110,3 +145,65 @@ async def update_budget_line(db: AsyncSession, line_id: str, data: dict) -> Budg
         await db.commit()
 
     return bl
+
+
+# ── 预算审批流状态变更 ──
+
+async def submit_budget(db: AsyncSession, budget_id: str) -> Budget | None:
+    """提交预算：draft → submitted"""
+    result = await db.execute(
+        select(Budget).where(Budget.id == budget_id).options(selectinload(Budget.lines))
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        return None
+    _assert_transition(budget, "submit", "submitted")
+    budget.status = "submitted"
+    await db.commit()
+    await db.refresh(budget)
+    return budget
+
+
+async def approve_budget(db: AsyncSession, budget_id: str) -> Budget | None:
+    """批准预算：submitted → approved"""
+    result = await db.execute(
+        select(Budget).where(Budget.id == budget_id).options(selectinload(Budget.lines))
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        return None
+    _assert_transition(budget, "approve", "approved")
+    budget.status = "approved"
+    await db.commit()
+    await db.refresh(budget)
+    return budget
+
+
+async def execute_budget(db: AsyncSession, budget_id: str) -> Budget | None:
+    """执行预算：approved → executed"""
+    result = await db.execute(
+        select(Budget).where(Budget.id == budget_id).options(selectinload(Budget.lines))
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        return None
+    _assert_transition(budget, "execute", "executed")
+    budget.status = "executed"
+    await db.commit()
+    await db.refresh(budget)
+    return budget
+
+
+async def close_budget(db: AsyncSession, budget_id: str) -> Budget | None:
+    """关闭预算：任意非终态 → closed"""
+    result = await db.execute(
+        select(Budget).where(Budget.id == budget_id).options(selectinload(Budget.lines))
+    )
+    budget = result.scalar_one_or_none()
+    if not budget:
+        return None
+    _assert_transition(budget, "close", "closed")
+    budget.status = "closed"
+    await db.commit()
+    await db.refresh(budget)
+    return budget

@@ -70,6 +70,13 @@ class VoiceRealtimeSession:
 
         注意：此方法在无 API Key 时返回 mock 模式。
         """
+        # 记录使用的模型变体（flash / plus），便于排查情感感知相关问题
+        is_plus = self.model.endswith("-plus")
+        logger.info(
+            f"voice_realtime: 连接开始 model={self.model} "
+            f"variant={'plus' if is_plus else 'standard'} "
+            f"emotion_aware={'on' if is_plus else 'off'}"
+        )
         if not settings.qwen_audio_api_key:
             logger.info("voice_realtime: API Key 未配置，使用 mock 模式")
             self._session_id = f"mock_session_{self.user_id}"

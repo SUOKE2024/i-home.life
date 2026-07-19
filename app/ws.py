@@ -7,8 +7,12 @@ v1.1.1 新增心跳机制：
 - 客户端发送 {"event":"ping"} → 服务端自动回复 {"event":"pong"}
 - 服务端 receive 超时（RECEIVE_TIMEOUT 秒）后发送 ping 探测
 - 探测后 PONG_TIMEOUT 秒内无回复则断开僵尸连接
+
+v1.1.12 性能优化：
+- broadcast_to_project 改为 asyncio.gather 并发发送，N 个连接的广播延迟从 N×RTT 降至 1×RTT
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -48,18 +52,31 @@ class ConnectionManager:
             logger.info(f"WebSocket 断开: project={project_id}")
 
     async def broadcast_to_project(self, project_id: str, event: str, data: dict[str, Any]):
-        """向指定项目的所有连接广播消息"""
+        """向指定项目的所有连接并发广播消息
+
+        v1.1.12: 使用 asyncio.gather 并发发送，所有连接的广播延迟降至 1×RTT。
+        失败的连接会被收集并统一清理。
+        """
         if project_id not in self._connections:
             return
         message = json.dumps({"event": event, "data": data}, ensure_ascii=False)
-        stale = set()
-        for ws in self._connections[project_id]:
+        targets = list(self._connections[project_id])
+        if not targets:
+            return
+
+        async def _safe_send(ws: WebSocket) -> bool:
             try:
                 await ws.send_text(message)
+                return True
             except Exception:
-                stale.add(ws)
-        for ws in stale:
-            self.disconnect(ws)
+                return False
+
+        # 并发发送所有连接
+        results = await asyncio.gather(*[_safe_send(ws) for ws in targets], return_exceptions=False)
+        # 清理失败的连接
+        for ws, ok in zip(targets, results):
+            if not ok:
+                self.disconnect(ws)
 
     async def send_to(self, websocket: WebSocket, event: str, data: dict[str, Any]):
         """向单个连接发送消息"""

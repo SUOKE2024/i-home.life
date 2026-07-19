@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 
 class BathroomPage extends StatefulWidget {
   final String projectId;
@@ -13,14 +14,6 @@ class _BathroomPageState extends State<BathroomPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   List<dynamic> _designs = [];
   List<dynamic> _fixtures = [];
@@ -97,8 +90,8 @@ class _BathroomPageState extends State<BathroomPage>
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('创建卫浴方案', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.cardBg,
+        title: const Text('创建卫浴方案', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -107,7 +100,7 @@ class _BathroomPageState extends State<BathroomPage>
               children: [
                 TextFormField(
                   decoration: _inputDecoration('卫生间名称'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   validator: (v) =>
                       (v == null || v.isEmpty) ? '请输入名称' : null,
                   onSaved: (v) => roomName = v ?? '',
@@ -116,8 +109,8 @@ class _BathroomPageState extends State<BathroomPage>
                 DropdownButtonFormField<String>(
                   initialValue: layoutType,
                   decoration: _inputDecoration('干湿分离类型'),
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.cardBg,
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   items: const [
                     DropdownMenuItem(
                         value: 'dry_wet_separation', child: Text('干湿分离')),
@@ -133,7 +126,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('宽度 (m)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: roomWidthStr,
                   onSaved: (v) => roomWidthStr = v ?? '2.0',
@@ -141,7 +134,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('长度 (m)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: roomLengthStr,
                   onSaved: (v) => roomLengthStr = v ?? '3.0',
@@ -149,7 +142,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('层高 (m)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: ceilingHeightStr,
                   onSaved: (v) => ceilingHeightStr = v ?? '2.6',
@@ -157,7 +150,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('防水高度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: waterproofHeightStr,
                   onSaved: (v) => waterproofHeightStr = v ?? '1800',
@@ -169,10 +162,10 @@ class _BathroomPageState extends State<BathroomPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _secondaryText)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 formKey.currentState?.save();
@@ -245,8 +238,8 @@ class _BathroomPageState extends State<BathroomPage>
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('添加卫浴设施', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.cardBg,
+        title: const Text('添加卫浴设施', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -255,7 +248,7 @@ class _BathroomPageState extends State<BathroomPage>
               children: [
                 TextFormField(
                   decoration: _inputDecoration('设施类型（马桶/淋浴/浴缸/洗手台等）'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   validator: (v) =>
                       (v == null || v.isEmpty) ? '请输入设施类型' : null,
                   onSaved: (v) => fixtureType = v ?? '',
@@ -263,19 +256,19 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('品牌'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   onSaved: (v) => brand = v ?? '',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('型号'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   onSaved: (v) => model = v ?? '',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('宽度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: widthStr,
                   onSaved: (v) => widthStr = v ?? '600',
@@ -283,7 +276,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('深度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: depthStr,
                   onSaved: (v) => depthStr = v ?? '500',
@@ -291,7 +284,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('高度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: heightStr,
                   onSaved: (v) => heightStr = v ?? '800',
@@ -299,7 +292,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('安装位置 X'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: posXStr,
                   onSaved: (v) => posXStr = v ?? '0',
@@ -307,7 +300,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('安装位置 Y'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: posYStr,
                   onSaved: (v) => posYStr = v ?? '0',
@@ -315,7 +308,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('安装位置 Z'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: posZStr,
                   onSaved: (v) => posZStr = v ?? '0',
@@ -323,7 +316,7 @@ class _BathroomPageState extends State<BathroomPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('价格'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   keyboardType: TextInputType.number,
                   initialValue: priceStr,
                   onSaved: (v) => priceStr = v ?? '0',
@@ -335,10 +328,10 @@ class _BathroomPageState extends State<BathroomPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _secondaryText)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 formKey.currentState?.save();
@@ -385,12 +378,12 @@ class _BathroomPageState extends State<BathroomPage>
 
   InputDecoration _inputDecoration(String label) => InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: _secondaryText),
+        labelStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
         enabledBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: _borderColor),
+          borderSide: BorderSide(color: SuokeDesignTokens.border),
         ),
         focusedBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: _brandColor),
+          borderSide: BorderSide(color: SuokeDesignTokens.accent),
         ),
       );
 
@@ -435,15 +428,15 @@ class _BathroomPageState extends State<BathroomPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bgDeep,
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('卫浴设计', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.bgDeep,
+        title: const Text('卫浴设计', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSecondary,
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '卫浴方案'),
             Tab(text: '卫浴设施'),
@@ -458,7 +451,7 @@ class _BathroomPageState extends State<BathroomPage>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _brandColor,
+        backgroundColor: SuokeDesignTokens.accent,
         onPressed: () {
           if (_tabController.index == 0) {
             _showCreateDesignDialog();
@@ -466,24 +459,24 @@ class _BathroomPageState extends State<BathroomPage>
             _showAddFixtureDialog();
           }
         },
-        child: const Icon(Icons.add, color: _bgColor),
+        child: const Icon(Icons.add, color: SuokeDesignTokens.bgDeep),
       ),
     );
   }
 
   Widget _buildDesignsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: _secondaryText)),
+            Text(_error!, style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
             const SizedBox(height: 16),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadDesigns,
               child: const Text('重试'),
             ),
@@ -496,19 +489,19 @@ class _BathroomPageState extends State<BathroomPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.bathtub, size: 64, color: _secondaryText),
+            const Icon(Icons.bathtub, size: 64, color: SuokeDesignTokens.textSecondary),
             const SizedBox(height: 16),
             const Text('暂无卫浴方案',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
             const SizedBox(height: 8),
             const Text('点击右下角按钮创建',
-                style: TextStyle(color: _secondaryText, fontSize: 12)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
           ],
         ),
       );
     }
     return RefreshIndicator(
-      color: _brandColor,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadDesigns,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -517,11 +510,11 @@ class _BathroomPageState extends State<BathroomPage>
           final design = _designs[index] as Map<String, dynamic>;
           final isSelected = _selectedDesign?['id'] == design['id'];
           return Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.cardBg,
             margin: const EdgeInsets.only(bottom: 12),
             shape: RoundedRectangleBorder(
               side: BorderSide(
-                  color: isSelected ? _brandColor : _borderColor),
+                  color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.border),
               borderRadius: BorderRadius.circular(8),
             ),
             child: InkWell(
@@ -538,7 +531,7 @@ class _BathroomPageState extends State<BathroomPage>
                           child: Text(
                             design['room_name'] ?? '未命名',
                             style: const TextStyle(
-                              color: _primaryText,
+                              color: SuokeDesignTokens.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -546,7 +539,7 @@ class _BathroomPageState extends State<BathroomPage>
                         ),
                         if (isSelected)
                           const Icon(Icons.check_circle,
-                              color: _brandColor, size: 18),
+                              color: SuokeDesignTokens.accent, size: 18),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -575,10 +568,10 @@ class _BathroomPageState extends State<BathroomPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.plumbing, size: 64, color: _secondaryText),
+            const Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
             const SizedBox(height: 16),
             const Text('请先在「卫浴方案」中选择一个方案',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
           ],
         ),
       );
@@ -588,10 +581,10 @@ class _BathroomPageState extends State<BathroomPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.plumbing, size: 64, color: _secondaryText),
+            const Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
             const SizedBox(height: 16),
             const Text('暂无设施，点击右下角添加',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
           ],
         ),
       );
@@ -609,10 +602,10 @@ class _BathroomPageState extends State<BathroomPage>
         final pz = (f['position_z'] as num?)?.toDouble() ?? 0;
         final price = (f['price'] as num?)?.toDouble() ?? 0;
         return Card(
-          color: _cardColor,
+          color: SuokeDesignTokens.cardBg,
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(
-            side: const BorderSide(color: _borderColor),
+            side: const BorderSide(color: SuokeDesignTokens.border),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Padding(
@@ -626,7 +619,7 @@ class _BathroomPageState extends State<BathroomPage>
                       child: Text(
                         f['fixture_type'] ?? '未命名',
                         style: const TextStyle(
-                          color: _primaryText,
+                          color: SuokeDesignTokens.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -634,7 +627,7 @@ class _BathroomPageState extends State<BathroomPage>
                     ),
                     Text(
                       '¥${price.toStringAsFixed(0)}',
-                      style: const TextStyle(color: _brandColor),
+                      style: const TextStyle(color: SuokeDesignTokens.accent),
                     ),
                   ],
                 ),
@@ -663,11 +656,11 @@ class _BathroomPageState extends State<BathroomPage>
           SizedBox(
             width: 72,
             child: Text(label,
-                style: const TextStyle(color: _secondaryText, fontSize: 12)),
+                style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(color: _primaryText, fontSize: 12)),
+                style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 12)),
           ),
         ],
       ),

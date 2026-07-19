@@ -1,3 +1,6 @@
+import time
+from typing import Any
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -31,11 +34,47 @@ ROOM_CATEGORY_MAP: dict[str, list[str]] = {
 }
 
 
+# ── 简单 TTL 内存缓存（v1.1.12 性能优化） ──
+# 适用于高频读、低频写的目录数据（物料分类、家具目录）
+_CACHE_TTL = 60  # 秒
+_cache_store: dict[str, tuple[float, Any]] = {}
+
+
+def _cache_get(key: str) -> Any | None:
+    """命中返回缓存值，未命中或过期返回 None"""
+    entry = _cache_store.get(key)
+    if entry is None:
+        return None
+    exp_at, value = entry
+    if time.monotonic() >= exp_at:
+        _cache_store.pop(key, None)
+        return None
+    return value
+
+
+def _cache_set(key: str, value: Any, ttl: int = _CACHE_TTL) -> None:
+    _cache_store[key] = (time.monotonic() + ttl, value)
+
+
+def invalidate_material_cache() -> None:
+    """清除物料/分类缓存（写操作后调用）"""
+    _cache_store.pop("categories", None)
+    # 清除所有 materials: 前缀的缓存
+    keys_to_remove = [k for k in _cache_store if k.startswith("materials:")]
+    for k in keys_to_remove:
+        _cache_store.pop(k, None)
+
+
 async def get_categories(db: AsyncSession) -> list[MaterialCategory]:
+    cached = _cache_get("categories")
+    if cached is not None:
+        return cached
     result = await db.execute(
         select(MaterialCategory).order_by(MaterialCategory.code)
     )
-    return list(result.scalars().all())
+    categories = list(result.scalars().all())
+    _cache_set("categories", categories)
+    return categories
 
 
 async def get_category_by_id(db: AsyncSession, category_id: str) -> MaterialCategory | None:
@@ -50,6 +89,7 @@ async def create_category(db: AsyncSession, data: dict) -> MaterialCategory:
     db.add(category)
     await db.commit()
     await db.refresh(category)
+    invalidate_material_cache()
     return category
 
 
@@ -85,6 +125,7 @@ async def create_material(db: AsyncSession, data: dict) -> Material:
     db.add(material)
     await db.commit()
     await db.refresh(material)
+    invalidate_material_cache()
     return await get_material_by_id(db, material.id)
 
 

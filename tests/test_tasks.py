@@ -102,7 +102,7 @@ async def test_decompose_project_unknown_type_fallback(db_session):
 @pytest.mark.asyncio
 async def test_assign_task_success(db_session):
     user, project = await _create_user_and_project(db_session)
-    task = await _create_task(db_session, project.id)
+    task = await _create_task(db_session, project.id, status="claimed")
 
     result = await assign_task(db_session, task.id, user.id)
     assert result is not None
@@ -125,7 +125,7 @@ async def test_assign_task_not_found(db_session):
 @pytest.mark.asyncio
 async def test_complete_task_success(db_session):
     user, project = await _create_user_and_project(db_session)
-    task = await _create_task(db_session, project.id)
+    task = await _create_task(db_session, project.id, status="claimed")
     await assign_task(db_session, task.id, user.id)
 
     completed = await complete_task(db_session, task.id, result={"score": 95, "note": "完成"})

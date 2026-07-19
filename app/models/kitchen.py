@@ -15,7 +15,7 @@ class KitchenDesign(Base):
     __tablename__ = "kitchen_designs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     layout_type: Mapped[str] = mapped_column(String(30), nullable=False, default="L")
     # layout_type: L / U / I / G / double_i(双一字) / island(岛台)
@@ -36,8 +36,8 @@ class KitchenDesign(Base):
     # 排烟口位置
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     components = relationship("KitchenComponent", back_populates="design", cascade="all, delete-orphan")
@@ -49,7 +49,7 @@ class KitchenComponent(Base):
     __tablename__ = "kitchen_components"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("kitchen_designs.id"), nullable=False)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("kitchen_designs.id"), nullable=False, index=True)
     component_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # component_type: cabinet_base(地柜) / wall_cabinet(吊柜) / island(岛台) /
     #   countertop(台面) / sink(水槽) / stove(灶台) / range_hood(抽油烟机) /
@@ -67,6 +67,6 @@ class KitchenComponent(Base):
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)
     price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     design = relationship("KitchenDesign", back_populates="components")

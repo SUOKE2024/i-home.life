@@ -15,7 +15,7 @@ class HardDecorationScheme(Base):
     __tablename__ = "hard_decoration_schemes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     scheme_type: Mapped[str] = mapped_column(String(30), nullable=False, default="floor")
     # scheme_type: floor(地面) / wall(墙面) / ceiling(吊顶)
@@ -26,8 +26,8 @@ class HardDecorationScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
     floors = relationship("HardDecorationFloor", back_populates="scheme", cascade="all, delete-orphan")
@@ -41,7 +41,7 @@ class HardDecorationFloor(Base):
     __tablename__ = "hard_decoration_floor_plans"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False)
+    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False, index=True)
     material_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # material_type: tile(瓷砖) / wood(木地板) / laminate(强化) / vinyl(塑胶) / stone(石材) / carpet(地毯)
     material_spec: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -59,7 +59,7 @@ class HardDecorationFloor(Base):
     # 材料总量 (m²)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="floors")
 
@@ -70,7 +70,7 @@ class WallFinish(Base):
     __tablename__ = "wall_finishes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False)
+    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False, index=True)
     finish_type: Mapped[str] = mapped_column(String(30), nullable=False)
     # finish_type: paint(涂料) / wallpaper(墙纸) / tile(瓷砖) / panel(护墙板) / stone(石材) / wainscoting(墙裙)
     color_code: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -84,7 +84,7 @@ class WallFinish(Base):
     # 材料总量 (L 或 m²)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="walls")
 
@@ -95,7 +95,7 @@ class CeilingDesign(Base):
     __tablename__ = "ceiling_designs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False)
+    scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("hard_decoration_schemes.id"), nullable=False, index=True)
     ceiling_type: Mapped[str] = mapped_column(String(30), nullable=False, default="flat")
     # ceiling_type: flat(平顶) / suspended(吊顶) / gypsum_perimeter(石膏线周边) / coffered(井格) / curve(弧形)
     height_drop_mm: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -108,6 +108,6 @@ class CeilingDesign(Base):
     total_area: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="ceilings")

@@ -32,6 +32,9 @@ allow_designer = RoleChecker(["designer", "admin"])
 allow_admin = RoleChecker(["admin"])
 allow_any = RoleChecker(["homeowner", "designer", "contractor", "supplier", "admin"])
 
+# 别名（兼容 harness_api 的导入命名）
+require_admin = allow_admin
+
 
 class PermissionChecker:
     """基于权限码的细粒度访问检查。

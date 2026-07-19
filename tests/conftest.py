@@ -30,9 +30,16 @@ from app.models import (  # noqa: F401, E402
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_db():
-    """每个测试前: drop_all(checkfirst=True) + create_all — 不删除文件"""
+    """每个测试前: drop_all(checkfirst=True) + create_all — 不删除文件
+
+    v1.1.12: 同时清理 _schema_migrations 元数据表，避免 skip 机制跨测试污染
+    （Base.metadata.drop_all 不会清理手动创建的 _schema_migrations 表）。
+    """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all, checkfirst=True)
+        # 清理 v1.1.12 迁移版本标记表，避免后续测试触发 skip 机制
+        from sqlalchemy import text
+        await conn.execute(text("DROP TABLE IF EXISTS _schema_migrations"))
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with engine.begin() as conn:
