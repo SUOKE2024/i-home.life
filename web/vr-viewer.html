@@ -10,14 +10,22 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
 <title>索克家居 · VR 全景查看器</title>
-<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" onerror="this.remove()">
+<script defer src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script defer src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script defer src="assets/js/api-client.js?v=20260720e"></script>
 <style>
 :root{--bg:#0f1419;--panel:#1a1f2e;--accent:#c9973b;--accent-dim:rgba(201,151,59,0.15);--text:#e0e0e0;--muted:#888;--border:#2a2f3e}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text)}
 #app{display:flex;height:100vh}
+
+/* 无障碍跳转链接 */
+.skip-link{position:absolute;left:-9999px;top:0;z-index:200;background:var(--panel);color:var(--accent);padding:10px 16px;border-radius:8px;border:1px solid var(--accent);font-size:0.8rem;text-decoration:none}
+.skip-link:focus{left:14px;top:14px}
 
 /* 侧边栏 */
 #sidebar{width:280px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto}
@@ -28,12 +36,14 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 .section h3{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;font-weight:600}
 
 /* 房间列表 */
-.room-list{display:flex;flex-direction:column;gap:6px}
-.room-btn{padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#ccc;cursor:pointer;font-size:0.8rem;text-align:left;font-family:inherit;transition:all 0.2s;display:flex;align-items:center;justify-content:space-between}
-.room-btn:hover{border-color:var(--accent);background:var(--accent-dim)}
-.room-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
-.room-btn .badge{font-size:0.6rem;padding:2px 6px;background:rgba(255,255,255,0.08);border-radius:4px;color:var(--muted)}
-.room-btn.active .badge{background:var(--accent);color:#111}
+.room-list,.scene-list{display:flex;flex-direction:column;gap:6px}
+.room-btn,.scene-btn{padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#ccc;cursor:pointer;font-size:0.8rem;text-align:left;font-family:inherit;transition:all 0.2s;display:flex;align-items:center;justify-content:space-between}
+.room-btn:hover,.scene-btn:hover{border-color:var(--accent);background:var(--accent-dim)}
+.room-btn.active,.scene-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.room-btn .badge,.scene-btn .badge{font-size:0.6rem;padding:2px 6px;background:rgba(255,255,255,0.08);border-radius:4px;color:var(--muted)}
+.room-btn.active .badge,.scene-btn.active .badge{background:var(--accent);color:#111}
+.scene-btn .scene-meta{font-size:0.6rem;color:var(--muted);margin-top:4px}
+.scene-btn.playing{border-color:var(--accent);background:rgba(201,151,59,0.08)}
 
 /* 视角控制 */
 .view-control{display:flex;flex-direction:column;gap:10px}
@@ -43,25 +53,35 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 .btn-row button{flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.7rem;font-family:inherit;transition:all 0.15s}
 .btn-row button:hover{border-color:var(--accent);color:var(--accent)}
 
+/* 媒体控制 */
+.media-control{display:flex;flex-direction:column;gap:6px}
+.media-row{display:flex;align-items:center;justify-content:space-between;font-size:0.7rem;color:var(--muted)}
+.media-row audio{width:100%;height:28px;margin-top:4px}
+.media-row .media-empty{font-size:0.65rem;color:var(--muted);font-style:italic}
+
 /* 主画布 */
-#main{flex:1;position:relative;background:#000}
-#canvas{display:block;width:100%;height:100%}
+#main-content{flex:1;position:relative;background:#000}
+#canvas{display:block;width:100%;height:100%;transition:opacity 0.75s ease}
+#canvas.transitioning{opacity:0}
 
 /* 热点叠加层 */
-#hotspot-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#hotspot-layer{position:absolute;inset:0;pointer-events:none;overflow:hidden;transition:opacity 0.3s}
+#hotspot-layer.mode-pan{opacity:0.4}
+#hotspot-layer.mode-info{opacity:1}
 .hotspot{position:absolute;pointer-events:auto;cursor:pointer;transform:translate(-50%,-50%);transition:transform 0.15s}
 .hotspot:hover{transform:translate(-50%,-50%) scale(1.15)}
 .hotspot-dot{width:32px;height:32px;border-radius:50%;background:rgba(201,151,59,0.85);border:2px solid #fff;box-shadow:0 0 12px rgba(201,151,59,0.6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:bold}
 .hotspot-label{position:absolute;top:38px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:#fff;padding:4px 10px;border-radius:4px;font-size:0.7rem;white-space:nowrap;border:1px solid var(--accent)}
 
 /* 顶部工具栏 */
-#toolbar{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;background:rgba(0,0,0,0.5);padding:6px;border-radius:10px;border:1px solid var(--border);backdrop-filter:blur(8px)}
-.tb-btn{padding:8px 14px;border:none;border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.75rem;font-family:inherit;transition:all 0.15s}
+#toolbar{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10;background:rgba(0,0,0,0.5);padding:6px;border-radius:10px;border:1px solid var(--border);backdrop-filter:blur(8px);max-width:95vw;overflow-x:auto}
+.tb-btn{padding:8px 14px;border:none;border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.75rem;font-family:inherit;transition:all 0.15s;white-space:nowrap}
 .tb-btn:hover{background:var(--accent-dim);color:var(--accent)}
 .tb-btn.active{background:var(--accent);color:#111}
+.tb-btn[hidden]{display:none}
 
 /* 状态栏 */
-#stats{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:0.7rem;color:var(--muted);display:flex;gap:18px;backdrop-filter:blur(8px);z-index:10}
+#stats{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border:1px solid var(--border);border-radius:8px;padding:8px 16px;font-size:0.7rem;color:var(--muted);display:flex;gap:18px;backdrop-filter:blur(8px);z-index:10;max-width:95vw}
 #stats span strong{color:var(--text);font-weight:500}
 
 /* 加载 */
@@ -70,9 +90,22 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 #loading .text{font-size:0.8rem;color:var(--muted)}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* WebGL 降级提示 */
+#webgl-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--muted);text-align:center;padding:20px}
+#webgl-fallback h2{color:var(--accent);font-size:1.2rem;margin-bottom:10px}
+#webgl-fallback p{font-size:0.8rem;max-width:400px;line-height:1.6}
+
 /* 提示框 */
-#toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:var(--accent);padding:10px 20px;border-radius:8px;font-size:0.75rem;border:1px solid var(--accent);opacity:0;transition:opacity 0.3s;z-index:20;pointer-events:none}
+#toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);color:var(--accent);padding:10px 20px;border-radius:8px;font-size:0.75rem;border:1px solid var(--accent);opacity:0;transition:opacity 0.3s;z-index:20;pointer-events:none;max-width:90vw;text-align:center}
 #toast.show{opacity:1}
+
+/* 场景进度条 */
+#scene-progress{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:0.7rem;color:var(--text);display:none;gap:8px;align-items:center;backdrop-filter:blur(8px);z-index:10}
+#scene-progress.show{display:flex}
+#scene-progress .bar{width:120px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+#scene-progress .bar-fill{height:100%;background:var(--accent);transition:width 0.4s}
+#scene-progress .next-btn{padding:4px 10px;border:1px solid var(--accent);border-radius:4px;background:transparent;color:var(--accent);cursor:pointer;font-family:inherit;font-size:0.65rem}
+#scene-progress .next-btn:hover{background:var(--accent-dim)}
 
 /* 响应式 */
 #mobile-toggle{display:none;position:absolute;top:14px;left:14px;z-index:31;background:rgba(0,0,0,0.5);border:1px solid var(--border);color:#ccc;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;font-family:inherit;backdrop-filter:blur(8px)}
@@ -85,13 +118,13 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 @media (max-width:768px){
   #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:30;transform:translateX(-100%);transition:transform 0.3s;width:240px}
   #sidebar.open{transform:translateX(0)}
-  #sidebar.open~#main #sidebar-overlay{display:block}
+  #sidebar.open~#main-content #sidebar-overlay{display:block}
   #mobile-toggle{display:block !important}
   .sidebar-header h1{font-size:1rem}
   #stats{font-size:0.6rem;padding:6px 10px;gap:10px;flex-wrap:wrap;justify-content:center;max-width:90%}
   .tb-btn{padding:6px 10px;font-size:0.65rem}
-  #toolbar{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
-  .room-btn{font-size:0.7rem;padding:8px 12px}
+  #toolbar{flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .room-btn,.scene-btn{font-size:0.7rem;padding:8px 12px}
   .view-control label{font-size:0.65rem}
 }
 @media (max-width:480px){
@@ -101,7 +134,7 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
   .sidebar-header h1{font-size:0.95rem}
   .section{padding:10px 14px}
   .section h3{font-size:0.6rem}
-  .room-btn{font-size:0.65rem;padding:7px 10px}
+  .room-btn,.scene-btn{font-size:0.65rem;padding:7px 10px}
   .tb-btn{font-size:0.6rem;padding:5px 8px}
   #stats{font-size:0.55rem;gap:8px;padding:5px 8px}
   .hotspot-dot{width:26px;height:26px;font-size:12px}
@@ -109,15 +142,14 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
 }
 @media (prefers-reduced-motion:reduce){
   #loading .spinner{animation:none}
+  #canvas{transition:none !important}
   *{transition:none !important;animation-duration:0.01ms !important}
 }
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" onerror="this.remove()">
 </head>
 <body>
+<a href="#main-content" class="skip-link">跳到主内容</a>
 
 <div id="loading" role="status" aria-live="polite">
   <div class="spinner" aria-hidden="true"></div>
@@ -137,6 +169,11 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
     </div>
 
     <div class="section">
+      <h3><span aria-hidden="true">🎬</span> VR 场景</h3>
+      <div class="scene-list" id="sceneList" role="menu" aria-label="VR 场景列表"></div>
+    </div>
+
+    <div class="section">
       <h3><span aria-hidden="true">📐</span> 视角控制</h3>
       <div class="view-control">
         <label for="fovSlider">视野 (FOV) <span id="fovValue">75°</span></label>
@@ -145,6 +182,22 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
           <button id="resetView" aria-label="重置视角">重置视角</button>
           <button id="autoRotate" aria-label="自动旋转">自动旋转</button>
         </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3><span aria-hidden="true">🎵</span> 场景媒体</h3>
+      <div class="media-control">
+        <div class="media-row">
+          <span>背景音乐</span>
+          <span class="media-empty" id="bgmStatus">未播放</span>
+        </div>
+        <audio id="bgmPlayer" controls preload="none" aria-label="背景音乐播放器"></audio>
+        <div class="media-row" style="margin-top:6px">
+          <span>语音解说</span>
+          <span class="media-empty" id="voStatus">未播放</span>
+        </div>
+        <audio id="voiceoverPlayer" controls preload="none" aria-label="语音解说播放器"></audio>
       </div>
     </div>
 
@@ -169,15 +222,25 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
     </div>
   </div>
 
-  <div id="main" role="main">
+  <main id="main-content">
     <button id="mobile-toggle" aria-label="切换侧边栏菜单">☰ 菜单</button>
     <div id="sidebar-overlay" aria-hidden="true"></div>
     <canvas id="canvas"></canvas>
-    <div id="hotspot-layer" aria-hidden="false"></div>
+    <div id="hotspot-layer" aria-hidden="true" class="mode-pan"></div>
+    <div id="webgl-fallback" hidden role="alert">
+      <h2>WebGL 不可用</h2>
+      <p>您的浏览器或显卡不支持 WebGL,无法启动 360° 全景渲染。请尝试使用最新版 Chrome / Edge / Firefox,或在桌面端访问。</p>
+    </div>
     <div id="toolbar" role="toolbar" aria-label="全景模式工具栏">
       <button class="tb-btn active" data-mode="pan" aria-label="漫游模式"><span aria-hidden="true">🚶</span> 漫游</button>
       <button class="tb-btn" data-mode="info" aria-label="热点信息"><span aria-hidden="true">📍</span> 热点</button>
       <button class="tb-btn" id="fullscreenBtn" aria-label="全屏切换"><span aria-hidden="true">⛶</span> 全屏</button>
+      <button class="tb-btn" id="vrBtn" hidden aria-label="进入 VR 头显沉浸模式"><span aria-hidden="true">🥽</span> VR</button>
+    </div>
+    <div id="scene-progress" role="status" aria-live="polite">
+      <span id="scene-progress-text">场景 1/1</span>
+      <div class="bar"><div class="bar-fill" id="scene-progress-bar" style="width:0%"></div></div>
+      <button class="next-btn" id="sceneNextBtn">下一站</button>
     </div>
     <div id="stats" role="status" aria-live="polite">
       <span>当前房间: <strong id="statRoom">—</strong></span>
@@ -185,20 +248,16 @@ body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;backgroun
       <span>FPS: <strong id="statFps">0</strong></span>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
-  </div>
+  </main>
 </div>
 
 <script>
 // ════════════════════════════════════════════════════════════
-// Demo 数据 — 3 个房间全景图 (使用 picsum 占位图)
-// 实际生产环境从 /api/vr/panoramas 加载
+// Demo 数据 — 当后端 API 返回空列表或加载失败时降级使用
 // ════════════════════════════════════════════════════════════
 const DEMO_PANORAMAS = [
   {
-    id: 'pano-1',
-    room_name: '客厅',
-    panorama_type: 'equirectangular',
-    resolution: '4K',
+    id: 'pano-1', room_name: '客厅', panorama_type: 'equirectangular', resolution: '4K',
     image_url: 'https://picsum.photos/seed/livingroom-vr/4096/2048',
     thumbnail_url: 'https://picsum.photos/seed/livingroom-vr/200/100',
     initial_view: { heading: 0, pitch: 0, fov: 75 },
@@ -208,10 +267,7 @@ const DEMO_PANORAMAS = [
     ],
   },
   {
-    id: 'pano-2',
-    room_name: '主卧',
-    panorama_type: 'equirectangular',
-    resolution: '4K',
+    id: 'pano-2', room_name: '主卧', panorama_type: 'equirectangular', resolution: '4K',
     image_url: 'https://picsum.photos/seed/bedroom-vr/4096/2048',
     thumbnail_url: 'https://picsum.photos/seed/bedroom-vr/200/100',
     initial_view: { heading: 180, pitch: 0, fov: 75 },
@@ -220,10 +276,7 @@ const DEMO_PANORAMAS = [
     ],
   },
   {
-    id: 'pano-3',
-    room_name: '厨房',
-    panorama_type: 'equirectangular',
-    resolution: '4K',
+    id: 'pano-3', room_name: '厨房', panorama_type: 'equirectangular', resolution: '4K',
     image_url: 'https://picsum.photos/seed/kitchen-vr/4096/2048',
     thumbnail_url: 'https://picsum.photos/seed/kitchen-vr/200/100',
     initial_view: { heading: 0, pitch: 0, fov: 75 },
@@ -234,97 +287,206 @@ const DEMO_PANORAMAS = [
 ];
 
 // ════════════════════════════════════════════════════════════
-// Three.js 全景查看器
+// 全局状态
 // ════════════════════════════════════════════════════════════
+const state = {
+  panoramas: [],         // 当前项目全景图列表 (来自 API 或 DEMO 降级)
+  scenes: [],            // VR 场景列表
+  currentScene: null,    // 当前播放的 VR 场景
+  sceneIndex: 0,         // 场景播放进度索引
+  mode: 'pan',           // 'pan' 漫游 | 'info' 热点
+  projectId: null,       // 当前项目 ID
+};
 
-let scene, camera, renderer, controls, sphere, texture;
+let scene, camera, renderer, controls, sphere;
 let currentPanorama = null;
 let autoRotate = false;
 let hotspotElements = [];
-let lastTime = performance.now();
 let frameCount = 0;
 let fpsTime = performance.now();
+let webglAvailable = false;
 
 const canvas = document.getElementById('canvas');
 const hotspotLayer = document.getElementById('hotspot-layer');
 
+// ════════════════════════════════════════════════════════════
+// WebGL 探测
+// ════════════════════════════════════════════════════════════
+function detectWebGL() {
+  try {
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('webgl') || c.getContext('experimental-webgl');
+    return !!(ctx && ctx instanceof WebGLRenderingContext);
+  } catch (e) {
+    return false;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Three.js 初始化
+// ════════════════════════════════════════════════════════════
 function initThree() {
+  webglAvailable = detectWebGL();
+  if (!webglAvailable || typeof THREE === 'undefined') {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('webgl-fallback').hidden = false;
+    return false;
+  }
+
   // 场景
   scene = new THREE.Scene();
 
-  // 相机 — 透视相机,初始 fov 75
+  // 相机
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  camera.position.set(0, 0, 0.1);  // 球心位置
+  camera.position.set(0, 0, 0.1);
 
   // 渲染器
-  renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('webgl-fallback').hidden = false;
+    return false;
+  }
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  // 球面几何体 (半径 500, 水平/垂直分段 64)
+  // 球面几何体
   const geometry = new THREE.SphereGeometry(500, 64, 64);
-  // 球面内贴图 — 水平翻转使贴图在球内侧正确显示
   geometry.scale(-1, 1, 1);
-
-  // 占位材质 (加载纹理前)
-  const material = new THREE.MeshBasicMaterial({
-    color: 0x1a1f2e,
-  });
+  const material = new THREE.MeshBasicMaterial({ color: 0x1a1f2e });
   sphere = new THREE.Mesh(geometry, material);
   scene.add(sphere);
 
-  // OrbitControls — 拖动旋转 (相机固定在球心,通过控制相机朝向浏览)
+  // OrbitControls
   controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0, 0);
   controls.enableDamping = true;
   controls.dampingFactor = 0.1;
   controls.enableZoom = true;
   controls.enablePan = false;
-  controls.rotateSpeed = -0.35;  // 反向,使拖动方向与视野一致
+  controls.rotateSpeed = -0.35;
   controls.minDistance = 0.1;
-  controls.maxDistance = 0.1;  // 锁定相机在球心
+  controls.maxDistance = 0.1;
 
-  // 监听窗口缩放
+  // 热点位置仅在视角变化时更新 (避免每帧 layout 抖动)
+  controls.addEventListener('change', updateHotspotPositions);
   window.addEventListener('resize', onResize);
 
-  // 加载 demo 数据
-  loadPanorama(DEMO_PANORAMAS[0]);
-  renderRoomList();
+  // WebXR 探测
+  if (navigator.xr && renderer.xr) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (supported) {
+        document.getElementById('vrBtn').hidden = false;
+        renderer.xr.enabled = true;
+      }
+    }).catch(() => {});
+  }
+
+  return true;
 }
 
 function onResize() {
-  const w = document.getElementById('main').clientWidth;
-  const h = document.getElementById('main').clientHeight;
+  const w = document.getElementById('main-content').clientWidth;
+  const h = document.getElementById('main-content').clientHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   updateHotspotPositions();
 }
 
-// 加载全景图
-function loadPanorama(pano) {
-  currentPanorama = pano;
+// ════════════════════════════════════════════════════════════
+// 后端 API 数据加载
+// ════════════════════════════════════════════════════════════
+async function loadPanoramasFromAPI(projectId) {
+  if (!projectId || !window.ApiClient) {
+    state.panoramas = DEMO_PANORAMAS.slice();
+    return false;
+  }
+  try {
+    const list = await ApiClient.getVRPanoramas(projectId);
+    if (Array.isArray(list) && list.length > 0) {
+      state.panoramas = list.map(p => ({
+        id: p.id,
+        room_name: p.room_name,
+        panorama_type: p.panorama_type || 'equirectangular',
+        resolution: p.resolution || '4K',
+        image_url: p.image_url || `https://picsum.photos/seed/${p.id}/4096/2048`,
+        thumbnail_url: p.thumbnail_url,
+        // 后端返回 initial_view / hotspots 已为 dict/list (列表接口)
+        initial_view: (p.initial_view && typeof p.initial_view === 'object')
+          ? p.initial_view
+          : { heading: 0, pitch: 0, fov: 75 },
+        hotspots: Array.isArray(p.hotspots) ? p.hotspots : [],
+        status: p.status,
+      }));
+      return true;
+    }
+  } catch (e) {
+    console.warn('[VR] 加载全景图列表失败,降级到 demo 数据:', e);
+  }
+  state.panoramas = DEMO_PANORAMAS.slice();
+  return false;
+}
 
-  // 显示加载提示
+async function loadScenesFromAPI(projectId) {
+  if (!projectId || !window.ApiClient) {
+    state.scenes = [];
+    renderSceneList();
+    return;
+  }
+  try {
+    const list = await ApiClient.getVRScenes(projectId);
+    state.scenes = Array.isArray(list) ? list : [];
+  } catch (e) {
+    console.warn('[VR] 加载 VR 场景列表失败:', e);
+    state.scenes = [];
+  }
+  renderSceneList();
+}
+
+async function loadVRProjectInfo(projectId) {
+  if (!projectId) {
+    document.getElementById('vr-proj-name').textContent = '--';
+    return;
+  }
+  const token = localStorage.getItem('paseto_token');
+  const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+  try {
+    const resp = await fetch((ApiClient?.BASE_URL || '') + '/api/projects/' + projectId, { headers });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const p = await resp.json();
+    document.getElementById('vr-proj-name').textContent = p.name || '--';
+    document.getElementById('vr-proj-area').textContent = (p.total_area || '--') + ' ㎡';
+    document.getElementById('vr-proj-status').textContent = p.status || '进行中';
+  } catch (e) {
+    document.getElementById('vr-proj-name').textContent = '获取失败';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// 全景图加载
+// ════════════════════════════════════════════════════════════
+function loadPanorama(pano) {
+  if (!pano) return;
+  currentPanorama = pano;
   showToast(`正在加载 ${pano.room_name} ...`);
 
-  // 加载纹理
   const loader = new THREE.TextureLoader();
   loader.setCrossOrigin('anonymous');
   loader.load(
     pano.image_url,
     (tex) => {
-      tex.encoding = THREE.sRGBEncoding;
+      if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
       tex.minFilter = THREE.LinearFilter;
       tex.magFilter = THREE.LinearFilter;
       sphere.material = new THREE.MeshBasicMaterial({ map: tex });
 
-      // 设置初始视角
       const iv = pano.initial_view || { heading: 0, pitch: 0, fov: 75 };
-      // heading: 0-360 度,转为相机 yaw
       const headingRad = (iv.heading || 0) * Math.PI / 180;
       const pitchRad = (iv.pitch || 0) * Math.PI / 180;
-      // 设置相机朝向 (OrbitControls 通过 target 控制朝向,这里直接旋转相机)
       camera.position.set(
         0.1 * Math.sin(headingRad) * Math.cos(pitchRad),
         0.1 * Math.sin(pitchRad),
@@ -332,33 +494,40 @@ function loadPanorama(pano) {
       );
       camera.lookAt(0, 0, 0);
 
-      // 设置 FOV
       const fov = iv.fov || 75;
       camera.fov = fov;
       camera.updateProjectionMatrix();
       document.getElementById('fovSlider').value = fov;
       document.getElementById('fovValue').textContent = `${fov}°`;
 
-      // 渲染热点
       renderHotspots(pano);
-
-      // 更新信息面板
       updateInfoPanel(pano);
-
+      updateHotspotPositions();
       showToast(`${pano.room_name} 已加载`);
     },
     undefined,
     () => {
-      // 加载失败 — 使用纯色材质
       sphere.material = new THREE.MeshBasicMaterial({ color: 0x2a2f3e });
-      showToast(`加载失败,使用占位材质`);
+      showToast('加载失败,使用占位材质');
     }
   );
 }
 
-// 渲染热点 (CSS2D 风格的 DOM 叠加)
+function loadPanoramaById(id) {
+  const target = state.panoramas.find(p => p.id === id);
+  if (target) {
+    loadPanorama(target);
+    renderRoomList();
+    return true;
+  }
+  showToast(`目标全景图不存在: ${id}`);
+  return false;
+}
+
+// ════════════════════════════════════════════════════════════
+// 热点渲染与位置投影
+// ════════════════════════════════════════════════════════════
 function renderHotspots(pano) {
-  // 清除旧热点
   hotspotLayer.innerHTML = '';
   hotspotElements = [];
 
@@ -374,83 +543,80 @@ function renderHotspots(pano) {
       <div class="hotspot-label">${hs.label}</div>
     `;
     el.addEventListener('click', () => onHotspotClick(hs));
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onHotspotClick(hs); } });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onHotspotClick(hs); }
+    });
     hotspotLayer.appendChild(el);
     hotspotElements.push({ el, data: hs });
   });
 
-  updateHotspotPositions();
   document.getElementById('infoHotspots').textContent = (pano.hotspots || []).length;
 }
 
-// 更新热点位置 (将球面坐标投影到屏幕)
 function updateHotspotPositions() {
-  if (!currentPanorama) return;
-  const w = document.getElementById('main').clientWidth;
-  const h = document.getElementById('main').clientHeight;
+  if (!currentPanorama || !camera) return;
+  const w = document.getElementById('main-content').clientWidth;
+  const h = document.getElementById('main-content').clientHeight;
 
   hotspotElements.forEach(({ el, data }) => {
-    // position 是 {yaw, pitch} 度数
     const pos = data.position || { yaw: 0, pitch: 0 };
-    const yawRad = (pos.yaw || 0) * Math.PI / 180;
-    const pitchRad = (pos.pitch || 0) * Math.PI / 180;
+    // 兼容球面坐标 {yaw, pitch} (推荐) 与 笛卡尔 {x, y, z}
+    let vec;
+    if (typeof pos.yaw === 'number' || typeof pos.pitch === 'number') {
+      const yawRad = (pos.yaw || 0) * Math.PI / 180;
+      const pitchRad = (pos.pitch || 0) * Math.PI / 180;
+      const radius = 100;
+      vec = new THREE.Vector3(
+        radius * Math.cos(pitchRad) * Math.sin(yawRad),
+        radius * Math.sin(pitchRad),
+        -radius * Math.cos(pitchRad) * Math.cos(yawRad)
+      );
+    } else if (typeof pos.x === 'number') {
+      vec = new THREE.Vector3(pos.x, pos.y, pos.z);
+    } else {
+      el.style.display = 'none';
+      return;
+    }
 
-    // 将球面坐标转为 3D 向量 (球心位于原点)
-    // 注意: Three.js OrbitControls 中,相机朝向 target(0,0,0),
-    // 我们需要把热点 3D 位置投影到屏幕
-    const radius = 100;
-    const x = radius * Math.cos(pitchRad) * Math.sin(yawRad);
-    const y = radius * Math.sin(pitchRad);
-    const z = -radius * Math.cos(pitchRad) * Math.cos(yawRad);
-
-    const vec = new THREE.Vector3(x, y, z);
-    // 通过相机变换到屏幕坐标
     const projected = vec.clone().project(camera);
-
-    // projected.x/y 是 NDC (-1 到 1),z < 1 表示在相机前方
-    const screenX = (projected.x * 0.5 + 0.5) * w;
-    const screenY = (-projected.y * 0.5 + 0.5) * h;
-
-    // z > 1 表示在相机背后,隐藏热点
+    // NDC z > 1 表示在相机背后,隐藏热点
     if (projected.z > 1) {
       el.style.display = 'none';
     } else {
       el.style.display = 'block';
-      el.style.left = `${screenX}px`;
-      el.style.top = `${screenY}px`;
+      el.style.left = `${(projected.x * 0.5 + 0.5) * w}px`;
+      el.style.top = `${(-projected.y * 0.5 + 0.5) * h}px`;
     }
   });
 }
 
-// 热点点击 — 切换房间
 function onHotspotClick(hs) {
   if (hs.type === 'panorama' && hs.target_panorama_id) {
-    const target = DEMO_PANORAMAS.find(p => p.id === hs.target_panorama_id);
-    if (target) {
-      loadPanorama(target);
-      renderRoomList();
-    } else {
-      showToast(`目标全景图不存在: ${hs.target_panorama_id}`);
-    }
+    loadPanoramaById(hs.target_panorama_id);
   } else if (hs.type === 'info') {
     showToast(hs.label);
   } else if (hs.type === 'link' && hs.url) {
-    window.open(hs.url, '_blank');
+    window.open(hs.url, '_blank', 'noopener');
   }
 }
 
-// 渲染房间列表
+// ════════════════════════════════════════════════════════════
+// 房间列表 / 场景列表 渲染
+// ════════════════════════════════════════════════════════════
 function renderRoomList() {
   const list = document.getElementById('roomList');
   list.innerHTML = '';
-  DEMO_PANORAMAS.forEach(p => {
+  state.panoramas.forEach(p => {
     const btn = document.createElement('button');
     btn.className = 'room-btn' + (currentPanorama && p.id === currentPanorama.id ? ' active' : '');
     btn.setAttribute('role', 'menuitem');
     btn.setAttribute('tabindex', '0');
-    btn.setAttribute('aria-label', `${p.room_name}，${p.hotspots.length}个热点`);
-    btn.innerHTML = `${p.room_name} <span class="badge">${p.hotspots.length} 热点</span>`;
+    btn.setAttribute('aria-label', `${p.room_name}，${(p.hotspots || []).length} 个热点`);
+    btn.innerHTML = `${p.room_name} <span class="badge">${(p.hotspots || []).length} 热点</span>`;
     btn.addEventListener('click', () => {
+      // 用户手动切换房间时退出场景播放
+      state.currentScene = null;
+      hideSceneProgress();
       loadPanorama(p);
       renderRoomList();
     });
@@ -458,7 +624,123 @@ function renderRoomList() {
   });
 }
 
-// 更新信息面板
+function renderSceneList() {
+  const list = document.getElementById('sceneList');
+  list.innerHTML = '';
+  if (state.scenes.length === 0) {
+    list.innerHTML = '<div style="font-size:0.65rem;color:var(--muted);font-style:italic;padding:4px 0">暂无场景</div>';
+    return;
+  }
+  state.scenes.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'scene-btn' + (state.currentScene && s.id === state.currentScene.id ? ' playing' : '');
+    btn.setAttribute('role', 'menuitem');
+    btn.setAttribute('tabindex', '0');
+    btn.setAttribute('aria-label', `播放场景 ${s.name}`);
+    const panoCount = (s.panorama_id_list || []).length;
+    btn.innerHTML = `
+      <span style="flex:1">${s.name}</span>
+      <span class="badge">${panoCount} 站</span>
+    `;
+    btn.addEventListener('click', () => playScene(s));
+    list.appendChild(btn);
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// VR 场景播放 (过渡动画 + bgm + 语音解说)
+// ════════════════════════════════════════════════════════════
+async function playScene(scn) {
+  const ids = scn.panorama_id_list || [];
+  if (ids.length === 0) {
+    showToast('场景为空,无法播放');
+    return;
+  }
+  state.currentScene = scn;
+  state.sceneIndex = 0;
+  renderSceneList();
+  showToast(`开始播放场景: ${scn.name}`);
+
+  // 启动背景音乐
+  const bgm = document.getElementById('bgmPlayer');
+  if (scn.bgm_url) {
+    bgm.src = scn.bgm_url;
+    bgm.play().then(() => {
+      document.getElementById('bgmStatus').textContent = '播放中';
+      document.getElementById('bgmStatus').style.color = 'var(--accent)';
+    }).catch(() => {
+      document.getElementById('bgmStatus').textContent = '需用户交互后播放';
+    });
+  } else {
+    bgm.pause();
+    bgm.src = '';
+    document.getElementById('bgmStatus').textContent = '未配置';
+  }
+
+  // 启动语音解说
+  const vo = document.getElementById('voiceoverPlayer');
+  if (scn.voiceover_url) {
+    vo.src = scn.voiceover_url;
+    vo.play().then(() => {
+      document.getElementById('voStatus').textContent = '播放中';
+      document.getElementById('voStatus').style.color = 'var(--accent)';
+    }).catch(() => {
+      document.getElementById('voStatus').textContent = '需用户交互后播放';
+    });
+  } else {
+    vo.pause();
+    vo.src = '';
+    document.getElementById('voStatus').textContent = '未配置';
+  }
+
+  showSceneProgress();
+  await loadPanoramaById(ids[0]);
+  updateSceneProgress();
+}
+
+async function nextInScene() {
+  if (!state.currentScene) return;
+  const ids = state.currentScene.panorama_id_list || [];
+  if (state.sceneIndex + 1 >= ids.length) {
+    showToast('场景播放完毕');
+    state.currentScene = null;
+    hideSceneProgress();
+    renderSceneList();
+    return;
+  }
+  state.sceneIndex++;
+  const transitionType = state.currentScene.transition_type || 'fade';
+  if (transitionType === 'none') {
+    await loadPanoramaById(ids[state.sceneIndex]);
+  } else {
+    // fade 过渡
+    canvas.classList.add('transitioning');
+    await new Promise(r => setTimeout(r, 750));
+    await loadPanoramaById(ids[state.sceneIndex]);
+    canvas.classList.remove('transitioning');
+  }
+  updateSceneProgress();
+}
+
+function showSceneProgress() {
+  document.getElementById('scene-progress').classList.add('show');
+  updateSceneProgress();
+}
+function hideSceneProgress() {
+  document.getElementById('scene-progress').classList.remove('show');
+}
+function updateSceneProgress() {
+  if (!state.currentScene) return;
+  const ids = state.currentScene.panorama_id_list || [];
+  const idx = state.sceneIndex + 1;
+  const total = ids.length;
+  document.getElementById('scene-progress-text').textContent = `场景 ${idx}/${total}`;
+  document.getElementById('scene-progress-bar').style.width = `${(idx / total) * 100}%`;
+}
+
+// ════════════════════════════════════════════════════════════
+// UI 更新
+// ════════════════════════════════════════════════════════════
 function updateInfoPanel(pano) {
   document.getElementById('infoRoom').textContent = pano.room_name;
   document.getElementById('infoRes').textContent = pano.resolution || '4K';
@@ -467,7 +749,6 @@ function updateInfoPanel(pano) {
   document.getElementById('statRoom').textContent = pano.room_name;
 }
 
-// Toast 提示
 let toastTimer;
 function showToast(text) {
   const toast = document.getElementById('toast');
@@ -477,12 +758,20 @@ function showToast(text) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
-// 动画循环
+function setMode(mode) {
+  state.mode = mode;
+  hotspotLayer.classList.remove('mode-pan', 'mode-info');
+  hotspotLayer.classList.add(`mode-${mode}`);
+}
+
+// ════════════════════════════════════════════════════════════
+// 动画循环 (不再每帧更新热点位置)
+// ════════════════════════════════════════════════════════════
 function animate() {
   requestAnimationFrame(animate);
+  if (!webglAvailable) return;
 
   if (autoRotate) {
-    // 自动旋转 — 通过 OrbitControls 的 autoRotate 实现
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
   } else {
@@ -491,13 +780,10 @@ function animate() {
 
   controls.update();
 
-  // 更新热点位置
-  updateHotspotPositions();
-
-  // 更新视角统计
+  // 视角统计
   const azim = controls.getAzimuthalAngle() * 180 / Math.PI;
   const polar = controls.getPolarAngle() * 180 / Math.PI;
-  const pitch = 90 - polar;  // 转换为 pitch (-90 到 90)
+  const pitch = 90 - polar;
   document.getElementById('statView').textContent = `${azim.toFixed(0)}° / ${pitch.toFixed(0)}°`;
 
   // FPS 统计
@@ -515,8 +801,8 @@ function animate() {
 // ════════════════════════════════════════════════════════════
 // UI 事件绑定
 // ════════════════════════════════════════════════════════════
-
 document.getElementById('fovSlider').addEventListener('input', (e) => {
+  if (!camera) return;
   const fov = parseInt(e.target.value);
   camera.fov = fov;
   camera.updateProjectionMatrix();
@@ -524,7 +810,7 @@ document.getElementById('fovSlider').addEventListener('input', (e) => {
 });
 
 document.getElementById('resetView').addEventListener('click', () => {
-  if (!currentPanorama) return;
+  if (!currentPanorama || !camera) return;
   const iv = currentPanorama.initial_view || { heading: 0, pitch: 0, fov: 75 };
   const headingRad = (iv.heading || 0) * Math.PI / 180;
   const pitchRad = (iv.pitch || 0) * Math.PI / 180;
@@ -551,74 +837,88 @@ document.getElementById('autoRotate').addEventListener('click', (e) => {
 
 document.getElementById('fullscreenBtn').addEventListener('click', () => {
   if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
+    document.documentElement.requestFullscreen().catch(() => {});
   } else {
     document.exitFullscreen();
   }
 });
 
+document.getElementById('vrBtn').addEventListener('click', async () => {
+  if (!navigator.xr) {
+    showToast('当前浏览器不支持 WebXR');
+    return;
+  }
+  try {
+    const session = await navigator.xr.requestSession('immersive-vr', {
+      optionalFeatures: ['local-floor', 'bounded-floor']
+    });
+    if (renderer.xr) {
+      renderer.xr.enabled = true;
+      await renderer.xr.setSession(session);
+      showToast('已进入 VR 沉浸模式');
+    }
+  } catch (e) {
+    showToast('无法进入 VR 模式: ' + (e.message || e));
+  }
+});
+
+document.getElementById('sceneNextBtn').addEventListener('click', () => nextInScene());
+
 document.getElementById('mobile-toggle').addEventListener('click', () => {
-  const sb=document.getElementById('sidebar');
-  const ov=document.getElementById('sidebar-overlay');
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
   sb.classList.toggle('open');
-  if(ov) ov.style.display=sb.classList.contains('open')?'block':'none';
+  if (ov) ov.style.display = sb.classList.contains('open') ? 'block' : 'none';
 });
 document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
   document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebar-overlay').style.display='none';
+  document.getElementById('sidebar-overlay').style.display = 'none';
 });
 
-// 工具栏模式切换 (热点显示/隐藏)
+// 工具栏模式切换 (漫游模式淡化热点 / 热点模式高亮热点)
 document.querySelectorAll('.tb-btn[data-mode]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tb-btn[data-mode]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const mode = btn.dataset.mode;
-    if (mode === 'info') {
-      hotspotLayer.style.display = 'block';
-    } else {
-      hotspotLayer.style.display = 'block';  // 漫游模式也显示热点
-    }
+    setMode(btn.dataset.mode);
+    showToast(btn.dataset.mode === 'info' ? '热点模式: 高亮显示' : '漫游模式: 热点已淡化');
   });
 });
 
 // ════════════════════════════════════════════════════════════
 // 启动
 // ════════════════════════════════════════════════════════════
-
-// 加载项目信息
-function loadVRProjectInfo() {
+async function bootstrap() {
   const params = new URLSearchParams(window.location.search);
-  const projectId = params.get('id') || params.get('project_id');
-  
-  if (!projectId) {
-    document.getElementById('vr-proj-name').textContent = '--';
-    return;
-  }
-  
-  const API = (window.ApiClient && window.ApiClient.BASE_URL) || (window.API_BASE_URL) || '';
-  const token = localStorage.getItem('paseto_token');
-  
-  fetch(API + '/api/projects/' + projectId, {
-    headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-  }).then(r => r.json()).then(p => {
-    document.getElementById('vr-proj-name').textContent = p.name || '--';
-    document.getElementById('vr-proj-area').textContent = (p.total_area || '--') + ' ㎡';
-    document.getElementById('vr-proj-status').textContent = p.status || '进行中';
-  }).catch(() => {
-    document.getElementById('vr-proj-name').textContent = '获取失败';
-  });
-}
+  state.projectId = params.get('id') || params.get('project_id');
 
-document.addEventListener('DOMContentLoaded', loadVRProjectInfo);
+  // 1. 初始化 Three.js
+  const ok = initThree();
+  if (!ok) return;
 
-window.addEventListener('load', () => {
-  initThree();
+  // 2. 启动渲染循环
   animate();
+
+  // 3. 显示主界面
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   onResize();
-});
+
+  // 4. 并行加载项目信息 / 全景图列表 / 场景列表
+  await Promise.all([
+    loadVRProjectInfo(state.projectId),
+    loadPanoramasFromAPI(state.projectId),
+    loadScenesFromAPI(state.projectId),
+  ]);
+
+  // 5. 渲染房间列表并加载第一个 panorama
+  renderRoomList();
+  if (state.panoramas.length > 0) {
+    loadPanorama(state.panoramas[0]);
+  }
+}
+
+window.addEventListener('load', bootstrap);
 </script>
 </body>
 </html>

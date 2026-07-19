@@ -53,7 +53,24 @@ async def list_panoramas(
     user: User = Depends(get_current_user),
 ):
     await verify_project_access(project_id=project_id, current_user=user, db=db)
-    return await vr_panorama_service.list_panoramas(db, project_id, status_filter)
+    panoramas = await vr_panorama_service.list_panoramas(db, project_id, status_filter)
+    # ORM 的 initial_view / hotspots 是 JSON 字符串,这里透传为解析后的 dict/list
+    return [
+        VRPanoramaListItem(
+            id=p.id,
+            project_id=p.project_id,
+            room_name=p.room_name,
+            panorama_type=p.panorama_type,
+            image_url=p.image_url,
+            thumbnail_url=p.thumbnail_url,
+            resolution=p.resolution,
+            initial_view=p.initial_view_dict or None,
+            hotspots=p.hotspot_list or [],
+            status=p.status,
+            created_at=p.created_at,
+        )
+        for p in panoramas
+    ]
 
 
 @router.get("/panoramas/{panorama_id}", response_model=VRPanoramaResponse)
