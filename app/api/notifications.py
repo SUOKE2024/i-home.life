@@ -11,6 +11,11 @@ from app.schemas.notification import (
     RegisterDeviceRequest,
     DeviceTokenResponse,
 )
+from app.services.notification_service import (
+    register_device as _svc_register_device,
+    get_user_tokens,
+    unregister_device as _svc_unregister_device,
+)
 
 router = APIRouter(prefix="/notifications", tags=["通知"])
 
@@ -22,30 +27,7 @@ async def register_device(
     db: AsyncSession = Depends(get_db),
 ):
     """注册/更新设备推送令牌（每用户每平台仅保留一条活跃记录）"""
-    # 查找该用户该平台已有记录
-    stmt = select(DeviceToken).where(
-        DeviceToken.user_id == current_user.id,
-        DeviceToken.platform == data.platform,
-    )
-    result = await db.execute(stmt)
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        existing.device_token = data.device_token
-        existing.is_active = True
-        await db.commit()
-        await db.refresh(existing)
-        return existing
-
-    token = DeviceToken(
-        user_id=current_user.id,
-        device_token=data.device_token,
-        platform=data.platform,
-    )
-    db.add(token)
-    await db.commit()
-    await db.refresh(token)
-    return token
+    return await _svc_register_device(db, current_user.id, data.device_token, data.platform)
 
 
 @router.get("/devices", response_model=list[DeviceTokenResponse])
@@ -54,12 +36,7 @@ async def list_my_devices(
     db: AsyncSession = Depends(get_db),
 ):
     """列出当前用户的所有活跃设备"""
-    stmt = select(DeviceToken).where(
-        DeviceToken.user_id == current_user.id,
-        DeviceToken.is_active == True,  # noqa: E712
-    )
-    result = await db.execute(stmt)
-    return result.scalars().all()
+    return await get_user_tokens(db, current_user.id)
 
 
 @router.delete("/devices/{device_id}")
@@ -77,6 +54,5 @@ async def unregister_device(
     token = result.scalar_one_or_none()
     if not token:
         raise HTTPException(status_code=404, detail="设备不存在")
-    token.is_active = False
-    await db.commit()
+    await _svc_unregister_device(db, current_user.id, token.device_token)
     return {"detail": "设备已注销"}

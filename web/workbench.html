@@ -23,13 +23,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260720g" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260720g" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260720g" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260720g" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260720g" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260720i" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260720i" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260720i" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260720i" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260720i" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260720g">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260720i">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
 <!-- v1.2.1 性能优化: 预连接第三方 CDN -->
@@ -43,6 +43,97 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"索克家居工作台","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"CNY"},"description":"AI 自治运营群聊工作台，9 AI 智能体 7×24 服务"}
 </script>
+<style>
+/* ============ 会话历史面板 ============ */
+.session-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--text-muted);
+  max-height: 320px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.session-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+.session-panel-header .btn-text {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.session-panel-header .btn-text:hover {
+  background: var(--accent);
+  color: #000;
+}
+.session-list {
+  padding: 0 16px 8px;
+}
+.session-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.session-item:hover,
+.session-item.active {
+  background: var(--bg-card-hover);
+}
+.session-item + .session-item {
+  border-top: 1px solid rgba(90,88,102,.15);
+}
+.session-item-title {
+  font-size: 14px;
+  color: #e0ddf5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.session-item-empty {
+  text-align: center;
+  padding: 24px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+/* 会话按钮 */
+.chat-session-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.chat-session-btn:hover {
+  background: var(--bg-card-hover);
+  color: #e0ddf5;
+}
+</style>
 </head>
 <body>
 <a href="#message-list" class="skip-link">跳到消息列表</a>
@@ -101,6 +192,7 @@
       <div class="chat-title" id="chat-title">加载中…</div>
       <div class="chat-subtitle" id="chat-subtitle">8 AI 群策群力</div>
     </div>
+    <button class="chat-session-btn" id="chat-session-btn" aria-label="会话历史" title="会话历史">📋 历史</button>
     <button class="chat-new-project" id="new-project-btn" aria-label="新建项目" title="新建项目">+</button>
     <button class="chat-search-btn" id="chat-search-btn" aria-label="搜索消息" title="搜索消息">🔍</button>
     <a href="settings.html" class="chat-avatar" id="chat-avatar-btn" aria-label="设置" title="设置">
@@ -115,6 +207,15 @@
     <button class="search-close" id="search-close" aria-label="关闭搜索">×</button>
   </div>
 
+  <!-- 会话历史面板 -->
+  <div class="session-panel" id="session-panel" style="display:none;">
+    <div class="session-panel-header">
+      <span>会话历史</span>
+      <button id="new-session-btn" class="btn-text">+ 新对话</button>
+    </div>
+    <div class="session-list" id="session-list"></div>
+  </div>
+
   <!-- 快捷导航工具栏 -->
   <nav class="quick-nav" id="quick-nav" aria-label="快捷功能导航">
     <a href="studio.html" class="quick-nav-link" id="nav-studio" title="设计工作台" target="_blank">📐 设计台</a>
@@ -123,6 +224,9 @@
     <a href="quality-report.html" class="quick-nav-link" id="nav-quality" title="质量报告">✅ 质检</a>
     <a href="3d-viewer.html" class="quick-nav-link" id="nav-3d" title="3D 预览" target="_blank">🏠 3D</a>
     <a href="vr-viewer.html" class="quick-nav-link" id="nav-vr" title="VR 全景" target="_blank">🥽 VR</a>
+    <a href="timeline.html" class="quick-nav-link" id="nav-timeline" title="装修进度">📅 进度</a>
+    <a href="points.html" class="quick-nav-link" id="nav-points" title="积分系统" target="_blank">💰 积分</a>
+    <a href="crew-management.html" class="quick-nav-link" id="nav-crew" title="班组管理" target="_blank">👷 班组</a>
   </nav>
 
   <!-- 消息流 -->
@@ -300,10 +404,10 @@
   </div><!-- /.workbench-main -->
 </div>
 
-<script src="assets/js/api-client.js?v=20260720g"></script>
-<script src="assets/js/im-client.js?v=20260720g"></script>
-<script src="assets/js/agent-router.js?v=20260720g"></script>
-<script src="assets/js/message-renderers.js?v=20260720g"></script>
+<script src="assets/js/api-client.js?v=20260720i"></script>
+<script src="assets/js/im-client.js?v=20260720i"></script>
+<script src="assets/js/agent-router.js?v=20260720i"></script>
+<script src="assets/js/message-renderers.js?v=20260720i"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -323,6 +427,7 @@
   let projectId = null;
   let projectInfo = null;
   let allProjects = [];
+  let _currentSessionId = localStorage.getItem('agent_session_id') || null;
 
   const titleEl = document.getElementById('chat-title');
   const subtitleEl = document.getElementById('chat-subtitle');
@@ -345,6 +450,10 @@
   const searchInput = document.getElementById('search-input');
   const searchCount = document.getElementById('search-count');
   const searchClose = document.getElementById('search-close');
+  const sessionBtn = document.getElementById('chat-session-btn');
+  const sessionPanel = document.getElementById('session-panel');
+  const sessionList = document.getElementById('session-list');
+  const newSessionBtn = document.getElementById('new-session-btn');
 
   const AVATAR_BASE = 'assets/images/avatars/hand-drawn-profiles/';
   const AVATAR_COUNT = 6;
@@ -424,6 +533,18 @@
     takeoff: 'takeoff',
     points: 'points',
     cad_import: 'cad_import',
+    // v1.1.21 新增 Agent 类型
+    kitchen: 'kitchen',
+    bathroom: 'bathroom',
+    mep: 'mep',
+    appliance: 'appliance',
+    furniture: 'furniture',
+    door_window: 'door_window',
+    files: 'files',
+    products: 'products',
+    identity: 'identity',
+    notifications: 'notifications',
+    ifc_export: 'ifc_export',
   };
   // 后端 agent_type → 前端 agent key（接收流式回复用，与 AGENT_KEY_TO_TYPE 互为逆映射）
   const TYPE_TO_AGENT_KEY = {
@@ -449,6 +570,18 @@
     takeoff: 'takeoff',
     points: 'points',
     cad_import: 'cad_import',
+    // v1.1.21 新增
+    kitchen: 'kitchen',
+    bathroom: 'bathroom',
+    mep: 'mep',
+    appliance: 'appliance',
+    furniture: 'furniture',
+    door_window: 'door_window',
+    files: 'files',
+    products: 'products',
+    identity: 'identity',
+    notifications: 'notifications',
+    ifc_export: 'ifc_export',
   };
   // 滚动监听器是否已绑定（防止 loadProjectMessages 重复调用时多次绑定）
   let _scrollListenerBound = false;
@@ -554,6 +687,7 @@
         listEl.innerHTML = '';
         listEl.appendChild(refreshIndicator);
         await loadProjectMessages();
+        if (_currentSessionId) { await loadAgentSessionHistory(); }
       } catch (_) {}
       refreshIndicator.classList.remove('visible', 'ready', 'refreshing');
       refreshIndicator.style.height = '0';
@@ -955,6 +1089,41 @@
           });
         }
       }, { passive: true });
+    }
+  }
+
+  // ============ Agent 会话历史加载 ============
+  async function loadAgentSessionHistory() {
+    if (!_currentSessionId) return;
+    try {
+      const data = await ApiClient.getAgentSession(_currentSessionId);
+      const messages = data.messages || [];
+      if (messages.length === 0) return;
+
+      renderDateSeparator('── 上次对话继续 ──');
+
+      messages.forEach(m => {
+        const isUser = m.role === 'user';
+        const time = MessageRenderers._fmtTime(m.created_at);
+        if (isUser) {
+          const div = document.createElement('div');
+          div.className = 'msg user';
+          div.innerHTML = `<div class="msg-bubble">${_escape(m.content)}</div>`;
+          listEl.appendChild(div);
+        } else {
+          const agentType = m.agent_type || '';
+          const agentKey = TYPE_TO_AGENT_KEY[agentType] || 'master';
+          const agentInfo = AgentRouter.getAgentInfo(agentKey);
+          const div = document.createElement('div');
+          div.className = `msg agent agent-${agentKey}`;
+          div.innerHTML = `<div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${time}</div><div class="msg-bubble">${_escape(m.content)}</div>`;
+          listEl.appendChild(div);
+        }
+      });
+
+      listEl.scrollTop = listEl.scrollHeight;
+    } catch (e) {
+      // 会话历史不可达时跳过
     }
   }
 
@@ -1429,6 +1598,7 @@
               agent_type: agentType,
               project_id: projectId,
               history: history,
+              ...(_currentSessionId ? { session_id: _currentSessionId } : {}),
             }),
           });
           if (!resp.ok) throw new Error('Stream request failed: ' + resp.status);
@@ -1469,12 +1639,20 @@
                     metaEl.textContent = ai.emoji + ' ' + ai.name + ' Agent';
                     metaEl.style.color = ai.color;
                   }
+                  if (data.session_id) {
+                    _currentSessionId = data.session_id;
+                    localStorage.setItem('agent_session_id', data.session_id);
+                  }
                 } else if (data.event === 'token') {
                   fullContent += data.content;
                   bubble.textContent = fullContent;
                   listEl.scrollTop = listEl.scrollHeight;
+                } else if (data.event === 'done') {
+                  if (data.session_id) {
+                    _currentSessionId = data.session_id;
+                    localStorage.setItem('agent_session_id', data.session_id);
+                  }
                 }
-                // done 事件无需处理
               }
             }
           }
@@ -1492,7 +1670,11 @@
           }
           // 流式失败，降级到非流式 API
           try {
-            const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
+            const resp = await ApiClient.chatWithAgent(text, agentType, projectId, _currentSessionId, history);
+            if (resp.session_id) {
+              _currentSessionId = resp.session_id;
+              localStorage.setItem('agent_session_id', resp.session_id);
+            }
             if (resp.reply) {
               const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
               renderMessage({
@@ -1521,7 +1703,11 @@
 
     // 调用后端 Agent Chat API
     try {
-      const resp = await ApiClient.chatWithAgent(text, agentType, projectId, history);
+      const resp = await ApiClient.chatWithAgent(text, agentType, projectId, _currentSessionId, history);
+      if (resp.session_id) {
+        _currentSessionId = resp.session_id;
+        localStorage.setItem('agent_session_id', resp.session_id);
+      }
       if (resp.reply) {
         // 映射 agent_type 回前端 agent key
         const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
@@ -2089,6 +2275,9 @@
   function applyProjectInfo(p) {
     projectInfo = p;
     projectId = p.id;
+    // 切换项目时清除 agent 会话
+    _currentSessionId = null;
+    localStorage.removeItem('agent_session_id');
     titleEl.textContent = p.name || '项目群';
     subtitleEl.textContent = `8 AI 群策群力 · ${statusMap[p.status] || p.status || '进行中'}`;
     // 更新快捷导航链接，携带 project_id
@@ -2271,6 +2460,7 @@
         listEl.innerHTML = '';
         applyProjectInfo(selected);
         await loadProjectMessages();
+        if (_currentSessionId) { await loadAgentSessionHistory(); }
         // 恢复新项目的草稿
         restoreDraft();
       });
@@ -2290,6 +2480,70 @@
   projectPickerClose.addEventListener('click', closeProjectPicker);
   projectPicker.addEventListener('click', (e) => {
     if (e.target === projectPicker) closeProjectPicker();
+  });
+
+  // ============ 会话历史面板 ============
+  async function loadSessionList() {
+    if (!projectId) return;
+    try {
+      const data = await ApiClient.listAgentSessions(projectId, 0, 50);
+      const sessions = Array.isArray(data) ? data : (data.items || []);
+      if (sessions.length === 0) {
+        sessionList.innerHTML = '<div class="session-item-empty">暂无历史会话</div>';
+        return;
+      }
+      sessionList.innerHTML = sessions.map(s => {
+        const agentKey = TYPE_TO_AGENT_KEY[s.primary_agent_type] || 'master';
+        const agentInfo = AgentRouter.getAgentInfo(agentKey);
+        const active = s.id === _currentSessionId ? ' active' : '';
+        return `<div class="session-item${active}" data-sid="${s.id}" role="button" tabindex="0">
+          <div class="session-item-title">${_escape(s.title || '未命名会话')}</div>
+          <div class="session-item-meta">${agentInfo.emoji} ${agentInfo.name} · ${s.message_count || 0} 条 · ${MessageRenderers._fmtTime(s.updated_at)}</div>
+        </div>`;
+      }).join('');
+      sessionList.querySelectorAll('.session-item').forEach(el => {
+        el.addEventListener('click', async () => {
+          const sid = el.dataset.sid;
+          if (sid === _currentSessionId) {
+            sessionPanel.style.display = 'none';
+            return;
+          }
+          _currentSessionId = sid;
+          localStorage.setItem('agent_session_id', sid);
+          sessionPanel.style.display = 'none';
+          listEl.innerHTML = '';
+          await loadProjectMessages();
+          await loadAgentSessionHistory();
+        });
+      });
+    } catch (e) {
+      sessionList.innerHTML = '<div class="session-item-empty">加载失败</div>';
+    }
+  }
+
+  sessionBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (sessionPanel.style.display === 'block') {
+      sessionPanel.style.display = 'none';
+    } else {
+      sessionPanel.style.display = 'block';
+      loadSessionList();
+    }
+  });
+
+  newSessionBtn.addEventListener('click', async () => {
+    _currentSessionId = null;
+    localStorage.removeItem('agent_session_id');
+    sessionPanel.style.display = 'none';
+    listEl.innerHTML = '';
+    await loadProjectMessages();
+  });
+
+  // 点击面板外部关闭
+  document.addEventListener('click', (e) => {
+    if (sessionPanel.style.display === 'block' && !sessionPanel.contains(e.target) && e.target !== sessionBtn) {
+      sessionPanel.style.display = 'none';
+    }
   });
 
   // ============ 创建项目对话框 ============
@@ -2350,6 +2604,7 @@
         titleBlockEl.classList.add('has-switcher');
       }
       await loadProjectMessages();
+      if (_currentSessionId) { await loadAgentSessionHistory(); }
     } catch (err) {
       submitBtn.disabled = false;
       submitBtn.textContent = '创建项目';
@@ -3110,6 +3365,7 @@
         }
         // 加载项目相关消息
         await loadProjectMessages();
+        if (_currentSessionId) { await loadAgentSessionHistory(); }
         // 恢复该项目未发送的草稿（PWA 离线草稿）
         restoreDraft();
       } else {
@@ -3197,7 +3453,7 @@
   init();
 })();
 </script>
-<script defer src="assets/js/analytics.js?v=20260720g"></script>
+<script defer src="assets/js/analytics.js?v=20260720i"></script>
 <script>
 if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {

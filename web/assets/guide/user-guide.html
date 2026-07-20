@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="theme-color" content="#08080f">
     <title>用户使用指南 · 索克家居 i-home.life</title>
-    <link rel="stylesheet" href="../css/workbench.css?v=20260720g">
+    <link rel="stylesheet" href="../css/workbench.css?v=20260720i">
     <style>
         /* ── 用户指南页面专用样式 ── */
         body {
@@ -912,6 +912,18 @@
                 <li><strong>上下文注入</strong>：Harness 将项目信息、用户偏好、历史对话统一注入 Agent 上下文，减少重复配置。</li>
                 <li><strong>执行追踪</strong>：记录每次 Agent 调用的输入、输出、耗时和 token 消耗，便于调试与优化。</li>
                 <li><strong>能力发现</strong>：Agent 通过 Harness 声明自身能力（如「支持户型设计」「支持预算估算」），供 Orchestrator 智能匹配。</li>
+            </ul>
+
+            <h3>对话会话管理</h3>
+            <p>
+                平台已全面支持 AI Agent 对话的<strong>自动持久化保存</strong>，确保您的对话历史和上下文不丢失。
+            </p>
+            <ul>
+                <li><strong>自动保存</strong>：与任意 AI Agent 的对话消息（包括用户提示词和 AI 响应）均会自动保存，无需手动操作。</li>
+                <li><strong>历史查看</strong>：Web 端点击工作台顶部的「<strong>📋 历史</strong>」按钮，移动端点击导航栏的历史图标，即可浏览过往对话记录。</li>
+                <li><strong>持久化存储</strong>：对话数据在页面刷新、App 关闭重启后依然保留，登录即可恢复之前的会话上下文。</li>
+                <li><strong>新建会话</strong>：随时可点击「新建对话」开启一个全新的会话，之前的对话历史仍然保留可供查阅。</li>
+                <li><strong>隐私保护</strong>：所有对话内容使用 <strong>Fernet 对称加密</strong>存储，仅账号持有者本人可访问，他人无法查看您的对话记录。</li>
             </ul>
         </section>
 

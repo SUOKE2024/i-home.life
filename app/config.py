@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.1.18"
+    app_version: str = "1.1.21"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL

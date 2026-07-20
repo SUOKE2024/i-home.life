@@ -2,15 +2,11 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.database import get_db
 from app.models.user import User
-from app.models.permission import Permission, RolePermission
-from app.models.project import Project
-from app.models.material import Material
-from app.models.procurement import Supplier
-from app.models.identity_verification import IdentityVerification
+from app.models.permission import Permission
 from app.rbac import (
     allow_admin,
     require_user_read,
@@ -26,6 +22,16 @@ from app.schemas.permission import (
     UpdateUserStatusRequest,
     UpdateRolePermissionsRequest,
     PlatformStatsResponse,
+)
+from app.services.admin_service import (
+    get_users,
+    get_user_by_id,
+    update_user_role as _svc_update_user_role,
+    update_user_status as _svc_update_user_status,
+    get_permissions,
+    get_role_permissions as _svc_get_role_permissions,
+    update_role_permissions as _svc_update_role_permissions,
+    get_platform_stats as _svc_get_platform_stats,
 )
 
 router = APIRouter(prefix="/admin", tags=["管理后台"])
@@ -44,15 +50,7 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
 ):
     """管理员查看用户列表（支持角色/状态筛选 + 分页）"""
-    stmt = select(User)
-    if role:
-        stmt = stmt.where(User.role == role)
-    if is_active is not None:
-        stmt = stmt.where(User.is_active == is_active)
-    stmt = stmt.order_by(User.created_at.desc()).offset(offset).limit(limit)
-
-    result = await db.execute(stmt)
-    users = result.scalars().all()
+    users = await get_users(db, role=role, is_active=is_active, skip=offset, limit=limit)
     return [UserResponse.model_validate(u) for u in users]
 
 
@@ -63,8 +61,7 @@ async def get_user(
     db: AsyncSession = Depends(get_db),
 ):
     """管理员查看单个用户详情"""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     return UserResponse.model_validate(user)
@@ -92,21 +89,17 @@ async def update_user_role(
             detail="无权将用户提升为管理员角色",
         )
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
-
-    if user.id == current_user.id and data.role != "admin":
+    # 防止修改自己的角色
+    if user_id == current_user.id and data.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不能修改自己的角色",
         )
 
-    user.role = data.role
-    user.sub_role = data.sub_role
-    await db.commit()
-    await db.refresh(user)
+    user = await _svc_update_user_role(db, user_id, data.role, data.sub_role)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
     return UserResponse.model_validate(user)
 
 
@@ -118,20 +111,15 @@ async def update_user_status(
     db: AsyncSession = Depends(get_db),
 ):
     """管理员启用/禁用用户"""
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
-
-    if user.id == current_user.id:
+    if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="不能禁用自己的账户",
         )
 
-    user.is_active = data.is_active
-    await db.commit()
-    await db.refresh(user)
+    user = await _svc_update_user_status(db, user_id, data.is_active)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
     # 性能优化（v1.1.12）：禁用/启用用户后清除用户缓存
     from app.auth import invalidate_user_cache
     invalidate_user_cache(user.id)
@@ -148,12 +136,9 @@ async def list_permissions(
     db: AsyncSession = Depends(get_db),
 ):
     """管理员查看所有权限定义"""
-    stmt = select(Permission)
+    permissions = await get_permissions(db)
     if resource:
-        stmt = stmt.where(Permission.resource == resource)
-    stmt = stmt.order_by(Permission.resource, Permission.action)
-    result = await db.execute(stmt)
-    permissions = result.scalars().all()
+        permissions = [p for p in permissions if p.resource == resource]
     return [PermissionResponse.model_validate(p) for p in permissions]
 
 
@@ -164,10 +149,7 @@ async def get_role_permissions(
     db: AsyncSession = Depends(get_db),
 ):
     """查看某个角色的权限列表"""
-    result = await db.execute(
-        select(RolePermission).where(RolePermission.role == role)
-    )
-    mappings = result.scalars().all()
+    mappings = await _svc_get_role_permissions(db, role)
     return RolePermissionsFull(
         role=role,
         permissions=[m.permission_code for m in mappings],
@@ -202,18 +184,7 @@ async def update_role_permissions(
                 detail=f"无效权限码: {', '.join(invalid_codes)}",
             )
 
-    # 删除旧权限
-    old = (await db.execute(
-        select(RolePermission).where(RolePermission.role == role)
-    )).scalars().all()
-    for m in old:
-        await db.delete(m)
-
-    # 插入新权限
-    for code in data.permission_codes:
-        db.add(RolePermission(role=role, permission_code=code))
-
-    await db.commit()
+    await _svc_update_role_permissions(db, role, data.permission_codes)
 
     return RolePermissionsFull(role=role, permissions=data.permission_codes)
 
@@ -227,52 +198,5 @@ async def get_platform_stats(
     db: AsyncSession = Depends(get_db),
 ):
     """管理员查看平台统计数据"""
-    # 总项目数
-    result = await db.execute(select(func.count()).select_from(Project))
-    total_projects = result.scalar() or 0
-
-    # 活跃项目数
-    result = await db.execute(
-        select(func.count()).select_from(Project).where(
-            Project.status.in_(["active", "in_progress", "construction"])
-        )
-    )
-    active_projects = result.scalar() or 0
-
-    # 总用户数
-    result = await db.execute(select(func.count()).select_from(User))
-    total_users = result.scalar() or 0
-
-    # 待审核认证数
-    result = await db.execute(
-        select(func.count()).select_from(IdentityVerification).where(
-            IdentityVerification.status == "pending"
-        )
-    )
-    pending_verifications = result.scalar() or 0
-
-    # 材料 SKU 数
-    result = await db.execute(select(func.count()).select_from(Material))
-    total_materials = result.scalar() or 0
-
-    # 供应商数
-    result = await db.execute(select(func.count()).select_from(Supplier))
-    total_suppliers = result.scalar() or 0
-
-    # 本周新增用户（近 7 天）
-    from datetime import datetime, timedelta
-    week_ago = datetime.utcnow() - timedelta(days=7)
-    result = await db.execute(
-        select(func.count()).select_from(User).where(User.created_at >= week_ago)
-    )
-    weekly_new_users = result.scalar() or 0
-
-    return PlatformStatsResponse(
-        total_projects=total_projects,
-        total_users=total_users,
-        active_projects=active_projects,
-        pending_verifications=pending_verifications,
-        total_materials=total_materials,
-        total_suppliers=total_suppliers,
-        weekly_new_users=weekly_new_users,
-    )
+    stats = await _svc_get_platform_stats(db)
+    return PlatformStatsResponse(**stats)

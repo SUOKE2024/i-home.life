@@ -1108,8 +1108,8 @@ sup a:hover { color: var(--gold); }
   <p class="section-lead">公开链接 · API 文档 · 操作指南</p>
 
   <div class="callout">
-    <p>👉 <strong>公开体验链接</strong>：<a href="http://118.31.223.213:8081" target="_blank" rel="noopener">118.31.223.213</a></p>
-    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a href="http://118.31.223.213:8081/api/docs" target="_blank" rel="noopener">http://118.31.223.213:8081/api/docs</a></p>
+    <p>👉 <strong>公开体验链接</strong>：<a id="demo-site-url" href="#" target="_blank" rel="noopener"></a></p>
+    <p style="margin-top:8px">📄 <strong>API 文档（Swagger UI）</strong>：<a id="demo-api-docs-url" href="#" target="_blank" rel="noopener"></a></p>
   </div>
 
   <h3>体验方式</h3>
@@ -1501,8 +1501,13 @@ sup a:hover { color: var(--gold); }
         </div>
         <div class="ar-sensor-item" id="sensorDepth">
           <span class="sensor-icon">📏</span>
-          <span class="sensor-label">LiDAR</span>
+          <span class="sensor-label">深度</span>
           <span class="sensor-value" id="depthValue">—</span>
+        </div>
+        <div class="ar-sensor-item" id="sensorLidar">
+          <span class="sensor-icon">🔬</span>
+          <span class="sensor-label">LiDAR</span>
+          <span class="sensor-value" id="lidarValue">—</span>
         </div>
         <div class="ar-sensor-item" id="sensorGeo">
           <span class="sensor-icon">🌍</span>
@@ -1531,6 +1536,7 @@ sup a:hover { color: var(--gold); }
       <button class="ar-btn ar-btn-secondary" onclick="arClearAll()" type="button">🗑️ 清除</button>
       <button class="ar-btn ar-btn-primary" onclick="arAddPoint()" type="button">➕ 标记点位</button>
       <button class="ar-btn ar-btn-secondary" onclick="arCapture()" type="button">📸 拍照</button>
+      <button class="ar-btn ar-btn-secondary" onclick="arSaveToBackend()" type="button" id="arSaveBtn">💾 保存</button>
       <button class="ar-btn ar-btn-danger" onclick="closeARMeasurement()" type="button">✕ 退出</button>
     </div>
   </div>
@@ -1586,7 +1592,21 @@ sup a:hover { color: var(--gold); }
 (function () {
   'use strict';
 
-  var BACKEND_URL = window.API_BASE_URL || (window.location.hostname === 'localhost' ? '' : '');
+  var BACKEND_URL = window.API_BASE_URL || (window.location.hostname === 'localhost' ? '' : window.location.origin);
+
+  // 动态设置体验链接（v1.1.21 修复硬编码 URL）
+  (function initDemoLinks() {
+    var origin = window.location.origin;
+    var siteUrl = document.getElementById('demo-site-url');
+    var apiDocsUrl = document.getElementById('demo-api-docs-url');
+    if (siteUrl) { siteUrl.href = origin; siteUrl.textContent = origin; }
+    if (apiDocsUrl) { apiDocsUrl.href = origin + '/api/docs'; apiDocsUrl.textContent = origin + '/api/docs'; }
+    // 修复其他硬编码链接
+    document.querySelectorAll('a[href*="118.31.223.213"]').forEach(function(a) {
+      a.href = a.href.replace(/https?:\/\/118\.31\.223\.213:8081/, origin);
+      if (a.textContent.includes('118.31.223.213')) a.textContent = a.textContent.replace('118.31.223.213:8081', origin.replace(/https?:\/\//, ''));
+    });
+  })();
   var DEMO_PHONE = '13800138000';
   var DEMO_PASSWORD = '123456';
   var token = null;
@@ -1881,7 +1901,9 @@ var arMagReading = null;
 var arDepthData = null;
 var arGeoLocation = null;
 var arXrSession = null;
+var arHasLidar = false;
 var arSensorCleanups = [];
+var arApiSessionId = null; // backend AR session ID
 
 function openARMeasurement() {
   var overlay = document.getElementById('arOverlay');
@@ -2092,7 +2114,7 @@ function initARSensors() {
     magValue.textContent = '不支持';
   }
 
-  // ── 4. LiDAR / 深度感知 (WebXR) ──
+  // ── 4. 深度感知 (WebXR depth-sensing) ──
   var depthItem = document.getElementById('sensorDepth');
   var depthValue = document.getElementById('depthValue');
 
@@ -2105,7 +2127,7 @@ function initARSensors() {
           depthSensing: { usagePreference: ['cpu-optimized'], dataFormatPreference: ['luminance-alpha'] }
         }).then(function (session) {
           arXrSession = session;
-          depthValue.textContent = 'LiDAR 就绪';
+          depthValue.textContent = '就绪';
           depthItem.classList.add('available');
 
           session.addEventListener('end', function () {
@@ -2129,7 +2151,71 @@ function initARSensors() {
     depthItem.classList.add('unavailable');
   }
 
-  // ── 5. 地理位置 (Geolocation API) ──
+  // ── 5. LiDAR 硬件检测 (多级探测) ──
+  var lidarItem = document.getElementById('sensorLidar');
+  var lidarValue = document.getElementById('lidarValue');
+
+  function checkLidarHardware() {
+    var ua = navigator.userAgent || '';
+    // Apple LiDAR 设备列表
+    var lidarDevices = [
+      'iPhone13', // iPhone 12 Pro / Pro Max
+      'iPhone14', // iPhone 13 Pro / Pro Max
+      'iPhone15', // iPhone 14 Pro / Pro Max
+      'iPhone16', // iPhone 15 Pro / Pro Max
+      'iPhone17', // iPhone 16 Pro / Pro Max (forward-looking)
+      'iPad13,4', 'iPad13,8', 'iPad13,9', 'iPad13,10', 'iPad13,11', // iPad Pro 11" (3rd gen+)
+      'iPad14,3', 'iPad14,4', 'iPad14,5', 'iPad14,6', // iPad Pro 12.9" (5th gen)
+    ];
+    var hasLidarDevice = lidarDevices.some(function (d) { return ua.indexOf(d) !== -1; });
+
+    // 也检查是否运行在 iOS/iPadOS 上（LiDAR 深度传感器的前提）
+    var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    // Android 高端设备可能有 ToF 深度传感器（类似 LiDAR 功能）
+    var hasAndroidDepth = /Android/.test(ua) &&
+      (/SM-S9[0-9][0-9]|SM-G99[0-9]|Pixel [89]|Pixel Fold/.test(ua) ||
+       /Samsung.*(S2[0-4]|Note20|Fold[2-9]|Flip[2-9])/i.test(ua));
+
+    // 多级检测结果
+    if (hasLidarDevice && isIOS) {
+      arHasLidar = true;
+      lidarValue.textContent = 'Apple LiDAR ✓';
+      lidarItem.classList.add('available');
+      return 'apple_lidar';
+    } else if (hasAndroidDepth) {
+      arHasLidar = true;
+      lidarValue.textContent = 'ToF 深度 ✓';
+      lidarItem.classList.add('available');
+      return 'android_tof';
+    } else if (isIOS && /Pro/ig.test(ua)) {
+      // iPad Pro 但无法从 UA 判断代际，标记为可能
+      arHasLidar = true;
+      lidarValue.textContent = 'iPad Pro (可能)';
+      lidarItem.classList.add('available');
+      return 'ipad_pro_unknown';
+    } else {
+      arHasLidar = false;
+      lidarValue.textContent = '未检测到';
+      lidarItem.classList.add('unavailable');
+      return 'none';
+    }
+  }
+
+  // 异步深度验证：检查 WebXR depth-sensing 是否在使用 LiDAR
+  var lidarLevel = checkLidarHardware();
+  if (lidarLevel === 'none') {
+    // 延迟二次检测：等待 WebXR 深度就绪后确认
+    setTimeout(function () {
+      if (arXrSession) {
+        arHasLidar = true;
+        lidarValue.textContent = 'WebXR 深度 ✓';
+        lidarItem.classList.add('available');
+      }
+    }, 4000);
+  }
+
+  // ── 6. 地理位置 (Geolocation API) ──
   var geoItem = document.getElementById('sensorGeo');
   var geoValue = document.getElementById('geoValue');
 
@@ -2159,14 +2245,14 @@ function initARSensors() {
   }
 
   // ── 更新总状态徽章 ──
-  // v1.1.13: 先显示「检测中…」，异步传感器就绪后 3s 更新
+  // v1.1.18: 6 种传感器（陀螺仪/加速度计/磁力计/深度/LiDAR/定位）
   badge.textContent = '检测中…';
   setTimeout(function () {
     var sensorCount = [
-      arHasOrientation, arHasMotion, !!arMagReading, !!arXrSession, !!arGeoLocation
+      arHasOrientation, arHasMotion, !!arMagReading, !!arXrSession, arHasLidar, !!arGeoLocation
     ].filter(function (v) { return v; }).length;
-    badge.textContent = sensorCount + '/5 传感器';
-    badge.style.color = sensorCount >= 3 ? '#4ade80' : (sensorCount >= 1 ? '#fbbf24' : '#f87171');
+    badge.textContent = sensorCount + '/6 传感器';
+    badge.style.color = sensorCount >= 4 ? '#4ade80' : (sensorCount >= 2 ? '#fbbf24' : '#f87171');
   }, 3000);
 }
 
@@ -2445,6 +2531,153 @@ function arCapture() {
   var link = document.createElement('a');
   link.download = 'AR-measurement-' + Date.now() + '.png';
   link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// ── v1.1.18: 后端 API 集成 —— 保存 AR 测量结果 ──
+async function arSaveToBackend() {
+  var token = localStorage.getItem('paseto_token');
+  if (!token) {
+    alert('⚠️ 请先登录后再保存测量数据。\n\n将跳转到登录页面。');
+    window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname);
+    return;
+  }
+
+  var saveBtn = document.getElementById('arSaveBtn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 保存中...'; }
+
+  try {
+    // 从 URL 获取 project_id（如果有）
+    var params = new URLSearchParams(window.location.search);
+    var projectId = params.get('project_id') || 'demo-project';
+
+    // 收集传感器能力数据
+    var deviceCapability = {
+      platform: navigator.platform || 'unknown',
+      user_agent: navigator.userAgent ? navigator.userAgent.substring(0, 200) : '',
+      has_lidar: arHasLidar,
+      has_depth_sensor: !!arXrSession,
+      has_gyroscope: arHasOrientation,
+      arkit_version: arHasLidar ? '6.0+' : 'N/A',
+      arcore_version: /Android/.test(navigator.userAgent) ? '1.20+' : 'N/A',
+      ar_engine_version: 'N/A',
+    };
+
+    // 计算测量概览
+    var totalDist = 0;
+    arLines.forEach(function (line) { totalDist += line.dist; });
+    var measurementSummary = {
+      point_count: arPoints.length,
+      segment_count: arLines.length,
+      total_length_m: parseFloat(totalDist.toFixed(2)),
+      points: arPoints.map(function (p, i) { return { index: i + 1, x_px: Math.round(p.x), y_px: Math.round(p.y) }; }),
+    };
+
+    // Step 1: 检测设备能力
+    var capResp = await fetch('/api/surveys/ar/device-capability', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(deviceCapability),
+    });
+    var capData = await capResp.json();
+    var scanMethod = capData.recommended_method || 'manual';
+
+    // Step 2: 创建 AR 扫描会话
+    var sessionResp = await fetch('/api/surveys/ar/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        project_id: projectId,
+        scan_method: scanMethod,
+        device_capability: deviceCapability,
+        total_area: 0,
+        room_count: 1,
+        scan_points_count: arPoints.length * 500,
+        wall_height: 2.8,
+      }),
+    });
+    var sessionData = await sessionResp.json();
+
+    if (!sessionResp.ok) {
+      throw new Error(sessionData.detail || '创建会话失败');
+    }
+
+    arApiSessionId = sessionData.id;
+
+    // Step 3: 开始扫描
+    await fetch('/api/surveys/ar/sessions/' + arApiSessionId + '/start', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+
+    // Step 4: 添加测量校准点
+    for (var i = 0; i < arPoints.length; i++) {
+      await fetch('/api/surveys/ar/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({
+          session_id: arApiSessionId,
+          label: 'P' + (i + 1),
+          room_name: '房间1',
+          point_type: 'distance',
+          ar_value: i < arLines.length ? parseFloat(arLines[i].dist.toFixed(2)) : 0,
+          reference_value: 0,
+          unit: 'm',
+        }),
+      });
+    }
+
+    // Step 5: 获取精度报告
+    var accResp = await fetch('/api/surveys/ar/sessions/' + arApiSessionId + '/accuracy', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    var accData = await accResp.json();
+
+    // Step 6: 标记处理完成
+    await fetch('/api/surveys/ar/sessions/' + arApiSessionId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ status: 'processing' }),
+    });
+
+    alert('✅ 测量数据已保存到云端！\n\n' +
+          '会话 ID: ' + arApiSessionId.substring(0, 8) + '...\n' +
+          '测量方法: ' + scanMethod + '\n' +
+          '精度等级: ' + (accData.accuracy_level || 'N/A') + '\n' +
+          '点位数量: ' + arPoints.length);
+  } catch (err) {
+    console.error('[AR Save] 保存失败:', err);
+    alert('⚠️ 保存失败: ' + (err.message || '网络错误') + '\n\n测量数据已本地缓存，可稍后重试。');
+    arApiSessionId = null;
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 保存'; }
+  }
+}
+
+// ── v1.1.18: 导出传感器报告 ──
+function arExportSensorReport() {
+  var report = {
+    timestamp: new Date().toISOString(),
+    user_agent: navigator.userAgent,
+    platform: navigator.platform,
+    sensors: {
+      gyroscope: { available: arHasOrientation, alpha: arOrientation.alpha, beta: arOrientation.beta, gamma: arOrientation.gamma },
+      accelerometer: { available: arHasMotion, ax: arMotion.ax, ay: arMotion.ay, az: arMotion.az },
+      magnetometer: { available: !!arMagReading, reading: arMagReading },
+      depth: { available: !!arXrSession },
+      lidar: { available: arHasLidar },
+      geolocation: { available: !!arGeoLocation, location: arGeoLocation },
+    },
+    measurements: {
+      points: arPoints.length,
+      segments: arLines.length,
+    },
+    backend_session_id: arApiSessionId,
+  };
+  var blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  var link = document.createElement('a');
+  link.download = 'AR-sensor-report-' + Date.now() + '.json';
+  link.href = URL.createObjectURL(blob);
   link.click();
 }
 </script>

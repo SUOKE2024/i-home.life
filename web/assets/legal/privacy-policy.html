@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="theme-color" content="#08080f">
     <title>隐私政策 · 索克家居 i-home.life</title>
-    <link rel="stylesheet" href="../css/workbench.css?v=20260720g">
+    <link rel="stylesheet" href="../css/workbench.css?v=20260720i">
     <style>
         /* ── 法律文档页面专用样式 ── */
         body {
@@ -298,15 +298,27 @@
         </section>
 
         <section class="legal-section" aria-labelledby="sec-4">
-            <h2 id="sec-4"><span class="sec-num">4.</span> 信息共享</h2>
+            <h2 id="sec-4"><span class="sec-num">4.</span> AI Agent 对话数据</h2>
+            <p>当您使用平台 AI Agent（智能体）进行对话时，系统会自动保存对话历史以提供持续、上下文感知的服务。以下是关于对话数据存储与处理的说明：</p>
+            <ul>
+                <li><strong>存储内容</strong>：保存您与 AI Agent 的对话消息，包括用户提示词和 AI 生成的响应内容。</li>
+                <li><strong>存储方式</strong>：对话数据使用 <strong>Fernet 对称加密</strong>算法加密后存储于服务端，确保数据在静态存储中的机密性。</li>
+                <li><strong>保留策略</strong>：您删除的对话采用<strong>软删除机制</strong>，被删除的对话在 30 天内可恢复；30 天后系统将永久清除相关数据。</li>
+                <li><strong>数据隔离</strong>：对话数据严格按用户账户隔离，每个账户只能访问自己的对话记录，其他用户无法查看或访问。</li>
+                <li><strong>使用目的</strong>：对话数据用于为 AI Agent 提供上下文感知的智能回复，并用于改进服务质量和模型效果（在去标识化的前提下）。</li>
+            </ul>
+        </section>
+
+        <section class="legal-section" aria-labelledby="sec-5">
+            <h2 id="sec-5"><span class="sec-num">5.</span> 信息共享</h2>
             <p>
                 除以下情形外，我们不会与第三方共享您的个人信息：经您明确同意；与受保密协议约束的服务供应商（如云存储、短信、推送服务）共享必要数据；
                 为履行法律法规义务或应有权机关要求。所有共享均符合最小必要原则。
             </p>
         </section>
 
-        <section class="legal-section" aria-labelledby="sec-5">
-            <h2 id="sec-5"><span class="sec-num">5.</span> Cookie 与本地存储</h2>
+        <section class="legal-section" aria-labelledby="sec-6">
+            <h2 id="sec-6"><span class="sec-num">6.</span> Cookie 与本地存储</h2>
             <p>我们使用以下本地存储技术以维持服务正常运行：</p>
             <ul>
                 <li><strong>Web 端 <code>localStorage</code></strong>：用于保存主题偏好（深色/浅色）、PASETO 会话令牌、界面设置等非敏感信息。</li>
@@ -316,8 +328,8 @@
             <p>您可在浏览器设置或 App 设置中随时清除本地存储数据，但这可能影响登录状态与个性化体验。</p>
         </section>
 
-        <section class="legal-section" aria-labelledby="sec-6">
-            <h2 id="sec-6"><span class="sec-num">6.</span> 用户权利</h2>
+        <section class="legal-section" aria-labelledby="sec-7">
+            <h2 id="sec-7"><span class="sec-num">7.</span> 用户权利</h2>
             <p>根据相关法律法规，您对个人数据享有以下权利：</p>
             <ul>
                 <li><strong>访问权</strong>：您可随时在「设置」中查看您的账号信息与项目数据。</li>
@@ -329,8 +341,8 @@
             <p>行使上述权利请通过下方联系方式与我们沟通。</p>
         </section>
 
-        <section class="legal-section legal-contact" aria-labelledby="sec-7">
-            <h2 id="sec-7"><span class="sec-num">7.</span> 联系我们</h2>
+        <section class="legal-section legal-contact" aria-labelledby="sec-8">
+            <h2 id="sec-8"><span class="sec-num">8.</span> 联系我们</h2>
             <p>
                 如有隐私相关问题或希望行使上述权利，请联系：
                 <a href="mailto:privacy@i-home.life">privacy@i-home.life</a>

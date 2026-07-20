@@ -857,6 +857,282 @@ const MessageRenderers = {
     </div>`;
   },
 
+  // ── 设计：厨房方案卡片 ──
+
+  renderKitchenCard(msg) {
+    const p = msg.payload || {};
+    const components = (p.components || []).map(c => `<span class="product-tag">${this._escape(c)}</span>`).join(' ');
+    const workflowSteps = (p.workflow || []).map((w, i) =>
+      `<div class="msg-card-row"><span>第${i + 1}步</span><strong>${this._escape(w.name || '')}${w.status ? ' · ' + w.status : ''}</strong></div>`
+    ).join('');
+    const complianceColor = p.compliance === 'pass' ? 'var(--success)' : (p.compliance === 'warn' ? 'var(--warning)' : 'var(--text-muted)');
+    const complianceLabel = p.compliance === 'pass' ? '合规' : (p.compliance === 'warn' ? '待整改' : '未检测');
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">🎨 设计 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🍳 厨房方案 · ${this._escape(p.design_name || '未命名')}</div>
+        <div class="msg-card-row"><span>面积</span><strong>${p.area || '—'} ㎡</strong></div>
+        <div class="msg-card-row"><span>布局</span><strong>${this._escape(p.layout || '—')}</strong></div>
+        ${components ? `<div class="product-tags">${components}</div>` : ''}
+        ${workflowSteps || ''}
+        <div class="msg-card-row"><span>合规检查</span><strong style="color:${complianceColor}">${complianceLabel}</strong></div>
+        ${p.notes ? `<div class="product-desc">${this._escape(p.notes)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 设计：卫生间方案卡片 ──
+
+  renderBathroomCard(msg) {
+    const p = msg.payload || {};
+    const fixtures = (p.fixtures || []).map(f => `<span class="product-tag">${this._escape(f)}</span>`).join(' ');
+    const drainColor = p.drain_status === 'pass' ? 'var(--success)' : (p.drain_status === 'warn' ? 'var(--warning)' : 'var(--text-muted)');
+    const drainLabel = p.drain_status === 'pass' ? '通过' : (p.drain_status === 'warn' ? '注意' : '未知');
+    const wpColor = p.waterproof === 'yes' ? 'var(--success)' : 'var(--warning)';
+    const ventColor = p.ventilation === 'mechanical' ? 'var(--success)' : (p.ventilation === 'natural' ? 'var(--info)' : 'var(--warning)');
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">🎨 设计 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🛁 卫生间方案 · ${this._escape(p.design_name || '未命名')}</div>
+        <div class="msg-card-row"><span>面积</span><strong>${p.area || '—'} ㎡</strong></div>
+        <div class="msg-card-row"><span>类型</span><strong>${this._escape(p.type || '—')}</strong></div>
+        ${fixtures ? `<div class="product-tags">${fixtures}</div>` : ''}
+        <div class="msg-card-row"><span>排水</span><strong style="color:${drainColor}">${drainLabel}</strong></div>
+        <div class="msg-card-row"><span>防水</span><strong style="color:${wpColor}">${p.waterproof === 'yes' ? '已做防水' : '待确认'}</strong></div>
+        <div class="msg-card-row"><span>通风</span><strong style="color:${ventColor}">${this._escape(p.ventilation || '—')}</strong></div>
+      </div>
+    </div>`;
+  },
+
+  // ── 设计：灯光方案卡片 ──
+
+  renderLightingCard(msg) {
+    const p = msg.payload || {};
+    const fixtures = (p.fixtures || []).map(f =>
+      `<div class="msg-card-row"><span>${this._escape(f.type || '灯具')}</span><strong>${f.count || 0} 个 · ${f.power || '—'}W</strong></div>`
+    ).join('');
+    const aiDesigned = p.ai_designed ? '<span style="color:var(--agent-design);font-size:11px">🤖 AI 优化设计</span>' : '';
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">💡 灯光 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">💡 灯光方案${aiDesigned}</div>
+        <div class="msg-card-row"><span>照度标准</span><strong>${this._escape(p.illuminance || '—')} lux</strong></div>
+        <div class="msg-card-row"><span>色温</span><strong>${this._escape(p.color_temp || '—')}K</strong></div>
+        <div class="msg-card-row"><span>回路数</span><strong>${p.circuits || 0}</strong></div>
+        ${fixtures || '<div class="msg-card-row"><span>暂无灯具配置</span></div>'}
+        ${p.total_power ? `<div class="msg-card-row"><span>总功率</span><strong style="color:var(--warning)">${p.total_power}W</strong></div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 设计：结构元素卡片 ──
+
+  renderStructuralCard(msg) {
+    const p = msg.payload || {};
+    const walls = (p.walls || []).map(w =>
+      `<div class="msg-card-row"><span>墙体</span><strong>${this._escape(w.type || '')} · ${w.length || '—'}m × ${w.height || '—'}m</strong></div>`
+    ).join('');
+    const beams = (p.beams || []).map(b =>
+      `<div class="msg-card-row"><span>梁</span><strong>${this._escape(b.size || '')} · ${b.material || ''}</strong></div>`
+    ).join('');
+    const columns = (p.columns || []).map(c =>
+      `<div class="msg-card-row"><span>柱</span><strong>${this._escape(c.size || '')} · ${c.material || ''}</strong></div>`
+    ).join('');
+    const slabs = (p.slabs || []).map(s =>
+      `<div class="msg-card-row"><span>楼板</span><strong>${this._escape(s.thickness || '')} · ${s.material || ''}</strong></div>`
+    ).join('');
+    const content = [walls, beams, columns, slabs].filter(Boolean).join('');
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">🏗️ 结构 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🏗️ 结构元素</div>
+        ${p.floor ? `<div class="msg-card-row"><span>楼层</span><strong>${this._escape(p.floor)}</strong></div>` : ''}
+        ${content || '<div class="msg-card-row"><span>暂无结构数据</span></div>'}
+        ${p.notes ? `<div class="product-desc">${this._escape(p.notes)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 算量：工程量清单卡片 ──
+
+  renderTakeoffCard(msg) {
+    const p = msg.payload || {};
+    const items = (p.items || []).map(it =>
+      `<div class="msg-card-row"><span>${this._escape(it.name || '项目')}</span><strong>${it.quantity || 0} ${this._escape(it.unit || '')}</strong></div>`
+    ).join('');
+    const totalStr = p.total_amount ? `<div class="msg-card-row"><span>总价</span><strong style="color:var(--warning)">¥${p.total_amount.toLocaleString()}</strong></div>` : '';
+    return `<div class="msg agent agent-quantity">
+      <div class="msg-meta"><strong style="color:var(--agent-quantity)">📐 算量 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📐 工程量清单${p.room ? ' · ' + this._escape(p.room) : ''}</div>
+        ${items || '<div class="msg-card-row"><span>暂无数据</span></div>'}
+        ${totalStr}
+        ${p.status ? `<div class="msg-card-row"><span>状态</span><strong>${this._escape(p.status)}</strong></div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 供应链：家具卡片 ──
+
+  renderFurnitureCard(msg) {
+    const p = msg.payload || {};
+    const priceStr = p.price ? `¥${p.price.toLocaleString()}` : '—';
+    const dims = [p.width, p.depth, p.height].filter(Boolean).join('×');
+    return `<div class="msg agent agent-procurement">
+      <div class="msg-meta"><strong style="color:var(--agent-procurement)">🛋️ 家具 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🛋️ ${this._escape(p.name || '未命名家具')}</div>
+        <div class="msg-card-row"><span>类别</span><strong>${this._escape(p.category || '—')}</strong></div>
+        <div class="msg-card-row"><span>材质</span><strong>${this._escape(p.material || '—')}</strong></div>
+        ${dims ? `<div class="msg-card-row"><span>尺寸</span><strong>${dims} ${this._escape(p.dim_unit || 'mm')}</strong></div>` : ''}
+        <div class="msg-card-row"><span>价格</span><strong style="color:var(--warning)">${priceStr}</strong></div>
+        ${p.style ? `<div class="msg-card-row"><span>风格</span><strong>${this._escape(p.style)}</strong></div>` : ''}
+        ${p.color ? `<div class="msg-card-row"><span>颜色</span><strong>${this._escape(p.color)}</strong></div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 供应链：家电卡片 ──
+
+  renderApplianceCard(msg) {
+    const p = msg.payload || {};
+    const energyColor = { A: 'var(--success)', B: 'var(--info)', C: 'var(--warning)', D: 'var(--danger)' };
+    const energyClr = energyColor[p.energy_rating] || 'var(--text-muted)';
+    return `<div class="msg agent agent-procurement">
+      <div class="msg-meta"><strong style="color:var(--agent-procurement)">🔌 家电 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🔌 ${this._escape(p.name || '未命名家电')}</div>
+        <div class="msg-card-row"><span>品牌</span><strong>${this._escape(p.brand || '—')}</strong></div>
+        <div class="msg-card-row"><span>型号</span><strong>${this._escape(p.model || '—')}</strong></div>
+        <div class="msg-card-row"><span>功率</span><strong>${p.power || '—'}W</strong></div>
+        ${p.energy_rating ? `<div class="msg-card-row"><span>能效</span><strong style="color:${energyClr}">${p.energy_rating} 级</strong></div>` : ''}
+        ${p.voltage ? `<div class="msg-card-row"><span>电压</span><strong>${p.voltage}V</strong></div>` : ''}
+        ${p.price ? `<div class="msg-card-row"><span>参考价</span><strong style="color:var(--warning)">¥${p.price.toLocaleString()}</strong></div>` : ''}
+        ${p.notes ? `<div class="product-desc">${this._escape(p.notes)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 设计：门窗规格卡片 ──
+
+  renderDoorWindowCard(msg) {
+    const p = msg.payload || {};
+    const items = (p.items || []).map(it => {
+      const dims = [it.width, it.height].filter(Boolean).join('×');
+      const spec = [dims, it.thickness].filter(Boolean).join(' · ');
+      return `<div class="msg-card-row"><span>${this._escape(it.type === 'window' ? '🪟' : '🚪')} ${this._escape(it.name || '')}</span><strong>${spec || '—'} ${this._escape(it.dim_unit || 'mm')}</strong></div>`;
+    }).join('');
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">🚪 门窗 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🚪 门窗规格${p.room ? ' · ' + this._escape(p.room) : ''}</div>
+        ${items || '<div class="msg-card-row"><span>暂无门窗数据</span></div>'}
+        ${p.total_count ? `<div class="msg-card-row"><span>合计</span><strong>${p.total_count} 樘</strong></div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 设计：MEP 方案卡片 ──
+
+  renderMepPlanCard(msg) {
+    const p = msg.payload || {};
+    const disciplines = (p.disciplines || []).map(d =>
+      `<div class="msg-card-row"><span>${this._escape(d.type || '')}</span><strong>${this._escape(d.summary || '')}</strong></div>`
+    ).join('');
+    return `<div class="msg agent agent-design">
+      <div class="msg-meta"><strong style="color:var(--agent-design)">🔧 MEP Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🔧 MEP 方案${p.plan_name ? ' · ' + this._escape(p.plan_name) : ''}</div>
+        ${p.floor ? `<div class="msg-card-row"><span>楼层</span><strong>${this._escape(p.floor)}</strong></div>` : ''}
+        ${disciplines || '<div class="msg-card-row"><span>暂无专业数据</span></div>'}
+        ${p.status ? `<div class="msg-card-row"><span>状态</span><strong style="color:${p.status === 'complete' ? 'var(--success)' : 'var(--warning)'}">${this._escape(p.status)}</strong></div>` : ''}
+        ${p.notes ? `<div class="product-desc">${this._escape(p.notes)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 身份认证卡片 ──
+
+  renderIdentityCard(msg) {
+    const p = msg.payload || {};
+    const statusColor = p.verified ? 'var(--success)' : (p.status === 'pending' ? 'var(--warning)' : 'var(--danger)');
+    const statusLabel = p.verified ? '已认证' : (p.status === 'pending' ? '待审核' : (p.status === 'rejected' ? '已驳回' : '未认证'));
+    const methodLabel = { real_name: '实名认证', company: '企业认证', license: '资质认证', face: '人脸识别' };
+    return `<div class="msg agent agent-admin">
+      <div class="msg-meta"><strong style="color:var(--accent)">🪪 身份认证</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🪪 身份认证</div>
+        <div class="msg-card-row"><span>用户</span><strong>${this._escape(p.user_name || '—')}</strong></div>
+        <div class="msg-card-row"><span>方式</span><strong>${methodLabel[p.method] || this._escape(p.method || '—')}</strong></div>
+        <div class="msg-card-row"><span>状态</span><strong style="color:${statusColor}">${statusLabel}</strong></div>
+        ${p.verified_at ? `<div class="msg-card-row"><span>认证时间</span><strong>${this._fmtTime(p.verified_at)}</strong></div>` : ''}
+        ${p.reason ? `<div class="product-desc" style="color:var(--danger)">${this._escape(p.reason)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 语音处理结果卡片 ──
+
+  renderVoiceCard(msg) {
+    const p = msg.payload || {};
+    const statusColor = p.status === 'done' ? 'var(--success)' : (p.status === 'processing' ? 'var(--warning)' : 'var(--danger)');
+    const statusLabel = p.status === 'done' ? '处理完成' : (p.status === 'processing' ? '处理中' : '失败');
+    return `<div class="msg agent agent-system">
+      <div class="msg-meta"><strong style="color:var(--agent-system)">🎤 语音 Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🎤 语音处理</div>
+        <div class="msg-card-row"><span>状态</span><strong style="color:${statusColor}">${statusLabel}</strong></div>
+        ${p.transcript ? `<div class="msg-card-row"><span>识别文本</span></div><div class="product-desc">${this._escape(p.transcript)}</div>` : ''}
+        ${p.intent ? `<div class="msg-card-row"><span>意图</span><strong>${this._escape(p.intent)}</strong></div>` : ''}
+        ${p.duration ? `<div class="msg-card-row"><span>时长</span><strong>${p.duration}s</strong></div>` : ''}
+        ${p.language ? `<div class="msg-card-row"><span>语言</span><strong>${this._escape(p.language)}</strong></div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── IFC 导出状态卡片 ──
+
+  renderIfcExportCard(msg) {
+    const p = msg.payload || {};
+    const statusColor = p.status === 'success' ? 'var(--success)' : (p.status === 'processing' ? 'var(--warning)' : 'var(--danger)');
+    const statusLabel = p.status === 'success' ? '导出成功' : (p.status === 'processing' ? '导出中' : '导出失败');
+    return `<div class="msg agent agent-system">
+      <div class="msg-meta"><strong style="color:var(--agent-system)">📐 IFC Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">📐 IFC 导出</div>
+        <div class="msg-card-row"><span>状态</span><strong style="color:${statusColor}">${statusLabel}</strong></div>
+        ${p.file_name ? `<div class="msg-card-row"><span>文件名</span><strong>${this._escape(p.file_name)}</strong></div>` : ''}
+        ${p.file_size ? `<div class="msg-card-row"><span>大小</span><strong>${(p.file_size / 1024).toFixed(1)} KB</strong></div>` : ''}
+        ${p.version ? `<div class="msg-card-row"><span>IFC 版本</span><strong>${this._escape(p.version)}</strong></div>` : ''}
+        ${p.download_url ? `<div class="product-actions"><button class="approval-btn approve" data-ifc-download="${this._escape(p.download_url)}">下载文件</button></div>` : ''}
+        ${p.error ? `<div class="product-desc" style="color:var(--danger)">${this._escape(p.error)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  // ── 通知/设备卡片 ──
+
+  renderNotificationCard(msg) {
+    const p = msg.payload || {};
+    const notifications = (p.notifications || []).map(n => {
+      const levelColor = { info: 'var(--info)', warning: 'var(--warning)', error: 'var(--danger)', success: 'var(--success)' };
+      const clr = levelColor[n.level] || 'var(--text-muted)';
+      return `<div class="msg-card-row"><span style="color:${clr}">●</span><strong>${this._escape(n.title || n.message || '')}</strong></div>`;
+    }).join('');
+    const devices = (p.devices || []).map(d =>
+      `<div class="msg-card-row"><span>📱 ${this._escape(d.name || '设备')}</span><strong style="color:${d.online ? 'var(--success)' : 'var(--text-muted)'}">${d.online ? '在线' : '离线'}</strong></div>`
+    ).join('');
+    return `<div class="msg agent agent-system">
+      <div class="msg-meta"><strong style="color:var(--agent-system)">🔔 通知中心</strong> · ${this._fmtTime(msg.timestamp)}</div>
+      <div class="msg-card">
+        <div class="msg-card-title">🔔 ${this._escape(p.title || '通知')}</div>
+        ${notifications || ''}
+        ${devices ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px"></div>${devices}` : ''}
+        ${p.message ? `<div class="product-desc">${this._escape(p.message)}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
   // 按消息类型分发
   render(msg, currentUserRole) {
     switch (msg.type) {
@@ -891,6 +1167,19 @@ const MessageRenderers = {
       case 'inspection_card': return this.renderInspectionCard(msg);
       case 'quality_issue_card': return this.renderQualityIssueCard(msg);
       case 'progress_alert_card': return this.renderProgressAlertCard(msg);
+      case 'kitchen_card': return this.renderKitchenCard(msg);
+      case 'bathroom_card': return this.renderBathroomCard(msg);
+      case 'lighting_card': return this.renderLightingCard(msg);
+      case 'structural_card': return this.renderStructuralCard(msg);
+      case 'takeoff_card': return this.renderTakeoffCard(msg);
+      case 'furniture_card': return this.renderFurnitureCard(msg);
+      case 'appliance_card': return this.renderApplianceCard(msg);
+      case 'door_window_card': return this.renderDoorWindowCard(msg);
+      case 'mep_plan_card': return this.renderMepPlanCard(msg);
+      case 'identity_card': return this.renderIdentityCard(msg);
+      case 'voice_card': return this.renderVoiceCard(msg);
+      case 'ifc_export_card': return this.renderIfcExportCard(msg);
+      case 'notification_card': return this.renderNotificationCard(msg);
       default: return this.renderText(msg);
     }
   },

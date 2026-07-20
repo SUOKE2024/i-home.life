@@ -21,11 +21,12 @@ class SseEvent {
   final SseEventType type;
   final String? content;
   final String? agentType;
+  final String? sessionId;
 
-  SseEvent({required this.type, this.content, this.agentType});
+  SseEvent({required this.type, this.content, this.agentType, this.sessionId});
 
   @override
-  String toString() => 'SseEvent(type: $type, content: $content, agentType: $agentType)';
+  String toString() => 'SseEvent(type: $type, content: $content, agentType: $agentType, sessionId: $sessionId)';
 }
 
 /// SSE 流式聊天客户端
@@ -40,12 +41,14 @@ class SseService {
   /// [message] 用户消息内容，
   /// [agentType] 目标 Agent 类型（默认 orchestrator），
   /// [projectId] 可选的项目上下文，
-  /// [history] 可选的对话历史。
+  /// [history] 可选的对话历史，
+  /// [sessionId] 可选的会话 ID（用于会话持久化）。
   Stream<SseEvent> streamChat(
     String message, {
     String agentType = 'orchestrator',
     String? projectId,
     List<Map<String, dynamic>>? history,
+    String? sessionId,
   }) async* {
     final token = _api.token;
 
@@ -60,6 +63,9 @@ class SseService {
     }
     if (history != null) {
       body['history'] = history;
+    }
+    if (sessionId != null) {
+      body['session_id'] = sessionId;
     }
 
     final request = http.Request('POST', uri)
@@ -111,25 +117,28 @@ class SseService {
           // 后端 /agents/chat/stream 使用 "event" 字段标识事件类型
           // (兼容旧版本/第三方实现也允许 "type")
           final msgType = (data['event'] ?? data['type']) as String?;
+          final sid = data['session_id'] as String?;
 
           if (msgType == 'meta') {
             yield SseEvent(
               type: SseEventType.meta,
               agentType: data['agent_type'] as String?,
+              sessionId: sid,
             );
           } else if (msgType == 'token') {
             yield SseEvent(
               type: SseEventType.token,
               content: data['content'] as String? ?? '',
+              sessionId: sid,
             );
           } else if (msgType == 'done') {
             receivedDone = true;
-            yield SseEvent(type: SseEventType.done);
+            yield SseEvent(type: SseEventType.done, sessionId: sid);
           } else {
             // 未知类型当作 token 文本处理
             final content = data['content'] as String?;
             if (content != null && content.isNotEmpty) {
-              yield SseEvent(type: SseEventType.token, content: content);
+              yield SseEvent(type: SseEventType.token, content: content, sessionId: sid);
             }
           }
         } catch (_) {

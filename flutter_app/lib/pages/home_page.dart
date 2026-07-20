@@ -46,6 +46,9 @@ import 'crew_page.dart';
 import 'scene_automation_page.dart';
 import 'worker_page.dart';
 import 'chat_page.dart';
+import 'timeline_page.dart';
+import 'quality_report_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -280,6 +283,12 @@ class _MorePageState extends State<_MorePage> {
         builder: (id) => SceneAutomationPage(projectId: id)),
     _MoreItem(icon: Icons.chat_outlined, title: '协作聊天', subtitle: 'Chat (F40)',
         builder: (id) => ChatPage(projectId: id)),
+    _MoreItem(icon: Icons.timeline_outlined, title: '装修进度', subtitle: 'Timeline',
+        builder: (id) => TimelinePage(initialProjectId: id)),
+    _MoreItem(icon: Icons.verified_outlined, title: '质检报告', subtitle: 'Quality Report',
+        builder: (id) => QualityReportPage(initialProjectId: id)),
+    _MoreItem(icon: Icons.settings_outlined, title: '设置', subtitle: 'Settings',
+        builder: (id) => const SettingsPage()),
   ];
 
   @override

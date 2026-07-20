@@ -37,7 +37,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
-_SCHEMA_MIGRATION_VERSION = 1
+_SCHEMA_MIGRATION_VERSION = 2  # v1.1.19: added agent_sessions + agent_messages tables
 
 
 class Base(DeclarativeBase):
@@ -507,6 +507,67 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                     logging.getLogger("ihome").info(
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
+
+        # ── v1.1.19: Agent 会话持久化 ──
+        _has_agent_sessions = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("agent_sessions")
+        )
+        if not _has_agent_sessions:
+            await conn.execute(text(
+                "CREATE TABLE agent_sessions ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  user_id VARCHAR(36) NOT NULL REFERENCES users(id),"
+                "  project_id VARCHAR(36) REFERENCES projects(id),"
+                "  title VARCHAR(100) NOT NULL DEFAULT '新的对话',"
+                "  primary_agent_type VARCHAR(50),"
+                "  message_count INTEGER NOT NULL DEFAULT 0,"
+                "  is_deleted BOOLEAN NOT NULL DEFAULT 0,"
+                "  deleted_at TIMESTAMP,"
+                "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                "  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_agent_sessions_user_id ON agent_sessions(user_id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_agent_sessions_project_id ON agent_sessions(project_id)"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE agent_sessions")
+
+        _has_agent_messages = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("agent_messages")
+        )
+        if not _has_agent_messages:
+            await conn.execute(text(
+                "CREATE TABLE agent_messages ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  session_id VARCHAR(36) NOT NULL REFERENCES agent_sessions(id),"
+                "  role VARCHAR(20) NOT NULL,"
+                "  content TEXT NOT NULL,"
+                "  agent_type VARCHAR(50),"
+                "  sequence INTEGER NOT NULL DEFAULT 0,"
+                "  content_hash VARCHAR(64),"
+                "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_agent_messages_session_id ON agent_messages(session_id)"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE agent_messages")
+
+        # agent_feedbacks: 追加 session_id 字段
+        af_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "agent_feedbacks")
+        )
+        if af_cols is not None and "session_id" not in af_cols:
+            await conn.execute(text(
+                "ALTER TABLE agent_feedbacks ADD COLUMN session_id VARCHAR(36) REFERENCES agent_sessions(id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_agent_feedbacks_session_id ON agent_feedbacks(session_id)"
+            ))
+            logging.getLogger("ihome").info("migration: ALTER TABLE agent_feedbacks ADD COLUMN session_id")
 
         # ── 标记本次迁移版本，下次启动可跳过 ──
         # v1.1.12 生产修复：根据 _has_schema_migrations 标志决定是否创建表，

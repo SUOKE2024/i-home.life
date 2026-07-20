@@ -361,6 +361,7 @@ body {
   </div>
 </div>
 
+<script src="assets/js/api-client.js?v=20260720i" defer></script>
 <script>
 // ═══════════════════════════════════════════
 // DATA MODEL
@@ -382,12 +383,8 @@ const elements = {
 // ═══════════════════════════════════════════
 // API HELPERS
 // ═══════════════════════════════════════════
-function getToken() {
-  return localStorage.getItem('paseto_token') || '';
-}
-
 function checkAuth() {
-  const token = getToken();
+  const token = ApiClient.getToken();
   if (!token) {
     const go = confirm('此功能需要先登录。\n\n点击「确定」跳转到登录页。');
     if (go) window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
@@ -396,33 +393,12 @@ function checkAuth() {
   return true;
 }
 
-async function apiFetch(path, options = {}) {
-  const token = getToken();
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(path, { ...options, headers });
-  if (res.status === 401) {
-    localStorage.removeItem('paseto_token');
-    window.location.href = '/login.html';
-    throw new Error('认证过期');
-  }
-  if (!res.ok) {
-    const err = new Error(`HTTP ${res.status}`);
-    try { err.body = await res.json(); } catch (_) {}
-    throw err;
-  }
-  return res;
-}
-
 async function loadElements() {
   if (!projectId) return;
   try {
     const types = ['walls', 'beams', 'columns', 'slabs', 'foundations'];
     const results = await Promise.all(
-      types.map(t => apiFetch(`/api/structural/projects/${projectId}/${t}`).then(r => r.json()))
+      types.map(t => ApiClient.request(`/api/structural/projects/${projectId}/${t}`))
     );
     elements.walls = results[0];
     elements.beams = results[1];
@@ -440,7 +416,7 @@ async function loadElements() {
 async function saveElement(type, data) {
   if (!projectId || !data || data.length === 0) return;
   try {
-    await apiFetch(`/api/structural/${type}`, {
+    await ApiClient.request(`/api/structural/${type}`, {
       method: 'POST',
       body: JSON.stringify({
         project_id: projectId,
@@ -1201,11 +1177,7 @@ async function exportIFC() {
   progress.textContent = '⏳ IFC 导出中...';
 
   try {
-    const res = await apiFetch(`/api/bim/export/structural/${projectId}`, {
-      method: 'POST',
-      headers: { 'Accept': 'application/octet-stream' },
-    });
-    const blob = await res.blob();
+    const blob = await ApiClient.exportStructuralIFC(projectId);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1243,7 +1215,7 @@ document.getElementById('sidebar-overlay').addEventListener('click', function() 
 // ═══════════════════════════════════════════
 (function init() {
   // Check auth silently
-  const token = getToken();
+  const token = ApiClient.getToken();
   if (token) {
     console.log('🔑 PASETO token 已就绪');
   }

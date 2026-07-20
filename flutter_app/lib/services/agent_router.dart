@@ -160,7 +160,7 @@ class AgentRouter {
     ]),
     _AgentPattern(agent: 'hard_decoration', keywords: [
       '硬装', '吊顶', '墙面装饰', '背景墙', '地面',
-      '瓷砖', '地板', '涂料', '墙纸', '石材', '大理石',
+      '涂料', '墙纸', '石材', '大理石',
     ]),
     _AgentPattern(agent: 'takeoff', keywords: [
       '工程量', '算量', '材料清单', '用量计算', '工程量清单',

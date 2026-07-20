@@ -1,3 +1,13 @@
+"""
+AI Agent API v1.1.21 — Expanded Agents
+
+Agent 端点:
+  budget, design, construction, procurement, quality (qa-inspector),
+  settlement, support (concierge), kitchen, bathroom, mep, appliance,
+  furniture, door-window, files, products, identity, notifications,
+  takeoff, ifc-export
+"""
+
 import asyncio
 import json
 import logging
@@ -23,8 +33,25 @@ from app.agents.qa_inspector import QAInspectorAgent
 from app.agents.concierge import ConciergeAgent
 from app.agents.content_publisher import ContentPublisherAgent
 from app.agents.admin import AdminAgent
+from app.agents.kitchen_agent import KitchenAgent
+from app.agents.bathroom_agent import BathroomAgent
+from app.agents.mep_agent import MepAgent
+from app.agents.appliance_agent import ApplianceAgent
+from app.agents.furniture_agent import FurnitureAgent
+from app.agents.door_window_agent import DoorWindowAgent
+from app.agents.files_agent import FilesAgent
+from app.agents.products_agent import ProductsAgent
+from app.agents.identity_agent import IdentityAgent
+from app.agents.notifications_agent import NotificationsAgent
+from app.agents.takeoff_agent import TakeoffAgent
+from app.agents.ifc_export_agent import IfcExportAgent
 from app.config import get_settings
 from app.ws import ws_manager
+from app.services import agent_session_service
+from app.schemas.agent_session import (
+    AgentSessionResponse,
+    AgentSessionListItem,
+)
 
 router = APIRouter(prefix="/agents", tags=["AI Agent"])
 
@@ -33,6 +60,11 @@ class AgentMessage(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     agent_type: str = Field(default="orchestrator")
     project_id: str | None = None
+    session_id: str | None = Field(
+        default=None,
+        description="会话 ID。传入已有 session_id 将继续对话并自动保存消息；"
+                    "不传则自动创建新会话。"
+    )
     history: list[dict] = Field(
         default_factory=list, max_length=20,
         description="最近 N 轮对话历史，每项含 role/content/agent_type",
@@ -53,6 +85,7 @@ class AgentResponse(BaseModel):
     agent_type: str
     reply: str
     suggestions: list[str] = []
+    session_id: str | None = None
 
 
 class DesignPlanResponse(BaseModel):
@@ -125,6 +158,19 @@ class ConciergeChatRequest(BaseModel):
     context: str = ""
 
 
+class SimpleAgentRequest(BaseModel):
+    """通用 Agent 请求模型 — 用于新增的专用 Agent 端点"""
+    message: str = Field(min_length=1, max_length=2000)
+    project_id: str | None = None
+
+
+class SimpleAgentResponse(BaseModel):
+    """通用 Agent 响应模型"""
+    agent_type: str
+    reply: str
+    suggestions: list[str] = []
+
+
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
@@ -144,6 +190,15 @@ AGENT_TYPE_TO_INTENT: dict[str, str] = {
     "concierge": "concierge",
     "content_publisher": "content_publish",
     "admin": "admin",
+    # v1.1.21 新增
+    "kitchen": "kitchen", "bathroom": "bathroom", "mep": "mep",
+    "appliance": "appliance", "furniture": "furniture",
+    "door_window": "door_window", "files": "files",
+    "products": "products", "identity": "identity",
+    "notifications": "notifications", "takeoff": "takeoff",
+    "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
+    "hard_decoration": "hard_decoration", "points": "points",
+    "cad_import": "cad_import",
     # "orchestrator" 不在此表中 → 触发自动分类
 }
 
@@ -233,10 +288,30 @@ async def chat_with_agent(  # noqa: C901
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
         if current_user.role != "admin" and project.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    # ── v1.1.19: Agent 会话持久化 ──
+    session = await agent_session_service.get_or_create_session(
+        db, current_user.id,
+        session_id=data.session_id,
+        project_id=data.project_id,
+        first_message=data.message,
+    )
+    session_id = session.id
+
+    # 若客户端提供了 session_id 但未传 history，从 DB 加载
+    db_history = data.history
+    if data.session_id and not db_history:
+        try:
+            db_history = await agent_session_service.get_session_history(
+                db, session_id, current_user.id, limit=20,
+            )
+        except Exception:
+            db_history = data.history  # 降级：使用空 history
+
     # 构建 history 上下文（多轮对话支持）
     history_ctx = ""
-    if data.history:
-        recent = data.history[-10:]  # 仅取最近 10 轮，防止 token 超限
+    if db_history:
+        recent = db_history[-10:]  # 仅取最近 10 轮，防止 token 超限
         lines = []
         for h in recent:
             role = h.get("role", "user")
@@ -248,6 +323,21 @@ async def chat_with_agent(  # noqa: C901
     user_ctx = f"用户: {current_user.name}"
     if history_ctx:
         user_ctx = f"{history_ctx}\n{user_ctx}"
+
+    # 持久化用户消息
+    await agent_session_service.persist_message(
+        db, session, "user", data.message,
+    )
+
+    # 响应包装器：持久化 assistant 消息并附加 session_id
+    async def _finalize(agent_type_str: str, reply_text: str, suggestions_list: list[str] | None = None):
+        await agent_session_service.persist_message(
+            db, session, "assistant", reply_text, agent_type=agent_type_str,
+        )
+        return AgentResponse(
+            agent_type=agent_type_str, reply=reply_text,
+            suggestions=suggestions_list or [], session_id=session_id,
+        )
     # Hybrid routing: LLM classify (with API key) or rule-based (mock mode)
     agent = OrchestratorAgent()
     try:
@@ -270,6 +360,15 @@ async def chat_with_agent(  # noqa: C901
                 "settlement": "settlement", "qa_inspector": "qa_inspector",
                 "concierge": "concierge", "content_publish": "content_publisher",
                 "admin": "admin",
+                # v1.1.21 新增
+                "kitchen": "kitchen", "bathroom": "bathroom", "mep": "mep",
+                "appliance": "appliance", "furniture": "furniture",
+                "door_window": "door_window", "files": "files",
+                "products": "products", "identity": "identity",
+                "notifications": "notifications", "takeoff": "takeoff",
+                "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
+                "hard_decoration": "hard_decoration", "points": "points",
+                "cad_import": "cad_import",
             }
             agent_name_for_hint = intent_to_agent.get(intent, "orchestrator")
             preference_hint = await BaseAgent.get_user_preference_hint(
@@ -306,6 +405,18 @@ async def chat_with_agent(  # noqa: C901
             "takeoff": ["计算工程量", "生成材料清单", "查看辅料用量"],
             "points": ["查看积分", "积分兑换", "会员权益"],
             "cad_import": ["导入CAD", "查看图纸", "转换DXF"],
+            # v1.1.21 新增
+            "kitchen": ["查看厨房方案", "调整橱柜布局", "推荐厨房电器"],
+            "bathroom": ["查看卫生间方案", "调整卫浴布局", "推荐洁具"],
+            "mep": ["查看水电方案", "管路设计", "设备选型"],
+            "appliance": ["查看家电清单", "推荐家电", "安装方案"],
+            "furniture": ["查看家具方案", "调整家具尺寸", "推荐家具品牌"],
+            "door_window": ["查看门窗方案", "更换门窗样式", "尺寸定制"],
+            "files": ["上传文件", "查看文件列表", "管理文件夹"],
+            "products": ["浏览产品", "搜索产品", "查看产品详情"],
+            "identity": ["查看身份信息", "实名认证", "更新个人资料"],
+            "notifications": ["查看通知", "标记已读", "通知设置"],
+            "ifc_export": ["导出IFC", "查看BIM模型", "设置导出选项"],
             "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
         }
 
@@ -324,10 +435,7 @@ async def chat_with_agent(  # noqa: C901
                 else:
                     # 内容发布引导
                     reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
-                return AgentResponse(
-                    agent_type="content_publisher", reply=reply,
-                    suggestions=suggestions_map["content_publisher"],
-                )
+                return await _finalize("content_publisher", reply, suggestions_map["content_publisher"])
             finally:
                 await cp_agent.close()
 
@@ -349,7 +457,7 @@ async def chat_with_agent(  # noqa: C901
                     )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
-                return AgentResponse(agent_type="designer", reply=reply, suggestions=suggestions_map["designer"])
+                return await _finalize("designer", reply, suggestions_map["designer"])
             finally:
                 await des_agent.close()
 
@@ -359,7 +467,7 @@ async def chat_with_agent(  # noqa: C901
                 # FunctionCall: LLM 可调用 get_budget 工具查询结构化预算数据
                 result = await bud_agent.think_with_tools(data.message, user_ctx)
                 reply = result["final_reply"]
-                return AgentResponse(agent_type="budget", reply=reply, suggestions=suggestions_map["budget"])
+                return await _finalize("budget", reply, suggestions_map["budget"])
             finally:
                 await bud_agent.close()
 
@@ -369,7 +477,7 @@ async def chat_with_agent(  # noqa: C901
                 # FunctionCall: LLM 可调用 search_materials 工具搜索物料
                 result = await proc_agent.think_with_tools(data.message, user_ctx)
                 reply = result["final_reply"]
-                return AgentResponse(agent_type="procurement", reply=reply, suggestions=suggestions_map["procurement"])
+                return await _finalize("procurement", reply, suggestions_map["procurement"])
             finally:
                 await proc_agent.close()
 
@@ -379,10 +487,7 @@ async def chat_with_agent(  # noqa: C901
                 # FunctionCall: LLM 可调用 get_construction_progress 查询施工进度
                 result = await cons_agent.think_with_tools(data.message, user_ctx)
                 reply = result["final_reply"]
-                return AgentResponse(
-                    agent_type="construction", reply=reply,
-                    suggestions=suggestions_map["construction"],
-                )
+                return await _finalize("construction", reply, suggestions_map["construction"])
             finally:
                 await cons_agent.close()
 
@@ -390,7 +495,7 @@ async def chat_with_agent(  # noqa: C901
             sett_agent = SettlementAgent()
             try:
                 reply = await sett_agent.think(data.message, user_ctx)
-                return AgentResponse(agent_type="settlement", reply=reply, suggestions=["查看结算明细", "确认结算", "导出报表"])
+                return await _finalize("settlement", reply, ["查看结算明细", "确认结算", "导出报表"])
             finally:
                 await sett_agent.close()
 
@@ -400,10 +505,7 @@ async def chat_with_agent(  # noqa: C901
                 # FunctionCall: LLM 可调用 run_qa_inspection 执行质量检测
                 result = await qa_agent.think_with_tools(data.message, user_ctx)
                 reply = result["final_reply"]
-                return AgentResponse(
-                    agent_type="qa_inspector", reply=reply,
-                    suggestions=suggestions_map["qa_inspector"],
-                )
+                return await _finalize("qa_inspector", reply, suggestions_map["qa_inspector"])
             finally:
                 await qa_agent.close()
 
@@ -411,7 +513,7 @@ async def chat_with_agent(  # noqa: C901
             conc_agent = ConciergeAgent()
             try:
                 reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
-                return AgentResponse(agent_type="concierge", reply=reply, suggestions=suggestions_map["concierge"])
+                return await _finalize("concierge", reply, suggestions_map["concierge"])
             finally:
                 await conc_agent.close()
 
@@ -420,7 +522,7 @@ async def chat_with_agent(  # noqa: C901
             try:
                 reply = await admin_agent.think(data.message, user_ctx)
                 suggestions = ["查看用户列表", "修改用户角色", "平台统计", "审核认证"]
-                return AgentResponse(agent_type="admin", reply=reply, suggestions=suggestions)
+                return await _finalize("admin", reply, suggestions)
             finally:
                 await admin_agent.close()
 
@@ -445,10 +547,7 @@ async def chat_with_agent(  # noqa: C901
                 "如果您正在使用移动端 App，可以直接打开 AR 扫描功能开始测量。",
             ]
             reply = "\n".join(reply_lines)
-            return AgentResponse(
-                agent_type="ar_measurement", reply=reply,
-                suggestions=suggestions_map["ar_measurement"],
-            )
+            return await _finalize("ar_measurement", reply, suggestions_map["ar_measurement"])
 
         elif intent in ("floorplans",):
             reply = (
@@ -456,10 +555,7 @@ async def chat_with_agent(  # noqa: C901
                 "您可以在项目中查看已保存的户型平面图，也可以上传新的户型方案。\n"
                 "如需帮助，请告诉我具体想对户型做什么操作。"
             )
-            return AgentResponse(
-                agent_type="floorplans", reply=reply,
-                suggestions=suggestions_map["floorplans"],
-            )
+            return await _finalize("floorplans", reply, suggestions_map["floorplans"])
 
         elif intent in ("structural",):
             reply = (
@@ -467,10 +563,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：结构计算、承重分析、框架设计、剪力墙布置等。\n"
                 "请告诉我具体的结构设计需求，我来帮您分析。"
             )
-            return AgentResponse(
-                agent_type="structural", reply=reply,
-                suggestions=suggestions_map["structural"],
-            )
+            return await _finalize("structural", reply, suggestions_map["structural"])
 
         elif intent in ("lighting",):
             reply = (
@@ -478,10 +571,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：灯具选型、轨道灯/筒灯/射灯布置、氛围灯光设计。\n"
                 "请告诉我您想为哪个房间设计灯光方案。"
             )
-            return AgentResponse(
-                agent_type="lighting", reply=reply,
-                suggestions=suggestions_map["lighting"],
-            )
+            return await _finalize("lighting", reply, suggestions_map["lighting"])
 
         elif intent in ("smart_home",):
             reply = (
@@ -489,10 +579,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：智能开关/插座/窗帘电机配置、传感器联动、温控系统。\n"
                 "请告诉我您想配置哪种智能设备或场景。"
             )
-            return AgentResponse(
-                agent_type="smart_home", reply=reply,
-                suggestions=suggestions_map["smart_home"],
-            )
+            return await _finalize("smart_home", reply, suggestions_map["smart_home"])
 
         elif intent in ("scene_automation",):
             reply = (
@@ -501,10 +588,7 @@ async def chat_with_agent(  # noqa: C901
                 "睡眠模式（调暗灯光）、会客模式（全屋明亮）。\n"
                 "请告诉我您想创建哪种场景。"
             )
-            return AgentResponse(
-                agent_type="scene_automation", reply=reply,
-                suggestions=suggestions_map["scene_automation"],
-            )
+            return await _finalize("scene_automation", reply, suggestions_map["scene_automation"])
 
         elif intent in ("custom_furniture",):
             reply = (
@@ -513,10 +597,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：柜体尺寸设计、板材展开面积/投影面积计算、报价生成。\n"
                 "请告诉我您想定制什么家具，以及大概尺寸。"
             )
-            return AgentResponse(
-                agent_type="custom_furniture", reply=reply,
-                suggestions=suggestions_map["custom_furniture"],
-            )
+            return await _finalize("custom_furniture", reply, suggestions_map["custom_furniture"])
 
         elif intent in ("tasks",):
             reply = (
@@ -524,10 +605,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：创建施工任务、分派给工人、更新进度、查看任务列表。\n"
                 "请告诉我您想创建什么任务，或者查看哪些任务。"
             )
-            return AgentResponse(
-                agent_type="tasks", reply=reply,
-                suggestions=suggestions_map["tasks"],
-            )
+            return await _finalize("tasks", reply, suggestions_map["tasks"])
 
         elif intent in ("change_orders",):
             reply = (
@@ -535,10 +613,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：发起设计变更、提交变更单、审批流程、变更记录查询。\n"
                 "请告诉我您想做什么样的变更。"
             )
-            return AgentResponse(
-                agent_type="change_orders", reply=reply,
-                suggestions=suggestions_map["change_orders"],
-            )
+            return await _finalize("change_orders", reply, suggestions_map["change_orders"])
 
         elif intent in ("crews",):
             reply = (
@@ -546,10 +621,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：查看可选班组、匹配合适施工队、派工调度、施工队评价。\n"
                 "请告诉我您的项目阶段和需求，我来帮您匹配合适的施工队。"
             )
-            return AgentResponse(
-                agent_type="crews", reply=reply,
-                suggestions=suggestions_map["crews"],
-            )
+            return await _finalize("crews", reply, suggestions_map["crews"])
 
         elif intent in ("vr_panorama",):
             reply = (
@@ -557,10 +629,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：全屋漫游、热点信息查看、语音讲解播放、VR 头显支持。\n"
                 "请打开 VR 全景页面开始体验，或告诉我您想查看哪个场景。"
             )
-            return AgentResponse(
-                agent_type="vr_panorama", reply=reply,
-                suggestions=suggestions_map["vr_panorama"],
-            )
+            return await _finalize("vr_panorama", reply, suggestions_map["vr_panorama"])
 
         elif intent in ("ai_render",):
             reply = (
@@ -569,10 +638,7 @@ async def chat_with_agent(  # noqa: C901
                 "配色调整、精度设置。\n"
                 "请告诉我您想渲染什么内容，以及想要的风格。"
             )
-            return AgentResponse(
-                agent_type="ai_render", reply=reply,
-                suggestions=suggestions_map["ai_render"],
-            )
+            return await _finalize("ai_render", reply, suggestions_map["ai_render"])
 
         elif intent in ("sketch_to_3d",):
             reply = (
@@ -583,10 +649,7 @@ async def chat_with_agent(  # noqa: C901
                 "3. 生成可编辑的 3D 模型\n"
                 "请上传您的草图，我来帮您转换成 3D 模型。"
             )
-            return AgentResponse(
-                agent_type="sketch_to_3d", reply=reply,
-                suggestions=suggestions_map["sketch_to_3d"],
-            )
+            return await _finalize("sketch_to_3d", reply, suggestions_map["sketch_to_3d"])
 
         elif intent in ("soft_furnishing",):
             reply = (
@@ -594,10 +657,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：窗帘款式设计、布艺搭配、装饰画选配、摆件推荐。\n"
                 "请告诉我您想为哪个房间搭配软装。"
             )
-            return AgentResponse(
-                agent_type="soft_furnishing", reply=reply,
-                suggestions=suggestions_map["soft_furnishing"],
-            )
+            return await _finalize("soft_furnishing", reply, suggestions_map["soft_furnishing"])
 
         elif intent in ("hard_decoration",):
             reply = (
@@ -605,10 +665,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：吊顶造型设计、背景墙设计、瓷砖/地板/石材选型。\n"
                 "请告诉我您想设计哪个区域的硬装。"
             )
-            return AgentResponse(
-                agent_type="hard_decoration", reply=reply,
-                suggestions=suggestions_map["hard_decoration"],
-            )
+            return await _finalize("hard_decoration", reply, suggestions_map["hard_decoration"])
 
         elif intent in ("takeoff",):
             reply = (
@@ -616,10 +673,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：自动计算材料用量、生成辅料清单、工程量统计。\n"
                 "请告诉我您需要计算哪些项目的工程量。"
             )
-            return AgentResponse(
-                agent_type="takeoff", reply=reply,
-                suggestions=suggestions_map["takeoff"],
-            )
+            return await _finalize("takeoff", reply, suggestions_map["takeoff"])
 
         elif intent in ("points",):
             reply = (
@@ -627,10 +681,7 @@ async def chat_with_agent(  # noqa: C901
                 "功能包括：查看积分余额、积分兑换商品、会员等级权益。\n"
                 "您可以通过完成装修任务和参与平台活动获取积分。"
             )
-            return AgentResponse(
-                agent_type="points", reply=reply,
-                suggestions=suggestions_map["points"],
-            )
+            return await _finalize("points", reply, suggestions_map["points"])
 
         elif intent in ("cad_import",):
             reply = (
@@ -639,16 +690,101 @@ async def chat_with_agent(  # noqa: C901
                 "自动识别墙体结构。\n"
                 "请上传您的 CAD 图纸文件，我来帮您导入并解析。"
             )
-            return AgentResponse(
-                agent_type="cad_import", reply=reply,
-                suggestions=suggestions_map["cad_import"],
+            return await _finalize("cad_import", reply, suggestions_map["cad_import"])
+
+        elif intent in ("kitchen",):
+            kitchen_agent = KitchenAgent()
+            try:
+                reply = await kitchen_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("kitchen", reply, suggestions_map["kitchen"])
+            finally:
+                await kitchen_agent.close()
+
+        elif intent in ("bathroom",):
+            bathroom_agent = BathroomAgent()
+            try:
+                reply = await bathroom_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("bathroom", reply, suggestions_map["bathroom"])
+            finally:
+                await bathroom_agent.close()
+
+        elif intent in ("mep",):
+            mep_agent = MepAgent()
+            try:
+                reply = await mep_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("mep", reply, suggestions_map["mep"])
+            finally:
+                await mep_agent.close()
+
+        elif intent in ("appliance",):
+            appliance_agent = ApplianceAgent()
+            try:
+                reply = await appliance_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("appliance", reply, suggestions_map["appliance"])
+            finally:
+                await appliance_agent.close()
+
+        elif intent in ("furniture",):
+            furniture_agent = FurnitureAgent()
+            try:
+                reply = await furniture_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("furniture", reply, suggestions_map["furniture"])
+            finally:
+                await furniture_agent.close()
+
+        elif intent in ("door_window",):
+            door_window_agent = DoorWindowAgent()
+            try:
+                reply = await door_window_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("door_window", reply, suggestions_map["door_window"])
+            finally:
+                await door_window_agent.close()
+
+        elif intent in ("files",):
+            reply = (
+                "文件管理模块支持项目文件的上传、分类和共享。\n\n"
+                "功能包括：图纸上传、文档管理、文件夹组织、文件分享。\n"
+                "请告诉我您需要上传什么文件，或者查看哪些文件。"
             )
+            return await _finalize("files", reply, suggestions_map["files"])
+
+        elif intent in ("products",):
+            reply = (
+                "产品管理模块支持家居产品的浏览、搜索和管理。\n\n"
+                "功能包括：产品分类浏览、产品搜索、产品详情查看、产品对比。\n"
+                "请告诉我您想查找什么类型的产品。"
+            )
+            return await _finalize("products", reply, suggestions_map["products"])
+
+        elif intent in ("identity",):
+            reply = (
+                "身份认证模块支持实名认证和个人信息管理。\n\n"
+                "功能包括：实名认证、身份信息更新、认证状态查询。\n"
+                "请告诉我您需要进行什么身份认证操作。"
+            )
+            return await _finalize("identity", reply, suggestions_map["identity"])
+
+        elif intent in ("notifications",):
+            reply = (
+                "通知中心支持系统消息、项目动态和提醒的查看与管理。\n\n"
+                "功能包括：查看通知列表、标记已读、消息设置、推送偏好。\n"
+                "请告诉我您想查看什么通知，或者调整通知设置。"
+            )
+            return await _finalize("notifications", reply, suggestions_map["notifications"])
+
+        elif intent in ("ifc_export",):
+            reply = (
+                "IFC 导出模块支持将 BIM 模型导出为 IFC 标准格式。\n\n"
+                "功能包括：IFC 2x3/4 格式导出、BIM 数据查看、导出选项设置、模型校验。\n"
+                "请告诉我您想导出哪个项目的 IFC 数据。"
+            )
+            return await _finalize("ifc_export", reply, suggestions_map["ifc_export"])
 
         else:
             # Unknown intent — fallback to orchestrator general reply
             reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
             suggestions = suggestions_map["orchestrator"]
-            return AgentResponse(agent_type="orchestrator", reply=reply, suggestions=suggestions)
+            return await _finalize("orchestrator", reply, suggestions)
     finally:
         await agent.close()
 
@@ -669,10 +805,29 @@ async def chat_stream(  # noqa: C901
         if current_user.role != "admin" and project.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
 
-    # 构建 history 上下文（复用 /chat 逻辑）
+    # ── v1.1.19: Agent 会话持久化 ──
+    stream_session = await agent_session_service.get_or_create_session(
+        db, current_user.id,
+        session_id=data.session_id,
+        project_id=data.project_id,
+        first_message=data.message,
+    )
+    stream_session_id = stream_session.id
+
+    # 加载历史（session_id 模式下从 DB 加载）
+    db_history = data.history
+    if data.session_id and not db_history:
+        try:
+            db_history = await agent_session_service.get_session_history(
+                db, stream_session_id, current_user.id, limit=20,
+            )
+        except Exception:
+            db_history = data.history
+
+    # 构建 history 上下文
     history_ctx = ""
-    if data.history:
-        recent = data.history[-10:]
+    if db_history:
+        recent = db_history[-10:]
         lines = []
         for h in recent:
             role = h.get("role", "user")
@@ -684,6 +839,11 @@ async def chat_stream(  # noqa: C901
     user_ctx = f"用户: {current_user.name}"
     if history_ctx:
         user_ctx = f"{history_ctx}\n{user_ctx}"
+
+    # 持久化用户消息
+    await agent_session_service.persist_message(
+        db, stream_session, "user", data.message,
+    )
 
     # Hybrid routing
     agent = OrchestratorAgent()
@@ -815,6 +975,40 @@ async def chat_stream(  # noqa: C901
             reply = "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
         elif intent in ("cad_import",):
             reply = "CAD 导入模块支持 DXF/DWG 格式的户型图纸导入和墙体解析。"
+        elif intent in ("kitchen",):
+            stream_agent = KitchenAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("bathroom",):
+            stream_agent = BathroomAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("mep",):
+            stream_agent = MepAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("appliance",):
+            stream_agent = ApplianceAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("furniture",):
+            stream_agent = FurnitureAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("door_window",):
+            stream_agent = DoorWindowAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("files",):
+            reply = "文件管理模块支持合同、图纸、证件等文件的上传下载和分类管理。"
+        elif intent in ("products",):
+            reply = "产品管理模块支持供应商产品上架、定价和库存管理。"
+        elif intent in ("identity",):
+            reply = "身份认证模块支持实名认证提交和认证状态查询。"
+        elif intent in ("notifications",):
+            reply = "通知模块支持消息推送提醒和设备注册管理。"
+        elif intent in ("ifc_export",):
+            reply = "BIM 导出模块支持 IFC 格式的建筑结构模型导出。"
         else:
             reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
 
@@ -844,20 +1038,40 @@ async def chat_stream(  # noqa: C901
                 "takeoff": "takeoff",
                 "points": "points",
                 "cad_import": "cad_import",
+                # v1.1.21 新增
+                "kitchen": "kitchen",
+                "bathroom": "bathroom",
+                "mep": "mep",
+                "appliance": "appliance",
+                "furniture": "furniture",
+                "door_window": "door_window",
+                "files": "files",
+                "products": "products",
+                "identity": "identity",
+                "notifications": "notifications",
+                "ifc_export": "ifc_export",
             }
             agent_type_meta = _intent_to_agent_type.get(intent, intent)
-            yield f"data: {json.dumps({'event': 'meta', 'agent_type': agent_type_meta})}\n\n"
+            meta_data = json.dumps({
+                'event': 'meta', 'agent_type': agent_type_meta,
+                'session_id': stream_session_id,
+            })
+            yield f"data: {meta_data}\n\n"
             await asyncio.sleep(0.05)
+
+            accumulated_text = ""  # 累积完整回复用于持久化
 
             if stream_agent is not None:
                 # 真流式：LLM 逐 token 产出，用户即时看到内容
                 try:
                     async for chunk in stream_agent.think_stream(stream_msg, stream_ctx):
+                        accumulated_text += chunk
                         yield f"data: {json.dumps({'event': 'token', 'content': chunk})}\n\n"
                 finally:
                     await stream_agent.close()
             else:
                 # 假流式：已获取完整 reply，按句子/词组分块推送（mock 模式 / Designer JSON）
+                accumulated_text = reply  # 假流式已有完整文本
                 paragraphs = reply.split("\n\n")
                 for p_idx, para in enumerate(paragraphs):
                     if p_idx > 0:
@@ -882,8 +1096,18 @@ async def chat_stream(  # noqa: C901
                                 yield f"data: {json.dumps({'event': 'token', 'content': chunk})}\n\n"
                                 await asyncio.sleep(0.03)
 
-            # 发送结束信号
-            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+            # 持久化 assistant 消息
+            if accumulated_text:
+                try:
+                    await agent_session_service.persist_message(
+                        db, stream_session, "assistant", accumulated_text,
+                        agent_type=agent_type_meta,
+                    )
+                except Exception:
+                    pass  # 持久化失败不影响流式响应
+
+            # 发送结束信号（含 session_id）
+            yield f"data: {json.dumps({'event': 'done', 'session_id': stream_session_id})}\n\n"
 
         return StreamingResponse(
             generate_sse(),
@@ -1074,6 +1298,230 @@ async def construction_publish_tasks(
     }
 
 
+# === v1.1.21 新增专用 Agent 端点 ===
+
+
+@router.post("/kitchen", response_model=SimpleAgentResponse)
+async def kitchen_design_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """厨房设计 Agent — 提供厨房空间规划、橱柜布局和功能分区建议"""
+    agent = KitchenAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="kitchen",
+            reply=reply,
+            suggestions=["厨房布局方案", "橱柜选型", "水电点位规划", "台面材质推荐"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/bathroom", response_model=SimpleAgentResponse)
+async def bathroom_design_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """卫浴设计 Agent — 提供卫生间/浴室空间规划和干湿分离方案"""
+    agent = BathroomAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="bathroom",
+            reply=reply,
+            suggestions=["干湿分离方案", "洁具选型建议", "防水施工指南", "瓷砖搭配推荐"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/mep", response_model=SimpleAgentResponse)
+async def mep_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """MEP/HVAC Agent — 暖通、给排水、电气系统设计与管线综合"""
+    agent = MepAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="mep",
+            reply=reply,
+            suggestions=["空调方案设计", "新风系统规划", "水电点位布置", "管线综合协调"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/appliance", response_model=SimpleAgentResponse)
+async def appliance_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """家电 Agent — 家电产品推荐、能效评估与智能配置"""
+    agent = ApplianceAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="appliance",
+            reply=reply,
+            suggestions=["家电产品推荐", "能效对比", "嵌入式尺寸确认", "智能联动配置"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/furniture", response_model=SimpleAgentResponse)
+async def furniture_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """家具目录 Agent — 家具产品查询、风格搭配与尺寸适配"""
+    agent = FurnitureAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="furniture",
+            reply=reply,
+            suggestions=["浏览家具目录", "风格搭配推荐", "尺寸适配检查", "生成家具清单"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/door-window", response_model=SimpleAgentResponse)
+async def door_window_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """门窗/防水 Agent — 门窗选型、安装标准与防水工程指导"""
+    agent = DoorWindowAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="door-window",
+            reply=reply,
+            suggestions=["门窗选型建议", "尺寸测量指南", "防水方案设计", "安装验收标准"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/files", response_model=SimpleAgentResponse)
+async def files_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """文件管理 Agent — 项目文档、图纸、合同的版本管理与共享"""
+    agent = FilesAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="files",
+            reply=reply,
+            suggestions=["上传文件", "查看图纸", "版本对比", "文件归档导出"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/products", response_model=SimpleAgentResponse)
+async def products_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """产品管理 Agent — 建材/家居产品上架、更新与供应商管理"""
+    agent = ProductsAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="products",
+            reply=reply,
+            suggestions=["创建产品", "编辑产品信息", "查看产品列表", "管理库存"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/identity", response_model=SimpleAgentResponse)
+async def identity_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """身份认证 Agent（管理员专用）— 用户实名认证审核"""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅管理员可访问身份认证审核功能",
+        )
+    agent = IdentityAgent()
+    try:
+        reply = await agent.think(data.message, f"管理员: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="identity",
+            reply=reply,
+            suggestions=["查看待审核列表", "审核认证申请", "查询认证记录", "批量审核"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/notifications", response_model=SimpleAgentResponse)
+async def notifications_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """通知 Agent — 系统消息推送、任务提醒与订阅管理"""
+    agent = NotificationsAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="notifications",
+            reply=reply,
+            suggestions=["查看通知列表", "设置通知偏好", "查看施工提醒", "消息归档"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/takeoff", response_model=SimpleAgentResponse)
+async def takeoff_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """工程量计算 Agent — 材料用量估算、工程量清单生成"""
+    agent = TakeoffAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="takeoff",
+            reply=reply,
+            suggestions=["计算材料用量", "生成材料清单", "查看辅料用量", "导出工程量报表"],
+        )
+    finally:
+        await agent.close()
+
+
+@router.post("/ifc-export", response_model=SimpleAgentResponse)
+async def ifc_export_agent(
+    data: SimpleAgentRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """IFC 导出 Agent — 装修方案导出为标准 IFC 格式用于 BIM 协作"""
+    agent = IfcExportAgent()
+    try:
+        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        return SimpleAgentResponse(
+            agent_type="ifc-export",
+            reply=reply,
+            suggestions=["导出 IFC 2x3", "导出 IFC 4", "查看导出日志", "BIM 协作指南"],
+        )
+    finally:
+        await agent.close()
+
+
 # === QA Inspector Agent 端点 ===
 
 
@@ -1159,226 +1607,6 @@ async def concierge_chat(
         await agent.close()
 
 
-def _mock_agent_reply(message: str, agent_type: str) -> tuple[str, list[str]]:
-    kw_map = {
-        "设计": "designer",
-        "布局": "designer",
-        "方案": "designer",
-        "户型": "designer",
-        "预算": "budget",
-        "价格": "budget",
-        "费用": "budget",
-        "成本": "budget",
-        "采购": "procurement",
-        "材料": "procurement",
-        "建材": "procurement",
-        "供应商": "procurement",
-        "施工": "construction",
-        "进度": "construction",
-        "验收": "construction",
-        "质检": "construction",
-    }
-    matched = agent_type
-    for kw, at in kw_map.items():
-        if kw in message:
-            matched = at
-            break
-
-    replies = {
-        "designer": (
-            "🎨 **设计方案**\n\n"
-            "根据您的需求，我来为您生成布局方案：\n\n"
-            "**主流户型规划**\n"
-            "- 客厅+餐厅：开放式布局，南北通透\n"
-            "- 主卧+次卧+书房：动静分区\n"
-            "- 厨房+卫生间：动线最短原则\n\n"
-            "推荐风格：现代简约 / 北欧 / 日式侘寂，可结合家庭成员偏好细化。"
-        ),
-        "budget": (
-            "💰 **预算分析**\n\n"
-            "根据您提供的项目信息，我来帮您做个预算框架：\n\n"
-            "**装修等级估算**\n"
-            "- 经济型（800-1200/㎡）：适合出租/简装\n"
-            "- 舒适型（1200-2000/㎡）：推荐自住选择\n"
-            "- 品质型（2000-3500/㎡）：品牌材料、定制化\n\n"
-            "**分项预算参考**\n"
-            "- 硬装（水电+墙面+地面）：约 40-50%\n"
-            "- 定制柜体：约 15-20%\n"
-            "- 软装+家电：约 30-40%\n\n"
-            "建议您先确定装修等级，我可以帮您细化每个分项。"
-        ),
-        "procurement": (
-            "🛒 **采购分析**\n\n"
-            "根据项目物料清单，为您规划采购方案：\n\n"
-            "**第一阶段（开工前）**\n"
-            "- 水电材料：电线、水管、开关暗盒\n"
-            "- 防水材料：防水涂料\n\n"
-            "**第二阶段（水电后）**\n"
-            "- 瓷砖/地板：确认花色和用量\n"
-            "- 橱柜方案：复尺后下单\n\n"
-            "**第三阶段（油漆后）**\n"
-            "- 卫浴洁具安装\n"
-            "- 灯具/开关面板安装\n\n"
-            "建议按施工进度分批采购，避免过早采购占用资金和空间。"
-        ),
-        "construction": (
-            "🔨 **施工计划**\n\n"
-            "标准施工流程共 8 个阶段：\n\n"
-            "1. **准备阶段**（2-5天）：办理许可、材料进场\n"
-            "2. **拆改阶段**（3-7天）：墙体拆改\n"
-            "3. **水电阶段**（5-10天）：管线敷设\n"
-            "4. **泥瓦阶段**（7-15天）：防水、贴砖\n"
-            "5. **木工阶段**（5-10天）：吊顶、柜体\n"
-            "6. **油漆阶段**（7-10天）：墙面处理\n"
-            "7. **安装阶段**（5-7天）：灯具、卫浴\n"
-            "8. **验收阶段**（2-3天）：全面验收\n\n"
-            "预计总工期约 40-60 天。需要我为您的项目生成详细排期吗？"
-        ),
-        "orchestrator": (
-            "您好！我是索克家居的 AI 总控 Agent。\n\n"
-            "我可以帮您：\n"
-            "🏠 **设计规划** - 智能生成平面布局和效果图\n"
-            "💰 **预算管理** - 成本估算和预算跟踪\n"
-            "🛒 **物料采购** - BOM 生成、供应商匹配\n"
-            "🔨 **施工管理** - 进度跟踪、质检报告\n\n"
-            "请告诉我您需要什么帮助？"
-        ),
-    }
-
-    suggestions = {
-        "designer": ["调整方案", "查看材料清单", "不同风格对比"],
-        "budget": ["查看明细", "调整预算", "导出报表"],
-        "procurement": ["查看供应商", "发起询价", "生成订单"],
-        "construction": ["查看进度", "上传日志", "发起验收"],
-        "orchestrator": ["开始设计", "查看预算", "浏览材料", "施工进度"],
-    }
-    return replies.get(matched, replies["orchestrator"]), suggestions.get(matched, suggestions["orchestrator"])
-
-
-def _mock_budget_summary(message: str) -> str:
-    return "根据您的项目信息，预估总预算约 18-25 万元（舒适型装修）。详细分项如下："
-
-
-def _mock_budget_breakdown() -> str:
-    return (
-        "**分项预算明细**\n\n"
-        "| 项目 | 预估金额 |\n"
-        "|------|---------|\n"
-        "| 硬装（水电+墙面+地面） | 90,000-110,000 |\n"
-        "| 定制柜体（橱柜+衣柜） | 35,000-45,000 |\n"
-        "| 软装（家具+窗帘+灯具） | 40,000-50,000 |\n"
-        "| 家电设备 | 25,000-35,000 |\n"
-        "| 管理费+其他 | 10,000-15,000 |"
-    )
-
-
-def _mock_cost_saving() -> str:
-    return (
-        "**省钱技巧**\n"
-        "1. 瓷砖/地板：工厂直购省 15-20%\n"
-        "2. 灯具：线上采购省 30%+\n"
-        "3. 窗帘：辅材配件费用容易忽视，注意对比\n"
-        "4. 家电：618/双11 批量采购，一套省 3000-5000"
-    )
-
-
-def _mock_purchase_plan() -> str:
-    return (
-        "**采购计划**\n\n"
-        "按施工阶段分批采购，避免资金积压和材料损耗。\n"
-        "第一阶段（开工）→ 水电材料\n"
-        "第二阶段（水电后）→ 瓷砖、防水\n"
-        "第三阶段（泥瓦后）→ 定制柜、门\n"
-        "第四阶段（油漆后）→ 卫浴、灯具、家电"
-    )
-
-
-def _mock_supplier_rec() -> str:
-    return (
-        "**推荐供应商**\n\n"
-        "- 瓷砖：东鹏、马可波罗（工厂直发）\n"
-        "- 地板：圣象、大自然\n"
-        "- 橱柜：欧派、索菲亚\n"
-        "- 卫浴：科勒、TOTO\n"
-        "- 家电：京东自营/天猫旗舰"
-    )
-
-
-def _mock_procurement_timeline() -> str:
-    return "采购周期预计 30-45 天，关键节点：开工前 7 天确认水电材料，开工后 10 天确认瓷砖花色，开工后 20 天橱柜复尺下单。"
-
-
-def _mock_phases() -> str:
-    return (
-        "**施工阶段**（总工期约 45 天）\n\n"
-        "1. 准备阶段：Day 1-3\n"
-        "2. 拆改阶段：Day 4-8\n"
-        "3. 水电阶段：Day 9-18\n"
-        "4. 泥瓦阶段：Day 19-32\n"
-        "5. 木工阶段：Day 26-35（可与泥瓦交叉）\n"
-        "6. 油漆阶段：Day 33-40\n"
-        "7. 安装阶段：Day 40-43\n"
-        "8. 验收阶段：Day 44-45"
-    )
-
-
-def _mock_schedule() -> str:
-    return (
-        "**关键里程碑**\n\n"
-        "✅ Day 3：装修许可 & 材料进场\n"
-        "✅ Day 8：拆改完成，垃圾清运\n"
-        "✅ Day 18：水电验收（打压测试+线路测试）\n"
-        "✅ Day 32：防水闭水试验 & 瓷砖铺贴完成\n"
-        "✅ Day 40：油漆完成，等待安装\n"
-        "✅ Day 45：竣工验收"
-    )
-
-
-def _mock_settlement() -> str:
-    return (
-        "⏣ **结算分析**\n\n"
-        "根据项目进度，为您梳理结算情况：\n\n"
-        "**结算公式**\n"
-        "应付金额 = 合同金额 + 变更金额 - 扣款金额 - 已付金额\n\n"
-        "**结算里程碑**\n"
-        "1. 交房节点：支付 30%（约 50,000-75,000 元）\n"
-        "2. 水电验收：支付 20%（约 35,000-50,000 元）\n"
-        "3. 泥瓦验收：支付 25%（约 45,000-65,000 元）\n"
-        "4. 竣工验收：支付 20%（约 35,000-50,000 元）\n"
-        "5. 保修期满：支付 5%（约 8,000-12,500 元）\n\n"
-        "建议每阶段验收合格后再付款，保留尾款作为质量保障。"
-    )
-
-
-def _mock_quality() -> str:
-    return (
-        "**质检检查清单**\n\n"
-        "- 水电：水管打压 0.8MPa 半小时不掉压\n"
-        "- 防水：闭水试验 48h 无渗漏\n"
-        "- 瓷砖：空鼓率 < 5%\n"
-        "- 墙面：平整度 2m 靠尺 ≤ 3mm\n"
-        "- 木工：柜体对角线偏差 ≤ 2mm\n"
-        "- 油漆：无色差、无流坠、无漏刷"
-    )
-
-
-def _mock_qa_inspection() -> str:
-    return (
-        "🔍 **质检报告**\n\n"
-        "**分项验收结果**\n"
-        "- 水电工程：合格（5/5 项通过）\n"
-        "- 泥瓦工程：有条件合格（4/5 项通过，地漏坡度需调整）\n"
-        "- 木工工程：合格（4/4 项通过）\n"
-        "- 油漆工程：合格（4/4 项通过）\n"
-        "- 安装工程：合格（4/4 项通过）\n\n"
-        "**总体验收结论**：合格（合格率 95.5%）\n\n"
-        "**整改建议**：\n"
-        "1. 卫生间地漏坡度不足，建议重新找坡\n"
-        "2. 瓷砖空鼓率检测需复检\n\n"
-        "建议整改后复验，确认全部合格后签署验收报告。"
-    )
-
-
 # ── L4 自适应学习：用户反馈收集（PRD §5.4 Phase 5 末项，提前布局）──
 
 class AgentFeedbackRequest(BaseModel):
@@ -1389,6 +1617,7 @@ class AgentFeedbackRequest(BaseModel):
     comment: str = Field(default="", max_length=500)
     user_message: str = Field(min_length=1, max_length=2000)
     agent_reply: str = Field(min_length=1, max_length=8000)
+    session_id: str | None = Field(default=None, max_length=36)
 
 
 @router.post("/feedback", status_code=status.HTTP_201_CREATED)
@@ -1408,6 +1637,7 @@ async def submit_agent_feedback(
     message_hash = hashlib.sha256(payload.user_message.encode()).hexdigest()
     feedback = AgentFeedback(
         user_id=current_user.id,
+        session_id=payload.session_id,
         agent_name=payload.agent_name,
         message_hash=message_hash,
         feedback_type=payload.feedback_type,
@@ -1419,3 +1649,47 @@ async def submit_agent_feedback(
     db.add(feedback)
     await db.commit()
     return {"status": "recorded", "feedback_id": feedback.id, "agent_learning_enabled": settings.agent_learning_enabled}
+
+
+# ── v1.1.19: Agent 会话持久化 CRUD ──
+
+
+@router.get("/sessions", response_model=list[AgentSessionListItem])
+async def list_agent_sessions(
+    project_id: str | None = None,
+    skip: int = 0,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出当前用户的 Agent 对话会话列表"""
+    sessions = await agent_session_service.list_sessions(
+        db, current_user.id, project_id=project_id, skip=skip, limit=limit,
+    )
+    return sessions
+
+
+@router.get("/sessions/{session_id}", response_model=AgentSessionResponse)
+async def get_agent_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取会话详情（含最近 50 条消息）"""
+    session = await agent_session_service.get_session(db, session_id, current_user.id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+    return session
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_agent_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """软删除会话"""
+    session = await agent_session_service.soft_delete_session(db, session_id, current_user.id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+    return None

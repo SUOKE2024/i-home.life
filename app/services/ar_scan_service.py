@@ -173,10 +173,12 @@ def _infer_rooms_from_meshes(parsed: dict, mesh_names: list[str]) -> dict:
     window_keywords = re.compile(r"window|窗", re.IGNORECASE)
     room_keywords = re.compile(r"room|房间|space", re.IGNORECASE)
 
-    walls = [n for n in mesh_names if wall_keywords.search(n) and not door_keywords.search(n) and not window_keywords.search(n)]
+    walls = [n for n in mesh_names
+             if wall_keywords.search(n) and not door_keywords.search(n)
+             and not window_keywords.search(n)]
     doors = [n for n in mesh_names if door_keywords.search(n)]
     windows = [n for n in mesh_names if window_keywords.search(n)]
-    rooms = [n for n in mesh_names if room_keywords.search(n)]
+    _rooms = [n for n in mesh_names if room_keywords.search(n)]  # noqa: F841
 
     parsed["wall_count"] = max(parsed.get("wall_count", 0), len(walls))
     parsed["door_count"] = max(parsed.get("door_count", 0), len(doors))
@@ -718,16 +720,129 @@ def validate_wall_feature(feature: WallFeature) -> list[str]:
     return warnings
 
 
-def auto_detect_features(session: ScanSession, room_count: int) -> list[dict]:
-    """AI 自动识别墙面特征 (基于扫描会话的 mock 推断)。
+# ──────────────────────────────────────────────────────────────
+# AI 墙面特征检测框架 (可扩展架构)
+# ──────────────────────────────────────────────────────────────
 
-    实际实现调用 CV 模型 (YOLO/Mask R-CNN) 对全景图做目标检测,
-    并结合 USDZ 模型的几何信息做语义标注。
+# 特征检测器注册表: 按 detected_by 名称注册检测函数
+_FEATURE_DETECTORS: dict[str, callable] = {}
+
+
+def register_feature_detector(name: str):
+    """装饰器: 注册 AI 特征检测器。
+
+    使用方式:
+        @register_feature_detector("yolo_v8")
+        def yolo_detector(session, room_count) -> list[dict]:
+            ...
     """
-    # 每个 room 默认有 1 门 + 1 窗 (客厅/卧室) 或 1 门 (厨卫)
+    def decorator(func):
+        _FEATURE_DETECTORS[name] = func
+        return func
+    return decorator
+
+
+def get_available_detectors() -> list[str]:
+    """返回所有已注册的特征检测器名称。"""
+    return list(_FEATURE_DETECTORS.keys())
+
+
+@register_feature_detector("rule_based")
+def _rule_based_features(session: ScanSession, room_count: int) -> list[dict]:
+    """基于规则的启发式特征检测 (默认检测器)。
+
+    使用建筑规范常识推断每个房间的门窗特征:
+    - 每个房间至少 1 扇门
+    - 客厅/卧室/书房通常有窗
+    - 厨房/卫生间可能无外窗或仅有小窗
+    - 承重墙门洞需额外过梁
+
+    Args:
+        session: 扫描会话对象
+        room_count: 房间数量
+
+    Returns:
+        特征列表,每个特征包含位置和属性信息
+    """
+    # 房间类型推断: 按面积比例和顺序确定
+    ROOM_TYPE_RULES = [
+        {"type": "living_room", "has_window": True, "door_width": 0.9, "window_width": 1.8, "window_height": 1.5},
+        {"type": "bedroom",     "has_window": True, "door_width": 0.9, "window_width": 1.5, "window_height": 1.5},
+        {"type": "bedroom",     "has_window": True, "door_width": 0.9, "window_width": 1.2, "window_height": 1.5},
+        {"type": "study",       "has_window": True, "door_width": 0.8, "window_width": 1.2, "window_height": 1.5},
+        {"type": "kitchen",     "has_window": False, "door_width": 0.8, "window_width": 0.9, "window_height": 1.2},
+        {"type": "bathroom",    "has_window": False, "door_width": 0.7, "window_width": 0.6, "window_height": 0.6},
+    ]
+
     features = []
     for i in range(room_count):
-        is_living = i == 0  # 第一个房间视为客厅
+        rule = ROOM_TYPE_RULES[min(i, len(ROOM_TYPE_RULES) - 1)]
+        room_name = f"房间{i+1}"
+
+        # 门特征 (每房间必有)
+        features.append({
+            "room_name": room_name,
+            "wall_id": f"wall_{(i*4)+1}",
+            "feature_type": "door",
+            "position_x": round(0.5 + i * 0.1, 2),
+            "position_y": 0.0,
+            "width": rule["door_width"],
+            "height": 2.1,
+            "depth": 0.1,
+            "load_bearing": i == 0,  # 第一个房间墙体可能为承重墙
+            "confidence": 0.95,
+            "detected_by": "rule_based",
+        })
+
+        # 窗特征 (按规则)
+        if rule["has_window"]:
+            features.append({
+                "room_name": room_name,
+                "wall_id": f"wall_{(i*4)+2}",
+                "feature_type": "window",
+                "position_x": round(1.0 + i * 0.2, 2),
+                "position_y": 0.9,
+                "width": rule["window_width"],
+                "height": rule["window_height"],
+                "depth": 0.1,
+                "sill_height": 0.9,
+                "load_bearing": False,
+                "confidence": 0.90,
+                "detected_by": "rule_based",
+            })
+
+        # 开关/插座特征 (每房间默认 2 个)
+        for j in range(2):
+            features.append({
+                "room_name": room_name,
+                "wall_id": f"wall_{(i*4)+3}",
+                "feature_type": "outlet",
+                "position_x": round(0.8 + j * 0.6, 2),
+                "position_y": round(0.3 + j * 0.1, 2),
+                "width": 0.12,
+                "height": 0.12,
+                "depth": 0.05,
+                "load_bearing": False,
+                "confidence": 0.82,
+                "detected_by": "rule_based",
+            })
+
+    return features
+
+
+@register_feature_detector("ai_default")
+def _ai_default_features(session: ScanSession, room_count: int) -> list[dict]:
+    """AI 默认检测器: 模拟 CV 模型输出 (YOLO/Mask R-CNN 占位)。
+
+    实际生产环境中,此检测器将被真实 CV 模型替换。
+    当前提供与 YOLO 输出格式一致的模拟数据,
+    方便下游消费者开发和测试。
+
+    输出格式对齐 YOLO 检测结果: [class, confidence, bbox, ...]
+    """
+    features = []
+    for i in range(room_count):
+        is_living = i == 0
         features.append({
             "room_name": f"房间{i+1}",
             "wall_id": f"wall_{(i*4)+1}",
@@ -739,7 +854,7 @@ def auto_detect_features(session: ScanSession, room_count: int) -> list[dict]:
             "depth": 0.1,
             "load_bearing": False,
             "confidence": 0.92,
-            "detected_by": "ai",
+            "detected_by": "ai_default",
         })
         if is_living or i < 3:
             features.append({
@@ -754,9 +869,86 @@ def auto_detect_features(session: ScanSession, room_count: int) -> list[dict]:
                 "sill_height": 0.9,
                 "load_bearing": False,
                 "confidence": 0.88,
-                "detected_by": "ai",
+                "detected_by": "ai_default",
+            })
+        # 增加管线/梁柱特征检测 (v1.1.18)
+        if i < 2:
+            features.append({
+                "room_name": f"房间{i+1}",
+                "wall_id": f"wall_{(i*4)+4}",
+                "feature_type": "pipe",
+                "position_x": round(3.0 + i * 0.5, 2),
+                "position_y": 1.5,
+                "width": 0.15,
+                "height": 0.15,
+                "depth": 0.05,
+                "load_bearing": False,
+                "confidence": 0.75,
+                "detected_by": "ai_default",
             })
     return features
+
+
+@register_feature_detector("mock")
+def _mock_features(session: ScanSession, room_count: int) -> list[dict]:
+    """Mock 检测器: 快速返回确定性特征,用于测试环境。"""
+    features = []
+    for i in range(room_count):
+        features.append({
+            "room_name": f"房间{i+1}",
+            "wall_id": f"wall_{(i*4)+1}",
+            "feature_type": "door",
+            "position_x": 0.5,
+            "position_y": 0.0,
+            "width": 0.9,
+            "height": 2.1,
+            "depth": 0.1,
+            "load_bearing": False,
+            "confidence": 0.99,
+            "detected_by": "mock",
+        })
+    return features
+
+
+def auto_detect_features(
+    session: ScanSession,
+    room_count: int,
+    detector_name: str = "rule_based",
+) -> list[dict]:
+    """AI 自动识别墙面特征 (可扩展检测器架构)。
+
+    支持检测器:
+    - "rule_based" (默认): 基于建筑规范的启发式规则
+    - "ai_default": AI 模型输出格式 (YOLO/Mask R-CNN 占位)
+    - "mock": 测试用确定性输出
+    - 自定义检测器: 通过 @register_feature_detector 注册
+
+    实际生产环境可接入:
+    - YOLOv8/Mask R-CNN 目标检测
+    - SAM (Segment Anything) 语义分割
+    - 全景图深度估计 + 几何推理
+
+    Args:
+        session: 扫描会话对象
+        room_count: 房间数量
+        detector_name: 检测器名称,默认 "rule_based"
+
+    Returns:
+        特征列表,每个特征包含位置、属性和置信度
+    """
+    detector = _FEATURE_DETECTORS.get(detector_name)
+    if not detector:
+        # 未知检测器: 降级到 rule_based
+        detector = _FEATURE_DETECTORS["rule_based"]
+    return detector(session, room_count)
+
+
+# 导出检测器注册表,供外部扩展
+__all__ = [
+    "auto_detect_features",
+    "register_feature_detector",
+    "get_available_detectors",
+]
 
 
 # ──────────────────────────────────────────────────────────────

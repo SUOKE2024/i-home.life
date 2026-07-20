@@ -5,12 +5,22 @@
  * ============================================ */
 
 const ApiClient = {
+  // ── 配置 ──
+
   // 后端 BASE URL（部署后同源，localhost 开发时使用环境变量或默认地址）
   BASE_URL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? (window.API_BASE_URL || '')
     : '',
 
-  // PASETO 令牌存储
+  // 重试配置
+  _maxRetries: 3,
+  _retryBaseDelay: 500, // ms，指数退避基数
+
+  // 未授权回调（由应用层设置，替代硬跳转）
+  onUnauthorized: null,
+
+  // ── Token 管理 ──
+
   getToken() {
     return localStorage.getItem('paseto_token') || '';
   },
@@ -22,13 +32,15 @@ const ApiClient = {
     localStorage.removeItem('user_info');
   },
 
-  // 构建完整 URL
+  // ── URL 构建 ──
+
   _url(path) {
     if (path.startsWith('http')) return path;
     return this.BASE_URL + (path.startsWith('/') ? path : '/' + path);
   },
 
-  // 基础请求封装（Agent LLM 调用默认 180s 超时，其他 30s）
+  // ── 核心请求（带重试 + 指数退避） ──
+
   async request(path, options = {}) {
     const token = this.getToken();
     const headers = {
@@ -39,30 +51,66 @@ const ApiClient = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // 自动超时：Agent 端点 180s，其他 30s
     const isAgentCall = path.includes('/api/agents/');
-    const timeoutMs = options.timeout || (isAgentCall ? 180000 : 30000);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutMs = options.timeout || (isAgentCall ? (AppConfig.agentTimeout || 180000) : (AppConfig.requestTimeout || 30000));
+
+    let lastError = null;
+    for (let attempt = 0; attempt <= this._maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(this._url(path), {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
+        if (res.status === 401) {
+          this.clearToken();
+          if (this.onUnauthorized) {
+            this.onUnauthorized();
+          } else {
+            window.location.href = '/login.html';
+          }
+          throw new Error('认证过期，请重新登录');
+        }
+        return this._handleResponse(res);
+      } catch (err) {
+        lastError = err;
+        // 超时和网络错误才重试，401/HTTP 错误不重试
+        const isRetryable =
+          err.name === 'AbortError' ||
+          err.name === 'TypeError' ||
+          (err.message && err.message.includes('NetworkError'));
+        if (!isRetryable || attempt >= this._maxRetries) break;
+        // 指数退避
+        await new Promise(r => setTimeout(r, this._retryBaseDelay * Math.pow(2, attempt)));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    if (lastError.name === 'AbortError') {
+      throw new Error(`请求超时（${Math.round(timeoutMs / 1000)}秒），请稍后重试`);
+    }
+    throw lastError;
+  },
+
+  /**
+   * 安全请求（Result 模式）：不抛异常，返回 {success, data, error, statusCode}
+   * 与 Flutter 端 Result<T> 模式对齐
+   */
+  async safeRequest(path, options = {}) {
     try {
-      const res = await fetch(this._url(path), {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
-      if (res.status === 401) {
-        this.clearToken();
-        window.location.href = '/login.html';
-        throw new Error('认证过期，请重新登录');
-      }
-      return this._handleResponse(res);
+      const data = await this.request(path, options);
+      return { success: true, data, statusCode: 200 };
     } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error(`请求超时（${Math.round(timeoutMs / 1000)}秒），请稍后重试`);
-      }
-      throw err;
-    } finally {
-      clearTimeout(timer);
+      return {
+        success: false,
+        data: null,
+        error: err.message || '请求失败',
+        statusCode: err.status || 0,
+        isNetworkError: err.name === 'TypeError' || err.name === 'AbortError',
+      };
     }
   },
 
@@ -232,14 +280,32 @@ const ApiClient = {
   },
 
   // Agent 聊天（支持多轮对话历史）
-  async chatWithAgent(message, agentType = 'orchestrator', projectId = null, history = []) {
+  async chatWithAgent(message, agentType = 'orchestrator', projectId = null, sessionId = null, history = []) {
     const body = { message, agent_type: agentType };
     if (projectId) body.project_id = projectId;
+    if (sessionId) body.session_id = sessionId;
     if (history && history.length > 0) body.history = history;
     return this.request('/api/agents/chat', {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  },
+
+  // Agent 会话管理
+  async listAgentSessions(projectId = null, skip = 0, limit = 20) {
+    const params = new URLSearchParams();
+    if (projectId) params.set('project_id', projectId);
+    params.set('skip', String(skip));
+    params.set('limit', String(limit));
+    return this.request(`/api/agents/sessions?${params}`);
+  },
+
+  async getAgentSession(sessionId) {
+    return this.request(`/api/agents/sessions/${sessionId}`);
+  },
+
+  async deleteAgentSession(sessionId) {
+    return this.request(`/api/agents/sessions/${sessionId}`, { method: 'DELETE' });
   },
 
   // L4 自适应学习：Agent 反馈
@@ -416,8 +482,9 @@ const ApiClient = {
     });
   },
   async updateOrderStatus(orderId, statusVal) {
-    return this.request(`/api/procurement/orders/${orderId}/status?status=${encodeURIComponent(statusVal)}`, {
+    return this.request(`/api/procurement/orders/${orderId}/status`, {
       method: 'PATCH',
+      body: JSON.stringify({ status: statusVal }),
     });
   },
   async deleteProcurementOrder(orderId) {
@@ -725,6 +792,15 @@ const ApiClient = {
     return this.request(`/api/change-orders/${changeId}/${endpoint}`, {
       method: 'POST',
     });
+  },
+  async createChangeOrder(data) {
+    return this.request('/api/change-orders', { method: 'POST', body: JSON.stringify(data) });
+  },
+  async getChangeOrder(changeId) {
+    return this.request(`/api/change-orders/${changeId}`);
+  },
+  async reviewChangeOrder(changeId, data) {
+    return this.request(`/api/change-orders/${changeId}/review`, { method: 'POST', body: JSON.stringify(data) });
   },
 
   // ============ 物料 / BOM ============
@@ -1169,6 +1245,16 @@ const ApiClient = {
   async deleteMEPKBPoint(pointId) {
     return this.request(`/api/mep-kb/points/${pointId}`, { method: 'DELETE' });
   },
+  async updateMEPKBPlan(planId, data) {
+    return this.request(`/api/mep-kb/plans/${planId}`, {
+      method: 'PUT', body: JSON.stringify(data),
+    });
+  },
+  async addMEPKBCircuit(planId, data) {
+    return this.request(`/api/mep-kb/plans/${planId}/circuits`, {
+      method: 'POST', body: JSON.stringify(data),
+    });
+  },
   async deleteMEPKBPlan(planId) {
     return this.request(`/api/mep-kb/plans/${planId}`, { method: 'DELETE' });
   },
@@ -1389,10 +1475,11 @@ const ApiClient = {
     return this.request('/api/mep/plan', { method: 'POST', body: JSON.stringify(data) });
   },
   async mepAppliances(data) {
-    return this.request('/api/mep/appliances', { method: 'POST', body: JSON.stringify(data) });
+    const projectId = data && data.project_id ? `/${data.project_id}` : '';
+    return this.request(`/api/mep/appliances${projectId}`);
   },
   async mepComplianceCheck(data) {
-    return this.request('/api/mep/compliance-check', { method: 'POST', body: JSON.stringify(data) });
+    return this.request('/api/mep/compliance/check', { method: 'POST', body: JSON.stringify(data) });
   },
   async mepRoomStandards(roomType) {
     return this.request(`/api/mep/room-standards/${roomType}`);
@@ -1583,7 +1670,10 @@ const ApiClient = {
     return this.request(`/api/custom-furniture/designs/${designId}/panels`);
   },
   async validateFurnitureDesign(designId) {
-    return this.request(`/api/custom-furniture/designs/${designId}/validation`);
+    return this.request(`/api/custom-furniture/designs/${designId}/validate`, { method: 'POST' });
+  },
+  async updateCustomFurnitureDesign(designId, data) {
+    return this.request(`/api/custom-furniture/designs/${designId}`, { method: 'PUT', body: JSON.stringify(data) });
   },
 
   // ============ 家具品类库 furniture-catalog ============
@@ -1594,35 +1684,35 @@ const ApiClient = {
     if (params.style) qs.set('style', params.style);
     if (params.keyword) qs.set('keyword', params.keyword);
     const query = qs.toString();
-    return this.request(`/api/furniture-catalog${query ? '?' + query : ''}`);
+    return this.request(`/api/furniture-catalog/items${query ? '?' + query : ''}`);
   },
   async createFurnitureCatalogItem(data) {
-    return this.request('/api/furniture-catalog', { method: 'POST', body: JSON.stringify(data) });
+    return this.request('/api/furniture-catalog/items', { method: 'POST', body: JSON.stringify(data) });
   },
   async recommendFurniture(data) {
     const qs = new URLSearchParams();
     if (data.room_type) qs.set('room_type', data.room_type);
     if (data.style) qs.set('style', data.style);
     if (data.budget) qs.set('budget', data.budget);
-    return this.request(`/api/furniture-catalog/recommend?${qs}`);
+    return this.request(`/api/furniture-catalog/items/recommend?${qs}`);
   },
   async getFurnitureCatalogItem(itemId) {
-    return this.request(`/api/furniture-catalog/${itemId}`);
+    return this.request(`/api/furniture-catalog/items/${itemId}`);
   },
   async updateFurnitureCatalogItem(itemId, data) {
-    return this.request(`/api/furniture-catalog/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) });
+    return this.request(`/api/furniture-catalog/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(data) });
   },
   async deleteFurnitureCatalogItem(itemId) {
-    return this.request(`/api/furniture-catalog/${itemId}`, { method: 'DELETE' });
+    return this.request(`/api/furniture-catalog/items/${itemId}`, { method: 'DELETE' });
   },
   async getFurnitureARPlacement(itemId, data) {
     const qs = new URLSearchParams();
     if (data.room_id) qs.set('room_id', data.room_id);
     if (data.position) qs.set('position', data.position);
-    return this.request(`/api/furniture-catalog/${itemId}/ar-placement?${qs}`);
+    return this.request(`/api/furniture-catalog/items/${itemId}/ar-placement?${qs}`);
   },
   async getSimilarFurniture(itemId) {
-    return this.request(`/api/furniture-catalog/${itemId}/similar`);
+    return this.request(`/api/furniture-catalog/items/${itemId}/similar`);
   },
 
   // ============ 智能家居 smart-home ============
@@ -1689,6 +1779,9 @@ const ApiClient = {
   },
   async simulateScene(sceneId) {
     return this.request(`/api/scene-automation/scenes/${sceneId}/simulate`, { method: 'POST' });
+  },
+  async validateScene(sceneId) {
+    return this.request(`/api/scene-automation/scenes/${sceneId}/validate`, { method: 'POST' });
   },
   async syncScene(sceneId) {
     return this.request(`/api/scene-automation/scenes/${sceneId}/sync`, { method: 'POST' });
@@ -1772,6 +1865,9 @@ const ApiClient = {
   async updateCrewMatchStatus(matchId, status) {
     return this.request(`/api/crews/matches/${matchId}/status`, { method: 'POST', body: JSON.stringify({ status }) });
   },
+  async updateCrew(crewId, data) {
+    return this.request(`/api/crews/${crewId}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
 
   // ============ 服务者匹配 workers ============
 
@@ -1792,6 +1888,9 @@ const ApiClient = {
   },
   async updateWorkerMatchStatus(matchId, status) {
     return this.request(`/api/workers/matches/${matchId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  },
+  async updateWorker(workerId, data) {
+    return this.request(`/api/workers/${workerId}`, { method: 'PUT', body: JSON.stringify(data) });
   },
 
   // ============ 任务协调 tasks ============

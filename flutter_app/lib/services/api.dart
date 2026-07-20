@@ -222,6 +222,10 @@ class ApiClient {
       post('/mep-kb/plans/$planId/points', body);
   Future<Result<dynamic>> mepAddCircuit(String planId, Map<String, dynamic> body) =>
       post('/mep-kb/plans/$planId/circuits', body);
+  Future<Result<dynamic>> mepAutoGenerate(String planId) =>
+      post('/mep-kb/plans/$planId/auto-generate', {});
+  Future<Result<dynamic>> mepDeletePoint(String pointId) =>
+      delete('/mep-kb/points/$pointId');
 
   // ── F17 卫浴设计 ──
 
@@ -272,6 +276,12 @@ class ApiClient {
       post('/hard-decoration/schemes/$schemeId/walls', body);
   Future<Result<dynamic>> hardDecoAddCeiling(String schemeId, Map<String, dynamic> body) =>
       post('/hard-decoration/schemes/$schemeId/ceilings', body);
+  Future<Result<dynamic>> hardDecoPaintUsage(String schemeId, Map<String, dynamic> body) =>
+      post('/hard-decoration/schemes/$schemeId/paint-usage', body);
+  Future<Result<dynamic>> hardDecoCeilingDesign(String schemeId, Map<String, dynamic> body) =>
+      post('/hard-decoration/schemes/$schemeId/ceiling-design', body);
+  Future<Result<dynamic>> hardDecoGetBudget(String schemeId) =>
+      get('/hard-decoration/schemes/$schemeId/budget');
 
   // ── F23 门窗防水 ──
 
@@ -291,6 +301,12 @@ class ApiClient {
       get('/door-window-waterproof/waterproof/$planId/validation');
   Future<Result<dynamic>> doorWinAddWaterproof(Map<String, dynamic> body) =>
       post('/door-window-waterproof/waterproof', body);
+  Future<Result<dynamic>> doorWinRecommend(String projectId, Map<String, dynamic> body) =>
+      post('/door-window-waterproof/door-windows/recommend', body..['project_id'] = projectId);
+  Future<Result<dynamic>> doorWinComputeWaterproofArea(String planId, Map<String, dynamic> body) =>
+      post('/door-window-waterproof/waterproof/$planId/compute-area', body);
+  Future<Result<dynamic>> doorWinDeleteWaterproof(String planId) =>
+      delete('/door-window-waterproof/waterproof/$planId');
 
   // ── F26 家具品类库 ──
 
@@ -310,6 +326,8 @@ class ApiClient {
       get('/furniture-catalog/items/$itemId/recommend');
   Future<Result<dynamic>> furnitureArPlace(String itemId, Map<String, dynamic> body) =>
       post('/furniture-catalog/items/$itemId/ar-place', body);
+  Future<Result<dynamic>> furnitureGetSimilar(String itemId) =>
+      get('/furniture-catalog/items/$itemId/similar');
 
   // ── F19/F20 电器品类与点位 ──
 
@@ -411,6 +429,10 @@ class ApiClient {
       get('/smart-home/schemes/$schemeId/protocol-advice');
   Future<Result<dynamic>> smartHomeAddDevice(String schemeId, Map<String, dynamic> body) =>
       post('/smart-home/schemes/$schemeId/devices', body);
+  Future<Result<dynamic>> smartHomeGetPrice(String schemeId) =>
+      get('/smart-home/schemes/$schemeId/price');
+  Future<Result<dynamic>> smartHomeDeleteDevice(String deviceId) =>
+      delete('/smart-home/devices/$deviceId');
 
   // ── F32 场景编辑 ──
 
@@ -432,6 +454,14 @@ class ApiClient {
       post('/scene-automation/scenes/$sceneId/validate', {});
   Future<Result<dynamic>> sceneListEcosystems(String projectId) =>
       get('/scene-automation/ecosystems/project/$projectId');
+  Future<Result<dynamic>> sceneRecommend(Map<String, dynamic> query) =>
+      get('/scene-automation/scenes/recommend?${query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&')}');
+  Future<Result<dynamic>> sceneSync(String sceneId) =>
+      post('/scene-automation/scenes/$sceneId/sync', {});
+  Future<Result<dynamic>> sceneCreateEcosystem(Map<String, dynamic> body) =>
+      post('/scene-automation/ecosystems', body);
+  Future<Result<dynamic>> sceneDeleteEcosystem(String ecosystemId) =>
+      delete('/scene-automation/ecosystems/$ecosystemId');
 
   // ── F33/F34 采购增强 ──
 
@@ -467,6 +497,23 @@ class ApiClient {
       post('/procurement-enhanced/samples', body);
   Future<Result<dynamic>> procApproveSample(String id) =>
       patch('/procurement-enhanced/samples/$id', {'status': 'approved'});
+  Future<Result<dynamic>> procUpdateSample(String id, Map<String, dynamic> body) =>
+      patch('/procurement-enhanced/samples/$id', body);
+  Future<Result<dynamic>> procAiMatchSuppliers(String bomItemId, {String? location}) =>
+      post('/procurement-enhanced/ai-match', {
+        'bom_item_id': bomItemId,
+        if (location != null) 'location': location,
+      });
+  Future<Result<dynamic>> procGetOrderEscrow(String orderId) =>
+      get('/procurement-enhanced/escrow/order/$orderId');
+  Future<Result<dynamic>> procDisputeEscrow(String id, String reason) =>
+      post('/procurement-enhanced/escrow/$id/dispute', {'reason': reason});
+  Future<Result<dynamic>> procResolveEscrow(String id, String resolution) =>
+      post('/procurement-enhanced/escrow/$id/resolve', {'resolution': resolution});
+  Future<Result<dynamic>> procGetOrderLogistics(String orderId) =>
+      get('/procurement-enhanced/logistics/order/$orderId');
+  Future<Result<dynamic>> procUpdateLogistics(String id, Map<String, dynamic> body) =>
+      patch('/procurement-enhanced/logistics/$id', body);
 
   // ── 用户 & 项目 ──
 
@@ -568,6 +615,12 @@ class ApiClient {
         'input_image_url': inputImageUrl,
         'customizations': customizations ?? {},
       });
+  Future<Result<dynamic>> aiImageCreatePreset(Map<String, dynamic> body) =>
+      post('/ai-image/presets', body);
+  Future<Result<dynamic>> aiImageGetPreset(String presetId) =>
+      get('/ai-image/presets/$presetId');
+  Future<Result<dynamic>> aiImageBatchJobs(Map<String, dynamic> body) =>
+      post('/ai-image/jobs/batch', body);
 
   // ── VR 全景 ──
 
@@ -614,6 +667,10 @@ class ApiClient {
       get('/points/redemptions');
   Future<Result<dynamic>> pointsGetRanking({String category = 'overall'}) =>
       get('/points/ranking?category=$category');
+  Future<Result<dynamic>> pointsEarn(Map<String, dynamic> body) =>
+      post('/points/earn', body);
+  Future<Result<dynamic>> pointsRecomputeRanking() =>
+      post('/points/ranking/recompute', {});
 
   // ── 身份认证 ──
 
@@ -928,6 +985,42 @@ class ApiClient {
   Future<Result<dynamic>> structuralDeleteQuantityLineItem(String itemId) =>
       delete('/structural/quantity-calcs/line-items/$itemId');
 
+  // 基础
+  Future<Result<dynamic>> structuralListFoundations(String projectId) =>
+      get('/structural/projects/$projectId/foundations');
+  Future<Result<dynamic>> structuralCreateFoundation(Map<String, dynamic> body) =>
+      post('/structural/foundations', body);
+  Future<Result<dynamic>> structuralGetFoundation(String foundationId) =>
+      get('/structural/foundations/$foundationId');
+  Future<Result<dynamic>> structuralDeleteFoundation(String foundationId) =>
+      delete('/structural/foundations/$foundationId');
+  Future<Result<dynamic>> structuralSelectFoundation(String foundationId) =>
+      post('/structural/foundations/$foundationId/select', {});
+  Future<Result<dynamic>> structuralRecommendFoundation(Map<String, dynamic> body) =>
+      post('/structural/foundations/recommend', body);
+
+  // 荷载估算
+  Future<Result<dynamic>> structuralListLoadEstimates(String projectId) =>
+      get('/structural/projects/$projectId/load-estimates');
+  Future<Result<dynamic>> structuralCreateLoadEstimate(Map<String, dynamic> body) =>
+      post('/structural/load-estimates', body);
+  Future<Result<dynamic>> structuralGetLoadEstimate(String estimateId) =>
+      get('/structural/load-estimates/$estimateId');
+  Future<Result<dynamic>> structuralDeleteLoadEstimate(String estimateId) =>
+      delete('/structural/load-estimates/$estimateId');
+  Future<Result<dynamic>> structuralComputeLoad(Map<String, dynamic> body) =>
+      post('/structural/load-estimates/compute', body);
+
+  // 合规检查
+  Future<Result<dynamic>> structuralListCompliance(String projectId) =>
+      get('/structural/projects/$projectId/compliance');
+  Future<Result<dynamic>> structuralCreateCompliance(Map<String, dynamic> body) =>
+      post('/structural/compliance', body);
+  Future<Result<dynamic>> structuralGetCompliance(String complianceId) =>
+      get('/structural/compliance/$complianceId');
+  Future<Result<dynamic>> structuralDeleteCompliance(String complianceId) =>
+      delete('/structural/compliance/$complianceId');
+
   // ── 产品/服务管理 ──
 
   /// 查询产品列表（全局产品库）
@@ -988,6 +1081,14 @@ class ApiClient {
   Future<Result<dynamic>> cameraConfirm(Map<String, dynamic> body) =>
       post('/products/camera/confirm', body);
 
+  /// 获取批量上传模板下载链接
+  Future<Result<dynamic>> productBatchTemplate() =>
+      get('/products/batch/template');
+
+  /// 查询 AI 文案生成任务状态
+  Future<Result<dynamic>> productBatchAiCopyStatus(String batchId) =>
+      get('/products/batch/ai-jobs/$batchId');
+
   // ── AR 空间测量 ar_scan ──
 
   Future<Result<dynamic>> arDeviceCapability(Map<String, dynamic> body) =>
@@ -1020,6 +1121,10 @@ class ApiClient {
       post('/surveys/ar/points', body);
   Future<Result<dynamic>> arListPoints(String sessionId) =>
       get('/surveys/ar/points/$sessionId');
+  Future<Result<dynamic>> arDeviceCheck() =>
+      get('/surveys/device-check');
+  Future<Result<dynamic>> arUploadModel(String sessionId, {required String filePath}) =>
+      uploadFile('/surveys/ar/sessions/$sessionId/upload-model', filePath: filePath);
 
   // ── 位置服务 ──
 
@@ -1074,10 +1179,22 @@ class ApiClient {
       delete('/custom-furniture/designs/$designId');
   Future<Result<dynamic>> customFurnitureGenerateBom(String designId) =>
       post('/custom-furniture/designs/$designId/bom', {});
+  Future<Result<dynamic>> customFurnitureGetBom(String designId) =>
+      get('/custom-furniture/designs/$designId/bom');
   Future<Result<dynamic>> customFurniturePriceEstimate(String designId, Map<String, dynamic> body) =>
-      post('/custom-furniture/designs/$designId/price', body);
+      get('/custom-furniture/designs/$designId/price');
   Future<Result<dynamic>> customFurnitureValidate(String designId) =>
       post('/custom-furniture/designs/$designId/validate', {});
+  Future<Result<dynamic>> customFurnitureParametric(String designId, Map<String, dynamic> body) =>
+      post('/custom-furniture/designs/$designId/parametric', body);
+  Future<Result<dynamic>> customFurnitureAddModule(String designId, Map<String, dynamic> body) =>
+      post('/custom-furniture/designs/$designId/modules', body);
+  Future<Result<dynamic>> customFurnitureListModules(String designId) =>
+      get('/custom-furniture/designs/$designId/modules');
+  Future<Result<dynamic>> customFurnitureDeleteModule(String moduleId) =>
+      delete('/custom-furniture/modules/$moduleId');
+  Future<Result<dynamic>> customFurnitureListPanels(String designId) =>
+      get('/custom-furniture/designs/$designId/panels');
 
   // ── 工程队匹配 ──
 
@@ -1135,6 +1252,21 @@ class ApiClient {
   Future<Result<dynamic>> healthCheck() =>
       get('/health');
 
+  // ── 功能开关 ──
+
+  Future<Result<dynamic>> getFeatureFlags() =>
+      get('/config/feature-flags');
+
+  // ── BIM IFC 导出 ──
+
+  /// 导出项目结构数据为 IFC 文件
+  Future<Result<dynamic>> exportStructuralIFC(String projectId) =>
+      post('/bim/export/structural/$projectId', {});
+
+  /// 导出设计方案数据为 IFC 文件
+  Future<Result<dynamic>> exportDesignIFC(String planId) =>
+      post('/bim/export/design/$planId', {});
+
   // ══════════════════════════════════════════════════════
   // v1.1.16 补齐：Web 端已有但 Flutter 缺失的 API 模块
   // ══════════════════════════════════════════════════════
@@ -1143,22 +1275,25 @@ class ApiClient {
 
   /// 通用 Agent 聊天（自然语言路由）
   Future<Result<dynamic>> agentChat(String message,
-          {String agentType = 'orchestrator', String? projectId}) =>
+          {String agentType = 'orchestrator', String? projectId,
+           String? sessionId}) =>
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
         if (projectId != null) 'project_id': projectId,
+        if (sessionId != null) 'session_id': sessionId,
       });
 
   /// 支持多轮对话历史的 Agent 聊天
   Future<Result<dynamic>> agentChatWithHistory(String message,
           {String agentType = 'orchestrator', String? projectId,
-           List<Map<String, dynamic>>? history}) =>
+           List<Map<String, dynamic>>? history, String? sessionId}) =>
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
         if (projectId != null) 'project_id': projectId,
         if (history != null) 'history': history,
+        if (sessionId != null) 'session_id': sessionId,
       });
 
   /// 设计 Agent 专用端点
@@ -1188,6 +1323,25 @@ class ApiClient {
         'message': message,
         if (projectId != null) 'project_id': projectId,
       });
+
+  // ── Agent 会话管理 ──
+
+  Future<Result<dynamic>> listAgentSessions({String? projectId, int skip = 0, int limit = 20}) {
+    final params = <String, String>{};
+    if (projectId != null) params['project_id'] = projectId;
+    params['skip'] = skip.toString();
+    params['limit'] = limit.toString();
+    final qs = params.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}').join('&');
+    return get('/agents/sessions?$qs');
+  }
+
+  Future<Result<dynamic>> getAgentSession(String sessionId) {
+    return get('/agents/sessions/$sessionId');
+  }
+
+  Future<Result<dynamic>> deleteAgentSession(String sessionId) {
+    return delete('/agents/sessions/$sessionId');
+  }
 
   // ── 预算模块 (P1) ──
 

@@ -12,6 +12,13 @@ from app.models.procurement import Supplier
 from app.auth import get_current_user
 from app.rbac import verify_project_access
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.services.product_service import (
+    create_product as _svc_create_product,
+    get_product as _svc_get_product,
+    list_products as _svc_list_products,
+    update_product as _svc_update_product,
+    publish_product as _svc_publish_product,
+)
 from app.agents.procurement import ProcurementAgent
 from app.ws import ws_manager
 
@@ -59,23 +66,9 @@ async def create_product(
     stmt = select(Supplier).where(Supplier.phone == current_user.phone)
     result = await db.execute(stmt)
     supplier = result.scalar_one_or_none()
+    supplier_id = supplier.id if supplier else ""
 
-    product = Product(
-        user_id=current_user.id,
-        supplier_id=supplier.id if supplier else "",
-        name=data.name,
-        category=data.category,
-        description=data.description,
-        price_min=data.price_min,
-        price_max=data.price_max,
-        unit=data.unit,
-        images=json.dumps(data.images, ensure_ascii=False) if data.images else None,
-        cover_image=data.cover_image,
-        tags=json.dumps(data.tags, ensure_ascii=False) if data.tags else None,
-        specs=json.dumps(data.specs, ensure_ascii=False) if data.specs else None,
-        stock_status=data.stock_status,
-        ai_assisted=data.ai_assisted,
-    )
+    product = await _svc_create_product(db, current_user.id, supplier_id, data)
 
     # AI 辅助生成文案
     if data.ai_assisted:
@@ -104,14 +97,13 @@ async def create_product(
             if ai_data.get("tags"):
                 product.tags = json.dumps(ai_data["tags"], ensure_ascii=False)
             product.ai_generated = True
+            await db.commit()
+            await db.refresh(product)
         except Exception:
             pass  # AI 生成失败不影响产品创建
         finally:
             await p_agent.close()
 
-    db.add(product)
-    await db.commit()
-    await db.refresh(product)
     return _product_to_response(product)
 
 
@@ -125,21 +117,7 @@ async def list_products(
     limit: int = Query(20, ge=1, le=100),
 ):
     """查询产品列表"""
-    conditions = []
-    if category:
-        conditions.append(Product.category == category)
-    if status:
-        conditions.append(Product.status == status)
-
-    stmt = (
-        select(Product)
-        .where(*conditions)
-        .order_by(Product.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    products = result.scalars().all()
+    products = await _svc_list_products(db, category=category, status=status, skip=offset, limit=limit)
     return [_product_to_response(p) for p in products]
 
 
@@ -151,15 +129,7 @@ async def list_my_products(
     limit: int = Query(20, ge=1, le=100),
 ):
     """查询当前供应商的产品"""
-    stmt = (
-        select(Product)
-        .where(Product.user_id == current_user.id)
-        .order_by(Product.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    products = result.scalars().all()
+    products = await _svc_list_products(db, user_id=current_user.id, skip=offset, limit=limit)
     return [_product_to_response(p) for p in products]
 
 
@@ -170,9 +140,7 @@ async def get_product(
     db: AsyncSession = Depends(get_db),
 ):
     """获取产品详情"""
-    stmt = select(Product).where(Product.id == product_id)
-    result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
+    product = await _svc_get_product(db, product_id)
     if not product:
         raise HTTPException(status_code=404, detail="产品不存在")
     return _product_to_response(product)
@@ -186,23 +154,12 @@ async def update_product(
     db: AsyncSession = Depends(get_db),
 ):
     """更新产品"""
-    stmt = select(Product).where(Product.id == product_id, Product.user_id == current_user.id)
-    result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
-    if not product:
+    # 验证所有权
+    product = await _svc_get_product(db, product_id)
+    if not product or product.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="产品不存在或无权限")
 
-    update_data = data.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        if key in ("images", "tags"):
-            setattr(product, key, json.dumps(value, ensure_ascii=False) if value else None)
-        elif key == "specs":
-            setattr(product, key, json.dumps(value, ensure_ascii=False) if value else None)
-        else:
-            setattr(product, key, value)
-
-    await db.commit()
-    await db.refresh(product)
+    product = await _svc_update_product(db, product_id, data)
     return _product_to_response(product)
 
 
@@ -214,15 +171,12 @@ async def publish_product(
     db: AsyncSession = Depends(get_db),
 ):
     """发布产品到市场，并通过 WebSocket 推送到项目聊天室"""
-    stmt = select(Product).where(Product.id == product_id, Product.user_id == current_user.id)
-    result = await db.execute(stmt)
-    product = result.scalar_one_or_none()
-    if not product:
+    # 验证所有权
+    product = await _svc_get_product(db, product_id)
+    if not product or product.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="产品不存在或无权限")
 
-    product.status = "published"
-    await db.commit()
-    await db.refresh(product)
+    product = await _svc_publish_product(db, product_id)
 
     # 通过 WebSocket 推送产品发布事件
     if project_id:

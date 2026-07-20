@@ -20,6 +20,9 @@ class AgentFeedback(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    session_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("agent_sessions.id"), nullable=True, index=True,
+    )  # v1.1.19: 关联 Agent 对话会话，用于分析完整会话的用户满意度
     agent_name: Mapped[str] = mapped_column(String(50), nullable=False)  # designer/budget/...
     message_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # SHA256(user_message)
     feedback_type: Mapped[str] = mapped_column(String(20), nullable=False)  # like/dislike

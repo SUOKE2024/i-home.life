@@ -69,9 +69,9 @@ void main() {
     final pc = ProjectContext();
     await pc.loadProjects();
 
-    // 设置足够大的屏幕以显示所有 32 个功能项
-    // 2 列 × 16 行，每张卡片约 252px 高 + 间距 + 标题/选择器 ≈ 4600px
-    tester.view.physicalSize = const Size(800, 4800);
+    // 设置足够大的屏幕以显示所有 35 个功能项
+    // 2 列 × 18 行，每张卡片约 252px 高 + 间距 + 标题/选择器 ≈ 5000px
+    tester.view.physicalSize = const Size(800, 5200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -87,7 +87,7 @@ void main() {
     await tester.tap(find.text('更多'));
     await tester.pumpAndSettle();
 
-    // 验证所有 32 个功能项标题
+    // 验证所有 35 个功能项标题
     final expectedItems = [
       '项目详情',
       '预算',
@@ -121,13 +121,16 @@ void main() {
       '服务者匹配',
       '场景编辑',
       '协作聊天',
+      '装修进度',
+      '质检报告',
+      '设置',
     ];
 
     for (final title in expectedItems) {
       expect(find.text(title), findsOneWidget, reason: '应显示功能项: $title');
     }
 
-    // 确认功能项总数为 32
-    expect(expectedItems.length, 32);
+    // 确认功能项总数为 35
+    expect(expectedItems.length, 35);
   });
 }

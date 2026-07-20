@@ -30,4 +30,6 @@ async def get_feature_flags(current_user: User = Depends(get_current_user)):
         "voice_emotion_routing_enabled": settings.voice_emotion_routing_enabled,
         "qwen_audio_model": settings.qwen_audio_model,
         "qwen_audio_model_variant": "plus" if settings.qwen_audio_model.endswith("-plus") else "flash",
+        # v1.1.21 暴露
+        "voice_audio_prompt_enabled": settings.voice_audio_prompt_enabled,
     }

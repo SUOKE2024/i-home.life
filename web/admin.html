@@ -220,10 +220,10 @@ td .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.65rem
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="assets/js/api-client.js?v=20260720i"></script>
 <script>
 'use strict';
 
-const API = '';  // 部署后同源，API 不跨域
 let AUTH_TOKEN = '';
 let USER = null;
 
@@ -238,16 +238,11 @@ function fmtDate(s){if(!s)return'-';try{return new Date(s).toLocaleDateString('z
 function fmtArea(n){return n!=null?Number(n).toFixed(1)+'㎡':'-';}
 
 async function api(method,path,body){
-  const opts={method,headers:{'Content-Type':'application/json'}};
-  if(AUTH_TOKEN)opts.headers['Authorization']='Bearer '+AUTH_TOKEN;
-  if(body)opts.body=JSON.stringify(body);
-  const resp=await fetch(API+path,opts);
-  if(resp.status===401){logout();throw new Error('认证已过期');}
-  if(resp.status===204)return null;
-  const data=await resp.json();
-  if(!resp.ok)throw new Error(data.detail||resp.statusText);
-  return data;
+  return ApiClient.request(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
 }
+
+// 设置 401 未授权回调
+ApiClient.onUnauthorized = logout;
 
 // ========== Auth ==========
 function validatePhone(phone){
@@ -278,16 +273,12 @@ document.getElementById('login-form').addEventListener('submit',async function(e
   if(!valid)return;
 
   try{
-    const resp=await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone,password})});
-    const data=await resp.json();
-    if(!resp.ok)throw new Error(data.detail||'登录失败');
-
-    AUTH_TOKEN=data.access_token;
-    localStorage.setItem('paseto_token', data.access_token);
+    const data = await ApiClient.login(phone, password);
+    AUTH_TOKEN = data.access_token;
     document.getElementById('login-overlay').style.display='none';
     document.getElementById('app').style.display='flex';
-    await loadProfile();
+    USER = await ApiClient.getCurrentUser();
+    document.getElementById('user-phone').textContent = USER.phone || USER.username || '---';
     const validTabs=['dashboard','projects','budgets','procurement','construction','settlements','materials','users','quality'];
     const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
     showTab(initialTab);
@@ -297,16 +288,9 @@ document.getElementById('login-form').addEventListener('submit',async function(e
   }
 });
 
-async function loadProfile(){
-  try{
-    const resp=await fetch(API+'/api/auth/me',{headers:{'Authorization':'Bearer '+AUTH_TOKEN}});
-    if(resp.ok){USER=await resp.json();document.getElementById('user-phone').textContent=USER.phone||USER.username||'---';}
-  }catch(e){}
-}
-
 function logout(){
   AUTH_TOKEN='';USER=null;
-  localStorage.removeItem('paseto_token');
+  ApiClient.clearToken();
   document.getElementById('login-overlay').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('login-error').style.display='none';
@@ -547,9 +531,7 @@ kitchen,橱柜安装,8500</textarea></div></div>
     const lines=raw.split('\n').filter(l=>l.trim()).map(l=>{const p=l.split(',');return{category:p[0]?.trim()||'other',name:p[1]?.trim()||'',estimated_amount:parseFloat(p[2])||0};});
     if(!lines.length)return toast('请输入预算明细');
     try{
-      const resp=await fetch(API+'/api/budgets',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AUTH_TOKEN},
-        body:JSON.stringify({project_id:pid,lines})});
-      if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'创建失败');}
+      await ApiClient.createBudget({project_id: pid, lines});
       toast('预算创建成功');
       loadBudget(pid);
     }catch(err){toast('创建失败: '+err.message);}
@@ -633,8 +615,7 @@ async function renderProcurement(c){
     const lines=[{material_id:mid1,quantity:parseFloat(document.getElementById('order-qty1').value)||1,unit_price:parseFloat(document.getElementById('order-price1').value)||0}];
     if(mid2)lines.push({material_id:mid2,quantity:parseFloat(document.getElementById('order-qty2').value)||1,unit_price:parseFloat(document.getElementById('order-price2').value)||0});
     try{
-      const resp=await fetch(API+'/api/procurement/orders',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AUTH_TOKEN},body:JSON.stringify({project_id:pid,supplier_id:sid,lines})});
-      if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'创建失败');}
+      await ApiClient.createProcurementOrder({project_id:pid,supplier_id:sid,lines});
       toast('采购订单创建成功');showTab('procurement');
     }catch(err){toast('创建失败: '+err.message);}
   });
@@ -704,9 +685,10 @@ async function renderConstruction(c){
     const today=new Date();
     const end=new Date(today);end.setDate(end.getDate()+days);
     try{
-      const resp=await fetch(API+'/api/construction/tasks',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+AUTH_TOKEN},
-        body:JSON.stringify({project_id:pid,name,phase,start_date:today.toISOString().slice(0,10),end_date:end.toISOString().slice(0,10),status:'pending'})});
-      if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'创建失败');}
+      await ApiClient.request('/api/construction/tasks', {
+        method: 'POST',
+        body: JSON.stringify({project_id:pid,name,phase,start_date:today.toISOString().slice(0,10),end_date:end.toISOString().slice(0,10),status:'pending'}),
+      });
       toast('施工任务创建成功');showTab('construction');
     }catch(err){toast('创建失败: '+err.message);}
   });
@@ -870,23 +852,16 @@ async function toggleUserStatus(uid,currentlyActive){
 }
 
 // ========== Init ==========
-// Try to restore session from saved token (replaces demo auto-login)
+// Try to restore session from saved token
 (async function(){
-  const savedToken = localStorage.getItem('paseto_token');
+  const savedToken = ApiClient.getToken();
   if (!savedToken) {
     document.getElementById('login-overlay').style.display='flex';
     return;
   }
   try{
     AUTH_TOKEN = savedToken;
-    const resp = await fetch(API+'/api/auth/me', {headers:{'Authorization':'Bearer '+AUTH_TOKEN}});
-    if (!resp.ok) {
-      localStorage.removeItem('paseto_token');
-      AUTH_TOKEN = '';
-      document.getElementById('login-overlay').style.display='flex';
-      return;
-    }
-    USER = await resp.json();
+    USER = await ApiClient.getCurrentUser();
     document.getElementById('login-overlay').style.display='none';
     document.getElementById('app').style.display='flex';
     document.getElementById('user-phone').textContent = USER.phone || USER.username || '---';
@@ -894,7 +869,7 @@ async function toggleUserStatus(uid,currentlyActive){
     const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
     showTab(initialTab);
   }catch(e){
-    localStorage.removeItem('paseto_token');
+    ApiClient.clearToken();
     AUTH_TOKEN = '';
     document.getElementById('login-overlay').style.display='flex';
   }

@@ -4,10 +4,10 @@
  * - 静态资源：缓存优先（stale-while-revalidate）
  * - API 请求：网络优先，失败降级缓存
  * - WebSocket：不拦截
- * 版本：20260720g（与其他 HTML 引用的 v=20260720g 版本号保持一致）
+ * 版本：20260720i（与其他 HTML 引用的 v=20260720i 版本号保持一致）
  * ============================================ */
 
-const CACHE_VERSION = 'suoke-v20260720g';
+const CACHE_VERSION = 'suoke-v20260720i';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -29,14 +29,20 @@ const PRECACHE_URLS = [
   '/quality-report.html',
   '/timeline.html',
   '/structure.html',
+  '/points.html',
+  '/crew-management.html',
+  '/change-orders.html',
   '/manifest.json',
-  '/assets/css/workbench.css?v=20260720g',
-  '/assets/js/api-client.js?v=20260720g',
-  '/assets/js/im-client.js?v=20260720g',
-  '/assets/js/agent-router.js?v=20260720g',
-  '/assets/js/message-renderers.js?v=20260720g',
-  '/assets/js/analytics.js?v=20260720g',
-  '/assets/js/echarts.min.js?v=20260720g',
+  '/assets/css/workbench.css?v=20260720i',
+  '/assets/js/api-client.js?v=20260720i',
+  '/assets/js/im-client.js?v=20260720i',
+  '/assets/js/agent-router.js?v=20260720i',
+  '/assets/js/message-renderers.js?v=20260720i',
+  '/assets/js/analytics.js?v=20260720i',
+  '/assets/js/echarts.min.js?v=20260720i',
+  '/assets/js/offline-cache.js?v=20260720i',
+  '/assets/js/sse-client.js?v=20260720i',
+  '/assets/js/app-config.js?v=20260720i',
   '/assets/images/icons/desktop/suoke-favicon-32.png',
   '/assets/images/icons/desktop/suoke-logo-128.png',
   '/assets/images/icons/desktop/suoke-logo-512.png',

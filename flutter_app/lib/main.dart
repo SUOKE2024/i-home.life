@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'theme/suoke_theme.dart';
 import 'services/api.dart';
+import 'services/feature_flags_service.dart';
 import 'services/notification_service.dart';
 import 'services/project_context.dart';
 import 'pages/home_page.dart';
@@ -31,6 +32,10 @@ void main() {
   // HarmonyOS 等不支持的平台会自动跳过原生初始化
   NotificationService().initialize().catchError((e) {
     debugPrint('NotificationService 初始化失败（不影响应用启动）: $e');
+  });
+  // 预加载功能开关（异步，失败不影响应用启动）
+  FeatureFlagsService().initialize().catchError((e) {
+    debugPrint('FeatureFlagsService 初始化失败（不影响应用启动）: $e');
   });
   runApp(const IHomeApp());
 }

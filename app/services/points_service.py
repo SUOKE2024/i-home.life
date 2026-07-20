@@ -43,6 +43,8 @@ async def ensure_account(db: AsyncSession, user_id: str) -> PointsAccount:
         account = PointsAccount(user_id=user_id, account_type="user")
         db.add(account)
         await db.flush()
+        # refresh 获取 server_default 生成的 created_at / updated_at
+        await db.refresh(account)
     # 检查是否需要重置年度统计
     current_year = datetime.now(timezone.utc).year
     if account.year_updated != current_year:

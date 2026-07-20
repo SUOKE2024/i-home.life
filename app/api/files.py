@@ -1,15 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 import io
 
 from app.database import get_db
 from app.models.user import User
-from app.models.file_attachment import FileAttachment
 from app.schemas.file_attachment import FileAttachmentResponse, FileAttachmentListItem
 from app.auth import get_current_user
 from app.rbac import verify_project_collaborator_access
+from app.services.file_service import (
+    upload_file as _svc_upload_file,
+    list_project_files,
+    get_file,
+    delete_file as _svc_delete_file,
+)
 
 router = APIRouter(prefix="/files", tags=["文件"])
 
@@ -37,17 +41,14 @@ async def upload_file(
     # 项目协作权限检查（F40 三方协作：允许 designer/contractor/supplier 上传文件）
     await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     contents = await file.read()
-    attachment = FileAttachment(
+    attachment = await _svc_upload_file(
+        db,
         project_id=project_id,
         filename=file.filename or "unnamed",
-        content_type=file.content_type or "application/octet-stream",
-        file_size=len(contents),
-        category=category,
         file_data=contents,
+        content_type=file.content_type or "application/octet-stream",
+        category=category,
     )
-    db.add(attachment)
-    await db.commit()
-    await db.refresh(attachment)
     return FileAttachmentResponse.model_validate(attachment)
 
 
@@ -62,13 +63,7 @@ async def list_files(
 ):
     """列出项目附件（v1.1.14: 支持 skip/limit 分页）"""
     await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
-    query = select(FileAttachment).where(FileAttachment.project_id == project_id)
-    if category:
-        query = query.where(FileAttachment.category == category)
-    result = await db.execute(
-        query.order_by(FileAttachment.created_at.desc()).offset(skip).limit(limit)
-    )
-    attachments = result.scalars().all()
+    attachments = await list_project_files(db, project_id, category=category, skip=skip, limit=limit)
     return [FileAttachmentListItem.model_validate(a) for a in attachments]
 
 
@@ -78,8 +73,7 @@ async def download_file(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(FileAttachment).where(FileAttachment.id == attachment_id))
-    attachment = result.scalar_one_or_none()
+    attachment = await get_file(db, attachment_id)
     if not attachment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
     await verify_project_collaborator_access(project_id=attachment.project_id, current_user=current_user, db=db)
@@ -96,10 +90,9 @@ async def delete_file(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(FileAttachment).where(FileAttachment.id == attachment_id))
-    attachment = result.scalar_one_or_none()
+    # 先获取文件以验证权限
+    attachment = await get_file(db, attachment_id)
     if not attachment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="文件不存在")
     await verify_project_collaborator_access(project_id=attachment.project_id, current_user=current_user, db=db)
-    await db.delete(attachment)
-    await db.commit()
+    await _svc_delete_file(db, attachment_id)

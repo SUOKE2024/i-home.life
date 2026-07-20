@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart' show ThemeState;
 import '../models/chat_message.dart';
@@ -39,6 +40,7 @@ class _AIChatPageState extends State<AIChatPage> {
   bool _isLoading = false;
   bool _isVoiceMode = false;
   String? _currentProjectId;
+  String? _currentSessionId;
 
   StreamSubscription<SseEvent>? _sseSub;
   VoidCallback? _wsUnsubscribe;
@@ -53,11 +55,70 @@ class _AIChatPageState extends State<AIChatPage> {
     ('设置', 'settings'),
   ];
 
+  static const _sessionKey = 'agent_session_id';
+
   @override
   void initState() {
     super.initState();
     _agents = AgentInfo.standardAgents;
     _connectWebSocket();
+    _restoreSessionId();
+  }
+
+  Future<void> _restoreSessionId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _currentSessionId = prefs.getString(_sessionKey);
+      // 若有已保存会话，加载历史消息
+      if (_currentSessionId != null) {
+        _loadSessionMessages();
+      }
+    } catch (_) {
+      // SharedPreferences 不可用，忽略
+    }
+  }
+
+  Future<void> _loadSessionMessages() async {
+    if (_currentSessionId == null) return;
+    try {
+      final result = await ApiClient().getAgentSession(_currentSessionId!);
+      if (result.isSuccess && result.data != null) {
+        final data = result.data as Map<String, dynamic>;
+        final msgs = (data['messages'] as List<dynamic>?) ?? [];
+        if (msgs.isNotEmpty) {
+          setState(() {
+            _messages.clear();
+            for (final m in msgs) {
+              final role = (m['role'] ?? '').toString();
+              final content = (m['content'] ?? '').toString();
+              final agentType = (m['agent_type'] ?? '').toString();
+              if (role == 'user') {
+                _messages.add(ChatMessage.userText(text: content));
+              } else {
+                final agentKey = _backendToAgent(agentType);
+                _messages.add(ChatMessage.agentText(text: content, agent: agentKey));
+              }
+            }
+          });
+        }
+      }
+    } catch (_) {
+      // 网络/解析失败忽略，保留空消息列表
+    }
+  }
+
+  Future<void> _persistSessionId(String? sessionId) async {
+    _currentSessionId = sessionId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (sessionId != null) {
+        await prefs.setString(_sessionKey, sessionId);
+      } else {
+        await prefs.remove(_sessionKey);
+      }
+    } catch (_) {
+      // SharedPreferences 不可用，忽略
+    }
   }
 
   @override
@@ -82,6 +143,7 @@ class _AIChatPageState extends State<AIChatPage> {
     _wsUnsubscribe?.call();
     _ws.close();
     _voice.disconnect();
+    _persistSessionId(null);
     super.dispose();
   }
 
@@ -218,10 +280,14 @@ class _AIChatPageState extends State<AIChatPage> {
         agentType: backendAgent,
         projectId: _currentProjectId,
         history: history,
+        sessionId: _currentSessionId,
       );
 
       _sseSub = stream.listen(
         (event) {
+          if (event.sessionId != null) {
+            _persistSessionId(event.sessionId);
+          }
           switch (event.type) {
             case SseEventType.meta:
               if (event.agentType != null) {
@@ -249,6 +315,35 @@ class _AIChatPageState extends State<AIChatPage> {
       _updateLastAgentMessage('抱歉，AI 服务暂时不可用: $e', agent: 'master');
       setState(() => _isLoading = false);
     }
+  }
+
+  void _showSessionList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _SessionListSheet(
+        onSelect: (sessionId) {
+          Navigator.pop(ctx);
+          _persistSessionId(sessionId);
+          _loadSessionMessages();
+        },
+        onNewChat: () {
+          Navigator.pop(ctx);
+          _persistSessionId(null);
+          setState(() {
+            _messages.clear();
+            _messages.add(ChatMessage.agentText(
+              text: '新对话开始。我是索克家居 AI 总控 Agent，请告诉我您的需求。',
+              agent: 'master',
+            ));
+          });
+        },
+        currentSessionId: _currentSessionId,
+      ),
+    );
   }
 
   String _agentToBackend(String agentKey) {
@@ -450,6 +545,25 @@ class _AIChatPageState extends State<AIChatPage> {
                 ),
               ),
             ),
+          // 会话历史
+          GestureDetector(
+            onTap: _showSessionList,
+            child: Container(
+              width: 36,
+              height: 36,
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: SuokeDesignTokens.bgDeep,
+                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+                border: Border.all(color: SuokeDesignTokens.border),
+              ),
+              child: Icon(
+                Icons.history,
+                size: 18,
+                color: SuokeDesignTokens.textSecondary,
+              ),
+            ),
+          ),
           // 主题切换
           GestureDetector(
             onTap: () => context.read<ThemeState>().toggle(),
@@ -511,6 +625,7 @@ class _AIChatPageState extends State<AIChatPage> {
         ),
       ),
       onSelected: (pid) {
+        _persistSessionId(null);
         pc.switchProject(pid);
         setState(() {
           _currentProjectId = pid;
@@ -694,6 +809,13 @@ class _AIChatPageState extends State<AIChatPage> {
     final pid = _currentProjectId ?? pc.currentProjectId;
     if (pid == null) return;
 
+    // 若有活跃会话，从服务端加载历史消息
+    if (_currentSessionId != null) {
+      await _loadSessionMessages();
+      return;
+    }
+
+    // 无活跃会话：显示默认欢迎消息
     setState(() {
       _messages.clear();
       _messages.add(ChatMessage.agentText(
@@ -1072,6 +1194,173 @@ class _AIChatPageState extends State<AIChatPage> {
         child: Text(
           '$emoji  $text',
           style: TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 15),
+        ),
+      ),
+    );
+  }
+}
+
+/// 会话列表弹窗组件
+class _SessionListSheet extends StatefulWidget {
+  final void Function(String sessionId) onSelect;
+  final VoidCallback onNewChat;
+  final String? currentSessionId;
+
+  const _SessionListSheet({
+    required this.onSelect,
+    required this.onNewChat,
+    this.currentSessionId,
+  });
+
+  @override
+  State<_SessionListSheet> createState() => _SessionListSheetState();
+}
+
+class _SessionListSheetState extends State<_SessionListSheet> {
+  List<dynamic> _sessions = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    try {
+      final result = await ApiClient().listAgentSessions();
+      if (result.isSuccess && result.data != null) {
+        setState(() {
+          _sessions = (result.data as List<dynamic>?) ?? [];
+          _loading = false;
+        });
+      } else {
+        setState(() => _loading = false);
+      }
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题栏
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('会话历史',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                GestureDetector(
+                  onTap: widget.onNewChat,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: SuokeDesignTokens.accent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('+ 新对话',
+                        style: TextStyle(fontSize: 13, color: SuokeDesignTokens.accent)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // 列表
+          Flexible(
+            child: _loading
+                ? const Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _sessions.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Text('暂无历史会话', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _sessions.length,
+                        itemBuilder: (ctx, idx) {
+                          final s = _sessions[idx] as Map<String, dynamic>;
+                          final isActive = s['id']?.toString() == widget.currentSessionId;
+                          return _buildSessionItem(s, isActive);
+                        },
+                      ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionItem(Map<String, dynamic> session, bool isActive) {
+    final title = (session['title'] ?? '新的对话').toString();
+    final agentType = (session['primary_agent_type'] ?? '').toString();
+    final msgCount = session['message_count'] ?? 0;
+    final updatedAt = session['updated_at']?.toString() ?? '';
+
+    // agent_type → 显示名
+    const agentNames = {
+      'designer': '设计师', 'budget': '预算师', 'procurement': '采购师',
+      'construction': '施工员', 'qa_inspector': '监理师', 'settlement': '结算师',
+      'concierge': '客服', 'content_publisher': '内容', 'orchestrator': '总控',
+    };
+    final agentLabel = agentNames[agentType] ?? agentType;
+
+    return GestureDetector(
+      onTap: () => widget.onSelect(session['id']?.toString() ?? ''),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? SuokeDesignTokens.accent.withOpacity(0.05) : null,
+          border: Border(bottom: BorderSide(color: SuokeDesignTokens.border.withOpacity(0.5))),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: isActive ? SuokeDesignTokens.accent : SuokeDesignTokens.textPrimary)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      if (agentLabel.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: SuokeDesignTokens.bgDeep,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(agentLabel,
+                              style: const TextStyle(fontSize: 10, color: SuokeDesignTokens.textSecondary)),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Text('$msgCount 条消息',
+                          style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textMuted)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (isActive)
+              Icon(Icons.check_circle, size: 18, color: SuokeDesignTokens.accent),
+          ],
         ),
       ),
     );
