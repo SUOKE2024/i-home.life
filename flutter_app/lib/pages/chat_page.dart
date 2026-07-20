@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
-import '../services/websocket_service.dart';
 import '../models/chat_message.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -69,13 +68,6 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
           .toList();
       setState(() => _messages = msgs);
       _scrollToBottom();
-    }
-  }
-
-  Future<void> _loadUnread() async {
-    final result = await _api.get('/chat/unread/${widget.projectId}');
-    if (result.isSuccess) {
-      setState(() => _unreadCount = (result.data['count'] ?? 0) as int);
     }
   }
 

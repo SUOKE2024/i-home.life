@@ -238,7 +238,7 @@ class _AIChatPageState extends State<AIChatPage> {
           }
         },
         onError: (e) {
-          _updateLastAgentMessage('抱歉，AI 服务暂时不可用，请稍后重试。', agent: 'master');
+          _updateLastAgentMessage('抱歉，AI 服务暂时不可用: ${e.toString().length > 80 ? e.toString().substring(0, 80) + '...' : e}', agent: 'master');
           setState(() => _isLoading = false);
         },
         onDone: () {

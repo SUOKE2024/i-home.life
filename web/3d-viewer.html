@@ -2,7 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+<meta name="description" content="索克家居 3D 效果图查看器 — 实时 WebGL 3D 户型展示">
+<meta name="theme-color" content="#08080f">
+<meta property="og:title" content="3D 效果图查看器 · 索克家居">
+<meta property="og:description" content="实时 WebGL 3D 户型展示，支持 Filament/Three.js 双引擎切换">
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -176,8 +186,8 @@ body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:v
 <button id="sidebar-toggle" aria-label="切换侧边栏菜单" type="button">☰</button>
 <div id="sidebar-overlay" aria-hidden="true"></div>
 
-<script src="assets/js/api-client.js?v=20260720e"></script>
-<script defer src="assets/js/analytics.js?v=20260720e"></script>
+<script src="assets/js/api-client.js?v=20260720g"></script>
+<script defer src="assets/js/analytics.js?v=20260720g"></script>
 <script>
 let scene, camera, renderer, controls, clock;
 let walls = [], floors = [], ceilingPlanes = [], roomLights = [];

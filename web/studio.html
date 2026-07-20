@@ -210,7 +210,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
+// WebGPURenderer 改为动态导入，避免静态 import 失败导致整个模块无法加载
+let WebGPURenderer = null;
 
 // === DATA MODEL ===
 const PX_PER_M = 40;
@@ -679,16 +680,17 @@ async function init3D(){
 
   // 尝试创建 WebGPU renderer（mesh 数量低于阈值时启用，否则强制 WebGL）
   // Three.js r183 WebGPURenderer 在多 mesh CAD 场景下有 per-object UBO 瓶颈
-  try{
-    if('gpu' in navigator && !webgpuForcedOff){
-      try{
-        renderer3d=new WebGPURenderer({antialias:true,canvas:canvas});
-        await renderer3d.init();
-        rendererCapabilities.webgpu=true;
-        console.log('✅ WebGPU 渲染器已启用（mesh 阈值保护:'+WEBGPU_MESH_THRESHOLD+'）');
-      }catch(e){console.warn('WebGPU 不可用，降级到 WebGL2:',e.message);}
-    }
-  }catch(e){console.warn('WebGPU 检测失败:',e.message);}
+  // WebGPURenderer 使用动态导入，避免静态 import 失败导致整个模块无法加载
+  if('gpu' in navigator && !webgpuForcedOff){
+    try{
+      const webgpuMod = await import('three/addons/renderers/webgpu/WebGPURenderer.js');
+      WebGPURenderer = webgpuMod.default || webgpuMod;
+      renderer3d=new WebGPURenderer({antialias:true,canvas:canvas});
+      await renderer3d.init();
+      rendererCapabilities.webgpu=true;
+      console.log('✅ WebGPU 渲染器已启用（mesh 阈值保护:'+WEBGPU_MESH_THRESHOLD+'）');
+    }catch(e){console.warn('WebGPU 不可用，降级到 WebGL2:',e.message);}
+  }
 
   // Fallback to WebGL2
   if(!rendererCapabilities.webgpu){
@@ -2123,8 +2125,14 @@ document.getElementById('sidebar-overlay')?.addEventListener('click',()=>{
 
 // Init
 (async function(){
-  await init3D();resize2D();resize3D();
-  loadPreset('apartment_126');
+  try{
+    await init3D();resize2D();resize3D();
+    loadPreset('apartment_126');
+  }catch(e){
+    console.error('[Studio] 初始化失败:', e);
+    document.querySelector('#loading span').textContent = '初始化失败，请刷新页面重试';
+    return;
+  }
   document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='flex';
   // 静默检查登录态（不弹窗），保存/加载时再触发 apiLogin 引导跳转

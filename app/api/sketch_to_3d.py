@@ -18,8 +18,6 @@ router = APIRouter(prefix="/sketch-to-3d", tags=["Sketch-to-3D"])
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-MOCK_MODE = not settings.deepseek_api_key and not settings.glm_api_key
-
 
 class SketchAnalysisResult(BaseModel):
     """草图分析结果"""
@@ -70,31 +68,7 @@ async def analyze_sketch(
     sketch_id = uuid.uuid4().hex[:12]
     file_size_kb = len(content) / 1024
 
-    if MOCK_MODE:
-        # Mock 模式：返回预设识别结果
-        return SketchAnalysisResult(
-            sketch_id=sketch_id,
-            detected_walls=[
-                {"id": "w1", "x1": 0.5, "y1": 0.5, "x2": 6.5, "y2": 0.5, "length_m": 6.0, "thickness_mm": 120},
-                {"id": "w2", "x1": 6.5, "y1": 0.5, "x2": 6.5, "y2": 4.5, "length_m": 4.0, "thickness_mm": 120},
-                {"id": "w3", "x1": 0.5, "y1": 0.5, "x2": 0.5, "y2": 9.5, "length_m": 9.0, "thickness_mm": 240},
-                {"id": "w4", "x1": 0.5, "y1": 9.5, "x2": 9.0, "y2": 9.5, "length_m": 8.5, "thickness_mm": 120},
-            ],
-            detected_doors=[
-                {"id": "d1", "wall_id": "w3", "position_m": 1.0, "width_mm": 900, "type": "swing"},
-                {"id": "d2", "wall_id": "w1", "position_m": 3.0, "width_mm": 900, "type": "swing"},
-            ],
-            detected_windows=[
-                {"id": "win1", "wall_id": "w2", "position_m": 1.5, "width_mm": 1500, "height_mm": 1500},
-            ],
-            estimated_area=90.0,
-            room_count=5,
-            confidence=0.85,
-            raw_layout={"mode": "mock", "file_size_kb": round(file_size_kb, 1)},
-        )
-
-    # 生产模式：调用 AI 视觉模型分析草图
-    # 当前版本返回 mock 结果（后续版本接入视觉模型）
+    # 调用 AI 视觉模型分析草图（当前版本返回占位结果，后续接入视觉模型）
     logger.info(
         "sketch_analyzed: user=%s file=%s size=%.1fKB desc=%r",
         current_user.id, file.filename, file_size_kb, description,

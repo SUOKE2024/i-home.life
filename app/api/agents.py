@@ -127,8 +127,6 @@ class ConciergeChatRequest(BaseModel):
 
 settings = get_settings()
 
-MOCK_MODE = not settings.deepseek_api_key and not settings.glm_api_key
-
 logger = logging.getLogger(__name__)
 
 # 显式 agent_type → intent 映射，用于跳过 OrchestratorAgent.classify_intent
@@ -258,16 +256,12 @@ async def chat_with_agent(  # noqa: C901
         explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
         if explicit_intent:
             intent = explicit_intent
-        elif MOCK_MODE:
-            classification = OrchestratorAgent.fallback_classify(data.message)
-            intent = classification.get("intent", "general")
         else:
             classification = await agent.classify_intent(data.message)
             intent = classification.get("intent", "general")
 
         # L4 自适应学习：注入用户历史正向反馈作为 few-shot 示例提示
-        # 仅在 agent_learning_enabled=True 且非 MOCK_MODE 时生效
-        if settings.agent_learning_enabled and not MOCK_MODE:
+        if settings.agent_learning_enabled:
             from app.agents.base import BaseAgent
             # intent → agent_name 映射（与下方路由分支一致）
             intent_to_agent = {
@@ -306,18 +300,12 @@ async def chat_with_agent(  # noqa: C901
                     kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
                 ):
                     # 产品管理操作
-                    if MOCK_MODE:
-                        reply = cp_agent.handle_product_request(data.message, current_user.name)
-                    else:
-                        reply = await cp_agent.think(
-                            f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
-                        )
+                    reply = await cp_agent.think(
+                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                    )
                 else:
                     # 内容发布引导
-                    if MOCK_MODE:
-                        reply = cp_agent.handle_product_request(data.message, current_user.name)
-                    else:
-                        reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
+                    reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
                 return AgentResponse(
                     agent_type="content_publisher", reply=reply,
                     suggestions=suggestions_map["content_publisher"],
@@ -328,26 +316,21 @@ async def chat_with_agent(  # noqa: C901
         if intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                if MOCK_MODE:
+                raw_reply = await des_agent.think(data.message, user_ctx)
+                # DesignerAgent 的 system_prompt 要求 LLM 输出 JSON，
+                # 提取其中的 reply 字段作为用户友好回复
+                reply = _extract_reply_from_llm_json(raw_reply)
+                # DeepSeek-V4-Pro 推理模型在 max_tokens 不足时会 fallback
+                # 到 reasoning_content，导致 reply 为思维链文本。检测到
+                # 泄漏时降级到预设布局方案。
+                # 同时处理 mock 模式（API key 为空时 _chat 返回 [mock] 占位文本）
+                if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                    logger.warning(
+                        "designer_reply_leak: falling back to layouts; "
+                        "raw_head=%r", raw_reply[:200],
+                    )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
-                else:
-                    raw_reply = await des_agent.think(data.message, user_ctx)
-                    # DesignerAgent 的 system_prompt 要求 LLM 输出 JSON，
-                    # 提取其中的 reply 字段作为用户友好回复
-                    reply = _extract_reply_from_llm_json(raw_reply)
-                    # DeepSeek-V4-Pro 推理模型在 max_tokens 不足时会 fallback
-                    # 到 reasoning_content，导致 reply 为思维链文本。检测到
-                    # 泄漏时降级到预设布局方案，保证用户始终收到友好回复。
-                    # 同时检测 base.py 返回的"AI 推理超时"友好错误消息，
-                    # 对 DesignerAgent 优先降级到 generate_layouts 预设方案。
-                    if _looks_like_reasoning_leak(reply) or "稍后重试" in reply:
-                        logger.warning(
-                            "designer_reply_leak: falling back to layouts; "
-                            "raw_head=%r", raw_reply[:200],
-                        )
-                        layouts = await des_agent.generate_layouts(data.message)
-                        reply = layouts["reply"]
                 return AgentResponse(agent_type="designer", reply=reply, suggestions=suggestions_map["designer"])
             finally:
                 await des_agent.close()
@@ -355,18 +338,9 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("budget",):
             bud_agent = BudgetAgent()
             try:
-                if MOCK_MODE:
-                    reply = (
-                        _mock_budget_summary(data.message)
-                        + "\n\n"
-                        + _mock_budget_breakdown()
-                        + "\n\n"
-                        + _mock_cost_saving()
-                    )
-                else:
-                    # FunctionCall: LLM 可调用 get_budget 工具查询结构化预算数据
-                    result = await bud_agent.think_with_tools(data.message, user_ctx)
-                    reply = result["final_reply"]
+                # FunctionCall: LLM 可调用 get_budget 工具查询结构化预算数据
+                result = await bud_agent.think_with_tools(data.message, user_ctx)
+                reply = result["final_reply"]
                 return AgentResponse(agent_type="budget", reply=reply, suggestions=suggestions_map["budget"])
             finally:
                 await bud_agent.close()
@@ -374,18 +348,9 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("procurement",):
             proc_agent = ProcurementAgent()
             try:
-                if MOCK_MODE:
-                    reply = (
-                        _mock_purchase_plan()
-                        + "\n\n"
-                        + _mock_supplier_rec()
-                        + "\n\n"
-                        + _mock_procurement_timeline()
-                    )
-                else:
-                    # FunctionCall: LLM 可调用 search_materials 工具搜索物料
-                    result = await proc_agent.think_with_tools(data.message, user_ctx)
-                    reply = result["final_reply"]
+                # FunctionCall: LLM 可调用 search_materials 工具搜索物料
+                result = await proc_agent.think_with_tools(data.message, user_ctx)
+                reply = result["final_reply"]
                 return AgentResponse(agent_type="procurement", reply=reply, suggestions=suggestions_map["procurement"])
             finally:
                 await proc_agent.close()
@@ -393,12 +358,9 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("construction",):
             cons_agent = ConstructionAgent()
             try:
-                if MOCK_MODE:
-                    reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
-                else:
-                    # FunctionCall: LLM 可调用 get_construction_progress 查询施工进度
-                    result = await cons_agent.think_with_tools(data.message, user_ctx)
-                    reply = result["final_reply"]
+                # FunctionCall: LLM 可调用 get_construction_progress 查询施工进度
+                result = await cons_agent.think_with_tools(data.message, user_ctx)
+                reply = result["final_reply"]
                 return AgentResponse(
                     agent_type="construction", reply=reply,
                     suggestions=suggestions_map["construction"],
@@ -409,10 +371,7 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("settlement",):
             sett_agent = SettlementAgent()
             try:
-                if MOCK_MODE:
-                    reply = _mock_settlement()
-                else:
-                    reply = await sett_agent.think(data.message, user_ctx)
+                reply = await sett_agent.think(data.message, user_ctx)
                 return AgentResponse(agent_type="settlement", reply=reply, suggestions=["查看结算明细", "确认结算", "导出报表"])
             finally:
                 await sett_agent.close()
@@ -420,12 +379,9 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("qa_inspector",):
             qa_agent = QAInspectorAgent()
             try:
-                if MOCK_MODE:
-                    reply = _mock_qa_inspection()
-                else:
-                    # FunctionCall: LLM 可调用 run_qa_inspection 执行质量检测
-                    result = await qa_agent.think_with_tools(data.message, user_ctx)
-                    reply = result["final_reply"]
+                # FunctionCall: LLM 可调用 run_qa_inspection 执行质量检测
+                result = await qa_agent.think_with_tools(data.message, user_ctx)
+                reply = result["final_reply"]
                 return AgentResponse(
                     agent_type="qa_inspector", reply=reply,
                     suggestions=suggestions_map["qa_inspector"],
@@ -436,11 +392,7 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("concierge",):
             conc_agent = ConciergeAgent()
             try:
-                if MOCK_MODE:
-                    faq_result = conc_agent.answer_faq(data.message)
-                    reply = faq_result["answer"]
-                else:
-                    reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+                reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
                 return AgentResponse(agent_type="concierge", reply=reply, suggestions=suggestions_map["concierge"])
             finally:
                 await conc_agent.close()
@@ -448,17 +400,16 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
             admin_agent = AdminAgent()
             try:
-                if MOCK_MODE:
-                    reply = admin_agent.handle_admin_request(data.message, current_user.name)
-                else:
-                    reply = await admin_agent.think(data.message, user_ctx)
+                reply = await admin_agent.think(data.message, user_ctx)
                 suggestions = ["查看用户列表", "修改用户角色", "平台统计", "审核认证"]
                 return AgentResponse(agent_type="admin", reply=reply, suggestions=suggestions)
             finally:
                 await admin_agent.close()
 
         else:
-            reply, suggestions = _mock_agent_reply(data.message, "orchestrator")
+            # Unknown intent — fallback to orchestrator general reply
+            reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
+            suggestions = suggestions_map["orchestrator"]
             return AgentResponse(agent_type="orchestrator", reply=reply, suggestions=suggestions)
     finally:
         await agent.close()
@@ -503,139 +454,76 @@ async def chat_stream(  # noqa: C901
         explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
         if explicit_intent:
             intent = explicit_intent
-        elif MOCK_MODE:
-            classification = OrchestratorAgent.fallback_classify(data.message)
-            intent = classification.get("intent", "general")
         else:
             classification = await agent.classify_intent(data.message)
             intent = classification.get("intent", "general")
 
-        # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送，
-        # 用户无需等待完整 LLM 响应即可看到首个 token。
-        # 仅适用于 system_prompt 要求自然语言输出的 Agent；
-        # DesignerAgent（JSON 输出）和 ConciergeAgent（自定义方法）不适用。
+        # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送
         stream_agent = None
         stream_msg = None
         stream_ctx = None
 
         # 获取回复文本（与 /chat 相同逻辑）
         if intent in ("content_publish",):
-            # 使用专用的 ContentPublisherAgent 处理产品管理/内容发布
             cp_agent = ContentPublisherAgent()
             try:
                 product_intent = ContentPublisherAgent.classify_intent(data.message)
                 if product_intent != "create_product" or any(
                     kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
                 ):
-                    if MOCK_MODE:
-                        reply = cp_agent.handle_product_request(data.message, current_user.name)
-                    else:
-                        reply = await cp_agent.think(
-                            f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
-                        )
+                    reply = await cp_agent.think(
+                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                    )
                 else:
-                    if MOCK_MODE:
-                        reply = cp_agent.handle_product_request(data.message, current_user.name)
-                    else:
-                        reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
+                    reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
             finally:
                 await cp_agent.close()
         elif intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                if MOCK_MODE:
+                raw_reply = await des_agent.think(data.message, user_ctx)
+                reply = _extract_reply_from_llm_json(raw_reply)
+                if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                    logger.warning(
+                        "designer_reply_leak_stream: falling back to layouts; "
+                        "raw_head=%r", raw_reply[:200],
+                    )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
-                else:
-                    raw_reply = await des_agent.think(data.message, user_ctx)
-                    reply = _extract_reply_from_llm_json(raw_reply)
-                    if _looks_like_reasoning_leak(reply) or "稍后重试" in reply:
-                        logger.warning(
-                            "designer_reply_leak_stream: falling back to layouts; "
-                            "raw_head=%r", raw_reply[:200],
-                        )
-                        layouts = await des_agent.generate_layouts(data.message)
-                        reply = layouts["reply"]
             finally:
                 await des_agent.close()
         elif intent in ("budget",):
-            bud_agent = BudgetAgent()
-            if MOCK_MODE:
-                reply = (
-                    _mock_budget_summary(data.message)
-                    + "\n\n"
-                    + _mock_budget_breakdown()
-                    + "\n\n"
-                    + _mock_cost_saving()
-                )
-                await bud_agent.close()
-            else:
-                stream_agent = bud_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = BudgetAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("procurement",):
-            proc_agent = ProcurementAgent()
-            if MOCK_MODE:
-                reply = (
-                    _mock_purchase_plan()
-                    + "\n\n"
-                    + _mock_supplier_rec()
-                    + "\n\n"
-                    + _mock_procurement_timeline()
-                )
-                await proc_agent.close()
-            else:
-                stream_agent = proc_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = ProcurementAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("construction",):
-            cons_agent = ConstructionAgent()
-            if MOCK_MODE:
-                reply = _mock_phases() + "\n\n" + _mock_schedule() + "\n\n" + _mock_quality()
-                await cons_agent.close()
-            else:
-                stream_agent = cons_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = ConstructionAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("settlement",):
-            sett_agent = SettlementAgent()
-            if MOCK_MODE:
-                reply = _mock_settlement()
-                await sett_agent.close()
-            else:
-                stream_agent = sett_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = SettlementAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("qa_inspector",):
-            qa_agent = QAInspectorAgent()
-            if MOCK_MODE:
-                reply = _mock_qa_inspection()
-                await qa_agent.close()
-            else:
-                stream_agent = qa_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = QAInspectorAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("concierge",):
             conc_agent = ConciergeAgent()
             try:
-                if MOCK_MODE:
-                    faq_result = conc_agent.answer_faq(data.message)
-                    reply = faq_result["answer"]
-                else:
-                    reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+                reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
             finally:
                 await conc_agent.close()
         elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
-            admin_agent = AdminAgent()
-            if MOCK_MODE:
-                reply = admin_agent.handle_admin_request(data.message, current_user.name)
-                await admin_agent.close()
-            else:
-                stream_agent = admin_agent
-                stream_msg = data.message
-                stream_ctx = user_ctx
+            stream_agent = AdminAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         else:
-            reply, _ = _mock_agent_reply(data.message, "orchestrator")
+            reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
 
         # SSE 流式推送
         async def generate_sse():
@@ -741,25 +629,9 @@ async def analyze_budget(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
 ):
-    if MOCK_MODE:
-        return BudgetAnalysisResponse(
-            summary=_mock_budget_summary(data.message),
-            category_breakdown=_mock_budget_breakdown(),
-            cost_saving_tips=_mock_cost_saving(),
-            full_reply="预算分析完成，请注意查看各项明细。",
-        )
-
     agent = BudgetAgent()
     try:
-        try:
-            reply = await agent.think(data.message, f"业主: {current_user.name}")
-        except Exception:
-            return BudgetAnalysisResponse(
-                summary=_mock_budget_summary(data.message),
-                category_breakdown=_mock_budget_breakdown(),
-                cost_saving_tips=_mock_cost_saving(),
-                full_reply="预算分析完成（LLM 不可用，使用预置模板）。",
-            )
+        reply = await agent.think(data.message, f"业主: {current_user.name}")
         return BudgetAnalysisResponse(
             summary=reply,
             category_breakdown=reply,
@@ -775,25 +647,9 @@ async def analyze_procurement(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
 ):
-    if MOCK_MODE:
-        return ProcurementAnalysisResponse(
-            purchase_plan=_mock_purchase_plan(),
-            supplier_recommendation=_mock_supplier_rec(),
-            timeline=_mock_procurement_timeline(),
-            full_reply="采购分析完成，请查看推荐方案。",
-        )
-
     agent = ProcurementAgent()
     try:
-        try:
-            reply = await agent.think(data.message, f"采购经理: {current_user.name}")
-        except Exception:
-            return ProcurementAnalysisResponse(
-                purchase_plan=_mock_purchase_plan(),
-                supplier_recommendation=_mock_supplier_rec(),
-                timeline=_mock_procurement_timeline(),
-                full_reply="采购分析完成（LLM 不可用，使用预置模板）。",
-            )
+        reply = await agent.think(data.message, f"采购经理: {current_user.name}")
         return ProcurementAnalysisResponse(
             purchase_plan=reply,
             supplier_recommendation=reply,
@@ -809,25 +665,9 @@ async def plan_construction(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
 ):
-    if MOCK_MODE:
-        return ConstructionPlanResponse(
-            phases=_mock_phases(),
-            schedule=_mock_schedule(),
-            quality_checklist=_mock_quality(),
-            full_reply="施工计划已生成，请查看各阶段详情。",
-        )
-
     agent = ConstructionAgent()
     try:
-        try:
-            reply = await agent.think(data.message, f"工长: {current_user.name}")
-        except Exception:
-            return ConstructionPlanResponse(
-                phases=_mock_phases(),
-                schedule=_mock_schedule(),
-                quality_checklist=_mock_quality(),
-                full_reply="施工计划已生成（LLM 不可用，使用预置模板）。",
-            )
+        reply = await agent.think(data.message, f"工长: {current_user.name}")
         return ConstructionPlanResponse(
             phases=reply,
             schedule=reply,
@@ -999,21 +839,10 @@ async def concierge_chat(
     data: ConciergeChatRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """生成客服回复（调用 think，LLM 不可用时 FAQ 兜底）"""
+    """生成客服回复（调用真实 LLM）"""
     agent = ConciergeAgent()
     try:
-        if MOCK_MODE:
-            faq_result = agent.answer_faq(data.message)
-            if faq_result["found"]:
-                reply = faq_result["answer"]
-            else:
-                classify = agent.classify_inquiry(data.message)
-                if classify["need_human"]:
-                    reply = "您好，您的问题需要人工客服协助处理，正在为您转接人工客服，请稍候。"
-                else:
-                    reply = "您好，我是索克家居 AI 客服。您的问题我已记录，可以尝试换一种方式提问，或转接人工客服获取帮助。"
-        else:
-            reply = await agent.generate_response(data.message, data.context)
+        reply = await agent.generate_response(data.message, data.context)
         return {"agent_type": "concierge", "reply": reply}
     finally:
         await agent.close()

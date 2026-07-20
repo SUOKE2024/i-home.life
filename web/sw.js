@@ -4,10 +4,10 @@
  * - 静态资源：缓存优先（stale-while-revalidate）
  * - API 请求：网络优先，失败降级缓存
  * - WebSocket：不拦截
- * 版本：20260720e（与其他 HTML 引用的 v=20260720e 版本号保持一致）
+ * 版本：20260720g（与其他 HTML 引用的 v=20260720g 版本号保持一致）
  * ============================================ */
 
-const CACHE_VERSION = 'suoke-v20260720e';
+const CACHE_VERSION = 'suoke-v20260720g';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -28,13 +28,13 @@ const PRECACHE_URLS = [
   '/materials.html',
   '/quality-report.html',
   '/manifest.json',
-  '/assets/css/workbench.css?v=20260720e',
-  '/assets/js/api-client.js?v=20260720e',
-  '/assets/js/im-client.js?v=20260720e',
-  '/assets/js/agent-router.js?v=20260720e',
-  '/assets/js/message-renderers.js?v=20260720e',
-  '/assets/js/analytics.js?v=20260720e',
-  '/assets/js/echarts.min.js?v=20260720e',
+  '/assets/css/workbench.css?v=20260720g',
+  '/assets/js/api-client.js?v=20260720g',
+  '/assets/js/im-client.js?v=20260720g',
+  '/assets/js/agent-router.js?v=20260720g',
+  '/assets/js/message-renderers.js?v=20260720g',
+  '/assets/js/analytics.js?v=20260720g',
+  '/assets/js/echarts.min.js?v=20260720g',
   '/assets/images/icons/desktop/suoke-favicon-32.png',
   '/assets/images/icons/desktop/suoke-logo-128.png',
   '/assets/images/icons/desktop/suoke-logo-512.png',
@@ -72,8 +72,23 @@ self.addEventListener('activate', (event) => {
           .filter(key => !key.startsWith(CACHE_VERSION))
           .map(key => caches.delete(key))
       ))
+      .then(() => {
+        // v1.1.13: 通知所有客户端刷新，避免显示旧缓存内容
+        return self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
+          });
+        });
+      })
       .then(() => self.clients.claim())
   );
+});
+
+// ── message：允许页面触发强制刷新 ──
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // ── 请求拦截 ──

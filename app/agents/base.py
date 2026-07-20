@@ -60,16 +60,17 @@ class BaseAgent:
         provider = provider or self.provider
         if provider not in self._clients:
             cfg = PROVIDER_REGISTRY[provider]
+            api_key = cfg["api_key"]()
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
             self._clients[provider] = httpx.AsyncClient(
                 base_url=cfg["api_base"](),
-                headers={
-                    "Authorization": f"Bearer {cfg['api_key']()}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 # 120s 容纳 DeepSeek-V4-Pro 推理模型的 reasoning + generation
-                # （复杂设计 JSON 生成可达 60-90s）。原 60s + max_retries=1 = 120s
-                # 会导致 designer agent 偶发超时后重试再次超时，总耗时 >120s。
-                timeout=httpx.Timeout(120.0),
+                # v1.1.15 升级: deepseek-v4-pro 推理模型 max_tokens=8192，
+                # 单次调用含 reasoning_content 可达 60-180s，Nginx 侧设 300s。
+                timeout=httpx.Timeout(180.0),
             )
         return self._clients[provider]
 
@@ -99,6 +100,15 @@ class BaseAgent:
         """
         provider = self.provider
         cfg = PROVIDER_REGISTRY[provider]
+
+        # 无 API Key 时返回 mock 响应，避免空 Authorization header 或 401 错误
+        if not cfg["api_key"]():
+            logger.warning(
+                "%s._chat: API key 为空，返回 mock 响应 (provider=%s)",
+                self.agent_name, provider,
+            )
+            return f"[mock] {self.agent_name} 响应：API key 未配置"
+
         client = await self._get_client(provider)
 
         request_body = {
@@ -191,6 +201,16 @@ class BaseAgent:
         """
         provider = self.provider
         cfg = PROVIDER_REGISTRY[provider]
+
+        # 无 API Key 时返回 mock 流，避免 401 错误
+        if not cfg["api_key"]():
+            logger.warning(
+                "%s._chat_stream: API key 为空，返回 mock 流 (provider=%s)",
+                self.agent_name, provider,
+            )
+            yield f"[mock] {self.agent_name} 流式响应：API key 未配置"
+            return
+
         client = await self._get_client(provider)
 
         request_body = {

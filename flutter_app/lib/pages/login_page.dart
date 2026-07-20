@@ -15,12 +15,14 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _phoneCtrl = TextEditingController(text: '13800138000');
-  final _passCtrl = TextEditingController(text: '123456');
+  final _phoneCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _isRegister = false;
   bool _passkeyLoading = false;
   bool _biometricsLoading = false;
+  String _role = 'homeowner';
+  String _subRole = '';
 
   // ── 生物识别 ──
   final LocalAuthentication _localAuth = LocalAuthentication();
@@ -77,7 +79,7 @@ class _LoginPageState extends State<LoginPage> {
     // 设备支持生物识别时，再判断是否已有 token（控制"快速登录"按钮）
     try {
       final prefs = await SharedPreferences.getInstance();
-      final hasToken = prefs.getString('auth_token') != null;
+      final hasToken = prefs.getString('paseto_token') != null;
       if (mounted) setState(() => _biometricsAvailable = hasToken);
     } catch (e) {
       debugPrint('读取 token 失败: $e');
@@ -87,15 +89,47 @@ class _LoginPageState extends State<LoginPage> {
 
   // ── 密码登录/注册 ──
 
+  /// 构建细分工种下拉选项（与 Web 端 SUB_ROLES 保持一致）
+  List<DropdownMenuItem<String>> _buildSubRoleItems() {
+    final options = <MapEntry<String, String>>[];
+    options.add(const MapEntry('', '-- 请选择工种 --'));
+    if (_role == 'contractor') {
+      options.addAll(const [
+        MapEntry('', '工长（总包）'),
+        MapEntry('electrician', '电工'),
+        MapEntry('plumber', '水电安装工'),
+        MapEntry('mason', '泥瓦工'),
+        MapEntry('carpenter', '木工'),
+        MapEntry('painter', '油漆工'),
+        MapEntry('installer', '安装工'),
+        MapEntry('curtain_installer', '窗帘安装工'),
+        MapEntry('supervisor', '监理'),
+      ]);
+    } else if (_role == 'designer') {
+      options.addAll(const [
+        MapEntry('', '通用设计师'),
+        MapEntry('curtain_designer', '窗帘设计师'),
+      ]);
+    }
+    return options.map((e) => DropdownMenuItem(
+      value: e.key,
+      child: Text(e.value),
+    )).toList();
+  }
+
   Future<void> _submit() async {
     final api = ApiClient();
-    final result = _isRegister
-        ? await api.post('/auth/register', {
+    final data = <String, dynamic>{
             'phone': _phoneCtrl.text.trim(),
             'name': _nameCtrl.text.trim().isEmpty ? '新用户' : _nameCtrl.text.trim(),
             'password': _passCtrl.text,
-            'role': 'homeowner',
-          })
+            'role': _role,
+          };
+    if (_subRole.isNotEmpty) {
+      data['sub_role'] = _subRole;
+    }
+    final result = _isRegister
+        ? await api.post('/auth/register', data)
         : await api.post('/auth/login', {
             'phone': _phoneCtrl.text.trim(),
             'password': _passCtrl.text,
@@ -144,7 +178,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final passkeyRegistered = prefs.getBool(_kPasskeyRegisteredKey) ?? false;
-      final hasToken = prefs.getString('auth_token') != null;
+      final hasToken = prefs.getString('paseto_token') != null;
 
       if (!passkeyRegistered || !hasToken) {
         // 设备未注册 Passkey：提示用户先密码登录
@@ -328,6 +362,29 @@ class _LoginPageState extends State<LoginPage> {
                     controller: _nameCtrl,
                     decoration: const InputDecoration(labelText: '姓名'),
                   ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _role,
+                    decoration: const InputDecoration(labelText: '角色'),
+                    items: const [
+                      DropdownMenuItem(value: 'homeowner', child: Text('业主')),
+                      DropdownMenuItem(value: 'designer', child: Text('设计师')),
+                      DropdownMenuItem(value: 'contractor', child: Text('施工方（工长/工人）')),
+                      DropdownMenuItem(value: 'supplier', child: Text('供应商')),
+                    ],
+                    onChanged: (v) {
+                      setState(() { _role = v!; _subRole = ''; });
+                    },
+                  ),
+                  if (_role == 'contractor' || _role == 'designer') ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _subRole,
+                      decoration: const InputDecoration(labelText: '细分工种'),
+                      items: _buildSubRoleItems(),
+                      onChanged: (v) => setState(() => _subRole = v ?? ''),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 24),
                 SizedBox(

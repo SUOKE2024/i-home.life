@@ -52,8 +52,11 @@ class WebSocketService {
   Uri _buildUri() {
     final base = AppConfig.apiBaseUrl;
     String wsBase;
-    if (base.isEmpty) {
-      wsBase = 'ws://localhost:8080';
+    // 优先使用构建期注入的 WebSocket 地址
+    if (AppConfig.wsBaseUrl.isNotEmpty) {
+      wsBase = AppConfig.wsBaseUrl;
+    } else if (base.isEmpty) {
+      wsBase = 'ws://localhost:8767';
     } else {
       wsBase = base
           .replaceFirst(RegExp(r'^http://'), 'ws://')

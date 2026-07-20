@@ -42,19 +42,19 @@ class ApiClient {
 
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
+    _token = prefs.getString('paseto_token');
   }
 
   Future<void> saveToken(String token) async {
     _token = token;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
+    await prefs.setString('paseto_token', token);
   }
 
   Future<void> clearToken() async {
     _token = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
+    await prefs.remove('paseto_token');
   }
 
   bool get isLoggedIn => _token != null;
@@ -1020,6 +1020,420 @@ class ApiClient {
       post('/surveys/ar/points', body);
   Future<Result<dynamic>> arListPoints(String sessionId) =>
       get('/surveys/ar/points/$sessionId');
+
+  // ── 位置服务 ──
+
+  Future<Result<dynamic>> searchLocation(Map<String, dynamic> query) {
+    final qs = query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&');
+    return get('/location/search?$qs');
+  }
+  Future<Result<dynamic>> geocodeLocation(Map<String, dynamic> query) {
+    final qs = query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&');
+    return get('/location/geocode?$qs');
+  }
+  Future<Result<dynamic>> autocompleteLocation(Map<String, dynamic> query) {
+    final qs = query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&');
+    return get('/location/autocomplete?$qs');
+  }
+
+  // ── 户型管理 ──
+
+  Future<Result<dynamic>> getFloorplans(String projectId) =>
+      getList('/floorplans/$projectId');
+  Future<Result<dynamic>> getFloorplan(String floorplanId) =>
+      get('/floorplans/$floorplanId');
+  Future<Result<dynamic>> createFloorplan(Map<String, dynamic> body) =>
+      post('/floorplans', body);
+  Future<Result<dynamic>> updateFloorplan(String floorplanId, Map<String, dynamic> body) =>
+      put('/floorplans/$floorplanId', body);
+  Future<Result<dynamic>> deleteFloorplan(String floorplanId) =>
+      delete('/floorplans/$floorplanId');
+
+  // ── 水电点位 MEP ──
+
+  Future<Result<dynamic>> mepPlan(String projectId, Map<String, dynamic> body) =>
+      post('/mep/plan', body..['project_id'] = projectId);
+  Future<Result<dynamic>> mepAppliances(String projectId) =>
+      get('/mep/appliances/$projectId');
+  Future<Result<dynamic>> mepComplianceCheck(String projectId) =>
+      post('/mep/compliance/check', {'project_id': projectId});
+  Future<Result<dynamic>> mepRoomStandards() =>
+      get('/mep/room-standards');
+
+  // ── 定制家具 ──
+
+  Future<Result<dynamic>> createCustomFurnitureDesign(Map<String, dynamic> body) =>
+      post('/custom-furniture/designs', body);
+  Future<Result<dynamic>> getCustomFurnitureDesigns(String projectId) =>
+      getList('/custom-furniture/designs/$projectId');
+  Future<Result<dynamic>> getCustomFurnitureDesign(String designId) =>
+      get('/custom-furniture/designs/$designId');
+  Future<Result<dynamic>> updateCustomFurnitureDesign(String designId, Map<String, dynamic> body) =>
+      put('/custom-furniture/designs/$designId', body);
+  Future<Result<dynamic>> deleteCustomFurnitureDesign(String designId) =>
+      delete('/custom-furniture/designs/$designId');
+  Future<Result<dynamic>> customFurnitureGenerateBom(String designId) =>
+      post('/custom-furniture/designs/$designId/bom', {});
+  Future<Result<dynamic>> customFurniturePriceEstimate(String designId, Map<String, dynamic> body) =>
+      post('/custom-furniture/designs/$designId/price', body);
+  Future<Result<dynamic>> customFurnitureValidate(String designId) =>
+      post('/custom-furniture/designs/$designId/validate', {});
+
+  // ── 工程队匹配 ──
+
+  Future<Result<dynamic>> getCrews(Map<String, dynamic>? query) {
+    final path = query != null && query.isNotEmpty
+        ? '/crews?${query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&')}'
+        : '/crews';
+    return getList(path);
+  }
+  Future<Result<dynamic>> createCrew(Map<String, dynamic> body) =>
+      post('/crews', body);
+  Future<Result<dynamic>> getCrew(String crewId) =>
+      get('/crews/$crewId');
+  Future<Result<dynamic>> updateCrew(String crewId, Map<String, dynamic> body) =>
+      put('/crews/$crewId', body);
+  Future<Result<dynamic>> matchCrews(Map<String, dynamic> body) =>
+      post('/crews/match', body);
+  Future<Result<dynamic>> getCrewMatches(String projectId) =>
+      getList('/crews/matches/$projectId');
+  Future<Result<dynamic>> updateCrewMatchStatus(String matchId, Map<String, dynamic> body) =>
+      patch('/crews/matches/$matchId/status', body);
+
+  // ── 工人匹配 ──
+
+  Future<Result<dynamic>> getWorkers(Map<String, dynamic>? query) {
+    final path = query != null && query.isNotEmpty
+        ? '/workers?${query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&')}'
+        : '/workers';
+    return getList(path);
+  }
+  Future<Result<dynamic>> createWorker(Map<String, dynamic> body) =>
+      post('/workers', body);
+  Future<Result<dynamic>> getWorker(String workerId) =>
+      get('/workers/$workerId');
+  Future<Result<dynamic>> updateWorker(String workerId, Map<String, dynamic> body) =>
+      put('/workers/$workerId', body);
+  Future<Result<dynamic>> matchWorkers(Map<String, dynamic> body) =>
+      post('/workers/match', body);
+  Future<Result<dynamic>> getWorkerMatches(String projectId) =>
+      getList('/workers/matches/$projectId');
+  Future<Result<dynamic>> updateWorkerMatchStatus(String matchId, Map<String, dynamic> body) =>
+      patch('/workers/matches/$matchId/status', body);
+
+  // ── 通知 / 设备推送 ──
+
+  Future<Result<dynamic>> registerDevice(Map<String, dynamic> body) =>
+      post('/notifications/devices', body);
+  Future<Result<dynamic>> listMyDevices() =>
+      get('/notifications/devices');
+  Future<Result<dynamic>> unregisterDevice(String deviceId) =>
+      delete('/notifications/devices/$deviceId');
+
+  // ── 健康检查 ──
+
+  Future<Result<dynamic>> healthCheck() =>
+      get('/health');
+
+  // ══════════════════════════════════════════════════════
+  // v1.1.16 补齐：Web 端已有但 Flutter 缺失的 API 模块
+  // ══════════════════════════════════════════════════════
+
+  // ── Agent 聊天 (P0) ──
+
+  /// 通用 Agent 聊天（自然语言路由）
+  Future<Result<dynamic>> agentChat(String message,
+          {String agentType = 'orchestrator', String? projectId}) =>
+      post('/agents/chat', {
+        'message': message,
+        'agent_type': agentType,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  /// 支持多轮对话历史的 Agent 聊天
+  Future<Result<dynamic>> agentChatWithHistory(String message,
+          {String agentType = 'orchestrator', String? projectId,
+           List<Map<String, dynamic>>? history}) =>
+      post('/agents/chat', {
+        'message': message,
+        'agent_type': agentType,
+        if (projectId != null) 'project_id': projectId,
+        if (history != null) 'history': history,
+      });
+
+  /// 设计 Agent 专用端点
+  Future<Result<dynamic>> agentDesignChat(String message, {String? projectId}) =>
+      post('/agents/design', {
+        'message': message,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  /// 预算 Agent 专用端点
+  Future<Result<dynamic>> agentBudgetChat(String message, {String? projectId}) =>
+      post('/agents/budget', {
+        'message': message,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  /// 采购 Agent 专用端点
+  Future<Result<dynamic>> agentProcurementChat(String message, {String? projectId}) =>
+      post('/agents/procurement', {
+        'message': message,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  /// 施工 Agent 专用端点
+  Future<Result<dynamic>> agentConstructionChat(String message, {String? projectId}) =>
+      post('/agents/construction', {
+        'message': message,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  // ── 预算模块 (P1) ──
+
+  Future<Result<dynamic>> getBudget(String projectId) =>
+      get('/budgets/project/$projectId');
+
+  Future<Result<dynamic>> createBudget(Map<String, dynamic> body) =>
+      post('/budgets', body);
+
+  Future<Result<dynamic>> generateBudgetFromBom(String projectId) =>
+      post('/budgets/generate-from-bom/$projectId', {});
+
+  Future<Result<dynamic>> generateBudgetPlan(String message) =>
+      post('/budgets/generate-plan', {'message': message});
+
+  Future<Result<dynamic>> compareBudgetPlans(String message) =>
+      post('/budgets/compare-plans', {'message': message});
+
+  Future<Result<dynamic>> budgetVarianceCheck(Map<String, dynamic> body) =>
+      post('/budgets/variance-check', body);
+
+  Future<Result<dynamic>> listBudgetTemplates() =>
+      get('/budgets/templates');
+
+  Future<Result<dynamic>> applyBudgetTemplate(String templateCode, double area) =>
+      post('/budgets/templates/apply', {'template_code': templateCode, 'area': area});
+
+  Future<Result<dynamic>> updateBudgetLine(String lineId, Map<String, dynamic> body) =>
+      patch('/budgets/lines/$lineId', body);
+
+  // ── 物料/BOM 模块 (P1) ──
+
+  Future<Result<dynamic>> getMaterialCategories() =>
+      get('/materials/categories');
+
+  Future<Result<dynamic>> getMaterials(Map<String, String> params) =>
+      get('/materials${_queryParams(params)}');
+
+  Future<Result<dynamic>> getMaterial(String materialId) =>
+      get('/materials/$materialId');
+
+  Future<Result<dynamic>> addBOMItem(Map<String, dynamic> body) =>
+      post('/materials/bom', body);
+
+  Future<Result<dynamic>> generateBOM(String projectId) =>
+      post('/materials/bom/generate/$projectId', {});
+
+  Future<Result<dynamic>> getProjectBOM(String projectId) =>
+      get('/materials/bom/$projectId');
+
+  Future<Result<dynamic>> getBOMSummary(String projectId) =>
+      get('/materials/bom/$projectId/summary');
+
+  Future<Result<dynamic>> deleteBOMItem(String bomId) =>
+      delete('/materials/bom/$bomId');
+
+  // ── 结算/支付模块 (P1) ──
+
+  Future<Result<dynamic>> getSettlement(String projectId) =>
+      get('/settlements/project/$projectId');
+
+  Future<Result<dynamic>> createSettlement(Map<String, dynamic> body) =>
+      post('/settlements', body);
+
+  Future<Result<dynamic>> generateSettlementFromBudget(String projectId) =>
+      post('/settlements/generate-from-budget/$projectId', {});
+
+  Future<Result<dynamic>> generateMilestoneSettlement(Map<String, dynamic> body) =>
+      post('/settlements/milestone', body);
+
+  Future<Result<dynamic>> listSettlementMilestones() =>
+      get('/settlements/milestones');
+
+  Future<Result<dynamic>> checkSettlementAnomalies(Map<String, dynamic> body) =>
+      post('/settlements/anomaly-check', body);
+
+  Future<Result<dynamic>> attachSettlementAnomalies(
+          String projectId, List<Map<String, dynamic>> anomalies, {bool autoMarkLines = true}) =>
+      post('/settlements/anomaly-attach/$projectId', {
+        'anomalies': anomalies,
+        'auto_mark_lines': autoMarkLines,
+      });
+
+  Future<Result<dynamic>> requestSettlementReview(
+          String projectId, String reason, {String? reviewerId}) =>
+      post('/settlements/request-review/$projectId', {
+        'reason': reason,
+        if (reviewerId != null) 'reviewer_id': reviewerId,
+      });
+
+  Future<Result<dynamic>> generateReconciliation(Map<String, dynamic> body) =>
+      post('/settlements/reconciliation', body);
+
+  Future<Result<dynamic>> autoSettlement(Map<String, dynamic> body) =>
+      post('/settlements/auto-settlement', body);
+
+  Future<Result<dynamic>> exportSettlement(String projectId) =>
+      get('/settlements/export/$projectId');
+
+  // 支付管理
+  Future<Result<dynamic>> getPayments(String projectId) =>
+      get('/payments/project/$projectId');
+
+  Future<Result<dynamic>> createPayment(Map<String, dynamic> body) =>
+      post('/payments', body);
+
+  Future<Result<dynamic>> getPayment(String paymentId) =>
+      get('/payments/$paymentId');
+
+  Future<Result<dynamic>> confirmPayment(String paymentId, Map<String, dynamic> body) =>
+      post('/payments/$paymentId/confirm', body);
+
+  Future<Result<dynamic>> refundPayment(String paymentId, Map<String, dynamic> body) =>
+      post('/payments/$paymentId/refund', body);
+
+  Future<Result<dynamic>> failPayment(String paymentId, Map<String, dynamic> body) =>
+      post('/payments/$paymentId/fail', body);
+
+  Future<Result<dynamic>> generateInvoice(String paymentId, Map<String, dynamic> body) =>
+      post('/payments/$paymentId/invoice', body);
+
+  Future<Result<dynamic>> getPaymentMilestones(String projectId) =>
+      get('/payments/milestones/$projectId');
+
+  Future<Result<dynamic>> getPaymentSchedule(String projectId) =>
+      get('/payments/schedule/$projectId');
+
+  Future<Result<dynamic>> getFinalSettlement(String projectId) =>
+      get('/payments/final-settlement/$projectId');
+
+  // ── 项目管理 (P2) ──
+
+  Future<Result<dynamic>> updateProject(String projectId, Map<String, dynamic> data) =>
+      patch('/projects/$projectId', data);
+
+  Future<Result<dynamic>> deleteProject(String projectId) =>
+      delete('/projects/$projectId');
+
+  // ── 基础采购订单管理 (P2) ──
+
+  Future<Result<dynamic>> getProcurementOrders(String projectId) =>
+      get('/procurement/orders/$projectId');
+
+  Future<Result<dynamic>> getProcurementOrder(String orderId) =>
+      get('/procurement/orders/detail/$orderId');
+
+  Future<Result<dynamic>> createProcurementOrder(Map<String, dynamic> body) =>
+      post('/procurement/orders', body);
+
+  Future<Result<dynamic>> updateProcurementOrder(String orderId, Map<String, dynamic> body) =>
+      patch('/procurement/orders/$orderId', body);
+
+  Future<Result<dynamic>> updateOrderStatus(String orderId, String status) =>
+      patch('/procurement/orders/$orderId/status', {'status': status});
+
+  Future<Result<dynamic>> deleteProcurementOrder(String orderId) =>
+      delete('/procurement/orders/$orderId');
+
+  Future<Result<dynamic>> getQuotations(String projectId) =>
+      get('/procurement/quotations/$projectId');
+
+  Future<Result<dynamic>> createQuotation(Map<String, dynamic> body) =>
+      post('/procurement/quotations', body);
+
+  Future<Result<dynamic>> getSuppliers() =>
+      get('/procurement/suppliers');
+
+  Future<Result<dynamic>> createSupplier(Map<String, dynamic> body) =>
+      post('/procurement/suppliers', body);
+
+  Future<Result<dynamic>> compareQuotes(Map<String, dynamic> body) =>
+      post('/procurement/compare', body);
+
+  // ── 文件管理 (P2) ──
+
+  Future<Result<dynamic>> getFiles(String projectId) =>
+      get('/files/project/$projectId');
+
+  Future<Result<dynamic>> downloadFile(String attachmentId) =>
+      get('/files/download/$attachmentId');
+
+  Future<Result<dynamic>> deleteFileAttachment(String attachmentId) =>
+      delete('/files/$attachmentId');
+
+  // ── IM 聊天 (P2) ──
+
+  Future<Result<dynamic>> getChatRoom(String projectId) =>
+      get('/chat/rooms/$projectId');
+
+  Future<Result<dynamic>> getChatMessages(String projectId, {int? limit}) =>
+      get('/chat/messages/$projectId${limit != null ? '?limit=$limit' : ''}');
+
+  Future<Result<dynamic>> sendChatMessage(Map<String, dynamic> body) =>
+      post('/chat/messages', body);
+
+  Future<Result<dynamic>> markMessageRead(String messageId) =>
+      post('/chat/messages/$messageId/read', {});
+
+  Future<Result<dynamic>> getUnreadCount(String projectId) =>
+      get('/chat/unread/$projectId');
+
+  // ── 现场测量 Survey (P2) ──
+
+  Future<Result<dynamic>> createSurvey(Map<String, dynamic> body) =>
+      post('/surveys', body);
+
+  Future<Result<dynamic>> getSurveys(String projectId) =>
+      get('/surveys/project/$projectId');
+
+  Future<Result<dynamic>> getSurvey(String surveyId) =>
+      get('/surveys/$surveyId');
+
+  Future<Result<dynamic>> updateSurvey(String surveyId, Map<String, dynamic> body) =>
+      patch('/surveys/$surveyId', body);
+
+  Future<Result<dynamic>> deleteSurvey(String surveyId) =>
+      delete('/surveys/$surveyId');
+
+  // ── 语音处理 (P2) ──
+
+  Future<Result<dynamic>> processVoice(String text, {String? projectId}) =>
+      post('/voice/process', {
+        'text': text,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  // ── 管理后台 (P2) ──
+
+  Future<Result<dynamic>> getAdminUsers() =>
+      get('/admin/users');
+
+  Future<Result<dynamic>> getAdminUserDetail(String userId) =>
+      get('/admin/users/$userId');
+
+  Future<Result<dynamic>> toggleAdminUserStatus(String userId, bool isActive) =>
+      patch('/admin/users/$userId/status', {'is_active': isActive});
+
+  // ── 查询参数辅助 ──
+  String _queryParams(Map<String, String> params) {
+    if (params.isEmpty) return '';
+    final entries = params.entries
+        .where((e) => e.value.isNotEmpty)
+        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return entries.isEmpty ? '' : '?$entries';
+  }
 
   // ── 响应处理 ──
 

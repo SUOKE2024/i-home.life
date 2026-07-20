@@ -28,7 +28,7 @@ const ApiClient = {
     return this.BASE_URL + (path.startsWith('/') ? path : '/' + path);
   },
 
-  // 基础请求封装
+  // 基础请求封装（Agent LLM 调用默认 180s 超时，其他 30s）
   async request(path, options = {}) {
     const token = this.getToken();
     const headers = {
@@ -38,14 +38,32 @@ const ApiClient = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const res = await fetch(this._url(path), { ...options, headers });
-    if (res.status === 401) {
-      // 令牌过期，跳转登录
-      this.clearToken();
-      window.location.href = '/login.html';
-      throw new Error('认证过期，请重新登录');
+
+    // 自动超时：Agent 端点 180s，其他 30s
+    const isAgentCall = path.includes('/api/agents/');
+    const timeoutMs = options.timeout || (isAgentCall ? 180000 : 30000);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(this._url(path), {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+      if (res.status === 401) {
+        this.clearToken();
+        window.location.href = '/login.html';
+        throw new Error('认证过期，请重新登录');
+      }
+      return this._handleResponse(res);
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error(`请求超时（${Math.round(timeoutMs / 1000)}秒），请稍后重试`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
     }
-    return this._handleResponse(res);
   },
 
   async _handleResponse(res) {
@@ -310,13 +328,6 @@ const ApiClient = {
     });
   },
 
-  // 任务池（F36 工程队匹配）
-  async getTaskPool(claimRole = null, limit = 50) {
-    const params = new URLSearchParams();
-    if (claimRole) params.append('claim_role', claimRole);
-    params.append('limit', limit);
-    return this.request(`/api/tasks/pool?${params}`);
-  },
   // 申领任务
   async claimTask(taskId) {
     return this.request('/api/tasks/claim', {
@@ -1891,6 +1902,26 @@ const ApiClient = {
   // 健康检查
   async health() {
     return fetch(this._url('/health')).then(r => r.json());
+  },
+
+  // ── 管理后台 ──
+
+  // 获取所有用户列表
+  async getAdminUsers() {
+    return this.request('/api/admin/users');
+  },
+
+  // 获取单个用户详情
+  async getAdminUserDetail(userId) {
+    return this.request(`/api/admin/users/${userId}`);
+  },
+
+  // 切换用户状态
+  async toggleAdminUserStatus(userId, isActive) {
+    return this.request(`/api/admin/users/${userId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ is_active: isActive }),
+    });
   },
 
   // ── 全局错误拦截 ──

@@ -65,6 +65,21 @@
       "icons": [{ "src": "assets/images/icons/desktop/suoke-logo-128.png", "sizes": "128x128" }]
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "assets/images/screenshots/workbench-desktop.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "AI 工作台主界面"
+    },
+    {
+      "src": "assets/images/screenshots/workbench-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "移动端工作台"
+    }
+  ],
   "prefer_related_applications": false
 }

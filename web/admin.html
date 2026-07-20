@@ -11,6 +11,7 @@
 <meta http-equiv="Expires" content="0">
 <!-- no-cache headers for admin security -->
 <meta name="description" content="索克家居管理后台 - 项目管理、预算、采购、施工、结算一体化平台">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta name="robots" content="noindex,nofollow">
@@ -283,6 +284,7 @@ document.getElementById('login-form').addEventListener('submit',async function(e
     if(!resp.ok)throw new Error(data.detail||'登录失败');
 
     AUTH_TOKEN=data.access_token;
+    localStorage.setItem('paseto_token', data.access_token);
     document.getElementById('login-overlay').style.display='none';
     document.getElementById('app').style.display='flex';
     await loadProfile();
@@ -304,6 +306,7 @@ async function loadProfile(){
 
 function logout(){
   AUTH_TOKEN='';USER=null;
+  localStorage.removeItem('paseto_token');
   document.getElementById('login-overlay').style.display='flex';
   document.getElementById('app').style.display='none';
   document.getElementById('login-error').style.display='none';
@@ -867,23 +870,32 @@ async function toggleUserStatus(uid,currentlyActive){
 }
 
 // ========== Init ==========
-// Auto-login with demo credentials
+// Try to restore session from saved token (replaces demo auto-login)
 (async function(){
+  const savedToken = localStorage.getItem('paseto_token');
+  if (!savedToken) {
+    document.getElementById('login-overlay').style.display='flex';
+    return;
+  }
   try{
-    const resp=await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone:'13800138000',password:'123456'})});
-    const data=await resp.json();
-    if(resp.ok){
-      AUTH_TOKEN=data.access_token;
-      document.getElementById('login-overlay').style.display='none';
-      document.getElementById('app').style.display='flex';
-      await loadProfile();
-      const validTabs=['dashboard','projects','budgets','procurement','construction','settlements','materials','users','quality'];
-      const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
-      showTab(initialTab);
+    AUTH_TOKEN = savedToken;
+    const resp = await fetch(API+'/api/auth/me', {headers:{'Authorization':'Bearer '+AUTH_TOKEN}});
+    if (!resp.ok) {
+      localStorage.removeItem('paseto_token');
+      AUTH_TOKEN = '';
+      document.getElementById('login-overlay').style.display='flex';
+      return;
     }
+    USER = await resp.json();
+    document.getElementById('login-overlay').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('user-phone').textContent = USER.phone || USER.username || '---';
+    const validTabs=['dashboard','projects','budgets','procurement','construction','settlements','materials','users','quality'];
+    const initialTab=validTabs.includes(location.hash.slice(1))?location.hash.slice(1):'dashboard';
+    showTab(initialTab);
   }catch(e){
-    // Show login form, backend not available
+    localStorage.removeItem('paseto_token');
+    AUTH_TOKEN = '';
     document.getElementById('login-overlay').style.display='flex';
   }
 })();

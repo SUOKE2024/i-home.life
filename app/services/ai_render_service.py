@@ -22,10 +22,6 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-# Mock 模式判定：两个 LLM 供应商 API Key 均为空 → 走 mock 路径
-# 与 app/api/sketch_to_3d.py 的 MOCK_MODE 判定逻辑保持一致
-MOCK_MODE = not settings.deepseek_api_key and not settings.glm_api_key
-
 # 支持的渲染风格（仅作推荐列表展示，style 字段允许自由文本）
 SUPPORTED_STYLES = [
     "modern", "nordic", "japanese", "luxury",
@@ -83,17 +79,7 @@ class AIRenderService:
         )
         hint_applied = bool(preference_hint)
 
-        if MOCK_MODE:
-            logger.info(
-                "render_2d mock mode: style=%s user=%s hint_applied=%s",
-                style, user_id, hint_applied,
-            )
-            result = self._get_mock_response("2d", style)
-            result["processing_time_ms"] = int((time.perf_counter() - start) * 1000)
-            result["preference_hint_applied"] = hint_applied
-            return result
-
-        # 生产模式：调用 LLM 生成 prompt
+        # 调用 LLM 生成 prompt
         agent = _RenderAgent()
         try:
             user_prompt = self._build_render_prompt(layout_json, style, preference_hint)
@@ -103,10 +89,6 @@ class AIRenderService:
             ]
             reply = await agent._chat(messages)
             sd_prompt, description = self._parse_llm_response(reply)
-        except Exception as e:
-            logger.warning("render_2d LLM 调用失败，降级 mock: %s", e)
-            mock = self._get_mock_response("2d", style)
-            sd_prompt, description = mock["prompt"], mock["description"]
         finally:
             await agent.close()
 
@@ -147,17 +129,7 @@ class AIRenderService:
         )
         hint_applied = bool(preference_hint)
 
-        if MOCK_MODE:
-            logger.info(
-                "render_3d mock mode: style=%s user=%s hint_applied=%s",
-                style, user_id, hint_applied,
-            )
-            result = self._get_mock_response("3d", style)
-            result["processing_time_ms"] = int((time.perf_counter() - start) * 1000)
-            result["preference_hint_applied"] = hint_applied
-            return result
-
-        # 生产模式：调用 LLM 生成多视角 prompt
+        # 调用 LLM 生成多视角 prompt
         agent = _RenderAgent()
         try:
             user_prompt = self._build_render_prompt(
@@ -169,9 +141,6 @@ class AIRenderService:
             ]
             reply = await agent._chat(messages)
             prompts = self._parse_prompts_response(reply)
-        except Exception as e:
-            logger.warning("render_3d LLM 调用失败，降级 mock: %s", e)
-            prompts = self._get_mock_response("3d", style)["prompts"]
         finally:
             await agent.close()
 
@@ -222,19 +191,7 @@ class AIRenderService:
         # 简单根据照片字节数估算房间类型（生产应使用视觉模型）
         detected_room_type = self._detect_room_type(photo_data)
 
-        if MOCK_MODE:
-            logger.info(
-                "restage_photo mock mode: mode=%s style=%s user=%s hint_applied=%s",
-                mode, style, user_id, hint_applied,
-            )
-            result = self._get_mock_response("restage", style)
-            result["mode"] = mode
-            result["detected_room_type"] = detected_room_type
-            result["processing_time_ms"] = int((time.perf_counter() - start) * 1000)
-            result["preference_hint_applied"] = hint_applied
-            return result
-
-        # 生产模式：调用 LLM 生成重布置 prompt
+        # 调用 LLM 生成重布置 prompt
         agent = _RenderAgent()
         try:
             layout_meta = {
@@ -252,9 +209,6 @@ class AIRenderService:
             ]
             reply = await agent._chat(messages)
             sd_prompt, _ = self._parse_llm_response(reply)
-        except Exception as e:
-            logger.warning("restage_photo LLM 调用失败，降级 mock: %s", e)
-            sd_prompt = self._get_mock_response("restage", style)["prompt"]
         finally:
             await agent.close()
 

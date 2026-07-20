@@ -379,8 +379,8 @@ def test_orchestrator_fallback_construction_still_works():
 
 @pytest.fixture(autouse=False)
 def force_mock_mode(monkeypatch):
-    """强制启用 mock 模式，避免依赖 .env 中真实 API Key"""
-    monkeypatch.setattr("app.api.agents.MOCK_MODE", True)
+    """MOCK_MODE 已移除，该 fixture 不再生效。mock 路径测试需改为真实 LLM 测试或 skip。"""
+    pass
 
 
 @pytest.mark.asyncio

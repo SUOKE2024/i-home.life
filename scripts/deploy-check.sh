@@ -50,8 +50,7 @@ REQUIRED_FILES=(
   "manifest.json" "sw.js" "sitemap.xml" "robots.txt"
   "assets/css/workbench.css" "assets/js/api-client.js" "assets/js/im-client.js"
   "assets/js/agent-router.js" "assets/js/message-renderers.js"
-  "assets/js/demo-narrative.js" "assets/js/story-narrative.js"
-  "assets/js/analytics.js" "assets/js/echarts.min.js"
+  "assets/js/analytics.js" "assets/js/component-base.js" "assets/js/router.js"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [ -f "$WEB_DIR/$f" ]; then

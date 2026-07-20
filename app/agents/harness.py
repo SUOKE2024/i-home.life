@@ -268,9 +268,7 @@ class AgentRuntime:
         self._metrics["total_runs"] += 1
 
         try:
-            # 检查是否 MOCK_MODE
-            from app.main import MOCK_MODE
-            if MOCK_MODE and mock_fn:
+            if mock_fn:
                 result = mock_fn(user_message)
                 trace.response = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
                 trace.finish(AgentRunStatus.SUCCESS)

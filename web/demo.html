@@ -7,6 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="description" content="索克家居 - AI驱动的全链路智能家居建造平台。9个AI智能体7×24自治运营，覆盖设计→预算→采购→施工→质检→结算全流程。TRAE AI创造力大赛参赛作品。">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <meta name="keywords" content="索克家居,AI装修,智能装修,TRAE创造力大赛,AI家居,智能建造">
 <meta name="theme-color" content="#1a1814">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,6 +18,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <meta property="og:title" content="索克家居 - AI智能装修平台 | TRAE AI创造力大赛">
+
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
 <meta property="og:description" content="9个AI智能体7×24自治运营，覆盖设计→预算→采购→施工→质检→结算全流程。让装修像打车一样简单。">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="索克家居">
@@ -795,6 +802,7 @@ sup a:hover { color: var(--gold); }
 </style>
 </head>
 <body>
+<a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#fff;font-size:13px;font-weight:600;text-decoration:none;border-radius:0 0 6px 0">跳过导航，直达内容</a>
 
 <!-- ═══ HEADER ═══ -->
 <div class="hero">
@@ -1817,8 +1825,34 @@ sup a:hover { color: var(--gold); }
       });
   }
 
-  // 页面加载后 1 秒检查后端
-  setTimeout(checkBackend, 1000);
+  // 页面加载后立即检查后端（v1.1.13：提速至 200ms，原 1000ms）
+  setTimeout(checkBackend, 200);
+
+  // v1.1.13: SW 更新监听 — 检测到新版本自动刷新页面
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'SW_UPDATED') {
+        console.log('[SW] 检测到新版本 ' + event.data.version + '，自动刷新...');
+        window.location.reload();
+      }
+    });
+    // 强制跳过等待，立即激活新 SW
+    navigator.serviceWorker.ready.then(function (reg) {
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      reg.addEventListener('updatefound', function () {
+        var newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', function () {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        }
+      });
+    });
+  }
 })();
 </script>
 
@@ -1889,13 +1923,16 @@ function openARMeasurement() {
   }).catch(function (err) {
     var errorDiv = document.getElementById('arError');
     var errorMsg = document.getElementById('arErrorMsg');
+    // v1.1.13 修复：摄像头失败时更新传感器徽章，避免永远显示「初始化中」
+    var badge = document.getElementById('arSensorBadge');
+    if (badge) { badge.textContent = '摄像头不可用'; badge.style.color = '#f87171'; }
     if (errorMsg) {
       if (err.name === 'NotAllowedError') {
         errorMsg.textContent = '摄像头权限被拒绝。请在浏览器设置中允许摄像头访问后重试。';
       } else if (err.name === 'NotFoundError') {
         errorMsg.textContent = '未检测到摄像头设备。请确认设备已连接摄像头。';
       } else if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        errorMsg.textContent = '摄像头需要 HTTPS 环境或 localhost 访问。当前协议：' + location.protocol;
+        errorMsg.textContent = '摄像头需要 HTTPS 环境或 localhost 访问。当前协议：' + location.protocol + '。请使用 HTTPS 访问或 SSH 端口转发（ssh -L 8081:localhost:8081 root@118.31.223.213）后访问 http://localhost:8081。';
       } else {
         errorMsg.textContent = '摄像头启动失败：' + err.message;
       }
@@ -2122,6 +2159,8 @@ function initARSensors() {
   }
 
   // ── 更新总状态徽章 ──
+  // v1.1.13: 先显示「检测中…」，异步传感器就绪后 3s 更新
+  badge.textContent = '检测中…';
   setTimeout(function () {
     var sensorCount = [
       arHasOrientation, arHasMotion, !!arMagReading, !!arXrSession, !!arGeoLocation

@@ -17,6 +17,16 @@ class AppConfig {
     defaultValue: 'http://localhost:8766/api',
   );
 
+  /// WebSocket 基础地址。
+  ///
+  /// 默认从 [apiBaseUrl] 自动推导（http→ws / https→wss / 去除 /api 后缀）。
+  /// 如果 WebSocket 服务部署在不同端口/域名，可在构建期单独覆盖：
+  ///   `flutter build --dart-define=WS_BASE_URL=wss://ws.example.com`
+  static const String wsBaseUrl = String.fromEnvironment(
+    'WS_BASE_URL',
+    defaultValue: '',
+  );
+
   static const String appName = 'i-home.life';
   static const String appVersion = '1.1.15';
   static const Duration requestTimeout = Duration(seconds: 15);

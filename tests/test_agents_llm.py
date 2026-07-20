@@ -149,8 +149,8 @@ def test_modification_no_action():
 
 @pytest.fixture(autouse=False)
 def force_mock_mode(monkeypatch):
-    """强制启用 mock 模式,避免依赖 .env 中真实 API Key"""
-    monkeypatch.setattr("app.api.agents.MOCK_MODE", True)
+    """MOCK_MODE 已移除，该 fixture 不再生效。mock 路径测试需改为真实 LLM 测试或 skip。"""
+    pass
 
 
 @pytest.mark.asyncio
@@ -549,8 +549,7 @@ async def test_chat_designer_fallback_on_timeout(client: AsyncClient, monkeypatc
     验证 base.py 的"AI 推理超时"友好错误消息也会触发 fallback，
     用户始终收到"已为您生成N套方案"而非"稍后重试"。
     """
-    # 确保 MOCK_MODE=False（让代码走 think() 路径）
-    monkeypatch.setattr("app.api.agents.MOCK_MODE", False)
+    # MOCK_MODE 已移除，始终走真实 LLM 路径
 
     # Mock DesignerAgent.think 返回 base.py 的友好错误消息
     async def _mock_think(self, message, context=""):
@@ -578,7 +577,7 @@ async def test_chat_designer_fallback_on_timeout(client: AsyncClient, monkeypatc
 @pytest.mark.asyncio
 async def test_chat_designer_fallback_on_reasoning_leak(client: AsyncClient, monkeypatch):
     """LLM 返回 reasoning_content（思维链）时，应 fallback 到 generate_layouts"""
-    monkeypatch.setattr("app.api.agents.MOCK_MODE", False)
+    # MOCK_MODE 已移除，始终走真实 LLM 路径
 
     async def _mock_think(self, message, context=""):
         return "我们需要理解用户需求：126平米三室两厅方案。应该生成3套不同方案。需要输出JSON格式。"
@@ -613,7 +612,8 @@ async def test_chat_empty_content_returns_friendly_error(monkeypatch):
     导致用户看到 "我们需要理解用户需求..." 等内部思维链。
     修复后应返回友好错误消息而非 reasoning_content。
     """
-    from app.agents.base import BaseAgent
+    from app.agents.base import BaseAgent, settings as base_settings
+    monkeypatch.setattr(base_settings, "deepseek_api_key", "fake-test-key")
 
     class TestAgent(BaseAgent):
         agent_name = "test"
@@ -671,7 +671,8 @@ async def test_chat_empty_content_retry_then_success(monkeypatch):
     场景：首次 content="" + finish_reason="length"（reasoning 占满 token），
     重试时降温到 0.3，第二次返回正常 content。
     """
-    from app.agents.base import BaseAgent
+    from app.agents.base import BaseAgent, settings as base_settings
+    monkeypatch.setattr(base_settings, "deepseek_api_key", "fake-test-key")
 
     class TestAgent(BaseAgent):
         agent_name = "test"
@@ -726,7 +727,8 @@ async def test_chat_empty_content_retry_then_success(monkeypatch):
 @pytest.mark.asyncio
 async def test_chat_normal_content_not_affected(monkeypatch):
     """LLM 正常返回 content 时，不应被 fallback 逻辑影响"""
-    from app.agents.base import BaseAgent
+    from app.agents.base import BaseAgent, settings as base_settings
+    monkeypatch.setattr(base_settings, "deepseek_api_key", "fake-test-key")
 
     class TestAgent(BaseAgent):
         agent_name = "test"

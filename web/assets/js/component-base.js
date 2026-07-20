@@ -305,7 +305,7 @@
           if (e.target === overlay) this.close();
         });
       }
-    },
+    }
 
     /** 打开 Modal */
     open() {
@@ -326,7 +326,7 @@
       }
 
       return this;
-    },
+    }
 
     /** 关闭 Modal */
     close() {
@@ -350,19 +350,19 @@
           this._el.parentNode.removeChild(this._el);
         }
       }, 400);
-    },
+    }
 
     /** 切换 */
     toggle() {
       if (this._visible) this.close();
       else this.open();
-    },
+    }
 
     /** 销毁 */
     destroy() {
       this.close();
       this._el = null;
-    },
+    }
 
     // ── 静态快捷方法 ──
 
@@ -377,7 +377,7 @@
         ],
       });
       return modal.open();
-    },
+    }
 
     /** 提示对话框 */
     static alert(title, message) {
@@ -387,7 +387,7 @@
         buttons: [{ text: '知道了', type: 'primary' }],
       });
       return modal.open();
-    },
+    }
   }
 
   /* ==========================================

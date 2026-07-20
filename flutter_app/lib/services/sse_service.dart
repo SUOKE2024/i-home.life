@@ -146,7 +146,9 @@ class SseService {
         yield SseEvent(type: SseEventType.done);
       }
     } finally {
-      response?.stream.drain();
+      // response.stream 是单订阅流，try 块中已被完全消费（bytesToString 或 await for），
+      // 再次 drain 会触发 "Stream has already been listened to"。
+      // 这里仅需关闭 client，不再尝试 drain。
       client.close();
     }
   }
