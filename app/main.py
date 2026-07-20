@@ -42,6 +42,7 @@ from app.api import sketch_to_3d
 from app.api import cad_import
 from app.api import mcp as mcp_api
 from app.api import ai_render
+from app.api import ifc_export
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -295,6 +296,7 @@ api_router.include_router(cad_import.router)       # /api/cad-import/*
 # v1.1.12 新增：MCP Server + AI 渲染端点（受 feature flag 控制，路由始终注册但端点内部校验）
 api_router.include_router(mcp_api.router)          # /api/mcp/* (MCP 2026-07-28)
 api_router.include_router(ai_render.router)        # /api/ai-render/* (2D/3D/restage)
+api_router.include_router(ifc_export.router)      # /api/bim/export/* (IFC 导出)
 app.include_router(api_router)
 
 # ── 全局异常处理 ──

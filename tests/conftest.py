@@ -57,3 +57,26 @@ async def client():
 async def db_session():
     async with async_session() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def auth_token(client: AsyncClient) -> str:
+    """注册一个用户并返回 access_token，供测试文件直接依赖。
+
+    各测试文件无需重复定义 _register() / _register_and_login() 私有函数。
+    使用 UUID 生成唯一手机号，避免并发测试冲突。
+    """
+    import uuid
+    phone = f"139{str(uuid.uuid4().int)[:8]}"
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "测试用户", "password": "test123456"},
+    )
+    assert resp.status_code == 201, f"注册失败: {resp.json()}"
+    return resp.json()["access_token"]
+
+
+@pytest_asyncio.fixture
+async def auth_headers(auth_token: str) -> dict:
+    """返回已认证的 Authorization headers，可直接用于 HTTP 请求。"""
+    return {"Authorization": f"Bearer {auth_token}"}

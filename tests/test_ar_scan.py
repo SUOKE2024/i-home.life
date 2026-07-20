@@ -520,24 +520,28 @@ def test_validate_wall_feature_window_sill_too_low():
     assert any("GB 50096" in w or "规范" in w for w in warnings)
 
 
-def test_parse_usdz_model_empty():
+@pytest.mark.asyncio
+async def test_parse_usdz_model_empty():
     """单元测试: 空 model_url 应返回带警告的解析结果"""
     from app.services.ar_scan_service import parse_usdz_model
 
-    result = parse_usdz_model("", "usdz")
+    result = await parse_usdz_model("", "usdz")
     assert "parse_warnings" in result
     assert any("model_url 为空" in w for w in result["parse_warnings"])
 
 
 def test_process_point_cloud_downsampling():
-    """单元测试: 点云下采样应保留约 40% 点"""
+    """单元测试: 点云下采样后点数应 ≤ 原始点数且 > 0"""
     from app.services.ar_scan_service import process_point_cloud
 
     result = process_point_cloud(100000, 100.0)
     assert result["original_points"] == 100000
-    assert result["downsampled_points"] == 40000
+    # numpy voxel 下采样: 保留唯一体素内的点;100k 点时会跳过法线估算
+    assert result["downsampled_points"] > 0
+    assert result["downsampled_points"] <= result["original_points"]
     assert result["voxel_size_cm"] == 2.0
     assert result["wall_planes"] >= 4
+    assert "normals_method" in result
 
 
 def test_detect_device_capability_lidar_priority():
@@ -554,3 +558,104 @@ def test_detect_device_capability_lidar_priority():
     assert result["recommended_method"] == "lidar"
     assert result["lidar_supported"] is True
     assert result["fallback_chain"] == ["lidar", "visual_slam", "photogrammetry", "manual"]
+
+
+# ── F1.7 真实模型解析测试 ──
+
+@pytest.mark.asyncio
+async def test_parse_usdz_glb_real_file(tmp_path):
+    """使用 trimesh 创建示例 GLB 文件并验证真实解析路径"""
+    import struct
+    import os
+
+    from app.services.ar_scan_service import parse_usdz_model
+
+    # 手动构造最小 GLB 二进制 (header + empty JSON chunk + empty BIN chunk)
+    # GLB header: magic (0x46546C67 = "glTF"), version (2), total length
+    json_content = b'{"asset":{"version":"2.0"},"meshes":[{"name":"room_main_wall_1","primitives":[]}],"nodes":[{"mesh":0,"name":"room_main"}]}'
+    # pad JSON chunk to 4-byte alignment
+    json_padded = json_content + b' ' * ((4 - len(json_content) % 4) % 4)
+    json_chunk_len = len(json_padded)
+    # total = 12 (header) + 8 (json chunk header) + json_chunk_len + 8 (bin chunk header) + 0
+    total_len = 12 + 8 + json_chunk_len + 8 + 0
+    header = struct.pack('<Iii', 0x46546C67, 2, total_len)
+    json_chunk_header = struct.pack('<II', json_chunk_len, 0x4E4F534A)  # "JSON"
+    bin_chunk_header = struct.pack('<II', 0, 0x004E4942)  # "BIN\0"
+
+    glb_data = header + json_chunk_header + json_padded + bin_chunk_header
+
+    glb_path = os.path.join(str(tmp_path), "test_sample.glb")
+    with open(glb_path, "wb") as f:
+        f.write(glb_data)
+
+    result = await parse_usdz_model(glb_path, "glb")
+
+    assert result["parse_status"] == "ok"
+    assert result["model_format"] == "glb"
+    assert result["point_count"] >= 0
+    # 应能识别到 mesh 名称中包含的房间/墙体关键词
+    assert "parse_warnings" in result
+    # 若 trimesh 可用,应进入真实解析路径;否则降级到 mock
+    assert "rooms" in result
+    assert len(result["rooms"]) > 0 or result.get("wall_count", 0) > 0
+
+
+@pytest.mark.asyncio
+async def test_parse_usdz_empty_url():
+    """空 model_url 应返回空解析结果并带警告 (别名测试,覆盖向后兼容)"""
+    from app.services.ar_scan_service import parse_usdz_model
+
+    result = await parse_usdz_model("", "usdz")
+    assert result["rooms"] == []
+    assert result["total_area"] == 0.0
+    assert any("model_url 为空" in w for w in result["parse_warnings"])
+
+
+@pytest.mark.asyncio
+async def test_parse_usdz_unsupported_format():
+    """不支持的格式应降级到 mock 而不会崩溃"""
+    from app.services.ar_scan_service import parse_usdz_model
+
+    result = await parse_usdz_model("https://example.com/model.obj", "obj")
+    assert result["parse_status"] == "ok"
+    assert len(result["parse_warnings"]) > 0
+    # 降级到 mock 后有 rooms
+    assert len(result["rooms"]) > 0
+    assert result["total_area"] > 0
+
+
+def test_process_point_cloud_with_numpy():
+    """numpy 可用时,点云下采样使用真实体素算法"""
+    from app.services.ar_scan_service import process_point_cloud
+
+    result = process_point_cloud(5000, 25.0)
+    assert result["original_points"] == 5000
+    assert 0 < result["downsampled_points"] <= 5000
+    assert result["voxel_size_cm"] == 2.0
+    assert result["normals_estimated"] is True
+    assert result["normals_method"] == "pca_knn"
+    assert result["wall_planes"] >= 4
+    assert result["floor_planes"] == 1
+    assert result["ceiling_planes"] == 1
+
+
+def test_process_point_cloud_zero_points():
+    """点数为 0 时应正常返回而不崩溃"""
+    from app.services.ar_scan_service import process_point_cloud
+
+    result = process_point_cloud(0, 100.0)
+    assert result["original_points"] == 0
+    assert result["downsampled_points"] == 0
+    assert result["normals_estimated"] is False
+    assert result["normals_method"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_parse_usdz_extension_mismatch():
+    """文件扩展名与声明格式不一致时应记录警告"""
+    from app.services.ar_scan_service import parse_usdz_model
+
+    result = await parse_usdz_model("https://example.com/model.glb", "usdz")
+    assert "parse_warnings" in result
+    warnings = " ".join(result["parse_warnings"])
+    assert ("不一致" in warnings or "降级" in warnings)

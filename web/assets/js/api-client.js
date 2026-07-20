@@ -941,6 +941,19 @@ const ApiClient = {
     return this.request(`/api/surveys/ar/sessions/${sessionId}`, { method: 'DELETE' });
   },
 
+  // 上传 AR 扫描模型文件 (USDZ/GLB/GLTF)
+  async uploadARModel(sessionId, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = this.getToken();
+    const res = await fetch(this._url(`/api/surveys/ar/sessions/${sessionId}/upload-model`), {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData,
+    });
+    return this._handleResponse(res);
+  },
+
   // ============ 工程量计算 takeoff ============
 
   async takeoffWall(data) {
@@ -1922,6 +1935,46 @@ const ApiClient = {
       method: 'PUT',
       body: JSON.stringify({ is_active: isActive }),
     });
+  },
+
+  // ============ BIM IFC 导出 ============
+
+  // 导出项目结构数据为 IFC 文件（返回 Blob）
+  async exportStructuralIFC(projectId) {
+    const token = this.getToken();
+    const res = await fetch(this._url(`/api/bim/export/structural/${projectId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.blob();
+  },
+
+  // 导出设计方案数据为 IFC 文件（返回 Blob）
+  async exportDesignIFC(planId) {
+    const token = this.getToken();
+    const res = await fetch(this._url(`/api/bim/export/design/${planId}`), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.blob();
   },
 
   // ── 全局错误拦截 ──

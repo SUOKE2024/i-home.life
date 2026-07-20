@@ -28,7 +28,7 @@ class AppConfig {
   );
 
   static const String appName = 'i-home.life';
-  static const String appVersion = '1.1.15';
+  static const String appVersion = '1.1.17';
   static const Duration requestTimeout = Duration(seconds: 15);
 
   /// 调试模式开关。

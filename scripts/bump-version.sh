@@ -32,7 +32,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 find_current_version() {
     # 从 sw.js 中提取 CACHE_VERSION
     local sw_ver
-    sw_ver=$(grep -oP "CACHE_VERSION\s*=\s*'suoke-v(\K[^']+)" "$WEB_DIR/sw.js" 2>/dev/null || echo "")
+    sw_ver=$(sed -n "s/.*CACHE_VERSION *= *'suoke-v\([^']*\)'.*/\1/p" "$WEB_DIR/sw.js" 2>/dev/null || echo "")
     if [ -z "$sw_ver" ]; then
         log_error "无法从 $WEB_DIR/sw.js 中解析 CACHE_VERSION"
         exit 1
@@ -112,7 +112,7 @@ verify() {
 
     # 检查 sw.js
     local sw_cache
-    sw_cache=$(grep -oP "CACHE_VERSION\s*=\s*'suoke-v\K([^']+)" "$WEB_DIR/sw.js" 2>/dev/null || echo "")
+    sw_cache=$(sed -n "s/.*CACHE_VERSION *= *'suoke-v\([^']*\)'.*/\1/p" "$WEB_DIR/sw.js" 2>/dev/null || echo "")
     if [ "$sw_cache" = "$version" ]; then
         log_info "sw.js CACHE_VERSION = suoke-v$version ✓"
     else
@@ -124,7 +124,7 @@ verify() {
     local today_suffix="${version:8}"
     while IFS= read -r -d '' file; do
         local refs
-        refs=$(grep -oP "v=2026[0-9]{4}[a-z]" "$file" 2>/dev/null | sort -u || echo "")
+        refs=$(grep -oE "v=2026[0-9]{4}[a-z]" "$file" 2>/dev/null | sort -u || echo "")
         if [ -n "$refs" ]; then
             for ref in $refs; do
                 local ref_ver="${ref#v=}"

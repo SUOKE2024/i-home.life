@@ -27,6 +27,8 @@ const PRECACHE_URLS = [
   '/project-detail.html',
   '/materials.html',
   '/quality-report.html',
+  '/timeline.html',
+  '/structure.html',
   '/manifest.json',
   '/assets/css/workbench.css?v=20260720g',
   '/assets/js/api-client.js?v=20260720g',

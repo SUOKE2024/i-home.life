@@ -47,10 +47,12 @@ WEB_DIR="$PROJECT_DIR/web"
 REQUIRED_FILES=(
   "index.html" "login.html" "workbench.html" "settings.html" "our-story.html"
   "project-detail.html" "materials.html" "quality-report.html"
+  "structure.html"
   "manifest.json" "sw.js" "sitemap.xml" "robots.txt"
   "assets/css/workbench.css" "assets/js/api-client.js" "assets/js/im-client.js"
   "assets/js/agent-router.js" "assets/js/message-renderers.js"
   "assets/js/analytics.js" "assets/js/component-base.js" "assets/js/router.js"
+  "assets/js/echarts.min.js"
 )
 for f in "${REQUIRED_FILES[@]}"; do
   if [ -f "$WEB_DIR/$f" ]; then

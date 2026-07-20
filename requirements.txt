@@ -20,3 +20,6 @@ redis>=5.2.0
 prometheus-client>=0.20.0
 structlog>=24.1.0
 ezdxf>=1.4.0
+ifcopenshell>=0.7.0
+numpy>=1.24.0
+trimesh>=4.0.0

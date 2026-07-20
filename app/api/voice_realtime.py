@@ -315,6 +315,50 @@ async def _route_voice_to_agent(  # noqa: C901
             await agent.close()
         return reply
 
+    # ── ar_measurement ──
+    if intent in ("ar_measurement",):
+        return (
+            "AR 空间测量功能需要在移动端 App 上使用。请打开索克家居 App，"
+            "进入项目后点击「AR 扫描」即可开始测量。支持 RoomPlan 全屋扫描、"
+            "激光测距仪辅助校准和墙面特征自动识别。"
+        )
+
+    # ── 新增业务模块（引导回复，后续可接入实际 Service） ──
+    if intent in ("floorplans",):
+        return "户型管理功能可以帮助您查看、保存和修改户型方案。您可以在项目中查看已保存的户型平面图。"
+    if intent in ("structural",):
+        return "土建结构模块支持梁、柱、墙、板等结构元素的设计与分析。请告诉我具体的结构设计需求。"
+    if intent in ("lighting",):
+        return "灯光设计模块支持照明方案规划、照度计算和色温推荐。请告诉我您想为哪个房间设计灯光方案。"
+    if intent in ("smart_home",):
+        return "智能家居模块支持设备配置、场景联动和 Matter/Zigbee 协议。请告诉我您想配置哪种智能设备。"
+    if intent in ("scene_automation",):
+        return "场景自动化支持创建和编辑智能场景联动规则，如离家模式、回家模式、睡眠模式等。"
+    if intent in ("custom_furniture",):
+        return "定制家具模块支持参数化设计柜体（衣柜、橱柜、书柜等），自动计算板材用量和价格。"
+    if intent in ("tasks",):
+        return "任务协调模块支持施工任务的分派、跟踪和管理。请告诉我您想创建或查看什么任务。"
+    if intent in ("change_orders",):
+        return "变更管理模块支持工程变更的申请、审批和跟踪。请告诉我您想做什么样的变更。"
+    if intent in ("crews",):
+        return "工程队管理模块支持班组匹配和施工队调度。请告诉我您的项目需求，我来帮您匹配合适的施工队。"
+    if intent in ("vr_panorama",):
+        return "VR 全景查看器支持 360° 沉浸式漫游和场景切换。请打开 VR 全景页面开始体验。"
+    if intent in ("ai_render",):
+        return "AI 渲染模块支持 2D/3D 效果图生成和风格迁移。请告诉我您想渲染什么内容。"
+    if intent in ("sketch_to_3d",):
+        return "草图转3D 功能可以将手绘草图智能转换为 3D 模型。请上传您的草图，我来帮您转换。"
+    if intent in ("soft_furnishing",):
+        return "软装设计模块支持窗帘、布艺、地毯、饰品等软装配饰的选择与搭配。"
+    if intent in ("hard_decoration",):
+        return "硬装设计模块支持吊顶、墙面装饰、地面铺装等硬装方案设计。"
+    if intent in ("takeoff",):
+        return "工程量计算模块支持材料清单生成和用量估算。请告诉我您需要计算哪些项目的工程量。"
+    if intent in ("points",):
+        return "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
+    if intent in ("cad_import",):
+        return "CAD 导入模块支持 DXF/DWG 格式的户型图纸导入和墙体解析。"
+
     # ── general / 其他 ──
     return _get_enhanced_reply(text, intent, None)
 
