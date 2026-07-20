@@ -133,6 +133,86 @@
   background: var(--bg-card-hover);
   color: #e0ddf5;
 }
+
+/* ============ 项目进度条 ============ */
+.project-progress-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid rgba(90,88,102,.12);
+}
+.progress-track {
+  flex: 1;
+  position: relative;
+  height: 4px;
+  background: #1e1e32;
+  border-radius: 2px;
+  overflow: visible;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c9973b, #e0b860);
+  border-radius: 2px;
+  transition: width .5s ease;
+}
+.progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c9973b;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* 阶段标记点 */
+.stage-dots {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.stage-dot {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1e1e32;
+  border: 2px solid #3a3850;
+  transition: all .4s ease;
+  flex-shrink: 0;
+}
+.stage-dot.completed {
+  background: #c9973b;
+  border-color: #c9973b;
+  box-shadow: 0 0 6px rgba(201,151,59,.4);
+}
+.stage-dot.active {
+  width: 14px;
+  height: 14px;
+  background: #e0b860;
+  border-color: #e0b860;
+  box-shadow: 0 0 10px rgba(224,184,96,.6), 0 0 0 3px rgba(201,151,59,.25);
+}
+.stage-dot-label {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: color .3s;
+}
+.stage-dot.completed .stage-dot-label,
+.stage-dot.active .stage-dot-label {
+  color: #c9973b;
+  font-weight: 600;
+}
 </style>
 </head>
 <body>
@@ -142,92 +222,36 @@
 
 <!-- 工作台主容器 -->
 <div class="workbench" role="application" aria-label="项目群聊工作台">
-  <!-- 方案 B：左侧进度侧边栏 -->
-  <nav class="stage-sidebar" id="stage-sidebar" role="navigation" aria-label="项目阶段导航">
-    <div class="stage-item completed" data-stage="project" data-label="立项" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 1：项目立项 · 已完成" title="项目立项 · 已完成">
-      <div class="stage-dot"></div>
-      <span class="stage-label">立项</span>
-    </div>
-    <div class="stage-item active" data-stage="design" data-label="设计" data-link="studio.html" role="button" tabindex="0" aria-label="阶段 2：方案设计 · 进行中" aria-current="step" title="方案设计 · 进行中">
-      <div class="stage-dot"></div>
-      <span class="stage-label">设计</span>
-    </div>
-    <div class="stage-item" data-stage="budget" data-label="预算" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 3：预算规划 · 待开始" title="预算规划 · 待开始">
-      <div class="stage-dot"></div>
-      <span class="stage-label">预算</span>
-    </div>
-    <div class="stage-item" data-stage="procurement" data-label="采购" data-link="materials.html" role="button" tabindex="0" aria-label="阶段 4：物料采购 · 待开始" title="物料采购 · 待开始">
-      <div class="stage-dot"></div>
-      <span class="stage-label">采购</span>
-    </div>
-    <div class="stage-item" data-stage="construction" data-label="施工" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 5：施工管理 · 待开始" title="施工管理 · 待开始">
-      <div class="stage-dot"></div>
-      <span class="stage-label">施工</span>
-    </div>
-    <div class="stage-item" data-stage="quality" data-label="质检" data-link="quality-report.html" role="button" tabindex="0" aria-label="阶段 6：质量验收 · 待开始" title="质量验收 · 待开始">
-      <div class="stage-dot"></div>
-      <span class="stage-label">质检</span>
-    </div>
-    <div class="stage-item" data-stage="settlement" data-label="结算" data-link="project-detail.html" role="button" tabindex="0" aria-label="阶段 7：结算交付 · 待开始" title="结算交付 · 待开始">
-      <div class="stage-dot"></div>
-      <span class="stage-label">结算</span>
-    </div>
-    <!-- 底部整体进度 -->
-    <a class="stage-progress" id="stage-progress-btn" href="timeline.html" title="整体进度 · 点击查看全链路时间线" aria-label="整体进度 0%，点击查看全链路时间线">
-      <svg class="stage-progress-ring" viewBox="0 0 40 40">
-        <circle cx="20" cy="20" r="17" fill="none" stroke="#1e1e32" stroke-width="2.5"/>
-        <circle class="stage-progress-fill" id="stage-progress-fill" cx="20" cy="20" r="17" fill="none" stroke="#c9973b" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0 106.8"/>
-      </svg>
-      <span class="stage-progress-text" id="stage-progress-text">0%</span>
-    </a>
-  </nav>
-
   <!-- 主内容区 -->
   <div class="workbench-main" id="workbench-main">
   <!-- 顶栏 -->
   <header class="chat-header" role="banner">
-    <button class="stage-toggle" id="stage-toggle-btn" aria-label="显示阶段导航" title="阶段导航">☰</button>
     <a href="index.html" class="chat-back" aria-label="返回首页">‹</a>
     <div class="chat-title-block">
       <div class="chat-title" id="chat-title">加载中…</div>
       <div class="chat-subtitle" id="chat-subtitle">8 AI 群策群力</div>
     </div>
-    <button class="chat-session-btn" id="chat-session-btn" aria-label="会话历史" title="会话历史">📋 历史</button>
-    <button class="chat-new-project" id="new-project-btn" aria-label="新建项目" title="新建项目">+</button>
-    <button class="chat-search-btn" id="chat-search-btn" aria-label="搜索消息" title="搜索消息">🔍</button>
     <a href="settings.html" class="chat-avatar" id="chat-avatar-btn" aria-label="设置" title="设置">
       <img id="chat-avatar-img" alt="用户头像" class="chat-avatar-img" loading="lazy" decoding="async">
     </a>
   </header>
 
-  <!-- 搜索栏 -->
-  <div class="search-bar" id="search-bar" hidden>
-    <input type="search" class="search-input" id="search-input" placeholder="搜索消息…" autocomplete="off">
-    <span class="search-count" id="search-count"></span>
-    <button class="search-close" id="search-close" aria-label="关闭搜索">×</button>
-  </div>
-
-  <!-- 会话历史面板 -->
-  <div class="session-panel" id="session-panel" style="display:none;">
-    <div class="session-panel-header">
-      <span>会话历史</span>
-      <button id="new-session-btn" class="btn-text">+ 新对话</button>
+  <!-- 项目进度条 -->
+  <div class="project-progress-bar" id="project-progress-bar" aria-label="项目进度">
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      <div class="stage-dots" id="stage-dots">
+        <div class="stage-dot" data-stage="project" data-label="立项"><span class="stage-dot-label">立项</span></div>
+        <div class="stage-dot" data-stage="design" data-label="设计"><span class="stage-dot-label">设计</span></div>
+        <div class="stage-dot" data-stage="budget" data-label="预算"><span class="stage-dot-label">预算</span></div>
+        <div class="stage-dot" data-stage="procurement" data-label="采购"><span class="stage-dot-label">采购</span></div>
+        <div class="stage-dot" data-stage="construction" data-label="施工"><span class="stage-dot-label">施工</span></div>
+        <div class="stage-dot" data-stage="quality" data-label="质检"><span class="stage-dot-label">质检</span></div>
+        <div class="stage-dot" data-stage="settlement" data-label="结算"><span class="stage-dot-label">结算</span></div>
+      </div>
     </div>
-    <div class="session-list" id="session-list"></div>
+    <span class="progress-label" id="progress-label">0%</span>
   </div>
-
-  <!-- 快捷导航工具栏 -->
-  <nav class="quick-nav" id="quick-nav" aria-label="快捷功能导航">
-    <a href="studio.html" class="quick-nav-link" id="nav-studio" title="设计工作台" target="_blank">📐 设计台</a>
-    <a href="project-detail.html" class="quick-nav-link" id="nav-detail" title="项目详情">📋 详情</a>
-    <a href="materials.html" class="quick-nav-link" id="nav-materials" title="物料管理">📦 物料</a>
-    <a href="quality-report.html" class="quick-nav-link" id="nav-quality" title="质量报告">✅ 质检</a>
-    <a href="3d-viewer.html" class="quick-nav-link" id="nav-3d" title="3D 预览" target="_blank">🏠 3D</a>
-    <a href="vr-viewer.html" class="quick-nav-link" id="nav-vr" title="VR 全景" target="_blank">🥽 VR</a>
-    <a href="timeline.html" class="quick-nav-link" id="nav-timeline" title="装修进度">📅 进度</a>
-    <a href="points.html" class="quick-nav-link" id="nav-points" title="积分系统" target="_blank">💰 积分</a>
-    <a href="crew-management.html" class="quick-nav-link" id="nav-crew" title="班组管理" target="_blank">👷 班组</a>
-  </nav>
 
   <!-- 消息流 -->
   <main class="message-list" id="message-list" role="log" aria-live="polite" aria-label="消息流">
@@ -374,18 +398,6 @@
     </div>
   </div>
 
-  <!-- emoji 面板 -->
-  <div class="emoji-panel" id="emoji-panel" role="dialog" aria-label="表情选择" hidden>
-    <div class="emoji-tabs" role="tablist">
-      <button class="emoji-tab active" data-cat="recent" role="tab" aria-selected="true">🕐</button>
-      <button class="emoji-tab" data-cat="smileys" role="tab" aria-selected="false">😀</button>
-      <button class="emoji-tab" data-cat="gestures" role="tab" aria-selected="false">👍</button>
-      <button class="emoji-tab" data-cat="hearts" role="tab" aria-selected="false">❤️</button>
-      <button class="emoji-tab" data-cat="renovation" role="tab" aria-selected="false">🔨</button>
-    </div>
-    <div class="emoji-grid" id="emoji-grid" role="listbox" aria-label="表情列表"></div>
-  </div>
-
   <!-- 底栏 -->
   <footer class="chat-input-bar" role="contentinfo">
     <button class="input-attach" id="attach-btn" aria-label="添加附件" aria-expanded="false">+</button>
@@ -398,12 +410,12 @@
       autocomplete="off"
       enterkeyhint="send"
     >
-    <button class="input-emoji" id="emoji-btn" aria-label="表情" aria-expanded="false">😊</button>
     <button class="input-voice" id="voice-btn" aria-label="语音输入">🎤</button>
   </footer>
   </div><!-- /.workbench-main -->
 </div>
 
+<script>window.API_BASE_URL = window.location.origin;</script>
 <script src="assets/js/api-client.js?v=20260720i"></script>
 <script src="assets/js/im-client.js?v=20260720i"></script>
 <script src="assets/js/agent-router.js?v=20260720i"></script>
@@ -439,22 +451,12 @@
   const projectPicker = document.getElementById('project-picker');
   const projectPickerList = document.getElementById('project-picker-list');
   const projectPickerClose = document.getElementById('project-picker-close');
-  const newProjectBtn = document.getElementById('new-project-btn');
-  const projectPickerCreateBtn = document.getElementById('project-picker-create-btn');
+    const projectPickerCreateBtn = document.getElementById('project-picker-create-btn');
   const createDialog = document.getElementById('create-project-dialog');
   const createDialogClose = document.getElementById('create-project-close');
   const createProjectForm = document.getElementById('create-project-form');
   const avatarImg = document.getElementById('chat-avatar-img');
-  const searchBtn = document.getElementById('chat-search-btn');
-  const searchBar = document.getElementById('search-bar');
-  const searchInput = document.getElementById('search-input');
-  const searchCount = document.getElementById('search-count');
-  const searchClose = document.getElementById('search-close');
-  const sessionBtn = document.getElementById('chat-session-btn');
-  const sessionPanel = document.getElementById('session-panel');
-  const sessionList = document.getElementById('session-list');
-  const newSessionBtn = document.getElementById('new-session-btn');
-
+                  
   const AVATAR_BASE = 'assets/images/avatars/hand-drawn-profiles/';
   const AVATAR_COUNT = 6;
 
@@ -1749,131 +1751,8 @@
     }
   });
 
-  // ============ emoji 选择器 ============
-  const emojiPanel = document.getElementById('emoji-panel');
-  const emojiBtn = document.getElementById('emoji-btn');
-  const emojiGrid = document.getElementById('emoji-grid');
-  let _emojiCategory = 'recent';
-
-  const EMOJI_DATA = {
-    smileys: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 🥲 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🤫 🤔 🤐 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🤧 🥵 🥶 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐 😕 😟 🙁 😮 😯 😲 😳 🥺 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 💩 🤡 👻 👽 👾 🤖'.split(' '),
-    gestures: '👍 👎 👌 ✌️ 🤞 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤝 👏 🙌 🙏 🤲 💪 🤜 🤛 ✊ 👊 🫶 🫰 🫵'.split(' '),
-    hearts: '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💯 🔥 ⭐ 🌟 ✨ ⚡ 💢 💥 💫 💦 🎉 🎊 🎈 🏆 🎁'.split(' '),
-    renovation: '🏠 🏗️ 🛏️ 🛋️ 🪑 🚪 🪟 🛁 🚿 🚽 🧱 🔨 🪛 🔩 🪚 🧰 🛠️ ⚒️ 📐 📏 ✂️ 🧹 🧽 💡 🔌 🪔 ⚡ 🧴 🪣 🎨 🖌️'.split(' '),
-  };
-
-  function _getRecentEmojis() {
-    try {
-      const stored = localStorage.getItem('emoji_recent');
-      return stored ? JSON.parse(stored) : [];
-    } catch (_) { return []; }
-  }
-
-  function _addRecentEmoji(emoji) {
-    try {
-      let recent = _getRecentEmojis().filter(e => e !== emoji);
-      recent.unshift(emoji);
-      recent = recent.slice(0, 32);
-      localStorage.setItem('emoji_recent', JSON.stringify(recent));
-    } catch (_) {}
-  }
-
-  function _renderEmojiGrid() {
-    let emojis;
-    if (_emojiCategory === 'recent') {
-      emojis = _getRecentEmojis();
-      if (emojis.length === 0) {
-        emojiGrid.innerHTML = '<div class="emoji-empty">还没有最近使用的表情，点击其他分类选择</div>';
-        return;
-      }
-    } else {
-      emojis = EMOJI_DATA[_emojiCategory] || [];
-    }
-    emojiGrid.innerHTML = emojis.map(e =>
-      `<div class="emoji-item" role="option" tabindex="0" aria-label="${e}">${e}</div>`
-    ).join('');
-  }
-
-  function toggleEmojiPanel() {
-    const isOpen = !emojiPanel.hasAttribute('hidden');
-    if (isOpen) {
-      closeEmojiPanel();
-    } else {
-      // 关闭其他弹层
-      attachMenu.classList.remove('open');
-      attachBtn.setAttribute('aria-expanded', 'false');
-      // 打开 emoji 面板
-      emojiPanel.removeAttribute('hidden');
-      emojiBtn.classList.add('active');
-      emojiBtn.setAttribute('aria-expanded', 'true');
-      _emojiCategory = 'recent';
-      _updateEmojiTabs();
-      _renderEmojiGrid();
-    }
-  }
-
-  function closeEmojiPanel() {
-    emojiPanel.setAttribute('hidden', '');
-    emojiBtn.classList.remove('active');
-    emojiBtn.setAttribute('aria-expanded', 'false');
-  }
-
-  function _updateEmojiTabs() {
-    emojiPanel.querySelectorAll('.emoji-tab').forEach(tab => {
-      const active = tab.dataset.cat === _emojiCategory;
-      tab.classList.toggle('active', active);
-      tab.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-  }
-
-  emojiBtn.addEventListener('click', toggleEmojiPanel);
-
-  // 分类切换
-  emojiPanel.querySelectorAll('.emoji-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      _emojiCategory = tab.dataset.cat;
-      _updateEmojiTabs();
-      _renderEmojiGrid();
-    });
-  });
-
-  // emoji 选中
-  emojiGrid.addEventListener('click', (e) => {
-    const item = e.target.closest('.emoji-item');
-    if (!item) return;
-    const emoji = item.textContent;
-    // 在光标位置插入 emoji
-    const start = inputEl.selectionStart;
-    const end = inputEl.selectionEnd;
-    const val = inputEl.value;
-    inputEl.value = val.slice(0, start) + emoji + val.slice(end);
-    const newPos = start + emoji.length;
-    inputEl.setSelectionRange(newPos, newPos);
-    inputEl.focus();
-    // 记录到最近使用
-    _addRecentEmoji(emoji);
-    // 触发 input 事件以保存草稿
-    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-
-  // 键盘支持：Enter 选中
-  emojiGrid.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const item = e.target.closest('.emoji-item');
-      if (item) { e.preventDefault(); item.click(); }
-    }
-  });
-
-  // 点击外部关闭
-  document.addEventListener('click', (e) => {
-    if (!emojiPanel.contains(e.target) && e.target !== emojiBtn) {
-      closeEmojiPanel();
-    }
-  });
-
   // ============ 附件菜单 ============
   attachBtn.addEventListener('click', () => {
-    closeEmojiPanel();
     const isOpen = attachMenu.classList.toggle('open');
     attachBtn.setAttribute('aria-expanded', isOpen);
   });
@@ -2280,159 +2159,52 @@
     localStorage.removeItem('agent_session_id');
     titleEl.textContent = p.name || '项目群';
     subtitleEl.textContent = `8 AI 群策群力 · ${statusMap[p.status] || p.status || '进行中'}`;
-    // 更新快捷导航链接，携带 project_id
-    const navDetail = document.getElementById('nav-detail');
-    const navMaterials = document.getElementById('nav-materials');
-    const navQuality = document.getElementById('nav-quality');
-    const navStudio = document.getElementById('nav-studio');
-    const nav3d = document.getElementById('nav-3d');
-    const navVr = document.getElementById('nav-vr');
-    if (navDetail) navDetail.href = `project-detail.html?id=${projectId}`;
-    if (navMaterials) navMaterials.href = `materials.html?project_id=${projectId}`;
-    if (navQuality) navQuality.href = `quality-report.html?project_id=${projectId}`;
-    if (navStudio) navStudio.href = `studio.html?project_id=${projectId}`;
-    if (nav3d) nav3d.href = `3d-viewer.html?project_id=${projectId}`;
-    if (navVr) navVr.href = `vr-viewer.html?project_id=${projectId}`;
-    // 更新侧边栏阶段进度
-    updateStageSidebar();
+    updateProgressBar();
   }
 
-  // ============ 阶段侧边栏 ============
-  const STAGE_CONFIG = [
-    { key: 'project',     label: '立项', link: 'project-detail.html', order: 1  },
-    { key: 'design',      label: '设计', link: 'studio.html',         order: 2  },
-    { key: 'budget',      label: '预算', link: 'project-detail.html', order: 3  },
-    { key: 'procurement', label: '采购', link: 'materials.html',       order: 4  },
-    { key: 'construction',label: '施工', link: 'project-detail.html', order: 5  },
-    { key: 'quality',     label: '质检', link: 'quality-report.html',  order: 6  },
-    { key: 'settlement',  label: '结算', link: 'project-detail.html', order: 7  },
-  ];
+  // ============ 项目进度条 ============
+  const STAGE_ORDER = ['project', 'design', 'budget', 'procurement', 'construction', 'quality', 'settlement'];
+  const STATUS_PROGRESS = { draft: 0, design: 1, budgeting: 2, procurement: 3, construction: 4, inspection: 5, completed: 7 };
+  const STATUS_LABEL = { draft: '草稿', design: '设计中', budgeting: '预算中', procurement: '采购中', construction: '施工中', inspection: '验收中', completed: '已完成' };
 
-  // 根据项目状态计算当前活跃阶段
   function _getActiveStageIndex(status) {
-    switch (status) {
-      case 'draft':     return 1; // 设计阶段
-      case 'design':    return 1; // 设计阶段
-      case 'pending':   return 0; // 立项阶段
-      case 'construction':
-      case 'in_progress': return 4; // 施工阶段
-      case 'completed': return 6; // 全部完成
-      default:          return 0;
-    }
+    return STATUS_PROGRESS[status] !== undefined ? STATUS_PROGRESS[status] : 0;
   }
 
-  // 根据活跃阶段计算整体进度百分比
   function _getProgressPercent(activeIdx, status) {
     if (status === 'completed') return 100;
-    // 每个阶段约占 14% (100/7≈14.3)
-    const basePct = Math.round((activeIdx / 7) * 100);
+    const total = STAGE_ORDER.length;
+    if (activeIdx >= total) return 100;
+    const basePct = Math.round(((activeIdx) / total) * 100);
     return Math.min(basePct, 99);
   }
 
-  function updateStageSidebar() {
+  function updateProgressBar() {
     const status = projectInfo?.status || 'draft';
     const activeIdx = _getActiveStageIndex(status);
     const progressPct = _getProgressPercent(activeIdx, status);
 
-    // 更新所有阶段项
-    const items = document.querySelectorAll('.stage-item');
-    items.forEach((item, i) => {
-      const stageKey = item.dataset.stage;
-      const config = STAGE_CONFIG.find(s => s.key === stageKey);
-      if (!config) return;
+    const fill = document.getElementById('progress-fill');
+    const label = document.getElementById('progress-label');
+    if (fill) fill.style.width = progressPct + '%';
+    if (label) label.textContent = progressPct + '%';
 
-      // 重置类
-      item.classList.remove('completed', 'active');
-      item.removeAttribute('aria-current');
-
+    // 更新阶段标记点状态
+    const dots = document.querySelectorAll('#stage-dots .stage-dot');
+    dots.forEach((dot, i) => {
+      dot.classList.remove('completed', 'active');
       if (i < activeIdx) {
-        // 已完成
-        item.classList.add('completed');
-        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 已完成`);
-        item.title = `${config.label} · 已完成`;
+        dot.classList.add('completed');
       } else if (i === activeIdx) {
-        // 进行中
-        item.classList.add('active');
-        item.setAttribute('aria-current', 'step');
-        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 进行中`);
-        item.title = `${config.label} · 进行中`;
-      } else {
-        // 待开始
-        item.setAttribute('aria-label', `阶段 ${i + 1}：${config.label} · 待开始`);
-        item.title = `${config.label} · 待开始`;
+        dot.classList.add('active');
       }
-
-      // 更新链接（携带 project_id）
-      const link = config.link;
-      item.dataset.link = projectId ? `${link}?project_id=${projectId}` : link;
     });
 
-    // 更新进度圆圈
-    const fill = document.getElementById('stage-progress-fill');
-    const text = document.getElementById('stage-progress-text');
-    const btn = document.getElementById('stage-progress-btn');
-    if (fill && text) {
-      const circumference = 2 * Math.PI * 17; // r=17 → ≈106.8
-      const dashLen = (progressPct / 100) * circumference;
-      fill.setAttribute('stroke-dasharray', `${dashLen} ${circumference}`);
-      text.textContent = `${progressPct}%`;
-    }
-    if (btn) {
-      btn.href = projectId ? `timeline.html?project_id=${projectId}` : 'timeline.html';
-      btn.setAttribute('aria-label', `整体进度 ${progressPct}%，点击查看全链路时间线`);
+    // 全部完成时所有点都标 completed
+    if (status === 'completed') {
+      dots.forEach(dot => dot.classList.add('completed'));
     }
   }
-
-  // 阶段点击处理
-  document.getElementById('stage-sidebar').addEventListener('click', (e) => {
-    const item = e.target.closest('.stage-item');
-    if (!item || !item.dataset.link) return;
-    window.location.href = item.dataset.link;
-  });
-
-  // 键盘支持
-  document.getElementById('stage-sidebar').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      const item = e.target.closest('.stage-item');
-      if (item) {
-        e.preventDefault();
-        item.click();
-      }
-    }
-  });
-
-  // 移动端汉堡按钮切换侧边栏
-  const stageToggleBtn = document.getElementById('stage-toggle-btn');
-  const stageSidebar = document.getElementById('stage-sidebar');
-  let _stageOverlayBg = null;
-
-  function _openStageSidebar() {
-    stageSidebar.classList.add('overlay');
-    if (!_stageOverlayBg) {
-      _stageOverlayBg = document.createElement('div');
-      _stageOverlayBg.className = 'stage-overlay-bg';
-      _stageOverlayBg.addEventListener('click', _closeStageSidebar);
-      document.body.appendChild(_stageOverlayBg);
-    }
-    stageToggleBtn.setAttribute('aria-label', '隐藏阶段导航');
-  }
-
-  function _closeStageSidebar() {
-    stageSidebar.classList.remove('overlay');
-    if (_stageOverlayBg && _stageOverlayBg.parentNode) {
-      _stageOverlayBg.remove();
-      _stageOverlayBg = null;
-    }
-    stageToggleBtn.setAttribute('aria-label', '显示阶段导航');
-  }
-
-  stageToggleBtn.addEventListener('click', () => {
-    if (stageSidebar.classList.contains('overlay')) {
-      _closeStageSidebar();
-    } else {
-      _openStageSidebar();
-    }
-  });
 
   function renderProjectPicker() {
     if (!allProjects.length) {
@@ -2482,70 +2254,37 @@
     if (e.target === projectPicker) closeProjectPicker();
   });
 
-  // ============ 会话历史面板 ============
+  // ============ 会话历史（供智能体卡片调用） ============
   async function loadSessionList() {
-    if (!projectId) return;
+    if (!projectId) return [];
     try {
       const data = await ApiClient.listAgentSessions(projectId, 0, 50);
       const sessions = Array.isArray(data) ? data : (data.items || []);
-      if (sessions.length === 0) {
-        sessionList.innerHTML = '<div class="session-item-empty">暂无历史会话</div>';
-        return;
-      }
-      sessionList.innerHTML = sessions.map(s => {
-        const agentKey = TYPE_TO_AGENT_KEY[s.primary_agent_type] || 'master';
-        const agentInfo = AgentRouter.getAgentInfo(agentKey);
-        const active = s.id === _currentSessionId ? ' active' : '';
-        return `<div class="session-item${active}" data-sid="${s.id}" role="button" tabindex="0">
-          <div class="session-item-title">${_escape(s.title || '未命名会话')}</div>
-          <div class="session-item-meta">${agentInfo.emoji} ${agentInfo.name} · ${s.message_count || 0} 条 · ${MessageRenderers._fmtTime(s.updated_at)}</div>
-        </div>`;
-      }).join('');
-      sessionList.querySelectorAll('.session-item').forEach(el => {
-        el.addEventListener('click', async () => {
-          const sid = el.dataset.sid;
-          if (sid === _currentSessionId) {
-            sessionPanel.style.display = 'none';
-            return;
-          }
-          _currentSessionId = sid;
-          localStorage.setItem('agent_session_id', sid);
-          sessionPanel.style.display = 'none';
-          listEl.innerHTML = '';
-          await loadProjectMessages();
-          await loadAgentSessionHistory();
-        });
-      });
+      return sessions;
     } catch (e) {
-      sessionList.innerHTML = '<div class="session-item-empty">加载失败</div>';
+      return [];
     }
   }
 
-  sessionBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (sessionPanel.style.display === 'block') {
-      sessionPanel.style.display = 'none';
-    } else {
-      sessionPanel.style.display = 'block';
-      loadSessionList();
-    }
-  });
-
-  newSessionBtn.addEventListener('click', async () => {
-    _currentSessionId = null;
-    localStorage.removeItem('agent_session_id');
-    sessionPanel.style.display = 'none';
+  // 切换会话
+  async function switchAgentSession(sid) {
+    if (sid === _currentSessionId) return;
+    _currentSessionId = sid;
+    localStorage.setItem('agent_session_id', sid);
     listEl.innerHTML = '';
     await loadProjectMessages();
-  });
+    await loadAgentSessionHistory();
+  }
 
-  // 点击面板外部关闭
-  document.addEventListener('click', (e) => {
-    if (sessionPanel.style.display === 'block' && !sessionPanel.contains(e.target) && e.target !== sessionBtn) {
-      sessionPanel.style.display = 'none';
-    }
-  });
+  // 新建会话
+  async function newAgentSession() {
+    _currentSessionId = null;
+    localStorage.removeItem('agent_session_id');
+    listEl.innerHTML = '';
+    await loadProjectMessages();
+  }
 
+    
   // ============ 创建项目对话框 ============
   function openCreateDialog() {
     closeProjectPicker();
@@ -2557,7 +2296,7 @@
   function closeCreateDialog() {
     createDialog.classList.remove('open');
   }
-  newProjectBtn.addEventListener('click', openCreateDialog);
+  // project creation now triggered by agent chat cards
   projectPickerCreateBtn.addEventListener('click', openCreateDialog);
   createDialogClose.addEventListener('click', closeCreateDialog);
   createDialog.addEventListener('click', (e) => {
@@ -3056,15 +2795,20 @@
   let _searchTerm = '';
 
   function openSearch() {
-    searchBar.hidden = false;
-    setTimeout(() => searchInput.focus(), 100);
+    var sb = document.getElementById('search-bar');
+    var si = document.getElementById('search-input');
+    if (sb) sb.hidden = false;
+    if (si) setTimeout(() => si.focus(), 100);
   }
 
   function closeSearch() {
-    searchBar.hidden = true;
-    searchInput.value = '';
+    var sb = document.getElementById('search-bar');
+    var si = document.getElementById('search-input');
+    var sc = document.getElementById('search-count');
+    if (sb) sb.hidden = true;
+    if (si) si.value = '';
     _searchTerm = '';
-    searchCount.textContent = '';
+    if (sc) sc.textContent = '';
     _clearSearchHighlights();
   }
 
@@ -3104,15 +2848,18 @@
   }
 
   function performSearch() {
-    const term = searchInput.value.trim().toLowerCase();
+    var si = document.getElementById('search-input');
+    if (!si) return;
+    const term = si.value.trim().toLowerCase();
     if (term === _searchTerm) return;
     _searchTerm = term;
 
     // Clear previous highlights and dims
     _clearSearchHighlights();
 
+    var sc = document.getElementById('search-count');
     if (!term) {
-      searchCount.textContent = '';
+      if (sc) sc.textContent = '';
       return;
     }
 
@@ -3159,10 +2906,11 @@
     });
 
     // Update match count
+    var sc2 = document.getElementById('search-count');
     if (matchCount > 0) {
-      searchCount.textContent = `找到 ${matchCount} 条匹配`;
+      if (sc2) sc2.textContent = `找到 ${matchCount} 条匹配`;
     } else if (term) {
-      searchCount.textContent = '无匹配';
+      if (sc2) sc2.textContent = '无匹配';
     }
 
     // Scroll to first match
@@ -3178,33 +2926,8 @@
     _searchTimer = setTimeout(performSearch, 150);
   }
 
-  searchBtn.addEventListener('click', () => {
-    if (searchBar.hidden) {
-      openSearch();
-    } else {
-      closeSearch();
-    }
-  });
-
-  searchInput.addEventListener('input', debouncedSearch);
-
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      closeSearch();
-    }
-  });
-
-  searchClose.addEventListener('click', closeSearch);
-
-  // ============ 全局键盘快捷键 ============
+          // ============ 全局键盘快捷键 ============
   document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd+K → 搜索
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      openSearch();
-      return;
-    }
-
     // Ctrl/Cmd+N → 新建项目
     if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
@@ -3214,20 +2937,10 @@
 
     // Escape → 按优先级依次关闭弹窗
     if (e.key === 'Escape') {
-      // 1. 关闭搜索栏
-      if (!searchBar.hidden) {
-        closeSearch();
-        return;
-      }
       // 2. 关闭附件菜单
       if (attachMenu.classList.contains('open')) {
         attachMenu.classList.remove('open');
         attachBtn.setAttribute('aria-expanded', 'false');
-        return;
-      }
-      // 3. 关闭 emoji 面板
-      if (!emojiPanel.hidden) {
-        closeEmojiPanel();
         return;
       }
       // 4. 关闭创建项目弹窗

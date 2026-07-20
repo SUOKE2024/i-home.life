@@ -7,7 +7,7 @@ const AppConfig = {
   // ── 版本号（与 Flutter 1.1.17+9 / 后端 config.py 对齐） ──
 
   /** 语义化版本号 */
-  appVersion: '1.1.20',
+  appVersion: '1.1.22',
 
   /** 前端资源版本标记（用于 CSS/JS 缓存刷新） */
   resourceVersion: 'v=20260720i',

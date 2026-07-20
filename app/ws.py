@@ -15,11 +15,19 @@ v1.1.12 性能优化：
 import asyncio
 import json
 import logging
+from datetime import datetime, date
 from typing import Any
 
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+
+def _json_serialize(obj):
+    """自定义 JSON 序列化，处理 datetime / date 类型"""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 # 心跳配置
 RECEIVE_TIMEOUT = 300  # 无活动 5 分钟后发送 ping 探测
@@ -59,7 +67,7 @@ class ConnectionManager:
         """
         if project_id not in self._connections:
             return
-        message = json.dumps({"event": event, "data": data}, ensure_ascii=False)
+        message = json.dumps({"event": event, "data": data}, ensure_ascii=False, default=_json_serialize)
         targets = list(self._connections[project_id])
         if not targets:
             return
@@ -80,7 +88,7 @@ class ConnectionManager:
 
     async def send_to(self, websocket: WebSocket, event: str, data: dict[str, Any]):
         """向单个连接发送消息"""
-        message = json.dumps({"event": event, "data": data}, ensure_ascii=False)
+        message = json.dumps({"event": event, "data": data}, ensure_ascii=False, default=_json_serialize)
         try:
             await websocket.send_text(message)
         except Exception:

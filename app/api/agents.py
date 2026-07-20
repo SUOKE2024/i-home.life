@@ -199,6 +199,10 @@ AGENT_TYPE_TO_INTENT: dict[str, str] = {
     "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
     "hard_decoration": "hard_decoration", "points": "points",
     "cad_import": "cad_import",
+    # v1.1.22: Web 前端命名别名（与 agent-router.js 对齐）
+    "furniture_catalog": "furniture",        # Web 前端用 furniture_catalog
+    "door_window_waterproof": "door_window",  # Web 前端用 door_window_waterproof
+    "voice": "voice",                         # voice agent（语音输入）
     # "orchestrator" 不在此表中 → 触发自动分类
 }
 

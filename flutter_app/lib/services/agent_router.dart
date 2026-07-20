@@ -174,6 +174,53 @@ class AgentRouter {
       'CAD导入', '导入CAD', 'DXF', 'DWG', 'CAD文件',
       '导入图纸', '上传CAD', 'CAD图纸',
     ]),
+    // ── v1.1.22 补齐 12 个 Agent 模式（对齐 Web 端）──
+    _AgentPattern(agent: 'kitchen', keywords: [
+      '厨房', '厨房设计', '橱柜', '三件套', '油烟机', '灶具', '操作台', '厨房动线',
+      '黄金三角', '厨房水电', '厨房布局', '岛台', '中岛', '水槽', '洗碗机位置',
+    ]),
+    _AgentPattern(agent: 'bathroom', keywords: [
+      '卫生间', '浴室', '卫浴', '马桶', '淋浴', '花洒', '浴缸', '干湿分离',
+      '三分离', '浴室柜', '台盆', '地漏', '坡度', '防水层',
+    ]),
+    _AgentPattern(agent: 'mep', keywords: [
+      '水电点位', '暖通', '空调', '新风', '地暖', '暖气', 'MEP', '强弱电',
+      '配电箱', '插座布置', '开关布置', '给排水', '管道', '冷热水', '管线综合',
+    ]),
+    _AgentPattern(agent: 'appliance', keywords: [
+      '家电', '电器', '冰箱', '洗衣机', '洗碗机', '烘干机', '微波炉', '烤箱',
+      '蒸箱', '净水器', '垃圾处理器', '家电尺寸', '嵌入家电', '家电预留',
+    ]),
+    _AgentPattern(agent: 'furniture_catalog', keywords: [
+      '家具', '沙发', '餐桌', '床', '椅子', '茶几', '电视柜', '书桌', '衣柜',
+      '鞋柜', '家具尺寸', '家具品牌', '家具风格', '家具列表', '家具搭配',
+    ]),
+    _AgentPattern(agent: 'door_window_waterproof', keywords: [
+      '门窗', '窗户', '入户门', '室内门', '推拉门', '平开门', '封阳台',
+      '断桥铝', '门窗尺寸', '防水', '防水涂料', '防水层', '闭水试验', '渗水',
+    ]),
+    _AgentPattern(agent: 'files', keywords: [
+      '文件', '上传', '下载', '附件', '合同', '照片', '证件', '文档管理',
+      '文件管理', '图纸管理', '合同管理',
+    ]),
+    _AgentPattern(agent: 'products', keywords: [
+      '产品', '商品', '材料价格', '产品目录', '产品上架', '产品管理',
+      '产品列表', 'SKU', '产品信息', '规格参数',
+    ]),
+    _AgentPattern(agent: 'identity', keywords: [
+      '实名', '认证', '身份', '身份证', '实名认证', '身份认证', '认证状态', '审核',
+    ]),
+    _AgentPattern(agent: 'voice', keywords: [
+      '语音', '说话', '语音输入', '语音助手', '语音对话', '语音控制', '语音指令',
+      '麦克风', '讲话', '录音',
+    ]),
+    _AgentPattern(agent: 'notifications', keywords: [
+      '通知', '消息', '推送', '提醒', '手机通知', '消息提醒', '通知设置',
+    ]),
+    _AgentPattern(agent: 'ifc_export', keywords: [
+      'BIM', 'IFC', '导出BIM', 'BIM模型', 'IFC文件', '结构模型',
+      '建筑模型', 'BIM导出', '模型导出', 'IFC格式',
+    ]),
   ];
 }
 

@@ -432,6 +432,27 @@ class _AIChatPageState extends State<AIChatPage> {
           text: '任务已分配给候选人，等待对方确认。',
           agent: 'master',
         ));
+      // v1.1.22: 硬件传感器触发回调
+      case 'open_camera':
+        _addMessage(ChatMessage.system(text: '📷 正在打开相机…'));
+        _triggerCamera(payload);
+      case 'start_ar_scan':
+        _addMessage(ChatMessage.system(text: '🔬 正在启动 AR 扫描…'));
+        _triggerARScan(payload);
+      case 'start_voice_input':
+        _addMessage(ChatMessage.system(text: '🎤 正在启动语音输入…'));
+        _triggerVoiceInput();
+      case 'play_audio':
+        final url = payload['url']?.toString();
+        if (url != null) _playAudio(url);
+      case 'download':
+        final url = payload['url']?.toString();
+        if (url != null) _downloadFile(url);
+      case 'open_url':
+        final url = payload['url']?.toString();
+        if (url != null) _openUrl(url);
+      case 'publish_product':
+        _addMessage(ChatMessage.userText(text: '确认上架产品…'));
       default:
         _addMessage(ChatMessage.system(text: '操作: $action'));
     }
@@ -1066,6 +1087,94 @@ class _AIChatPageState extends State<AIChatPage> {
       final pid = _currentProjectId;
       await ApiClient().uploadFile('/files/upload', filePath: file.path!, projectId: pid);
     } catch (_) {}
+  }
+
+  // ── v1.1.22: 硬件传感器触发方法 ──
+
+  /// 触发相机拍照
+  Future<void> _triggerCamera(Map<String, dynamic> payload) async {
+    try {
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (photo != null) {
+        _addMessage(ChatMessage(
+          type: ChatMessageType.photo,
+          isSelf: true,
+          timestamp: DateTime.now(),
+          payload: {
+            'photos': [{'url': photo.path, 'caption': '现场拍摄'}],
+            'note': '📷 现场照片',
+          },
+        ));
+        // 上传到后端
+        final pid = _currentProjectId;
+        if (pid != null) {
+          await ApiClient().uploadFile(
+            '/files/upload',
+            filePath: photo.path,
+            projectId: pid,
+          );
+        }
+      }
+    } on PlatformException catch (e) {
+      _addMessage(ChatMessage.system(text: '相机不可用: ${e.message}'));
+    } catch (_) {
+      _addMessage(ChatMessage.system(text: '打开相机失败，请检查权限'));
+    }
+  }
+
+  /// 触发 AR 空间扫描
+  Future<void> _triggerARScan(Map<String, dynamic> payload) async {
+    _addMessage(ChatMessage.agentText(
+      text: '正在跳转到 AR 扫描页面…\n\n'
+          '支持功能：\n'
+          '• RoomPlan 全屋扫描（LiDAR 设备）\n'
+          '• 视觉 SLAM 空间建模\n'
+          '• 激光测距辅助校准\n'
+          '• 墙面特征自动识别',
+      agent: 'ar_measurement',
+    ));
+    // 跳转到 AR 扫描页面
+    if (mounted) {
+      Navigator.of(context).pushNamed('/ar-scan', arguments: {
+        'project_id': _currentProjectId,
+        ...payload,
+      });
+    }
+  }
+
+  /// 触发语音输入
+  Future<void> _triggerVoiceInput() async {
+    setState(() => _isVoiceMode = true);
+    try {
+      await _voice.connect();
+      _addMessage(ChatMessage.system(text: '🎤 语音输入已启动，请说话…'));
+      // VoiceRealtimeService 会通过回调处理 ASR 结果
+    } catch (e) {
+      setState(() => _isVoiceMode = false);
+      _addMessage(ChatMessage.system(text: '语音输入启动失败: $e'));
+    }
+  }
+
+  /// 播放音频
+  Future<void> _playAudio(String url) async {
+    _addMessage(ChatMessage.system(text: '🔊 正在播放音频…'));
+    // 实际播放逻辑由上层实现
+  }
+
+  /// 下载文件
+  Future<void> _downloadFile(String url) async {
+    _addMessage(ChatMessage.system(text: '📥 正在下载文件…'));
+  }
+
+  /// 打开外部 URL
+  Future<void> _openUrl(String url) async {
+    _addMessage(ChatMessage.system(text: '🔗 正在打开链接…'));
   }
 
   Widget _buildAgentChips() {

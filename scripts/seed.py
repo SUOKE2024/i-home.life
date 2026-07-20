@@ -103,13 +103,19 @@ async def seed():
             sup = Supplier(**sup_data)
             db.add(sup)
 
-        demo_user = User(
-            phone="13800138000",
-            name="张先生",
-            role="homeowner",
-            hashed_password=_hash_password("123456"),
-        )
-        db.add(demo_user)
+        # 体验账号（与 web/login.html 中列出的账号保持一致）
+        demo_users = [
+            User(phone="13500135000", name="管理员", role="admin", hashed_password=_hash_password("123456")),
+            User(phone="13800138000", name="张先生", role="homeowner", hashed_password=_hash_password("123456")),
+            User(phone="13900139000", name="李设计师", role="designer", hashed_password=_hash_password("123456")),
+            User(phone="13200132000", name="窗帘设计师", role="designer", sub_role="curtain_designer", hashed_password=_hash_password("123456")),
+            User(phone="13700137000", name="供应链", role="supplier", hashed_password=_hash_password("123456")),
+            User(phone="13600136000", name="监理", role="supervisor", hashed_password=_hash_password("123456")),
+            User(phone="13400134000", name="电工", role="contractor", sub_role="electrician", hashed_password=_hash_password("123456")),
+            User(phone="13300133000", name="木工", role="contractor", sub_role="carpenter", hashed_password=_hash_password("123456")),
+        ]
+        for u in demo_users:
+            db.add(u)
 
         # 服务者种子数据（包含所有 6 个工种）
         workers = [
@@ -197,8 +203,8 @@ async def seed():
             db.add(w)
 
         await db.commit()
-        print(f"种子数据: {len(CATEGORIES)} 分类, {len(MATERIALS)} 物料, {len(SUPPLIERS)} 供应商, 1 用户, {len(workers)} 服务者")
-        print("演示账户: 13800138000 / 123456")
+        print(f"种子数据: {len(CATEGORIES)} 分类, {len(MATERIALS)} 物料, {len(SUPPLIERS)} 供应商, {len(demo_users)} 用户, {len(workers)} 服务者")
+        print("体验账户: 13800138000, 13500135000, 13900139000, 13200132000, 13700137000, 13600136000, 13400134000, 13300133000 / 123456")
 
 
 if __name__ == "__main__":

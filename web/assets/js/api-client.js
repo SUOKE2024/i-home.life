@@ -4,13 +4,16 @@
  * 部署后同源调用，无需硬编码地址
  * ============================================ */
 
-const ApiClient = {
-  // ── 配置 ──
+const ApiClient = (() => {
+  // ── 在闭包中立即确定 BASE_URL，避免延迟求值导致 origin 不一致 ──
+  const BASE_URL = (() => {
+    if (typeof window !== 'undefined' && window.API_BASE_URL) return window.API_BASE_URL;
+    if (typeof window !== 'undefined' && window.location && window.location.origin) return window.location.origin;
+    // 最后的兜底：同源相对路径
+    return '';
+  })();
 
-  // 后端 BASE URL（部署后同源，localhost 开发时使用环境变量或默认地址）
-  BASE_URL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? (window.API_BASE_URL || '')
-    : '',
+  return {
 
   // 重试配置
   _maxRetries: 3,
@@ -36,8 +39,11 @@ const ApiClient = {
 
   _url(path) {
     if (path.startsWith('http')) return path;
-    return this.BASE_URL + (path.startsWith('/') ? path : '/' + path);
+    return BASE_URL + (path.startsWith('/') ? path : '/' + path);
   },
+
+  // 对外暴露 BASE_URL，方便调试和运行时覆盖
+  get BASE_URL() { return BASE_URL; },
 
   // ── 核心请求（带重试 + 指数退避） ──
 
@@ -52,7 +58,8 @@ const ApiClient = {
     }
 
     const isAgentCall = path.includes('/api/agents/');
-    const timeoutMs = options.timeout || (isAgentCall ? (AppConfig.agentTimeout || 180000) : (AppConfig.requestTimeout || 30000));
+    const appConfig = (typeof AppConfig !== 'undefined') ? AppConfig : {};
+    const timeoutMs = options.timeout || (isAgentCall ? (appConfig.agentTimeout || 180000) : (appConfig.requestTimeout || 30000));
 
     let lastError = null;
     for (let attempt = 0; attempt <= this._maxRetries; attempt++) {
@@ -2105,6 +2112,7 @@ const ApiClient = {
     };
   },
 };
+})();
 
 // 暴露到全局
 ApiClient.initGlobalErrorHandler();

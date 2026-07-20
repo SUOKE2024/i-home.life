@@ -3,10 +3,11 @@ import 'package:flutter/services.dart';
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 
-/// 统一聊天消息卡片 —— 渲染全部 22 种消息类型
+/// 统一聊天消息卡片 —— 渲染全部消息类型
 ///
 /// 参考 Web 端 message-renderers.js 的 HTML 结构和样式。
 /// 颜色统一使用 [SuokeDesignTokens] 与 Web 端对齐。
+/// v1.1.22: 补齐 18 种 v1.1.21 卡片 + 3 种硬件触发类型
 class ChatMessageCard extends StatelessWidget {
   final ChatMessage message;
   final void Function(String decision, Map<String, dynamic> payload)? onApprovalAction;
@@ -93,6 +94,31 @@ class ChatMessageCard extends StatelessWidget {
         child = _buildQualityIssueCard();
       case ChatMessageType.progress_alert_card:
         child = _buildProgressAlertCard();
+      // v1.1.22: 补齐 13 种 Agent 专用卡片
+      case ChatMessageType.kitchen_card: child = _buildKitchenCard();
+      case ChatMessageType.bathroom_card: child = _buildBathroomCard();
+      case ChatMessageType.lighting_card: child = _buildLightingCard();
+      case ChatMessageType.structural_card: child = _buildStructuralCard();
+      case ChatMessageType.takeoff_card: child = _buildTakeoffCard();
+      case ChatMessageType.furniture_card: child = _buildFurnitureCard();
+      case ChatMessageType.appliance_card: child = _buildApplianceCard();
+      case ChatMessageType.door_window_card: child = _buildDoorWindowCard();
+      case ChatMessageType.mep_plan_card: child = _buildMepPlanCard();
+      case ChatMessageType.identity_card: child = _buildIdentityCard();
+      case ChatMessageType.voice_card: child = _buildVoiceCard();
+      case ChatMessageType.ifc_export_card: child = _buildIfcExportCard();
+      case ChatMessageType.notification_card: child = _buildNotificationCard();
+      // v1.1.22: 硬件传感器触发卡片
+      case ChatMessageType.camera_trigger: child = _buildCameraTriggerCard();
+      case ChatMessageType.ar_scan_trigger: child = _buildArScanTriggerCard();
+      case ChatMessageType.voice_input_trigger: child = _buildVoiceInputTriggerCard();
+      // v1.1.22: 业务卡片补充
+      case ChatMessageType.stats_card: child = _buildStatsCard();
+      case ChatMessageType.user_card: child = _buildUserCard();
+      case ChatMessageType.user_list_card: child = _buildUserListCard();
+      case ChatMessageType.product_create_card: child = _buildProductCreateCard();
+      case ChatMessageType.product_list_card: child = _buildProductListCard();
+      case ChatMessageType.quotation_card: child = _buildQuotationCard();
       case ChatMessageType.system:
         child = _buildSystemSeparator();
     }
@@ -1641,6 +1667,423 @@ class ChatMessageCard extends StatelessWidget {
         if (alerts.length > 5)
           Text('… 共 ${alerts.length} 条预警',
               style: const TextStyle(fontSize: 10, color: _textMuted)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 厨房方案卡片
+  // ═══════════════════════════════════════════
+  Widget _buildKitchenCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('kitchen');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🍳 ${_esc(p['title'] ?? '厨房方案')}',
+      children: [
+        if (p['layout'] != null) _row('布局', _esc(p['layout']), boldValue: true),
+        if (p['area'] != null) _row('面积', _esc(p['area']), boldValue: true),
+        if (p['cabinets'] != null) _row('橱柜', _esc(p['cabinets']), boldValue: true),
+        if (p['countertop'] != null) _row('台面', _esc(p['countertop']), boldValue: true),
+        if (p['appliances'] is List)
+          _row('电器', (p['appliances'] as List).join('、'), boldValue: true),
+        if (p['recommendation'] != null)
+          _row('建议', _esc(p['recommendation']), boldValue: true, valueColor: _accent),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 卫浴方案卡片
+  // ═══════════════════════════════════════════
+  Widget _buildBathroomCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('bathroom');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🛁 ${_esc(p['title'] ?? '卫浴方案')}',
+      children: [
+        if (p['layout'] != null) _row('布局', _esc(p['layout']), boldValue: true),
+        if (p['area'] != null) _row('面积', _esc(p['area']), boldValue: true),
+        if (p['fixtures'] is List)
+          _row('洁具', (p['fixtures'] as List).join('、'), boldValue: true),
+        if (p['waterproof'] != null) _row('防水', _esc(p['waterproof']), boldValue: true),
+        if (p['recommendation'] != null)
+          _row('建议', _esc(p['recommendation']), boldValue: true, valueColor: _accent),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 灯光方案卡片
+  // ═══════════════════════════════════════════
+  Widget _buildLightingCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('lighting');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '💡 ${_esc(p['title'] ?? '灯光方案')}',
+      children: [
+        if (p['illuminance'] != null) _row('照度', _esc(p['illuminance']), boldValue: true),
+        if (p['color_temp'] != null) _row('色温', _esc(p['color_temp']), boldValue: true),
+        if (p['fixtures'] is List)
+          _row('灯具', (p['fixtures'] as List).join('、'), boldValue: true),
+        if (p['scene'] != null) _row('场景', _esc(p['scene']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 结构方案卡片
+  // ═══════════════════════════════════════════
+  Widget _buildStructuralCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('structural');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🏗️ ${_esc(p['title'] ?? '结构分析')}',
+      children: [
+        if (p['elements'] is List)
+          _row('构件', (p['elements'] as List).join('、'), boldValue: true),
+        if (p['load_bearing'] != null) _row('承重', _esc(p['load_bearing']), boldValue: true),
+        if (p['material'] != null) _row('材料', _esc(p['material']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 工程量卡片
+  // ═══════════════════════════════════════════
+  Widget _buildTakeoffCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('takeoff');
+    final items = (p['items'] as List?) ?? [];
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📊 ${_esc(p['title'] ?? '工程量清单')}',
+      children: [
+        ...items.take(6).map((it) => _row(
+          _esc(it['name'] ?? ''),
+          '${it['quantity'] ?? ''} ${_esc(it['unit'] ?? '')}',
+          boldValue: true,
+        )),
+        if (items.length > 6)
+          Text('… 共 ${items.length} 项',
+              style: const TextStyle(fontSize: 10, color: _textMuted)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 家具卡片
+  // ═══════════════════════════════════════════
+  Widget _buildFurnitureCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('furniture_catalog');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🪑 ${_esc(p['title'] ?? '家具推荐')}',
+      children: [
+        if (p['style'] != null) _row('风格', _esc(p['style']), boldValue: true),
+        if (p['items'] is List)
+          _row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
+        if (p['brand'] != null) _row('品牌', _esc(p['brand']), boldValue: true),
+        if (p['price_range'] != null)
+          _row('价格区间', _esc(p['price_range']), boldValue: true, valueColor: _warning),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 家电卡片
+  // ═══════════════════════════════════════════
+  Widget _buildApplianceCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('appliance');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📺 ${_esc(p['title'] ?? '家电推荐')}',
+      children: [
+        if (p['items'] is List)
+          _row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
+        if (p['energy_rating'] != null) _row('能效', _esc(p['energy_rating']), boldValue: true),
+        if (p['dimensions'] != null) _row('尺寸要求', _esc(p['dimensions']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 门窗卡片
+  // ═══════════════════════════════════════════
+  Widget _buildDoorWindowCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('door_window_waterproof');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🚪 ${_esc(p['title'] ?? '门窗方案')}',
+      children: [
+        if (p['type'] != null) _row('类型', _esc(p['type']), boldValue: true),
+        if (p['material'] != null) _row('材质', _esc(p['material']), boldValue: true),
+        if (p['dimensions'] != null) _row('尺寸', _esc(p['dimensions']), boldValue: true),
+        if (p['waterproof'] != null) _row('防水', _esc(p['waterproof']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: MEP 水电暖通卡片
+  // ═══════════════════════════════════════════
+  Widget _buildMepPlanCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('mep');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🔧 ${_esc(p['title'] ?? '水电暖通方案')}',
+      children: [
+        if (p['electrical'] != null) _row('强电', _esc(p['electrical']), boldValue: true),
+        if (p['plumbing'] != null) _row('给排水', _esc(p['plumbing']), boldValue: true),
+        if (p['hvac'] != null) _row('暖通', _esc(p['hvac']), boldValue: true),
+        if (p['outlets'] != null) _row('插座点位', _esc(p['outlets']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 身份认证卡片
+  // ═══════════════════════════════════════════
+  Widget _buildIdentityCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('identity');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🆔 ${_esc(p['title'] ?? '身份认证')}',
+      children: [
+        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true),
+        if (p['name'] != null) _row('姓名', _esc(p['name']), boldValue: true),
+        if (p['id_number'] != null) _row('证件号', _esc(p['id_number']), boldValue: true),
+        if (p['message'] != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(_esc(p['message']), style: const TextStyle(fontSize: 10, color: _textMuted)),
+          ),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 语音卡片
+  // ═══════════════════════════════════════════
+  Widget _buildVoiceCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('voice');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🎙️ ${_esc(p['title'] ?? '语音消息')}',
+      children: [
+        if (p['transcript'] != null) _row('识别结果', _esc(p['transcript']), boldValue: true),
+        if (p['duration'] != null) _row('时长', _esc(p['duration']), boldValue: true),
+        if (p['emotion'] != null) _row('情绪', _esc(p['emotion']), boldValue: true),
+        if (p['audio_url'] != null)
+          _actionButton('🔊 播放', _accent, () => onCardAction?.call('play_audio', {'url': p['audio_url']})),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: IFC 导出卡片
+  // ═══════════════════════════════════════════
+  Widget _buildIfcExportCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('ifc_export');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🏗️ ${_esc(p['title'] ?? 'BIM 导出')}',
+      children: [
+        if (p['format'] != null) _row('格式', _esc(p['format']), boldValue: true),
+        if (p['file_size'] != null) _row('文件大小', _esc(p['file_size']), boldValue: true),
+        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true, valueColor: _accent),
+        if (p['download_url'] != null)
+          _actionButton('📥 下载', _accent, () => onCardAction?.call('download', {'url': p['download_url']})),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 通知卡片
+  // ═══════════════════════════════════════════
+  Widget _buildNotificationCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('notifications');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🔔 ${_esc(p['title'] ?? '通知')}',
+      children: [
+        if (p['message'] != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(_esc(p['message']),
+                style: const TextStyle(fontSize: 13, color: _textPrimary)),
+          ),
+        if (p['type'] != null) _row('类型', _esc(p['type']), boldValue: true),
+        if (p['action_url'] != null)
+          _actionButton('查看详情', _accent, () => onCardAction?.call('open_url', {'url': p['action_url']})),
+      ],
+    );
+  }
+
+  // ╾ v1.1.22: 硬件传感器触发卡片 ╼
+  // ═══════════════════════════════════════════
+  // 相机触发卡片
+  // ═══════════════════════════════════════════
+  Widget _buildCameraTriggerCard() {
+    final p = message.payload ?? {};
+    final agentInfo = message.agentInfo ?? AgentInfo.getByKey('master');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📷 ${_esc(p['title'] ?? '拍照')}',
+      children: [
+        if (p['hint'] != null)
+          Text(_esc(p['hint']), style: const TextStyle(fontSize: 13, color: _textPrimary)),
+        const SizedBox(height: 8),
+        _actionButton('📸 打开相机', _accent, () => onCardAction?.call('open_camera', p)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // AR 扫描触发卡片
+  // ═══════════════════════════════════════════
+  Widget _buildArScanTriggerCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('ar_measurement');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📏 ${_esc(p['title'] ?? 'AR 空间扫描')}',
+      children: [
+        Text('使用摄像头和 ${p['sensor_type'] ?? 'LiDAR'} 传感器进行空间测量',
+            style: const TextStyle(fontSize: 12, color: _textSecondary)),
+        const SizedBox(height: 8),
+        _actionButton('🔬 开始 AR 扫描', _accent, () => onCardAction?.call('start_ar_scan', p)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 语音输入触发卡片
+  // ═══════════════════════════════════════════
+  Widget _buildVoiceInputTriggerCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('voice');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '🎤 ${_esc(p['title'] ?? '语音输入')}',
+      children: [
+        Text('点击按钮开始语音输入，AI 将实时识别并回复',
+            style: const TextStyle(fontSize: 12, color: _textSecondary)),
+        const SizedBox(height: 8),
+        _actionButton('🎙️ 开始录音', _accent, () => onCardAction?.call('start_voice_input', p)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 统计卡片
+  // ═══════════════════════════════════════════
+  Widget _buildStatsCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('master');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📈 ${_esc(p['title'] ?? '数据统计')}',
+      children: [
+        if (p['stats'] is Map)
+          ...(p['stats'] as Map).entries.map((e) => _row(
+            _esc(e.key.toString()), _fmtNum(e.value), boldValue: true,
+          )),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 用户卡片
+  // ═══════════════════════════════════════════
+  Widget _buildUserCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('admin');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '👤 ${_esc(p['name'] ?? '用户信息')}',
+      children: [
+        if (p['role'] != null) _row('角色', _esc(p['role']), boldValue: true),
+        if (p['phone'] != null) _row('手机', _esc(p['phone']), boldValue: true),
+        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 用户列表卡片
+  // ═══════════════════════════════════════════
+  Widget _buildUserListCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('admin');
+    final users = (p['users'] as List?) ?? [];
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '👥 用户列表 · ${users.length} 人',
+      children: users.take(6).map((u) => _row(
+        _esc(u['name'] ?? ''), _esc(u['role'] ?? ''), boldValue: true,
+      )).toList(),
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 产品创建卡片
+  // ═══════════════════════════════════════════
+  Widget _buildProductCreateCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('products');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📦 ${_esc(p['title'] ?? '新增产品')}',
+      children: [
+        if (p['name'] != null) _row('名称', _esc(p['name']), boldValue: true),
+        if (p['category'] != null) _row('类别', _esc(p['category']), boldValue: true),
+        if (p['price'] != null) _row('价格', '¥${_fmtNum(p['price'])}', boldValue: true, valueColor: _warning),
+        _actionButton('确认上架', _success, () => onCardAction?.call('publish_product', p)),
+      ],
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 产品列表卡片
+  // ═══════════════════════════════════════════
+  Widget _buildProductListCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('products');
+    final items = (p['items'] as List?) ?? [];
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📋 ${_esc(p['title'] ?? '产品列表')} · ${items.length} 项',
+      children: items.take(8).map((it) => _row(
+        _esc(it['name'] ?? ''), '¥${_fmtNum(it['price'] ?? 0)}', boldValue: true,
+      )).toList(),
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // v1.1.22: 报价卡片
+  // ═══════════════════════════════════════════
+  Widget _buildQuotationCard() {
+    final p = message.payload ?? {};
+    final agentInfo = AgentInfo.getByKey('procurement');
+    return _wrapCard(
+      agentInfo: agentInfo,
+      title: '📝 ${_esc(p['title'] ?? '报价单')}',
+      children: [
+        if (p['supplier'] != null) _row('供应商', _esc(p['supplier']), boldValue: true),
+        if (p['total'] != null) _row('总价', '¥${_fmtNum(p['total'])}', boldValue: true, valueColor: _warning),
+        if (p['valid_until'] != null) _row('有效期', _esc(p['valid_until']), boldValue: true),
       ],
     );
   }

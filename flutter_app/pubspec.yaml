@@ -1,7 +1,7 @@
 name: ihome_app
 description: "索克家居 · i-home.life"
 publish_to: 'none'
-version: 1.1.21+11
+version: 1.1.22+12
 
 # 鸿蒙适配版本: Flutter-OH 3.35.7-ohos-0.0.3
 # 对应上游 Flutter 3.35.7 / Dart 3.9.2

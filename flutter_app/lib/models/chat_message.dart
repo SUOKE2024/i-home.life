@@ -27,6 +27,30 @@ enum ChatMessageType {
   inspection_card,
   quality_issue_card,
   progress_alert_card,
+  // v1.1.22 — 补齐 12 个 Agent 专用卡片类型
+  kitchen_card,
+  bathroom_card,
+  lighting_card,
+  structural_card,
+  takeoff_card,
+  furniture_card,
+  appliance_card,
+  door_window_card,
+  mep_plan_card,
+  identity_card,
+  voice_card,
+  ifc_export_card,
+  notification_card,
+  // v1.1.22 — 相机/硬件传感器触发
+  camera_trigger,
+  ar_scan_trigger,
+  voice_input_trigger,
+  stats_card,
+  user_card,
+  user_list_card,
+  product_create_card,
+  product_list_card,
+  quotation_card,
 }
 
 /// Agent 基本信息
@@ -62,6 +86,37 @@ class AgentInfo {
     'settlement': AgentInfo(key: 'settlement', name: '结算', emoji: '🧾', color: settlementColor),
     'support': AgentInfo(key: 'support', name: '客服', emoji: '🎧', color: supportColor),
     'admin': AgentInfo(key: 'admin', name: '管理', emoji: '⚙️', color: masterColor),
+    // v1.1.22 — 补齐 12 个 Agent 信息
+    'ar_measurement': AgentInfo(key: 'ar_measurement', name: 'AR测量', emoji: '📏', color: designColor),
+    'floorplans': AgentInfo(key: 'floorplans', name: '户型', emoji: '📋', color: designColor),
+    'structural': AgentInfo(key: 'structural', name: '土建结构', emoji: '🏗️', color: constructionColor),
+    'lighting': AgentInfo(key: 'lighting', name: '灯光', emoji: '💡', color: designColor),
+    'smart_home': AgentInfo(key: 'smart_home', name: '智能家居', emoji: '🤖', color: constructionColor),
+    'scene_automation': AgentInfo(key: 'scene_automation', name: '场景', emoji: '🔄', color: designColor),
+    'custom_furniture': AgentInfo(key: 'custom_furniture', name: '定制家具', emoji: '🪚', color: designColor),
+    'tasks': AgentInfo(key: 'tasks', name: '任务', emoji: '📝', color: constructionColor),
+    'change_orders': AgentInfo(key: 'change_orders', name: '变更', emoji: '📋', color: constructionColor),
+    'crews': AgentInfo(key: 'crews', name: '工程队', emoji: '👷', color: constructionColor),
+    'vr_panorama': AgentInfo(key: 'vr_panorama', name: 'VR全景', emoji: '🥽', color: designColor),
+    'ai_render': AgentInfo(key: 'ai_render', name: 'AI渲染', emoji: '🎨', color: designColor),
+    'sketch_to_3d': AgentInfo(key: 'sketch_to_3d', name: '草图转3D', emoji: '✏️', color: designColor),
+    'soft_furnishing': AgentInfo(key: 'soft_furnishing', name: '软装', emoji: '🛋️', color: designColor),
+    'hard_decoration': AgentInfo(key: 'hard_decoration', name: '硬装', emoji: '🧱', color: constructionColor),
+    'takeoff': AgentInfo(key: 'takeoff', name: '工程量', emoji: '📊', color: constructionColor),
+    'points': AgentInfo(key: 'points', name: '积分', emoji: '⭐', color: masterColor),
+    'cad_import': AgentInfo(key: 'cad_import', name: 'CAD导入', emoji: '📐', color: designColor),
+    'kitchen': AgentInfo(key: 'kitchen', name: '厨房', emoji: '🍳', color: designColor),
+    'bathroom': AgentInfo(key: 'bathroom', name: '卫浴', emoji: '🛁', color: designColor),
+    'mep': AgentInfo(key: 'mep', name: '水电暖通', emoji: '🔧', color: constructionColor),
+    'appliance': AgentInfo(key: 'appliance', name: '家电', emoji: '📺', color: procurementColor),
+    'furniture_catalog': AgentInfo(key: 'furniture_catalog', name: '家具', emoji: '🪑', color: procurementColor),
+    'door_window_waterproof': AgentInfo(key: 'door_window_waterproof', name: '门窗防水', emoji: '🚪', color: constructionColor),
+    'files': AgentInfo(key: 'files', name: '文件', emoji: '📁', color: masterColor),
+    'products': AgentInfo(key: 'products', name: '产品', emoji: '🏷️', color: procurementColor),
+    'identity': AgentInfo(key: 'identity', name: '身份认证', emoji: '🆔', color: masterColor),
+    'voice': AgentInfo(key: 'voice', name: '语音', emoji: '🎙️', color: masterColor),
+    'notifications': AgentInfo(key: 'notifications', name: '通知', emoji: '🔔', color: masterColor),
+    'ifc_export': AgentInfo(key: 'ifc_export', name: 'BIM导出', emoji: '🏗️', color: designColor),
   };
 
   static AgentInfo getByKey(String key) {
@@ -72,13 +127,42 @@ class AgentInfo {
     return _map[key];
   }
 
-  /// 获取 5 个标准 Agent（用户可见选择）
+  /// 获取全部 Agent（用户可见选择）
   static List<AgentInfo> get standardAgents => [
         _map['master']!,
         _map['design']!,
         _map['budget']!,
         _map['procurement']!,
         _map['construction']!,
+        _map['quality']!,
+        _map['settlement']!,
+        _map['support']!,
+        // v1.1.22: 补齐全部业务 Agent
+        _map['kitchen']!,
+        _map['bathroom']!,
+        _map['mep']!,
+        _map['appliance']!,
+        _map['furniture_catalog']!,
+        _map['door_window_waterproof']!,
+        _map['lighting']!,
+        _map['structural']!,
+        _map['smart_home']!,
+        _map['custom_furniture']!,
+        _map['soft_furnishing']!,
+        _map['hard_decoration']!,
+        _map['ar_measurement']!,
+        _map['vr_panorama']!,
+        _map['ai_render']!,
+        _map['takeoff']!,
+        _map['floorplans']!,
+        _map['files']!,
+        _map['products']!,
+        _map['identity']!,
+        _map['voice']!,
+        _map['notifications']!,
+        _map['ifc_export']!,
+        _map['cad_import']!,
+        _map['admin']!,
       ];
 
   @override
@@ -270,6 +354,29 @@ class ChatMessage {
         return ChatMessageType.quality_issue_card;
       case 'progress_alert_card':
         return ChatMessageType.progress_alert_card;
+      // v1.1.22: 补齐卡片类型解析
+      case 'kitchen_card': return ChatMessageType.kitchen_card;
+      case 'bathroom_card': return ChatMessageType.bathroom_card;
+      case 'lighting_card': return ChatMessageType.lighting_card;
+      case 'structural_card': return ChatMessageType.structural_card;
+      case 'takeoff_card': return ChatMessageType.takeoff_card;
+      case 'furniture_card': return ChatMessageType.furniture_card;
+      case 'appliance_card': return ChatMessageType.appliance_card;
+      case 'door_window_card': return ChatMessageType.door_window_card;
+      case 'mep_plan_card': return ChatMessageType.mep_plan_card;
+      case 'identity_card': return ChatMessageType.identity_card;
+      case 'voice_card': return ChatMessageType.voice_card;
+      case 'ifc_export_card': return ChatMessageType.ifc_export_card;
+      case 'notification_card': return ChatMessageType.notification_card;
+      case 'camera_trigger': return ChatMessageType.camera_trigger;
+      case 'ar_scan_trigger': return ChatMessageType.ar_scan_trigger;
+      case 'voice_input_trigger': return ChatMessageType.voice_input_trigger;
+      case 'stats_card': return ChatMessageType.stats_card;
+      case 'user_card': return ChatMessageType.user_card;
+      case 'user_list_card': return ChatMessageType.user_list_card;
+      case 'product_create_card': return ChatMessageType.product_create_card;
+      case 'product_list_card': return ChatMessageType.product_list_card;
+      case 'quotation_card': return ChatMessageType.quotation_card;
       default:
         return ChatMessageType.text;
     }
@@ -328,6 +435,29 @@ class ChatMessage {
         return 'quality_issue_card';
       case ChatMessageType.progress_alert_card:
         return 'progress_alert_card';
+      // v1.1.22: 补齐类型字符串
+      case ChatMessageType.kitchen_card: return 'kitchen_card';
+      case ChatMessageType.bathroom_card: return 'bathroom_card';
+      case ChatMessageType.lighting_card: return 'lighting_card';
+      case ChatMessageType.structural_card: return 'structural_card';
+      case ChatMessageType.takeoff_card: return 'takeoff_card';
+      case ChatMessageType.furniture_card: return 'furniture_card';
+      case ChatMessageType.appliance_card: return 'appliance_card';
+      case ChatMessageType.door_window_card: return 'door_window_card';
+      case ChatMessageType.mep_plan_card: return 'mep_plan_card';
+      case ChatMessageType.identity_card: return 'identity_card';
+      case ChatMessageType.voice_card: return 'voice_card';
+      case ChatMessageType.ifc_export_card: return 'ifc_export_card';
+      case ChatMessageType.notification_card: return 'notification_card';
+      case ChatMessageType.camera_trigger: return 'camera_trigger';
+      case ChatMessageType.ar_scan_trigger: return 'ar_scan_trigger';
+      case ChatMessageType.voice_input_trigger: return 'voice_input_trigger';
+      case ChatMessageType.stats_card: return 'stats_card';
+      case ChatMessageType.user_card: return 'user_card';
+      case ChatMessageType.user_list_card: return 'user_list_card';
+      case ChatMessageType.product_create_card: return 'product_create_card';
+      case ChatMessageType.product_list_card: return 'product_list_card';
+      case ChatMessageType.quotation_card: return 'quotation_card';
     }
   }
 }
