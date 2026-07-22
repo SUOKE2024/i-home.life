@@ -151,7 +151,7 @@
 │   ├── models/                       # 72 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
 │   ├── services/                     # 业务逻辑层
-│   │   ├── webauthn_service.py       # FIDO2/WebAuthn/Passkey 服务 (Redis+内存挑战存储, v1.0.5)
+│   │   ├── webauthn_service.py       # FIDO2/WebAuthn/Passkey 服务 (feature flag + 原子挑战消费, v1.1.28)
 │   │   ├── identity_service.py       # 实名认证 (阿里云/腾讯云身份证核验)
 │   │   └── user_service.py           # 用户注册/登录
 │   ├── auth/                         # PASETO Token 认证
@@ -192,7 +192,7 @@
 ├── tests/                            # 测试套件 (455 pass / 1 fail / 9 skipped, v1.0.5)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
-│   ├── test_webauthn.py              # WebAuthn/Passkey 全链路 (28, v1.0.5)
+│   ├── test_webauthn.py              # WebAuthn/Passkey 全链路 (含安全增强, v1.1.28)
 │   ├── test_projects.py              # 项目 CRUD (4)
 │   ├── test_materials.py             # 物料 + BOM (7)
 │   ├── test_budgets_and_agents.py    # 预算 + Agent (7)

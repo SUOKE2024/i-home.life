@@ -100,11 +100,31 @@ class MemoryChallengeStore(ChallengeStore):
     async def delete(self, key: str) -> None:
         self._store.pop(key, None)
 
+    async def pop(self, key: str) -> str | None:
+        """一次性读取并删除，惰性清理过期项"""
+        self._cleanup_expired()
+        entry = self._store.pop(key, None)
+        if entry is None:
+            return None
+        value, expire = entry
+        if time.time() > expire:
+            return None
+        return value
+
 
 class RedisChallengeStore(ChallengeStore):
     """Redis 存储（生产环境推荐）
 
     多 worker/多实例共享，原生 TTL 支持。
+    pop 使用 Lua 脚本实现原子 GET+DEL，避免 TOCTOU 竞态。
+    """
+
+    _POP_LUA = """
+    local val = redis.call('GET', KEYS[1])
+    if val then
+        redis.call('DEL', KEYS[1])
+    end
+    return val
     """
 
     def __init__(self, redis_client) -> None:
@@ -118,6 +138,20 @@ class RedisChallengeStore(ChallengeStore):
         if value is None:
             return None
         return value.decode() if isinstance(value, bytes) else value
+
+    async def pop(self, key: str) -> str | None:
+        """原子 GET + DEL（Lua 脚本），消除 TOCTOU 竞态"""
+        try:
+            val = await self._redis.eval(self._POP_LUA, 1, key)
+            if val is None:
+                return None
+            return val.decode() if isinstance(val, bytes) else val
+        except Exception:
+            # Lua 脚本不可用时降级为非原子 get+delete
+            value = await self.get(key)
+            if value is not None:
+                await self.delete(key)
+            return value
 
     async def delete(self, key: str) -> None:
         await self._redis.delete(key)
@@ -249,10 +283,15 @@ async def webauthn_register_begin(
 async def webauthn_register_complete(
     db: AsyncSession,
     credential_json: dict,
+    current_user: User,
     device_name: str | None = None,
     transports: list[str] | None = None,
 ) -> WACModel:
-    """验证注册结果"""
+    """验证注册结果。
+
+    安全约束：挑战中存储的 user_id 必须与当前登录用户一致，
+    防止用户 A 消费用户 B 的注册挑战完成跨用户凭证绑定。
+    """
 
     # 提取挑战并获取 user_id
     challenge_b64 = credential_json.get("response", {}).get("clientDataJSON", "")
@@ -265,6 +304,10 @@ async def webauthn_register_complete(
             raise ValueError("无效或已过期的挑战，请重新发起注册")
     except (ValueError, json.JSONDecodeError) as e:
         raise ValueError(f"WebAuthn 注册验证失败: {e}")
+
+    # 纵深防御: 挑战发起人必须与当前登录用户一致
+    if user_id != current_user.id:
+        raise ValueError("挑战与当前用户身份不匹配，请重新发起注册")
 
     # 验证用户
     result = await db.execute(select(User).where(User.id == user_id))
@@ -378,10 +421,8 @@ async def webauthn_login_complete(
         cdj = json.loads(_b64_decode(challenge_b64))
         challenge = cdj.get("challenge", "")
         store = _get_challenge_store()
-        if await store.get(f"login:{challenge}") is None:
+        if await store.pop(f"login:{challenge}") is None:
             raise ValueError("无效或已过期的登录挑战，请重新发起登录")
-        # 一次性消费
-        await store.delete(f"login:{challenge}")
     except (ValueError, json.JSONDecodeError) as e:
         raise ValueError(f"WebAuthn 登录验证失败: {e}")
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -24,8 +24,22 @@ from app.services.webauthn_service import (
     webauthn_login_begin,
     webauthn_login_complete,
 )
+from app.services.audit_log_service import log_audit_event
+
+from app.config import get_settings
 
 router = APIRouter(prefix="/auth", tags=["认证"])
+
+settings = get_settings()
+
+
+def _client_ip(request: Request) -> str:
+    """从请求中提取客户端 IP（兼容反向代理）"""
+    # X-Forwarded-For: client, proxy1, proxy2 — 取第一个
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else ""
 
 
 # ═══════════════════════════════════════════
@@ -47,7 +61,11 @@ router = APIRouter(prefix="/auth", tags=["认证"])
     },
     tags=["认证"],
 )
-async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    data: UserCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     existing = await db.execute(select(User).where(User.phone == data.phone))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -57,6 +75,19 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
 
     user = await create_user(db, data)
     token = create_token(user.id, user.role)
+
+    # 审计日志：记录注册事件（失败不影响主流程，受 audit_log_enabled 控制）
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="REGISTER",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role, "phone_suffix": user.phone[-4:]},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     return TokenResponse(
         access_token=token,
@@ -77,7 +108,11 @@ async def register(data: UserCreate, db: AsyncSession = Depends(get_db)):
     },
     tags=["认证"],
 )
-async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(
+    data: UserLogin,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     user = await authenticate_user(db, data.phone, data.password)
     if not user:
         raise HTTPException(
@@ -86,6 +121,19 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
         )
 
     token = create_token(user.id, user.role)
+
+    # 审计日志：记录登录事件（失败不影响主流程，受 audit_log_enabled 控制）
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="LOGIN",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     return TokenResponse(
         access_token=token,
@@ -120,12 +168,15 @@ async def webauthn_register_start(
     db: AsyncSession = Depends(get_db),
 ):
     """生成 Passkey 注册挑战。返回 PublicKeyCredentialCreationOptions JSON。"""
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     return await webauthn_register_begin(db, current_user, body.device_name)
 
 
 @router.post("/webauthn/register/complete", response_model=WebAuthnRegisterCompleteResponse)
 async def webauthn_register_finish(
     body: WebAuthnRegisterCompleteRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -134,15 +185,35 @@ async def webauthn_register_finish(
     客户端调用 `navigator.credentials.create()` 后将完整的 credential JSON 提交至此端点。
     服务端验证 attestation，存储公钥和凭证 ID。
     """
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     try:
         credential = await webauthn_register_complete(
             db,
             credential_json=body.credential,
+            current_user=current_user,
             device_name=body.device_name,
             transports=body.transports,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # 审计日志：记录 Passkey 注册事件
+    await log_audit_event(
+        db=db,
+        user_id=current_user.id,
+        action="PASSKEY_REGISTER",
+        resource_type="webauthn_credential",
+        resource_id=credential.id,
+        details={
+            "credential_id": credential.credential_id,
+            "device_name": body.device_name or "未知设备",
+            "credential_type": credential.credential_type,
+        },
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     return WebAuthnRegisterCompleteResponse(
         credential_id=credential.credential_id,
@@ -160,12 +231,15 @@ async def webauthn_login_start(
     db: AsyncSession = Depends(get_db),
 ):
     """生成 Passkey 登录挑战。返回 PublicKeyCredentialRequestOptions JSON。"""
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     return await webauthn_login_begin(db, phone=body.phone)
 
 
 @router.post("/webauthn/login/complete", response_model=WebAuthnLoginCompleteResponse)
 async def webauthn_login_finish(
     body: WebAuthnLoginCompleteRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """完成 Passkey 登录。
@@ -173,6 +247,8 @@ async def webauthn_login_finish(
     客户端调用 `navigator.credentials.get()` 后将完整的 credential JSON 提交至此端点。
     服务端验证 assertion 签名后返回 PASETO Token。
     """
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     try:
         user, credential = await webauthn_login_complete(
             db,
@@ -182,6 +258,23 @@ async def webauthn_login_finish(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
     token = create_token(user.id, user.role)
+
+    # 审计日志：记录 Passkey 登录事件
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="PASSKEY_LOGIN",
+        resource_type="user",
+        resource_id=user.id,
+        details={
+            "role": user.role,
+            "credential_id": credential.credential_id,
+            "device_name": credential.device_name or "未知设备",
+        },
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
 
     return WebAuthnLoginCompleteResponse(
         access_token=token,
@@ -200,6 +293,8 @@ async def list_credentials(
     db: AsyncSession = Depends(get_db),
 ):
     """列出当前用户的所有 Passkey 凭证（用于管理多设备）。"""
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     result = await db.execute(
         select(WebAuthnCredential)
         .where(WebAuthnCredential.user_id == current_user.id)
@@ -219,6 +314,8 @@ async def delete_credential(
 
     凭证将被标记为 inactive（软删除），不会影响其他设备的 Passkey。
     """
+    if not settings.webauthn_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="WebAuthn 功能已关闭")
     result = await db.execute(
         select(WebAuthnCredential).where(
             WebAuthnCredential.id == credential_id,

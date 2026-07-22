@@ -44,9 +44,21 @@ class Settings(BaseSettings):
     paseto_token_expire_minutes: int = 60 * 24
 
     # ── WebAuthn / FIDO2 / Passkey ──
+    webauthn_enabled: bool = True
     webauthn_rp_id: str = "localhost"
-    webauthn_origin: str = "http://localhost:8766"
+    # 允许的来源（逗号分隔，如 "https://app.i-home.life,https://api.i-home.life"）
+    webauthn_origins: str = "http://localhost:8766"
     webauthn_challenge_ttl: int = 120
+
+    @property
+    def webauthn_origin_list(self) -> list[str]:
+        """解析 origins 为列表，支持多域名部署"""
+        return [o.strip() for o in self.webauthn_origins.split(",") if o.strip()]
+
+    @property
+    def webauthn_origin(self) -> str:
+        """返回第一个 origin，向后兼容单值调用"""
+        return self.webauthn_origin_list[0] if self.webauthn_origin_list else "http://localhost:8766"
 
     # DeepSeek V4
     deepseek_api_key: str = ""

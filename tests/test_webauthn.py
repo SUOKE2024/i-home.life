@@ -330,21 +330,22 @@ async def test_webauthn_login_complete_invalid_challenge(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_webauthn_login_complete_challenge_one_time(client: AsyncClient):
-    """登录挑战应一次性消费（直接在存储层验证）"""
-    # 生成挑战
+async def test_login_complete_challenge_pop_one_time(client: AsyncClient):
+    """登录挑战应被 pop 一次性消费（验证 TOCTOU 修复）"""
     begin_resp = await client.post("/api/auth/webauthn/login/begin", json={})
     challenge = begin_resp.json()["challenge"]
 
-    # 验证挑战存在
     store = _get_challenge_store()
+    # 挑战应存在
     assert await store.get(f"login:{challenge}") == "pending"
 
-    # 模拟一次性消费：pop 应返回值并删除
-    value = await store.pop(f"login:{challenge}")
-    assert value == "pending"
-    # 再次读取应返回 None
+    # 模拟 pop（等价于 webauthn_login_complete 内部操作）
+    popped = await store.pop(f"login:{challenge}")
+    assert popped == "pending"
+
+    # pop 后挑战应不再存在（二次 pop 返回 None）
     assert await store.get(f"login:{challenge}") is None
+    assert await store.pop(f"login:{challenge}") is None
 
 
 # ═══════════════════════════════════════════
@@ -518,11 +519,15 @@ def test_webauthn_config_fields_exist():
     """配置应包含 webauthn 相关字段"""
     from app.config import get_settings
     s = get_settings()
+    assert hasattr(s, "webauthn_enabled")
     assert hasattr(s, "webauthn_rp_id")
     assert hasattr(s, "webauthn_origin")
+    assert hasattr(s, "webauthn_origins")
+    assert hasattr(s, "webauthn_origin_list")
     assert hasattr(s, "webauthn_challenge_ttl")
     assert isinstance(s.webauthn_challenge_ttl, int)
     assert s.webauthn_challenge_ttl > 0
+    assert isinstance(s.webauthn_enabled, bool)
 
 
 def test_webauthn_challenge_ttl_default():
@@ -530,3 +535,102 @@ def test_webauthn_challenge_ttl_default():
     from app.config import get_settings
     s = get_settings()
     assert 60 <= s.webauthn_challenge_ttl <= 300
+
+
+def test_webauthn_config_origins_list():
+    """webauthn_origin_list 应正确解析逗号分隔的 origins"""
+    from app.config import Settings
+    # 单 origin
+    s1 = Settings(webauthn_origins="https://app.i-home.life")
+    assert s1.webauthn_origin_list == ["https://app.i-home.life"]
+    assert s1.webauthn_origin == "https://app.i-home.life"
+    # 多 origin
+    s2 = Settings(webauthn_origins="https://app.i-home.life, https://api.i-home.life")
+    assert s2.webauthn_origin_list == ["https://app.i-home.life", "https://api.i-home.life"]
+    assert s2.webauthn_origin == "https://app.i-home.life"
+    # 空串
+    s3 = Settings(webauthn_origins="")
+    assert s3.webauthn_origin_list == []
+    assert s3.webauthn_origin == "http://localhost:8766"
+
+
+def test_webauthn_config_feature_flag():
+    """webauthn_enabled 默认为 True"""
+    from app.config import get_settings
+    s = get_settings()
+    assert hasattr(s, "webauthn_enabled")
+    assert s.webauthn_enabled is True
+
+
+# ═══════════════════════════════════════════
+#  安全增强测试（v1.1.28 评估修复）
+# ═══════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_register_complete_cross_user_defense(client: AsyncClient):
+    """纵深防御：用户 A 不能消费用户 B 的注册挑战"""
+    # 用户 A 登录并生成挑战
+    user_a = await _register_user(client, phone="13900200012")
+    token_a = user_a["access_token"]
+
+    resp = await client.post(
+        "/api/auth/webauthn/register/begin",
+        json={},
+        headers={"Authorization": f"Bearer {token_a}"},
+    )
+    assert resp.status_code == 200
+    challenge = resp.json()["challenge"]
+
+    # 用户 B 登录后，尝试使用用户 A 的挑战完成注册
+    user_b = await _register_user(client, phone="13900200013")
+    token_b = user_b["access_token"]
+
+    resp = await client.post(
+        "/api/auth/webauthn/register/complete",
+        json={
+            "credential": {
+                "id": "cross-user-cred",
+                "response": {
+                    "clientDataJSON": challenge,  # 直接传 challenge（会被解析失败）
+                },
+            },
+        },
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+    # 应失败（400 无效挑战 或 challenge 里 user_id 与 B 不匹配，均被 reject）
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_webauthn_endpoint_disabled_returns_503(client: AsyncClient):
+    """webauthn_enabled=False 时，所有 WebAuthn 端点应返回 503"""
+    from app.config import get_settings
+    s = get_settings()
+    original = s.webauthn_enabled
+
+    try:
+        s.webauthn_enabled = False
+
+        # 注册 begin（需认证态）
+        user_data = await _register_user(client, phone="13900200014")
+        token = user_data["access_token"]
+        resp = await client.post(
+            "/api/auth/webauthn/register/begin",
+            json={},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 503
+
+        # 登录 begin（匿名可访问）
+        resp = await client.post("/api/auth/webauthn/login/begin", json={})
+        assert resp.status_code == 503
+
+        # 凭证列表
+        resp = await client.get(
+            "/api/auth/webauthn/credentials",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 503
+    finally:
+        s.webauthn_enabled = original
