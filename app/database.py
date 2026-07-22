@@ -37,7 +37,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
-_SCHEMA_MIGRATION_VERSION = 2  # v1.1.19: added agent_sessions + agent_messages tables
+_SCHEMA_MIGRATION_VERSION = 3  # A5/A6: added procurement_orders delivery columns + risk_predictions table
 
 
 class Base(DeclarativeBase):
@@ -508,6 +508,58 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
 
+        # ── A5 采购交付透明度：procurement_orders 新增物流字段 ──
+        po_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "procurement_orders")
+        )
+        if po_cols is not None:
+            po_migrations = [
+                ("procurement_orders", "delivery_status", "VARCHAR(30) NOT NULL DEFAULT 'pending'"),
+                ("procurement_orders", "tracking_number", "VARCHAR(100)"),
+                ("procurement_orders", "carrier", "VARCHAR(50)"),
+                ("procurement_orders", "estimated_delivery_date", "TIMESTAMP"),
+                ("procurement_orders", "actual_delivery_date", "TIMESTAMP"),
+                ("procurement_orders", "delivery_address", "TEXT"),
+                ("procurement_orders", "assembly_required", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("procurement_orders", "assembly_difficulty", "VARCHAR(30)"),
+                ("procurement_orders", "delivery_notes", "TEXT"),
+            ]
+            for table, column, coltype in po_migrations:
+                if column not in po_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # ── A6 施工预测性维护：创建 risk_predictions 表 ──
+        _has_risk_predictions = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("risk_predictions")
+        )
+        if not _has_risk_predictions:
+            await conn.execute(text(
+                "CREATE TABLE risk_predictions ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  project_id VARCHAR(36) NOT NULL REFERENCES projects(id),"
+                "  risk_type VARCHAR(30) NOT NULL,"
+                "  risk_score FLOAT NOT NULL DEFAULT 0.0,"
+                "  probability FLOAT NOT NULL DEFAULT 0.0,"
+                "  impact_level VARCHAR(20) NOT NULL DEFAULT 'low',"
+                "  trigger_factors JSON,"
+                "  affected_tasks JSON,"
+                "  mitigation_actions JSON,"
+                "  status VARCHAR(20) NOT NULL DEFAULT 'active',"
+                "  predicted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                "  resolved_at TIMESTAMP,"
+                "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_risk_predictions_project_id ON risk_predictions(project_id)"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE risk_predictions")
+
         # ── v1.1.19: Agent 会话持久化 ──
         _has_agent_sessions = await conn.run_sync(
             lambda sync_conn: inspect(sync_conn).has_table("agent_sessions")
@@ -568,6 +620,72 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 "CREATE INDEX IF NOT EXISTS ix_agent_feedbacks_session_id ON agent_feedbacks(session_id)"
             ))
             logging.getLogger("ihome").info("migration: ALTER TABLE agent_feedbacks ADD COLUMN session_id")
+
+        # ── A4 预测式智能场景推荐：创建 scene_behavior_logs 和 predicted_scenes 表 ──
+        _has_scene_behavior_logs = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("scene_behavior_logs")
+        )
+        if not _has_scene_behavior_logs:
+            await conn.execute(text(
+                "CREATE TABLE scene_behavior_logs ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  project_id VARCHAR(36) NOT NULL REFERENCES projects(id),"
+                "  user_id VARCHAR(36) NOT NULL REFERENCES users(id),"
+                "  action_type VARCHAR(30) NOT NULL,"
+                "  scene_id VARCHAR(36) REFERENCES scene_automations(id),"
+                "  room_type VARCHAR(30),"
+                "  time_of_day INTEGER,"
+                "  day_of_week INTEGER,"
+                "  duration_seconds INTEGER,"
+                "  device_states_before JSON,"
+                "  device_states_after JSON,"
+                "  ambient_data JSON,"
+                "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_scene_behavior_logs_project_id ON scene_behavior_logs(project_id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_scene_behavior_logs_user_id ON scene_behavior_logs(user_id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_scene_behavior_logs_action_type ON scene_behavior_logs(action_type)"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE scene_behavior_logs")
+
+        _has_predicted_scenes = await conn.run_sync(
+            lambda sync_conn: inspect(sync_conn).has_table("predicted_scenes")
+        )
+        if not _has_predicted_scenes:
+            await conn.execute(text(
+                "CREATE TABLE predicted_scenes ("
+                "  id VARCHAR(36) PRIMARY KEY,"
+                "  project_id VARCHAR(36) NOT NULL REFERENCES projects(id),"
+                "  user_id VARCHAR(36) NOT NULL REFERENCES users(id),"
+                "  scene_name VARCHAR(200) NOT NULL,"
+                "  room_type VARCHAR(30),"
+                "  trigger_time_hint VARCHAR(100),"
+                "  trigger_condition JSON,"
+                "  actions JSON,"
+                "  confidence FLOAT NOT NULL DEFAULT 0.0,"
+                "  based_on_count INTEGER NOT NULL DEFAULT 0,"
+                "  status VARCHAR(20) NOT NULL DEFAULT 'suggested',"
+                "  explanation TEXT,"
+                "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                "  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_predicted_scenes_project_id ON predicted_scenes(project_id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_predicted_scenes_user_id ON predicted_scenes(user_id)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX ix_predicted_scenes_status ON predicted_scenes(status)"
+            ))
+            logging.getLogger("ihome").info("migration: CREATE TABLE predicted_scenes")
 
         # ── 标记本次迁移版本，下次启动可跳过 ──
         # v1.1.12 生产修复：根据 _has_schema_migrations 标志决定是否创建表，

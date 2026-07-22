@@ -15,12 +15,14 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _isRegister = false;
   bool _passkeyLoading = false;
   bool _biometricsLoading = false;
+  bool _submitting = false;
   String _role = 'homeowner';
   String _subRole = '';
 
@@ -118,49 +120,57 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _submit() async {
-    final api = ApiClient();
-    final data = <String, dynamic>{
-            'phone': _phoneCtrl.text.trim(),
-            'name': _nameCtrl.text.trim().isEmpty ? '新用户' : _nameCtrl.text.trim(),
-            'password': _passCtrl.text,
-            'role': _role,
-          };
-    if (_subRole.isNotEmpty) {
-      data['sub_role'] = _subRole;
-    }
-    final result = _isRegister
-        ? await api.post('/auth/register', data)
-        : await api.post('/auth/login', {
-            'phone': _phoneCtrl.text.trim(),
-            'password': _passCtrl.text,
+    if (_submitting) return;
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _submitting = true);
+
+    try {
+      final api = ApiClient();
+      final data = <String, dynamic>{
+              'phone': _phoneCtrl.text.trim(),
+              'name': _nameCtrl.text.trim().isEmpty ? '新用户' : _nameCtrl.text.trim(),
+              'password': _passCtrl.text,
+              'role': _role,
+            };
+      if (_subRole.isNotEmpty) {
+        data['sub_role'] = _subRole;
+      }
+      final result = _isRegister
+          ? await api.post('/auth/register', data)
+          : await api.post('/auth/login', {
+              'phone': _phoneCtrl.text.trim(),
+              'password': _passCtrl.text,
+            });
+      if (result.isSuccess) {
+        final res = result.data as Map<String, dynamic>;
+        await api.saveToken(res['access_token'] as String);
+        // 保存手机号用于下次生物识别提示（不保存密码）
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_phone', _phoneCtrl.text.trim());
+        // 密码登录成功后，标记本设备已"注册 Passkey"（简化方案）
+        // 真正的 WebAuthn 注册需要平台 Credential Manager，Flutter 暂无标准 API
+        await prefs.setBool(_kPasskeyRegisteredKey, true);
+        // 刷新生物识别可用状态（现在有 token 了）
+        if (mounted) {
+          setState(() {
+            _biometricsAvailable = _biometricsSupported;
           });
-    if (result.isSuccess) {
-      final res = result.data as Map<String, dynamic>;
-      await api.saveToken(res['access_token'] as String);
-      // 保存手机号用于下次生物识别提示（不保存密码）
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('last_phone', _phoneCtrl.text.trim());
-      // 密码登录成功后，标记本设备已"注册 Passkey"（简化方案）
-      // 真正的 WebAuthn 注册需要平台 Credential Manager，Flutter 暂无标准 API
-      await prefs.setBool(_kPasskeyRegisteredKey, true);
-      // 刷新生物识别可用状态（现在有 token 了）
-      if (mounted) {
-        setState(() {
-          _biometricsAvailable = _biometricsSupported;
-        });
+        }
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('操作失败: ${result.error}')),
+          );
+        }
       }
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('操作失败: ${result.error}')),
-        );
-      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -345,53 +355,82 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 40),
-                TextField(
-                  controller: _phoneCtrl,
-                  decoration: const InputDecoration(labelText: '手机号'),
-                  keyboardType: TextInputType.phone,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passCtrl,
-                  decoration: const InputDecoration(labelText: '密码'),
-                  obscureText: true,
-                ),
-                if (_isRegister) ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(labelText: '姓名'),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _role,
-                    decoration: const InputDecoration(labelText: '角色'),
-                    items: const [
-                      DropdownMenuItem(value: 'homeowner', child: Text('业主')),
-                      DropdownMenuItem(value: 'designer', child: Text('设计师')),
-                      DropdownMenuItem(value: 'contractor', child: Text('施工方（工长/工人）')),
-                      DropdownMenuItem(value: 'supplier', child: Text('供应商')),
+                Form(
+                  key: _formKey,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _phoneCtrl,
+                        decoration: const InputDecoration(labelText: '手机号'),
+                        keyboardType: TextInputType.phone,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return '请输入手机号';
+                          if (v.trim().length < 11) return '手机号格式不正确';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passCtrl,
+                        decoration: const InputDecoration(labelText: '密码'),
+                        obscureText: true,
+                        keyboardType: TextInputType.visiblePassword,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return '请输入密码';
+                          if (v.length < 6) return '密码至少6位';
+                          return null;
+                        },
+                      ),
+                      if (_isRegister) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _nameCtrl,
+                          decoration: const InputDecoration(labelText: '姓名'),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return '请输入姓名';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: _role,
+                          decoration: const InputDecoration(labelText: '角色'),
+                          items: const [
+                            DropdownMenuItem(value: 'homeowner', child: Text('业主')),
+                            DropdownMenuItem(value: 'designer', child: Text('设计师')),
+                            DropdownMenuItem(value: 'contractor', child: Text('施工方（工长/工人）')),
+                            DropdownMenuItem(value: 'supplier', child: Text('供应商')),
+                          ],
+                          onChanged: (v) {
+                            setState(() { _role = v!; _subRole = ''; });
+                          },
+                        ),
+                        if (_role == 'contractor' || _role == 'designer') ...[
+                          const SizedBox(height: 16),
+                          DropdownButtonFormField<String>(
+                            value: _subRole,
+                            decoration: const InputDecoration(labelText: '细分工种'),
+                            items: _buildSubRoleItems(),
+                            onChanged: (v) => setState(() => _subRole = v ?? ''),
+                          ),
+                        ],
+                      ],
                     ],
-                    onChanged: (v) {
-                      setState(() { _role = v!; _subRole = ''; });
-                    },
                   ),
-                  if (_role == 'contractor' || _role == 'designer') ...[
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _subRole,
-                      decoration: const InputDecoration(labelText: '细分工种'),
-                      items: _buildSubRoleItems(),
-                      onChanged: (v) => setState(() => _subRole = v ?? ''),
-                    ),
-                  ],
-                ],
+                ),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _submit,
-                    child: Text(_isRegister ? '注 册' : '登 录'),
+                    onPressed: _submitting ? null : _submit,
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(_isRegister ? '注册' : '登录'),
                   ),
                 ),
 

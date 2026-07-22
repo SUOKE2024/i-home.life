@@ -2,10 +2,21 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.28 · 借鉴索克生活 B 方向 10 项落地：Suoke-Eval1 评估框架 + Model Spec HC 硬约束 + 意图契约校验 + AgenticRAG + Vault 密钥管理 + 多 LLM fallback + DSPy 优化 + A2A 协议 + PII 脱敏 + TTS 降级链（2026-07-22）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 22 Agent 全链路 + L4 偏好学习 + MCP 协议外露 + AI 渲染（2D/3D/restage）+ 语音情绪路由 + WebGPU 智能降级 + 475+ API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
+> v1.1.29 · 家居补短 5 项落地：FC 3.0 微服务拆分 + A2UI 协议内化 + HMAC 审计签名 + 装修知识库 + 施工健康 OS（2026-07-22）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图 + DWG/DXF 导入 + 22 Agent 全链路 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + WebGPU 降级 + 475+ API + Flutter 41 页面 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议 + FC 3.0 微服务
 
 ## 最近更新
+
+### 2026-07-22 · v1.1.29 家居补短 5 项落地
+
+独立于索克生活的补短板工程，覆盖微服务架构、UI 协议、合规安全、知识增强、主动干预：
+
+- **P0 FC 3.0 微服务拆分**: [serverless/](serverless/) 目录含 7 个微服务的 `s.yaml` + `handler.py`（auth-gateway / agent-orchestrator / design-render / project-flow / commerce / realtime）+ [common/warmup.py](serverless/common/warmup.py) 冷启动优化（OSS 挂载探测 + DB 连接池预热 + 模块预加载），每个服务独立部署、独立扩缩容
+- **P0 A2UI 协议内化**: [app/services/a2ui_schema.py](app/services/a2ui_schema.py) 定义 8 种卡片类型（设计/预算/进度/采购/质检/结算/材料/告警）+ [app/services/a2ui_generator.py](app/services/a2ui_generator.py) Agent→卡片转换器 + [flutter_app/lib/services/a2ui_renderer.dart](flutter_app/lib/services/a2ui_renderer.dart) Flutter 8 种子卡片 Widget + [web/assets/js/a2ui-renderer.js](web/assets/js/a2ui-renderer.js) Web 渲染器 + [web/assets/css/a2ui-cards.css](web/assets/css/a2ui-cards.css) 暗色主题响应式样式
+- **P1 Vault + 合规深化（HMAC 签名）**: [app/services/audit_integrity.py](app/services/audit_integrity.py) HMAC-SHA256 签名 + 密钥版本化 + 防时序攻击 `hmac.compare_digest` + 批量完整性校验 + 字段级脱敏标记（L0-L3 按角色）+ 集成到 `audit_log_service.log_audit_event` 写入时自动签名
+- **P1 Agentic RAG + Skills System**: [knowledge/](knowledge/) 4 个结构化知识库（materials.json 20 条 / techniques.json 20 条 / standards.json 20 条 / faq.json 20 条，含 GB 标准引用）+ [app/services/citation_service.py](app/services/citation_service.py) 来源引用格式化 + [app/services/qa_knowledge_service.py](app/services/qa_knowledge_service.py) QAInspectorAgent 专用知识注入（质检清单/标准查核/缺陷判定）
+- **P2 Health OS 主动干预**: [app/services/health_monitor.py](app/services/health_monitor.py) 定时巡检器 + 5 级预警规则引擎（NORMAL→ATTENTION→WARNING→SEVERE→CRITICAL）+ 施工健康评分（0-100）+ 自动创建 ProgressAlert + 主动推送通知 + [app/services/push_sender.py](app/services/push_sender.py) 多通道推送（FCM/APNs/WebPush/SMS）
+- **Feature flags**: 6 项新开关（audit_hmac_enabled / health_os_enabled / push_enabled / a2ui_enabled / knowledge_base_enabled / service_role）
 
 ### 2026-07-22 · v1.1.28 借鉴索克生活（B 方向）10 项落地
 

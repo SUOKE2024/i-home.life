@@ -75,18 +75,27 @@ class _EmojiPickerState extends State<EmojiPicker> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final stored = prefs.getStringList('emoji_recent') ?? [];
-      if (mounted) setState(() => _recent = stored);
+      if (mounted) {
+        setState(() {
+          _recent = stored;
+          // 首次加载时如果最近使用为空，自动切换到 smileys 分类
+          if (_recent.isEmpty && _category == 'recent') {
+            _category = 'smileys';
+          }
+        });
+      }
     } catch (_) {}
   }
 
   Future<void> _addRecent(String emoji) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final recent = (_recent..remove(emoji));
+      final recent = List<String>.from(_recent);
+      recent.remove(emoji);
       recent.insert(0, emoji);
       final trimmed = recent.take(32).toList();
       await prefs.setStringList('emoji_recent', trimmed);
-      _recent = trimmed;
+      if (mounted) setState(() => _recent = trimmed);
     } catch (_) {}
   }
 

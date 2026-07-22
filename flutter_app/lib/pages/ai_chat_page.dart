@@ -18,6 +18,7 @@ import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
+import 'ar_scan_page.dart';
 
 class AIChatPage extends StatefulWidget {
   final String? projectId;
@@ -42,6 +43,15 @@ class _AIChatPageState extends State<AIChatPage> {
   String? _currentProjectId;
   String? _currentSessionId;
 
+  // v1.1.29: 自主权控制与思考步骤追踪
+  AutonomyMode _autonomyMode = AutonomyMode.coPilot;
+  final List<String> _activeThinkingSteps = [];
+  String _currentProcessingAgent = 'master';
+
+  // v1.1.29: 回到底部 FAB 状态
+  bool _showScrollToBottom = false;
+  int _unreadBelow = 0;
+
   StreamSubscription<SseEvent>? _sseSub;
   VoidCallback? _wsUnsubscribe;
 
@@ -63,6 +73,19 @@ class _AIChatPageState extends State<AIChatPage> {
     _agents = AgentInfo.standardAgents;
     _connectWebSocket();
     _restoreSessionId();
+    // v1.1.29: 监听滚动位置控制 FAB 显示
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollCtrl.hasClients) return;
+    final pos = _scrollCtrl.position;
+    final atBottom = pos.pixels >= pos.maxScrollExtent - 60;
+    if (atBottom) {
+      if (_showScrollToBottom) setState(() { _showScrollToBottom = false; _unreadBelow = 0; });
+    } else {
+      if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
+    }
   }
 
   Future<void> _restoreSessionId() async {
@@ -143,7 +166,8 @@ class _AIChatPageState extends State<AIChatPage> {
     _wsUnsubscribe?.call();
     _ws.close();
     _voice.disconnect();
-    _persistSessionId(null);
+    // 不在此处清除 session，允许用户导航后回来继续对话
+    // 只有显式「新对话」或「切换项目」才清除
     super.dispose();
   }
 
@@ -210,6 +234,10 @@ class _AIChatPageState extends State<AIChatPage> {
   void _addMessage(ChatMessage msg) {
     setState(() => _messages.add(msg));
     _scrollToBottom();
+    // v1.1.29: 跟踪未读消息
+    if (_showScrollToBottom) {
+      _unreadBelow++;
+    }
   }
 
   void _updateLastAgentMessage(String content, {String? agent}) {
@@ -266,6 +294,58 @@ class _AIChatPageState extends State<AIChatPage> {
     });
   }
 
+  /// v1.1.29: 回到底部 FAB（带未读计数）
+  Widget _buildScrollToBottomFab() {
+    return GestureDetector(
+      onTap: () {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        setState(() { _showScrollToBottom = false; _unreadBelow = 0; });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: _unreadBelow > 0 ? null : 40,
+        height: 40,
+        padding: EdgeInsets.symmetric(
+          horizontal: _unreadBelow > 0 ? 12 : 0,
+        ),
+        decoration: BoxDecoration(
+          color: SuokeDesignTokens.cardBg,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: SuokeDesignTokens.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.keyboard_arrow_down, size: 22, color: SuokeDesignTokens.accent),
+            if (_unreadBelow > 0) ...[
+              const SizedBox(width: 4),
+              Text(
+                _unreadBelow > 99 ? '99+' : '$_unreadBelow',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: SuokeDesignTokens.accent,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── 发送消息 ──
 
   Future<void> _send() async {
@@ -304,6 +384,9 @@ class _AIChatPageState extends State<AIChatPage> {
     // v1.1.26: 记录 meta 事件中的卡片类型，done 时替换为卡片消息
     String? cardMessageType;
     Map<String, dynamic>? cardPayload;
+    // v1.1.29: 追踪思考步骤
+    _activeThinkingSteps.clear();
+    _currentProcessingAgent = targetAgent;
 
     try {
       _sseSub?.cancel();
@@ -323,7 +406,13 @@ class _AIChatPageState extends State<AIChatPage> {
           switch (event.type) {
             case SseEventType.meta:
               if (event.agentType != null) {
-                currentAgent = _backendToAgent(event.agentType!);
+                final newAgent = _backendToAgent(event.agentType!);
+                if (newAgent != currentAgent) {
+                  // v1.1.29: Agent 交接可视化
+                  _activeThinkingSteps.add('交接至 ${AgentInfo.getByKey(newAgent).name}');
+                }
+                currentAgent = newAgent;
+                _currentProcessingAgent = newAgent;
               }
               // v1.1.26: 记录卡片类型，done 时渲染为卡片
               if (event.messageType != null && event.messageType != 'text') {
@@ -333,6 +422,15 @@ class _AIChatPageState extends State<AIChatPage> {
             case SseEventType.token:
               fullContent += event.content ?? '';
               _updateLastAgentMessage(fullContent, agent: currentAgent);
+            case SseEventType.thinking_step:
+              // v1.1.29: 记录 Agent 思考步骤
+              if (event.content != null && event.content!.isNotEmpty) {
+                _activeThinkingSteps.add(event.content!);
+                if (event.agentType != null) {
+                  _currentProcessingAgent = _backendToAgent(event.agentType!);
+                }
+                setState(() {}); // 刷新 thinking indicator
+              }
             case SseEventType.done:
               if (event.content != null && event.content!.isNotEmpty) {
                 _updateLastAgentMessage(event.content!, agent: currentAgent);
@@ -341,11 +439,28 @@ class _AIChatPageState extends State<AIChatPage> {
               if (cardMessageType != null && fullContent.isNotEmpty) {
                 _replaceLastAgentWithCard(cardMessageType!, fullContent, currentAgent, cardPayload);
               }
+              // v1.1.29: 将思考步骤挂载到最后一条消息
+              if (_activeThinkingSteps.isNotEmpty && _messages.isNotEmpty) {
+                final lastIdx = _messages.length - 1;
+                _messages[lastIdx] = _messages[lastIdx].copyWith(
+                  thinkingSteps: List<String>.from(_activeThinkingSteps),
+                  confidence: route.confidence > 0.49 ? route.confidence : null,
+                );
+              }
+              setState(() => _isLoading = false);
+            case SseEventType.error:
+              _updateLastAgentMessage(
+                '抱歉，AI 服务暂时不可用: ${event.content ?? '未知错误'}',
+                agent: currentAgent,
+              );
+              // v1.1.29: 增强错误恢复指引
+              _handleAgentError(event.content ?? '未知错误', currentAgent);
               setState(() => _isLoading = false);
           }
         },
         onError: (e) {
           _updateLastAgentMessage('抱歉，AI 服务暂时不可用: ${e.toString().length > 80 ? e.toString().substring(0, 80) + '...' : e}', agent: 'master');
+          _handleAgentError(e.toString(), 'master');
           setState(() => _isLoading = false);
         },
         onDone: () {
@@ -354,7 +469,84 @@ class _AIChatPageState extends State<AIChatPage> {
       );
     } catch (e) {
       _updateLastAgentMessage('抱歉，AI 服务暂时不可用: $e', agent: 'master');
+      _handleAgentError(e.toString(), 'master');
       setState(() => _isLoading = false);
+    }
+  }
+
+  /// 创建项目弹窗
+  Future<void> _showCreateProjectDialog(ProjectContext pc) async {
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('创建项目'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(
+                labelText: '项目名称',
+                hintText: '例如：我的新家装修',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(
+                labelText: '项目描述（可选）',
+                hintText: '描述您的项目',
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, <String, dynamic>{
+              'name': nameCtrl.text,
+              'description': descCtrl.text,
+            }),
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || (result['name'] ?? '').trim().isEmpty) return;
+
+    final api = ApiClient();
+    final r = await api.post('/projects', result);
+    if (r.isSuccess && mounted) {
+      await pc.loadProjects();
+      // 自动选中新创建的项目
+      final projects = pc.projects;
+      if (projects.isNotEmpty) {
+        final newProject = projects.last;
+        final newId = newProject['id'] as String?;
+        if (newId != null) {
+          await pc.switchProject(newId);
+          setState(() {
+            _currentProjectId = newId;
+            _messages.clear();
+            _messages.add(ChatMessage.agentText(
+              text: '欢迎使用索克家居！我是 AI 总控 Agent，请告诉我您的需求。',
+              agent: 'master',
+            ));
+          });
+          _connectWebSocket();
+        }
+      }
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(r.error ?? '创建项目失败')),
+      );
     }
   }
 
@@ -388,12 +580,30 @@ class _AIChatPageState extends State<AIChatPage> {
   }
 
   String _agentToBackend(String agentKey) {
+    // 与后端 app/services/agent_registry.py 同步
     const map = {
       'master': 'orchestrator', 'design': 'design', 'budget': 'budget',
       'procurement': 'procurement', 'construction': 'construction',
       'quality': 'qa_inspector', 'settlement': 'settlement', 'support': 'concierge',
+      'admin': 'admin',
+      'kitchen': 'kitchen', 'bathroom': 'bathroom',
+      'mep': 'mep', 'appliance': 'appliance',
+      'furniture_catalog': 'furniture_catalog',
+      'door_window_waterproof': 'door_window_waterproof',
+      'lighting': 'lighting', 'structural': 'structural',
+      'smart_home': 'smart_home', 'custom_furniture': 'custom_furniture',
+      'soft_furnishing': 'soft_furnishing', 'hard_decoration': 'hard_decoration',
+      'ar_measurement': 'ar_measurement', 'vr_panorama': 'vr_panorama',
+      'ai_render': 'ai_render', 'takeoff': 'takeoff',
+      'floorplans': 'floorplans', 'files': 'files',
+      'products': 'products', 'identity': 'identity',
+      'voice': 'voice', 'notifications': 'notifications',
+      'ifc_export': 'ifc_export', 'scene_automation': 'scene_automation',
+      'tasks': 'tasks', 'change_orders': 'change_orders',
+      'crews': 'crews', 'points': 'points',
+      'cad_import': 'cad_import', 'sketch_to_3d': 'sketch_to_3d',
     };
-    return map[agentKey] ?? 'orchestrator';
+    return map[agentKey] ?? agentKey;
   }
 
   String _backendToAgent(String backendType) {
@@ -401,8 +611,25 @@ class _AIChatPageState extends State<AIChatPage> {
       'orchestrator': 'master', 'design': 'design', 'budget': 'budget',
       'procurement': 'procurement', 'construction': 'construction',
       'qa_inspector': 'quality', 'settlement': 'settlement', 'concierge': 'support',
+      'admin': 'admin',
+      'kitchen': 'kitchen', 'bathroom': 'bathroom',
+      'mep': 'mep', 'appliance': 'appliance',
+      'furniture_catalog': 'furniture_catalog',
+      'door_window_waterproof': 'door_window_waterproof',
+      'lighting': 'lighting', 'structural': 'structural',
+      'smart_home': 'smart_home', 'custom_furniture': 'custom_furniture',
+      'soft_furnishing': 'soft_furnishing', 'hard_decoration': 'hard_decoration',
+      'ar_measurement': 'ar_measurement', 'vr_panorama': 'vr_panorama',
+      'ai_render': 'ai_render', 'takeoff': 'takeoff',
+      'floorplans': 'floorplans', 'files': 'files',
+      'products': 'products', 'identity': 'identity',
+      'voice': 'voice', 'notifications': 'notifications',
+      'ifc_export': 'ifc_export', 'scene_automation': 'scene_automation',
+      'tasks': 'tasks', 'change_orders': 'change_orders',
+      'crews': 'crews', 'points': 'points',
+      'cad_import': 'cad_import', 'sketch_to_3d': 'sketch_to_3d',
     };
-    return map[backendType] ?? 'master';
+    return map[backendType] ?? backendType;
   }
 
   void _handleApproval(String decision, Map<String, dynamic> payload) {
@@ -544,23 +771,34 @@ class _AIChatPageState extends State<AIChatPage> {
       backgroundColor: SuokeDesignTokens.bgDeep,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
           children: [
-            // ── 聊天头部（对齐 Web chat-header：半透明 + 底部边框） ──
-            _buildChatHeader(pc, projects, title, isDark),
-            // ── Agent 选择栏 ──
-            _buildAgentChips(),
-            // ── 快览导航（对齐 Web .quick-nav） ──
-            _buildQuickNav(),
-            // ── 消息流 ──
-            Expanded(
-              child: _buildMessageList(),
+            Column(
+              children: [
+                // ── 聊天头部（对齐 Web chat-header：半透明 + 底部边框） ──
+                _buildChatHeader(pc, projects, title, isDark),
+                // ── Agent 选择栏 ──
+                _buildAgentChips(),
+                // ── 快览导航（对齐 Web .quick-nav） ──
+                _buildQuickNav(),
+                // ── 消息流 ──
+                Expanded(
+                  child: _buildMessageList(),
+                ),
+                // ── 思考中指示器 ──
+                if (_isLoading)
+                  _buildThinkingIndicator(),
+                // ── 输入栏 ──
+                _buildInputBar(),
+              ],
             ),
-            // ── 思考中指示器 ──
-            if (_isLoading)
-              _buildThinkingIndicator(),
-            // ── 输入栏 ──
-            _buildInputBar(),
+            // v1.1.29: 回到底部 FAB
+            if (_showScrollToBottom)
+              Positioned(
+                right: 16,
+                bottom: _isLoading ? 56 : 12,
+                child: _buildScrollToBottomFab(),
+              ),
           ],
         ),
       ),
@@ -580,7 +818,7 @@ class _AIChatPageState extends State<AIChatPage> {
       child: Row(
         children: [
           // 项目选择器（点击可切换）
-          if (projects.length > 1)
+          if (projects.isNotEmpty)
             Expanded(
               child: _buildProjectDropdown(pc, title),
             )
@@ -588,22 +826,34 @@ class _AIChatPageState extends State<AIChatPage> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(left: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: SuokeDesignTokens.fontSizeLg,
-                          color: SuokeDesignTokens.textPrimary,
-                        )),
-                    Text('8 AI 群策群力',
-                        style: TextStyle(
-                          fontSize: SuokeDesignTokens.fontSizeXs,
-                          color: SuokeDesignTokens.textSecondary,
-                        )),
-                  ],
+                child: GestureDetector(
+                  onTap: () => _showCreateProjectDialog(pc),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('索克家居',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: SuokeDesignTokens.fontSizeLg,
+                                color: SuokeDesignTokens.textPrimary,
+                              )),
+                          const SizedBox(width: 6),
+                          Icon(Icons.add_circle_outline,
+                              size: 18,
+                              color: SuokeDesignTokens.accent),
+                        ],
+                      ),
+                      Text('点击创建项目 开始使用',
+                          style: TextStyle(
+                            fontSize: SuokeDesignTokens.fontSizeXs,
+                            color: SuokeDesignTokens.accent,
+                          )),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -623,6 +873,25 @@ class _AIChatPageState extends State<AIChatPage> {
                 Icons.history,
                 size: 18,
                 color: SuokeDesignTokens.textSecondary,
+              ),
+            ),
+          ),
+          // v1.1.29: 自主权模式切换
+          GestureDetector(
+            onTap: _cycleAutonomyMode,
+            child: Container(
+              width: 36,
+              height: 36,
+              margin: const EdgeInsets.only(right: 4),
+              decoration: BoxDecoration(
+                color: _autonomyColor().withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+                border: Border.all(color: _autonomyColor().withValues(alpha: 0.4)),
+              ),
+              child: Icon(
+                _autonomyIcon(),
+                size: 17,
+                color: _autonomyColor(),
               ),
             ),
           ),
@@ -679,7 +948,7 @@ class _AIChatPageState extends State<AIChatPage> {
                     Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary, size: 20),
                   ],
                 ),
-                Text('8 AI 群策群力',
+                Text('${AgentInfo.standardAgents.length} AI Agent 群策群力',
                     style: TextStyle(fontSize: SuokeDesignTokens.fontSizeXs, color: SuokeDesignTokens.textSecondary)),
               ],
             ),
@@ -898,9 +1167,303 @@ class _AIChatPageState extends State<AIChatPage> {
     return '${dt.month}月${dt.day}日';
   }
 
-  // ── 思考中指示器 ──
+  // ── 思考中指示器（v1.1.29: 展示 Agent 实时处理步骤） ──
 
   Widget _buildThinkingIndicator() {
+    final processingAgentInfo = AgentInfo.getByKey(_currentProcessingAgent);
+    final lastStep = _activeThinkingSteps.isNotEmpty ? _activeThinkingSteps.last : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      color: SuokeDesignTokens.cardBgSemi,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 当前 Agent 标识 + 动画点
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: processingAgentInfo.color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${processingAgentInfo.emoji} ${processingAgentInfo.name} Agent',
+                style: TextStyle(
+                  fontSize: SuokeDesignTokens.fontSizeSm,
+                  color: processingAgentInfo.color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _buildAnimatedDots(),
+              // v1.1.29: 自主权模式标签
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _autonomyColor().withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _autonomyColor().withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  _autonomyLabel(),
+                  style: TextStyle(fontSize: 10, color: _autonomyColor()),
+                ),
+              ),
+            ],
+          ),
+          // 最新思考步骤
+          if (lastStep != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const SizedBox(width: 16),
+                Icon(Icons.subdirectory_arrow_right, size: 14, color: SuokeDesignTokens.textMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    lastStep,
+                    style: TextStyle(
+                      fontSize: SuokeDesignTokens.fontSizeXs,
+                      color: SuokeDesignTokens.textSecondary,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          // 步骤历史（折叠显示最近 3 条）
+          if (_activeThinkingSteps.length > 1) ...[
+            const SizedBox(height: 4),
+            GestureDetector(
+              onTap: () => _showThinkingStepsSheet(),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Text(
+                    '${_activeThinkingSteps.length} 个步骤',
+                    style: TextStyle(fontSize: 10, color: SuokeDesignTokens.accent),
+                  ),
+                  Icon(Icons.keyboard_arrow_down, size: 14, color: SuokeDesignTokens.accent),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 动画中的三个点
+  Widget _buildAnimatedDots() {
+    return SizedBox(
+      width: 24,
+      height: 12,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(3, (i) {
+          return TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.3, end: 1.0),
+            duration: const Duration(milliseconds: 600),
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value,
+                child: Container(
+                  width: 4,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: SuokeDesignTokens.textMuted,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            },
+          );
+        }),
+      ),
+    );
+  }
+
+  void _showThinkingStepsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SuokeDesignTokens.cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
+        side: const BorderSide(color: SuokeDesignTokens.border),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.psychology_outlined, color: SuokeDesignTokens.accent, size: 20),
+                  const SizedBox(width: 8),
+                  Text('Agent 思考过程',
+                    style: TextStyle(
+                      fontSize: SuokeDesignTokens.fontSizeMd,
+                      fontWeight: FontWeight.w700,
+                      color: SuokeDesignTokens.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...List.generate(_activeThinkingSteps.length, (i) {
+                final step = _activeThinkingSteps[i];
+                final isLast = i == _activeThinkingSteps.length - 1;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: isLast ? SuokeDesignTokens.accent : SuokeDesignTokens.success,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              isLast ? Icons.more_horiz : Icons.check,
+                              size: 14,
+                              color: Colors.black,
+                            ),
+                          ),
+                          if (!isLast)
+                            Container(
+                              width: 2,
+                              height: 28,
+                              color: SuokeDesignTokens.border,
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          step,
+                          style: TextStyle(
+                            fontSize: SuokeDesignTokens.fontSizeSm,
+                            color: isLast ? SuokeDesignTokens.textPrimary : SuokeDesignTokens.textSecondary,
+                            fontWeight: isLast ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── v1.1.29: 自主权控制 ──
+
+  Color _autonomyColor() {
+    switch (_autonomyMode) {
+      case AutonomyMode.suggest:
+        return SuokeDesignTokens.warning;
+      case AutonomyMode.coPilot:
+        return SuokeDesignTokens.accent;
+      case AutonomyMode.autopilot:
+        return SuokeDesignTokens.success;
+    }
+  }
+
+  String _autonomyLabel() {
+    switch (_autonomyMode) {
+      case AutonomyMode.suggest:
+        return '仅建议';
+      case AutonomyMode.coPilot:
+        return '协同';
+      case AutonomyMode.autopilot:
+        return '自动';
+    }
+  }
+
+  void _cycleAutonomyMode() {
+    setState(() {
+      switch (_autonomyMode) {
+        case AutonomyMode.suggest:
+          _autonomyMode = AutonomyMode.coPilot;
+        case AutonomyMode.coPilot:
+          _autonomyMode = AutonomyMode.autopilot;
+        case AutonomyMode.autopilot:
+          _autonomyMode = AutonomyMode.suggest;
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Agent 模式切换至：${_autonomyLabel()}'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: SuokeDesignTokens.cardBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+            side: const BorderSide(color: SuokeDesignTokens.border),
+          ),
+        ),
+      );
+    }
+  }
+
+  IconData _autonomyIcon() {
+    switch (_autonomyMode) {
+      case AutonomyMode.suggest:
+        return Icons.lightbulb_outline;
+      case AutonomyMode.coPilot:
+        return Icons.sync;
+      case AutonomyMode.autopilot:
+        return Icons.auto_mode;
+    }
+  }
+
+  /// v1.1.29: 增强错误恢复 — 提供重试/切换 Agent 等恢复建议
+  void _handleAgentError(String errorMsg, String failedAgent) {
+    final agentName = AgentInfo.getByKey(failedAgent).name;
+    final isRateLimit = errorMsg.contains('rate') || errorMsg.contains('limit') || errorMsg.contains('429');
+    final isTimeout = errorMsg.contains('timeout') || errorMsg.contains('timed out');
+
+    String suggestion;
+    if (isRateLimit) {
+      suggestion = '请求频率过高，$agentName Agent 暂时限流，请稍后再试。';
+    } else if (isTimeout) {
+      suggestion = '$agentName Agent 响应超时，可能是网络问题或服务繁忙。';
+    } else {
+      suggestion = '$agentName Agent 遇到暂时性问题。';
+    }
+
+    _addMessage(ChatMessage.agentText(
+      text: '$suggestion\n\n'
+          '💡 您可以：\n'
+          '• 稍等片刻后重新发送\n'
+          '• 尝试切换到「总控」Agent 重新提问\n'
+          '• 检查网络连接后重试',
+      agent: 'master',
+    ));
+  }
+
+  /// 旧版思考中指示器（保留作为 fallback）
+  Widget _buildThinkingIndicatorLegacy() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       color: SuokeDesignTokens.cardBgSemi,
@@ -1182,10 +1745,11 @@ class _AIChatPageState extends State<AIChatPage> {
     ));
     // 跳转到 AR 扫描页面
     if (mounted) {
-      Navigator.of(context).pushNamed('/ar-scan', arguments: {
-        'project_id': _currentProjectId,
-        ...payload,
-      });
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ARScanPage(projectId: _currentProjectId ?? ''),
+        ),
+      );
     }
   }
 
@@ -1224,6 +1788,7 @@ class _AIChatPageState extends State<AIChatPage> {
   }
 
   Widget _buildAgentChips() {
+    final processingInfo = _isLoading ? AgentInfo.getByKey(_currentProcessingAgent) : null;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -1235,11 +1800,13 @@ class _AIChatPageState extends State<AIChatPage> {
         child: Row(
           children: _agents.map((agent) {
             final isSelected = _selectedAgent == agent.key;
+            final isProcessing = processingInfo != null && processingInfo.key == agent.key;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () => setState(() => _selectedAgent = agent.key),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
                     color: isSelected ? agent.color.withValues(alpha: 0.15) : SuokeDesignTokens.bgDeep,
@@ -1249,13 +1816,23 @@ class _AIChatPageState extends State<AIChatPage> {
                       width: isSelected ? 1.5 : 1,
                     ),
                   ),
-                  child: Text(
-                    '${agent.emoji} ${agent.name}',
-                    style: TextStyle(
-                      fontSize: SuokeDesignTokens.fontSizeSm,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected ? agent.color : SuokeDesignTokens.textSecondary,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${agent.emoji} ${agent.name}',
+                        style: TextStyle(
+                          fontSize: SuokeDesignTokens.fontSizeSm,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          color: isSelected ? agent.color : SuokeDesignTokens.textSecondary,
+                        ),
+                      ),
+                      // v1.1.29: 处理中脉冲动画
+                      if (isProcessing) ...[
+                        const SizedBox(width: 5),
+                        _buildPulsingDot(agent.color),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -1266,14 +1843,36 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
+  /// v1.1.29: 脉冲动画点（表示 Agent 正在处理）
+  Widget _buildPulsingDot(Color color) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.3, end: 1.0),
+      duration: const Duration(milliseconds: 800),
+      builder: (context, value, child) {
+        return Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: value),
+            shape: BoxShape.circle,
+          ),
+        );
+      },
+    );
+  }
+
   // ── 欢迎页面 ──
 
   Widget _buildWelcomeScreen() {
+    final agentCount = AgentInfo.standardAgents.length;
+    final coreCount = 8; // master, design, budget, procurement, construction, quality, settlement, support
     final suggestions = [
-      (emoji: '💰', text: '查看预算情况'),
-      (emoji: '📐', text: '我的设计方案'),
-      (emoji: '🔨', text: '施工进度如何'),
-      (emoji: '🛒', text: '需要采购什么'),
+      (emoji: '💰', text: '查看预算情况', agent: 'budget'),
+      (emoji: '📐', text: '我的设计方案', agent: 'design'),
+      (emoji: '🔨', text: '施工进度如何', agent: 'construction'),
+      (emoji: '🛒', text: '需要采购什么', agent: 'procurement'),
+      (emoji: '🍳', text: '厨房布局建议', agent: 'kitchen'),
+      (emoji: '🛁', text: '卫浴设计咨询', agent: 'bathroom'),
     ];
 
     return RefreshIndicator(
@@ -1297,9 +1896,9 @@ class _AIChatPageState extends State<AIChatPage> {
                 Text('AI 智能装修助手',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
                 const SizedBox(height: 6),
-                Text('9 个 AI Agent 7×24',
+                Text('$coreCount 位核心 Agent + ${agentCount - coreCount} 位专项 Agent',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
-                Text('在线服务',
+                Text('7×24 全天候在线',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
                 const SizedBox(height: 32),
                 for (final s in suggestions) ...[
@@ -1314,7 +1913,7 @@ class _AIChatPageState extends State<AIChatPage> {
                       const Expanded(child: Divider(color: SuokeDesignTokens.border)),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('或直接输入',
+                        child: Text('或直接输入提问',
                             style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeSm)),
                       ),
                       const Expanded(child: Divider(color: SuokeDesignTokens.border)),

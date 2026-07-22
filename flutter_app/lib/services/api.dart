@@ -311,23 +311,23 @@ class ApiClient {
   // ── F26 家具品类库 ──
 
   Future<Result<dynamic>> furnitureListItems({int limit = 100, String? category}) =>
-      get('/furniture-catalog/items?limit=$limit${category != null ? '&category=$category' : ''}');
+      get('/furniture-catalog?limit=$limit${category != null ? '&category=$category' : ''}');
   Future<Result<dynamic>> furnitureGetItem(String itemId) =>
-      get('/furniture-catalog/items/$itemId');
+      get('/furniture-catalog/$itemId');
   Future<Result<dynamic>> furnitureCreateItem(Map<String, dynamic> body) =>
-      post('/furniture-catalog/items', body);
+      post('/furniture-catalog', body);
   Future<Result<dynamic>> furnitureUpdateItem(String itemId, Map<String, dynamic> body) =>
-      put('/furniture-catalog/items/$itemId', body);
+      patch('/furniture-catalog/$itemId', body);
   Future<Result<dynamic>> furnitureDeleteItem(String itemId) =>
-      delete('/furniture-catalog/items/$itemId');
+      delete('/furniture-catalog/$itemId');
   Future<Result<dynamic>> furnitureSearch(String keyword) =>
-      post('/furniture-catalog/items/search', {'keyword': keyword});
-  Future<Result<dynamic>> furnitureRecommend(String itemId) =>
-      get('/furniture-catalog/items/$itemId/recommend');
-  Future<Result<dynamic>> furnitureArPlace(String itemId, Map<String, dynamic> body) =>
-      post('/furniture-catalog/items/$itemId/ar-place', body);
+      get('/furniture-catalog?keyword=${Uri.encodeQueryComponent(keyword)}');
+  Future<Result<dynamic>> furnitureRecommend({String roomType = 'living_room', double roomArea = 20.0, String style = 'modern', double budget = 50000.0}) =>
+      get('/furniture-catalog/recommend?room_type=$roomType&room_area=$roomArea&style=$style&budget=$budget');
+  Future<Result<dynamic>> furnitureArPlace(String itemId, {required double roomWidth, required double roomLength, double roomHeight = 2800.0}) =>
+      get('/furniture-catalog/$itemId/ar-placement?room_width=$roomWidth&room_length=$roomLength&room_height=$roomHeight');
   Future<Result<dynamic>> furnitureGetSimilar(String itemId) =>
-      get('/furniture-catalog/items/$itemId/similar');
+      get('/furniture-catalog/$itemId/similar');
 
   // ── F19/F20 电器品类与点位 ──
 
@@ -1144,7 +1144,7 @@ class ApiClient {
   // ── 户型管理 ──
 
   Future<Result<dynamic>> getFloorplans(String projectId) =>
-      getList('/floorplans/$projectId');
+      getList('/floorplans/project/$projectId');
   Future<Result<dynamic>> getFloorplan(String floorplanId) =>
       get('/floorplans/$floorplanId');
   Future<Result<dynamic>> createFloorplan(Map<String, dynamic> body) =>
@@ -1158,19 +1158,19 @@ class ApiClient {
 
   Future<Result<dynamic>> mepPlan(String projectId, Map<String, dynamic> body) =>
       post('/mep/plan', body..['project_id'] = projectId);
-  Future<Result<dynamic>> mepAppliances(String projectId) =>
-      get('/mep/appliances/$projectId');
-  Future<Result<dynamic>> mepComplianceCheck(String projectId) =>
-      post('/mep/compliance/check', {'project_id': projectId});
-  Future<Result<dynamic>> mepRoomStandards() =>
-      get('/mep/room-standards');
+  Future<Result<dynamic>> mepAppliances(Map<String, dynamic> body) =>
+      post('/mep/appliances', body);
+  Future<Result<dynamic>> mepComplianceCheck(Map<String, dynamic> body) =>
+      post('/mep/compliance-check', body);
+  Future<Result<dynamic>> mepRoomStandards({required String roomType}) =>
+      get('/mep/room-standards/$roomType');
 
   // ── 定制家具 ──
 
   Future<Result<dynamic>> createCustomFurnitureDesign(Map<String, dynamic> body) =>
       post('/custom-furniture/designs', body);
   Future<Result<dynamic>> getCustomFurnitureDesigns(String projectId) =>
-      getList('/custom-furniture/designs/$projectId');
+      getList('/custom-furniture/designs/project/$projectId');
   Future<Result<dynamic>> getCustomFurnitureDesign(String designId) =>
       get('/custom-furniture/designs/$designId');
   Future<Result<dynamic>> updateCustomFurnitureDesign(String designId, Map<String, dynamic> body) =>
@@ -1184,7 +1184,7 @@ class ApiClient {
   Future<Result<dynamic>> customFurniturePriceEstimate(String designId, Map<String, dynamic> body) =>
       get('/custom-furniture/designs/$designId/price');
   Future<Result<dynamic>> customFurnitureValidate(String designId) =>
-      post('/custom-furniture/designs/$designId/validate', {});
+      get('/custom-furniture/designs/$designId/validation');
   Future<Result<dynamic>> customFurnitureParametric(String designId, Map<String, dynamic> body) =>
       post('/custom-furniture/designs/$designId/parametric', body);
   Future<Result<dynamic>> customFurnitureAddModule(String designId, Map<String, dynamic> body) =>
@@ -1214,8 +1214,8 @@ class ApiClient {
       post('/crews/match', body);
   Future<Result<dynamic>> getCrewMatches(String projectId) =>
       getList('/crews/matches/$projectId');
-  Future<Result<dynamic>> updateCrewMatchStatus(String matchId, Map<String, dynamic> body) =>
-      patch('/crews/matches/$matchId/status', body);
+  Future<Result<dynamic>> updateCrewMatchStatus(String matchId, String newStatus) =>
+      post('/crews/matches/$matchId/status?new_status=${Uri.encodeQueryComponent(newStatus)}', {});
 
   // ── 工人匹配 ──
 
@@ -1235,13 +1235,13 @@ class ApiClient {
       post('/workers/match', body);
   Future<Result<dynamic>> getWorkerMatches(String projectId) =>
       getList('/workers/matches/$projectId');
-  Future<Result<dynamic>> updateWorkerMatchStatus(String matchId, Map<String, dynamic> body) =>
-      patch('/workers/matches/$matchId/status', body);
+  Future<Result<dynamic>> updateWorkerMatchStatus(String matchId, String newStatus) =>
+      patch('/workers/matches/$matchId/status?new_status=${Uri.encodeQueryComponent(newStatus)}', {});
 
   // ── 通知 / 设备推送 ──
 
   Future<Result<dynamic>> registerDevice(Map<String, dynamic> body) =>
-      post('/notifications/devices', body);
+      post('/notifications/register-device', body);
   Future<Result<dynamic>> listMyDevices() =>
       get('/notifications/devices');
   Future<Result<dynamic>> unregisterDevice(String deviceId) =>

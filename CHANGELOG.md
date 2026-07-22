@@ -2,6 +2,54 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.1.29] - 2026-07-22
+
+### 家居补短 5 项落地（独立于索克生活）
+
+#### 新增
+
+- **P0 FC 3.0 微服务拆分** (`serverless/`)
+  - 7 个微服务：auth-gateway / agent-orchestrator / design-render / project-flow / commerce / realtime
+  - 每个服务独立的 `s.yaml`（FC 3.0 配置）+ `handler.py`（FastAPI 路由挂载）
+  - `common/warmup.py` 冷启动优化（OSS 挂载探测 + DB 连接池预热 + 模块预加载）
+  - design-render 分配 2GB/600s（CAD/3D 计算密集型），agent-orchestrator 300s（LLM 调用），其余 120s
+
+- **P0 A2UI 协议内化** (`app/services/a2ui_schema.py` + `app/services/a2ui_generator.py` + Flutter/Web renderers)
+  - 8 种卡片类型：design_plan / budget_breakdown / construction_progress / procurement_order / qa_report / settlement_summary / material_card / alert_card
+  - Agent 输出 → A2UI JSON 自动转换（design_to_card / budget_to_card / qa_to_card 等）
+  - Flutter `A2UIRenderer` widget（8 种子卡片 Widget，Material Design）
+  - Web `A2UIRenderer` vanilla JS + `a2ui-cards.css` 暗色主题响应式
+
+- **P1 Vault + 合规深化 — HMAC 签名** (`app/services/audit_integrity.py`)
+  - HMAC-SHA256 签名（密钥从 PASETO key 派生，版本化支持轮换）
+  - `hmac.compare_digest` 防时序攻击
+  - 批量完整性校验（`verify_audit_integrity` → `AuditIntegrityReport`）
+  - 字段级脱敏标记（L0-L3，按角色）— 金额 L2 / 银行账号 L3 / PII L1
+  - 集成到 `audit_log_service.log_audit_event` 自动签名
+
+- **P1 Agentic RAG + Skills System** (`knowledge/` + `app/services/`)
+  - 4 个结构化知识库（80 条）：materials / techniques / standards / faq
+  - 每条含 `id / content / citation（GB 标准号）/ tags`
+  - `knowledge/loader.py` 关键词搜索 + 向量搜索预留
+  - `citation_service.py` 来源引用格式化（`📚 参考来源：GB 50210-2018 §4.2.3`）
+  - `qa_knowledge_service.py` QAInspectorAgent 专用：`get_checklist(phase)` / `check_standard(material)` / `get_defect_knowledge(keyword)`
+
+- **P2 Health OS 主动干预** (`app/services/health_monitor.py` + `app/services/push_sender.py`)
+  - `HealthRuleEngine` 5 级预警规则（NORMAL→ATTENTION→WARNING→SEVERE→CRITICAL）+ 0-100 健康评分
+  - `HealthMonitor` 定时巡检器（后台 asyncio 任务）+ 自动创建 `ProgressAlert` + 推送通知
+  - `push_sender.py` 多通道推送（FCM/APNs/WebPush/SMS，当前 mock 模式）
+
+#### 变更
+
+- `app/config.py`：app_version 1.1.28 → 1.1.29，新增 6 项 feature flags
+- `app/api/config.py`：暴露 v1.1.29 feature flags
+- `app/services/audit_log_service.py`：HMAC 签名集成
+
+#### 测试
+
+- `tests/test_v1129_gap_filling.py`：29 项专项测试（微服务/A2UI/HMAC/知识库/Health OS）
+- 全量测试通过
+
 ## [1.1.28] - 2026-07-22
 
 ### 借鉴索克生活（B 方向）10 项落地

@@ -50,6 +50,8 @@ from app.api import ai_render
 from app.api import ifc_export
 from app.api import eval as eval_api
 from app.api import a2a as a2a_api
+from app.api import energy
+from app.api import health as health_api
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -340,6 +342,7 @@ api_router.include_router(scene_automation.router)        # /api/scene-automatio
 api_router.include_router(procurement_enhanced.router)    # /api/procurement-enhanced/* (F33/F34)
 api_router.include_router(appliance.router)                # /api/appliances/* (F19/F20)
 api_router.include_router(structural.router)              # /api/structural/* (F8/F9)
+api_router.include_router(health_api.router)              # /api/health-monitor/* (A2)
 api_router.include_router(identity.router)             # /api/identity/*
 api_router.include_router(products.router)             # /api/products/*
 api_router.include_router(tasks.router)                # /api/tasks/*
@@ -357,6 +360,7 @@ api_router.include_router(ifc_export.router)      # /api/bim/export/* (IFC 导�
 # v1.1.28 借鉴索克生活：评估框架 + A2A 协议端点
 api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
 api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)
+api_router.include_router(energy.router)           # /api/energy/* (A1 能耗监测)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
 app.include_router(api_router)

@@ -28,12 +28,17 @@ from app.models.hard_decoration import HardDecorationScheme, HardDecorationFloor
 from app.models.door_window_waterproof import DoorWindowSpec, WaterproofPlan
 from app.models.furniture_catalog import FurnitureCatalogItem
 from app.models.smart_home import SmartHomeScheme, SmartDevice
+from app.models.matter_device import MatterDevice
 from app.models.agent_feedback import AgentFeedback
 from app.models.agent_session import AgentSession, AgentMessage
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
+from app.models.scene_behavior import SceneBehaviorLog, PredictedScene
 from app.models.procurement_enhanced import (
     PriceComparison, PriceComparisonItem, EscrowPayment, LogisticsTracking, SampleRequest,
 )
+
+# A6 施工预测性维护
+from app.models.predictive_maintenance import RiskPrediction
 
 # F19-F20 电器品类库 + 电器点位规划
 from app.models.appliance import ApplianceCategory, Appliance, AppliancePoint, ApplianceLoadCalc
@@ -123,13 +128,18 @@ __all__ = [
     "FurnitureCatalogItem",
     "SmartHomeScheme",
     "SmartDevice",
+    "MatterDevice",
     "SceneAutomation",
     "EcosystemIntegration",
+    "SceneBehaviorLog",
+    "PredictedScene",
     "PriceComparison",
     "PriceComparisonItem",
     "EscrowPayment",
     "LogisticsTracking",
     "SampleRequest",
+    # A6 施工预测性维护
+    "RiskPrediction",
     # F19-F20 电器
     "ApplianceCategory",
     "Appliance",

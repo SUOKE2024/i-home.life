@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
@@ -147,22 +148,22 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
   Color _statusColor(String status) {
     switch (status) {
       case 'active':
-        return const Color(0xFF4A9E6E);
+        return SuokeDesignTokens.success;
       case 'draft':
-        return const Color(0xFFC9973B);
+        return SuokeDesignTokens.accent;
       default:
-        return const Color(0xFF8A8894);
+        return SuokeDesignTokens.textSecondary;
     }
   }
 
   Color _statusBg(String status) {
     switch (status) {
       case 'active':
-        return const Color(0xFF4A9E6E).withValues(alpha: 0.15);
+        return SuokeDesignTokens.success.withValues(alpha: 0.15);
       case 'draft':
-        return const Color(0xFFC9973B).withValues(alpha: 0.15);
+        return SuokeDesignTokens.accent.withValues(alpha: 0.15);
       default:
-        return const Color(0xFF8A8894).withValues(alpha: 0.15);
+        return SuokeDesignTokens.textSecondary.withValues(alpha: 0.15);
     }
   }
 
@@ -171,16 +172,16 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('设计深化'),
-        backgroundColor: const Color(0xFF12121D),
-        foregroundColor: Colors.white,
+        backgroundColor: SuokeDesignTokens.cardBg,
+        foregroundColor: SuokeDesignTokens.textPrimary,
       ),
       body: Container(
-        color: const Color(0xFF0E0E1A),
+        color: SuokeDesignTokens.bgDeep,
         child: _buildBody(),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createPlan,
-        backgroundColor: const Color(0xFFC9973B),
+        backgroundColor: SuokeDesignTokens.accent,
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
@@ -198,12 +199,16 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.design_services_outlined, size: 48, color: Colors.white38),
+            Icon(Icons.design_services_outlined,
+                size: 48, color: SuokeDesignTokens.textMuted),
             const SizedBox(height: 12),
-            const Text('暂无设计方案', style: TextStyle(color: Color(0xFF8A8894))),
+            Text('暂无设计方案',
+                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
             const SizedBox(height: 8),
-            const Text('点击右下角 + 新建方案',
-                style: TextStyle(color: Color(0xFF8A8894), fontSize: 12)),
+            Text('点击右下角 + 新建方案',
+                style: TextStyle(
+                    color: SuokeDesignTokens.textSecondary,
+                    fontSize: SuokeDesignTokens.fontSizeSm)),
           ],
         ),
       );
@@ -225,7 +230,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
           final status = isActive ? 'active' : 'draft';
 
           return Card(
-            color: const Color(0xFF1A1A2E),
+            color: SuokeDesignTokens.cardBgHover,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -238,20 +243,22 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
                   Row(children: [
                     Expanded(
                       child: Text(name,
-                          style: const TextStyle(
-                              color: Colors.white,
+                          style: TextStyle(
+                              color: SuokeDesignTokens.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 15)),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: _statusBg(status),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         isActive ? '激活' : '草稿',
-                        style: TextStyle(color: _statusColor(status), fontSize: 11),
+                        style: TextStyle(
+                            color: _statusColor(status), fontSize: 11),
                       ),
                     ),
                   ]),
@@ -266,29 +273,40 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
                   const SizedBox(height: 8),
                   Text(
                     _formatDate(createdAt),
-                    style: const TextStyle(color: Color(0xFF6B6B80), fontSize: 11),
+                    style: TextStyle(
+                        color: SuokeDesignTokens.textMuted, fontSize: 11),
                   ),
-                  const Divider(color: Color(0xFF2A2A3E), height: 24),
+                  const Divider(
+                      color: SuokeDesignTokens.borderActive, height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton.icon(
-                        onPressed: () => _toggleActive(plan['id'], isActive),
-                        icon: Icon(
-                          isActive ? Icons.visibility_off : Icons.visibility,
-                          size: 16,
+                      Semantics(
+                        label: isActive ? '停用方案$name' : '激活方案$name',
+                        button: true,
+                        child: TextButton.icon(
+                          onPressed: () =>
+                              _toggleActive(plan['id'], isActive),
+                          icon: Icon(
+                            isActive ? Icons.visibility_off : Icons.visibility,
+                            size: 16,
+                          ),
+                          label: Text(isActive ? '停用' : '激活'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: SuokeDesignTokens.accent),
                         ),
-                        label: Text(isActive ? '停用' : '激活'),
-                        style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFFC9973B)),
                       ),
                       const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: () => _deletePlan(plan['id'], name),
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('删除'),
-                        style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFFE05555)),
+                      Semantics(
+                        label: '删除方案$name',
+                        button: true,
+                        child: TextButton.icon(
+                          onPressed: () => _deletePlan(plan['id'], name),
+                          icon: const Icon(Icons.delete_outline, size: 16),
+                          label: const Text('删除'),
+                          style: TextButton.styleFrom(
+                              foregroundColor: SuokeDesignTokens.danger),
+                        ),
                       ),
                     ],
                   ),
@@ -305,9 +323,12 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: const Color(0xFF8A8894)),
+        Icon(icon, size: 14, color: SuokeDesignTokens.textSecondary),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(color: Color(0xFF8A8894), fontSize: 12)),
+        Text(text,
+            style: TextStyle(
+                color: SuokeDesignTokens.textSecondary,
+                fontSize: SuokeDesignTokens.fontSizeSm)),
       ],
     );
   }

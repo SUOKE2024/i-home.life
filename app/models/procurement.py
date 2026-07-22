@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Float
+from sqlalchemy import String, DateTime, ForeignKey, func, Float, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -56,6 +56,19 @@ class ProcurementOrder(Base):
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # A5 采购交付透明度
+    delivery_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    # delivery_status: pending/shipping/in_transit/delivered/delayed/cancelled
+    tracking_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    carrier: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    estimated_delivery_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    actual_delivery_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivery_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assembly_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    assembly_difficulty: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # assembly_difficulty: easy/medium/hard/professional_required
+    delivery_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     supplier = relationship("Supplier", back_populates="orders")
     lines = relationship("OrderLine", back_populates="order", cascade="all, delete-orphan")

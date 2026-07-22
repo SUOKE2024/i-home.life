@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
+import 'markdown_renderer.dart';
 
 // F4: God Widget 拆分 — 采购/财务/设计域卡片渲染器抽取为 extension 文件
 import 'chat_card_procurement.dart';
@@ -53,7 +54,9 @@ class ChatMessageCard extends StatelessWidget {
     Widget child;
     switch (type) {
       case ChatMessageType.text:
-        child = _buildTextBubble(context);
+        // v1.2: 富媒体聊天卡片 — 根据消息内容关键词自动检测
+        child = _resolveTextOrCard(context);
+        break;
       case ChatMessageType.task_card:
         child = _buildTaskCard();
       case ChatMessageType.photo:
@@ -272,16 +275,26 @@ class ChatMessageCard extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
-                        child: SelectableText(
-                          message.content ?? '',
-                          enableInteractiveSelection: true,
-                          cursorColor: leftBorderColor ?? accent,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: textPrimary,
-                            height: 1.5,
-                          ),
-                        ),
+                        child: isUser
+                            ? SelectableText(
+                                message.content ?? '',
+                                enableInteractiveSelection: true,
+                                cursorColor: accent,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: textPrimary,
+                                  height: 1.5,
+                                ),
+                              )
+                            : MarkdownRenderer(
+                                text: message.content ?? '',
+                                baseStyle: const TextStyle(
+                                  fontSize: 14,
+                                  color: textPrimary,
+                                  height: 1.5,
+                                ),
+                                linkColor: SuokeDesignTokens.accent,
+                              ),
                       ),
                     ),
                   ],
@@ -292,6 +305,9 @@ class ChatMessageCard extends StatelessWidget {
           // L4 自适应学习：Agent 消息底部反馈按钮
           if (!isUser && message.agent != null)
             _buildFeedbackRow(),
+          // v1.1.29: 思考步骤展示
+          if (!isUser && message.thinkingSteps != null && message.thinkingSteps!.isNotEmpty)
+            _buildThinkingStepsExpander(message.thinkingSteps!),
         ],
       ),
     );
@@ -327,6 +343,80 @@ class ChatMessageCard extends StatelessWidget {
           border: Border.all(color: border),
         ),
         child: Text(label, style: const TextStyle(fontSize: 12)),
+      ),
+    );
+  }
+
+  /// v1.1.29: 思考步骤展示（内联显示，无需折叠）
+  Widget _buildThinkingStepsExpander(List<String> steps) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: _bgDark,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology_outlined, size: 14, color: textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  'Agent 思考过程',
+                  style: const TextStyle(fontSize: 11, color: textMuted, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: List.generate(steps.length, (i) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: border.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: i == steps.length - 1 ? accent : success,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${i + 1}',
+                            style: const TextStyle(fontSize: 9, color: Colors.black, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        steps[i],
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: i == steps.length - 1 ? textPrimary : textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1136,7 +1226,14 @@ class ChatMessageCard extends StatelessWidget {
       children: [
         if (p['status'] != null) row('状态', esc(p['status']), boldValue: true),
         if (p['name'] != null) row('姓名', esc(p['name']), boldValue: true),
-        if (p['id_number'] != null) row('证件号', esc(p['id_number']), boldValue: true),
+        if (p['id_number'] != null)
+          Builder(builder: (_) {
+            final id = p['id_number'].toString();
+            final masked = id.length > 8
+                ? '${id.substring(0, 4)}${'*' * (id.length - 8)}${id.substring(id.length - 4)}'
+                : '****';
+            return row('证件号', masked, boldValue: true);
+          }),
         if (p['message'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -1365,6 +1462,36 @@ class ChatMessageCard extends StatelessWidget {
   }
 
   // ═══════════════════════════════════════════
+  // v1.2: 富媒体聊天卡片 — 关键词检测
+  // ═══════════════════════════════════════════
+
+  /// 根据消息内容检测应渲染的卡片类型，否则渲染普通文本气泡
+  Widget _resolveTextOrCard(BuildContext context) {
+    final text = message.content ?? '';
+
+    // 检测对比类关键词
+    if (_hasKeywords(text, ['对比', 'before/after', '改造前后', '前后对比', '方案对比'])) {
+      return _RenderComparisonCard(message: message, onCardAction: onCardAction);
+    }
+
+    // 检测进度类关键词
+    if (_hasKeywords(text, ['进度', '施工进度', '项目进度', '工程进度', '阶段'])) {
+      return _RenderProgressCard(message: message, onCardAction: onCardAction);
+    }
+
+    // 检测设备控制类关键词
+    if (_hasKeywords(text, ['设备状态', '智能设备', '控制', '开关', '温度调节', '灯光控制'])) {
+      return _RenderDeviceCard(message: message, onCardAction: onCardAction);
+    }
+
+    return _buildTextBubble(context);
+  }
+
+  bool _hasKeywords(String text, List<String> keywords) {
+    return keywords.any((kw) => text.contains(kw));
+  }
+
+  // ═══════════════════════════════════════════
   // 公共组件
   // ═══════════════════════════════════════════
 
@@ -1442,9 +1569,10 @@ class ChatMessageCard extends StatelessWidget {
     );
   }
 
-  /// 元信息行（发送者名称 + 时间）
+  /// 元信息行（发送者名称 + 时间 + 置信度）
   Widget _buildMetaRow(String name, bool isUser, Color? agentColor) {
     final timeStr = _fmtTime(message.timestamp);
+    final confidence = message.confidence;
     return Padding(
       padding: const EdgeInsets.only(left: 4, right: 4),
       child: Row(
@@ -1460,11 +1588,37 @@ class ChatMessageCard extends StatelessWidget {
                   : (agentColor ?? textSecondary),
             ),
           ),
+          // v1.1.29: 置信度标签
+          if (confidence != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: _confidenceColor(confidence).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '${(confidence * 100).round()}%',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: _confidenceColor(confidence),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 6),
           Text(timeStr, style: const TextStyle(fontSize: 11, color: textMuted)),
         ],
       ),
     );
+  }
+
+  /// 置信度颜色（高=绿，中=黄，低=红）
+  Color _confidenceColor(double confidence) {
+    if (confidence >= 0.7) return success;
+    if (confidence >= 0.4) return warning;
+    return danger;
   }
 
   /// 键值行
@@ -1564,11 +1718,23 @@ class ChatMessageCard extends StatelessWidget {
         .replaceAll("'", '&#39;');
   }
 
+  /// v1.1.29: 相对时间格式化（今天=HH:mm，昨天="昨天"，更早=月日）
   static String _fmtTime(DateTime? ts) {
     if (ts == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDate = DateTime(ts.year, ts.month, ts.day);
+
     final h = ts.hour.toString().padLeft(2, '0');
     final m = ts.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+
+    if (msgDate == today) return '$h:$m';
+    if (msgDate == today.subtract(const Duration(days: 1))) return '昨天 $h:$m';
+    if (now.difference(ts).inDays < 7) {
+      const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+      return '${weekdays[ts.weekday - 1]} $h:$m';
+    }
+    return '${ts.month}月${ts.day}日 $h:$m';
   }
 
   static Color orderStatusColor(String status) {
@@ -1606,5 +1772,682 @@ class ChatMessageCard extends StatelessWidget {
       default:
         return accent;
     }
+  }
+}
+
+// ═══════════════════════════════════════════
+// v1.2: 富媒体聊天卡片组件
+// ═══════════════════════════════════════════
+
+/// 3D 预览对比卡片
+///
+/// 两张图片左右对比（before/after），带滑动对比分割线
+class _RenderComparisonCard extends StatefulWidget {
+  final ChatMessage message;
+  final void Function(String action, Map<String, dynamic> payload)? onCardAction;
+
+  const _RenderComparisonCard({required this.message, this.onCardAction});
+
+  @override
+  State<_RenderComparisonCard> createState() => _RenderComparisonCardState();
+}
+
+class _RenderComparisonCardState extends State<_RenderComparisonCard> {
+  double _dividerPosition = 0.5; // 0.0-1.0, 分割线位置
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.message.payload ?? {};
+    final agentInfo = widget.message.agentInfo ?? AgentInfo.getByKey('design');
+
+    final beforeUrl = (p['before_url'] ?? p['before'] ?? '').toString();
+    final afterUrl = (p['after_url'] ?? p['after'] ?? '').toString();
+    final beforeLabel = (p['before_label'] ?? '改造前').toString();
+    final afterLabel = (p['after_label'] ?? '改造后').toString();
+    final title = (p['title'] ?? widget.message.content ?? '方案对比').toString();
+
+    final textPrimary = SuokeDesignTokens.textPrimary;
+    final textSecondary = SuokeDesignTokens.textSecondary;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCardMetaRow(agentInfo),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: SuokeDesignTokens.cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: SuokeDesignTokens.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary,
+                    ),
+                  ),
+                ),
+                // 图片对比区域
+                RepaintBoundary(
+                  child: GestureDetector(
+                    onHorizontalDragUpdate: (details) {
+                      final RenderBox box = context.findRenderObject() as RenderBox;
+                      final localX = details.localPosition.dx;
+                      final width = box.size.width;
+                      if (width > 0) {
+                        setState(() {
+                          _dividerPosition = (localX / width).clamp(0.05, 0.95);
+                        });
+                      }
+                    },
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Before 图片（全幅）
+                          _ComparisonImage(
+                            url: beforeUrl,
+                            fit: BoxFit.cover,
+                            color: SuokeDesignTokens.cardBg,
+                          ),
+                          // After 图片（被裁剪）
+                          ClipRect(
+                            clipper: _RightClipper(_dividerPosition),
+                            child: _ComparisonImage(
+                              url: afterUrl,
+                              fit: BoxFit.cover,
+                              color: SuokeDesignTokens.cardBg,
+                            ),
+                          ),
+                          // 分割线
+                          Positioned(
+                            left: null,
+                            child: CustomPaint(
+                              size: const Size(3, double.infinity),
+                              painter: _DividerLinePainter(SuokeDesignTokens.accent),
+                            ),
+                          ),
+                          // 分割线手柄
+                          Positioned(
+                            left: MediaQuery.of(context).size.width * _dividerPosition - 20,
+                            top: 0,
+                            bottom: 0,
+                            child: Center(
+                              child: Container(
+                                width: 40, height: 40,
+                                decoration: BoxDecoration(
+                                  color: SuokeDesignTokens.accent.withValues(alpha: 0.8),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.swap_horiz, color: Colors.black, size: 20),
+                              ),
+                            ),
+                          ),
+                          // 标签
+                          if (_dividerPosition > 0.3)
+                            Positioned(
+                              left: 8,
+                              top: 8,
+                              child: _ComparisonLabel(beforeLabel),
+                            ),
+                          if (_dividerPosition < 0.7)
+                            Positioned(
+                              right: 8,
+                              top: 8,
+                              child: _ComparisonLabel(afterLabel),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardMetaRow(AgentInfo agentInfo) {
+    final name = '${agentInfo.emoji} ${agentInfo.name} Agent';
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        name,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: agentInfo.color,
+        ),
+      ),
+    );
+  }
+}
+
+class _RightClipper extends CustomClipper<Rect> {
+  final double position;
+  _RightClipper(this.position);
+
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTWH(0, 0, size.width * position, size.height);
+  }
+
+  @override
+  bool shouldReclip(covariant _RightClipper oldClipper) => oldClipper.position != position;
+}
+
+class _DividerLinePainter extends CustomPainter {
+  final Color color;
+  _DividerLinePainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3;
+    canvas.drawLine(Offset(size.width / 2, 0), Offset(size.width / 2, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DividerLinePainter oldDelegate) => false;
+}
+
+class _ComparisonImage extends StatelessWidget {
+  final String url;
+  final BoxFit fit;
+  final Color color;
+
+  const _ComparisonImage({required this.url, required this.fit, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    if (url.isEmpty) {
+      return Container(
+        color: color,
+        child: const Center(
+          child: Icon(Icons.image, size: 40, color: SuokeDesignTokens.textMuted),
+        ),
+      );
+    }
+    return Image.network(
+      url,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: color,
+        child: const Icon(Icons.broken_image, size: 32, color: SuokeDesignTokens.textMuted),
+      ),
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: color,
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: SuokeDesignTokens.accent,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ComparisonLabel extends StatelessWidget {
+  final String label;
+  const _ComparisonLabel(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════
+
+/// 施工进度卡片
+///
+/// 横向进度条 + 阶段标记，7 个阶段节点
+class _RenderProgressCard extends StatelessWidget {
+  final ChatMessage message;
+  final void Function(String action, Map<String, dynamic> payload)? onCardAction;
+
+  const _RenderProgressCard({required this.message, this.onCardAction});
+
+  static const List<_ProgressStage> _stages = [
+    _ProgressStage('准备', Icons.build_circle),
+    _ProgressStage('拆改', Icons.hammer),
+    _ProgressStage('水电', Icons.electrical_services),
+    _ProgressStage('泥木', Icons.carpenter),
+    _ProgressStage('油漆', Icons.format_paint),
+    _ProgressStage('安装', Icons.construction),
+    _ProgressStage('验收', Icons.verified),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final p = message.payload ?? {};
+    final agentInfo = message.agentInfo ?? AgentInfo.getByKey('construction');
+    final currentStage = (p['current_stage'] as int?) ?? (p['stage'] as int?) ?? 0;
+    final completedStages = (p['completed_stages'] as List?)?.cast<int>() ?? [];
+    final estimatedComplete = (p['estimated_completion'] ?? p['eta'] ?? '').toString();
+    final progressPercent = (p['progress'] as num?)?.toDouble() ??
+        ((currentStage.clamp(0, 6) / 6.0) * 100);
+
+    final textPrimary = SuokeDesignTokens.textPrimary;
+    final textSecondary = SuokeDesignTokens.textSecondary;
+    final accent = SuokeDesignTokens.accent;
+    final success = SuokeDesignTokens.success;
+
+    final name = '${agentInfo.emoji} ${agentInfo.name} Agent';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Text(
+              name,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: agentInfo.color),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: SuokeDesignTokens.cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: SuokeDesignTokens.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('📊 ', style: TextStyle(fontSize: 16)),
+                    Expanded(
+                      child: Text(
+                        p['title']?.toString() ?? '施工进度',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
+                      ),
+                    ),
+                    Text(
+                      '${progressPercent.toInt()}%',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: accent),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                // 进度条
+                RepaintBoundary(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: progressPercent / 100,
+                      minHeight: 10,
+                      backgroundColor: SuokeDesignTokens.border,
+                      valueColor: const AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 阶段节点
+                RepaintBoundary(
+                  child: Row(
+                    children: List.generate(_stages.length, (i) {
+                      final isCompleted = completedStages.contains(i) || i < currentStage;
+                      final isCurrent = i == currentStage;
+                      final stage = _stages[i];
+                      return Expanded(
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 28, height: 28,
+                              decoration: BoxDecoration(
+                                color: isCompleted
+                                    ? success
+                                    : isCurrent
+                                        ? accent
+                                        : SuokeDesignTokens.border,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: isCompleted
+                                    ? const Icon(Icons.check, color: Colors.white, size: 16)
+                                    : Text(
+                                        '${i + 1}',
+                                        style: TextStyle(
+                                          color: isCurrent ? Colors.black : SuokeDesignTokens.textMuted,
+                                          fontSize: 12, fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              stage.name,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isCurrent || isCompleted ? textPrimary : textSecondary,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+                if (estimatedComplete.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(color: SuokeDesignTokens.border, height: 1),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.event, size: 16, color: SuokeDesignTokens.textSecondary),
+                      const SizedBox(width: 6),
+                      Text(
+                        '预计完成：$estimatedComplete',
+                        style: TextStyle(fontSize: 12, color: textSecondary),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressStage {
+  final String name;
+  final IconData icon;
+  const _ProgressStage(this.name, this.icon);
+}
+
+// ═══════════════════════════════════════════
+
+/// 智能设备控制卡片
+///
+/// 设备类型图标 + 名称 + 开关 + 亮度/温度滑块 + 状态标签
+class _RenderDeviceCard extends StatefulWidget {
+  final ChatMessage message;
+  final void Function(String action, Map<String, dynamic> payload)? onCardAction;
+
+  const _RenderDeviceCard({required this.message, this.onCardAction});
+
+  @override
+  State<_RenderDeviceCard> createState() => _RenderDeviceCardState();
+}
+
+class _RenderDeviceCardState extends State<_RenderDeviceCard> {
+  late bool _powerOn;
+  late double _brightness;
+  late double _temperature;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.message.payload ?? {};
+    _powerOn = p['power'] == true || p['status'] == 'on';
+    _brightness = (p['brightness'] as num?)?.toDouble() ?? 80.0;
+    _temperature = (p['temperature'] as num?)?.toDouble() ?? 24.0;
+  }
+
+  IconData _deviceTypeIcon(String type) {
+    switch (type) {
+      case 'light':
+      case '灯光':
+        return Icons.lightbulb_outline;
+      case 'thermostat':
+      case '温控':
+        return Icons.thermostat;
+      case 'curtain':
+      case '窗帘':
+        return Icons.vertical_shades;
+      case 'lock':
+      case '门锁':
+        return Icons.lock_outline;
+      case 'ac':
+      case '空调':
+        return Icons.ac_unit;
+      case 'tv':
+      case '电视':
+        return Icons.tv;
+      case 'speaker':
+      case '音响':
+        return Icons.speaker;
+      case 'camera':
+      case '摄像头':
+        return Icons.videocam;
+      default:
+        return Icons.devices;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.message.payload ?? {};
+    final agentInfo = widget.message.agentInfo ?? AgentInfo.getByKey('smart_home');
+    final deviceName = (p['name'] ?? p['device_name'] ?? '智能设备').toString();
+    final deviceType = (p['type'] ?? p['device_type'] ?? 'light').toString();
+    final isOnline = p['online'] == true || p['status'] != 'offline';
+    final isLight = deviceType.contains('light') || deviceType.contains('灯');
+    final isThermostat = deviceType.contains('thermo') || deviceType.contains('温') || deviceType.contains('ac') || deviceType.contains('空调');
+
+    final textPrimary = SuokeDesignTokens.textPrimary;
+    final textSecondary = SuokeDesignTokens.textSecondary;
+    final accent = SuokeDesignTokens.accent;
+    final edgeColor = agentInfo.color;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 6),
+            child: Row(
+              children: [
+                Text(
+                  '${agentInfo.emoji} ${agentInfo.name} Agent',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: agentInfo.color),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: SuokeDesignTokens.cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: edgeColor, width: 1),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(width: 3, color: edgeColor),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 设备头部
+                            Row(
+                              children: [
+                                Container(
+                                  width: 44, height: 44,
+                                  decoration: BoxDecoration(
+                                    color: SuokeDesignTokens.bgDeep,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    _deviceTypeIcon(deviceType),
+                                    color: _powerOn ? accent : textSecondary,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        deviceName,
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 8, height: 8,
+                                            decoration: BoxDecoration(
+                                              color: isOnline ? SuokeDesignTokens.success : SuokeDesignTokens.danger,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            isOnline ? '在线' : '离线',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isOnline ? SuokeDesignTokens.success : SuokeDesignTokens.danger,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                RepaintBoundary(
+                                  child: Switch(
+                                    value: _powerOn,
+                                    activeTrackColor: accent.withValues(alpha: 0.3),
+                                    onChanged: (v) {
+                                      setState(() => _powerOn = v);
+                                      widget.onCardAction?.call('device_toggle', {
+                                        'device_name': deviceName,
+                                        'power': v,
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                            // 灯光类设备：亮度滑块
+                            if (isLight && _powerOn) ...[
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  Icon(Icons.brightness_low, size: 16, color: textSecondary),
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: Slider(
+                                        value: _brightness,
+                                        min: 1,
+                                        max: 100,
+                                        activeColor: accent,
+                                        inactiveColor: SuokeDesignTokens.border,
+                                        onChanged: (v) => setState(() => _brightness = v),
+                                        onChangeEnd: (v) {
+                                          widget.onCardAction?.call('device_brightness', {
+                                            'device_name': deviceName,
+                                            'brightness': v,
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(Icons.brightness_high, size: 16, color: textSecondary),
+                                ],
+                              ),
+                              Center(
+                                child: Text(
+                                  '亮度 ${_brightness.toInt()}%',
+                                  style: TextStyle(fontSize: 11, color: textSecondary),
+                                ),
+                              ),
+                            ],
+                            // 温控类设备：温度滑块
+                            if (isThermostat && _powerOn) ...[
+                              const SizedBox(height: 14),
+                              Row(
+                                children: [
+                                  const Icon(Icons.ac_unit, size: 16, color: SuokeDesignTokens.info),
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: Slider(
+                                        value: _temperature,
+                                        min: 16,
+                                        max: 30,
+                                        divisions: 14,
+                                        activeColor: accent,
+                                        inactiveColor: SuokeDesignTokens.border,
+                                        label: '${_temperature.toInt()}°C',
+                                        onChanged: (v) => setState(() => _temperature = v),
+                                        onChangeEnd: (v) {
+                                          widget.onCardAction?.call('device_temperature', {
+                                            'device_name': deviceName,
+                                            'temperature': v,
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.local_fire_department, size: 16, color: SuokeDesignTokens.danger),
+                                ],
+                              ),
+                              Center(
+                                child: Text(
+                                  '温度 ${_temperature.toInt()}°C',
+                                  style: TextStyle(fontSize: 11, color: textSecondary),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

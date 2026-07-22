@@ -18,7 +18,10 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   List<dynamic> _tasks = [];
   Map<String, dynamic>? _plan;
   bool _loading = false;
+  bool _planLoading = false;
   String? _error;
+  double _totalArea = 0;
+  String _tier = 'comfort';
 
   @override
   void initState() {
@@ -48,13 +51,22 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Future<void> _generatePlan() async {
-    final result = await _api.post('/construction/plan', {'total_area': 126.0, 'tier': 'comfort'});
-    if (result.isSuccess) {
-      setState(() => _plan = result.data);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：${result.error}')));
+    setState(() => _planLoading = true);
+    try {
+      final result = await _api.post('/construction/plan', {
+        'project_id': widget.projectId,
+        'total_area': _totalArea,
+        'tier': _tier,
+      });
+      if (result.isSuccess) {
+        if (mounted) setState(() => _plan = result.data);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成失败：${result.error}')));
+        }
       }
+    } finally {
+      if (mounted) setState(() => _planLoading = false);
     }
   }
 

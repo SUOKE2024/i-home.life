@@ -48,10 +48,14 @@ class _SmartHomePageState extends State<SmartHomePage>
   bool _parsing = false;
   late final TextEditingController _nlController;
 
+  // 户型部署
+  String? _selectedFloorArea;
+  bool _showAreaDeviceList = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _nlController = TextEditingController();
     _loadSchemes();
     _loadEcosystems();
@@ -398,6 +402,7 @@ class _SmartHomePageState extends State<SmartHomePage>
             Tab(text: '智能方案'),
             Tab(text: '设备管理'),
             Tab(text: '场景自动化'),
+            Tab(text: '户型部署'),
           ],
         ),
       ),
@@ -407,6 +412,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           _buildSchemesTab(),
           _buildDevicesTab(),
           _buildScenesTab(),
+          _buildFloorPlanTab(),
         ],
       ),
     );
@@ -1106,7 +1112,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     bool isDanger = false,
   }) {
     return SizedBox(
-      height: 32,
+      height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: isDanger ? Colors.redAccent : _brandColor,
@@ -1416,4 +1422,506 @@ class _SmartHomePageState extends State<SmartHomePage>
       ),
     );
   }
+
+  // ═══════════════════════════════════════════
+  // Tab4: 户型部署
+  // ═══════════════════════════════════════════
+
+  static const Map<String, _FloorAreaDef> _floorAreas = {
+    'entry': _FloorAreaDef('玄关', Icons.door_front_door, Rect.fromLTWH(20, 280, 100, 60)),
+    'living': _FloorAreaDef('客厅', Icons.weekend, Rect.fromLTWH(140, 140, 180, 200)),
+    'bedroom': _FloorAreaDef('卧室', Icons.bed, Rect.fromLTWH(20, 20, 160, 240)),
+    'kitchen': _FloorAreaDef('厨房', Icons.countertops, Rect.fromLTWH(200, 20, 120, 100)),
+    'bathroom': _FloorAreaDef('卫生间', Icons.bathtub, Rect.fromLTWH(260, 140, 60, 120)),
+  };
+
+  Widget _buildFloorPlanTab() {
+    if (_selectedSchemeId == null || _devices.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.floor_plan,
+        message: '请先选择方案并加载设备',
+        actionLabel: '去选择方案',
+        onAction: () => _tabController.animateTo(0),
+      );
+    }
+
+    final areaDevices = _groupDevicesByArea();
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          child: Card(
+            color: _cardColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.floor_plan, color: _brandColor, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      '户型设备部署图',
+                      style: TextStyle(color: _primaryText, fontWeight: FontWeight.w600, fontSize: 16),
+                    ),
+                  ),
+                  Text(
+                    '${_devices.length} 个设备',
+                    style: const TextStyle(color: _secondaryText, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _showAreaDeviceList && _selectedFloorArea != null
+              ? _buildAreaDeviceList(areaDevices, _selectedFloorArea!)
+              : _buildFloorPlanCanvas(areaDevices),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloorPlanCanvas(Map<String, List<Map<String, dynamic>>> areaDevices) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Center(
+        child: RepaintBoundary(
+          child: GestureDetector(
+            onTapUp: (details) => _handleFloorTap(details.localPosition, areaDevices),
+            child: CustomPaint(
+              size: const Size(340, 380),
+              painter: _FloorPlanPainter(
+                areas: _floorAreas,
+                brandColor: _brandColor,
+                cardColor: _cardColor,
+                bgColor: _bgColor,
+                borderColor: _borderColor,
+                primaryText: _primaryText,
+                secondaryText: _secondaryText,
+                areaDevices: areaDevices,
+                selectedArea: _selectedFloorArea,
+              ),
+              child: SizedBox(
+                width: 340,
+                height: 380,
+                child: CustomMultiChildLayout(
+                  delegate: _FloorLabelDelegate(_floorAreas),
+                  children: _buildFloorLabels(areaDevices),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAreaDeviceList(
+      Map<String, List<Map<String, dynamic>>> areaDevices, String areaKey) {
+    final def = _floorAreas[areaKey]!;
+    final devices = areaDevices[areaKey] ?? [];
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          color: _bgColor,
+          child: Row(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() {
+                  _showAreaDeviceList = false;
+                  _selectedFloorArea = null;
+                }),
+                child: const Icon(Icons.arrow_back, color: _brandColor, size: 22),
+              ),
+              const SizedBox(width: 8),
+              Icon(def.icon, color: _brandColor, size: 20),
+              const SizedBox(width: 6),
+              Text(
+                '${def.name} · ${devices.length} 个设备',
+                style: const TextStyle(color: _primaryText, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+        const Divider(color: _borderColor, height: 1),
+        Expanded(
+          child: devices.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.devices_other, size: 48, color: _secondaryText),
+                      const SizedBox(height: 12),
+                      const Text('该区域暂无设备', style: TextStyle(color: _secondaryText, fontSize: 15)),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _brandColor,
+                          foregroundColor: _bgColor,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showAreaDeviceList = false;
+                            _selectedFloorArea = null;
+                          });
+                          _showAddDeviceDialog();
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('添加设备'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return _buildFloorDeviceCard(device);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFloorDeviceCard(Map<String, dynamic> device) {
+    final status = device['status'] ?? 'offline';
+    final isOnline = status == 'online' || status == true;
+    final type = (device['type'] ?? '').toString();
+    final IconData icon = _deviceIcon(type);
+
+    return GestureDetector(
+      onLongPress: () => _showDeviceDetail(device),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _borderColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: _bgColor,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: _brandColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    device['name'] ?? '未命名设备',
+                    style: const TextStyle(color: _primaryText, fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '类型：$type',
+                    style: const TextStyle(color: _secondaryText, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: isOnline ? Colors.green.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                isOnline ? '在线' : '离线',
+                style: TextStyle(color: isOnline ? Colors.green : _secondaryText, fontSize: 12),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: _secondaryText, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeviceDetail(Map<String, dynamic> device) {
+    final status = device['status'] ?? 'offline';
+    final isOnline = status == 'online' || status == true;
+    final type = (device['type'] ?? '-').toString();
+    final name = (device['name'] ?? '未命名设备').toString();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _cardColor,
+        title: Row(
+          children: [
+            Icon(_deviceIcon(type), color: _brandColor, size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(name, style: const TextStyle(color: _primaryText, fontSize: 16)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _detailRow('类型', type),
+            _detailRow('位置', (device['location'] ?? '-').toString()),
+            _detailRow('状态', isOnline ? '在线' : '离线'),
+            _detailRow('协议', (device['protocol'] ?? '-').toString()),
+            if (device['model'] != null) _detailRow('型号', device['model'].toString()),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('关闭', style: TextStyle(color: _secondaryText)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(label, style: const TextStyle(color: _secondaryText, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: _primaryText, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupDevicesByArea() {
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final key in _floorAreas.keys) {
+      grouped[key] = <Map<String, dynamic>>[];
+    }
+    for (final device in _devices) {
+      if (device is! Map<String, dynamic>) continue;
+      final location = (device['location'] ?? '').toString();
+      final areaKey = _matchArea(location);
+      grouped[areaKey]?.add(device);
+    }
+    return grouped;
+  }
+
+  String _matchArea(String location) {
+    final lower = location.toLowerCase();
+    if (lower.contains('玄关') || lower.contains('entry')) return 'entry';
+    if (lower.contains('客厅') || lower.contains('living')) return 'living';
+    if (lower.contains('卧室') || lower.contains('bed')) return 'bedroom';
+    if (lower.contains('厨房') || lower.contains('kitchen')) return 'kitchen';
+    if (lower.contains('卫生') || lower.contains('浴') || lower.contains('bath')) return 'bathroom';
+    return 'living'; // default to living room
+  }
+
+  void _handleFloorTap(Offset pos, Map<String, List<Map<String, dynamic>>> areaDevices) {
+    for (final entry in _floorAreas.entries) {
+      if (entry.value.rect.contains(pos)) {
+        setState(() {
+          _selectedFloorArea = entry.key;
+          _showAreaDeviceList = true;
+        });
+        return;
+      }
+    }
+  }
+
+  List<Widget> _buildFloorLabels(Map<String, List<Map<String, dynamic>>> areaDevices) {
+    return _floorAreas.entries.map((entry) {
+      final key = entry.key;
+      final def = entry.value;
+      final count = (areaDevices[key]?.length ?? 0);
+      return LayoutId(
+        id: key,
+        child: IgnorePointer(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(def.icon, size: 14, color: _primaryText.withValues(alpha: 0.7)),
+              const SizedBox(width: 2),
+              Text(def.name, style: const TextStyle(color: _primaryText, fontSize: 10)),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  width: 18, height: 18,
+                  decoration: BoxDecoration(
+                    color: _brandColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$count',
+                      style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
+  IconData _deviceIcon(String type) {
+    switch (type) {
+      case '灯':
+      case '灯光':
+      case 'light':
+        return Icons.lightbulb_outline;
+      case '窗帘':
+      case 'curtain':
+        return Icons.vertical_shades;
+      case '门锁':
+      case 'lock':
+        return Icons.lock_outline;
+      case '传感器':
+      case 'sensor':
+        return Icons.sensors;
+      case '空调':
+      case 'ac':
+        return Icons.ac_unit;
+      case '电视':
+      case 'tv':
+        return Icons.tv;
+      case '音响':
+      case 'speaker':
+        return Icons.speaker;
+      default:
+        return Icons.devices_other;
+    }
+  }
+}
+
+/// 户型区域定义
+class _FloorAreaDef {
+  final String name;
+  final IconData icon;
+  final Rect rect;
+  const _FloorAreaDef(this.name, this.icon, this.rect);
+}
+
+/// 户型图绘制器
+class _FloorPlanPainter extends CustomPainter {
+  final Map<String, _FloorAreaDef> areas;
+  final Color brandColor;
+  final Color cardColor;
+  final Color bgColor;
+  final Color borderColor;
+  final Color primaryText;
+  final Color secondaryText;
+  final Map<String, List<Map<String, dynamic>>> areaDevices;
+  final String? selectedArea;
+
+  _FloorPlanPainter({
+    required this.areas,
+    required this.brandColor,
+    required this.cardColor,
+    required this.bgColor,
+    required this.borderColor,
+    required this.primaryText,
+    required this.secondaryText,
+    required this.areaDevices,
+    this.selectedArea,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bgPaint = Paint()..color = bgColor;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(16)),
+      bgPaint,
+    );
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.width, size.height), const Radius.circular(16)),
+      borderPaint,
+    );
+
+    for (final entry in areas.entries) {
+      final key = entry.key;
+      final def = entry.value;
+      final r = def.rect;
+      final isSelected = selectedArea == key;
+      final hasDevices = (areaDevices[key]?.isNotEmpty ?? false);
+
+      // Fill
+      final fillPaint = Paint()
+        ..color = isSelected
+            ? brandColor.withValues(alpha: 0.12)
+            : hasDevices
+                ? cardColor
+                : cardColor.withValues(alpha: 0.4);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(8)),
+        fillPaint,
+      );
+
+      // Border
+      final areaBorder = Paint()
+        ..color = isSelected ? brandColor : borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = isSelected ? 2.0 : 1.0;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(8)),
+        areaBorder,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FloorPlanPainter oldDelegate) {
+    return selectedArea != oldDelegate.selectedArea || areaDevices != oldDelegate.areaDevices;
+  }
+}
+
+/// 户型图标签订位代理
+class _FloorLabelDelegate extends MultiChildLayoutDelegate {
+  final Map<String, _FloorAreaDef> areas;
+
+  _FloorLabelDelegate(this.areas);
+
+  @override
+  void performLayout(Size size) {
+    for (final entry in areas.entries) {
+      final key = entry.key;
+      final def = entry.value;
+      if (hasChild(key)) {
+        final childSize = layoutChild(
+          key,
+          BoxConstraints.loose(Size(def.rect.width - 8, def.rect.height - 8)),
+        );
+        final cx = def.rect.center.dx - childSize.width / 2;
+        final cy = def.rect.center.dy - childSize.height / 2;
+        positionChild(key, Offset(cx.clamp(0, size.width - childSize.width), cy.clamp(0, size.height - childSize.height)));
+      }
+    }
+  }
+
+  @override
+  bool shouldRelayout(covariant _FloorLabelDelegate oldDelegate) => false;
 }

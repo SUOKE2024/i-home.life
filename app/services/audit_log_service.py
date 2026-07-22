@@ -5,6 +5,7 @@
 2. 受 audit_log_enabled 开关控制：关闭时直接跳过
 3. 使用独立事务（savepoint）防止主事务回滚影响审计记录
 4. details 字段使用 JSON 存储任意上下文（注意脱敏 PII）
+5. v1.1.29: HMAC-SHA256 防篡改签名（受 audit_hmac_enabled 控制）
 
 典型用法::
 
@@ -96,6 +97,31 @@ async def log_audit_event(
                 masked_details = mask_dict(details)
             except Exception:
                 masked_details = details  # 脱敏失败用原文，不阻断审计写入
+
+        # v1.1.29: HMAC-SHA256 防篡改签名
+        sig_meta = None
+        if settings.audit_hmac_enabled:
+            try:
+                from app.services.audit_integrity import sign_audit_entry
+                sig_meta = sign_audit_entry(
+                    user_id=user_id,
+                    action=action,
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    details=masked_details,
+                )
+            except Exception:
+                pass  # 签名失败不阻断写入
+
+        # 将签名信息注入 details（便于后续完整性校验）
+        if sig_meta:
+            if masked_details is None:
+                masked_details = {}
+            masked_details["_hmac"] = {
+                "signature": sig_meta["hmac_signature"],
+                "key_version": sig_meta["hmac_key_version"],
+                "signed_at": sig_meta["signed_at"],
+            }
 
         entry = AuditLog(
             user_id=user_id,

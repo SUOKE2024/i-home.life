@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.project import Project
 from app.models.user import User
@@ -17,11 +18,17 @@ from app.schemas.smart_home import (
     ProtocolAdviceResult,
     PriceComputeResult,
 )
+from app.schemas.matter_device import (
+    MatterPlacementPlanResponse,
+    MatterCommissionRequest,
+    MatterCommissionResponse,
+)
 from app.rbac import verify_project_access
 from app.services import smart_home_service as svc
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/smart-home", tags=["智能家居方案"])
+settings = get_settings()
 
 
 # ── 方案 ──
@@ -284,7 +291,7 @@ async def get_matter_device_types():
     }
 
 
-@router.post("/matter/placement-plan")
+@router.post("/matter/placement-plan", response_model=MatterPlacementPlanResponse)
 async def generate_matter_placement_plan(
     project_id: str,
     current_user: User = Depends(get_current_user),
@@ -293,17 +300,42 @@ async def generate_matter_placement_plan(
     """为指定项目生成 Matter 设备点位规划方案。
 
     结合项目户型图和推荐设备类型，生成设备点位图数据。
+    同时查询已配对的 Matter 设备列表（commissioned 状态）。
     """
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
 
     from sqlalchemy import select as sql_select
+    from app.models.matter_device import MatterDevice
 
     result = await db.execute(sql_select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
-    # 基于面积计算推荐设备数量
+    # ── 查询已配对的 Matter 设备 ──
+    matter_result = await db.execute(
+        sql_select(MatterDevice).where(
+            MatterDevice.project_id == project_id,
+            MatterDevice.commissioning_state == "commissioned",
+        )
+    )
+    commissioned_devices = matter_result.scalars().all()
+    commissioned_list = [
+        {
+            "id": d.id,
+            "matter_unique_id": d.matter_unique_id,
+            "device_type_id": d.device_type_id,
+            "vendor_id": d.vendor_id,
+            "product_id": d.product_id,
+            "node_id": d.node_id,
+            "fabric_index": d.fabric_index,
+            "commissioning_state": d.commissioning_state,
+            "last_seen_at": d.last_seen_at.isoformat() if d.last_seen_at else None,
+        }
+        for d in commissioned_devices
+    ]
+
+    # ── 基于面积计算推荐设备数量 ──
     area = project.total_area or 100
     placement_plan = {
         "project_id": project_id,
@@ -360,6 +392,7 @@ async def generate_matter_placement_plan(
             "4. 建议选购 Thread Border Router（如 Apple TV/HomePod）\n"
             "5. 国内用户注意 OneConnect 兼容性认证"
         ),
+        "commissioned_devices": commissioned_list,
     }
 
     # 计算总设备数和预估功耗
@@ -392,4 +425,111 @@ async def generate_matter_placement_plan(
     placement_plan["total_device_count"] = total_devices
     placement_plan["estimated_power_w"] = total_power
 
-    return placement_plan
+    return MatterPlacementPlanResponse(**placement_plan)
+
+
+@router.post("/matter/commission", response_model=MatterCommissionResponse)
+async def commission_matter_device(
+    body: MatterCommissionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """发起 Matter 设备配网流程 (Commissioning)。
+
+    支持 Matter 2.0 标准的 Commissioning Flow:
+    1. 验证 project 归属
+    2. 检查 matter_enabled feature flag
+    3. 调用 MatterBridge.commission_device() 发起配网
+    4. 将配网结果写入 matter_devices 表
+    """
+    # ── 验证项目归属 ──
+    await verify_project_access(project_id=body.project_id, current_user=current_user, db=db)
+
+    # ── Feature flag 检查 ──
+    if not settings.matter_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Matter 功能未启用 (matter_enabled=False)",
+        )
+
+    import logging
+    log = logging.getLogger("ihome.smart_home")
+
+    # ── 参数校验 ──
+    if body.passcode < 0 or body.passcode > 99999999999:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="passcode 必须是 11 位数字",
+        )
+    if body.discriminator < 0 or body.discriminator > 4095:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="discriminator 必须是 0-4095 (12-bit)",
+        )
+
+    # ── 调用 MatterBridge 发起配网 ──
+    from app.services.ecosystem_bridge import BridgeFactory, MatterBridge
+
+    try:
+        bridge = BridgeFactory.get_bridge("matter")
+        if not isinstance(bridge, MatterBridge):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Matter 桥接实例化失败",
+            )
+
+        result = await bridge.commission_device(
+            passcode=body.passcode,
+            discriminator=body.discriminator,
+            thread_credentials=body.thread_credentials,
+            wifi_credentials=body.wifi_credentials,
+        )
+    except NotImplementedError as e:
+        log.warning(f"matter/commission: bridge not implemented — {e}")
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Matter 桥接层未就绪: {e}",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
+
+    # ── 写入 matter_devices 表 ──
+    from app.models.matter_device import MatterDevice
+
+    matter_unique_id = (
+        f"{body.vendor_id or 0}:{body.product_id or 0}:passcode-{body.passcode}"
+    )
+    matter_device = MatterDevice(
+        project_id=body.project_id,
+        matter_unique_id=matter_unique_id,
+        device_type_id=body.device_type_id or 0,
+        vendor_id=body.vendor_id or 0,
+        product_id=body.product_id or 0,
+        commissioning_state=result.get("commissioning_state", "commissioned"),
+        node_id=result.get("node_id"),
+        fabric_index=result.get("fabric_index"),
+        clusters=result.get("clusters"),
+        endpoints=result.get("endpoints"),
+        thread_credentials=body.thread_credentials,
+        wifi_credentials=body.wifi_credentials,
+    )
+    db.add(matter_device)
+    await db.commit()
+    await db.refresh(matter_device)
+
+    log.info(
+        f"matter/commission: device created id={matter_device.id}, "
+        f"node_id={matter_device.node_id}"
+    )
+
+    return MatterCommissionResponse(
+        device_id=matter_device.id,
+        matter_unique_id=matter_device.matter_unique_id,
+        node_id=matter_device.node_id,
+        fabric_index=matter_device.fabric_index,
+        commissioning_state=matter_device.commissioning_state,
+        message=f"Matter 设备配网已完成 (state={matter_device.commissioning_state})",
+    )

@@ -8,6 +8,13 @@ import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 import 'chat_message_card.dart';
 
+/// 安全数值转换 helper（避免 null 显示）
+num _safeNum(dynamic v) {
+  if (v is num) return v;
+  if (v is String) return num.tryParse(v) ?? 0;
+  return 0;
+}
+
 /// 设计域卡片渲染器扩展 (厨房/卫浴/灯光/结构/工程量/家具/家电/门窗/水电暖通)
 extension ChatCardDesignRenderers on ChatMessageCard {
 
@@ -27,7 +34,7 @@ extension ChatCardDesignRenderers on ChatMessageCard {
         if (p['cabinets'] != null) row('橱柜', ChatMessageCard.esc(p['cabinets']), boldValue: true),
         if (p['countertop'] != null) row('台面', ChatMessageCard.esc(p['countertop']), boldValue: true),
         if (p['appliances'] is List)
-          row('电器', (p['appliances'] as List).join('、'), boldValue: true),
+          row('电器', ((p['appliances'] as List?)?.cast<String>().join('、') ?? ''), boldValue: true),
         if (p['recommendation'] != null)
           row('建议', ChatMessageCard.esc(p['recommendation']), boldValue: true, valueColor: SuokeDesignTokens.accent),
       ],
@@ -47,7 +54,7 @@ extension ChatCardDesignRenderers on ChatMessageCard {
         if (p['layout'] != null) row('布局', ChatMessageCard.esc(p['layout']), boldValue: true),
         if (p['area'] != null) row('面积', ChatMessageCard.esc(p['area']), boldValue: true),
         if (p['fixtures'] is List)
-          row('洁具', (p['fixtures'] as List).join('、'), boldValue: true),
+          row('洁具', ((p['fixtures'] as List?)?.cast<String>().join('、') ?? ''), boldValue: true),
         if (p['waterproof'] != null) row('防水', ChatMessageCard.esc(p['waterproof']), boldValue: true),
         if (p['recommendation'] != null)
           row('建议', ChatMessageCard.esc(p['recommendation']), boldValue: true, valueColor: SuokeDesignTokens.accent),
@@ -67,8 +74,8 @@ extension ChatCardDesignRenderers on ChatMessageCard {
       children: [
         if (p['illuminance'] != null) row('照度', ChatMessageCard.esc(p['illuminance']), boldValue: true),
         if (p['color_temp'] != null) row('色温', ChatMessageCard.esc(p['color_temp']), boldValue: true),
-        if (p['fixtures'] is List)
-          row('灯具', (p['fixtures'] as List).join('、'), boldValue: true),
+        if (p['fixtures'] is List)  // 灯光卡片
+          row('灯具', ((p['fixtures'] as List?)?.cast<String>().join('、') ?? ''), boldValue: true),
         if (p['scene'] != null) row('场景', ChatMessageCard.esc(p['scene']), boldValue: true),
       ],
     );
@@ -85,7 +92,7 @@ extension ChatCardDesignRenderers on ChatMessageCard {
       title: '🏗️ ${ChatMessageCard.esc(p['title'] ?? '结构分析')}',
       children: [
         if (p['elements'] is List)
-          row('构件', (p['elements'] as List).join('、'), boldValue: true),
+          row('构件', ((p['elements'] as List?)?.cast<String>().join('、') ?? ''), boldValue: true),
         if (p['load_bearing'] != null) row('承重', ChatMessageCard.esc(p['load_bearing']), boldValue: true),
         if (p['material'] != null) row('材料', ChatMessageCard.esc(p['material']), boldValue: true),
       ],
@@ -103,11 +110,15 @@ extension ChatCardDesignRenderers on ChatMessageCard {
       agentInfo: agentInfo,
       title: '📊 ${ChatMessageCard.esc(p['title'] ?? '工程量清单')}',
       children: [
-        ...items.take(6).map((it) => row(
-          ChatMessageCard.esc(it['name'] ?? ''),
-          '${it['quantity'] ?? ''} ${ChatMessageCard.esc(it['unit'] ?? '')}',
-          boldValue: true,
-        )),
+        ...items.take(6).map((it) {
+          final qty = it['quantity'];
+          final unit = it['unit'] ?? '';
+          return row(
+            ChatMessageCard.esc(it['name'] ?? ''),
+            qty != null ? '${_safeNum(qty)} ${ChatMessageCard.esc(unit)}' : '—',
+            boldValue: true,
+          );
+        }),
         if (items.length > 6)
           Text('… 共 ${items.length} 项',
               style: const TextStyle(fontSize: 10, color: SuokeDesignTokens.textMuted)),
@@ -127,7 +138,7 @@ extension ChatCardDesignRenderers on ChatMessageCard {
       children: [
         if (p['style'] != null) row('风格', ChatMessageCard.esc(p['style']), boldValue: true),
         if (p['items'] is List)
-          row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
+          row('推荐', ((p['items'] as List?)?.cast<String>().take(5).join('、') ?? ''), boldValue: true),
         if (p['brand'] != null) row('品牌', ChatMessageCard.esc(p['brand']), boldValue: true),
         if (p['price_range'] != null)
           row('价格区间', ChatMessageCard.esc(p['price_range']), boldValue: true, valueColor: SuokeDesignTokens.warning),
@@ -146,7 +157,7 @@ extension ChatCardDesignRenderers on ChatMessageCard {
       title: '📺 ${ChatMessageCard.esc(p['title'] ?? '家电推荐')}',
       children: [
         if (p['items'] is List)
-          row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
+          row('推荐', ((p['items'] as List?)?.cast<String>().take(5).join('、') ?? ''), boldValue: true),
         if (p['energy_rating'] != null) row('能效', ChatMessageCard.esc(p['energy_rating']), boldValue: true),
         if (p['dimensions'] != null) row('尺寸要求', ChatMessageCard.esc(p['dimensions']), boldValue: true),
       ],

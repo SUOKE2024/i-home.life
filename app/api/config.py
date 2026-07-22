@@ -43,4 +43,11 @@ async def get_feature_flags(current_user: User = Depends(get_current_user)):
         "a2a_enabled": settings.a2a_enabled,
         "pii_masking_enabled": settings.pii_masking_enabled,
         "tts_enabled": settings.tts_enabled,
+        # v1.1.29 补短 feature flags
+        "audit_hmac_enabled": settings.audit_hmac_enabled,
+        "health_os_enabled": settings.health_os_enabled,
+        "push_enabled": settings.push_enabled,
+        "a2ui_enabled": settings.a2ui_enabled,
+        "knowledge_base_enabled": settings.knowledge_base_enabled,
+        "service_role": settings.service_role or None,
     }

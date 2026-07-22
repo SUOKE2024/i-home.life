@@ -32,30 +32,22 @@ void main() {
     await tester.pumpWidget(createTestApp(const LoginPage()));
     await tester.pumpAndSettle();
 
-    // 按钮文本为 '登 录'（含空格）
-    expect(find.text('登 录'), findsOneWidget);
+    // 按钮文本为 '登录'（v1.1.29 去掉空格）
+    expect(find.text('登录'), findsOneWidget);
     expect(find.byType(ElevatedButton), findsOneWidget);
   });
 
   testWidgets('表单验证 - 空输入显示错误提示', (tester) async {
-    // Mock 登录 API 返回错误
-    HttpOverrides.global = MockHttpOverrides({
-      'auth/login': jsonResponse({'detail': '手机号或密码错误'}, status: 400),
-    });
-
     await tester.pumpWidget(createTestApp(const LoginPage()));
     await tester.pumpAndSettle();
 
-    // 清空手机号输入
-    await tester.enterText(find.byType(TextField).at(0), '');
-    await tester.pump();
-
-    // 点击登录按钮
+    // 点击登录按钮（空输入，表单验证会拦截）
     await tester.tap(find.byType(ElevatedButton));
     await tester.pumpAndSettle();
 
-    // 应显示错误提示 SnackBar
-    expect(find.textContaining('操作失败'), findsOneWidget);
+    // Form 验证应显示错误信息
+    expect(find.text('请输入手机号'), findsOneWidget);
+    expect(find.text('请输入密码'), findsOneWidget);
   });
 
   testWidgets('表单交互 - 输入手机号和密码', (tester) async {
@@ -63,15 +55,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // 输入新的手机号和密码
-    await tester.enterText(find.byType(TextField).at(0), '13900139000');
-    await tester.enterText(find.byType(TextField).at(1), 'newpassword123');
+    await tester.enterText(find.byType(TextFormField).at(0), '13900139000');
+    await tester.enterText(find.byType(TextFormField).at(1), 'newpassword123');
     await tester.pump();
 
     // 验证输入已更新
-    final phoneField = tester.widget<TextField>(find.byType(TextField).at(0));
+    final phoneField = tester.widget<TextFormField>(find.byType(TextFormField).at(0));
     expect(phoneField.controller!.text, '13900139000');
 
-    final passField = tester.widget<TextField>(find.byType(TextField).at(1));
+    final passField = tester.widget<TextFormField>(find.byType(TextFormField).at(1));
     expect(passField.controller!.text, 'newpassword123');
   });
 }

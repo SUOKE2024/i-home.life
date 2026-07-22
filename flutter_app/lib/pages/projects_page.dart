@@ -16,6 +16,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
   bool _loading = true;
   String? _error;
   bool _showForm = false;
+  bool _submitting = false;
 
   final _nameCtrl = TextEditingController();
   final _addrCtrl = TextEditingController();
@@ -49,26 +50,32 @@ class _ProjectsPageState extends State<ProjectsPage> {
   }
 
   Future<void> _create() async {
-    final api = ApiClient();
-    final area = double.tryParse(_areaCtrl.text);
-    final result = await api.post('/projects', {
-      'name': _nameCtrl.text.trim(),
-      'address': _addrCtrl.text.trim(),
-      'total_area': area,
-      'floors': [
-        {'name': '1层', 'floor_number': 1, 'area': area, 'rooms': []}
-      ],
-    });
-    if (result.isSuccess) {
-      _nameCtrl.clear();
-      _addrCtrl.clear();
-      _areaCtrl.clear();
-      setState(() => _showForm = false);
-      _load();
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: ${result.error}')));
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      final api = ApiClient();
+      final area = double.tryParse(_areaCtrl.text);
+      final result = await api.post('/projects', {
+        'name': _nameCtrl.text.trim(),
+        'address': _addrCtrl.text.trim(),
+        'total_area': area,
+        'floors': [
+          {'name': '1层', 'floor_number': 1, 'area': area, 'rooms': []}
+        ],
+      });
+      if (result.isSuccess) {
+        _nameCtrl.clear();
+        _addrCtrl.clear();
+        _areaCtrl.clear();
+        if (mounted) setState(() => _showForm = false);
+        _load();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建失败: ${result.error}')));
+        }
       }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -125,7 +132,15 @@ class _ProjectsPageState extends State<ProjectsPage> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(onPressed: _create, child: const Text('创建项目')),
+                      child: ElevatedButton(
+                        onPressed: _submitting ? null : _create,
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('创建项目'),
+                      ),
                     ),
                   ],
                 ),
@@ -133,7 +148,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
             ),
             const SizedBox(height: 16),
           ],
-          if (_projects.isEmpty)
+          if (_projects.isEmpty && !_showForm)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(48),

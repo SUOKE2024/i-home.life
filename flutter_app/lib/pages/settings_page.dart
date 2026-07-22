@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../main.dart' show AuthGate;
 import '../services/api.dart';
 
 /// 用户设置页面
@@ -23,6 +25,11 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notifyInspection = true;
   bool _notifyAgent = false;
 
+  static const _notifyReviewKey = 'settings_notify_review';
+  static const _notifyDailyKey = 'settings_notify_daily';
+  static const _notifyInspectionKey = 'settings_notify_inspection';
+  static const _notifyAgentKey = 'settings_notify_agent';
+
   static const _brand = Color(0xFFC9973B);
   static const _bg = Color(0xFF08080F);
   static const _card = Color(0xFF12121D);
@@ -33,6 +40,28 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _loadUser();
+    _loadNotificationPrefs();
+  }
+
+  Future<void> _loadNotificationPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _notifyReview = prefs.getBool(_notifyReviewKey) ?? true;
+          _notifyDaily = prefs.getBool(_notifyDailyKey) ?? true;
+          _notifyInspection = prefs.getBool(_notifyInspectionKey) ?? true;
+          _notifyAgent = prefs.getBool(_notifyAgentKey) ?? false;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistNotificationPref(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {}
   }
 
   Future<void> _loadUser() async {
@@ -70,8 +99,15 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (confirmed == true) {
       await _api.clearToken();
+      // 清除 Passkey 注册标记和登录记录
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('passkey_registered');
+      await prefs.remove('last_phone');
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
       }
     }
   }
@@ -154,11 +190,7 @@ class _SettingsPageState extends State<SettingsPage> {
           leading: const Icon(Icons.lock_outline, color: _textSecondary),
           title: const Text('修改密码', style: TextStyle(color: _textPrimary)),
           trailing: const Icon(Icons.chevron_right, color: _textSecondary),
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('密码修改功能开发中'), backgroundColor: _card),
-            );
-          },
+          enabled: false,
         ),
       ],
     );
@@ -170,10 +202,22 @@ class _SettingsPageState extends State<SettingsPage> {
     return _sectionCard(
       title: '通知设置',
       children: [
-        _switchRow('待审批提醒', '收到变更单、结算等需要审批时通知', _notifyReview, (v) => setState(() => _notifyReview = v)),
-        _switchRow('施工日报', '每日施工进度汇总推送', _notifyDaily, (v) => setState(() => _notifyDaily = v)),
-        _switchRow('质检异常', '出现质量问题时立即通知', _notifyInspection, (v) => setState(() => _notifyInspection = v)),
-        _switchRow('Agent 协作', 'AI Agent 协作更新通知', _notifyAgent, (v) => setState(() => _notifyAgent = v)),
+        _switchRow('待审批提醒', '收到变更单、结算等需要审批时通知', _notifyReview, (v) {
+          setState(() => _notifyReview = v);
+          _persistNotificationPref(_notifyReviewKey, v);
+        }),
+        _switchRow('施工日报', '每日施工进度汇总推送', _notifyDaily, (v) {
+          setState(() => _notifyDaily = v);
+          _persistNotificationPref(_notifyDailyKey, v);
+        }),
+        _switchRow('质检异常', '出现质量问题时立即通知', _notifyInspection, (v) {
+          setState(() => _notifyInspection = v);
+          _persistNotificationPref(_notifyInspectionKey, v);
+        }),
+        _switchRow('Agent 协作', 'AI Agent 协作更新通知', _notifyAgent, (v) {
+          setState(() => _notifyAgent = v);
+          _persistNotificationPref(_notifyAgentKey, v);
+        }),
       ],
     );
   }

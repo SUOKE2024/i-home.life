@@ -1,5 +1,17 @@
 import 'package:flutter/material.dart';
 
+/// Agent 自主权级别（对齐 2026 行业标准 Autonomy Slider 模式）
+enum AutonomyMode {
+  /// 仅建议 — Agent 推荐方案，用户确认每步操作
+  suggest,
+
+  /// 协同 — Agent 执行常规任务，关键操作需用户确认
+  coPilot,
+
+  /// 自动 — Agent 全权处理，事后报告结果
+  autopilot,
+}
+
 /// 消息类型枚举，涵盖 Web 端全部 22 种消息类型
 enum ChatMessageType {
   text,
@@ -188,6 +200,15 @@ class ChatMessage {
   /// 协作链路（已 @Agent 的动作列表）
   final List<Map<String, dynamic>>? collaboration;
 
+  /// Agent 思考步骤（用于流式展示 Agent 正在做什么）
+  final List<String>? thinkingSteps;
+
+  /// 路由置信度 (0.0 - 1.0)，用于展示 Agent 对回答的把握
+  final double? confidence;
+
+  /// Agent 自主权模式，用于控制 Agent 行为自由度
+  final AutonomyMode? autonomy;
+
   const ChatMessage({
     this.id,
     required this.type,
@@ -198,6 +219,9 @@ class ChatMessage {
     this.timestamp,
     this.payload,
     this.collaboration,
+    this.thinkingSteps,
+    this.confidence,
+    this.autonomy,
   });
 
   /// 从 API JSON 创建消息实例
@@ -289,6 +313,9 @@ class ChatMessage {
     DateTime? timestamp,
     Map<String, dynamic>? payload,
     List<Map<String, dynamic>>? collaboration,
+    List<String>? thinkingSteps,
+    double? confidence,
+    AutonomyMode? autonomy,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -300,6 +327,9 @@ class ChatMessage {
       timestamp: timestamp ?? this.timestamp,
       payload: payload ?? this.payload,
       collaboration: collaboration ?? this.collaboration,
+      thinkingSteps: thinkingSteps ?? this.thinkingSteps,
+      confidence: confidence ?? this.confidence,
+      autonomy: autonomy ?? this.autonomy,
     );
   }
 

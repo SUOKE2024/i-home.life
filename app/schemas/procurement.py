@@ -94,7 +94,51 @@ class OrderResponse(BaseModel):
     expected_delivery: datetime | None = None
     note: str | None = None
     lines: list[OrderLineResponse] = []
+    # A5 采购交付透明度
+    delivery_status: str | None = None
+    tracking_number: str | None = None
+    carrier: str | None = None
+    estimated_delivery_date: datetime | None = None
+    actual_delivery_date: datetime | None = None
+    delivery_address: str | None = None
+    assembly_required: bool = False
+    assembly_difficulty: str | None = None
+    delivery_notes: str | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ── A5 采购交付透明度 ──
+
+
+class DeliveryUpdateRequest(BaseModel):
+    """更新物流状态"""
+    delivery_status: str | None = None
+    tracking_number: str | None = None
+    carrier: str | None = None
+    estimated_delivery_date: datetime | None = None
+    delivery_address: str | None = None
+    assembly_required: bool | None = None
+    assembly_difficulty: str | None = None
+    delivery_notes: str | None = None
+
+
+class TrackingInfoResponse(BaseModel):
+    """物流追踪信息（含模拟物流轨迹）"""
+    order_id: str
+    delivery_status: str
+    tracking_number: str | None = None
+    carrier: str | None = None
+    estimated_delivery_date: datetime | None = None
+    actual_delivery_date: datetime | None = None
+    delivery_address: str | None = None
+    tracking_history: list[dict] = []
+    current_location: str | None = None
+
+
+class DeliveryConfirmRequest(BaseModel):
+    """确认收货"""
+    actual_delivery_date: datetime | None = None
+    delivery_notes: str | None = None

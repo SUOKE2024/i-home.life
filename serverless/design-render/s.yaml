@@ -1,0 +1,67 @@
+edition: 3.0.0
+name: ihome-design-render
+access: default
+
+vars:
+  region: cn-hangzhou
+  service:
+    name: ihome-design-render
+    description: "i-home.life 设计渲染微服务 — CAD 导入（DXF/DWG）、户型图生成、草图转 3D、VR 全景、AI 渲染（2D/3D/换搭）、IFC 导出"
+    logConfig: auto
+    role: acs:ram::{account-id}:role/aliyunfcdefaultrole
+    vpcConfig:
+      vpcId: ""
+      securityGroupId: ""
+      vswitchIds: []
+
+functions:
+  api:
+    handler: handler.app
+    runtime: custom-container
+    timeout: 600
+    memorySize: 2048
+    instanceConcurrency: 5
+    customContainerConfig:
+      image: registry.cn-hangzhou.aliyuncs.com/ihome/design-render:latest
+      command:
+        - "python"
+        - "-m"
+        - "uvicorn"
+        - "handler:app"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "9000"
+    environmentVariables:
+      DATABASE_URL: ${env.DATABASE_URL}
+      REDIS_URL: ${env.REDIS_URL}
+      PASETO_SECRET_KEY: ${env.PASETO_SECRET_KEY}
+      OSS_ENDPOINT: ${env.OSS_ENDPOINT}
+      OSS_BUCKET: ${env.OSS_BUCKET}
+    asyncConfiguration:
+      maxAsyncRetryAttempts: 3
+    instanceLifecycleConfig:
+      preStop:
+        handler: common.warmup.pre_stop
+
+triggers:
+  - name: httpTrigger
+    type: http
+    config:
+      authType: anonymous
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+      disableURLInternet: false
+
+custom:
+  coldStart:
+    warmup: true
+    warmupScript: common/warmup.py
+    ossMount:
+      bucketName: ihome-serverless
+      mountPath: /mnt/oss
+      readOnly: false

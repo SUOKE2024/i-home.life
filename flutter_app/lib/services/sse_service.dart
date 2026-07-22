@@ -14,6 +14,10 @@ enum SseEventType {
   token,
   /// 流结束
   done,
+  /// 错误（网络/服务端返回 >= 400）
+  error,
+  /// Agent 思考步骤（显示 Agent 正在执行的具体操作）
+  thinking_step,
 }
 
 /// 单个 SSE 事件
@@ -101,7 +105,13 @@ class SseService {
         } catch (_) {
           errorMsg = '请求失败 (${response.statusCode})';
         }
-        yield SseEvent(type: SseEventType.done, content: errorMsg);
+        if (response.statusCode == 401) {
+          // 触发全局 401 处理
+          _api.clearToken();
+          final cb = _api.onUnauthorized;
+          if (cb != null) cb();
+        }
+        yield SseEvent(type: SseEventType.error, content: errorMsg);
         return;
       }
 
@@ -147,6 +157,13 @@ class SseService {
           } else if (msgType == 'done') {
             receivedDone = true;
             yield SseEvent(type: SseEventType.done, sessionId: sid);
+          } else if (msgType == 'thinking_step') {
+            yield SseEvent(
+              type: SseEventType.thinking_step,
+              content: data['content'] as String? ?? '',
+              agentType: data['agent_type'] as String?,
+              sessionId: sid,
+            );
           } else {
             // 未知类型当作 token 文本处理
             final content = data['content'] as String?;

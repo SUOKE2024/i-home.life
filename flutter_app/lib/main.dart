@@ -73,6 +73,9 @@ class ThemeState extends ChangeNotifier {
   }
 }
 
+/// 全局 Navigator Key，用于未登录时的导航跳转
+final GlobalKey<NavigatorState> globalNavigatorKey = GlobalKey<NavigatorState>();
+
 class IHomeApp extends StatelessWidget {
   const IHomeApp({super.key});
 
@@ -87,6 +90,7 @@ class IHomeApp extends StatelessWidget {
             child: MaterialApp(
               title: '索克家居',
               debugShowCheckedModeBanner: false,
+              navigatorKey: globalNavigatorKey,
               theme: SuokeTheme.light(),
               darkTheme: SuokeTheme.dark(),
               themeMode: themeState.isDark ? ThemeMode.dark : ThemeMode.light,
@@ -113,18 +117,47 @@ class _AuthGateState extends State<AuthGate> {
   @override
   void initState() {
     super.initState();
+    _setupGlobalAuthGuard();
     _checkAuth();
+  }
+
+  /// 设置全局 401 回调：任何地方收到 401 自动跳转登录页
+  void _setupGlobalAuthGuard() {
+    ApiClient().onUnauthorized = () {
+      debugPrint('AuthGate: 全局 401 回调触发，跳转登录页');
+      globalNavigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    };
   }
 
   Future<void> _checkAuth() async {
     final api = ApiClient();
     await api.loadToken();
-    if (mounted) {
-      setState(() {
-        _loggedIn = api.isLoggedIn;
-        _loading = false;
-      });
+    if (!api.isLoggedIn) {
+      if (mounted) setState(() => _loading = false);
+      return;
     }
+
+    // 验证 token 有效性，避免残留过期 token 导致 HomePage 显示 "Not authenticated"
+    // 注意：暂存 onUnauthorized 回调，避免 AuthGate 初始化时双重导航
+    final savedUnauthorized = api.onUnauthorized;
+    api.onUnauthorized = null;
+    try {
+      final result = await api.get('/auth/me');
+      _loggedIn = result.isSuccess;
+      if (!result.isSuccess) {
+        debugPrint('AuthGate: token 验证失败，token 已清除');
+        // _handleResponse 的 401 处理已调用 _onUnauthorized() → clearToken()
+      }
+    } catch (_) {
+      debugPrint('AuthGate: /auth/me 请求异常，清除 token');
+      await api.clearToken();
+    } finally {
+      api.onUnauthorized = savedUnauthorized;
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   @override

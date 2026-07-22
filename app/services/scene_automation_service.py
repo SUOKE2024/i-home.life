@@ -1,4 +1,4 @@
-"""F32 场景编辑服务层 — 场景联动 + 生态对接 + 自然语言解析"""
+"""F32 场景编辑服务层 — 场景联动 + 生态对接 + 自然语言解析 + A4 预测式推荐"""
 
 import re
 from datetime import datetime, timezone
@@ -8,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
 from app.models.smart_home import SmartDevice
+
+# A4 预测式智能场景推荐服务（可选导入，由 feature flag 控制使用）
+from app.services import predictive_scene_service as predictive_scene  # noqa: F401
 
 
 # ── 场景 CRUD ──
@@ -419,7 +422,17 @@ async def sync_to_ecosystem(
     scene: SceneAutomation,
     ecosystem: str,
 ) -> dict:
-    """同步到第三方生态 (HomeKit/米家/鸿蒙)"""
+    """同步到第三方生态 (HomeKit/米家/鸿蒙/Matter/涂鸦)
+
+    通过 BridgeFactory 获取对应生态桥接实例, 调用真实接口完成场景同步。
+    若桥接层抛出 NotImplementedError, 返回 stubbed 结果并标注 not_implemented。
+    """
+    import logging
+
+    from app.services.ecosystem_bridge import BridgeFactory
+
+    log = logging.getLogger("ihome.scene_automation")
+
     eco = await _get_or_create_ecosystem(db, scene.project_id, ecosystem)
     if not eco:
         return {
@@ -429,7 +442,7 @@ async def sync_to_ecosystem(
             "message": "生态对接创建失败",
         }
 
-    # 不同生态的同步说明
+    # 不同生态的消息描述
     messages = {
         "homekit": "场景已同步至 HomeKit,可通过家庭 App 触发",
         "mijia": "场景已同步至米家,可通过小爱同学语音触发",
@@ -437,19 +450,64 @@ async def sync_to_ecosystem(
         "alexa": "场景已同步至 Alexa,可通过 Alexa 语音触发",
         "google_home": "场景已同步至 Google Home,可通过 Hey Google 触发",
         "tuya": "场景已同步至涂鸦智能,可通过 Smart Life App 触发",
+        "matter": "场景已同步至 Matter Fabric,跨生态互通",
     }
 
-    eco.auth_status = "connected"
+    # ── 通过 BridgeFactory 获取桥接实例并调用真机接口 ──
+    success = False
+    reason = None
+    try:
+        bridge = BridgeFactory.get_bridge(ecosystem)
+        creds = eco.config or {}
+        await bridge.connect(creds)
+
+        # 构造场景数据
+        scenes = [{
+            "scene_id": scene.id,
+            "scene_name": scene.scene_name,
+            "scene_type": scene.scene_type,
+            "trigger_condition": scene.trigger_condition,
+            "actions": scene.actions,
+            "enabled": scene.enabled,
+        }]
+        await bridge.sync_scenes(scenes)
+        await bridge.disconnect()
+        success = True
+        log.info(f"sync_to_ecosystem: {ecosystem} sync succeeded for scene {scene.id}")
+    except NotImplementedError as e:
+        reason = f"not_implemented: {e}"
+        log.warning(f"sync_to_ecosystem: {ecosystem} bridge not implemented — {e}")
+        # 桥接未实现时仍标记为 stubbed synced, 记录原因
+        success = False
+    except ValueError as e:
+        reason = f"invalid_credentials: {e}"
+        log.error(f"sync_to_ecosystem: {ecosystem} invalid credentials — {e}")
+        success = False
+    except Exception as e:
+        reason = f"bridge_error: {e}"
+        log.error(f"sync_to_ecosystem: {ecosystem} bridge error — {e}")
+        success = False
+
+    # ── 更新 DB 记录 ──
+    if success or reason:
+        eco.auth_status = "connected" if success else eco.auth_status
     eco.last_synced_at = datetime.now(timezone.utc)
-    eco.device_count = int(eco.device_count or 0) + 1
+    if success:
+        eco.device_count = int(eco.device_count or 0) + 1
+    eco.notes = reason
     await db.commit()
     await db.refresh(eco)
+
+    msg = messages.get(ecosystem, f"场景已同步至 {ecosystem}")
+    if reason and reason.startswith("not_implemented"):
+        msg = f"[stubbed] {msg} (桥接层未就绪: {reason})"
 
     return {
         "scene_id": scene.id,
         "ecosystem": ecosystem,
-        "synced": True,
-        "message": messages.get(ecosystem, f"场景已同步至 {ecosystem}"),
+        "synced": success,
+        "message": msg,
+        "reason": reason,
     }
 
 

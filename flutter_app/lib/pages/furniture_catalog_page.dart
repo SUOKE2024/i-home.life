@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 
 class FurnitureCatalogPage extends StatefulWidget {
   const FurnitureCatalogPage({super.key});
@@ -12,14 +13,6 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _textPrimary = Color(0xFFE8E6E1);
-  static const Color _textSecondary = Color(0xFF8A8894);
 
   // 品类浏览
   List<dynamic> _items = [];
@@ -108,13 +101,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
-        child: CircularProgressIndicator(color: _brandColor),
+        child: CircularProgressIndicator(color: SuokeDesignTokens.accent),
       ),
     );
-    final result = await _api.furnitureRecommend(itemId);
+    final result = await _api.furnitureRecommend();
     if (mounted) Navigator.pop(context); // 关闭 loading
     if (result.isSuccess) {
-      final recommends = (result.data as List?) ?? [];
+      final data = result.data as Map<String, dynamic>?;
+      final recommends = (data?['combos'] as List?) ?? [];
       if (mounted) {
         _showRecommendDialog(itemName, recommends);
       }
@@ -131,9 +125,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.cardBg,
         title: Text('「$itemName」推荐商品',
-            style: const TextStyle(color: _textPrimary, fontSize: 16)),
+            style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 16)),
         content: SizedBox(
           width: double.maxFinite,
           child: recommends.isEmpty
@@ -141,7 +135,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                   padding: EdgeInsets.symmetric(vertical: 24),
                   child: Text('暂无推荐商品',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: _textSecondary)),
+                      style: TextStyle(color: SuokeDesignTokens.textSecondary)),
                 )
               : ListView.builder(
                   shrinkWrap: true,
@@ -153,14 +147,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _bgColor,
+                        color: SuokeDesignTokens.bgDeep,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _borderColor),
+                        border: Border.all(color: SuokeDesignTokens.border),
                       ),
                       child: Row(
                         children: [
                           const Icon(Icons.chair,
-                              color: _brandColor, size: 20),
+                              color: SuokeDesignTokens.accent, size: 20),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -168,14 +162,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                               children: [
                                 Text(r['name']?.toString() ?? '未命名',
                                     style: const TextStyle(
-                                        color: _textPrimary,
+                                        color: SuokeDesignTokens.textPrimary,
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 2),
                                 Text(
                                   '${r['category']?.toString() ?? '未分类'} · ${r['brand']?.toString() ?? '无品牌'}',
                                   style: const TextStyle(
-                                      color: _textSecondary, fontSize: 12),
+                                      color: SuokeDesignTokens.textSecondary, fontSize: 12),
                                 ),
                               ],
                             ),
@@ -185,7 +179,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                                 ? '¥${price.toDouble().toStringAsFixed(0)}'
                                 : '-',
                             style: const TextStyle(
-                                color: _brandColor,
+                                color: SuokeDesignTokens.accent,
                                 fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -197,7 +191,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭', style: TextStyle(color: _textSecondary)),
+            child: const Text('关闭', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
         ],
       ),
@@ -218,8 +212,8 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('新建家具商品', style: TextStyle(color: _textPrimary)),
+        backgroundColor: SuokeDesignTokens.cardBg,
+        title: const Text('新建家具商品', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -240,10 +234,10 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _textSecondary)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 Navigator.pop(ctx, true);
@@ -300,17 +294,17 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         controller: controller,
         keyboardType:
             isNumber ? TextInputType.number : TextInputType.text,
-        style: const TextStyle(color: _textPrimary),
+        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: _textSecondary),
+          labelStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
           hintText: hint,
-          hintStyle: const TextStyle(color: _textSecondary),
+          hintStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
           enabledBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: _borderColor),
+            borderSide: BorderSide(color: SuokeDesignTokens.border),
           ),
           focusedBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: _brandColor),
+            borderSide: BorderSide(color: SuokeDesignTokens.accent),
           ),
         ),
         validator: (v) {
@@ -326,16 +320,16 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bgDeep,
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('家具品类库', style: TextStyle(color: _textPrimary)),
-        iconTheme: const IconThemeData(color: _textPrimary),
+        backgroundColor: SuokeDesignTokens.bgDeep,
+        title: const Text('家具品类库', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+        iconTheme: const IconThemeData(color: SuokeDesignTokens.textPrimary),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _textSecondary,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSecondary,
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '品类浏览'),
             Tab(text: '搜索'),
@@ -360,7 +354,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         // 分类筛选
         Container(
           width: double.infinity,
-          color: _bgColor,
+          color: SuokeDesignTokens.bgDeep,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -372,13 +366,13 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                   child: ChoiceChip(
                     label: Text(cat),
                     selected: selected,
-                    selectedColor: _brandColor,
-                    backgroundColor: _cardColor,
+                    selectedColor: SuokeDesignTokens.accent,
+                    backgroundColor: SuokeDesignTokens.cardBg,
                     labelStyle: TextStyle(
-                      color: selected ? _bgColor : _textSecondary,
+                      color: selected ? SuokeDesignTokens.bgDeep : SuokeDesignTokens.textSecondary,
                       fontSize: 13,
                     ),
-                    side: const BorderSide(color: _borderColor),
+                    side: const BorderSide(color: SuokeDesignTokens.border),
                     onSelected: (_) {
                       setState(() => _selectedCategory = cat);
                       _loadItems();
@@ -393,9 +387,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         Expanded(
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : RefreshIndicator(
-                  color: _brandColor,
+                  color: SuokeDesignTokens.accent,
                   onRefresh: _loadItems,
                   child: Stack(
                     children: [
@@ -420,9 +414,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                         right: 16,
                         bottom: 16,
                         child: FloatingActionButton(
-                          backgroundColor: _brandColor,
+                          backgroundColor: SuokeDesignTokens.accent,
                           onPressed: _showCreateDialog,
-                          child: const Icon(Icons.add, color: _bgColor),
+                          child: const Icon(Icons.add, color: SuokeDesignTokens.bgDeep),
                         ),
                       ),
                     ],
@@ -448,9 +442,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
       },
       child: Container(
         decoration: BoxDecoration(
-          color: _cardColor,
+          color: SuokeDesignTokens.cardBg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: SuokeDesignTokens.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,17 +455,17 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: _bgColor,
+                  color: SuokeDesignTokens.bgDeep,
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(8),
                     topRight: Radius.circular(8),
                   ),
                   border: Border(
-                    bottom: BorderSide(color: _borderColor, width: 1),
+                    bottom: BorderSide(color: SuokeDesignTokens.border, width: 1),
                   ),
                 ),
                 child: const Icon(Icons.chair,
-                    size: 48, color: _textSecondary),
+                    size: 48, color: SuokeDesignTokens.textSecondary),
               ),
             ),
             // 文本信息
@@ -487,7 +481,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: _textPrimary,
+                        color: SuokeDesignTokens.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -498,7 +492,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: _textSecondary, fontSize: 11),
+                          color: SuokeDesignTokens.textSecondary, fontSize: 11),
                     ),
                     const Spacer(),
                     Row(
@@ -510,7 +504,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                color: _textSecondary, fontSize: 11),
+                                color: SuokeDesignTokens.textSecondary, fontSize: 11),
                           ),
                         ),
                         Text(
@@ -518,7 +512,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                               ? '¥${price.toDouble().toStringAsFixed(0)}'
                               : '-',
                           style: const TextStyle(
-                            color: _brandColor,
+                            color: SuokeDesignTokens.accent,
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                           ),
@@ -548,22 +542,22 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
               Expanded(
                 child: TextField(
                   controller: _searchCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
                   decoration: InputDecoration(
                     hintText: '搜索家具名称、品牌、品类...',
-                    hintStyle: const TextStyle(color: _textSecondary),
+                    hintStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
                     prefixIcon:
-                        const Icon(Icons.search, color: _textSecondary),
+                        const Icon(Icons.search, color: SuokeDesignTokens.textSecondary),
                     filled: true,
-                    fillColor: _cardColor,
+                    fillColor: SuokeDesignTokens.cardBg,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _borderColor),
+                      borderSide: const BorderSide(color: SuokeDesignTokens.border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _brandColor),
+                      borderSide: const BorderSide(color: SuokeDesignTokens.accent),
                     ),
                   ),
                   onSubmitted: (_) => _doSearch(),
@@ -574,14 +568,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
+                    backgroundColor: SuokeDesignTokens.accent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: _searching ? null : _doSearch,
                   child: const Text('搜索',
-                      style: TextStyle(color: _bgColor)),
+                      style: TextStyle(color: SuokeDesignTokens.bgDeep)),
                 ),
               ),
             ],
@@ -591,7 +585,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         Expanded(
           child: _searching
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _searchResults.isEmpty
                   ? _buildEmptyState(
                       _hasSearched ? '未找到匹配商品' : '输入关键词开始搜索',
@@ -628,9 +622,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _cardColor,
+          color: SuokeDesignTokens.cardBg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: SuokeDesignTokens.border),
         ),
         child: Row(
           children: [
@@ -639,12 +633,12 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: _bgColor,
+                color: SuokeDesignTokens.bgDeep,
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _borderColor),
+                border: Border.all(color: SuokeDesignTokens.border),
               ),
               child: const Icon(Icons.chair,
-                  color: _textSecondary, size: 28),
+                  color: SuokeDesignTokens.textSecondary, size: 28),
             ),
             const SizedBox(width: 12),
             // 信息
@@ -657,7 +651,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: _textPrimary,
+                      color: SuokeDesignTokens.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
@@ -666,14 +660,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                   Text(
                     '$category · $brand',
                     style: const TextStyle(
-                        color: _textSecondary, fontSize: 12),
+                        color: SuokeDesignTokens.textSecondary, fontSize: 12),
                   ),
                   if (material != null && material.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       '材质：$material',
                       style: const TextStyle(
-                          color: _textSecondary, fontSize: 12),
+                          color: SuokeDesignTokens.textSecondary, fontSize: 12),
                     ),
                   ],
                 ],
@@ -685,7 +679,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
                   ? '¥${price.toDouble().toStringAsFixed(0)}'
                   : '-',
               style: const TextStyle(
-                color: _brandColor,
+                color: SuokeDesignTokens.accent,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -703,9 +697,9 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _textSecondary),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSecondary),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: _textSecondary)),
+          Text(message, style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
         ],
       ),
     );

@@ -1,4 +1,4 @@
-"""F32 场景编辑 API"""
+"""F32 场景编辑 API + A4 预测式智能场景推荐"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +19,15 @@ from app.schemas.scene_automation import (
     SceneParseResult,
     SceneSyncResult,
 )
+from app.schemas.scene_behavior import (
+    SceneBehaviorLogCreate,
+    SceneBehaviorLogResponse,
+    PredictedSceneResponse,
+    PredictedSceneAcceptResult,
+)
 from app.rbac import verify_project_access
 from app.services import scene_automation_service as svc
+from app.services import predictive_scene_service as ps
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/scene-automation", tags=["场景编辑"])
@@ -224,3 +231,198 @@ async def delete_ecosystem(
     deleted = await svc.delete_ecosystem(db, ecosystem_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="生态对接不存在")
+
+
+# ── A4 预测式智能场景推荐 ──
+
+
+@router.post(
+    "/scenes/behaviors",
+    response_model=SceneBehaviorLogResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def log_scene_behavior(
+    data: SceneBehaviorLogCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """记录用户场景行为（供前端在场景激活/手动触发等时机调用）"""
+    from app.config import get_settings
+    settings = get_settings()
+    if not settings.predictive_scene_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测式场景推荐功能未启用",
+        )
+
+    await verify_project_access(
+        project_id=data.project_id, current_user=current_user, db=db
+    )
+    entry = await ps.log_behavior(
+        db=db,
+        project_id=data.project_id,
+        user_id=current_user.id,
+        action_type=data.action_type,
+        scene_id=data.scene_id,
+        room_type=data.room_type,
+        time_of_day=data.time_of_day,
+        day_of_week=data.day_of_week,
+        duration_seconds=data.duration_seconds,
+        device_states_before=data.device_states_before,
+        device_states_after=data.device_states_after,
+        ambient_data=data.ambient_data,
+    )
+    await ws_manager.broadcast_to_project(
+        data.project_id,
+        "scene.behavior.logged",
+        {"action_type": data.action_type, "scene_id": data.scene_id},
+    )
+    return SceneBehaviorLogResponse.model_validate(entry)
+
+
+@router.get(
+    "/scenes/predictions/{project_id}",
+    response_model=list[PredictedSceneResponse],
+)
+async def get_predictions(
+    project_id: str,
+    status_filter: str | None = Query(None, alias="status"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取项目的预测场景列表"""
+    from app.config import get_settings
+    settings = get_settings()
+    if not settings.predictive_scene_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测式场景推荐功能未启用",
+        )
+
+    await verify_project_access(
+        project_id=project_id, current_user=current_user, db=db
+    )
+    predictions = await ps.get_predictions_by_project(db, project_id, status_filter)
+    return [PredictedSceneResponse.model_validate(p) for p in predictions]
+
+
+@router.post(
+    "/scenes/predictions/{project_id}/generate",
+    status_code=status.HTTP_200_OK,
+)
+async def generate_predictions_for_project(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """触发生成预测场景（基于行为日志分析）"""
+    from app.config import get_settings
+    settings = get_settings()
+    if not settings.predictive_scene_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测式场景推荐功能未启用",
+        )
+
+    await verify_project_access(
+        project_id=project_id, current_user=current_user, db=db
+    )
+    predictions = await ps.predict_scenes(project_id, db)
+    return {
+        "project_id": project_id,
+        "generated": len(predictions),
+        "predictions": [
+            PredictedSceneResponse.model_validate(p).model_dump() for p in predictions
+        ],
+    }
+
+
+@router.patch(
+    "/scenes/predictions/{prediction_id}/accept",
+    response_model=PredictedSceneAcceptResult,
+)
+async def accept_prediction(
+    prediction_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """接受预测并创建为真实场景"""
+    from app.config import get_settings
+    settings = get_settings()
+    if not settings.predictive_scene_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测式场景推荐功能未启用",
+        )
+
+    from sqlalchemy import select
+    from app.models.scene_behavior import PredictedScene
+    result = await db.execute(
+        select(PredictedScene).where(PredictedScene.id == prediction_id)
+    )
+    pred = result.scalar_one_or_none()
+    if not pred:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="预测场景不存在"
+        )
+    await verify_project_access(
+        project_id=pred.project_id, current_user=current_user, db=db
+    )
+
+    outcome = await ps.accept_prediction(db, prediction_id, current_user.id)
+    if not outcome:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="预测场景不存在"
+        )
+    resp = PredictedSceneAcceptResult(**outcome)
+    await ws_manager.broadcast_to_project(
+        pred.project_id,
+        "scene.prediction.accepted",
+        {"prediction_id": prediction_id, "scene_id": outcome["scene_id"]},
+    )
+    return resp
+
+
+@router.patch(
+    "/scenes/predictions/{prediction_id}/dismiss",
+    status_code=status.HTTP_200_OK,
+)
+async def dismiss_prediction(
+    prediction_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """忽略预测"""
+    from app.config import get_settings
+    settings = get_settings()
+    if not settings.predictive_scene_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测式场景推荐功能未启用",
+        )
+
+    from sqlalchemy import select
+    from app.models.scene_behavior import PredictedScene
+    result = await db.execute(
+        select(PredictedScene).where(PredictedScene.id == prediction_id)
+    )
+    pred = result.scalar_one_or_none()
+    if not pred:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="预测场景不存在"
+        )
+    await verify_project_access(
+        project_id=pred.project_id, current_user=current_user, db=db
+    )
+
+    success = await ps.dismiss_prediction(db, prediction_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="预测场景不存在"
+        )
+    await ws_manager.broadcast_to_project(
+        pred.project_id,
+        "scene.prediction.dismissed",
+        {"prediction_id": prediction_id},
+    )
+    return {"status": "ok", "prediction_id": prediction_id, "message": "预测已忽略"}

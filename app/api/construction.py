@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -36,6 +38,7 @@ from app.rbac import verify_project_access
 from app.services import construction_service, progress_service, quality_service
 from app.agents.construction import ConstructionAgent, manage_progress, detect_quality_issues
 from app.ws import ws_manager
+from app.config import get_settings
 
 router = APIRouter(prefix="/construction", tags=["施工"])
 
@@ -579,7 +582,6 @@ async def complete_milestone(
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="里程碑记录不存在")
     await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
-    from datetime import datetime
     actual_date = None
     if data.actual_date:
         try:
@@ -1105,3 +1107,231 @@ async def analyze_construction_logs(
             )
         ),
     }
+
+
+# ── A6 施工预测性维护 ──
+
+from app.services import predictive_maintenance_service as pm_svc
+from app.schemas.predictive_maintenance import (
+    RiskPredictionResponse,
+    RiskMitigateRequest,
+    RiskResolveRequest,
+)
+
+
+def _risk_to_response(risk) -> RiskPredictionResponse:
+    return RiskPredictionResponse(
+        id=risk.id,
+        project_id=risk.project_id,
+        risk_type=risk.risk_type,
+        risk_score=risk.risk_score,
+        probability=risk.probability,
+        impact_level=risk.impact_level,
+        trigger_factors=risk.trigger_factors,
+        affected_tasks=risk.affected_tasks,
+        mitigation_actions=risk.mitigation_actions,
+        status=risk.status,
+        predicted_at=risk.predicted_at,
+        resolved_at=risk.resolved_at,
+        created_at=risk.created_at,
+    )
+
+
+@router.post(
+    "/predictive-analysis",
+    summary="触发风险分析",
+    description="AI 基于项目施工数据、预算、物料和质检记录自动分析项目风险，"
+    "检测延期、成本超支、材料短缺、质量问题和劳动力短缺。",
+    responses={
+        200: {"description": "分析成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
+async def run_predictive_analysis(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """A6 触发项目风险分析"""
+    settings = get_settings()
+    if not settings.predictive_maintenance_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测性维护功能未启用",
+        )
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    analysis = await pm_svc.analyze_project_risks(project_id, db)
+    await db.commit()
+
+    active_risks = await pm_svc.get_active_risks(project_id, db)
+    risks_list = [_risk_to_response(r) for r in analysis["risks"]]
+
+    return {
+        "project_id": project_id,
+        "analysis_time": datetime.now().isoformat(),
+        "risks_created": analysis["risks_created"],
+        "risks_active": len(active_risks),
+        "risks_list": risks_list,
+        "summary": f"项目 [{project.name}] 风险分析完成：创建 {analysis['risks_created']} 个新风险，当前 {len(active_risks)} 个活跃风险。",
+    }
+
+
+@router.get(
+    "/risks/{project_id}",
+    response_model=list[RiskPredictionResponse],
+    summary="获取风险列表",
+    description="获取项目的所有风险预测记录，包含活跃、已缓解和已解除的风险。",
+    response_description="风险列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
+async def get_project_risks(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取项目风险列表"""
+    settings = get_settings()
+    if not settings.predictive_maintenance_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测性维护功能未启用",
+        )
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    risks = await pm_svc.get_all_risks(project_id, db)
+    return [_risk_to_response(r) for r in risks]
+
+
+@router.patch(
+    "/risks/{risk_id}/mitigate",
+    response_model=RiskPredictionResponse,
+    summary="标记风险已缓解",
+    description="将风险预测记录标记为已缓解，记录缓解措施备注。",
+    response_description="已缓解的风险记录",
+    responses={
+        200: {"description": "缓解成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "风险记录不存在"},
+    },
+    tags=["施工管理"],
+)
+async def mitigate_project_risk(
+    risk_id: str,
+    data: RiskMitigateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """标记风险已缓解"""
+    settings = get_settings()
+    if not settings.predictive_maintenance_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测性维护功能未启用",
+        )
+
+    risk = await pm_svc.get_risk(risk_id, db)
+    if not risk:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="风险记录不存在")
+    await verify_project_access(project_id=risk.project_id, current_user=current_user, db=db)
+
+    risk = await pm_svc.mitigate_risk(risk_id, db, note=data.note)
+    await db.commit()
+    return _risk_to_response(risk)
+
+
+@router.patch(
+    "/risks/{risk_id}/resolve",
+    response_model=RiskPredictionResponse,
+    summary="标记风险已解决",
+    description="将风险预测记录标记为已解决，记录解决时间和备注。",
+    response_description="已解决的风险记录",
+    responses={
+        200: {"description": "解决成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "风险记录不存在"},
+    },
+    tags=["施工管理"],
+)
+async def resolve_project_risk(
+    risk_id: str,
+    data: RiskResolveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """标记风险已解决"""
+    settings = get_settings()
+    if not settings.predictive_maintenance_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测性维护功能未启用",
+        )
+
+    risk = await pm_svc.get_risk(risk_id, db)
+    if not risk:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="风险记录不存在")
+    await verify_project_access(project_id=risk.project_id, current_user=current_user, db=db)
+
+    risk = await pm_svc.resolve_risk(risk_id, db, note=data.note)
+    await db.commit()
+    return _risk_to_response(risk)
+
+
+@router.get(
+    "/dashboard/{project_id}",
+    summary="施工健康度仪表盘",
+    description="获取项目的综合施工健康度仪表盘，包含风险统计、健康评分和各维度风险分布。",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
+async def get_construction_dashboard(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取施工健康度仪表盘"""
+    settings = get_settings()
+    if not settings.predictive_maintenance_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="预测性维护功能未启用",
+        )
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    dashboard = await pm_svc.get_dashboard(project_id, db, project_name=project.name)
+    dashboard["active_risks"] = [_risk_to_response(r) for r in dashboard["active_risks"]]
+    return dashboard

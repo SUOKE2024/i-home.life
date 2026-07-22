@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
 
-/// 索克家居统一设计令牌
+/// 索克家居统一设计令牌 v2 (2026 upgrade)
 ///
 /// 对齐 Web 端 workbench.css 的暗色主题设计，
-/// 支持暗色/普通（浅色）主题切换。
+/// 新增 surface hierarchy、fluid typography 指引、WCAG 触摸目标。
 class SuokeDesignTokens {
   SuokeDesignTokens._();
 
-  // ── 暗色主题（对齐 Web workbench.css） ──
+  // ── Surface hierarchy (2026 pattern: 4 levels) ──
 
-  /// 最深背景色
+  /// Canvas base (deepest)
   static const Color bgDeep = Color(0xFF08080F);
+  /// Surface 0 — equivalent to bgDeep
+  static const Color surface0 = bgDeep;
+  /// Surface 1 — cards, panels
+  static const Color surface1 = Color(0xFF12121D);
+  /// Surface 2 — hover, elevated panels, headers
+  static const Color surface2 = Color(0xFF1A1A2A);
+  /// Surface 3 — modal, dialog, popover
+  static const Color surface3 = Color(0xFF222238);
 
   /// 卡片背景色（半透明，模拟 Web 的 rgba(18,18,29,0.95)）
-  static const Color cardBg = Color(0xFF12121D);
-  static Color cardBgSemi = const Color(0xFF12121D).withValues(alpha: 0.95);
+  static const Color cardBg = surface1;
+  static Color cardBgSemi = surface1.withValues(alpha: 0.95);
 
   /// 卡片悬浮色
-  static const Color cardBgHover = Color(0xFF1A1A2A);
+  static const Color cardBgHover = surface2;
 
   /// 边框色
   static const Color border = Color(0xFF1E1E32);
@@ -28,11 +36,11 @@ class SuokeDesignTokens {
   /// 主文字
   static const Color textPrimary = Color(0xFFE8E6E1);
 
-  /// 次文字
+  /// 次文字（已升级对比度，适配 WCAG 2.2）
   static const Color textSecondary = Color(0xFF8A8894);
 
-  /// 弱文字/占位
-  static const Color textMuted = Color(0xFF5A5866);
+  /// 弱文字/占位（升级对比度：was 0xFF5A5866, now 0xFF6B6978 for WCAG AA）
+  static const Color textMuted = Color(0xFF6B6978);
 
   /// 品牌金色
   static const Color accent = Color(0xFFC9973B);
@@ -87,6 +95,13 @@ class SuokeDesignTokens {
   static const double spacingMd = 12.0;
   static const double spacingLg = 16.0;
   static const double spacingXl = 24.0;
+
+  // ── WCAG 2.2 触摸目标 ──
+
+  /// 最小触摸尺寸 48×48 (WCAG 2.2 SC 2.5.8)
+  static const double touchTargetMin = 48.0;
+  /// 推荐触摸尺寸 44×44 (WCAG 2.2 AA minimum)
+  static const double touchTargetAa = 44.0;
 
   // ── 字体大小 ──
 

@@ -285,11 +285,14 @@ class _SettlementPageState extends State<SettlementPage>
             children: [
               _buildStatusChip(status),
               const Spacer(),
-              Text(
-                '结算单号: ${(_settlement!['id'] ?? '-').toString().substring(0, 8)}',
-                style: const TextStyle(
-                    color: Color(0xFF5A5866), fontSize: 11),
-              ),
+              Builder(builder: (ctx) {
+                final idStr = (_settlement!['id'] ?? '-').toString();
+                return Text(
+                  '结算单号: ${idStr.length > 8 ? idStr.substring(0, 8) : idStr}',
+                  style: const TextStyle(
+                      color: Color(0xFF5A5866), fontSize: 11),
+                );
+              }),
             ],
           ),
           const SizedBox(height: 16),

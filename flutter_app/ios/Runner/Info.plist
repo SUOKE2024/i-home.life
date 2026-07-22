@@ -54,7 +54,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>索克家居使用 Face ID 进行快速登录验证，保护您的账号安全</string>
 	<key>NSCameraUsageDescription</key>
-	<string>索克家居需要摄像头权限以拍摄装修现场照片和 AR 测量</string>
+	<string>索克家居需要摄像头权限以拍摄装修现场照片、AR 空间测量和 RoomPlan 全屋扫描</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>索克家居需要相册访问权限以上传装修参考图和户型图</string>
 	<key>NSAppTransportSecurity</key>

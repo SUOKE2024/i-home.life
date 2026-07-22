@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,8 +15,11 @@ from app.schemas.procurement import (
     OrderCreate,
     OrderUpdate,
     OrderResponse,
+    DeliveryUpdateRequest,
+    DeliveryConfirmRequest,
 )
 from app.auth import get_current_user
+from app.config import get_settings
 from app.services import procurement_service, project_service
 from app.agents.procurement import ProcurementAgent
 from app.ws import ws_manager
@@ -298,6 +303,217 @@ async def delete_order(
     await _verify_project_owner(db, existing.project_id, current_user)
     await procurement_service.delete_order(db, order_id)
     await ws_manager.broadcast_to_project(existing.project_id, "order.deleted", {"id": order_id})
+
+
+# ── A5 采购交付透明度 ──
+
+@router.patch(
+    "/orders/{order_id}/delivery",
+    response_model=OrderResponse,
+    summary="更新物流状态",
+    description="更新采购订单的物流状态、快递单号、承运商和预计送达时间。",
+    response_description="更新成功，返回订单信息",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
+async def update_delivery_info(
+    order_id: str,
+    data: DeliveryUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新物流状态"""
+    settings = get_settings()
+    if not settings.delivery_tracking_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="物流追踪功能未启用",
+        )
+    existing = await procurement_service.get_order(db, order_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    await _verify_project_owner(db, existing.project_id, current_user)
+
+    update_data = {}
+    if data.delivery_status is not None:
+        valid_statuses = ["pending", "shipping", "in_transit", "delivered", "delayed", "cancelled"]
+        if data.delivery_status not in valid_statuses:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"无效的物流状态。有效值: {', '.join(valid_statuses)}",
+            )
+        update_data["delivery_status"] = data.delivery_status
+    if data.tracking_number is not None:
+        update_data["tracking_number"] = data.tracking_number
+    if data.carrier is not None:
+        update_data["carrier"] = data.carrier
+    if data.estimated_delivery_date is not None:
+        update_data["estimated_delivery_date"] = data.estimated_delivery_date
+    if data.delivery_address is not None:
+        update_data["delivery_address"] = data.delivery_address
+    if data.assembly_required is not None:
+        update_data["assembly_required"] = data.assembly_required
+    if data.assembly_difficulty is not None:
+        valid_difficulties = ["easy", "medium", "hard", "professional_required"]
+        if data.assembly_difficulty not in valid_difficulties:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"无效的安装难度。有效值: {', '.join(valid_difficulties)}",
+            )
+        update_data["assembly_difficulty"] = data.assembly_difficulty
+    if data.delivery_notes is not None:
+        update_data["delivery_notes"] = data.delivery_notes
+
+    order = await procurement_service.update_order(db, order_id, update_data)
+    resp = OrderResponse.model_validate(order)
+    await ws_manager.broadcast_to_project(
+        order.project_id, "order.delivery_updated", resp.model_dump()
+    )
+    return resp
+
+
+@router.get(
+    "/orders/{order_id}/tracking",
+    summary="查询物流信息",
+    description="查询采购订单的物流追踪信息，包含模拟物流轨迹。",
+    response_description="物流追踪信息",
+    responses={
+        200: {"description": "查询成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
+async def get_order_tracking(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """查询物流信息（含模拟物流轨迹）"""
+    settings = get_settings()
+    if not settings.delivery_tracking_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="物流追踪功能未启用",
+        )
+    order = await procurement_service.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    await _verify_project_owner(db, order.project_id, current_user)
+
+    # 根据 delivery_status 生成模拟物流轨迹
+    tracking_history = _generate_mock_tracking(order)
+
+    return {
+        "order_id": order.id,
+        "delivery_status": order.delivery_status,
+        "tracking_number": order.tracking_number,
+        "carrier": order.carrier,
+        "estimated_delivery_date": order.estimated_delivery_date.isoformat() if order.estimated_delivery_date else None,
+        "actual_delivery_date": order.actual_delivery_date.isoformat() if order.actual_delivery_date else None,
+        "delivery_address": order.delivery_address,
+        "tracking_history": tracking_history,
+        "current_location": tracking_history[-1]["location"] if tracking_history else None,
+    }
+
+
+def _generate_mock_tracking(order) -> list[dict]:
+    """根据订单物流状态生成模拟物流轨迹"""
+    from datetime import timedelta
+
+    now = datetime.now()
+    tracking = []
+
+    status_steps = {
+        "pending": [],
+        "shipping": [
+            {"status": "已揽件", "location": "发货地仓库", "description": "快递员已揽收包裹"},
+        ],
+        "in_transit": [
+            {"status": "已揽件", "location": "发货地仓库", "description": "快递员已揽收包裹"},
+            {"status": "运输中", "location": "分拣中心", "description": "包裹已到达分拣中心"},
+            {"status": "运输中", "location": "中转站", "description": "包裹正在中转运输中"},
+        ],
+        "delivered": [
+            {"status": "已揽件", "location": "发货地仓库", "description": "快递员已揽收包裹"},
+            {"status": "运输中", "location": "分拣中心", "description": "包裹已到达分拣中心"},
+            {"status": "运输中", "location": "中转站", "description": "包裹正在中转运输中"},
+            {"status": "派送中", "location": "目的地网点", "description": "快递员正在派送中"},
+            {"status": "已签收", "location": order.delivery_address or "收货地址", "description": "包裹已被签收"},
+        ],
+        "delayed": [
+            {"status": "已揽件", "location": "发货地仓库", "description": "快递员已揽收包裹"},
+            {"status": "运输中", "location": "分拣中心", "description": "包裹已到达分拣中心"},
+            {"status": "异常", "location": "中转站", "description": "包裹因故延迟，请耐心等待"},
+        ],
+        "cancelled": [
+            {"status": "已取消", "location": "发货地仓库", "description": "物流已取消"},
+        ],
+    }
+
+    steps = status_steps.get(order.delivery_status, [])
+    base_time = now - timedelta(hours=len(steps) * 4) if steps else now
+    for i, step in enumerate(steps):
+        tracking.append({
+            "timestamp": (base_time + timedelta(hours=i * 4)).isoformat(),
+            "status": step["status"],
+            "location": step["location"],
+            "description": step["description"],
+        })
+
+    return tracking
+
+
+@router.post(
+    "/orders/{order_id}/delivery-confirm",
+    response_model=OrderResponse,
+    summary="确认收货",
+    description="确认收货，将订单物流状态更新为 delivered 并记录实际送达时间。",
+    response_description="确认成功，返回订单信息",
+    responses={
+        200: {"description": "确认成功"},
+        400: {"description": "请求参数无效"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+)
+async def confirm_delivery(
+    order_id: str,
+    data: DeliveryConfirmRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """确认收货"""
+    settings = get_settings()
+    if not settings.delivery_tracking_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="物流追踪功能未启用",
+        )
+    existing = await procurement_service.get_order(db, order_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    await _verify_project_owner(db, existing.project_id, current_user)
+
+    update_data = {
+        "delivery_status": "delivered",
+        "actual_delivery_date": data.actual_delivery_date or datetime.utcnow(),
+    }
+    if data.delivery_notes:
+        update_data["delivery_notes"] = data.delivery_notes
+
+    order = await procurement_service.update_order(db, order_id, update_data)
+    resp = OrderResponse.model_validate(order)
+    await ws_manager.broadcast_to_project(
+        order.project_id, "order.delivery_confirmed", resp.model_dump()
+    )
+    return resp
 
 
 # ── F33 自动比价报告 ──

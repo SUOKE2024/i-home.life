@@ -1,0 +1,65 @@
+edition: 3.0.0
+name: ihome-realtime
+access: default
+
+vars:
+  region: cn-hangzhou
+  service:
+    name: ihome-realtime
+    description: "i-home.life 实时通信微服务 — 语音（TTS/ASR）、实时语音（Qwen-Audio WebSocket）、WebSocket 聊天、通知推送、位置服务"
+    logConfig: auto
+    role: acs:ram::{account-id}:role/aliyunfcdefaultrole
+    vpcConfig:
+      vpcId: ""
+      securityGroupId: ""
+      vswitchIds: []
+
+functions:
+  api:
+    handler: handler.app
+    runtime: custom-container
+    timeout: 300
+    memorySize: 1024
+    instanceConcurrency: 5
+    customContainerConfig:
+      image: registry.cn-hangzhou.aliyuncs.com/ihome/realtime:latest
+      command:
+        - "python"
+        - "-m"
+        - "uvicorn"
+        - "handler:app"
+        - "--host"
+        - "0.0.0.0"
+        - "--port"
+        - "9000"
+    environmentVariables:
+      DATABASE_URL: ${env.DATABASE_URL}
+      REDIS_URL: ${env.REDIS_URL}
+      PASETO_SECRET_KEY: ${env.PASETO_SECRET_KEY}
+    asyncConfiguration:
+      maxAsyncRetryAttempts: 3
+    instanceLifecycleConfig:
+      preStop:
+        handler: common.warmup.pre_stop
+
+triggers:
+  - name: httpTrigger
+    type: http
+    config:
+      authType: anonymous
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+      disableURLInternet: false
+
+custom:
+  coldStart:
+    warmup: true
+    warmupScript: common/warmup.py
+    ossMount:
+      bucketName: ihome-serverless
+      mountPath: /mnt/oss
+      readOnly: false

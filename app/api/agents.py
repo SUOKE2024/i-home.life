@@ -876,6 +876,7 @@ async def chat_stream(  # noqa: C901
 
     # Hybrid routing
     agent = OrchestratorAgent()
+    classification = None  # v1.1.29: always defined for closure safety
     try:
         # 若客户端显式指定了 agent_type（非 orchestrator），直接路由到对应 Agent
         explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
@@ -1043,7 +1044,6 @@ async def chat_stream(  # noqa: C901
 
         # SSE 流式推送
         async def generate_sse():
-            # 先发送 agent_type 元信息
             # 将 intent 反向映射为 agent_type，与非流式接口返回值保持一致
             # （如 intent="design" → agent_type="designer"）
             _intent_to_agent_type = {
@@ -1080,6 +1080,23 @@ async def chat_stream(  # noqa: C901
                 "notifications": "notifications",
                 "ifc_export": "ifc_export",
             }
+
+            # ── v1.1.29: 发送思考步骤事件 ──
+            # Step 1: 意图分类/路由完成
+            if explicit_intent:
+                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'直接路由至 {intent} Agent', 'agent_type': 'orchestrator'})}\n\n"
+            elif classification:
+                reason = classification.get("reasoning", f"路由至 {intent}")
+                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'分析用户意图：{reason[:120]}', 'agent_type': 'orchestrator'})}\n\n"
+                await asyncio.sleep(0.05)
+
+            # Step 2: Agent 调度
+            agent_name = _intent_to_agent_type.get(intent, intent)
+            if stream_agent is not None:
+                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'调度 {agent_name} Agent 生成回复', 'agent_type': agent_name})}\n\n"
+            else:
+                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'{agent_name} Agent 准备回复', 'agent_type': agent_name})}\n\n"
+            await asyncio.sleep(0.05)
             agent_type_meta = _intent_to_agent_type.get(intent, intent)
             # v1.1.26: ar_measurement 返回 ar_scan_trigger 卡片类型
             message_type_meta = "ar_scan_trigger" if intent == "ar_measurement" else "text"

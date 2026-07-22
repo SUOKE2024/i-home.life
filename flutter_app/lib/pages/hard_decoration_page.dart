@@ -814,7 +814,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     bool isDanger = false,
   }) {
     return SizedBox(
-      height: 32,
+      height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: isDanger ? Colors.redAccent : _brandColor,

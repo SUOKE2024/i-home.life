@@ -691,7 +691,7 @@ class _KitchenPageState extends State<KitchenPage>
     bool isDanger = false,
   }) {
     return SizedBox(
-      height: 32,
+      height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,

@@ -452,13 +452,13 @@ class _MoreCard extends StatelessWidget {
               Icon(item.icon, color: SuokeDesignTokens.accent, size: 28),
               const SizedBox(height: 8),
               Text(item.title,
-                  style: const TextStyle(
-                      color: SuokeDesignTokens.textPrimary,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
               Text(item.subtitle,
-                  style: const TextStyle(color: Color(0xFF6B6B80), fontSize: 11)),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), fontSize: 11)),
             ],
           ),
         ),

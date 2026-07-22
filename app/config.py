@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.1.28"
+    app_version: str = "1.1.29"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL
@@ -234,6 +234,64 @@ class Settings(BaseSettings):
     # 启用后 /api/voice/tts 端点可用，支持 Qwen3-TTS → CosyVoice → Doubao
     tts_enabled: bool = True
     tts_provider_priority: str = "qwen3_tts,cosyvoice,doubao"
+
+    # ════════════════════════════════════════════════════════════════
+    # v1.1.29 家居补短：合规 + 主动干预 + 微服务 + A2UI
+    # ════════════════════════════════════════════════════════════════
+
+    # ── 审计 HMAC-SHA256 防篡改签名 ──
+    # 启用后 audit_log 写入时自动附加 HMAC 签名，支持完整性校验
+    audit_hmac_enabled: bool = True
+
+    # ── 施工健康 OS 主动干预 ──
+    # 启用后 HealthMonitor 定时巡检项目进度，异常时自动创建预警 + 推送通知
+    health_os_enabled: bool = True
+    health_os_check_interval_seconds: int = 3600  # 巡检间隔（秒）
+
+    # ── 推送通道 ──
+    # 启用后 push_sender 可通过 FCM/APNs/WebPush 发送推送通知
+    push_enabled: bool = True
+
+    # ── A2UI 协议 ──
+    # 启用后 Agent 回复可输出 A2UI JSON 卡片（Flutter/Web 端渲染）
+    a2ui_enabled: bool = True
+
+    # ── 装修知识库 ──
+    # 启用后 Agent RAG 可检索结构化装修知识库（材质/工艺/标准/FAQ）
+    knowledge_base_enabled: bool = True
+    knowledge_base_path: str = "knowledge"
+
+    # ── 微服务模式 ──
+    # 启用后启动时根据 SERVICE_ROLE 环境变量仅加载对应路由
+    # 取值: auth-gateway / agent-orchestrator / design-render / project-flow / commerce / realtime
+    # 留空则保持单体模式（默认）
+    service_role: str = ""
+
+    # ── Matter 智能家居协议桥接（A7）──
+    # 启用后 /api/smart-home/matter/* 端点可用，支持 Matter 2.0 设备配网与管理
+    # 需配合 BridgeFactory + MatterBridge 使用（当前为 stub, 标注 TODO: need API key）
+    matter_enabled: bool = True
+
+    # ── A1 智能家居能耗监测（v1.2.2）──
+    # 启用后 /api/energy/* 端点可用，支持能耗记录、报告生成、节能建议
+    energy_monitor_enabled: bool = True
+
+    # ── A2 智能家居健康监测系统（v1.2.0）──
+    # 启用后 /api/health-monitor/* 端点可用，支持健康监测记录 + 空气质量监控
+    health_monitor_enabled: bool = True
+
+    # ── A5 采购交付透明度 ──
+    # 启用后 /api/procurement/orders/{order_id}/delivery 等端点可使用
+    delivery_tracking_enabled: bool = True
+
+    # ── A6 施工预测性维护 ──
+    # 启用后 /api/construction/predictive-analysis 等端点可使用
+    predictive_maintenance_enabled: bool = True
+
+    # ── A4 预测式智能场景推荐（v1.2.2）──
+    # 启用后 /api/scene-automation/scenes/behaviors 和 /scenes/predictions/* 端点可用
+    # 基于用户行为日志（时间模式/设备转换/环境数据）生成场景预测
+    predictive_scene_enabled: bool = True
 
 
 @lru_cache

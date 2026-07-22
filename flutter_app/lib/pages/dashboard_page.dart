@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
@@ -94,7 +95,7 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('快速入口', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFE8E6E1))),
+                  _QuickActionsTitle(),
                   SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -115,6 +116,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _statCard(String label, String value, IconData icon) {
+    final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: Card(
         child: Padding(
@@ -124,18 +126,29 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 18, color: const Color(0xFFC9973B)),
+                  Icon(icon, size: 18, color: SuokeDesignTokens.accent),
                   const SizedBox(width: 8),
-                  Text(label, style: const TextStyle(color: Color(0xFF5A5866), fontSize: 11, letterSpacing: 1)),
+                  Text(label, style: TextStyle(color: cs.onSurface.withValues(alpha: 0.45), fontSize: 11, letterSpacing: 1)),
                 ],
               ),
               const SizedBox(height: 8),
-              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFE8E6E1))),
+              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: cs.onSurface)),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _QuickActionsTitle extends StatelessWidget {
+  const _QuickActionsTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Text('快速入口',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: cs.onSurface));
   }
 }
 
@@ -147,18 +160,19 @@ class _QuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Container(
           width: 48, height: 48,
           decoration: BoxDecoration(
-            color: const Color(0xFFC9973B).withValues(alpha: 0.1),
+            color: SuokeDesignTokens.accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(icon, color: const Color(0xFFC9973B), size: 22),
+          child: Icon(icon, color: SuokeDesignTokens.accent, size: 22),
         ),
         const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF8A8894))),
+        Text(label, style: TextStyle(fontSize: 11, color: cs.onSurface.withValues(alpha: 0.5))),
       ],
     );
   }
