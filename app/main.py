@@ -15,13 +15,18 @@ from structlog.contextvars import bind_contextvars, clear_contextvars
 from starlette.middleware.gzip import GZipMiddleware
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import init_db, engine
 from app.logging_config import configure_logging
+from app.middleware.rate_limit import rate_limit_middleware
+from app.middleware.cache_control import cache_control_middleware
+from app.middleware.slow_query import register_slow_query_logging, set_current_endpoint
 from app.metrics import (
     http_request_duration_seconds,
     http_requests_in_progress,
     http_requests_total,
     metrics_response,
+    start_metrics_samplers,
+    stop_metrics_samplers,
 )
 from app.api import (
     auth, projects, materials, budgets, procurement, construction, settlements,
@@ -95,10 +100,38 @@ def _check_error_rate(status_code: int) -> None:
         )
 
 
+def _normalize_endpoint(path: str) -> str:
+    """规范化端点路径，降低 Prometheus label 基数（v1.1.27）。
+
+    /api/materials/123 → /api/materials/{id}
+    /api/projects/456/tasks → /api/projects/{id}/tasks
+    UUID 路径段也替换为 {id}。
+    """
+    parts = path.split("/")
+    normalized = []
+    for part in parts:
+        if not part:
+            normalized.append(part)
+        elif part.isdigit() or _is_uuid(part):
+            normalized.append("{id}")
+        else:
+            normalized.append(part)
+    return "/".join(normalized)
+
+
+def _is_uuid(s: str) -> bool:
+    """快速判断字符串是否为 UUID 格式。"""
+    return len(s) == 36 and s.count("-") == 4
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     configure_logging(debug=settings.debug)
+    # 注册慢查询日志中间件（v1.1.27）— SQLAlchemy 事件监听
+    register_slow_query_logging(engine)
+    # 启动 Prometheus 指标采样后台任务（DB 连接池 + Redis 状态）
+    start_metrics_samplers()
     # 生产环境检查: WebAuthn 挑战存储需要 Redis 实现多 worker 共享
     if not settings.redis_url and not settings.debug:
         logger.warning(
@@ -106,7 +139,10 @@ async def lifespan(app: FastAPI):
             "多 worker 部署下挑战将不共享，可能导致注册/登录失败。"
         )
     yield
-    # 应用关闭时清理 WebAuthn 挑战存储（关闭 Redis 连接）
+    # 应用关闭时清理
+    await stop_metrics_samplers()
+    from app.services.cache_service import cache
+    await cache.close()
     from app.services.webauthn_service import close_challenge_store
     await close_challenge_store()
 
@@ -145,6 +181,12 @@ app.add_middleware(
 # minimum_size=500：仅压缩 ≥500B 的响应，避免小 body 压缩开销
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
+# ── API 缓存控制中间件（v1.1.26 性能优化）──
+# 幂等 GET 端点（materials/products/config 等）设置 max-age=30s 缓存
+# 动态端点保持 no-store，确保数据一致性
+# 与 static_cache_middleware 互补：静态资源 1y / HTML 5min / API 差异化
+app.middleware("http")(cache_control_middleware)
+
 
 # ── 静态资源缓存中间件（v1.2.1 性能优化）──
 # 为 /assets/ 下的 CSS/JS/图片/字体设置长期缓存头，
@@ -162,14 +204,23 @@ async def static_cache_middleware(request: Request, call_next):
     # HTML 页面短期缓存（5 分钟），避免频繁加载
     elif path.endswith(".html") and not path.startswith("/api/"):
         response.headers["Cache-Control"] = "public, max-age=300, must-revalidate"
-    # API 响应不缓存
-    elif path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store"
     # Service Worker 不缓存
     elif path.endswith("sw.js"):
         response.headers["Cache-Control"] = "no-cache"
+    # API 响应的 Cache-Control 由 etag_middleware 统一处理（v1.1.26）
+    # 非 GET API 请求不缓存
+    elif path.startswith("/api/") and request.method != "GET":
+        response.headers["Cache-Control"] = "no-store"
 
     return response
+
+
+# ── API 速率限制中间件（v1.2.1）──
+# 基于内存滑动窗口的 IP 限流：普通 API 60/min，认证端点 10/min
+# 受 settings.rate_limit_enabled feature flag 控制；健康检查与 /metrics 不受限
+# 注册顺序说明：源码中先于 request_tracking_middleware 注册，
+# 使其在请求链路上位于 request_tracking 之后执行 —— request_tracking 仍能记录被限流拒绝的 429 请求
+app.middleware("http")(rate_limit_middleware)
 
 
 # ── 请求追踪中间件：request_id / 结构化日志 / metrics / 异常率告警 ──
@@ -188,6 +239,10 @@ async def request_tracking_middleware(request: Request, call_next):
     user_id = _extract_user_id(request)
 
     bind_contextvars(request_id=request_id, user_id=user_id, method=method, path=path)
+
+    # 设置慢查询中间件端点标签（v1.1.27）— 在 call_next 之前设置，
+    # 确保 SQLAlchemy 事件回调能读取到当前端点
+    set_current_endpoint(_normalize_endpoint(path))
 
     http_requests_in_progress.inc()
     start = time.perf_counter()

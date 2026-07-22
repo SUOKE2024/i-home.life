@@ -16,7 +16,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.1.22"
+    app_version: str = "1.1.28"
     debug: bool = True
 
     # 数据库: 开发用 SQLite, 生产用 PostgreSQL
@@ -137,6 +137,91 @@ class Settings(BaseSettings):
     # 轨迹驱动的 Agent 自我改进：收集执行轨迹 → 分析失败模式 → 优化 prompt/降级策略
     agent_evolution_enabled: bool = True
     agent_evolution_trace_min_samples: int = 20  # 最小轨迹样本数
+
+    # ── API 速率限制（v1.2.1）──
+    # 基于内存滑动窗口，按 IP 限流；认证端点独立配额防暴力破解
+    rate_limit_enabled: bool = True              # 全局开关，关闭时直接放行
+    rate_limit_per_minute: int = 60              # 普通 API：每 IP 每分钟 60 次
+    rate_limit_auth_per_minute: int = 10         # 认证端点（/login、/register）：每 IP 每分钟 10 次
+
+    # ── 审计日志（v1.2.0）──
+    # 启用后敏感操作（登录/注册/创建/修改/删除/导出/权限变更）将写入 audit_logs 表
+    # 关闭时 log_audit_event 直接跳过，不写库不抛错
+    audit_log_enabled: bool = True
+
+    # ── 性能优化（v1.1.27 新增）──
+    # 慢查询日志中间件：基于 SQLAlchemy 事件，超阈值记录 WARNING + Prometheus 直方图
+    slow_query_log_enabled: bool = True
+    slow_query_threshold_ms: int = 200       # 超过此阈值（毫秒）记录慢查询日志
+    slow_query_explain_enabled: bool = False  # 是否对慢 SELECT 执行 EXPLAIN ANALYZE（仅调试）
+
+    # 缓存装饰器：@cached 装饰的函数走 cache_service，关闭时直透
+    cache_decorators_enabled: bool = True
+    pref_hint_cache_ttl: int = 300           # Agent preference hint 缓存 TTL（秒）
+    hot_endpoint_cache_ttl: int = 300        # 热点端点缓存 TTL（秒）
+
+    # ════════════════════════════════════════════════════════════════
+    # v1.1.28 借鉴索克生活：长线技术决策 feature flags
+    # ════════════════════════════════════════════════════════════════
+
+    # ── 正式评估框架（Suoke-Eval1 借鉴）──
+    # 启用后 /api/eval/* 端点可用，AgentHarness.run_eval() 接入 ihome_eval 维度
+    eval_enabled: bool = True
+    eval_sample_rate: float = 0.1
+
+    # ── Model Spec 宪法 + HC 硬约束（借鉴 suoke_model_spec）──
+    # 启用后 DesignerAgent/BudgetAgent/ProcurementAgent 输出经 rebuttal_engine 校验
+    model_spec_enabled: bool = True
+    model_spec_path: str = "config/ihome_model_spec.json"
+
+    # ── Feature Validation Pipeline（借鉴 intent_contract）──
+    # 启用后新增 agent_router pattern 必须含 validation_status: validated
+    intent_validation_enabled: bool = True
+    intent_contract_path: str = "config/intent_contract.json"
+
+    # ── AgenticRAG 证据检索（激活 vector_db_url）──
+    # 启用后 think_with_tools 前置 evidence 检索，注入知识库上下文
+    agentic_rag_enabled: bool = True
+    agentic_rag_max_evidence: int = 3  # 单次注入最大证据条数
+
+    # ── 密钥管理（借鉴 Vault 指纹机制）──
+    # 启用后 PASETO key 指纹暴露于 /api/health/detail，支持轮换校验
+    secret_manager_enabled: bool = True
+    # Vault/KMS 地址（留空则使用本地 .env，不接外部密钥服务）
+    vault_url: str = ""
+    vault_token: str = ""
+    vault_namespace: str = "ihome-life-prod"
+
+    # ── 多 LLM fallback chain（借鉴 llm_fallback_chains）──
+    # 启用后 _chat 失败按 chain 降级：deepseek → qwen → glm → doubao
+    llm_fallback_enabled: bool = True
+
+    # Qwen (阿里云百炼 / DashScope) — fallback chain 第二档
+    qwen_api_key: str = ""
+    qwen_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_model: str = "qwen-plus"
+
+    # Doubao (火山引擎 ARK) — fallback chain 末端
+    doubao_api_key: str = ""
+    doubao_api_base: str = "https://ark.cn-beijing.volces.com/api/v3"
+    doubao_model: str = "doubao-seed-1-6-250615"
+
+    # ── DSPy prompt 优化（借鉴 dspy_optimization_service）──
+    # 启用后 DesignerAgent/BudgetAgent prompt 经 ChainOfThought 优化
+    dspy_enabled: bool = False  # 默认关闭，需安装 dspy 依赖
+
+    # ── A2A 协议（借鉴 Google A2A v1.0）──
+    # 启用后 /api/a2a/* 端点可用，发布 Agent Card + Task Machine
+    a2a_enabled: bool = True
+
+    # ── PII 全量脱敏（借鉴 pii_masking）──
+    # 启用后 audit_log details + agent trace 自动脱敏 8 类 PII
+    pii_masking_enabled: bool = True
+
+    # ── TTS 输出链（借鉴 tts_chain 三级降级）──
+    # 启用后 /api/voice/tts 端点可用，支持 Qwen3-TTS → CosyVoice → Doubao
+    tts_enabled: bool = True
+    tts_provider_priority: str = "qwen3_tts,cosyvoice,doubao"
 
 
 @lru_cache
