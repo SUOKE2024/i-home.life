@@ -1133,6 +1133,54 @@ const MessageRenderers = {
     </div>`;
   },
 
+  // ── 硬件触发卡片（对齐 Flutter camera_trigger/ar_scan_trigger/voice_input_trigger）──
+
+  renderCameraTriggerCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo(msg.agent || 'master');
+    const p = msg.payload || {};
+    return `<div class="msg agent agent-${msg.agent || 'master'}">
+    <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+    <div class="msg-card" style="border:1px solid var(--accent)">
+      <div class="msg-card-title">📸 拍照触发</div>
+      ${p.prompt ? `<div class="product-desc">${this._escape(p.prompt)}</div>` : '<div class="product-desc">点击下方按钮拍摄现场照片，AI 将自动识别并分析。</div>'}
+      <div class="product-actions">
+        <button class="approval-btn approve" data-hardware-action="open_camera" data-msg-id="${this._escape(msg.id || '')}">📷 打开相机</button>
+      </div>
+    </div>
+  </div>`;
+  },
+
+  renderArScanTriggerCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo(msg.agent || 'master');
+    const p = msg.payload || {};
+    return `<div class="msg agent agent-${msg.agent || 'master'}">
+    <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+    <div class="msg-card" style="border:1px solid var(--accent)">
+      <div class="msg-card-title">📏 AR 扫描触发</div>
+      ${p.prompt ? `<div class="product-desc">${this._escape(p.prompt)}</div>` : '<div class="product-desc">使用 AR 扫描房间，生成三维户型图与测量数据。</div>'}
+      <div class="product-actions">
+        <button class="approval-btn approve" data-hardware-action="start_ar_scan" data-project-id="${this._escape(p.project_id || '')}">📏 开始 AR 扫描</button>
+        <a href="ar-measurement.html${p.project_id ? '?project_id=' + encodeURIComponent(p.project_id) : ''}" target="_blank" rel="noopener" class="approval-btn" style="text-decoration:none;text-align:center">🚀 打开 AR 页面</a>
+      </div>
+    </div>
+  </div>`;
+  },
+
+  renderVoiceInputTriggerCard(msg) {
+    const agentInfo = AgentRouter.getAgentInfo(msg.agent || 'voice');
+    const p = msg.payload || {};
+    return `<div class="msg agent agent-${msg.agent || 'voice'}">
+    <div class="msg-meta"><strong style="color:${agentInfo.color}">${agentInfo.emoji} ${agentInfo.name} Agent</strong> · ${this._fmtTime(msg.timestamp)}</div>
+    <div class="msg-card" style="border:1px solid var(--accent)">
+      <div class="msg-card-title">🎤 语音输入触发</div>
+      ${p.prompt ? `<div class="product-desc">${this._escape(p.prompt)}</div>` : '<div class="product-desc">点击下方按钮开始语音对话，支持情绪识别与实时应答。</div>'}
+      <div class="product-actions">
+        <button class="approval-btn approve" data-hardware-action="start_voice_input" data-msg-id="${this._escape(msg.id || '')}">🎤 开始录音</button>
+      </div>
+    </div>
+  </div>`;
+  },
+
   // 按消息类型分发
   render(msg, currentUserRole) {
     switch (msg.type) {
@@ -1180,6 +1228,9 @@ const MessageRenderers = {
       case 'voice_card': return this.renderVoiceCard(msg);
       case 'ifc_export_card': return this.renderIfcExportCard(msg);
       case 'notification_card': return this.renderNotificationCard(msg);
+      case 'camera_trigger': return this.renderCameraTriggerCard(msg);
+      case 'ar_scan_trigger': return this.renderArScanTriggerCard(msg);
+      case 'voice_input_trigger': return this.renderVoiceInputTriggerCard(msg);
       default: return this.renderText(msg);
     }
   },

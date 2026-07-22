@@ -9,12 +9,12 @@ class AppConfig {
   /// 1) Web 端与 API 同源托管：前端使用相对路径（如 `/projects`）发起请求，
   ///    由反向代理（Nginx / API 网关）将请求转发到后端，避免跨域与硬编码域名。
   /// 2) 移动端（iOS/Android）或前后端分离部署时，必须在构建期覆盖：
-  ///    `flutter build --dart-define=API_BASE_URL=https://api.example.com/api`
+  ///    `flutter build --dart-define=API_BASE_URL=http://118.31.223.213:8081/api`
   /// 注意：留空时仅 Web 端可正常工作（相对路径基于页面 origin 解析）；
   ///       原生端务必通过 dart-define 注入完整绝对地址。
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8766/api',
+    defaultValue: 'http://118.31.223.213:8081/api',
   );
 
   /// WebSocket 基础地址。
@@ -28,7 +28,7 @@ class AppConfig {
   );
 
   static const String appName = 'i-home.life';
-  static const String appVersion = '1.1.22';
+  static const String appVersion = '1.1.25';
   static const Duration requestTimeout = Duration(seconds: 15);
 
   /// 调试模式开关。

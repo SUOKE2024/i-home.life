@@ -847,7 +847,7 @@ sup a:hover { color: var(--gold); }
 
   <!-- ═══ Entrance Cards ═══ -->
   <div class="cards reveal">
-    <a class="entrance-card" href="javascript:void(0)" onclick="openARMeasurement()" aria-label="AR 空间测量">
+    <a class="entrance-card" href="ar-measurement.html" target="_blank" rel="noopener" aria-label="AR 空间测量">
       <div class="icon" style="background:linear-gradient(135deg,#e0f7fa,#b2ebf2)" aria-hidden="true">📐</div>
       <h3>AR 空间测量</h3>
       <p>调用摄像头硬件，实时空间测量，点击标记点位自动计算距离</p>
@@ -2680,7 +2680,19 @@ function arExportSensorReport() {
   link.href = URL.createObjectURL(blob);
   link.click();
 }
+
+// v1.1.26: 自动打开 AR 测量弹窗（来自 workbench 「开始 AR 扫描」按钮）
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('auto') === 'ar') {
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() { openARMeasurement(); }, 300);
+    });
+  }
+})();
 </script>
+
+<script defer src="assets/js/perf-optimizer.js?v=20260722a"></script>
 
 </body>
 </html>

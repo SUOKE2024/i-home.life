@@ -12,7 +12,7 @@
 set -e
 
 REMOTE_HOST="${REMOTE_HOST:-root@118.31.223.213}"
-BACKEND_DEPLOY_DIR="/opt/i-home.life"      # 后端代码部署路径
+BACKEND_DEPLOY_DIR="/opt/ihome"            # 后端代码部署路径（v1.1.26: 与 CI deploy 对齐）
 WEB_DEPLOY_DIR="/opt/ihome/web"            # nginx 静态文件路径
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -62,16 +62,16 @@ case "$cmd" in
     echo -e "${GREEN}🔄 [3/3] 远程安装依赖 & 重启服务${NC}"
     ssh "$REMOTE_HOST" "bash -s" << 'REMOTE_SCRIPT'
 set -e
-BACKEND_DIR=/opt/i-home.life
+BACKEND_DIR=/opt/ihome
 cd "$BACKEND_DIR"
 
 # 创建虚拟环境（如不存在）
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
   echo "    创建 Python 虚拟环境..."
-  python3.11 -m venv venv
+  python3.11 -m venv .venv
 fi
 
-source venv/bin/activate
+source .venv/bin/activate
 
 # 安装/更新依赖（使用阿里云镜像加速，从 requirements.txt 读取完整列表）
 echo "    安装 Python 依赖..."
@@ -135,7 +135,7 @@ REMOTE_SCRIPT
 
     rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
 
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && pip install -q -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt 2>&1 | tail -3 && systemctl restart ihome && echo '✅ 后端已重启'"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && pip install -q -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt 2>&1 | tail -3 && systemctl restart ihome && echo '✅ 后端已重启'"
     ;;
 
   web)
@@ -172,7 +172,7 @@ REMOTE_SCRIPT
 
   seed)
     echo -e "${GREEN}🌱 重新加载种子数据...${NC}"
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source venv/bin/activate && PYTHONPATH=. python scripts/seed.py 2>&1 | tail -5"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && PYTHONPATH=. python scripts/seed.py 2>&1 | tail -5"
     ;;
 
   *)

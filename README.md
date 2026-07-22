@@ -2,10 +2,28 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.13 · PostgreSQL TIMESTAMP WITH TIME ZONE 全面兼容 + demo.html 响应式/版本号/健康检查路径修复（2026-07-20）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 10 Agent 全链路 + L4 偏好学习 + MCP 协议外露 + AI 渲染（2D/3D/restage）+ 语音情绪路由 + WebGPU 智能降级 + 475+ API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
+> v1.1.28 · 借鉴索克生活 B 方向 10 项落地：Suoke-Eval1 评估框架 + Model Spec HC 硬约束 + 意图契约校验 + AgenticRAG + Vault 密钥管理 + 多 LLM fallback + DSPy 优化 + A2A 协议 + PII 脱敏 + TTS 降级链（2026-07-22）
+> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图（含任意剖切）+ DWG/DXF 导入 + 22 Agent 全链路 + L4 偏好学习 + MCP 协议外露 + AI 渲染（2D/3D/restage）+ 语音情绪路由 + WebGPU 智能降级 + 475+ API + Flutter 41 页面 + 三端覆盖（iOS/Android/HarmonyOS）+ PASETO 认证 + PWA 离线
 
 ## 最近更新
+
+### 2026-07-22 · v1.1.28 借鉴索克生活（B 方向）10 项落地
+
+借鉴索克生活（中医健康管理平台）的长线技术决策，将 10 项工程实践移植到家居领域：
+
+- **P0-1 Suoke-Eval1 评估框架**: [app/eval/ihome_eval.py](app/eval/ihome_eval.py) 定义 10 个家居专用评估维度（报价准确性/设计安全/材料禁忌/越权防护/SSE 延迟/降级率/工具调用准确性/思维链泄漏率/HC 合规率/反面论证质量），复用 AgentHarness 轨迹 + 静态检查 → 维度评分，[app/api/eval.py](app/api/eval.py) 暴露 GET/POST /api/eval/* 端点
+- **P0-2 Model Spec 宪法 + HC 硬约束**: [config/ihome_model_spec.json](config/ihome_model_spec.json) 定义 9 条硬约束（HC-001 承重墙/HC-002 报价含税/HC-003 环保等级/HC-004 工期缓冲/HC-005 水电规范/HC-006 逃生通道/HC-007 燃气安全/HC-008 防水范围/HC-009 反面论证义务），[app/services/rebuttal_engine.py](app/services/rebuttal_engine.py) 扫描违规关键词并注入反驳提示重生成，集成到 BaseAgent.think/think_with_tools
+- **P0-3 Feature Validation Pipeline**: [config/intent_contract.json](config/intent_contract.json) 登记 39 个 agent-router pattern 的输入校验规则，[app/utils/intent_validator.py](app/utils/intent_validator.py) CI 校验脚本（新增 pattern 必须含 validation_status: validated），39/39 通过
+- **P1-4 AgenticRAG 证据检索**: [app/services/agentic_rag.py](app/services/agentic_rag.py) 向量数据库语义检索 + 内存关键词匹配双降级，集成到 think/think_with_tools 前置注入知识库上下文
+- **P1-5 Vault/KMS 凭证管理**: [app/services/secret_manager.py](app/services/secret_manager.py) PASETO key fingerprint（SHA256[:8]）暴露于 /api/health/detail 供运维校验密钥轮换，Vault/KMS 可选集成
+- **P1-6 多 LLM fallback chain**: [app/agents/base.py](app/agents/base.py) PROVIDER_REGISTRY 扩展 qwen/doubao 供应商，_chat 失败时按 deepseek → qwen → glm → doubao 降级
+- **P2-7 DSPy prompt 优化**: [app/services/dspy_optimizer.py](app/services/dspy_optimizer.py) ChainOfThought 提示词优化（dspy 可选依赖，懒导入降级）
+- **P2-8 A2A 协议**: [app/api/a2a.py](app/api/a2a.py) 基于 Google A2A v1.0 暴露 Agent Card + Task Machine（5 端点 + /.well-known/agent-card 公开发现）
+- **P2-9 PII 全量脱敏**: [app/utils/pii_masking.py](app/utils/pii_masking.py) 8 类 PII 脱敏（手机号/身份证/邮箱/银行卡/护照/地址/姓名/IP），集成到 audit_log details 自动脱敏
+- **P2-10 TTS 三级降级链**: [app/services/tts_chain.py](app/services/tts_chain.py) Qwen3-TTS → CosyVoice → Doubao 三级降级
+- **Feature flags**: 全部 10 项均配 feature flag 开关（eval_enabled/model_spec_enabled/intent_validation_enabled/agentic_rag_enabled/secret_manager_enabled/llm_fallback_enabled/dspy_enabled/a2a_enabled/pii_masking_enabled/tts_enabled）
+- **测试**: 新增 40 项 v1.1.28 专项测试（tests/test_v1128_suoke_borrowed.py），全量 910 项通过
+- **版本号**: v1.1.28 / 20260722a / sw.js CACHE_VERSION=suoke-v20260722a
 
 ### 2026-07-20 · v1.1.13 生产部署稳定性修复
 

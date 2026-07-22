@@ -29,6 +29,7 @@ def _json_serialize(obj):
         return obj.isoformat()
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
+
 # 心跳配置
 RECEIVE_TIMEOUT = 300  # 无活动 5 分钟后发送 ping 探测
 PONG_TIMEOUT = 30  # ping 探测后 30 秒无回复则断开
@@ -49,6 +50,12 @@ class ConnectionManager:
             self._connections[project_id] = set()
         self._connections[project_id].add(websocket)
         self._ws_to_project[websocket] = project_id
+        # v1.1.26: 更新 Prometheus WS 连接数指标
+        try:
+            from app.metrics import ws_connections
+            ws_connections.inc()
+        except Exception:
+            pass
         logger.info(f"WebSocket 连接: project={project_id}, total={len(self._connections[project_id])}")
 
     def disconnect(self, websocket: WebSocket):
@@ -57,6 +64,12 @@ class ConnectionManager:
             self._connections[project_id].discard(websocket)
             if not self._connections[project_id]:
                 del self._connections[project_id]
+            # v1.1.26: 更新 Prometheus WS 连接数指标
+            try:
+                from app.metrics import ws_connections
+                ws_connections.dec()
+            except Exception:
+                pass
             logger.info(f"WebSocket 断开: project={project_id}")
 
     async def broadcast_to_project(self, project_id: str, event: str, data: dict[str, Any]):

@@ -48,6 +48,8 @@ from app.api import cad_import
 from app.api import mcp as mcp_api
 from app.api import ai_render
 from app.api import ifc_export
+from app.api import eval as eval_api
+from app.api import a2a as a2a_api
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -352,6 +354,11 @@ api_router.include_router(cad_import.router)       # /api/cad-import/*
 api_router.include_router(mcp_api.router)          # /api/mcp/* (MCP 2026-07-28)
 api_router.include_router(ai_render.router)        # /api/ai-render/* (2D/3D/restage)
 api_router.include_router(ifc_export.router)      # /api/bim/export/* (IFC 导出)
+# v1.1.28 借鉴索克生活：评估框架 + A2A 协议端点
+api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
+api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)
+# A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
+app.include_router(a2a_api.public_router)
 app.include_router(api_router)
 
 # ── 全局异常处理 ──
@@ -451,6 +458,30 @@ async def health_check_detail():
     except Exception as e:
         checks["disk"] = {"status": "error", "detail": str(e)}
         overall = "degraded"
+
+    # v1.1.28: 密钥管理健康信息（借鉴索克生活 Vault 指纹机制）
+    # 暴露 PASETO key fingerprint 供运维校验密钥轮换状态，永不泄露密钥明文
+    try:
+        from app.services.secret_manager import secret_manager
+        checks["secret_manager"] = secret_manager.get_health_info()
+    except Exception as e:
+        checks["secret_manager"] = {"status": "error", "detail": str(e)}
+
+    # v1.1.28: 意图契约校验状态
+    try:
+        from app.utils.intent_validator import load_contract
+        contract = load_contract()
+        validated_count = sum(
+            1 for p in contract.get("patterns", [])
+            if p.get("validation_status") == "validated"
+        )
+        checks["intent_contract"] = {
+            "status": "ok",
+            "validated_patterns": validated_count,
+            "total_patterns": len(contract.get("patterns", [])),
+        }
+    except Exception as e:
+        checks["intent_contract"] = {"status": "error", "detail": str(e)}
 
     return JSONResponse(
         status_code=200 if overall == "ok" else 503,

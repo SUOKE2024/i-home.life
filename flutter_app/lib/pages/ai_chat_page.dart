@@ -225,6 +225,35 @@ class _AIChatPageState extends State<AIChatPage> {
     _scrollToBottom();
   }
 
+  /// v1.1.26: 将最后一条 Agent 文本消息替换为卡片类型消息
+  ///
+  /// 当后端 SSE meta 事件携带 message_type（如 ar_scan_trigger）时，
+  /// 流式文本推送完成后，将文本消息替换为对应的可交互卡片。
+  void _replaceLastAgentWithCard(
+    String messageType,
+    String content,
+    String agent,
+    Map<String, dynamic>? payload,
+  ) {
+    final cardType = ChatMessage.fromString(messageType);
+    if (cardType == ChatMessageType.text) return; // 无法识别的类型不替换
+    setState(() {
+      for (int i = _messages.length - 1; i >= 0; i--) {
+        final m = _messages[i];
+        if (!m.isSelf && m.type == ChatMessageType.text) {
+          _messages[i] = m.copyWith(
+            type: cardType,
+            content: content,
+            agent: agent,
+            payload: payload,
+          );
+          break;
+        }
+      }
+    });
+    _scrollToBottom();
+  }
+
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 120), () {
       if (_scrollCtrl.hasClients) {
@@ -272,6 +301,9 @@ class _AIChatPageState extends State<AIChatPage> {
 
     String fullContent = '';
     String currentAgent = targetAgent;
+    // v1.1.26: 记录 meta 事件中的卡片类型，done 时替换为卡片消息
+    String? cardMessageType;
+    Map<String, dynamic>? cardPayload;
 
     try {
       _sseSub?.cancel();
@@ -293,12 +325,21 @@ class _AIChatPageState extends State<AIChatPage> {
               if (event.agentType != null) {
                 currentAgent = _backendToAgent(event.agentType!);
               }
+              // v1.1.26: 记录卡片类型，done 时渲染为卡片
+              if (event.messageType != null && event.messageType != 'text') {
+                cardMessageType = event.messageType;
+                cardPayload = event.cardPayload;
+              }
             case SseEventType.token:
               fullContent += event.content ?? '';
               _updateLastAgentMessage(fullContent, agent: currentAgent);
             case SseEventType.done:
               if (event.content != null && event.content!.isNotEmpty) {
                 _updateLastAgentMessage(event.content!, agent: currentAgent);
+              }
+              // v1.1.26: 如果 meta 标记了卡片类型，替换最后一条消息为卡片
+              if (cardMessageType != null && fullContent.isNotEmpty) {
+                _replaceLastAgentWithCard(cardMessageType!, fullContent, currentAgent, cardPayload);
               }
               setState(() => _isLoading = false);
           }
@@ -1150,9 +1191,14 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 触发语音输入
   Future<void> _triggerVoiceInput() async {
+    final token = ApiClient().token;
+    if (token == null) {
+      _addMessage(ChatMessage.system(text: '请先登录后再使用语音输入'));
+      return;
+    }
     setState(() => _isVoiceMode = true);
     try {
-      await _voice.connect();
+      await _voice.connect(token: token);
       _addMessage(ChatMessage.system(text: '🎤 语音输入已启动，请说话…'));
       // VoiceRealtimeService 会通过回调处理 ASR 结果
     } catch (e) {

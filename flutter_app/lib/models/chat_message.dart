@@ -303,6 +303,9 @@ class ChatMessage {
     );
   }
 
+  /// v1.1.26: 公共方法，从字符串解析消息类型（供 ai_chat_page 调用）
+  static ChatMessageType fromString(String val) => _parseType(val);
+
   static ChatMessageType _parseType(dynamic val) {
     final s = val?.toString() ?? 'text';
     switch (s) {

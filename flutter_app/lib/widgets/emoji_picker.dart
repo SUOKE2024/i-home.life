@@ -144,11 +144,11 @@ class _EmojiPickerState extends State<EmojiPicker> {
               }).toList(),
             ),
           ),
-          Divider(height: 1, color: _border),
+          const Divider(height: 1, color: _border),
           // emoji 网格
           Expanded(
             child: _currentEmojis.isEmpty
-                ? Center(
+                ? const Center(
                     child: Text(
                       '还没有最近使用的表情，点击其他分类选择',
                       style: TextStyle(fontSize: 12, color: _textMuted),

@@ -1,0 +1,54 @@
+# Pre-commit Hooks 配置 — v1.1.26
+# 安装: pip install pre-commit && pre-commit install
+# 手动运行: pre-commit run --all-files
+#
+# 钩子说明:
+#   - trailing-whitespace: 清理行尾空白
+#   - end-of-file-fixer: 文件末尾换行
+#   - check-yaml: YAML 语法检查
+#   - check-json: JSON 语法检查
+#   - check-merge-conflict: 合并冲突残留检查
+#   - debug-statements: 调试代码检查 (breakpoint/pdb)
+#   - flake8: Python 代码风格 (max-line-length=120, max-complexity=15)
+#   - mypy: 静态类型检查 (可选, 需手动启用)
+
+repos:
+  # ── 通用文件修复 ──
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        exclude: \.json$
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: check-added-large-files
+        args: [--maxkb=5000]
+      - id: detect-private-key
+
+  # ── Python 代码风格 ──
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        args:
+          - --max-line-length=120
+          - --extend-ignore=E203,W503
+          - --max-complexity=15
+        exclude: ^(alembic/|\.venv/|data/)
+
+  # ── 静态类型检查（可选，手动启用）──
+  # 取消注释后每次 commit 前自动运行 mypy
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.13.0
+  #   hooks:
+  #     - id: mypy
+  #       args:
+  #         - --config-file=mypy.ini
+  #       additional_dependencies:
+  #         - types-redis
+  #         - types-python-dateutil
+  #       exclude: ^(alembic/|tests/)

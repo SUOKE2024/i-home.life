@@ -9,6 +9,7 @@ import 'theme/suoke_theme.dart';
 import 'services/api.dart';
 import 'services/feature_flags_service.dart';
 import 'services/notification_service.dart';
+import 'services/performance_service.dart';
 import 'services/project_context.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
@@ -25,6 +26,8 @@ class _DevelopmentHttpOverrides extends HttpOverrides {
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // v1.1.26: 初始化性能监控
+  PerformanceService.instance.initialize();
   if (AppConfig.debugMode) {
     HttpOverrides.global = _DevelopmentHttpOverrides();
   }
@@ -34,7 +37,9 @@ void main() {
     debugPrint('NotificationService 初始化失败（不影响应用启动）: $e');
   });
   // 预加载功能开关（异步，失败不影响应用启动）
-  FeatureFlagsService().initialize().catchError((e) {
+  FeatureFlagsService().initialize().then((_) {
+    PerformanceService.instance.startupMark('feature_flags_loaded');
+  }).catchError((e) {
     debugPrint('FeatureFlagsService 初始化失败（不影响应用启动）: $e');
   });
   runApp(const IHomeApp());

@@ -23,13 +23,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260720i" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260720i" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260720i" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260720i" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260720i" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260722a" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260722a" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260722a" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260722a" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260722a" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260720i">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260722a">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
 <!-- v1.2.1 性能优化: 预连接第三方 CDN -->
@@ -416,10 +416,11 @@
 </div>
 
 <script>window.API_BASE_URL = window.location.origin;</script>
-<script src="assets/js/api-client.js?v=20260720i"></script>
-<script src="assets/js/im-client.js?v=20260720i"></script>
-<script src="assets/js/agent-router.js?v=20260720i"></script>
-<script src="assets/js/message-renderers.js?v=20260720i"></script>
+<script src="assets/js/api-client.js?v=20260722a"></script>
+<script src="assets/js/im-client.js?v=20260722a"></script>
+<script src="assets/js/agent-router.js?v=20260722a"></script>
+<script src="assets/js/message-renderers.js?v=20260722a"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260722a"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -1348,6 +1349,35 @@
     }
   });
 
+  // ============ 硬件触发卡片点击委托（对齐 Flutter camera_trigger/ar_scan_trigger/voice_input_trigger）============
+  listEl.addEventListener('click', (e) => {
+    // 硬件触发卡片点击
+    const hwBtn = e.target.closest('[data-hardware-action]');
+    if (hwBtn) {
+      const action = hwBtn.dataset.hardwareAction;
+      if (action === 'open_camera') {
+        // 调用现有 openCamera 函数（拍照上传到当前会话）
+        if (typeof openCamera === 'function') {
+          openCamera();
+        } else {
+          // 降级：触发文件选择
+          document.querySelector('.attach-item[data-action="photo"]')?.click();
+        }
+      } else if (action === 'start_ar_scan') {
+        const projectId = hwBtn.dataset.projectId || '';
+        window.open(`ar-measurement.html${projectId ? '?project_id=' + encodeURIComponent(projectId) : ''}`, '_blank');
+      } else if (action === 'start_voice_input') {
+        // 调用现有 startVoiceInput 函数
+        if (typeof startVoiceInput === 'function') {
+          startVoiceInput();
+        } else {
+          document.getElementById('voice-btn')?.click();
+        }
+      }
+      return;
+    }
+  });
+
   // ============ BOM 导出处理（F7） ============
   listEl.addEventListener('click', async (e) => {
     const link = e.target.closest('[data-bom-export]');
@@ -1587,6 +1617,12 @@
       listEl.scrollTop = listEl.scrollHeight;
 
       async function streamChat() {
+        // v1.1.26: 记录 meta 事件中的卡片类型（如 ar_scan_trigger）
+        let cardMessageType = null;
+        let cardPayload = null;
+        // v1.1.26: AbortController 防止 SSE 连接长时间挂起（60s 超时）
+        const abortCtrl = new AbortController();
+        const streamTimeout = setTimeout(() => abortCtrl.abort(), 60000);
         try {
           const token = ApiClient.getToken();
           const resp = await fetch(ApiClient.BASE_URL + '/api/agents/chat/stream', {
@@ -1602,6 +1638,7 @@
               history: history,
               ...(_currentSessionId ? { session_id: _currentSessionId } : {}),
             }),
+            signal: abortCtrl.signal,
           });
           if (!resp.ok) throw new Error('Stream request failed: ' + resp.status);
 
@@ -1645,6 +1682,11 @@
                     _currentSessionId = data.session_id;
                     localStorage.setItem('agent_session_id', data.session_id);
                   }
+                  // v1.1.26: 捕获卡片类型和 payload
+                  if (data.message_type && data.message_type !== 'text') {
+                    cardMessageType = data.message_type;
+                    cardPayload = data.card_payload || null;
+                  }
                 } else if (data.event === 'token') {
                   fullContent += data.content;
                   bubble.textContent = fullContent;
@@ -1654,13 +1696,31 @@
                     _currentSessionId = data.session_id;
                     localStorage.setItem('agent_session_id', data.session_id);
                   }
+                  // v1.1.26: done 时如果 meta 标注了卡片类型，将占位替换为卡片
+                  if (cardMessageType && fullContent) {
+                    const agentKey = TYPE_TO_AGENT_KEY[data.agent_type] || 'master';
+                    renderMessage({
+                      type: cardMessageType,
+                      agent: agentKey,
+                      timestamp: new Date().toISOString(),
+                      content: fullContent,
+                      payload: cardPayload,
+                    });
+                    placeholder.remove();
+                    cardMessageType = null;
+                    cardPayload = null;
+                  }
                 }
               }
             }
           }
-          // 流式完成后移除 placeholder class，变为普通消息
-          placeholder.classList.remove('streaming-placeholder');
+          // 如果未被卡片替换，移除 placeholder class，变为普通消息
+          if (placeholder.parentNode) {
+            placeholder.classList.remove('streaming-placeholder');
+          }
+          clearTimeout(streamTimeout);
         } catch (e) {
+          clearTimeout(streamTimeout);
           console.error('Stream chat error:', e);
           // 移除占位（使用 class 选择器）
           const placeholder = listEl.querySelector('.streaming-placeholder');
@@ -1679,9 +1739,11 @@
             }
             if (resp.reply) {
               const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
+              // v1.1.26: 支持卡片类型消息（如 ar_scan_trigger）
+              const msgType = resp.message_type || 'text';
               renderMessage({
-                type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
-                content: resp.reply,
+                type: msgType, agent: agentKey, timestamp: new Date().toISOString(),
+                content: resp.reply, payload: resp.card_payload || null,
               });
               if (resp.suggestions && resp.suggestions.length > 0) {
                 renderMessage({
@@ -1713,9 +1775,11 @@
       if (resp.reply) {
         // 映射 agent_type 回前端 agent key
         const agentKey = TYPE_TO_AGENT_KEY[resp.agent_type] || route.agent;
+        // v1.1.26: 支持卡片类型消息（如 ar_scan_trigger）
+        const msgType = resp.message_type || 'text';
         renderMessage({
-          type: 'text', agent: agentKey, timestamp: new Date().toISOString(),
-          content: resp.reply,
+          type: msgType, agent: agentKey, timestamp: new Date().toISOString(),
+          content: resp.reply, payload: resp.card_payload || null,
         });
         // 渲染建议
         if (resp.suggestions && resp.suggestions.length > 0) {
@@ -3083,10 +3147,10 @@
         restoreDraft();
       } else {
         titleEl.textContent = '暂无项目';
-        subtitleEl.textContent = '点击 + 创建项目';
+        subtitleEl.textContent = '创建项目开始，或直接提问';
         renderMessage({
           type: 'text', agent: 'master', timestamp: new Date().toISOString(),
-          content: `欢迎，${currentUser?.name || roleLabel}。你还没有项目，点击下方按钮创建第一个家居项目。`,
+          content: `欢迎，${currentUser?.name || roleLabel}。你还没有项目，可以：\n\n1. 点击下方按钮创建第一个家居项目\n2. 直接在聊天框中提问，AI 助手会为你解答\n\n试试输入「AR 测量」「设计方案」「预算评估」等关键词，与 AI 助手对话。`,
         });
         // 插入创建项目按钮
         const ctaWrap = document.createElement('div');
@@ -3166,7 +3230,7 @@
   init();
 })();
 </script>
-<script defer src="assets/js/analytics.js?v=20260720i"></script>
+<script defer src="assets/js/analytics.js?v=20260722a"></script>
 <script>
 if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {

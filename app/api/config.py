@@ -32,4 +32,15 @@ async def get_feature_flags(current_user: User = Depends(get_current_user)):
         "qwen_audio_model_variant": "plus" if settings.qwen_audio_model.endswith("-plus") else "flash",
         # v1.1.21 暴露
         "voice_audio_prompt_enabled": settings.voice_audio_prompt_enabled,
+        # v1.1.28 借鉴索克生活 feature flags
+        "eval_enabled": settings.eval_enabled,
+        "model_spec_enabled": settings.model_spec_enabled,
+        "intent_validation_enabled": settings.intent_validation_enabled,
+        "agentic_rag_enabled": settings.agentic_rag_enabled,
+        "secret_manager_enabled": settings.secret_manager_enabled,
+        "llm_fallback_enabled": settings.llm_fallback_enabled,
+        "dspy_enabled": settings.dspy_enabled,
+        "a2a_enabled": settings.a2a_enabled,
+        "pii_masking_enabled": settings.pii_masking_enabled,
+        "tts_enabled": settings.tts_enabled,
     }

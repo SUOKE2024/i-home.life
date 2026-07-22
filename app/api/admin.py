@@ -1,5 +1,8 @@
 """管理后台 API — RBAC 用户管理、角色权限、平台统计"""
 
+from datetime import datetime
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -7,6 +10,7 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
 from app.models.permission import Permission
+from app.models.audit_log import AuditLog
 from app.rbac import (
     allow_admin,
     require_user_read,
@@ -200,3 +204,72 @@ async def get_platform_stats(
     """管理员查看平台统计数据"""
     stats = await _svc_get_platform_stats(db)
     return PlatformStatsResponse(**stats)
+
+
+# ── 审计日志 ──
+
+
+@router.get("/audit-logs")
+async def list_audit_logs(
+    user_id: str | None = Query(None, description="按操作者 user_id 筛选"),
+    action: str | None = Query(None, description="按操作类型筛选（CREATE/UPDATE/DELETE/LOGIN 等）"),
+    resource_type: str | None = Query(None, description="按资源类型筛选"),
+    start_date: datetime | None = Query(None, description="起始时间（ISO 8601，含）"),
+    end_date: datetime | None = Query(None, description="结束时间（ISO 8601，含）"),
+    skip: int = Query(default=0, ge=0, description="分页偏移量"),
+    limit: int = Query(default=50, ge=1, le=200, description="每页数量，最大 200"),
+    current_user: User = Depends(allow_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """管理员查询审计日志（支持过滤 + 分页）。
+
+    需 admin 角色。返回 `{"items": [...], "total": N, "skip": ..., "limit": ...}`。
+    """
+    stmt = select(AuditLog)
+    count_stmt = select(AuditLog.id)
+
+    if user_id:
+        stmt = stmt.where(AuditLog.user_id == user_id)
+        count_stmt = count_stmt.where(AuditLog.user_id == user_id)
+    if action:
+        stmt = stmt.where(AuditLog.action == action)
+        count_stmt = count_stmt.where(AuditLog.action == action)
+    if resource_type:
+        stmt = stmt.where(AuditLog.resource_type == resource_type)
+        count_stmt = count_stmt.where(AuditLog.resource_type == resource_type)
+    if start_date:
+        stmt = stmt.where(AuditLog.created_at >= start_date)
+        count_stmt = count_stmt.where(AuditLog.created_at >= start_date)
+    if end_date:
+        stmt = stmt.where(AuditLog.created_at <= end_date)
+        count_stmt = count_stmt.where(AuditLog.created_at <= end_date)
+
+    # 总数
+    from sqlalchemy import func as sa_func
+    total_result = await db.execute(select(sa_func.count()).select_from(count_stmt.subquery()))
+    total = total_result.scalar() or 0
+
+    # 分页查询
+    stmt = stmt.order_by(AuditLog.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": item.id,
+                "user_id": item.user_id,
+                "action": item.action,
+                "resource_type": item.resource_type,
+                "resource_id": item.resource_id,
+                "details": item.details,
+                "request_ip": item.request_ip,
+                "user_agent": item.user_agent,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+            }
+            for item in items
+        ],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }

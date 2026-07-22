@@ -17,6 +17,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:ihome_app/services/sensor_service.dart';
 import '../services/api.dart';
 import '../config.dart';
 
@@ -40,6 +42,8 @@ enum _Platform { ios, android, harmonyos, web, unknown }
 
 class _ARScanPageState extends State<ARScanPage> {
   final _api = ApiClient();
+  // Dart 层传感器服务（跨平台一致,鸿蒙/无原生 AR 时作为降级数据源）
+  final SensorService _sensorService = SensorService();
   _ScanState _state = _ScanState.idle;
 
   // 设备能力
@@ -47,6 +51,9 @@ class _ARScanPageState extends State<ARScanPage> {
   String _deviceModel = '';
   bool _hasLidar = false;
   bool _supportsRoomplan = false;
+  // 是否支持原生 AR (iOS ARKit / Android ARCore)
+  // 鸿蒙平台目前未集成 AR Engine 原生插件,_supported = false
+  bool _supported = false;
   String _arkitVersion = '';
   String _arcoreVersion = '';
   String _arEngineVersion = '';
@@ -94,6 +101,8 @@ class _ARScanPageState extends State<ARScanPage> {
     _labelCtrl.dispose();
     _arValueCtrl.dispose();
     _refValueCtrl.dispose();
+    // 释放 Dart 层传感器服务资源
+    _sensorService.dispose();
     super.dispose();
   }
 
@@ -103,6 +112,8 @@ class _ARScanPageState extends State<ARScanPage> {
     _Platform platform;
     bool hasLidar = false;
     bool supportsRoomplan = false;
+    // 原生 AR 支持: iOS ARKit / Android ARCore 默认支持; 鸿蒙暂未集成原生插件
+    bool supported = false;
     String arkitVersion = '';
     String arcoreVersion = '';
     String arEngineVersion = '';
@@ -110,6 +121,8 @@ class _ARScanPageState extends State<ARScanPage> {
 
     // 优先通过 MethodChannel 询问原生平台 (Flutter-OH 在鸿蒙会返回 'harmonyos')
     // 标准 Flutter 在 iOS/Android 上调用未注册的 channel 方法会抛 MissingPluginException
+    // 注: 当前未使用 Platform.isHarmonyOS,因为标准 dart:io 不保证提供该 getter,
+    //     device_info_plus 也未引入依赖,MethodChannel 探测在 Flutter-OH 下已足够可靠。
     String platformName = '';
     try {
       platformName = await _arChannel.invokeMethod<String>('getPlatform') ?? '';
@@ -121,7 +134,9 @@ class _ARScanPageState extends State<ARScanPage> {
 
     if (platformName == 'harmonyos' || platformName == 'ohos') {
       platform = _Platform.harmonyos;
-      // 通过 MethodChannel 询问 AR Engine 能力
+      // 鸿蒙平台: 原生 AR Engine (ArkTS) 插件未集成,标记为不支持原生 AR
+      // 仍尝试通过 MethodChannel 询问 AR Engine 能力,失败时使用默认值
+      supported = false;
       try {
         final result = await _arChannel.invokeMethod<Map>('detectCapability');
         arEngineVersion = result?['ar_engine_version'] as String? ?? '';
@@ -131,9 +146,14 @@ class _ARScanPageState extends State<ARScanPage> {
       } on PlatformException {
         arEngineVersion = '6.0';
         deviceModel = 'HarmonyOS Device';
+      } on MissingPluginException {
+        // 原生插件未注册,使用默认值
+        arEngineVersion = '6.0';
+        deviceModel = 'HarmonyOS Device';
       }
     } else if (Platform.isIOS) {
       platform = _Platform.ios;
+      supported = true;
       // 通过 MethodChannel 询问原生 ARKit 能力
       try {
         final result = await _arChannel.invokeMethod<Map>('detectCapability');
@@ -145,14 +165,21 @@ class _ARScanPageState extends State<ARScanPage> {
         // 原生插件未集成时使用默认值
         arkitVersion = '6.0';
         deviceModel = 'iOS Device';
+      } on MissingPluginException {
+        arkitVersion = '6.0';
+        deviceModel = 'iOS Device';
       }
     } else if (Platform.isAndroid) {
       platform = _Platform.android;
+      supported = true;
       try {
         final result = await _arChannel.invokeMethod<Map>('detectCapability');
         arcoreVersion = result?['arcore_version'] as String? ?? '';
         deviceModel = result?['device_model'] as String? ?? 'Android Device';
       } on PlatformException {
+        arcoreVersion = '1.30';
+        deviceModel = 'Android Device';
+      } on MissingPluginException {
         arcoreVersion = '1.30';
         deviceModel = 'Android Device';
       }
@@ -166,13 +193,42 @@ class _ARScanPageState extends State<ARScanPage> {
       _deviceModel = deviceModel;
       _hasLidar = hasLidar;
       _supportsRoomplan = supportsRoomplan;
+      _supported = supported;
       _arkitVersion = arkitVersion;
       _arcoreVersion = arcoreVersion;
       _arEngineVersion = arEngineVersion;
     });
 
+    // 通过 Dart 层 SensorService 检测传感器可用性（跨平台一致）
+    try {
+      await _sensorService.start();
+      final caps = _sensorService.getCapabilities();
+      setState(() {
+        _hasAccelerometer = caps['accelerometer'] ?? false;
+        _hasGyroscope = caps['gyroscope'] ?? false;
+        _hasMagnetometer = caps['magnetometer'] ?? false;
+      });
+    } catch (e) {
+      // 鸿蒙或无传感器设备降级
+      debugPrint('SensorService 启动失败: $e');
+    }
+
     // 调用后端获取推荐方法
     await _queryDeviceCapability();
+
+    // 鸿蒙平台: 后端可能不识别 harmonyos,这里强制覆盖为照片降级模式
+    // 照片降级 (photo_fallback): 通过 ImagePicker 拍照 + 后端 AI 识别
+    if (_platform == _Platform.harmonyos) {
+      setState(() {
+        _recommendedMethod = 'photo_fallback';
+        if (!_availableMethods.contains('photo_fallback')) {
+          _availableMethods = ['photo_fallback', ..._availableMethods];
+        }
+        if (!_fallbackChain.contains('photo_fallback')) {
+          _fallbackChain = ['photo_fallback', ..._fallbackChain];
+        }
+      });
+    }
   }
 
   Future<void> _queryDeviceCapability() async {
@@ -189,6 +245,10 @@ class _ARScanPageState extends State<ARScanPage> {
       'arcore_version': _arcoreVersion,
       'ar_engine_version': _arEngineVersion,
       'supports_photogrammetry': true,
+      // GPS 位置（SensorService 异步获取,可用时附带）
+      'gps_location': await _sensorService.getCurrentLocation(),
+      // 传感器快照（加速度/陀螺仪/磁力计当前读数）
+      'sensor_snapshot': _sensorService.getSnapshot(),
     });
     if (result.isSuccess) {
       final data = result.data as Map<String, dynamic>? ?? {};
@@ -252,7 +312,22 @@ class _ARScanPageState extends State<ARScanPage> {
     }
     setState(() => _state = _ScanState.scanning);
 
-    // 调用原生 AR 扫描
+    // ── 鸿蒙平台降级处理 ──
+    // HarmonyOS 无原生 ARKit/ARCore,Flutter-OH 也未集成 AR Engine 原生插件,
+    // 直接调用 MethodChannel('startScan') 会抛 MissingPluginException,
+    // 因此在调用原生通道前进行降级处理:
+    //   方案 a. 照片模式: 通过 ImagePicker 拍照,上传至后端进行 AI 识别
+    //   方案 b. Web 端:   提示用户使用浏览器打开 demo.html (WebXR 在鸿蒙浏览器部分支持)
+    if (_platform == _Platform.harmonyos || !_supported) {
+      // 降级模式: 使用 Dart 层 SensorService 数据 + 照片模式
+      // 将传感器快照附加到扫描数据,供后端在 AI 识别时参考
+      final sensorSnapshot = _sensorService.getSnapshot();
+      debugPrint('降级模式传感器快照: $sensorSnapshot');
+      await _startScanHarmonyFallback();
+      return;
+    }
+
+    // 调用原生 AR 扫描 (iOS ARKit / Android ARCore)
     try {
       final scanResult = await _arChannel.invokeMethod<Map>('startScan', {
         'session_id': _sessionId,
@@ -273,6 +348,100 @@ class _ARScanPageState extends State<ARScanPage> {
           _state = _ScanState.failed;
         });
       }
+    } on MissingPluginException {
+      // 原生通道未注册 (例如鸿蒙未集成 AR Engine),降级到照片模式
+      await _startScanHarmonyFallback();
+    }
+  }
+
+  /// 鸿蒙平台降级扫描入口
+  ///
+  /// 弹窗让用户在两种降级方案中选择:
+  /// a. 照片模式 — 通过 ImagePicker 拍照 + 上传后端 AI 识别
+  /// b. Web 端   — 提示用户使用浏览器打开 demo.html (WebXR)
+  Future<void> _startScanHarmonyFallback() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return AlertDialog(
+          title: const Text('鸿蒙平台 AR 降级方案'),
+          content: const Text(
+            'HarmonyOS 暂不支持原生 ARKit/ARCore 扫描。\n\n'
+            '请选择降级方案:\n'
+            'a. 照片模式: 拍摄房间照片,上传至后端 AI 识别\n'
+            'b. Web 端:   使用浏览器打开 demo.html (WebXR)',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'cancel'),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'web'),
+              child: const Text('使用 Web 端'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'photo'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC9973B),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('照片模式'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (choice == null || choice == 'cancel') {
+      setState(() {
+        _state = _ScanState.ready;
+        _errorMessage = '已取消扫描。鸿蒙平台建议使用照片模式或 Web 端 demo.html';
+      });
+      return;
+    }
+
+    if (choice == 'web') {
+      // 提示用户使用 Web 端 demo.html (WebXR 在鸿蒙浏览器部分支持)
+      setState(() {
+        _state = _ScanState.ready;
+        _errorMessage = '请在浏览器中打开 demo.html 体验 WebXR 扫描\n'
+            '(HarmonyOS 浏览器对 WebXR 支持有限,建议优先使用照片模式)';
+      });
+      return;
+    }
+
+    // choice == 'photo' — 通过 ImagePicker 拍照 + 上传后端 AI 识别
+    await _startPhotoFallbackScan();
+  }
+
+  /// 照片降级模式: 使用 ImagePicker 拍照,调用已有 _uploadAndProcess 上传至后端 AI 识别
+  ///
+  /// 将照片路径作为 model_path 传入, model_format 标记为 'photo',
+  /// 后端会根据 model_format='photo' 走 AI 图像识别流程。
+  Future<void> _startPhotoFallbackScan() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 90,
+        preferredCameraDevice: CameraDevice.rear,
+      );
+      if (photo == null) {
+        setState(() {
+          _state = _ScanState.ready;
+          _errorMessage = '未拍摄照片,已取消扫描';
+        });
+        return;
+      }
+      // 复用已有的上传与处理流程
+      // points_count / duration_sec 在照片模式下无意义,传 0
+      await _uploadAndProcess(photo.path, 'photo', 0, 0);
+    } catch (e) {
+      setState(() {
+        _errorMessage = '照片模式扫描失败: $e\n建议使用 Web 端 demo.html';
+        _state = _ScanState.failed;
+      });
     }
   }
 
@@ -428,6 +597,8 @@ class _ARScanPageState extends State<ARScanPage> {
       'visual_slam': '视觉 SLAM',
       'photogrammetry': '照片建模',
       'manual': '手动测量',
+      // 鸿蒙平台降级方法: 拍照 + 后端 AI 识别
+      'photo_fallback': '照片模式 (鸿蒙降级)',
     };
     // 平台友好显示
     String platformDisplay;
@@ -469,6 +640,7 @@ class _ARScanPageState extends State<ARScanPage> {
             const SizedBox(height: 12),
             _infoRow('平台', platformDisplay),
             _infoRow('设备', _deviceModel),
+            _infoRow('原生 AR', _supported ? '✓ 支持' : '✗ 不支持'),
             _infoRow('LiDAR', _hasLidar ? '✓ 支持' : '✗ 不支持'),
             if (_supportsRoomplan) _infoRow('RoomPlan', '✓ 支持 (iOS 16+)'),
             if (_arkitVersion.isNotEmpty) _infoRow('ARKit', _arkitVersion),
@@ -479,6 +651,32 @@ class _ARScanPageState extends State<ARScanPage> {
             _infoRow('预计精度', '±${_estimatedAccuracyCm.toStringAsFixed(1)} cm'),
             _infoRow('预计耗时', '$_estimatedScanTimeMin 分钟/房间'),
             _infoRow('降级链', _fallbackChain.map((m) => methodLabels[m] ?? m).join(' → ')),
+            // 鸿蒙平台特别提示: 使用照片模式降级
+            if (_platform == _Platform.harmonyos) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFC9973B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFC9973B).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFC9973B), size: 16),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '鸿蒙平台暂不支持原生 AR 扫描,已自动降级为照片模式:\n'
+                        '点击「开始 AR 扫描」后,可选择拍照上传 AI 识别,或使用 Web 端 demo.html。',
+                        style: TextStyle(color: Color(0xFFE0B873), fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

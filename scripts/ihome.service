@@ -5,13 +5,36 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/i-home.life
-ExecStart=/opt/i-home.life/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4 --log-level info
+# v1.1.26 修复: 路径与 CI deploy 目标 /opt/ihome 保持一致
+WorkingDirectory=/opt/ihome
+# v1.1.26: 优化 uvicorn 启动参数
+# - workers 4: 多进程并行处理
+# - backlog 2048: TCP 连接队列（默认 128）
+# - limit-max-requests 5000: worker 处理 5000 请求后优雅重启（防内存泄漏）
+# - limit-concurrency 100: 单 worker 最大并发连接
+# - timeout-keep-alive 65: HTTP Keep-Alive 超时（略大于 Nginx 60s）
+# - log-level warning: 生产环境减少日志IO
+# - access-log: 开启访问日志用于监控
+ExecStart=/opt/ihome/.venv/bin/uvicorn \
+    app.main:app \
+    --host 0.0.0.0 \
+    --port 8001 \
+    --workers 4 \
+    --backlog 2048 \
+    --limit-max-requests 5000 \
+    --limit-concurrency 100 \
+    --timeout-keep-alive 65 \
+    --log-level warning \
+    --access-log
 Restart=always
 RestartSec=3
+# v1.1.26: 优雅停止超时（给 in-progress 请求完成时间）
+TimeoutStopSec=30
+# v1.1.26: 文件描述符限制（高并发场景）
+LimitNOFILE=65536
 StandardOutput=journal
 StandardError=journal
-Environment=PATH=/opt/i-home.life/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PATH=/opt/ihome/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
 
 [Install]
 WantedBy=multi-user.target

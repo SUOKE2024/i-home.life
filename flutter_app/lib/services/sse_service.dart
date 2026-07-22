@@ -22,11 +22,22 @@ class SseEvent {
   final String? content;
   final String? agentType;
   final String? sessionId;
+  // v1.1.26: 卡片类型（如 ar_scan_trigger/camera_trigger/voice_input_trigger）
+  final String? messageType;
+  // v1.1.26: 卡片 payload（含 title/project_id/sensor_type 等）
+  final Map<String, dynamic>? cardPayload;
 
-  SseEvent({required this.type, this.content, this.agentType, this.sessionId});
+  SseEvent({
+    required this.type,
+    this.content,
+    this.agentType,
+    this.sessionId,
+    this.messageType,
+    this.cardPayload,
+  });
 
   @override
-  String toString() => 'SseEvent(type: $type, content: $content, agentType: $agentType, sessionId: $sessionId)';
+  String toString() => 'SseEvent(type: $type, content: $content, agentType: $agentType, sessionId: $sessionId, messageType: $messageType)';
 }
 
 /// SSE 流式聊天客户端
@@ -124,6 +135,8 @@ class SseService {
               type: SseEventType.meta,
               agentType: data['agent_type'] as String?,
               sessionId: sid,
+              messageType: data['message_type'] as String?,
+              cardPayload: data['card_payload'] as Map<String, dynamic>?,
             );
           } else if (msgType == 'token') {
             yield SseEvent(

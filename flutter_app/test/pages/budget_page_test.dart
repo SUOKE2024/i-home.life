@@ -26,7 +26,7 @@ void main() {
     });
 
     await tester.pumpWidget(
-      createTestApp(BudgetPage(projectId: 'test-id')),
+      createTestApp(const BudgetPage(projectId: 'test-id')),
     );
     await tester.pumpAndSettle();
 
@@ -47,7 +47,7 @@ void main() {
     });
 
     await tester.pumpWidget(
-      createTestApp(BudgetPage(projectId: 'test-id')),
+      createTestApp(const BudgetPage(projectId: 'test-id')),
     );
     await tester.pumpAndSettle();
 
