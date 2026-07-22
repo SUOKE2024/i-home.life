@@ -598,3 +598,44 @@ cache_hit_rate = Gauge("cache_hit_rate", "Cache hit rate", ["key_prefix"])
 | Day 5 | Flutter F4（大页面拆分，8 个文件）+ F5-F7 框架 | 拆分 + integration_test + apk 预算 + lint |
 | Day 6 | CI 流水线 3 个新 job + after 基线 + 对比报告 | CI 配置 + after 基线 JSON + 对比报告 |
 | Day 7 | 缓冲（回归修复、文档更新、冗余清理） | v1.1.27 发布就绪 |
+
+---
+
+## 13. 实施完成状态（Day 1-7 收尾，2026-07-22）
+
+| 阶段 | commit | 状态 | 验证 |
+|---|---|---|---|
+| Day 1 | `dd86d9e` | ✅ L3 框架（慢查询中间件 + 缓存装饰器 + 索引审计 + bench-baseline.sh） | 框架文件就位 |
+| Day 2 | `271ff7a` | ✅ L1 索引迁移 `j1a2b3c4d5e6` + L2 B1（auto_match_bom O(N×M)→O(N+M)）+ B4（preference hint 缓存） | 单元测试通过 |
+| Day 3 | `f8203e2` | ✅ L2 B2（chat selectinload，DB round trip O(N)→O(1)）+ B3（4 热点端点缓存） | 集成测试通过 |
+| Day 4 | `d76fcba` | ✅ Flutter F1（ListView.builder）+ F2（cached_network_image）+ F3（RepaintBoundary） | widget test 通过 |
+| Day 5 | `5eb70e0` | ✅ Flutter F4（God Widget 2343→1610 行，3 extension 文件）+ F5（integration_test）+ F6（apk 预算）+ F7（lint） | `flutter analyze` 0 error |
+| Day 6 | `594469b` | ✅ CI 3 job（backend-perf-regression / flutter-perf-baseline / apk-size-budget）+ compare-baseline.py + 实测 after 基线 + 对比报告 | YAML 校验 + comparator 双路径验证 |
+| Day 7 | （本文档） | ✅ 回归验证 + 发布就绪 | 见下 |
+
+### 13.1 Day 7 回归验证（全绿）
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| 后端全量测试 | `python -m pytest tests/ -n auto` | **914 passed, 16 skipped, 0 failed** |
+| Flutter 静态分析 | `flutter analyze --no-fatal-infos --no-fatal-warnings` | **0 error, 376 info/warning** |
+| Flutter 测试 | `flutter test` | **50 passed, 0 failed** |
+
+### 13.2 Day 7 修复的预存编译错误（未提交 v1.1.28 代码）
+
+回归验证中发现 `flutter_app/lib/pages/ai_chat_page.dart` 存在 2 个预存编译错误（属未提交的 v1.1.28 语音输入特性，非 v1.1.27 性能工程引入），已在工作树修复以使测试套件全绿（修复留在工作树，随 v1.1.28 一并提交）：
+
+1. **`ChatMessageType.fromString` 未定义**（line 238）：`fromString` 定义在 `ChatMessage` 类（chat_message.dart:307），非 `ChatMessageType` 枚举。改为 `ChatMessage.fromString(messageType)`。
+2. **`_voice.connect()` 缺 `token` 参数**（line 1196）：`VoiceRealtimeService.connect({required String token})` 要求 token。按既有 `_connectWebSocket` 模式（line 167 `ApiClient().token` + null 检查）补齐。
+
+### 13.3 已知遗留（非阻塞，留手动/后续）
+
+- 真机 FPS 基线：需 `flutter drive --profile` + 真机，CI 无真机；待创建 `integration_test/perf_baseline_test.dart` + `test_driver/perf.dart`（规格 §6.3）。
+- release apk 体积基线 JSON：需 `flutter build apk --release --analyze-size`；CI 已有 60MB 预算兜底（`apk-size-budget` job）。
+- 生产 PostgreSQL after 基线：本机 sqlite 数值偏低，生产环境更具代表性。
+- CI 3 job 首轮绿后，将 `backend-perf-regression` / `apk-size-budget` 加入 `deploy.needs` 升级为部署硬阻塞。
+
+### 13.4 发布就绪结论
+
+v1.1.27 性能工程 7 天计划 **全部完成**：后端 4 项 L2 修补 + L1 索引 + L3 框架 + Flutter F1-F7 + CI 3 job + 基线对比。全量测试绿（914 后端 / 50 Flutter），静态分析 0 error。所有改动配套 feature flag 可回滚（规格 §8）。**v1.1.27 发布就绪。**
+
