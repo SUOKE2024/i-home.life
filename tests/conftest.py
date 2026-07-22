@@ -13,6 +13,10 @@ os.environ["QWEN_AUDIO_API_KEY"] = ""
 # 避免真实 LLM 调用导致超时（deepseek-v4-pro 单次调用 60-90s，pytest timeout=60s）
 os.environ["DEEPSEEK_API_KEY"] = ""
 
+# 默认禁用 API 速率限制，避免现有测试因共享 IP 配额耗尽而误失败
+# test_rate_limit.py 通过 monkeypatch 显式启用限流
+os.environ["RATE_LIMIT_ENABLED"] = "false"
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: F401, E402
@@ -22,6 +26,7 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from app.config import get_settings  # noqa: F401, E402
 from app.database import async_session, init_db, Base, engine  # noqa: F401, E402
 from app.main import app  # noqa: E402
+from app.services.cache_service import cache  # noqa: E402
 from app.models import (  # noqa: F401, E402
     User, Project, Floor, Room,
     MaterialCategory, Material, BOMItem,
@@ -34,7 +39,10 @@ async def setup_db():
 
     v1.1.12: 同时清理 _schema_migrations 元数据表，避免 skip 机制跨测试污染
     （Base.metadata.drop_all 不会清理手动创建的 _schema_migrations 表）。
+    v1.1.27: 同时清理缓存单例的内存 dict，避免热点端点缓存跨测试污染
+    （mat:categories 等全局 key 在 xdist 同 worker 内跨测试残留）。
     """
+    cache._memory.clear()  # v1.1.27: 清理缓存防跨测试污染
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all, checkfirst=True)
         # 清理 v1.1.12 迁移版本标记表，避免后续测试触发 skip 机制

@@ -3,10 +3,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
+import hashlib
 import io
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
+from app.services.cache_service import cache
 from app.models.material import BOMItem, Material
 from app.schemas.material import (
     MaterialCategoryCreate,
@@ -32,9 +35,22 @@ async def list_categories(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """公开端点：物料分类列表（平台公共建材目录）"""
+    """公开端点：物料分类列表（平台公共建材目录）
+
+    v1.1.27 B3: 热点端点缓存。分类目录为低频变更的公共数据，300s TTL。
+    key=mat:categories，POST /categories 时主动失效。
+    """
+    settings = get_settings()
+    cache_key = "mat:categories"
+    if settings.cache_decorators_enabled:
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
     categories = await material_service.get_categories(db)
-    return [MaterialCategoryResponse.model_validate(c) for c in categories]
+    result = [MaterialCategoryResponse.model_validate(c).model_dump() for c in categories]
+    if settings.cache_decorators_enabled:
+        await cache.set(cache_key, result, ttl=settings.hot_endpoint_cache_ttl)
+    return result
 
 
 @router.post("/categories", response_model=MaterialCategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -44,6 +60,9 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
 ):
     category = await material_service.create_category(db, data.model_dump())
+    # v1.1.27 B3: 失效分类列表缓存
+    if get_settings().cache_decorators_enabled:
+        await cache.delete("mat:categories")
     return MaterialCategoryResponse.model_validate(category)
 
 
@@ -56,11 +75,24 @@ async def list_materials(
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ):
+    # v1.1.27 B3: 关键词搜索结果缓存（60s TTL），公共建材数据无跨用户风险
+    settings = get_settings()
+    if keyword and settings.cache_decorators_enabled:
+        kw_hash = hashlib.md5(keyword.encode("utf-8")).hexdigest()[:12]
+        cache_key = f"mat:search:{kw_hash}:{skip}:{limit}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     if keyword:
         materials = await material_service.search_materials(db, keyword, skip, limit)
     else:
         materials = await material_service.get_materials(db, category_id, skip, limit)
-    return [MaterialResponse.model_validate(m) for m in materials]
+    result = [MaterialResponse.model_validate(m).model_dump() for m in materials]
+
+    if keyword and settings.cache_decorators_enabled:
+        await cache.set(cache_key, result, ttl=60)
+    return result
 
 
 @router.get("/{material_id}", response_model=MaterialResponse)

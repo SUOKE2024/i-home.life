@@ -46,8 +46,10 @@ from app.agents.notifications_agent import NotificationsAgent
 from app.agents.takeoff_agent import TakeoffAgent
 from app.agents.ifc_export_agent import IfcExportAgent
 from app.config import get_settings
+from app.models.agent_session import AgentSession
 from app.ws import ws_manager
 from app.services import agent_session_service
+from app.services.cache_service import cache
 from app.schemas.agent_session import (
     AgentSessionResponse,
     AgentSessionListItem,
@@ -306,8 +308,9 @@ async def chat_with_agent(  # noqa: C901
     session_id = session.id
 
     # 若客户端提供了 session_id 但未传 history，从 DB 加载
+    # v1.1.27 优化：新会话（message_count=0）跳过 history 查询，省 1 次 DB round trip
     db_history = data.history
-    if data.session_id and not db_history:
+    if data.session_id and not db_history and session.message_count > 0:
         try:
             db_history = await agent_session_service.get_session_history(
                 db, session_id, current_user.id, limit=20,
@@ -1722,11 +1725,41 @@ async def get_agent_session(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """获取会话详情（含最近 50 条消息）"""
+    """获取会话详情（含最近 50 条消息）
+
+    v1.1.27 B3: 会话详情缓存（120s TTL）。
+    key=sess:{id}:{updated_at}，updated_at 随新消息持久化自动变化，
+    旧缓存键自然失效，无需主动 invalidate。
+    """
+    # 轻量查询：仅取 updated_at 用于构建缓存键（不加载 messages）
+    meta = await db.execute(
+        select(AgentSession.updated_at).where(
+            AgentSession.id == session_id,
+            AgentSession.user_id == current_user.id,
+            AgentSession.is_deleted == False,  # noqa: E712
+        )
+    )
+    updated_at = meta.scalar_one_or_none()
+    if updated_at is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+
+    # updated_at 转为 ISO 字符串作为缓存键的一部分
+    ua_str = updated_at.isoformat() if hasattr(updated_at, "isoformat") else str(updated_at)
+    settings = get_settings()
+    if settings.cache_decorators_enabled:
+        cache_key = f"sess:{session_id}:{ua_str}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     session = await agent_session_service.get_session(db, session_id, current_user.id)
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
-    return session
+    result = AgentSessionResponse.model_validate(session).model_dump(mode="json")
+
+    if settings.cache_decorators_enabled:
+        await cache.set(cache_key, result, ttl=120)
+    return result
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

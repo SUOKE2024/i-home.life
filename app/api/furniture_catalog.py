@@ -1,8 +1,12 @@
 """F26 家具品类库 API"""
 
+import hashlib
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.auth import get_current_user
@@ -14,6 +18,7 @@ from app.schemas.furniture_catalog import (
     RoomRecommendResult,
 )
 from app.services import furniture_catalog_service as svc
+from app.services.cache_service import cache
 
 router = APIRouter(prefix="/furniture-catalog", tags=["家具品类库"])
 
@@ -45,8 +50,24 @@ async def list_furniture(
         "price_max": price_max,
         "keyword": keyword,
     }
+
+    # v1.1.27 B3: 列表缓存（60s TTL），key 含 user_id 防跨用户泄露
+    settings = get_settings()
+    if settings.cache_decorators_enabled:
+        filters_hash = hashlib.md5(
+            json.dumps(filters, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()[:10]
+        cache_key = f"furn:list:{current_user.id}:{filters_hash}:{skip}:{limit}"
+        cached = await cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     items = await svc.search_furniture(db, filters, skip=skip, limit=limit)
-    return [FurnitureCatalogItemResponse.model_validate(i) for i in items]
+    result = [FurnitureCatalogItemResponse.model_validate(i).model_dump() for i in items]
+
+    if settings.cache_decorators_enabled:
+        await cache.set(cache_key, result, ttl=60)
+    return result
 
 
 @router.post("", response_model=FurnitureCatalogItemResponse, status_code=status.HTTP_201_CREATED)
