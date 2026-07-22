@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 
@@ -133,7 +134,7 @@ class ChatMessageCard extends StatelessWidget {
     final text = message.content ?? '';
     final isSelf = message.isSelf;
     final items = <PopupMenuEntry<String>>[
-      PopupMenuItem<String>(
+      const PopupMenuItem<String>(
         value: 'copy',
         child: const Row(
           children: [
@@ -147,7 +148,7 @@ class ChatMessageCard extends StatelessWidget {
 
     if (isSelf) {
       items.add(
-        PopupMenuItem<String>(
+        const PopupMenuItem<String>(
           value: 'reply',
           child: const Row(
             children: [
@@ -449,10 +450,12 @@ class ChatMessageCard extends StatelessWidget {
                       child: url.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                url,
+                              child: CachedNetworkImage(
+                                imageUrl: url,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
+                                placeholder: (context, url) =>
+                                    _photoPlaceholder(caption),
+                                errorWidget: (context, url, error) =>
                                     _photoPlaceholder(caption),
                               ),
                             )
@@ -1563,10 +1566,16 @@ class ChatMessageCard extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: Image.network(
-                      url.toString(),
+                    child: CachedNetworkImage(
+                      imageUrl: url.toString(),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
+                      placeholder: (context, url) => const SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                      errorWidget: (context, url, error) =>
                           const Icon(Icons.broken_image, size: 20, color: _textMuted),
                     ),
                   ),
@@ -1978,7 +1987,7 @@ class ChatMessageCard extends StatelessWidget {
       agentInfo: agentInfo,
       title: '🎤 ${_esc(p['title'] ?? '语音输入')}',
       children: [
-        Text('点击按钮开始语音输入，AI 将实时识别并回复',
+        const Text('点击按钮开始语音输入，AI 将实时识别并回复',
             style: const TextStyle(fontSize: 12, color: _textSecondary)),
         const SizedBox(height: 8),
         _actionButton('🎙️ 开始录音', _accent, () => onCardAction?.call('start_voice_input', p)),

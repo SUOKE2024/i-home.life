@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -740,10 +741,11 @@ class _PointsPageState extends State<PointsPage>
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(12),
                       ),
-                      child: Image.network(
-                        imageUrl,
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => _imgPlaceholder(),
+                        placeholder: (context, url) => _imgPlaceholder(),
+                        errorWidget: (context, url, error) => _imgPlaceholder(),
                       ),
                     )
                   : _imgPlaceholder(),

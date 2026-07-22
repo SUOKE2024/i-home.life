@@ -222,22 +222,26 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         const SizedBox(height: 16),
         const Text('施工阶段', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        ...tasks.map((task) => Card(
-              child: ListTile(
-                leading: CircleAvatar(child: Text('${task['start_day']}-\n${task['end_day']}', style: const TextStyle(fontSize: 10))),
-                title: Text(task['name'] ?? ''),
-                subtitle: Text('${task['duration_days']}天 · ${task['description'] ?? ''}'),
+        ...tasks.map((task) => RepaintBoundary(
+              child: Card(
+                child: ListTile(
+                  leading: CircleAvatar(child: Text('${task['start_day']}-\n${task['end_day']}', style: const TextStyle(fontSize: 10))),
+                  title: Text(task['name'] ?? ''),
+                  subtitle: Text('${task['duration_days']}天 · ${task['description'] ?? ''}'),
+                ),
               ),
             )),
         const SizedBox(height: 16),
         const Text('里程碑节点', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        ...milestones.map((m) => Card(
-              color: Colors.amber.shade50,
-              child: ListTile(
-                leading: const Icon(Icons.flag, color: Colors.amber),
-                title: Text(m['name'] ?? ''),
-                trailing: Text('第 ${m['day']} 天'),
+        ...milestones.map((m) => RepaintBoundary(
+              child: Card(
+                color: Colors.amber.shade50,
+                child: ListTile(
+                  leading: const Icon(Icons.flag, color: Colors.amber),
+                  title: Text(m['name'] ?? ''),
+                  trailing: Text('第 ${m['day']} 天'),
+                ),
               ),
             )),
       ],

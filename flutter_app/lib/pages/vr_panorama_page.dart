@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 
@@ -1041,12 +1042,18 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.network(
-                  scene['thumbnail_url'].toString(),
+                child: CachedNetworkImage(
+                  imageUrl: scene['thumbnail_url'].toString(),
                   height: 120,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  placeholder: (context, url) => Container(
+                    height: 120,
+                    color: _borderColor,
+                    child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     height: 120,
                     color: _borderColor,
                     child: const Icon(Icons.broken_image,

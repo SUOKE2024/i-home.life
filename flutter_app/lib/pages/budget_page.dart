@@ -193,11 +193,13 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
           const SizedBox(height: 16),
           const Text('分项明细', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          ...lines.map((line) => Card(
-                child: ListTile(
-                  title: Text(line['name'] ?? ''),
-                  subtitle: Text(line['category'] ?? ''),
-                  trailing: Text('¥${(line['estimated_amount'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}'),
+          ...lines.map((line) => RepaintBoundary(
+                child: Card(
+                  child: ListTile(
+                    title: Text(line['name'] ?? ''),
+                    subtitle: Text(line['category'] ?? ''),
+                    trailing: Text('¥${(line['estimated_amount'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}'),
+                  ),
                 ),
               )),
           const SizedBox(height: 16),
@@ -253,7 +255,8 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
         Text('面积：${_compareResult!['area']}㎡',
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
-        ...plans.map((plan) => Card(
+        ...plans.map((plan) => RepaintBoundary(
+              child: Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -285,6 +288,7 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
                         [],
                   ],
                 ),
+              ),
               ),
             )),
         if (differences != null) ...[

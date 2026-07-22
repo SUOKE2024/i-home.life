@@ -438,12 +438,19 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       (sum, d) => sum + ((d['total_price'] as num?)?.toDouble() ?? 0),
     );
 
-    return ListView(
+    // v1.1.27 F1: ListView.builder 懒加载明细卡片，避免 50+ 条目全量构建
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      children: [
-        ..._details.map((d) => _buildDetailCard(d)),
-        const SizedBox(height: 16),
-        Container(
+      itemCount: _details.length + 2, // +1 spacer +1 footer
+      itemBuilder: (context, index) {
+        if (index < _details.length) {
+          return _buildDetailCard(_details[index]);
+        }
+        if (index == _details.length) {
+          return const SizedBox(height: 16);
+        }
+        // footer: 合价总计
+        return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: _cardColor,
@@ -458,8 +465,8 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
                   style: const TextStyle(color: _brandColor, fontSize: 20, fontWeight: FontWeight.bold)),
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 

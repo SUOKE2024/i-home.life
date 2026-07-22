@@ -1,7 +1,7 @@
 name: ihome_app
 description: "索克家居 · i-home.life"
 publish_to: 'none'
-version: 1.1.22+12
+version: 1.1.28+16
 
 # 鸿蒙适配版本: Flutter-OH 3.35.7-ohos-0.0.3
 # 对应上游 Flutter 3.35.7 / Dart 3.9.2
@@ -22,6 +22,8 @@ dependencies:
   # 文件选择 & 图片
   file_picker: ^11.0.2
   image_picker: ^1.1.0
+  # 网络图片缓存（F2: 替换 Image.network 避免重复下载 + 占位符/错误态）
+  cached_network_image: ^3.4.1
   # 状态管理
   provider: ^6.1.2
   # 生物识别认证（指纹/面容）
@@ -32,6 +34,12 @@ dependencies:
   flutter_local_notifications: ^22.0.1
   # 平台权限请求（通知/相机等）
   permission_handler: ^12.0.3
+  # 传感器（加速度计/陀螺仪/磁力计）— Dart 层跨平台读取
+  # 注意: 仅 Android/iOS 完整支持；鸿蒙平台通过 try-catch 优雅降级
+  sensors_plus: ^6.1.1
+  # GPS 定位 — 场景自动化地理触发 + AR 校准
+  # 注意: 仅 Android/iOS 完整支持；鸿蒙平台通过 try-catch 优雅降级
+  geolocator: ^13.0.4
   # 工具
   intl: ^0.20.3
   uuid: ^4.4.0

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../config.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -379,11 +380,17 @@ class _AIImagePageState extends State<AIImagePage>
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    _resolveUrl(job['output_image_url'].toString()),
+                  child: CachedNetworkImage(
+                    imageUrl: _resolveUrl(job['output_image_url'].toString()),
                     height: 200,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
+                    placeholder: (context, url) => Container(
+                      height: 200,
+                      color: _border,
+                      child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+                    errorWidget: (context, url, error) => Container(
                       height: 200,
                       color: _border,
                       child: const Center(
@@ -643,12 +650,18 @@ class _AIImagePageState extends State<AIImagePage>
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  _resolveUrl(outputUrl),
+                child: CachedNetworkImage(
+                  imageUrl: _resolveUrl(outputUrl),
                   height: 160,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  placeholder: (context, url) => Container(
+                    height: 160,
+                    color: _border,
+                    child: const Center(
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                  errorWidget: (context, url, error) => Container(
                     height: 160,
                     color: _border,
                     child: const Center(
@@ -778,11 +791,16 @@ class _AIImagePageState extends State<AIImagePage>
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 child: previewUrl != null && previewUrl.isNotEmpty
-                    ? Image.network(
-                        _resolveUrl(previewUrl),
+                    ? CachedNetworkImage(
+                        imageUrl: _resolveUrl(previewUrl),
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
+                        placeholder: (context, url) => Container(
+                          color: _border,
+                          child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                        errorWidget: (context, url, error) => Container(
                           color: _border,
                           child: const Center(
                             child: Icon(Icons.image_outlined,

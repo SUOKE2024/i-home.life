@@ -381,10 +381,13 @@ class _StructuralPageState extends State<StructuralPage>
     }
     return RefreshIndicator(
       onRefresh: _loadAll,
-      child: ListView(
+      // v1.1.27 F1: ListView.builder 懒加载工程量卡片
+      child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        children: [
-          ..._quantities.map((q) => _card(
+        itemCount: _quantities.length,
+        itemBuilder: (context, index) {
+          final q = _quantities[index];
+          return _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -414,8 +417,8 @@ class _StructuralPageState extends State<StructuralPage>
                     _row('墙体体积', '${q['wall_volume_m3'] ?? '—'} m³'),
                   ],
                 ),
-              )),
-        ],
+              );
+        },
       ),
     );
   }
