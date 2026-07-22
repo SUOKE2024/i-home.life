@@ -4,6 +4,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 
+// F4: God Widget 拆分 — 采购/财务/设计域卡片渲染器抽取为 extension 文件
+import 'chat_card_procurement.dart';
+import 'chat_card_finance.dart';
+import 'chat_card_design.dart';
+
 /// 统一聊天消息卡片 —— 渲染全部消息类型
 ///
 /// 参考 Web 端 message-renderers.js 的 HTML 结构和样式。
@@ -28,14 +33,14 @@ class ChatMessageCard extends StatelessWidget {
   // ── 引用统一设计令牌（与 Web 端 workbench.css 对齐） ──
   static const Color _bgDark = SuokeDesignTokens.bgDeep;
   static const Color _cardBg = SuokeDesignTokens.cardBg;
-  static const Color _accent = SuokeDesignTokens.accent;
-  static const Color _textPrimary = SuokeDesignTokens.textPrimary;
-  static const Color _textSecondary = SuokeDesignTokens.textSecondary;
-  static const Color _textMuted = SuokeDesignTokens.textMuted;
-  static const Color _border = SuokeDesignTokens.border;
-  static const Color _success = SuokeDesignTokens.success;
-  static const Color _warning = SuokeDesignTokens.warning;
-  static const Color _danger = SuokeDesignTokens.danger;
+  static const Color accent = SuokeDesignTokens.accent;
+  static const Color textPrimary = SuokeDesignTokens.textPrimary;
+  static const Color textSecondary = SuokeDesignTokens.textSecondary;
+  static const Color textMuted = SuokeDesignTokens.textMuted;
+  static const Color border = SuokeDesignTokens.border;
+  static const Color success = SuokeDesignTokens.success;
+  static const Color warning = SuokeDesignTokens.warning;
+  static const Color danger = SuokeDesignTokens.danger;
   static const Color _bubbleUser = SuokeDesignTokens.bubbleUser;
   static const Color _bubbleAgent = SuokeDesignTokens.bubbleAgent;
 
@@ -58,27 +63,27 @@ class ChatMessageCard extends StatelessWidget {
       case ChatMessageType.document:
         child = _buildDocumentCard();
       case ChatMessageType.budget:
-        child = _buildBudgetCard();
+        child = buildBudgetCard();
       case ChatMessageType.payment:
-        child = _buildPaymentCard();
+        child = buildPaymentCard();
       case ChatMessageType.quote:
-        child = _buildQuoteCard();
+        child = buildQuoteCard();
       case ChatMessageType.bom:
-        child = _buildBomCard();
+        child = buildBomCard();
       case ChatMessageType.procurement_order:
-        child = _buildOrderCard();
+        child = buildOrderCard();
       case ChatMessageType.procurement_orders:
-        child = _buildOrderListCard();
+        child = buildOrderListCard();
       case ChatMessageType.escrow:
-        child = _buildEscrowCard();
+        child = buildEscrowCard();
       case ChatMessageType.logistics:
-        child = _buildLogisticsCard();
+        child = buildLogisticsCard();
       case ChatMessageType.sample:
-        child = _buildSampleCard();
+        child = buildSampleCard();
       case ChatMessageType.settlement:
-        child = _buildSettlementCard();
+        child = buildSettlementCard();
       case ChatMessageType.milestone_settlement:
-        child = _buildMilestoneCard();
+        child = buildMilestoneCard();
       case ChatMessageType.task_claim:
         child = _buildTaskClaimCard();
       case ChatMessageType.product_card:
@@ -96,15 +101,15 @@ class ChatMessageCard extends StatelessWidget {
       case ChatMessageType.progress_alert_card:
         child = _buildProgressAlertCard();
       // v1.1.22: 补齐 13 种 Agent 专用卡片
-      case ChatMessageType.kitchen_card: child = _buildKitchenCard();
-      case ChatMessageType.bathroom_card: child = _buildBathroomCard();
-      case ChatMessageType.lighting_card: child = _buildLightingCard();
-      case ChatMessageType.structural_card: child = _buildStructuralCard();
-      case ChatMessageType.takeoff_card: child = _buildTakeoffCard();
-      case ChatMessageType.furniture_card: child = _buildFurnitureCard();
-      case ChatMessageType.appliance_card: child = _buildApplianceCard();
-      case ChatMessageType.door_window_card: child = _buildDoorWindowCard();
-      case ChatMessageType.mep_plan_card: child = _buildMepPlanCard();
+      case ChatMessageType.kitchen_card: child = buildKitchenCard();
+      case ChatMessageType.bathroom_card: child = buildBathroomCard();
+      case ChatMessageType.lighting_card: child = buildLightingCard();
+      case ChatMessageType.structural_card: child = buildStructuralCard();
+      case ChatMessageType.takeoff_card: child = buildTakeoffCard();
+      case ChatMessageType.furniture_card: child = buildFurnitureCard();
+      case ChatMessageType.appliance_card: child = buildApplianceCard();
+      case ChatMessageType.door_window_card: child = buildDoorWindowCard();
+      case ChatMessageType.mep_plan_card: child = buildMepPlanCard();
       case ChatMessageType.identity_card: child = _buildIdentityCard();
       case ChatMessageType.voice_card: child = _buildVoiceCard();
       case ChatMessageType.ifc_export_card: child = _buildIfcExportCard();
@@ -138,9 +143,9 @@ class ChatMessageCard extends StatelessWidget {
         value: 'copy',
         child: const Row(
           children: [
-            Icon(Icons.copy, size: 18, color: _textSecondary),
+            Icon(Icons.copy, size: 18, color: textSecondary),
             SizedBox(width: 10),
-            Text('复制', style: TextStyle(color: _textPrimary, fontSize: 14)),
+            Text('复制', style: TextStyle(color: textPrimary, fontSize: 14)),
           ],
         ),
       ),
@@ -152,9 +157,9 @@ class ChatMessageCard extends StatelessWidget {
           value: 'reply',
           child: const Row(
             children: [
-              Icon(Icons.reply, size: 18, color: _textSecondary),
+              Icon(Icons.reply, size: 18, color: textSecondary),
               SizedBox(width: 10),
-              Text('回复', style: TextStyle(color: _textPrimary, fontSize: 14)),
+              Text('回复', style: TextStyle(color: textPrimary, fontSize: 14)),
             ],
           ),
         ),
@@ -169,7 +174,7 @@ class ChatMessageCard extends StatelessWidget {
       color: _cardBg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _border),
+        side: const BorderSide(color: border),
       ),
       position: RelativeRect.fromLTRB(
         offset.dx + renderBox.size.width / 2,
@@ -199,11 +204,11 @@ class ChatMessageCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _bgDark,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _border.withValues(alpha: 0.4)),
+          border: Border.all(color: border.withValues(alpha: 0.4)),
         ),
         child: Text(
           message.content ?? '',
-          style: const TextStyle(fontSize: 11, color: _textMuted),
+          style: const TextStyle(fontSize: 11, color: textMuted),
         ),
       ),
     );
@@ -251,7 +256,7 @@ class ChatMessageCard extends StatelessWidget {
               color: bubbleColor,
               borderRadius: radius,
               border: Border.all(
-                color: _border.withValues(alpha: 0.4),
+                color: border.withValues(alpha: 0.4),
                 width: 1,
               ),
             ),
@@ -270,10 +275,10 @@ class ChatMessageCard extends StatelessWidget {
                         child: SelectableText(
                           message.content ?? '',
                           enableInteractiveSelection: true,
-                          cursorColor: leftBorderColor ?? _accent,
+                          cursorColor: leftBorderColor ?? accent,
                           style: const TextStyle(
                             fontSize: 14,
-                            color: _textPrimary,
+                            color: textPrimary,
                             height: 1.5,
                           ),
                         ),
@@ -319,7 +324,7 @@ class ChatMessageCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: _cardBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: _border),
+          border: Border.all(color: border),
         ),
         child: Text(label, style: const TextStyle(fontSize: 12)),
       ),
@@ -343,13 +348,13 @@ class ChatMessageCard extends StatelessWidget {
     final percent = tasks.isNotEmpty ? (doneCount * 100 ~/ tasks.length) : 0;
     final progressLabel = percent > 0 ? '（$percent% 完成）' : '';
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📋 ${_esc(title)}$progressLabel',
+      title: '📋 ${esc(title)}$progressLabel',
       children: [
         if (percent > 0) ...[
           const SizedBox(height: 2),
-          _progressBar(percent),
+          progressBar(percent),
           const SizedBox(height: 4),
         ],
         ...tasks.map(_buildTaskItem),
@@ -366,13 +371,13 @@ class ChatMessageCard extends StatelessWidget {
     Color color;
     if (isDone) {
       icon = Icons.check_circle;
-      color = _success;
+      color = success;
     } else if (isInProgress) {
       icon = Icons.more_horiz;
-      color = _warning;
+      color = warning;
     } else {
       icon = Icons.radio_button_unchecked;
-      color = _textMuted;
+      color = textMuted;
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -382,10 +387,10 @@ class ChatMessageCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _esc(name),
+              esc(name),
               style: TextStyle(
                 fontSize: 13,
-                color: isDone ? _textSecondary : _textPrimary,
+                color: isDone ? textSecondary : textPrimary,
                 decoration: isDone ? TextDecoration.lineThrough : null,
               ),
             ),
@@ -422,7 +427,7 @@ class ChatMessageCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: isUser ? _bubbleUser : _bubbleAgent,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _border),
+              border: Border.all(color: border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,8 +435,8 @@ class ChatMessageCard extends StatelessWidget {
                 if (note != null && note.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(_esc(note),
-                        style: const TextStyle(fontSize: 13, color: _textPrimary)),
+                    child: Text(esc(note),
+                        style: const TextStyle(fontSize: 13, color: textPrimary)),
                   ),
                 Wrap(
                   spacing: 6,
@@ -445,7 +450,7 @@ class ChatMessageCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: _cardBg,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: _border),
+                        border: Border.all(color: border),
                       ),
                       child: url.isNotEmpty
                           ? ClipRRect(
@@ -476,11 +481,11 @@ class ChatMessageCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.image, size: 24, color: _textMuted),
+          const Icon(Icons.image, size: 24, color: textMuted),
           const SizedBox(height: 2),
           Text(
             caption.length > 6 ? '${caption.substring(0, 6)}…' : caption,
-            style: const TextStyle(fontSize: 9, color: _textMuted),
+            style: const TextStyle(fontSize: 9, color: textMuted),
           ),
         ],
       ),
@@ -500,33 +505,33 @@ class ChatMessageCard extends StatelessWidget {
     final detail = p['detail'] as String?;
     final approvalId = p['id'] as String?;
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '⚠ 待决策 · ${_esc(title)}',
-      borderColor: _accent,
+      title: '⚠ 待决策 · ${esc(title)}',
+      borderColor: accent,
       children: [
-        if (problem != null) _row('问题', problem, boldValue: true),
+        if (problem != null) row('问题', problem, boldValue: true),
         if (impactCost != null)
-          _row('预算影响', '+¥${_fmtNum(impactCost)}',
-              boldValue: true, valueColor: _warning),
+          row('预算影响', '+¥${fmtNum(impactCost)}',
+              boldValue: true, valueColor: warning),
         if (impactDays != null)
-          _row('工期影响', '+$impactDays 天', boldValue: true),
+          row('工期影响', '+$impactDays 天', boldValue: true),
         if (detail != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(_esc(detail),
-                style: const TextStyle(fontSize: 11, color: _textSecondary)),
+            child: Text(esc(detail),
+                style: const TextStyle(fontSize: 11, color: textSecondary)),
           ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: _actionButton('同意', _success,
+              child: actionButton('同意', success,
                   () => onApprovalAction?.call('approve', {'id': approvalId})),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _actionButton('整改', _danger,
+              child: actionButton('整改', danger,
                   () => onApprovalAction?.call('reject', {'id': approvalId})),
             ),
           ],
@@ -541,586 +546,23 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildDocumentCard() {
     final f = message.payload ?? {};
     final agentInfo = message.agentInfo ?? AgentInfo.getByKey('design');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📎 ${_esc(f['name'] ?? '文档')}',
+      title: '📎 ${esc(f['name'] ?? '文档')}',
       children: [
-        if (f['size'] != null) _row('大小', _esc(f['size']), boldValue: true),
+        if (f['size'] != null) row('大小', esc(f['size']), boldValue: true),
         const SizedBox(height: 4),
         GestureDetector(
           onTap: () => onCardAction?.call('open_url', {'url': f['url']}),
           child: const Text('查看 →',
-              style: TextStyle(fontSize: 11, color: _accent)),
+              style: TextStyle(fontSize: 11, color: accent)),
         ),
       ],
     );
   }
 
-  // ═══════════════════════════════════════════
-  // 7. 预算卡片
-  // ═══════════════════════════════════════════
-  Widget _buildBudgetCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('budget');
-    final total = _num(p['total']);
-    final spent = _num(p['spent']);
-    final remaining = _num(p['remaining']);
-    final note = p['note'] as String?;
-    final percent = total > 0 ? (spent / total * 100).round() : 0;
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '📊 预算概览',
-      children: [
-        _row('总预算', '¥${_fmtNum(total)}', boldValue: true),
-        _row('已支出', '¥${_fmtNum(spent)}（${percent}%）', boldValue: true),
-        _row('剩余', '¥${_fmtNum(remaining)}',
-            boldValue: true, valueColor: _success),
-        const SizedBox(height: 6),
-        _progressBar(percent),
-        if (note != null && note.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(note),
-                style: const TextStyle(fontSize: 10, color: _textMuted)),
-          ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 8. 支付进度卡片
-  // ═══════════════════════════════════════════
-  Widget _buildPaymentCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('settlement');
-    final stages = (p['stages'] ?? p['schedule'] as List?) ?? [];
-    final totalPaid = _num(p['total_paid'] ?? 0);
-    final totalAmount = _num(p['total_amount'] ?? 0);
-    final invoiceCount = p['invoice_count'];
-    final invoicedAmount = _num(p['invoiced_amount']);
-    final note = p['note'] as String?;
-    final percent =
-        totalAmount > 0 ? (totalPaid / totalAmount * 100).round() : 0;
-
-    const stageLabels = {
-      'deposit': '首付',
-      'progress': '进度款',
-      'final': '尾款',
-      'warranty': '质保金',
-    };
-    const statusIcons = {
-      'paid': Icons.check_circle,
-      'partial': Icons.change_circle,
-      'pending': Icons.radio_button_unchecked,
-      'overdue': Icons.warning_rounded,
-    };
-    const statusColors = {
-      'paid': _success,
-      'partial': _warning,
-      'pending': _textMuted,
-      'overdue': _danger,
-    };
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '💳 支付进度',
-      children: [
-        _row('已付', '¥${_fmtNum(totalPaid)}',
-            boldValue: true, valueColor: _success),
-        _row('总额', '¥${_fmtNum(totalAmount)}', boldValue: true),
-        _row('进度', '$percent%', boldValue: true),
-        const SizedBox(height: 4),
-        _progressBar(percent),
-        if (stages.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          const Divider(color: _border, height: 1),
-          const SizedBox(height: 4),
-          ...stages.map((st) {
-            final stageCode = (st['stage_code'] ?? st['milestone_code'] ?? '')
-                .toString();
-            final label = stageLabels[stageCode] ??
-                (stageCode.isNotEmpty ? stageCode : '阶段');
-            final status = (st['status'] ?? 'pending').toString();
-            final paid = _num(st['paid_amount']);
-            final ttl = _num(st['total_amount']);
-            final stagePct = ttl > 0 ? (paid / ttl * 100).round() : 0;
-            final icon = statusIcons[status] ?? Icons.radio_button_unchecked;
-            final iconColor = statusColors[status] ?? _textMuted;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  Icon(icon, size: 14, color: iconColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(_esc(label),
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 12, color: _textPrimary)),
-                  ),
-                  const SizedBox(width: 6),
-                  Text('¥${_fmtNum(paid)} / ¥${_fmtNum(ttl)}',
-                      style: const TextStyle(fontSize: 11, color: _textSecondary)),
-                  const SizedBox(width: 6),
-                  Text('$stagePct%',
-                      style: const TextStyle(fontSize: 11, color: _textMuted)),
-                ],
-              ),
-            );
-          }),
-        ],
-        if (invoiceCount != null)
-          _row('已开票',
-              '$invoiceCount 张 · ¥${_fmtNum(invoicedAmount)}', boldValue: true),
-        if (note != null && note.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(note),
-                style: const TextStyle(fontSize: 10, color: _textMuted)),
-          ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 9. 比价卡片
-  // ═══════════════════════════════════════════
-  Widget _buildQuoteCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final quotes = (p['quotes'] as List?) ?? [];
-    final recommendation = p['recommendation'] as String?;
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🛒 ${_esc(p['product'] ?? '比价报告')}',
-      children: [
-        ...quotes.map((q) {
-          final supplier = (q['supplier'] ?? '') as String;
-          final price = _num(q['price']);
-          final isRec = q['recommended'] == true;
-          return _row(supplier, '¥${_fmtNum(price)}${isRec ? ' ⭐' : ''}',
-              boldValue: true);
-        }),
-        if (recommendation != null)
-          _row('推荐', _esc(recommendation),
-              boldValue: true, valueColor: _accent),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 10. BOM 物料清单
-  // ═══════════════════════════════════════════
-  Widget _buildBomCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final items = (p['items'] as List?) ?? [];
-    final totalPrice = _num(p['total_price']);
-    final projectId = p['project_id'] as String?;
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '📦 ${_esc(p['title'] ?? 'BOM 物料清单')}',
-      children: [
-        if (items.isEmpty)
-          _row('暂无物料', '', boldValue: true)
-        else ...[
-          ...items.take(8).toList().asMap().entries.map((entry) {
-            final idx = entry.key;
-            final it = entry.value;
-            final mat = it['material'] as Map<String, dynamic>? ?? {};
-            final cat = mat['category'] as Map<String, dynamic>? ?? {};
-            final name = mat['name'] ?? mat['sku'] ?? '物料';
-            final catName = cat['name'] ?? cat['code'] ?? '';
-            final qty = it['quantity'];
-            final unit = mat['unit'] ?? '';
-            final itemPrice = _num(it['total_price']);
-            return _row(
-              '${idx + 1}. ${_esc(name)} ${catName.isNotEmpty ? "[$catName]" : ""}',
-              '×$qty ${_esc(unit)} · ¥${_fmtNum(itemPrice)}',
-              boldValue: true,
-            );
-          }),
-          if (items.length > 8)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text('… 共 ${items.length} 项',
-                  style: const TextStyle(fontSize: 10, color: _textMuted)),
-            ),
-        ],
-        _row('合计', '¥${_fmtNum(totalPrice)}',
-            boldValue: true, valueColor: _warning),
-        if (projectId != null)
-          GestureDetector(
-            onTap: () => onCardAction
-                ?.call('export_bom', {'project_id': projectId}),
-            child: const Padding(
-              padding: EdgeInsets.only(top: 4),
-              child: Text('📥 导出 Excel',
-                  style: TextStyle(fontSize: 11, color: _accent)),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 11. 采购订单
-  // ═══════════════════════════════════════════
-  Widget _buildOrderCard() {
-    final o = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final lines = (o['lines'] as List?) ?? [];
-    final totalAmount = _num(o['total_amount']);
-    final status = (o['status'] ?? 'draft').toString();
-    final note = o['note'] as String?;
-    final supplierName = o['supplier_name'] as String?;
-    final orderId = o['id'] as String?;
-
-    const statusMap = {
-      'draft': '草稿',
-      'pending': '待确认',
-      'confirmed': '已确认',
-      'shipped': '已发货',
-      'delivered': '已送达',
-      'completed': '已完成',
-      'cancelled': '已取消',
-    };
-    final statusText = statusMap[status] ?? status;
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title:
-          '🛍️ 采购订单${orderId != null ? " #${orderId.toString().substring(0, orderId.length < 8 ? orderId.length : 8)}" : ""}',
-      children: [
-        if (supplierName != null)
-          _row('供应商', _esc(supplierName), boldValue: true),
-        ...lines.asMap().entries.map((entry) {
-          final l = entry.value;
-          return _row(
-            '${entry.key + 1}. ${_esc(l['material_name'] ?? l['material_id'] ?? '物料')}',
-            '×${l['quantity']} · ¥${_fmtNum(_num(l['total_price']))}',
-            boldValue: true,
-          );
-        }),
-        _row('合计', '¥${_fmtNum(totalAmount)}',
-            boldValue: true, valueColor: _warning),
-        _row('状态', _esc(statusText),
-            boldValue: true, valueColor: _orderStatusColor(status)),
-        if (note != null && note.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(note),
-                style: const TextStyle(fontSize: 10, color: _textMuted)),
-          ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 12. 采购订单列表
-  // ═══════════════════════════════════════════
-  Widget _buildOrderListCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final orders = (p['orders'] as List?) ?? [];
-    if (orders.isEmpty) return const SizedBox.shrink();
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '📋 采购订单列表',
-      children: [
-        ...orders.take(5).map((o) {
-          final orderId = o['id']?.toString() ?? '';
-          final shortId = orderId.length > 8
-              ? orderId.substring(0, 8)
-              : orderId;
-          final supplier = o['supplier_name'] as String?;
-          final amount = _num(o['total_amount']);
-          final status = (o['status'] ?? 'draft').toString();
-          const statusMap = {
-            'draft': '草稿',
-            'pending': '待确认',
-            'confirmed': '已确认',
-            'shipped': '已发货',
-            'delivered': '已送达',
-            'completed': '已完成',
-            'cancelled': '已取消',
-          };
-          return _row(
-            '#$shortId${supplier != null ? " · $supplier" : ""}',
-            '¥${_fmtNum(amount)} · ${statusMap[status] ?? status}',
-            boldValue: true,
-            valueColor: _orderStatusColor(status),
-          );
-        }),
-        if (orders.length > 5)
-          Text('… 共 ${orders.length} 个订单',
-              style: const TextStyle(fontSize: 10, color: _textMuted)),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 13. 担保支付
-  // ═══════════════════════════════════════════
-  Widget _buildEscrowCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final totalAmount = _num(p['total_amount']);
-    final escrowFee = _num(p['escrow_fee']);
-    final status = (p['status'] ?? 'pending').toString();
-    final escrowNo = p['escrow_no'] as String?;
-    final disputeReason = p['dispute_reason'] as String?;
-
-    const statusLabels = {
-      'pending': '待付款',
-      'buyer_paid': '买家已付款',
-      'supplier_received': '已释放给供应商',
-      'refunded': '已退款',
-      'disputed': '争议中',
-    };
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🛡 担保支付 · ${_esc(escrowNo ?? '')}',
-      children: [
-        _row('订单金额', '¥${_fmtNum(totalAmount)}', boldValue: true),
-        _row('担保手续费', '¥${_fmtNum(escrowFee)}', boldValue: true),
-        _row('状态', _esc(statusLabels[status] ?? status),
-            boldValue: true, valueColor: _escrowStatusColor(status)),
-        if (disputeReason != null)
-          _row('争议原因', _esc(disputeReason), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 14. 物流追踪
-  // ═══════════════════════════════════════════
-  Widget _buildLogisticsCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final trackingNo = p['tracking_no'] as String?;
-    final carrier = p['carrier'] as String?;
-    final shipFrom = p['ship_from'] as String?;
-    final shipTo = p['ship_to'] as String?;
-    final status = (p['status'] ?? 'pending').toString();
-    final history = p['tracking_history'] as List?;
-
-    const carrierLabels = {
-      'sf_express': '顺丰',
-      'yt_express': '圆通',
-      'zto': '中通',
-      'sto': '申通',
-      'jd_logistics': '京东物流',
-      'debon': '德邦',
-      'self_delivery': '自送',
-    };
-    const statusLabels = {
-      'pending': '待发货',
-      'shipped': '已发货',
-      'in_transit': '运输中',
-      'delivered': '已签收',
-      'exception': '异常',
-    };
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🚚 物流追踪 · ${_esc(trackingNo ?? '')}',
-      children: [
-        _row('承运商', _esc(carrierLabels[carrier] ?? carrier ?? ''),
-            boldValue: true),
-        if (shipFrom != null) _row('发货地', _esc(shipFrom), boldValue: true),
-        if (shipTo != null) _row('收货地', _esc(shipTo), boldValue: true),
-        _row('状态', _esc(statusLabels[status] ?? status),
-            boldValue: true, valueColor: _accent),
-        if (history != null && history.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          const Divider(color: _border, height: 1),
-          const SizedBox(height: 4),
-          ...history.reversed.take(3).map((h) {
-            return _row(
-              _esc(h['location'] ?? '—'),
-              _esc(h['description'] ?? h['status'] ?? ''),
-              boldValue: true,
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 15. 样品索要
-  // ═══════════════════════════════════════════
-  Widget _buildSampleCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('procurement');
-    final status = (p['status'] ?? 'requested').toString();
-    final sampleType = p['sample_type'] as String?;
-    final materialName = p['material_name'] as String?;
-    final notes = p['notes'] as String?;
-
-    const statusLabels = {
-      'requested': '已申请',
-      'shipped': '已寄出',
-      'received': '已收到',
-      'rejected': '已拒绝',
-    };
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🎨 样品索要 · ${_esc(sampleType ?? '实物')}',
-      children: [
-        if (materialName != null)
-          _row('物料', _esc(materialName), boldValue: true),
-        _row('状态', _esc(statusLabels[status] ?? status),
-            boldValue: true, valueColor: _sampleStatusColor(status)),
-        if (notes != null) _row('备注', _esc(notes), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 16. 结算卡片
-  // ═══════════════════════════════════════════
-  Widget _buildSettlementCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('settlement');
-    final lines = (p['lines'] as List?) ?? [];
-    final contractAmount = _num(p['contract_amount']);
-    final actualAmount = _num(p['actual_amount']);
-    final payableAmount = _num(p['payable_amount']);
-    final status = (p['status'] ?? 'draft').toString();
-    final reviewRequired = p['review_required'] == true;
-    final anomalyCount = p['anomaly_count'];
-    final criticalAnomalyCount = p['critical_anomaly_count'];
-    final suggestedDeduction = _num(p['suggested_deduction']);
-    final projectId = p['project_id'] as String?;
-    final milestone = p['milestone'] as String?;
-
-    const statusTexts = {
-      'draft': '草稿',
-      'confirmed': '已确认',
-      'review': '待复核',
-      'flagged': '已标记异常',
-    };
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title:
-          '🧾 结算单 · ${_esc(milestone ?? 'completion')} · ${_esc(statusTexts[status] ?? status)}',
-      children: [
-        _row('合同金额', '¥${_fmtNum(contractAmount)}', boldValue: true),
-        _row('实际金额', '¥${_fmtNum(actualAmount)}', boldValue: true),
-        _row('应付金额', '¥${_fmtNum(payableAmount)}',
-            boldValue: true, valueColor: _accent),
-        if (criticalAnomalyCount != null && criticalAnomalyCount > 0)
-          _row('异常', '$criticalAnomalyCount 严重 / $anomalyCount 总',
-              boldValue: true, valueColor: _warning)
-        else if (anomalyCount != null && anomalyCount > 0)
-          _row('异常', '$anomalyCount 警告', boldValue: true),
-        if (suggestedDeduction > 0)
-          _row('建议扣款', '-¥${_fmtNum(suggestedDeduction)}',
-              boldValue: true, valueColor: _warning),
-        if (reviewRequired)
-          _row('复核状态', '⚠ 需人工复核',
-              boldValue: true, valueColor: _warning),
-        if (lines.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          const Divider(color: _border, height: 1),
-          const SizedBox(height: 6),
-          ...lines.take(6).toList().asMap().entries.map((entry) {
-            final it = entry.value;
-            final name = it['name'] ?? '未命名';
-            final amt = _num(it['actual_amount'] ?? it['contract_amount']);
-            final isAnomaly = it['is_anomaly'] == true;
-            final anomalyType = it['anomaly_type'] as String?;
-            final variance =
-                _num(it['actual_amount']) - _num(it['contract_amount']) - _num(it['change_amount']);
-            return _row(
-              '${entry.key + 1}. ${_esc(name)}${isAnomaly ? " ⚠${anomalyType ?? '异常'}" : ""}${variance != 0 ? " 偏差 ¥${_fmtNum(variance)}" : ""}',
-              '¥${_fmtNum(amt)}',
-              boldValue: true,
-            );
-          }),
-          if (lines.length > 6)
-            Text('… 共 ${lines.length} 项',
-                style: const TextStyle(fontSize: 10, color: _textMuted)),
-        ],
-        if (projectId != null) ...[
-          const SizedBox(height: 4),
-          GestureDetector(
-            onTap: () => onCardAction
-                ?.call('export_settlement', {'project_id': projectId}),
-            child: const Text('📤 导出对账单',
-                style: TextStyle(fontSize: 11, color: _accent)),
-          ),
-        ],
-        if ((status == 'draft' || status == 'flagged') &&
-            !reviewRequired &&
-            projectId != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _actionButton('确认结算', _success,
-                () => onCardAction?.call('confirm_settlement', {'project_id': projectId})),
-          ),
-        if (reviewRequired && projectId != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _actionButton('通过复核', _accent,
-                () => onCardAction?.call('approve_review', {'project_id': projectId})),
-          ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // 17. 里程碑结算
-  // ═══════════════════════════════════════════
-  Widget _buildMilestoneCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('settlement');
-    final contractAmount = _num(p['contract_amount']);
-    final paymentRatio = _num(p['payment_ratio']);
-    final basePayable = _num(p['base_payable']);
-    final changeAmount = _num(p['change_amount']);
-    final deductionAmount = _num(p['deduction_amount']);
-    final paidAmount = _num(p['paid_amount']);
-    final totalPayable = _num(p['total_payable']);
-    final description = p['description'] as String?;
-
-    final ratioPct = (paymentRatio * 100).round();
-
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🧾 ${_esc(p['milestone_name'] ?? '里程碑结算')}',
-      children: [
-        _row('合同金额', '¥${_fmtNum(contractAmount)}', boldValue: true),
-        _row('付款比例', '$ratioPct%', boldValue: true),
-        _row('基础应付', '¥${_fmtNum(basePayable)}', boldValue: true),
-        if (changeAmount != 0)
-          _row('变更', '+¥${_fmtNum(changeAmount)}', boldValue: true),
-        if (deductionAmount != 0)
-          _row('扣款', '-¥${_fmtNum(deductionAmount)}',
-              boldValue: true, valueColor: _warning),
-        if (paidAmount != 0)
-          _row('已付', '-¥${_fmtNum(paidAmount)}', boldValue: true),
-        _row('本次应付', '¥${_fmtNum(totalPayable)}',
-            boldValue: true, valueColor: _accent),
-        if (description != null && description.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(description),
-                style: const TextStyle(fontSize: 10, color: _textMuted)),
-          ),
-      ],
-    );
-  }
+  // F4: 采购域卡片 (比价/BOM/订单/担保/物流/样品) → chat_card_procurement.dart
+  // F4: 财务域卡片 (预算/支付/结算/里程碑) → chat_card_finance.dart
 
   // ═══════════════════════════════════════════
   // 18. 任务申领
@@ -1142,20 +584,20 @@ class ChatMessageCard extends StatelessWidget {
       'supplier': '供应商',
     };
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📋 ${_esc(title)}',
-      borderColor: _accent,
+      title: '📋 ${esc(title)}',
+      borderColor: accent,
       children: [
         if (description != null && description.isNotEmpty)
-          _row('描述', _esc(description), boldValue: true),
-        _row('任务类型', _esc(roleLabels[claimRole] ?? claimRole ?? '未知'),
+          row('描述', esc(description), boldValue: true),
+        row('任务类型', esc(roleLabels[claimRole] ?? claimRole ?? '未知'),
             boldValue: true),
-        _row('项目', _esc(projectName ?? '—'), boldValue: true),
-        _row('申领人数', '${candidates.length}人', boldValue: true),
+        row('项目', esc(projectName ?? '—'), boldValue: true),
+        row('申领人数', '${candidates.length}人', boldValue: true),
         if (candidates.isNotEmpty) ...[
           const SizedBox(height: 6),
-          const Divider(color: _border, height: 1),
+          const Divider(color: border, height: 1),
           const SizedBox(height: 4),
           ..._sortedCandidates(candidates)
               .asMap()
@@ -1183,14 +625,14 @@ class ChatMessageCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(_esc(userName),
+                        Text(esc(userName),
                             style: const TextStyle(
-                                fontSize: 13, color: _textPrimary,
+                                fontSize: 13, color: textPrimary,
                                 fontWeight: FontWeight.w600)),
                         Text(
                           '⭐ ${rating.toStringAsFixed(1)}  积分$points  经验${exp}年  完成${completed}个',
                           style: const TextStyle(
-                              fontSize: 11, color: _textSecondary),
+                              fontSize: 11, color: textSecondary),
                         ),
                       ],
                     ),
@@ -1203,7 +645,7 @@ class ChatMessageCard extends StatelessWidget {
                         'task_id': taskId,
                       }),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _accent,
+                        backgroundColor: accent,
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(6)),
@@ -1218,7 +660,7 @@ class ChatMessageCard extends StatelessWidget {
           }),
         ],
         if (claimDeadline != null)
-          _row('截止', _esc(claimDeadline), boldValue: true),
+          row('截止', esc(claimDeadline), boldValue: true),
       ],
     );
   }
@@ -1242,20 +684,20 @@ class ChatMessageCard extends StatelessWidget {
     final tags = (p['tags'] as List?) ?? [];
     final productId = p['product_id'] as String?;
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📦 ${_esc(p['name'] ?? '产品')}',
+      title: '📦 ${esc(p['name'] ?? '产品')}',
       children: [
-        _row('类别', _esc(p['category'] ?? '—'), boldValue: true),
+        row('类别', esc(p['category'] ?? '—'), boldValue: true),
         if (p['price_range'] != null)
-          _row('价格', _esc(p['price_range']),
-              boldValue: true, valueColor: _warning),
+          row('价格', esc(p['price_range']),
+              boldValue: true, valueColor: warning),
         if (p['description'] != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(_esc(p['description']),
+            child: Text(esc(p['description']),
                 style:
-                    const TextStyle(fontSize: 12, color: _textPrimary, height: 1.4)),
+                    const TextStyle(fontSize: 12, color: textPrimary, height: 1.4)),
           ),
         if (tags.isNotEmpty)
           Padding(
@@ -1265,20 +707,20 @@ class ChatMessageCard extends StatelessWidget {
               runSpacing: 4,
               children: tags
                   .map((t) => Text(
-                        '#${_esc(t.toString())}',
+                        '#${esc(t.toString())}',
                         style: const TextStyle(
-                            fontSize: 11, color: _accent),
+                            fontSize: 11, color: accent),
                       ))
                   .toList(),
             ),
           ),
         if (p['supplier_name'] != null)
-          _row('供应商', _esc(p['supplier_name']), boldValue: true),
+          row('供应商', esc(p['supplier_name']), boldValue: true),
         const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
-              child: _actionButton('确认发布', _success,
+              child: actionButton('确认发布', success,
                   () => onCardAction?.call('publish_product', {'product_id': productId})),
             ),
             const SizedBox(width: 8),
@@ -1287,13 +729,13 @@ class ChatMessageCard extends StatelessWidget {
                 onPressed: () =>
                     onCardAction?.call('edit_product', {'product_id': productId}),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: _border),
+                  side: const BorderSide(color: border),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(vertical: 8),
                 ),
                 child: const Text('编辑',
-                    style: TextStyle(fontSize: 12, color: _textSecondary)),
+                    style: TextStyle(fontSize: 12, color: textSecondary)),
               ),
             ),
           ],
@@ -1311,24 +753,24 @@ class ChatMessageCard extends StatelessWidget {
     final status = (p['status'] ?? 'pending').toString();
 
     const statusMap = {
-      'pending': ('待处理', _textMuted),
-      'claimed': ('已申领', _accent),
-      'in_progress': ('进行中', _warning),
-      'completed': ('已完成', _success),
-      'failed': ('失败', _danger),
+      'pending': ('待处理', textMuted),
+      'claimed': ('已申领', accent),
+      'in_progress': ('进行中', warning),
+      'completed': ('已完成', success),
+      'failed': ('失败', danger),
     };
-    final s = statusMap[status] ?? (status, _textMuted);
+    final s = statusMap[status] ?? (status, textMuted);
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🔗 ${_esc(p['title'] ?? '任务更新')}',
+      title: '🔗 ${esc(p['title'] ?? '任务更新')}',
       children: [
-        _row('任务类型', _esc(p['task_type'] ?? '—'), boldValue: true),
-        _row('状态', _esc(s.$1), boldValue: true, valueColor: s.$2),
+        row('任务类型', esc(p['task_type'] ?? '—'), boldValue: true),
+        row('状态', esc(s.$1), boldValue: true, valueColor: s.$2),
         if (p['assigned_user_name'] != null)
-          _row('负责人', _esc(p['assigned_user_name']), boldValue: true),
+          row('负责人', esc(p['assigned_user_name']), boldValue: true),
         if (p['priority'] != null)
-          _row('优先级', '⭐' * (p['priority'] as int).clamp(0, 5),
+          row('优先级', '⭐' * (p['priority'] as int).clamp(0, 5),
               boldValue: true),
       ],
     );
@@ -1349,15 +791,15 @@ class ChatMessageCard extends StatelessWidget {
       'platinum': ('💎 铂金', Color(0xFFE5E4E2)),
       'diamond': ('👑 钻石', Color(0xFFB9F2FF)),
     };
-    final lvl = levelMap[level] ?? (level ?? '—', _textSecondary);
+    final lvl = levelMap[level] ?? (level ?? '—', textSecondary);
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
       title: '💰 积分信息',
       children: [
         Row(
           children: [
-            Text(_esc(lvl.$1),
+            Text(esc(lvl.$1),
                 style: TextStyle(
                     fontSize: 14,
                     color: lvl.$2,
@@ -1365,18 +807,18 @@ class ChatMessageCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        _row('当前积分', _fmtNum(p['balance'] ?? 0),
-            boldValue: true, valueColor: _accent),
-        _row('累计获得', _fmtNum(p['total_earned'] ?? 0), boldValue: true),
-        _row('年度获得', _fmtNum(p['year_earned'] ?? 0), boldValue: true),
+        row('当前积分', fmtNum(p['balance'] ?? 0),
+            boldValue: true, valueColor: accent),
+        row('累计获得', fmtNum(p['total_earned'] ?? 0), boldValue: true),
+        row('年度获得', fmtNum(p['year_earned'] ?? 0), boldValue: true),
         if (p['rank'] != null)
-          _row('年度排名', '第${p['rank']}名', boldValue: true),
+          row('年度排名', '第${p['rank']}名', boldValue: true),
         if (p['description'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(p['description']),
+            child: Text(esc(p['description']),
                 style:
-                    const TextStyle(fontSize: 12, color: _textPrimary, height: 1.4)),
+                    const TextStyle(fontSize: 12, color: textPrimary, height: 1.4)),
           ),
       ],
     );
@@ -1397,51 +839,51 @@ class ChatMessageCard extends StatelessWidget {
     final ctaHref = p['cta_href'] as String?;
 
     if (variant == 'stat') {
-      return _wrapCard(
+      return wrapCard(
         agentInfo: AgentInfo.getByKey('master'),
         displayName: senderName,
-        title: _esc(title),
-        prelude: Text(_esc(tag),
-            style: const TextStyle(fontSize: 10, color: _accent)),
+        title: esc(title),
+        prelude: Text(esc(tag),
+            style: const TextStyle(fontSize: 10, color: accent)),
         children: [
           if (p['stat_value'] != null)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(_esc(p['stat_value']),
+              child: Text(esc(p['stat_value']),
                   style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: _accent)),
+                      color: accent)),
             ),
           if (p['stat_label'] != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
-              child: Text(_esc(p['stat_label']),
+              child: Text(esc(p['stat_label']),
                   style:
-                      const TextStyle(fontSize: 12, color: _textSecondary)),
+                      const TextStyle(fontSize: 12, color: textSecondary)),
             ),
           if (body != null && body.isNotEmpty)
-            Text(_esc(body),
+            Text(esc(body),
                 style:
-                    const TextStyle(fontSize: 13, color: _textPrimary, height: 1.4)),
+                    const TextStyle(fontSize: 13, color: textPrimary, height: 1.4)),
         ],
       );
     }
 
     if (variant == 'cta') {
-      return _wrapCard(
+      return wrapCard(
         agentInfo: AgentInfo.getByKey('master'),
         displayName: senderName,
-        title: _esc(title),
-        prelude: Text(_esc(tag),
-            style: const TextStyle(fontSize: 10, color: _accent)),
+        title: esc(title),
+        prelude: Text(esc(tag),
+            style: const TextStyle(fontSize: 10, color: accent)),
         children: [
           if (body != null && body.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(_esc(body),
+              child: Text(esc(body),
                   style: const TextStyle(
-                      fontSize: 13, color: _textPrimary, height: 1.4)),
+                      fontSize: 13, color: textPrimary, height: 1.4)),
             ),
           if (ctaText != null)
             SizedBox(
@@ -1452,12 +894,12 @@ class ChatMessageCard extends StatelessWidget {
                   'href': ctaHref,
                 }),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _accent,
+                  backgroundColor: accent,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
-                child: Text(_esc(ctaText),
+                child: Text(esc(ctaText),
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1471,19 +913,19 @@ class ChatMessageCard extends StatelessWidget {
     // brand (default)
     final agents = p['agents'] as List?;
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: AgentInfo.getByKey('master'),
       displayName: senderName,
-      title: _esc(title),
-      prelude: Text(_esc(tag),
-          style: const TextStyle(fontSize: 10, color: _accent)),
+      title: esc(title),
+      prelude: Text(esc(tag),
+          style: const TextStyle(fontSize: 10, color: accent)),
       children: [
         if (body != null && body.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text(_esc(body),
+            child: Text(esc(body),
                 style: const TextStyle(
-                    fontSize: 13, color: _textPrimary, height: 1.4)),
+                    fontSize: 13, color: textPrimary, height: 1.4)),
           ),
         if (agents != null && agents.isNotEmpty)
           Wrap(
@@ -1515,7 +957,7 @@ class ChatMessageCard extends StatelessWidget {
     final agentInfo = AgentInfo.getByKey('quality');
     final status = (p['status'] ?? p['result'] ?? 'pending').toString();
     final checkItem = p['check_item'] ?? p['title'] ?? p['_task_name'] ?? '';
-    final score = _num(p['score']);
+    final score = parseNum(p['score']);
     final deviation = p['deviation'];
     final deviationUnit = p['deviation_unit'] ?? 'cm';
     final summary = p['summary'] as String?;
@@ -1524,33 +966,33 @@ class ChatMessageCard extends StatelessWidget {
     final issues = p['issues'] as List?;
 
     const statusMap = {
-      'passed': ('✅ 合格', _success),
-      'failed': ('❌ 不合格', _danger),
-      'needs_review': ('⚠️ 需复核', _warning),
-      'pending': ('⏳ 待检测', _textMuted),
+      'passed': ('✅ 合格', success),
+      'failed': ('❌ 不合格', danger),
+      'needs_review': ('⚠️ 需复核', warning),
+      'pending': ('⏳ 待检测', textMuted),
     };
-    final s = statusMap[status] ?? ('❓ $status', _textMuted);
+    final s = statusMap[status] ?? ('❓ $status', textMuted);
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🔍 质检报告 · ${_esc(checkItem.toString())}',
+      title: '🔍 质检报告 · ${esc(checkItem.toString())}',
       children: [
-        _row('检测结果', _esc(s.$1), boldValue: true, valueColor: s.$2),
+        row('检测结果', esc(s.$1), boldValue: true, valueColor: s.$2),
         if (score > 0) ...[
-          _row('评分', '$score/100', boldValue: true),
-          _progressBar(score.toInt()),
+          row('评分', '$score/100', boldValue: true),
+          progressBar(score.toInt()),
         ],
         if (deviation != null)
-          _row('偏差',
+          row('偏差',
               '${deviation.toString()}$deviationUnit',
               boldValue: true,
-              valueColor: _num(deviation) > 5 ? _danger : _warning),
+              valueColor: parseNum(deviation) > 5 ? danger : warning),
         if (summary != null && summary.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 6),
-            child: Text(_esc(summary),
+            child: Text(esc(summary),
                 style:
-                    const TextStyle(fontSize: 11, color: _textSecondary)),
+                    const TextStyle(fontSize: 11, color: textSecondary)),
           ),
         if (photos.isNotEmpty)
           Padding(
@@ -1562,7 +1004,7 @@ class ChatMessageCard extends StatelessWidget {
                   width: 56, height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _border),
+                    border: Border.all(color: border),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
@@ -1576,7 +1018,7 @@ class ChatMessageCard extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2)),
                       ),
                       errorWidget: (context, url, error) =>
-                          const Icon(Icons.broken_image, size: 20, color: _textMuted),
+                          const Icon(Icons.broken_image, size: 20, color: textMuted),
                     ),
                   ),
                 );
@@ -1584,17 +1026,17 @@ class ChatMessageCard extends StatelessWidget {
             ),
           ),
         if (issues != null && issues.isNotEmpty) ...[
-          const Divider(color: _border, height: 1),
+          const Divider(color: border, height: 1),
           ...issues.asMap().entries.map((entry) {
             final iss = entry.value as Map<String, dynamic>;
             final sevColors = {
-              'critical': _danger, 'major': _warning,
-              'minor': _textSecondary, 'info': _textMuted,
+              'critical': danger, 'major': warning,
+              'minor': textSecondary, 'info': textMuted,
             };
-            final sevColor = sevColors[iss['severity']?.toString()] ?? _textMuted;
-            return _row(
-              '${entry.key + 1}. ${_esc(iss['description'] ?? iss['name'] ?? '')}',
-              _esc(iss['severity']?.toString() ?? ''),
+            final sevColor = sevColors[iss['severity']?.toString()] ?? textMuted;
+            return row(
+              '${entry.key + 1}. ${esc(iss['description'] ?? iss['name'] ?? '')}',
+              esc(iss['severity']?.toString() ?? ''),
               boldValue: true, valueColor: sevColor,
             );
           }),
@@ -1602,8 +1044,8 @@ class ChatMessageCard extends StatelessWidget {
         if (recommendation != null && recommendation.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text('💡 ${_esc(recommendation)}',
-                style: const TextStyle(fontSize: 10, color: _accent)),
+            child: Text('💡 ${esc(recommendation)}',
+                style: const TextStyle(fontSize: 10, color: accent)),
           ),
       ],
     );
@@ -1625,7 +1067,7 @@ class ChatMessageCard extends StatelessWidget {
       'open': '⬜', 'in_progress': '🔄', 'resolved': '✅', 'closed': '✔️',
     };
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
       title: '⚠️ 质量问题清单 · ${issues.length} 项',
       children: [
@@ -1633,15 +1075,15 @@ class ChatMessageCard extends StatelessWidget {
           final iss = entry.value as Map<String, dynamic>;
           final sev = iss['severity']?.toString() ?? '';
           final status = iss['status']?.toString() ?? 'open';
-          return _row(
-            '${sevIcons[sev] ?? '⚪'} ${entry.key + 1}. ${_esc(iss['description'] ?? iss['title'] ?? '问题')} ${statusIcons[status] ?? '⬜'}',
-            _esc(iss['location'] ?? iss['area'] ?? ''),
+          return row(
+            '${sevIcons[sev] ?? '⚪'} ${entry.key + 1}. ${esc(iss['description'] ?? iss['title'] ?? '问题')} ${statusIcons[status] ?? '⬜'}',
+            esc(iss['location'] ?? iss['area'] ?? ''),
             boldValue: true,
           );
         }),
         if (issues.length > 6)
           Text('… 共 ${issues.length} 个问题',
-              style: const TextStyle(fontSize: 10, color: _textMuted)),
+              style: const TextStyle(fontSize: 10, color: textMuted)),
       ],
     );
   }
@@ -1656,206 +1098,31 @@ class ChatMessageCard extends StatelessWidget {
     if (alerts.isEmpty) return const SizedBox.shrink();
 
     const sevColors = {
-      'critical': _danger, 'high': _warning,
-      'medium': _textSecondary, 'low': _textMuted,
+      'critical': danger, 'high': warning,
+      'medium': textSecondary, 'low': textMuted,
     };
 
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
       title: '📡 进度预警 · ${alerts.length} 条',
       children: [
         ...alerts.take(5).map((a) {
           final sev = a['severity']?.toString() ?? '';
-          return _row(
-            _esc(a['message'] ?? a['description'] ?? a['task_name'] ?? ''),
-            _esc(sev),
+          return row(
+            esc(a['message'] ?? a['description'] ?? a['task_name'] ?? ''),
+            esc(sev),
             boldValue: true,
-            valueColor: sevColors[sev] ?? _textMuted,
+            valueColor: sevColors[sev] ?? textMuted,
           );
         }),
         if (alerts.length > 5)
           Text('… 共 ${alerts.length} 条预警',
-              style: const TextStyle(fontSize: 10, color: _textMuted)),
+              style: const TextStyle(fontSize: 10, color: textMuted)),
       ],
     );
   }
 
-  // ═══════════════════════════════════════════
-  // v1.1.22: 厨房方案卡片
-  // ═══════════════════════════════════════════
-  Widget _buildKitchenCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('kitchen');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🍳 ${_esc(p['title'] ?? '厨房方案')}',
-      children: [
-        if (p['layout'] != null) _row('布局', _esc(p['layout']), boldValue: true),
-        if (p['area'] != null) _row('面积', _esc(p['area']), boldValue: true),
-        if (p['cabinets'] != null) _row('橱柜', _esc(p['cabinets']), boldValue: true),
-        if (p['countertop'] != null) _row('台面', _esc(p['countertop']), boldValue: true),
-        if (p['appliances'] is List)
-          _row('电器', (p['appliances'] as List).join('、'), boldValue: true),
-        if (p['recommendation'] != null)
-          _row('建议', _esc(p['recommendation']), boldValue: true, valueColor: _accent),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 卫浴方案卡片
-  // ═══════════════════════════════════════════
-  Widget _buildBathroomCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('bathroom');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🛁 ${_esc(p['title'] ?? '卫浴方案')}',
-      children: [
-        if (p['layout'] != null) _row('布局', _esc(p['layout']), boldValue: true),
-        if (p['area'] != null) _row('面积', _esc(p['area']), boldValue: true),
-        if (p['fixtures'] is List)
-          _row('洁具', (p['fixtures'] as List).join('、'), boldValue: true),
-        if (p['waterproof'] != null) _row('防水', _esc(p['waterproof']), boldValue: true),
-        if (p['recommendation'] != null)
-          _row('建议', _esc(p['recommendation']), boldValue: true, valueColor: _accent),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 灯光方案卡片
-  // ═══════════════════════════════════════════
-  Widget _buildLightingCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('lighting');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '💡 ${_esc(p['title'] ?? '灯光方案')}',
-      children: [
-        if (p['illuminance'] != null) _row('照度', _esc(p['illuminance']), boldValue: true),
-        if (p['color_temp'] != null) _row('色温', _esc(p['color_temp']), boldValue: true),
-        if (p['fixtures'] is List)
-          _row('灯具', (p['fixtures'] as List).join('、'), boldValue: true),
-        if (p['scene'] != null) _row('场景', _esc(p['scene']), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 结构方案卡片
-  // ═══════════════════════════════════════════
-  Widget _buildStructuralCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('structural');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🏗️ ${_esc(p['title'] ?? '结构分析')}',
-      children: [
-        if (p['elements'] is List)
-          _row('构件', (p['elements'] as List).join('、'), boldValue: true),
-        if (p['load_bearing'] != null) _row('承重', _esc(p['load_bearing']), boldValue: true),
-        if (p['material'] != null) _row('材料', _esc(p['material']), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 工程量卡片
-  // ═══════════════════════════════════════════
-  Widget _buildTakeoffCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('takeoff');
-    final items = (p['items'] as List?) ?? [];
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '📊 ${_esc(p['title'] ?? '工程量清单')}',
-      children: [
-        ...items.take(6).map((it) => _row(
-          _esc(it['name'] ?? ''),
-          '${it['quantity'] ?? ''} ${_esc(it['unit'] ?? '')}',
-          boldValue: true,
-        )),
-        if (items.length > 6)
-          Text('… 共 ${items.length} 项',
-              style: const TextStyle(fontSize: 10, color: _textMuted)),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 家具卡片
-  // ═══════════════════════════════════════════
-  Widget _buildFurnitureCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('furniture_catalog');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🪑 ${_esc(p['title'] ?? '家具推荐')}',
-      children: [
-        if (p['style'] != null) _row('风格', _esc(p['style']), boldValue: true),
-        if (p['items'] is List)
-          _row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
-        if (p['brand'] != null) _row('品牌', _esc(p['brand']), boldValue: true),
-        if (p['price_range'] != null)
-          _row('价格区间', _esc(p['price_range']), boldValue: true, valueColor: _warning),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 家电卡片
-  // ═══════════════════════════════════════════
-  Widget _buildApplianceCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('appliance');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '📺 ${_esc(p['title'] ?? '家电推荐')}',
-      children: [
-        if (p['items'] is List)
-          _row('推荐', (p['items'] as List).take(5).join('、'), boldValue: true),
-        if (p['energy_rating'] != null) _row('能效', _esc(p['energy_rating']), boldValue: true),
-        if (p['dimensions'] != null) _row('尺寸要求', _esc(p['dimensions']), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: 门窗卡片
-  // ═══════════════════════════════════════════
-  Widget _buildDoorWindowCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('door_window_waterproof');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🚪 ${_esc(p['title'] ?? '门窗方案')}',
-      children: [
-        if (p['type'] != null) _row('类型', _esc(p['type']), boldValue: true),
-        if (p['material'] != null) _row('材质', _esc(p['material']), boldValue: true),
-        if (p['dimensions'] != null) _row('尺寸', _esc(p['dimensions']), boldValue: true),
-        if (p['waterproof'] != null) _row('防水', _esc(p['waterproof']), boldValue: true),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  // v1.1.22: MEP 水电暖通卡片
-  // ═══════════════════════════════════════════
-  Widget _buildMepPlanCard() {
-    final p = message.payload ?? {};
-    final agentInfo = AgentInfo.getByKey('mep');
-    return _wrapCard(
-      agentInfo: agentInfo,
-      title: '🔧 ${_esc(p['title'] ?? '水电暖通方案')}',
-      children: [
-        if (p['electrical'] != null) _row('强电', _esc(p['electrical']), boldValue: true),
-        if (p['plumbing'] != null) _row('给排水', _esc(p['plumbing']), boldValue: true),
-        if (p['hvac'] != null) _row('暖通', _esc(p['hvac']), boldValue: true),
-        if (p['outlets'] != null) _row('插座点位', _esc(p['outlets']), boldValue: true),
-      ],
-    );
-  }
+  // F4: 设计域卡片 (厨房/卫浴/灯光/结构/工程量/家具/家电/门窗/水电暖通) → chat_card_design.dart
 
   // ═══════════════════════════════════════════
   // v1.1.22: 身份认证卡片
@@ -1863,17 +1130,17 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildIdentityCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('identity');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🆔 ${_esc(p['title'] ?? '身份认证')}',
+      title: '🆔 ${esc(p['title'] ?? '身份认证')}',
       children: [
-        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true),
-        if (p['name'] != null) _row('姓名', _esc(p['name']), boldValue: true),
-        if (p['id_number'] != null) _row('证件号', _esc(p['id_number']), boldValue: true),
+        if (p['status'] != null) row('状态', esc(p['status']), boldValue: true),
+        if (p['name'] != null) row('姓名', esc(p['name']), boldValue: true),
+        if (p['id_number'] != null) row('证件号', esc(p['id_number']), boldValue: true),
         if (p['message'] != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Text(_esc(p['message']), style: const TextStyle(fontSize: 10, color: _textMuted)),
+            child: Text(esc(p['message']), style: const TextStyle(fontSize: 10, color: textMuted)),
           ),
       ],
     );
@@ -1885,15 +1152,15 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildVoiceCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('voice');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🎙️ ${_esc(p['title'] ?? '语音消息')}',
+      title: '🎙️ ${esc(p['title'] ?? '语音消息')}',
       children: [
-        if (p['transcript'] != null) _row('识别结果', _esc(p['transcript']), boldValue: true),
-        if (p['duration'] != null) _row('时长', _esc(p['duration']), boldValue: true),
-        if (p['emotion'] != null) _row('情绪', _esc(p['emotion']), boldValue: true),
+        if (p['transcript'] != null) row('识别结果', esc(p['transcript']), boldValue: true),
+        if (p['duration'] != null) row('时长', esc(p['duration']), boldValue: true),
+        if (p['emotion'] != null) row('情绪', esc(p['emotion']), boldValue: true),
         if (p['audio_url'] != null)
-          _actionButton('🔊 播放', _accent, () => onCardAction?.call('play_audio', {'url': p['audio_url']})),
+          actionButton('🔊 播放', accent, () => onCardAction?.call('play_audio', {'url': p['audio_url']})),
       ],
     );
   }
@@ -1904,15 +1171,15 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildIfcExportCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('ifc_export');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🏗️ ${_esc(p['title'] ?? 'BIM 导出')}',
+      title: '🏗️ ${esc(p['title'] ?? 'BIM 导出')}',
       children: [
-        if (p['format'] != null) _row('格式', _esc(p['format']), boldValue: true),
-        if (p['file_size'] != null) _row('文件大小', _esc(p['file_size']), boldValue: true),
-        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true, valueColor: _accent),
+        if (p['format'] != null) row('格式', esc(p['format']), boldValue: true),
+        if (p['file_size'] != null) row('文件大小', esc(p['file_size']), boldValue: true),
+        if (p['status'] != null) row('状态', esc(p['status']), boldValue: true, valueColor: accent),
         if (p['download_url'] != null)
-          _actionButton('📥 下载', _accent, () => onCardAction?.call('download', {'url': p['download_url']})),
+          actionButton('📥 下载', accent, () => onCardAction?.call('download', {'url': p['download_url']})),
       ],
     );
   }
@@ -1923,19 +1190,19 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildNotificationCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('notifications');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🔔 ${_esc(p['title'] ?? '通知')}',
+      title: '🔔 ${esc(p['title'] ?? '通知')}',
       children: [
         if (p['message'] != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text(_esc(p['message']),
-                style: const TextStyle(fontSize: 13, color: _textPrimary)),
+            child: Text(esc(p['message']),
+                style: const TextStyle(fontSize: 13, color: textPrimary)),
           ),
-        if (p['type'] != null) _row('类型', _esc(p['type']), boldValue: true),
+        if (p['type'] != null) row('类型', esc(p['type']), boldValue: true),
         if (p['action_url'] != null)
-          _actionButton('查看详情', _accent, () => onCardAction?.call('open_url', {'url': p['action_url']})),
+          actionButton('查看详情', accent, () => onCardAction?.call('open_url', {'url': p['action_url']})),
       ],
     );
   }
@@ -1947,14 +1214,14 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildCameraTriggerCard() {
     final p = message.payload ?? {};
     final agentInfo = message.agentInfo ?? AgentInfo.getByKey('master');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📷 ${_esc(p['title'] ?? '拍照')}',
+      title: '📷 ${esc(p['title'] ?? '拍照')}',
       children: [
         if (p['hint'] != null)
-          Text(_esc(p['hint']), style: const TextStyle(fontSize: 13, color: _textPrimary)),
+          Text(esc(p['hint']), style: const TextStyle(fontSize: 13, color: textPrimary)),
         const SizedBox(height: 8),
-        _actionButton('📸 打开相机', _accent, () => onCardAction?.call('open_camera', p)),
+        actionButton('📸 打开相机', accent, () => onCardAction?.call('open_camera', p)),
       ],
     );
   }
@@ -1965,14 +1232,14 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildArScanTriggerCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('ar_measurement');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📏 ${_esc(p['title'] ?? 'AR 空间扫描')}',
+      title: '📏 ${esc(p['title'] ?? 'AR 空间扫描')}',
       children: [
         Text('使用摄像头和 ${p['sensor_type'] ?? 'LiDAR'} 传感器进行空间测量',
-            style: const TextStyle(fontSize: 12, color: _textSecondary)),
+            style: const TextStyle(fontSize: 12, color: textSecondary)),
         const SizedBox(height: 8),
-        _actionButton('🔬 开始 AR 扫描', _accent, () => onCardAction?.call('start_ar_scan', p)),
+        actionButton('🔬 开始 AR 扫描', accent, () => onCardAction?.call('start_ar_scan', p)),
       ],
     );
   }
@@ -1983,14 +1250,14 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildVoiceInputTriggerCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('voice');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '🎤 ${_esc(p['title'] ?? '语音输入')}',
+      title: '🎤 ${esc(p['title'] ?? '语音输入')}',
       children: [
         const Text('点击按钮开始语音输入，AI 将实时识别并回复',
-            style: const TextStyle(fontSize: 12, color: _textSecondary)),
+            style: const TextStyle(fontSize: 12, color: textSecondary)),
         const SizedBox(height: 8),
-        _actionButton('🎙️ 开始录音', _accent, () => onCardAction?.call('start_voice_input', p)),
+        actionButton('🎙️ 开始录音', accent, () => onCardAction?.call('start_voice_input', p)),
       ],
     );
   }
@@ -2001,13 +1268,13 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildStatsCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('master');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📈 ${_esc(p['title'] ?? '数据统计')}',
+      title: '📈 ${esc(p['title'] ?? '数据统计')}',
       children: [
         if (p['stats'] is Map)
-          ...(p['stats'] as Map).entries.map((e) => _row(
-            _esc(e.key.toString()), _fmtNum(e.value), boldValue: true,
+          ...(p['stats'] as Map).entries.map((e) => row(
+            esc(e.key.toString()), fmtNum(e.value), boldValue: true,
           )),
       ],
     );
@@ -2019,13 +1286,13 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildUserCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('admin');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '👤 ${_esc(p['name'] ?? '用户信息')}',
+      title: '👤 ${esc(p['name'] ?? '用户信息')}',
       children: [
-        if (p['role'] != null) _row('角色', _esc(p['role']), boldValue: true),
-        if (p['phone'] != null) _row('手机', _esc(p['phone']), boldValue: true),
-        if (p['status'] != null) _row('状态', _esc(p['status']), boldValue: true),
+        if (p['role'] != null) row('角色', esc(p['role']), boldValue: true),
+        if (p['phone'] != null) row('手机', esc(p['phone']), boldValue: true),
+        if (p['status'] != null) row('状态', esc(p['status']), boldValue: true),
       ],
     );
   }
@@ -2037,11 +1304,11 @@ class ChatMessageCard extends StatelessWidget {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('admin');
     final users = (p['users'] as List?) ?? [];
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
       title: '👥 用户列表 · ${users.length} 人',
-      children: users.take(6).map((u) => _row(
-        _esc(u['name'] ?? ''), _esc(u['role'] ?? ''), boldValue: true,
+      children: users.take(6).map((u) => row(
+        esc(u['name'] ?? ''), esc(u['role'] ?? ''), boldValue: true,
       )).toList(),
     );
   }
@@ -2052,14 +1319,14 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildProductCreateCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('products');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📦 ${_esc(p['title'] ?? '新增产品')}',
+      title: '📦 ${esc(p['title'] ?? '新增产品')}',
       children: [
-        if (p['name'] != null) _row('名称', _esc(p['name']), boldValue: true),
-        if (p['category'] != null) _row('类别', _esc(p['category']), boldValue: true),
-        if (p['price'] != null) _row('价格', '¥${_fmtNum(p['price'])}', boldValue: true, valueColor: _warning),
-        _actionButton('确认上架', _success, () => onCardAction?.call('publish_product', p)),
+        if (p['name'] != null) row('名称', esc(p['name']), boldValue: true),
+        if (p['category'] != null) row('类别', esc(p['category']), boldValue: true),
+        if (p['price'] != null) row('价格', '¥${fmtNum(p['price'])}', boldValue: true, valueColor: warning),
+        actionButton('确认上架', success, () => onCardAction?.call('publish_product', p)),
       ],
     );
   }
@@ -2071,11 +1338,11 @@ class ChatMessageCard extends StatelessWidget {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('products');
     final items = (p['items'] as List?) ?? [];
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📋 ${_esc(p['title'] ?? '产品列表')} · ${items.length} 项',
-      children: items.take(8).map((it) => _row(
-        _esc(it['name'] ?? ''), '¥${_fmtNum(it['price'] ?? 0)}', boldValue: true,
+      title: '📋 ${esc(p['title'] ?? '产品列表')} · ${items.length} 项',
+      children: items.take(8).map((it) => row(
+        esc(it['name'] ?? ''), '¥${fmtNum(it['price'] ?? 0)}', boldValue: true,
       )).toList(),
     );
   }
@@ -2086,13 +1353,13 @@ class ChatMessageCard extends StatelessWidget {
   Widget _buildQuotationCard() {
     final p = message.payload ?? {};
     final agentInfo = AgentInfo.getByKey('procurement');
-    return _wrapCard(
+    return wrapCard(
       agentInfo: agentInfo,
-      title: '📝 ${_esc(p['title'] ?? '报价单')}',
+      title: '📝 ${esc(p['title'] ?? '报价单')}',
       children: [
-        if (p['supplier'] != null) _row('供应商', _esc(p['supplier']), boldValue: true),
-        if (p['total'] != null) _row('总价', '¥${_fmtNum(p['total'])}', boldValue: true, valueColor: _warning),
-        if (p['valid_until'] != null) _row('有效期', _esc(p['valid_until']), boldValue: true),
+        if (p['supplier'] != null) row('供应商', esc(p['supplier']), boldValue: true),
+        if (p['total'] != null) row('总价', '¥${fmtNum(p['total'])}', boldValue: true, valueColor: warning),
+        if (p['valid_until'] != null) row('有效期', esc(p['valid_until']), boldValue: true),
       ],
     );
   }
@@ -2102,7 +1369,7 @@ class ChatMessageCard extends StatelessWidget {
   // ═══════════════════════════════════════════
 
   /// 带 Agent 顶部信息的卡片容器
-  Widget _wrapCard({
+  Widget wrapCard({
     required AgentInfo agentInfo,
     String? displayName,
     required String title,
@@ -2127,7 +1394,7 @@ class ChatMessageCard extends StatelessWidget {
               color: _cardBg,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: borderColor ?? _border,
+                color: borderColor ?? border,
                 width: borderColor != null ? 1.5 : 1,
               ),
             ),
@@ -2139,7 +1406,7 @@ class ChatMessageCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: _textPrimary,
+                      color: textPrimary,
                     )),
                 const SizedBox(height: 8),
                 ...children,
@@ -2168,10 +1435,10 @@ class ChatMessageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _border),
+        border: Border.all(color: border),
       ),
       child: Text(links,
-          style: const TextStyle(fontSize: 11, color: _textSecondary)),
+          style: const TextStyle(fontSize: 11, color: textSecondary)),
     );
   }
 
@@ -2189,19 +1456,19 @@ class ChatMessageCard extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: isUser
-                  ? _accent.withValues(alpha: 0.9)
-                  : (agentColor ?? _textSecondary),
+                  ? accent.withValues(alpha: 0.9)
+                  : (agentColor ?? textSecondary),
             ),
           ),
           const SizedBox(width: 6),
-          Text(timeStr, style: const TextStyle(fontSize: 11, color: _textMuted)),
+          Text(timeStr, style: const TextStyle(fontSize: 11, color: textMuted)),
         ],
       ),
     );
   }
 
   /// 键值行
-  Widget _row(String label, String value,
+  Widget row(String label, String value,
       {bool boldValue = false, Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -2210,7 +1477,7 @@ class ChatMessageCard extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Text(label,
-                style: const TextStyle(fontSize: 12, color: _textSecondary)),
+                style: const TextStyle(fontSize: 12, color: textSecondary)),
           ),
           Expanded(
             flex: 3,
@@ -2218,7 +1485,7 @@ class ChatMessageCard extends StatelessWidget {
               value,
               style: TextStyle(
                 fontSize: 12,
-                color: valueColor ?? _textPrimary,
+                color: valueColor ?? textPrimary,
                 fontWeight: boldValue ? FontWeight.w600 : FontWeight.normal,
               ),
               textAlign: TextAlign.right,
@@ -2230,26 +1497,26 @@ class ChatMessageCard extends StatelessWidget {
   }
 
   /// 进度条
-  Widget _progressBar(int percent) {
+  Widget progressBar(int percent) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: LinearProgressIndicator(
         value: percent.clamp(0, 100) / 100,
         minHeight: 6,
-        backgroundColor: _border,
+        backgroundColor: border,
         valueColor: AlwaysStoppedAnimation<Color>(
           percent > 80
-              ? _success
+              ? success
               : percent > 50
-                  ? _accent
-                  : _warning,
+                  ? accent
+                  : warning,
         ),
       ),
     );
   }
 
   /// 操作按钮
-  Widget _actionButton(String label, Color color, VoidCallback? onTap) {
+  Widget actionButton(String label, Color color, VoidCallback? onTap) {
     return SizedBox(
       height: 34,
       child: ElevatedButton(
@@ -2272,14 +1539,14 @@ class ChatMessageCard extends StatelessWidget {
 
   // ── 工具方法 ──
 
-  static num _num(dynamic v) {
+  static num parseNum(dynamic v) {
     if (v is num) return v;
     if (v is String) return num.tryParse(v) ?? 0;
     return 0;
   }
 
-  static String _fmtNum(dynamic v) {
-    final n = _num(v);
+  static String fmtNum(dynamic v) {
+    final n = parseNum(v);
     if (n == n.roundToDouble()) {
       return n.toStringAsFixed(0).replaceAllMapped(
           RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
@@ -2288,7 +1555,7 @@ class ChatMessageCard extends StatelessWidget {
         RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
   }
 
-  static String _esc(String s) {
+  static String esc(String s) {
     return s
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -2304,40 +1571,40 @@ class ChatMessageCard extends StatelessWidget {
     return '$h:$m';
   }
 
-  static Color _orderStatusColor(String status) {
+  static Color orderStatusColor(String status) {
     switch (status) {
       case 'completed':
-        return _success;
+        return success;
       case 'cancelled':
-        return _danger;
+        return danger;
       case 'shipped':
       case 'delivered':
-        return _accent;
+        return accent;
       default:
-        return _warning;
+        return warning;
     }
   }
 
-  static Color _escrowStatusColor(String status) {
+  static Color escrowStatusColor(String status) {
     switch (status) {
       case 'supplier_received':
-        return _success;
+        return success;
       case 'refunded':
       case 'disputed':
-        return _warning;
+        return warning;
       default:
-        return _accent;
+        return accent;
     }
   }
 
-  static Color _sampleStatusColor(String status) {
+  static Color sampleStatusColor(String status) {
     switch (status) {
       case 'received':
-        return _success;
+        return success;
       case 'rejected':
-        return _warning;
+        return warning;
       default:
-        return _accent;
+        return accent;
     }
   }
 }

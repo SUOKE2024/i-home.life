@@ -1,28 +1,88 @@
-# This file configures the analyzer, which statically analyzes Dart code to
-# check for errors, warnings, and lints.
+# Flutter 代码分析配置 — v1.1.27 性能增强版
 #
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
+# 基础规则集: flutter_lints
+# 额外启用: const 构造优化、性能警告、未使用代码检测、错误级别提升
+# v1.1.27 新增: unawaited_futures（异步泄漏）、prefer_final_fields（不可变状态）
 
-# The following line activates a set of recommended lints for Flutter apps,
-# packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
-linter:
-  # The lint rules applied to this project can be customized in the
-  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
-  # included above or to enable additional rules. A list of all available lints
-  # and their documentation is published at https://dart.dev/lints.
-  #
-  # Instead of disabling a lint rule for the entire project in the
-  # section below, it can also be suppressed for a single line of code
-  # or a specific dart file by using the `// ignore: name_of_lint` and
-  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
-  # producing the lint.
-  rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
+analyzer:
+  errors:
+    # ── 将常见性能问题设为 warning/error ──
+    prefer_const_constructors: warning        # 缺失 const 构造函数
+    prefer_const_literals_to_create_immutables: warning
+    use_key_in_widget_constructors: info
+    avoid_print: warning                      # 生产代码不应使用 print
+    unused_import: warning
+    unused_local_variable: warning
+    dead_code: warning
+    # 鸿蒙兼容性：不将未使用字段标记为错误
+    unused_field: info
+    # v1.1.27: 异步安全 — 未 await 的 Future 是常见 bug 源
+    unawaited_futures: warning
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+  # 排除自动生成的文件
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+
+linter:
+  rules:
+    # ── 性能相关 ──
+    - prefer_const_constructors           # 优先使用 const 构造函数（减少重建）
+    - prefer_const_constructors_in_immutables
+    - prefer_const_declarations           # 静态数据用 const
+    - prefer_const_literals_to_create_immutables
+    - avoid_redundant_argument_values     # 避免冗余默认值
+
+    # ── 代码质量 ──
+    - use_key_in_widget_constructors
+    - avoid_print                        # 使用 debugPrint 或 logger
+    - avoid_empty_else
+    - avoid_init_to_null
+    - avoid_return_types_on_setters
+    - avoid_unnecessary_containers        # 减少 Widget 嵌套层级
+    - prefer_single_quotes
+    - sort_child_properties_last          # child/properties 放在最后
+    - unnecessary_const                   # 移除不必要的 const
+    - unnecessary_new                     # 移除不必要的 new
+    - unnecessary_this                    # 移除不必要的 this
+    - annotate_overrides
+    - await_only_futures
+    - camel_case_types
+    - cancel_subscriptions
+    - close_sinks                         # 确保 StreamController 关闭
+    - empty_statements
+    - hash_and_equals
+    - no_duplicate_case_values
+    - prefer_adjacent_string_concatenation
+    - prefer_collection_literals
+    - prefer_conditional_assignment
+    - prefer_contains
+    - prefer_final_fields                 # v1.1.27: 鼓励不可变字段
+    - prefer_final_in_for_each            # v1.1.27: for-each 循环变量用 final
+    - prefer_final_locals
+    - prefer_for_elements_to_map_fromIterable
+    - prefer_generic_function_type_aliases
+    - prefer_if_null_operators
+    - prefer_initializing_formals
+    - prefer_inlined_adds
+    - prefer_interpolation_to_compose_strings
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - prefer_null_aware_operators
+    - prefer_spread_collections
+    - prefer_typing_uninitialized_variables
+    - recursive_getters
+    - sized_box_for_whitespace            # 用 SizedBox 替代 Container 空白
+    - unawaited_futures                   # v1.1.27: 检测未 await 的 Future
+    - unnecessary_brace_in_string_interps
+    - unnecessary_late
+    - unnecessary_null_aware_assignments
+    - unnecessary_null_in_if_null_operators
+    - unnecessary_string_interpolations
+    - use_build_context_synchronously
+    - use_full_hex_values_for_flutter_colors
+
+    # ── 文档（可选，仅关键 API）──
+    # - public_member_api_docs              # 取消注释以要求公共 API 文档

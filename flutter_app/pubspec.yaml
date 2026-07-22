@@ -47,6 +47,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # F5: 集成测试框架 — 真机/模拟器端到端冒烟测试
+  # 运行: flutter test integration_test/smoke_test.dart
+  integration_test:
+    sdk: flutter
   flutter_lints: ^6.0.0
 
 flutter:
