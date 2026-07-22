@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-07-22 10:39:48",
+  "config": {
+    "url": "http://127.0.0.1:8766",
+    "concurrency": 10,
+    "requests": 50
+  },
+  "results": [
+    {
+      "label": "健康检查",
+      "path": "/api/health",
+      "method": "GET",
+      "total": 50,
+      "errors": 0,
+      "elapsed_sec": 0.05,
+      "rps": 1010.3,
+      "avg_ms": 9.61,
+      "min_ms": 4.54,
+      "p50_ms": 5.38,
+      "p90_ms": 26.1,
+      "p99_ms": 27.61,
+      "max_ms": 27.61
+    },
+    {
+      "label": "OpenAPI规范",
+      "path": "/api/openapi.json",
+      "method": "GET",
+      "total": 50,
+      "errors": 0,
+      "elapsed_sec": 0.21,
+      "rps": 238.6,
+      "avg_ms": 40.72,
+      "min_ms": 29.06,
+      "p50_ms": 41.18,
+      "p90_ms": 45.78,
+      "p99_ms": 51.55,
+      "max_ms": 51.55
+    }
+  ]
+}

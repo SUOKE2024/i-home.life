@@ -7,6 +7,7 @@ on:
     branches: [main, develop]
 
 jobs:
+  # ── 后端测试 ──
   backend-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -30,7 +31,7 @@ jobs:
           DATABASE_URL: "sqlite+aiosqlite:///./data/test_${{ github.run_id }}.db"
           SECRET_KEY: "ci-test-secret-key-64-chars-random-string-xxxxxxxxxxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.1.22"
+          APP_VERSION: "1.1.26"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto
@@ -44,6 +45,7 @@ jobs:
             data/
             *.log
 
+  # ── 前端冒烟测试 ──
   frontend-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -69,9 +71,10 @@ jobs:
         if: always()
         run: pkill -f "http.server 8766" || true
 
+  # ── Python 代码检查（v1.1.26: 新增 mypy 类型检查）──
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -80,20 +83,223 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install flake8
-        run: pip install flake8
+      - name: Install lint tools
+        run: pip install flake8 mypy types-redis types-python-dateutil
 
       - name: Lint Python code
         run: |
           flake8 app/ --max-line-length=120 --extend-ignore=E203,W503 --max-complexity=15
           flake8 tests/ --max-line-length=120 --extend-ignore=E203,W503
 
+      - name: Type check (mypy)
+        # allow-failure: 当前为信息收集阶段，不阻塞 CI
+        # 逐步修复类型标注后可将 allow-failure 改为 false
+        continue-on-error: true
+        run: |
+          mypy app/ --ignore-missing-imports --no-strict-optional --follow-imports=silent || true
+
+  # ── Flutter 代码检查（v1.1.26 新增）──
+  flutter-analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: flutter_app
+        # allow-failure: 当前有 120+ info/warning 级别问题，不阻塞 CI
+        # 逐步修复后将 allow-failure 改为 false
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Flutter test
+        working-directory: flutter_app
+        continue-on-error: true
+        run: flutter test --no-pub
+
+  # ── 依赖安全审计（v1.1.26 新增）──
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        continue-on-error: true
+        run: pip-audit --requirement requirements.txt || true
+
+  # ── 后端性能回归（v1.1.27: Day 6 新增）──
+  # 启动后端 (sqlite) → bench-api.py 采集 after → 对比 reports/perf-baseline-before.json
+  # 任一端点 P90 回退 > 10% 则 job fail (可见信号, 暂不阻塞 deploy, 首轮稳定后可加入 deploy.needs)
+  backend-perf-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start backend (sqlite)
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///./data/bench_${{ github.run_id }}.db"
+          DEBUG: "true"
+          PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
+          APP_NAME: "i-home.life"
+          APP_VERSION: "1.1.27"
+        run: |
+          mkdir -p data
+          nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: Wait for health
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8766/api/health > /dev/null 2>&1; then
+              echo "Backend up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend failed to start"; cat backend.log; exit 1
+
+      - name: Run bench-api.py (read-only endpoints)
+        run: |
+          mkdir -p reports
+          python3 scripts/bench-api.py \
+            --url http://127.0.0.1:8766 \
+            --concurrency 10 \
+            --requests 50 \
+            --endpoints "GET:/api/health,健康检查;GET:/api/openapi.json,OpenAPI规范"
+          # bench-api.py 写入 reports/api-bench-{ts}.json, 取最新一份作为 after
+          LATEST=$(ls -t reports/api-bench-*.json | head -1)
+          cp "$LATEST" reports/perf-baseline-after.json
+
+      - name: Compare against baseline
+        run: |
+          if [ -f reports/perf-baseline-before.json ]; then
+            python3 scripts/compare-baseline.py \
+              --before reports/perf-baseline-before.json \
+              --after reports/perf-baseline-after.json \
+              --threshold 0.10 \
+              --report reports/perf-comparison.md
+          else
+            echo "⚠️  reports/perf-baseline-before.json 不存在, 跳过对比 (首次建立基线)"
+            python3 scripts/compare-baseline.py \
+              --after reports/perf-baseline-after.json \
+              --report reports/perf-comparison.md
+          fi
+
+      - name: Stop backend
+        if: always()
+        run: kill $(cat backend.pid) 2>/dev/null || true
+
+      - name: Upload perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline
+          path: |
+            reports/perf-baseline-after.json
+            reports/perf-comparison.md
+            backend.log
+
+  # ── Flutter 性能基线（v1.1.27: Day 6 新增, 信息性不阻塞）──
+  # CI 无真机, 跑 integration_test 冒烟 (IntegrationTestWidgetsFlutterBinding 可 headless 运行)。
+  # 真 FPS/timeline 需 flutter drive --profile + 真机, 见 docs/superpowers/specs/2026-07-22-perf-engineering-design.md §6.3
+  flutter-perf-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Run integration smoke test
+        working-directory: flutter_app
+        run: flutter test integration_test/smoke_test.dart --no-pub
+
+      - name: Analyze (informational)
+        working-directory: flutter_app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings || true
+
+  # ── APK 体积预算（v1.1.27: Day 6 新增）──
+  # 构建 release apk → check-apk-size.sh 超阈值 fail
+  apk-size-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: flutter_app
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Check APK size budget
+        env:
+          BUDGET_MB: "60"
+        run: bash scripts/check-apk-size.sh
+
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: flutter_app/build/app/outputs/flutter-apk/*.apk
+
+  # ── 自动部署（仅 main 分支 push）──
   deploy:
-    # 仅 main 分支 push 后,且所有前置 job 通过后触发自动部署
     needs: [backend-test, frontend-smoke, lint]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    timeout-minutes: 10
+    timeout-minutes: 15
     concurrency:
       group: deploy-production
       cancel-in-progress: false

@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *.pyc
+*.pyo
 *.egg-info/
 .eggs/
 dist/
@@ -9,10 +10,12 @@ build/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
 .ruff_cache/
 .coverage
 coverage.xml
 htmlcov/
+.benchmarks/
 
 # Environment
 .env
@@ -61,7 +64,14 @@ Thumbs.db
 
 # Data
 data/
-reports/
+# reports/ 整体忽略生成产物 (api-bench-*, demo-*, *.log),
+# 但保留 v1.1.27 性能回归参考基线与对比报告 (CI 需 checkout)
+reports/*
+!reports/perf-baseline-before.json
+!reports/perf-comparison-v1.1.27.md
+# 显式忽略临时测试数据库（即便 data/ 已整体忽略，亦明示意图）
+data/test_*.db
+data/*.db-journal
 
 # Archives
 *.zip
@@ -77,3 +87,7 @@ node_modules/
 
 # Flutter OHOS SDK 副本（外部仓库，不应入库）
 flutter_flutter/
+
+# 用户本地文件（路演材料等，不应入库）
+索克家居路演.pptx
+*.pptx.local

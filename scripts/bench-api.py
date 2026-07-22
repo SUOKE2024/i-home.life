@@ -146,13 +146,18 @@ def main():
     ap.add_argument("--url", default="http://localhost:8766", help="后端 API 地址")
     ap.add_argument("--concurrency", type=int, default=10, help="并发 worker 数")
     ap.add_argument("--requests", type=int, default=100, help="每个端点总请求数")
-    ap.add_argument("--endpoints", default=None, help="逗号分隔的自定义端点 (GET:/path,label)")
+    ap.add_argument("--endpoints", default=None,
+                    help="自定义端点, 用分号分隔多个端点, 每个格式 METHOD:/path[,label]; "
+                         "例如 'GET:/api/health,健康检查;GET:/api/openapi.json,OpenAPI'")
     args = ap.parse_args()
 
-    # 解析端点
+    # 解析端点 (分号分隔多个端点, 每个格式 METHOD:/path[,label])
     if args.endpoints:
         endpoints = []
-        for part in args.endpoints.split(","):
+        for part in args.endpoints.split(";"):
+            part = part.strip()
+            if not part:
+                continue
             m, rest = part.split(":", 1)
             p, label = rest.split(",", 1) if "," in rest else (rest, rest)
             endpoints.append((m.strip(), p.strip(), label.strip()))
