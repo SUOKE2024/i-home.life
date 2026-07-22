@@ -289,9 +289,11 @@ async def auto_match_bom(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     from sqlalchemy import select as sa_select
 
-    # 获取项目的 BOM
+    # 获取项目的 BOM（预加载 material + category 避免 N+1 懒加载）
     bom_result = await db.execute(
-        sa_select(BOMItem).where(BOMItem.project_id == project_id)
+        sa_select(BOMItem)
+        .options(selectinload(BOMItem.material).selectinload(Material.category))
+        .where(BOMItem.project_id == project_id)
     )
     bom_items = bom_result.scalars().all()
 
@@ -304,9 +306,27 @@ async def auto_match_bom(
             "reply": "该项目暂无 BOM 数据",
         }
 
-    # 加载物料库
-    mat_result = await db.execute(sa_select(Material))
+    # 加载物料库（预加载 category 避免懒加载）
+    mat_result = await db.execute(
+        sa_select(Material).options(selectinload(Material.category))
+    )
     all_materials = mat_result.scalars().all()
+
+    # 一次性建立三类索引（O(M)），替代每个 BOM 项遍历全表
+    materials_by_sku: dict[str, Material] = {}
+    materials_by_name: list[Material] = []  # 模糊匹配需遍历，保留列表
+    materials_by_cat_unit: dict[tuple[str, str], list[Material]] = {}
+
+    for m in all_materials:
+        if m.sku:
+            sku = m.sku.strip()
+            if sku:
+                materials_by_sku[sku] = m
+        if m.name:
+            materials_by_name.append(m)
+        m_cat = (m.category.name if m.category else "").strip()
+        m_unit = (m.unit or "").strip()
+        materials_by_cat_unit.setdefault((m_cat, m_unit), []).append(m)
 
     results = []
     matched = 0
@@ -331,34 +351,28 @@ async def auto_match_bom(
         match_level = "unmatched"
         confidence = 0.0
 
-        # Level 1: SKU 精确匹配
-        if mat_sku:
-            for m in all_materials:
-                if m.sku and m.sku.strip() == mat_sku:
-                    match = m
-                    match_level = "exact"
-                    confidence = 1.0
-                    break
+        # Level 1: SKU 精确匹配 — O(1) dict 查找
+        if mat_sku and mat_sku in materials_by_sku:
+            match = materials_by_sku[mat_sku]
+            match_level = "exact"
+            confidence = 1.0
 
-        # Level 2: 名称模糊匹配
+        # Level 2: 名称模糊匹配 — O(M) 遍历但可短路
         if not match and mat_name:
-            for m in all_materials:
-                if m.name and (mat_name in m.name or m.name in mat_name):
+            for m in materials_by_name:
+                if mat_name in m.name or m.name in mat_name:
                     match = m
                     match_level = "fuzzy"
                     confidence = 0.7
                     break
 
-        # Level 3: 品类 + 规格匹配
+        # Level 3: 品类 + 规格匹配 — O(1) dict 查找取首个
         if not match and mat_category:
-            for m in all_materials:
-                m_cat = (m.category.name if m.category else "").strip()
-                m_unit = (m.unit or "").strip()
-                if m_cat == mat_category and m_unit == mat_unit:
-                    match = m
-                    match_level = "category"
-                    confidence = 0.4
-                    break
+            candidates = materials_by_cat_unit.get((mat_category, mat_unit))
+            if candidates:
+                match = candidates[0]
+                match_level = "category"
+                confidence = 0.4
 
         if match:
             matched += 1

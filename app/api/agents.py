@@ -86,6 +86,9 @@ class AgentResponse(BaseModel):
     reply: str
     suggestions: list[str] = []
     session_id: str | None = None
+    # v1.1.26: 支持卡片类型消息（如 ar_scan_trigger/camera_trigger/voice_input_trigger）
+    message_type: str = "text"
+    card_payload: dict | None = None
 
 
 class DesignPlanResponse(BaseModel):
@@ -356,7 +359,7 @@ async def chat_with_agent(  # noqa: C901
 
         # L4 自适应学习：注入用户历史正向反馈作为 few-shot 示例提示
         if settings.agent_learning_enabled:
-            from app.agents.base import BaseAgent
+            from app.agents.base import get_pref_hint_cached
             # intent → agent_name 映射（与下方路由分支一致）
             intent_to_agent = {
                 "design": "designer", "budget": "budget",
@@ -375,7 +378,7 @@ async def chat_with_agent(  # noqa: C901
                 "cad_import": "cad_import",
             }
             agent_name_for_hint = intent_to_agent.get(intent, "orchestrator")
-            preference_hint = await BaseAgent.get_user_preference_hint(
+            preference_hint = await get_pref_hint_cached(
                 current_user.id, agent_name_for_hint, db,
                 max_examples=settings.agent_learning_max_examples,
             )
@@ -531,7 +534,7 @@ async def chat_with_agent(  # noqa: C901
                 await admin_agent.close()
 
         elif intent in ("ar_measurement",):
-            # AR 空间测量引导：返回 AR 扫描功能的使用指南
+            # AR 空间测量引导：返回 ar_scan_trigger 卡片 + 使用指南文本
             reply_lines = [
                 "AR 空间测量功能可以帮助您快速测量房间尺寸、墙面面积等数据。",
                 "",
@@ -551,7 +554,26 @@ async def chat_with_agent(  # noqa: C901
                 "如果您正在使用移动端 App，可以直接打开 AR 扫描功能开始测量。",
             ]
             reply = "\n".join(reply_lines)
-            return await _finalize("ar_measurement", reply, suggestions_map["ar_measurement"])
+            # v1.1.26: 返回 ar_scan_trigger 卡片类型，前端渲染为可点击的 AR 测量卡片
+            await agent_session_service.persist_message(
+                db, session, "assistant", reply, agent_type="ar_measurement",
+            )
+            return AgentResponse(
+                agent_type="ar_measurement", reply=reply,
+                suggestions=suggestions_map["ar_measurement"],
+                session_id=session_id,
+                message_type="ar_scan_trigger",
+                card_payload={
+                    "title": "📏 AR空间测量",
+                    "project_id": data.project_id,
+                    "sensor_type": "LiDAR",
+                    "supported_features": [
+                        "RoomPlan 全屋扫描", "视觉 SLAM 空间建模",
+                        "激光测距仪辅助校准", "墙面特征自动识别", "精度报告生成",
+                    ],
+                    "prompt": "点击开始 AR 空间测量，扫描房间生成户型图与测量数据",
+                },
+            )
 
         elif intent in ("floorplans",):
             reply = (
@@ -1056,9 +1078,25 @@ async def chat_stream(  # noqa: C901
                 "ifc_export": "ifc_export",
             }
             agent_type_meta = _intent_to_agent_type.get(intent, intent)
+            # v1.1.26: ar_measurement 返回 ar_scan_trigger 卡片类型
+            message_type_meta = "ar_scan_trigger" if intent == "ar_measurement" else "text"
+            card_payload_meta = None
+            if intent == "ar_measurement":
+                card_payload_meta = {
+                    "title": "📏 AR空间测量",
+                    "project_id": data.project_id,
+                    "sensor_type": "LiDAR",
+                    "supported_features": [
+                        "RoomPlan 全屋扫描", "视觉 SLAM 空间建模",
+                        "激光测距仪辅助校准", "墙面特征自动识别", "精度报告生成",
+                    ],
+                    "prompt": "点击开始 AR 空间测量，扫描房间生成户型图与测量数据",
+                }
             meta_data = json.dumps({
                 'event': 'meta', 'agent_type': agent_type_meta,
                 'session_id': stream_session_id,
+                'message_type': message_type_meta,
+                'card_payload': card_payload_meta,
             })
             yield f"data: {meta_data}\n\n"
             await asyncio.sleep(0.05)
@@ -1652,6 +1690,11 @@ async def submit_agent_feedback(
     )
     db.add(feedback)
     await db.commit()
+    # 失效 preference hint 缓存（v1.1.27）— 用户提交新反馈后，下次 chat 应查到最新示例
+    from app.agents.base import invalidate_pref_hint_cache
+    await invalidate_pref_hint_cache(
+        current_user.id, payload.agent_name, settings.agent_learning_max_examples
+    )
     return {"status": "recorded", "feedback_id": feedback.id, "agent_learning_enabled": settings.agent_learning_enabled}
 
 

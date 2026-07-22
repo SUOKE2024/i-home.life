@@ -24,7 +24,26 @@ PROVIDER_REGISTRY = {
         "model": lambda: settings.glm_model,
         "chat_path": "/chat/completions",
     },
+    # v1.1.28 新增：fallback chain 第二档（Qwen 阿里云百炼 / DashScope）
+    "qwen": {
+        "api_base": lambda: settings.qwen_api_base,
+        "api_key": lambda: settings.qwen_api_key,
+        "model": lambda: settings.qwen_model,
+        "chat_path": "/chat/completions",
+    },
+    # v1.1.28 新增：fallback chain 末端（Doubao 火山引擎 ARK）
+    "doubao": {
+        "api_base": lambda: settings.doubao_api_base,
+        "api_key": lambda: settings.doubao_api_key,
+        "model": lambda: settings.doubao_model,
+        "chat_path": "/chat/completions",
+    },
 }
+
+# v1.1.28 多 LLM fallback chain（借鉴索克生活 llm_fallback_chains）
+# _chat 失败时按此顺序降级：主供应商 → qwen → glm → doubao
+# 受 settings.llm_fallback_enabled feature flag 控制
+DEFAULT_FALLBACK_CHAIN = ["qwen", "glm", "doubao"]
 
 
 class BaseAgent:
@@ -82,6 +101,10 @@ class BaseAgent:
     async def _chat(self, messages: list[dict], max_retries: int = 0, with_tools: bool = False) -> str | dict:
         """调用 LLM，自动按 self.provider 路由到对应供应商。
 
+        v1.1.28 新增：多 LLM fallback chain（借鉴索克生活 llm_fallback_chains）
+        当主供应商调用失败（网络错误/5xx）时，按 DEFAULT_FALLBACK_CHAIN 降级到
+        qwen → glm → doubao。受 settings.llm_fallback_enabled feature flag 控制。
+
         Args:
             messages: 对话消息列表
             max_retries: 最大重试次数（默认 0 — 推理模型单次调用可达 60-90s，
@@ -98,7 +121,40 @@ class BaseAgent:
             ``_EMPTY_CONTENT_RETRIES`` 次。重试时温度降至 0.3 以减少 reasoning
             token 消耗，给 content 输出留出空间。
         """
-        provider = self.provider
+        # v1.1.28: 构建本次调用的供应商链（主供应商 + fallback chain）
+        primary = self.provider
+        chain = [primary]
+        if settings.llm_fallback_enabled:
+            chain += [p for p in DEFAULT_FALLBACK_CHAIN if p != primary and p in PROVIDER_REGISTRY]
+
+        last_error = None
+        for provider in chain:
+            try:
+                return await self._chat_single_provider(
+                    provider, messages, max_retries=max_retries, with_tools=with_tools
+                )
+            except Exception as e:
+                last_error = e
+                if provider != chain[-1]:
+                    logger.warning(
+                        "%s._chat: 供应商 %s 失败，降级到下一个 (error=%s)",
+                        self.agent_name, provider, e,
+                    )
+                else:
+                    logger.error(
+                        "%s._chat: 全部供应商失败 (last=%s, error=%s)",
+                        self.agent_name, provider, e,
+                    )
+        raise last_error
+
+    async def _chat_single_provider(
+        self,
+        provider: str,
+        messages: list[dict],
+        max_retries: int = 0,
+        with_tools: bool = False,
+    ) -> str | dict:
+        """单供应商 LLM 调用（_chat 的原始实现，v1.1.28 拆分以支持 fallback）。"""
         cfg = PROVIDER_REGISTRY[provider]
 
         # 无 API Key 时返回 mock 响应，避免空 Authorization header 或 401 错误
@@ -182,15 +238,53 @@ class BaseAgent:
                     await asyncio.sleep(1)
         raise last_error
 
-    async def think(self, user_message: str, context: str = "") -> str:
-        """高层封装：自动拼接 system prompt + 上下文 → LLM 调用。"""
+    async def think(self, user_message: str, context: str = "", db=None, project_id: str = "") -> str:
+        """高层封装：自动拼接 system prompt + 上下文 → LLM 调用。
+
+        v1.1.28 新增：
+        - AgenticRAG 证据检索（借鉴索克生活）：db 传入时前置检索知识库证据注入上下文
+        - Model Spec HC 硬约束校验（借鉴索克生活 rebuttal_engine）：输出违规时注入反驳重生成
+        """
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+
+        # v1.1.28: AgenticRAG 证据注入
+        evidence_context = ""
+        if settings.agentic_rag_enabled and db is not None:
+            try:
+                from app.services.agentic_rag import agentic_rag
+                evidence = await agentic_rag.retrieve(user_message, db=db, project_id=project_id)
+                evidence_context = agentic_rag.build_evidence_context(evidence)
+                if evidence_context:
+                    messages.append({"role": "system", "content": evidence_context})
+            except Exception as e:
+                logger.debug("%s.think: AgenticRAG 检索失败（降级到无 RAG）: %s", self.agent_name, e)
+
         if context:
             messages.append({"role": "assistant", "content": context})
         messages.append({"role": "user", "content": user_message})
-        return await self._chat(messages)
+
+        reply = await self._chat(messages)
+
+        # v1.1.28: Model Spec HC 硬约束校验 + 反驳重生成
+        if settings.model_spec_enabled and isinstance(reply, str):
+            try:
+                from app.services.rebuttal_engine import check_output, build_rebuttal_context
+                result = check_output(self.agent_name, reply)
+                if result["violated"]:
+                    rebuttal = build_rebuttal_context(result["violations"])
+                    logger.info(
+                        "%s.think: HC 违规 %s，注入反驳重生成",
+                        self.agent_name, [v["constraint_id"] for v in result["violations"]],
+                    )
+                    messages.append({"role": "assistant", "content": reply})
+                    messages.append({"role": "system", "content": rebuttal})
+                    reply = await self._chat(messages)
+            except Exception as e:
+                logger.debug("%s.think: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
+
+        return reply
 
     async def _chat_stream(self, messages: list[dict]):
         """流式调用 LLM，逐 chunk 产出 content 文本。
@@ -262,20 +356,27 @@ class BaseAgent:
             yield chunk
 
     async def think_with_tools(
-        self, user_message: str, context: str = "", max_rounds: int | None = None
+        self, user_message: str, context: str = "", max_rounds: int | None = None,
+        db=None, project_id: str = "",
     ) -> dict:
         """FunctionCall 增强版对话：支持多轮工具调用。
+
+        v1.1.28 新增：
+        - AgenticRAG 证据检索：db 传入时前置检索知识库证据注入上下文
+        - Model Spec HC 硬约束校验：最终回复违规时注入反驳重生成
 
         Args:
             user_message: 用户消息
             context: 对话上下文
             max_rounds: 最大工具调用轮数（防止无限循环）
+            db: 异步数据库会话（AgenticRAG 检索用，可选）
+            project_id: 项目 ID（AgenticRAG 项目维度过滤，可选）
 
         Returns:
             {"final_reply": str, "tool_calls": [...], "rounds": int}
         """
         if not settings.agent_function_call_enabled or not self.tools:
-            reply = await self.think(user_message, context)
+            reply = await self.think(user_message, context, db=db, project_id=project_id)
             return {"final_reply": reply, "tool_calls": [], "rounds": 0}
 
         max_rounds = max_rounds or settings.agent_function_call_max_rounds
@@ -283,6 +384,18 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+
+        # v1.1.28: AgenticRAG 证据注入
+        if settings.agentic_rag_enabled and db is not None:
+            try:
+                from app.services.agentic_rag import agentic_rag
+                evidence = await agentic_rag.retrieve(user_message, db=db, project_id=project_id)
+                evidence_context = agentic_rag.build_evidence_context(evidence)
+                if evidence_context:
+                    messages.append({"role": "system", "content": evidence_context})
+            except Exception as e:
+                logger.debug("%s.think_with_tools: AgenticRAG 检索失败: %s", self.agent_name, e)
+
         if context:
             messages.append({"role": "assistant", "content": context})
         messages.append({"role": "user", "content": user_message})
@@ -295,8 +408,10 @@ class BaseAgent:
             tool_calls = result.get("tool_calls", []) if isinstance(result, dict) else []
 
             if not tool_calls:
+                reply = result.get("content", "") if isinstance(result, dict) else result
+                reply = await self._rebuttal_check(messages, reply)
                 return {
-                    "final_reply": result.get("content", "") if isinstance(result, dict) else result,
+                    "final_reply": reply,
                     "tool_calls": tool_calls_history,
                     "rounds": rounds,
                 }
@@ -344,11 +459,35 @@ class BaseAgent:
         # 达到最大轮数仍未完成，强制生成最终回复
         messages.append({"role": "user", "content": "请根据以上工具调用结果给出最终回复。"})
         final_reply = await self._chat(messages)
+        final_reply = await self._rebuttal_check(messages, final_reply)
         return {
             "final_reply": final_reply,
             "tool_calls": tool_calls_history,
             "rounds": rounds,
         }
+
+    async def _rebuttal_check(self, messages: list[dict], reply: str) -> str:
+        """v1.1.28: Model Spec HC 硬约束校验 + 反驳重生成（借鉴索克生活 rebuttal_engine）。
+
+        输出违规时注入反驳上下文重新调用 _chat 一次。校验失败或无违规时返回原 reply。
+        """
+        if not settings.model_spec_enabled or not isinstance(reply, str):
+            return reply
+        try:
+            from app.services.rebuttal_engine import check_output, build_rebuttal_context
+            result = check_output(self.agent_name, reply)
+            if result["violated"]:
+                rebuttal = build_rebuttal_context(result["violations"])
+                logger.info(
+                    "%s: HC 违规 %s，注入反驳重生成",
+                    self.agent_name, [v["constraint_id"] for v in result["violations"]],
+                )
+                messages.append({"role": "assistant", "content": reply})
+                messages.append({"role": "system", "content": rebuttal})
+                return await self._chat(messages)
+        except Exception as e:
+            logger.debug("%s: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
+        return reply
 
     # ── 资源清理 ──────────────────────────────────────────────
 
@@ -410,3 +549,56 @@ class BaseAgent:
         except Exception as e:
             logger.warning("BaseAgent.get_user_preference_hint 失败: %s", e)
             return ""
+
+
+# ── preference hint 缓存包装（v1.1.27 性能优化）──
+# 每次 chat 端点调用 get_user_preference_hint 查 AgentFeedback 表，
+# 缓存后避免重复 DB 查询。用户提交新反馈时主动失效。
+
+async def get_pref_hint_cached(
+    user_id: str, agent_name: str, db=None, max_examples: int = 3
+) -> str:
+    """带缓存的 preference hint 查询。
+
+    缓存 key 仅基于 user_id + agent_name + max_examples，忽略 db session。
+    TTL 由 settings.pref_hint_cache_ttl 控制（默认 300s）。
+    feature flag cache_decorators_enabled=False 或 TTL<=0 时直透不缓存。
+
+    用户提交新反馈后调用 invalidate_pref_hint_cache 主动失效。
+    """
+    _settings = get_settings()
+    if not _settings.cache_decorators_enabled or _settings.pref_hint_cache_ttl <= 0:
+        return await BaseAgent.get_user_preference_hint(user_id, agent_name, db, max_examples)
+
+    from app.services.cache_service import cache
+    cache_key = f"pref_hint:{user_id}:{agent_name}:{max_examples}"
+
+    cached_val = await cache.get(cache_key)
+    if cached_val is not None:
+        try:
+            from app.metrics import cache_hits_total
+            cache_hits_total.labels(key_prefix="pref_hint").inc()
+        except Exception:
+            pass
+        return cached_val
+
+    try:
+        from app.metrics import cache_misses_total
+        cache_misses_total.labels(key_prefix="pref_hint").inc()
+    except Exception:
+        pass
+
+    result = await BaseAgent.get_user_preference_hint(user_id, agent_name, db, max_examples)
+    await cache.set(cache_key, result, ttl=_settings.pref_hint_cache_ttl)
+    return result
+
+
+async def invalidate_pref_hint_cache(
+    user_id: str, agent_name: str, max_examples: int = 3
+) -> None:
+    """用户提交新反馈后主动失效 preference hint 缓存。
+
+    在 POST /api/agents/feedback 端点 db.commit() 之后调用。
+    """
+    from app.services.cache_service import cache
+    await cache.delete(f"pref_hint:{user_id}:{agent_name}:{max_examples}")
