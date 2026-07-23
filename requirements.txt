@@ -19,7 +19,16 @@ Pillow>=10.0.0
 redis>=5.2.0
 prometheus-client>=0.20.0
 structlog>=24.1.0
+# v1.2.2 F4：OpenTelemetry 分布式追踪。可选依赖——tracing_enabled=False（默认）
+# 时 setup_tracing 为 no-op，未安装也不影响运行。生产灰度启用时安装全部 4 个包。
+opentelemetry-sdk>=1.27.0
+opentelemetry-exporter-otlp>=1.27.0
+opentelemetry-instrumentation-fastapi>=0.48b0
+opentelemetry-instrumentation-sqlalchemy>=0.48b0
 ezdxf>=1.4.0
 ifcopenshell>=0.7.0
 numpy>=1.24.0
 trimesh>=4.0.0
+# v1.1.31 FP-8（S7）：AR 点云法线估算用 scipy.spatial.KDTree 加速
+# 未安装时 ar_scan_service 自动回退到暴力搜索（性能较低但功能不变）
+scipy>=1.10.0

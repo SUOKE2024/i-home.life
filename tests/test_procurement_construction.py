@@ -12,8 +12,36 @@ async def _register_and_login(client: AsyncClient) -> str:
 
 @pytest.mark.asyncio
 async def test_list_suppliers(client: AsyncClient):
-    response = await client.get("/api/procurement/suppliers")
+    # v1.2.1 P1-6：list_suppliers 现强制登录 + 手机号脱敏
+    token = await _register_and_login(client)
+    # 创建一个带手机号的供应商，验证列表脱敏
+    await client.post(
+        "/api/procurement/suppliers",
+        json={
+            "name": "测试供应商",
+            "category": "flooring",
+            "rating": 4.0,
+            "phone": "13812345678",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    response = await client.get(
+        "/api/procurement/suppliers",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+    # 手机号应被脱敏（138****5678），不能出现明文
+    phones = [s["phone"] for s in data if s.get("phone")]
+    assert all("****" in p for p in phones), f"手机号未脱敏: {phones}"
+
+
+@pytest.mark.asyncio
+async def test_list_suppliers_requires_auth(client: AsyncClient):
+    # v1.2.1 P1-6：匿名访问供应商列表应被拒绝（原为未鉴权可枚举 PII）
+    response = await client.get("/api/procurement/suppliers")
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

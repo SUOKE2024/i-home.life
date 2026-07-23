@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,6 +26,7 @@ class SoftFurnishingScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft(草稿) / planned(已规划) / purchasing(采购中) / delivered(已交付) / installed(已安装)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -41,6 +42,19 @@ class SoftFurnishingScheme(Base):
         back_populates="scheme",
         cascade="all, delete-orphan",
         order_by="StorageSystem.created_at",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "style IN ('modern', '现代', '北欧', '新中式', '美式', '法式', '工业', '日式')",
+            name="chk_soft_furnishing_scheme_style",
+        ),
+        CheckConstraint("budget_total >= 0", name="chk_soft_furnishing_budget_total_positive"),
+        CheckConstraint("budget_used >= 0", name="chk_soft_furnishing_budget_used_positive"),
+        CheckConstraint(
+            "status IN ('draft', 'planned', 'purchasing', 'delivered', 'installed')",
+            name="chk_soft_furnishing_scheme_status",
+        ),
     )
 
 
@@ -74,10 +88,27 @@ class SoftFurnishingItem(Base):
     position_z: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     # status: planned(已规划) / purchased(已采购) / delivered(已发货) / installed(已安装)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     scheme = relationship("SoftFurnishingScheme", back_populates="items")
+
+    __table_args__ = (
+        CheckConstraint(
+            "item_type IN ('sofa', 'bed', 'dining_table', 'chair', 'coffee_table', 'rug', 'curtain', 'artwork', 'plant', 'lamp', 'pillow', 'decorative', 'tv_cabinet_alt')",
+            name="chk_soft_furnishing_item_type",
+        ),
+        CheckConstraint("price >= 0", name="chk_soft_furnishing_item_price_positive"),
+        CheckConstraint("quantity >= 1", name="chk_soft_furnishing_item_quantity_positive"),
+        CheckConstraint("width IS NULL OR width >= 0", name="chk_soft_furnishing_item_width_positive"),
+        CheckConstraint("depth IS NULL OR depth >= 0", name="chk_soft_furnishing_item_depth_positive"),
+        CheckConstraint("height IS NULL OR height >= 0", name="chk_soft_furnishing_item_height_positive"),
+        CheckConstraint(
+            "status IN ('planned', 'purchased', 'delivered', 'installed')",
+            name="chk_soft_furnishing_item_status",
+        ),
+    )
 
 
 class StorageSystem(Base):
@@ -99,7 +130,17 @@ class StorageSystem(Base):
     smart_features: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 智能功能 JSON: {"smart_lock": true, "dehumidify": false, "auto_light": true}
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     scheme = relationship("SoftFurnishingScheme", back_populates="storages")
+
+    __table_args__ = (
+        CheckConstraint(
+            "storage_type IN ('衣柜', '厨柜', '书柜', '鞋柜', '储物间', '吊柜', '地柜')",
+            name="chk_storage_system_type",
+        ),
+        CheckConstraint("total_capacity_l >= 0", name="chk_storage_system_total_capacity_positive"),
+        CheckConstraint("compartment_count >= 0", name="chk_storage_system_compartment_count_positive"),
+    )

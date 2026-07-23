@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="索克家居 · 全链路装修向导 — 7 阶段项目进度时间线">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta property="og:title" content="装修向导 · 索克家居">
+
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:description" content="全链路装修项目管理 — 7 阶段进度时间线">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260724b">
+<title>装修向导 · 索克家居</title>
+<style>
+/* ============================================
+   全链路装修向导 — 页面专属样式
+   继承 workbench.css 的 CSS 变量
+   ============================================ */
+
+/* ── 布局容器 ── */
+.tl-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* ── 顶栏 ── */
+.tl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.tl-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tl-logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.tl-logo:hover { color: var(--accent-bright); }
+.tl-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tl-nav a,
+.tl-nav button {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.tl-nav a:hover,
+.tl-nav button:hover,
+.tl-nav a:focus-visible,
+.tl-nav button:focus-visible {
+  color: var(--accent);
+  background: var(--bg-card-hover);
+}
+.tl-nav .tl-nav-active {
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+/* ── 主内容区 ── */
+.tl-main {
+  flex: 1;
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 24px 20px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── 项目信息卡片 ── */
+.tl-project-card {
+  background: linear-gradient(135deg, #1a1814, #2d2a24);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  border: 1px solid rgba(201,151,59,0.15);
+}
+.tl-project-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.tl-project-info { flex: 1; min-width: 0; }
+.tl-project-address {
+  font-size: 11px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+.tl-project-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.tl-project-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.tl-project-switcher:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tl-project-progress {
+  margin-top: 12px;
+}
+.tl-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.tl-progress-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.tl-progress-pct {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--success);
+}
+.tl-progress-bar {
+  height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.tl-progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--success));
+  transition: width 0.8s var(--ease-out);
+}
+
+/* ── 时间线 ── */
+.tl-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.tl-stage {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+.tl-stage-node-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 32px;
+  flex-shrink: 0;
+}
+.tl-stage-node {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+.tl-stage-connector {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+}
+
+/* 状态变量 */
+.tl-stage--completed .tl-stage-node {
+  background: var(--success);
+  color: #fff;
+}
+.tl-stage--completed .tl-stage-connector {
+  background: var(--success);
+}
+
+.tl-stage--active .tl-stage-node {
+  background: var(--accent);
+  color: var(--bg-deep);
+  box-shadow: 0 0 0 4px rgba(201,151,59,0.2);
+  animation: tl-pulse 2.2s ease-in-out infinite;
+}
+.tl-stage--active .tl-stage-connector {
+  background: var(--accent);
+}
+
+.tl-stage--pending .tl-stage-node {
+  background: var(--border);
+  color: var(--text-muted);
+}
+.tl-stage--pending .tl-stage-connector {
+  background: var(--border);
+}
+
+/* 脉冲动画 */
+@keyframes tl-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(201,151,59,0.2); }
+  50% { box-shadow: 0 0 0 10px rgba(201,151,59,0.05); }
+}
+
+/* 阶段卡片 */
+.tl-stage-card {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  border-left: 3px solid var(--border);
+  transition: all var(--transition);
+}
+.tl-stage--completed .tl-stage-card {
+  border-left-color: var(--success);
+}
+.tl-stage--active .tl-stage-card {
+  border-left-color: var(--accent);
+  background: var(--bg-card-hover);
+}
+.tl-stage--pending .tl-stage-card {
+  opacity: 0.6;
+}
+.tl-stage:last-child .tl-stage-card {
+  margin-bottom: 0;
+}
+
+.tl-stage-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.tl-stage-card-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+.tl-stage--completed .tl-stage-card-title { color: var(--success); }
+.tl-stage--active .tl-stage-card-title { color: var(--accent-bright); }
+.tl-stage--pending .tl-stage-card-title { color: var(--text-muted); }
+
+.tl-stage-card-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.tl-stage--completed .tl-stage-card-badge {
+  background: rgba(74,158,110,0.15);
+  color: var(--success);
+}
+.tl-stage--active .tl-stage-card-badge {
+  background: rgba(201,151,59,0.15);
+  color: var(--accent-bright);
+}
+.tl-stage--pending .tl-stage-card-badge {
+  background: var(--bg-deep);
+  color: var(--text-muted);
+}
+
+.tl-stage-card-substeps {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.tl-stage-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--bg-deep);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all var(--transition);
+  cursor: pointer;
+}
+.tl-stage-card-action:hover {
+  background: var(--accent-bright);
+}
+
+/* ── 阶段详情面板 ── */
+.tl-detail-panel {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+}
+.tl-detail-title {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+.tl-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.tl-stat-card {
+  background: var(--bg-deep);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  text-align: center;
+}
+.tl-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+.tl-stat-value--gold { color: var(--accent); }
+.tl-stat-value--blue { color: var(--info); }
+.tl-stat-value--green { color: var(--success); }
+.tl-stat-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.tl-detail-actions {
+  display: flex;
+  gap: 8px;
+}
+.tl-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  transition: all var(--transition);
+}
+.tl-btn-primary {
+  background: var(--accent);
+  color: var(--bg-deep);
+}
+.tl-btn-primary:hover { background: var(--accent-bright); }
+.tl-btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.tl-btn-secondary:hover { border-color: var(--accent); }
+
+/* ── 加载/空状态 ── */
+.tl-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}
+.tl-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.tl-empty-text { font-size: 14px; margin-bottom: 16px; }
+.tl-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tl-spin 0.8s linear infinite;
+}
+@keyframes tl-spin { to { transform: rotate(360deg); } }
+
+/* ── 项目切换对话框 ── */
+.tl-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.tl-picker-overlay[hidden] { display: none; }
+.tl-picker-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tl-picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-picker-header span {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tl-picker-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+}
+.tl-picker-list { max-height: 320px; overflow-y: auto; }
+.tl-picker-item {
+  padding: 12px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.tl-picker-item:hover,
+.tl-picker-item:focus-visible { background: var(--bg-card-hover); }
+.tl-picker-item.active { background: var(--accent-glow); }
+.tl-picker-item-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.tl-picker-item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── 页脚 ── */
+.tl-footer {
+  text-align: center;
+  padding: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+/* ── Skip Link ── */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 12px;
+  background: var(--accent);
+  color: var(--bg-deep);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 999;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 12px;
+}
+
+/* ── prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .tl-stage--active .tl-stage-node {
+    animation: none;
+    box-shadow: 0 0 0 4px rgba(201,151,59,0.2);
+  }
+  .tl-progress-bar-fill {
+    transition: none;
+  }
+}
+
+/* ── 响应式 ── */
+@media (max-width: 1024px) {
+  .tl-main {
+    padding: 20px 16px 24px;
+    gap: 16px;
+  }
+  .tl-stage {
+    gap: 10px;
+  }
+  .tl-stage-card {
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tl-header {
+    padding: 10px 14px;
+  }
+  .tl-main {
+    padding: 16px 12px 20px;
+    gap: 12px;
+  }
+  .tl-project-card {
+    padding: 14px 16px;
+  }
+  .tl-project-name {
+    font-size: 16px;
+  }
+  .tl-detail-stats {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .tl-detail-actions {
+    flex-direction: column;
+  }
+  .tl-stage {
+    gap: 8px;
+  }
+  .tl-stage-card {
+    padding: 8px 12px;
+  }
+  .tl-stage-card-header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tl-header {
+    padding: 8px 10px;
+  }
+  .tl-nav a,
+  .tl-nav button {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+  .tl-main {
+    padding: 12px 8px 16px;
+    gap: 10px;
+  }
+  .tl-project-card {
+    padding: 10px 12px;
+  }
+  .tl-project-name {
+    font-size: 14px;
+  }
+  .tl-stage-card {
+    padding: 6px 10px;
+  }
+  .tl-stage-card-title {
+    font-size: 13px;
+  }
+  .tl-stage-card-substeps {
+    font-size: 11px;
+  }
+  .tl-stage-node {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+  .tl-stage-node-col {
+    min-width: 28px;
+  }
+  .tl-stage {
+    gap: 6px;
+  }
+}
+</style>
+</head>
+<body class="tl-page">
+
+<a href="#tl-main-content" class="skip-link">跳到主要内容</a>
+
+<!-- 顶栏 -->
+<header class="tl-header" role="banner">
+  <div class="tl-header-left">
+    <a href="demo.html" class="tl-logo" aria-label="索克家居首页">🏠 索克家居</a>
+  </div>
+  <nav class="tl-nav" aria-label="主导航">
+    <a href="demo.html">返回首页</a>
+    <a href="workbench.html">进入工作台</a>
+  </nav>
+</header>
+
+<!-- 主内容 -->
+<main class="tl-main" id="tl-main-content" role="main" aria-label="装修项目时间线">
+
+  <!-- 项目信息卡片 -->
+  <section class="tl-project-card" aria-label="项目信息" id="tl-project-card">
+    <div class="tl-project-row">
+      <div class="tl-project-info">
+        <div class="tl-project-address" id="tl-address">加载中…</div>
+        <div class="tl-project-name" id="tl-name">加载项目…</div>
+      </div>
+      <button class="tl-project-switcher" id="tl-switcher-btn" aria-label="切换项目" title="切换项目">⇄</button>
+    </div>
+    <div class="tl-project-progress">
+      <div class="tl-progress-header">
+        <span class="tl-progress-label">整体进度</span>
+        <span class="tl-progress-pct" id="tl-progress-pct">—</span>
+      </div>
+      <div class="tl-progress-bar">
+        <div class="tl-progress-bar-fill" id="tl-progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 时间线 -->
+  <section class="tl-timeline" id="tl-timeline" aria-label="项目阶段时间线">
+    <div class="tl-empty" id="tl-loading">
+      <div class="tl-spinner"></div>
+      <div class="tl-empty-text" style="margin-top:12px">加载项目进度…</div>
+    </div>
+  </section>
+
+  <!-- 当前阶段详情面板 -->
+  <section class="tl-detail-panel" id="tl-detail-panel" aria-label="当前阶段详情" hidden>
+    <div class="tl-detail-title">当前阶段详情</div>
+    <div class="tl-detail-stats" id="tl-detail-stats"></div>
+    <div class="tl-detail-actions" id="tl-detail-actions"></div>
+  </section>
+
+  <!-- 空状态 -->
+  <div class="tl-empty" id="tl-empty-state" hidden>
+    <div class="tl-empty-icon">📋</div>
+    <div class="tl-empty-text">暂无项目，请先创建项目</div>
+    <a href="workbench.html" class="tl-btn tl-btn-primary" style="display:inline-flex;width:auto">前往工作台创建</a>
+  </div>
+
+</main>
+
+<!-- 项目切换对话框 -->
+<div class="tl-picker-overlay" id="tl-picker-overlay" role="dialog" aria-label="切换项目" aria-modal="true" hidden>
+  <div class="tl-picker-card">
+    <div class="tl-picker-header">
+      <span>切换项目</span>
+      <button class="tl-picker-close" id="tl-picker-close" aria-label="关闭">×</button>
+    </div>
+    <div class="tl-picker-list" id="tl-picker-list" role="listbox">
+      <div class="tl-empty" style="padding:24px">
+        <div class="tl-spinner"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/api-client.js?v=20260724b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script>
+(function() {
+  'use strict';
+
+  /* ============================================
+     阶段定义（静态数据，后端就绪后可由 API 接管）
+     ============================================ */
+  const STAGES = [
+    { id: 1, name: '项目立项', icon: '🏠', substeps: '房屋测量 · 需求确认 · 风格意向', module: 'project' },
+    { id: 2, name: '方案设计', icon: '🎨', substeps: '平面布局 · 3D效果图 · AI出图', module: 'design', hasAction: true, actionLabel: '去设计台 →', actionUrl: 'studio.html' },
+    { id: 3, name: '预算规划', icon: '💰', substeps: '量房报价 · 费用估算', module: 'budget' },
+    { id: 4, name: '物料采购', icon: '📦', substeps: '物料清单 · 供应商匹配 · 下单', module: 'procurement' },
+    { id: 5, name: '施工管理', icon: '🔨', substeps: '施工排期 · 进度追踪 · 日志', module: 'construction' },
+    { id: 6, name: '质量验收', icon: '✅', substeps: '自检 · 专项验收 · 终验报告', module: 'quality' },
+    { id: 7, name: '结算交付', icon: '🏁', substeps: '结算审核 · 支付 · 交付确认', module: 'settlement' },
+  ];
+
+  const STATUS_LABEL = {
+    draft: '设计阶段',
+    design: '设计阶段',
+    pending: '筹备中',
+    in_progress: '施工中',
+    construction: '施工中',
+    completed: '已完工',
+  };
+
+  /* ============================================
+     DOM 引用
+     ============================================ */
+  const $ = (sel) => document.querySelector(sel);
+  const addrEl = $('#tl-address');
+  const nameEl = $('#tl-name');
+  const pctEl = $('#tl-progress-pct');
+  const fillEl = $('#tl-progress-fill');
+  const timelineEl = $('#tl-timeline');
+  const loadingEl = $('#tl-loading');
+  const emptyEl = $('#tl-empty-state');
+  const detailPanel = $('#tl-detail-panel');
+  const detailStatsEl = $('#tl-detail-stats');
+  const detailActionsEl = $('#tl-detail-actions');
+  const pickerOverlay = $('#tl-picker-overlay');
+  const pickerList = $('#tl-picker-list');
+  const pickerClose = $('#tl-picker-close');
+  const switcherBtn = $('#tl-switcher-btn');
+
+  /* ============================================
+     状态
+     ============================================ */
+  let allProjects = [];
+  let currentProject = null;
+  let currentStageIndex = 0; // 0-based: 当前激活的阶段
+
+  /* ============================================
+     根据项目状态推导当前阶段索引
+     ============================================ */
+  function deriveStageIndex(project) {
+    // 根据 project.status 或 project.current_stage 判断
+    // 映射：draft → 1, design → 2, pending → 0, in_progress/construction → 4, completed → 6
+    const status = (project.status || '').toLowerCase();
+    const map = {
+      draft: 0,        // 项目立项 (stage 1)
+      design: 1,       // 方案设计 (stage 2)
+      pending: 0,      // 筹备中 → 项目立项
+      in_progress: 4,  // 施工中
+      construction: 4, // 施工中
+      completed: 6,    // 结算交付
+    };
+    // 如果有明确 current_stage 字段则优先使用
+    if (project.current_stage != null) {
+      const idx = STAGES.findIndex(s => s.module === project.current_stage || s.id === project.current_stage);
+      if (idx >= 0) return idx;
+    }
+    return map[status] != null ? map[status] : 1;
+  }
+
+  /* ============================================
+     渲染时间线
+     ============================================ */
+  function renderTimeline(project) {
+    loadingEl.hidden = true;
+    emptyEl.hidden = true;
+
+    const stageIdx = deriveStageIndex(project);
+    currentStageIndex = stageIdx;
+
+    let html = '';
+    STAGES.forEach((stage, i) => {
+      let cls;
+      let nodeContent;
+      let badgeText;
+      if (i < stageIdx) {
+        cls = 'tl-stage--completed';
+        nodeContent = '✓';
+        badgeText = '已完成';
+      } else if (i === stageIdx) {
+        cls = 'tl-stage--active';
+        nodeContent = stage.icon;
+        badgeText = '进行中';
+      } else {
+        cls = 'tl-stage--pending';
+        nodeContent = (i + 1).toString();
+        badgeText = '待开始';
+      }
+
+      const isLast = i === STAGES.length - 1;
+
+      html += '<div class="tl-stage ' + cls + '" data-stage="' + stage.id + '" tabindex="0" role="listitem" aria-label="' + stage.name + ' - ' + badgeText + '">';
+      html += '<div class="tl-stage-node-col">';
+      html += '<div class="tl-stage-node">' + nodeContent + '</div>';
+      if (!isLast) {
+        html += '<div class="tl-stage-connector"></div>';
+      }
+      html += '</div>';
+      html += '<div class="tl-stage-card">';
+      html += '<div class="tl-stage-card-header">';
+      html += '<span class="tl-stage-card-title">' + (i + 1) + ' · ' + stage.name + '</span>';
+      html += '<span class="tl-stage-card-badge">' + badgeText + '</span>';
+      html += '</div>';
+      if (stage.substeps) {
+        html += '<div class="tl-stage-card-substeps">' + stage.substeps + '</div>';
+      }
+      if (stage.hasAction && i === stageIdx) {
+        let actionUrl = stage.actionUrl;
+        if (project.id) actionUrl += '?project_id=' + encodeURIComponent(project.id);
+        html += '<a href="' + actionUrl + '" class="tl-stage-card-action">' + stage.actionLabel + '</a>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+
+    timelineEl.innerHTML = html;
+  }
+
+  /* ============================================
+     渲染详情面板
+     ============================================ */
+  function renderDetailPanel(project) {
+    const activeStage = STAGES[currentStageIndex];
+    if (!activeStage) return;
+
+    detailPanel.hidden = false;
+
+    const stats = [
+      { value: (currentStageIndex + 1).toString(), label: '当前阶段', cls: 'tl-stat-value--gold' },
+      { value: STAGES.length.toString(), label: '总阶段数', cls: 'tl-stat-value--blue' },
+      { value: currentStageIndex.toString(), label: '已完成', cls: 'tl-stat-value--green' },
+    ];
+
+    detailStatsEl.innerHTML = stats.map(s =>
+      '<div class="tl-stat-card">' +
+      '<div class="tl-stat-value ' + s.cls + '">' + s.value + '</div>' +
+      '<div class="tl-stat-label">' + s.label + '</div>' +
+      '</div>'
+    ).join('');
+
+    const pid = project.id || '';
+    const actions = [];
+    // 方案设计阶段：去设计台
+    if (activeStage.module === 'design') {
+      actions.push({ label: '🎨 进入设计台', url: 'studio.html?project_id=' + encodeURIComponent(pid), primary: true });
+    }
+    // 始终显示查看详情
+    actions.push({ label: '📋 查看详情', url: 'project-detail.html?id=' + encodeURIComponent(pid), primary: false });
+
+    detailActionsEl.innerHTML = actions.map(a =>
+      '<a href="' + a.url + '" class="tl-btn ' + (a.primary ? 'tl-btn-primary' : 'tl-btn-secondary') + '">' + a.label + '</a>'
+    ).join('');
+  }
+
+  /* ============================================
+     渲染项目信息卡片
+     ============================================ */
+  function renderProjectInfo(project) {
+    const address = project.address || '';
+    const area = project.total_area ? project.total_area + '㎡' : '';
+    const location = [address, area].filter(Boolean).join(' · ');
+    addrEl.textContent = '📍 ' + (location || '项目地址待填写');
+    nameEl.textContent = project.name || '未命名项目';
+
+    // 进度百分比
+    const idx = currentStageIndex;
+    const total = STAGES.length;
+    const pct = Math.round((idx / (total - 1)) * 100);
+    pctEl.textContent = pct + '%';
+    fillEl.style.width = pct + '%';
+  }
+
+  /* ============================================
+     完整渲染
+     ============================================ */
+  function fullRender(project) {
+    currentProject = project;
+    renderTimeline(project);
+    renderDetailPanel(project);
+    renderProjectInfo(project);
+  }
+
+  /* ============================================
+     项目选择器
+     ============================================ */
+  function renderPicker() {
+    if (!allProjects.length) {
+      pickerList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">暂无项目</div>';
+      return;
+    }
+    pickerList.innerHTML = allProjects.map(p => {
+      const active = currentProject && p.id === currentProject.id;
+      return '<div class="tl-picker-item' + (active ? ' active' : '') + '" data-pid="' + p.id + '" role="option" tabindex="0" aria-selected="' + active + '">' +
+        '<div class="tl-picker-item-name">' + (p.name || '未命名项目') + '</div>' +
+        '<div class="tl-picker-item-meta">' + (STATUS_LABEL[p.status] || p.status || '进行中') + ' · ' + (p.total_area ? p.total_area + '㎡' : '面积未填') + '</div>' +
+        '</div>';
+    }).join('');
+
+    pickerList.querySelectorAll('.tl-picker-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const pid = el.dataset.pid;
+        const proj = allProjects.find(x => x.id === pid);
+        if (proj) {
+          fullRender(proj);
+        }
+        closePicker();
+      });
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          el.click();
+        }
+      });
+    });
+  }
+
+  function openPicker() {
+    renderPicker();
+    pickerOverlay.hidden = false;
+    // 聚焦第一个项目
+    const first = pickerList.querySelector('.tl-picker-item');
+    if (first) first.focus();
+  }
+
+  function closePicker() {
+    pickerOverlay.hidden = true;
+    switcherBtn.focus();
+  }
+
+  switcherBtn.addEventListener('click', openPicker);
+  pickerClose.addEventListener('click', closePicker);
+  pickerOverlay.addEventListener('click', (e) => {
+    if (e.target === pickerOverlay) closePicker();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pickerOverlay.hidden) {
+      closePicker();
+    }
+  });
+
+  /* ============================================
+     初始化：加载数据
+     ============================================ */
+  async function init() {
+    const token = ApiClient.getToken();
+
+    // 未登录：跳转登录
+    if (!token) {
+      const params = new URLSearchParams(window.location.search);
+      const role = params.get('role') || 'owner';
+      window.location.href = 'login.html?role=' + encodeURIComponent(role);
+      return;
+    }
+
+    try {
+      // 加载项目列表
+      const projects = await ApiClient.getProjects();
+      allProjects = Array.isArray(projects) ? projects : [];
+
+      if (allProjects.length === 0) {
+        loadingEl.hidden = true;
+        emptyEl.hidden = false;
+        detailPanel.hidden = true;
+        addrEl.textContent = '📍 暂无项目';
+        nameEl.textContent = '请先创建项目';
+        pctEl.textContent = '—';
+        fillEl.style.width = '0%';
+        return;
+      }
+
+      // 支持 URL 参数指定项目
+      const params = new URLSearchParams(window.location.search);
+      const requestedId = params.get('project_id');
+      const selected = (requestedId && allProjects.find(p => p.id === requestedId)) || allProjects[0];
+
+      fullRender(selected);
+
+      // 如果只有一个项目，隐藏切换按钮
+      if (allProjects.length <= 1) {
+        switcherBtn.style.display = 'none';
+      } else {
+        switcherBtn.style.display = '';
+      }
+    } catch (err) {
+      console.error('[Timeline] 加载失败:', err);
+      loadingEl.hidden = true;
+      emptyEl.hidden = false;
+      emptyEl.querySelector('.tl-empty-icon').textContent = '⚠️';
+      emptyEl.querySelector('.tl-empty-text').textContent = '无法加载项目数据，请稍后重试';
+      detailPanel.hidden = true;
+    }
+  }
+
+  /* ============================================
+     键盘导航：时间线阶段可用 Tab 聚焦
+     ============================================ */
+  timelineEl.addEventListener('keydown', (e) => {
+    const stage = e.target.closest('.tl-stage');
+    if (!stage) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      // 点击当前阶段卡片中的操作按钮
+      const action = stage.querySelector('.tl-stage-card-action');
+      if (action) action.click();
+    }
+  });
+
+  // 初始化
+  init();
+})();
+</script>
+
+</body>
+</html>

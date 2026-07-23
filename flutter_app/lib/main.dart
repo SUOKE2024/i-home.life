@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'config.dart';
 import 'theme/suoke_theme.dart';
 import 'services/api.dart';
@@ -45,32 +43,10 @@ void main() {
   runApp(const IHomeApp());
 }
 
-/// 主题状态管理
+/// 主题状态管理 — 随系统自动切换暗/亮主题
 class ThemeState extends ChangeNotifier {
-  ThemeMode _mode = ThemeMode.dark;
-
-  ThemeMode get mode => _mode;
-  bool get isDark => _mode == ThemeMode.dark;
-
-  ThemeState() {
-    _loadPref();
-  }
-
-  Future<void> _loadPref() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString('theme_mode');
-    if (stored == 'light') {
-      _mode = ThemeMode.light;
-    }
-    notifyListeners();
-  }
-
-  Future<void> toggle() async {
-    _mode = _mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('theme_mode', _mode == ThemeMode.dark ? 'dark' : 'light');
-  }
+  ThemeMode get mode => ThemeMode.system;
+  bool get isDark => false; // 跟随系统，不固定
 }
 
 /// 全局 Navigator Key，用于未登录时的导航跳转
@@ -93,7 +69,7 @@ class IHomeApp extends StatelessWidget {
               navigatorKey: globalNavigatorKey,
               theme: SuokeTheme.light(),
               darkTheme: SuokeTheme.dark(),
-              themeMode: themeState.isDark ? ThemeMode.dark : ThemeMode.light,
+              themeMode: ThemeMode.system,
               home: const AuthGate(),
             ),
           );

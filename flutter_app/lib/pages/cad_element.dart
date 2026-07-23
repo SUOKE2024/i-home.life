@@ -163,4 +163,46 @@ class DrawingElement {
     }
     return '';
   }
+
+  /// v1.2.0 P5: 导出为 floorplan.data 兼容的墙体 JSON（mm 坐标）
+  ///
+  /// 建立 CAD→算量→图纸链路入口：CAD 绘制的墙 → toFloorplanWallJson
+  /// → 写入 FloorPlan.data → quantity_takeoff_service 正向算量
+  /// → construction_drawing_service 施工图自动生成。
+  /// 坐标单位米 → mm（×1000），与 IFC 导出 / 施工图一致。
+  /// 受 parametric_cad_enabled flag 控制（前端按需调用）。
+  Map<String, dynamic> toFloorplanWallJson({double thicknessMm = 240}) {
+    if (type == 'line') {
+      return {
+        'name': name.isNotEmpty ? name : 'Wall',
+        'start': {
+          'x': (x1 * 1000).roundToDouble(),
+          'y': (y1 * 1000).roundToDouble(),
+        },
+        'end': {
+          'x': (x2 * 1000).roundToDouble(),
+          'y': (y2 * 1000).roundToDouble(),
+        },
+        'thickness': thicknessMm,
+        'is_external': isWall,
+      };
+    }
+    if (type == 'rect') {
+      // 矩形作为外接墙体（简化：生产应拆为 4 面墙）
+      return {
+        'name': name.isNotEmpty ? name : 'Room',
+        'start': {
+          'x': (x * 1000).roundToDouble(),
+          'y': (y * 1000).roundToDouble(),
+        },
+        'end': {
+          'x': ((x + w) * 1000).roundToDouble(),
+          'y': ((y + h) * 1000).roundToDouble(),
+        },
+        'thickness': thicknessMm,
+        'is_external': isWall,
+      };
+    }
+    return {};
+  }
 }

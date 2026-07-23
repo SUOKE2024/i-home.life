@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="索克家居 · 积分系统">
+<meta name="theme-color" content="#08080f">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: https:;">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260724b">
+<title>积分系统 · 索克家居</title>
+<style>
+.pg-page { min-height:100vh; background:var(--bg-deep); color:var(--text-primary); }
+.pg-header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:var(--bg-card); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
+.pg-header h1 { font-size:18px; font-weight:700; color:var(--accent); margin:0; }
+.pg-tabs { display:flex; gap:0; padding:0 16px; background:var(--bg-card); border-bottom:1px solid var(--border); overflow-x:auto; }
+.pg-tab { padding:10px 18px; font-size:13px; color:var(--text-secondary); background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-family:inherit; }
+.pg-tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+.pg-content { padding:16px; max-width:800px; margin:0 auto; }
+/* Cards */
+.card { background:var(--bg-card); border-radius:12px; border:1px solid var(--border); padding:16px; margin-bottom:12px; }
+.card-accent { border-color:var(--accent); border-width:1.5px; }
+/* Account header */
+.acct-header { text-align:center; padding:20px 16px; }
+.acct-level { font-size:28px; margin-bottom:4px; }
+.acct-points { font-size:36px; font-weight:800; color:var(--accent); }
+.acct-sub { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+/* Level bar */
+.level-bar { height:6px; background:var(--bg-deep); border-radius:3px; margin:12px 0; overflow:hidden; }
+.level-fill { height:100%; background:linear-gradient(90deg,var(--accent),#ffd700); border-radius:3px; transition:width .5s; }
+/* Transaction row */
+.txn-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
+.txn-row:last-child { border-bottom:none; }
+.txn-left { display:flex; flex-direction:column; gap:2px; }
+.txn-desc { font-size:13px; color:var(--text-primary); }
+.txn-time { font-size:11px; color:var(--text-secondary); }
+.txn-pts { font-size:15px; font-weight:700; }
+.txn-pts.plus { color:#4CAF50; }
+.txn-pts.minus { color:#E57373; }
+/* Mall item */
+.mall-item { display:flex; gap:12px; padding:12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; align-items:center; }
+.mall-icon { font-size:32px; width:48px; text-align:center; }
+.mall-info { flex:1; }
+.mall-name { font-size:14px; font-weight:600; color:var(--text-primary); }
+.mall-cost { font-size:12px; color:var(--accent); margin-top:2px; }
+.mall-btn { padding:6px 16px; background:var(--accent); color:#000; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
+.mall-btn:disabled { opacity:.4; cursor:not-allowed; }
+/* Ranking */
+.rank-row { display:flex; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); gap:10px; }
+.rank-num { width:28px; font-size:14px; font-weight:700; text-align:center; color:var(--text-secondary); }
+.rank-medal { font-size:20px; width:28px; text-align:center; }
+.rank-name { flex:1; font-size:13px; color:var(--text-primary); }
+.rank-pts { font-size:14px; font-weight:700; color:var(--accent); }
+/* Skeleton */
+.skeleton { height:16px; background:var(--border); border-radius:4px; margin:8px 0; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:.8} }
+.hidden { display:none !important; }
+.empty { text-align:center; padding:40px 16px; color:var(--text-secondary); font-size:14px; }
+</style>
+</head>
+<body class="pg-page">
+<div class="pg-header">
+  <h1>积分系统</h1>
+  <a href="/" style="color:var(--text-secondary);font-size:13px;text-decoration:none;">← 返回</a>
+</div>
+
+<div class="pg-tabs" id="tabs">
+  <button class="pg-tab active" data-tab="account">账户</button>
+  <button class="pg-tab" data-tab="transactions">明细</button>
+  <button class="pg-tab" data-tab="mall">商城</button>
+  <button class="pg-tab" data-tab="ranking">排行</button>
+</div>
+
+<div class="pg-content">
+  <!-- Account -->
+  <div id="tab-account">
+    <div class="card card-accent acct-header">
+      <div class="acct-level" id="level-emoji">🥉</div>
+      <div class="acct-level" id="level-name" style="font-size:14px;color:var(--text-secondary);">--</div>
+      <div class="acct-points" id="balance">--</div>
+      <div class="acct-sub">当前积分</div>
+      <div class="level-bar"><div class="level-fill" id="level-fill" style="width:0%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-secondary);">
+        <span id="level-min">0</span><span id="level-next">→ 下一级</span>
+      </div>
+      <div style="display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:12px;color:var(--text-secondary);">
+        <span>累计 <b style="color:var(--text-primary);" id="total-earned">--</b></span>
+        <span>年度 <b style="color:var(--text-primary);" id="year-earned">--</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transactions -->
+  <div id="tab-transactions" class="hidden">
+    <div id="txn-list"></div>
+    <div id="txn-empty" class="empty hidden">暂无积分记录</div>
+  </div>
+
+  <!-- Mall -->
+  <div id="tab-mall" class="hidden">
+    <div id="mall-list"></div>
+    <div id="mall-empty" class="empty hidden">商城暂无商品</div>
+  </div>
+
+  <!-- Ranking -->
+  <div id="tab-ranking" class="hidden">
+    <div id="rank-list"></div>
+    <div id="rank-empty" class="empty hidden">暂无排行数据</div>
+  </div>
+</div>
+
+<script src="assets/js/api-client.js?v=20260724b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script>
+(async function() {
+  const token = ApiClient.getToken();
+  if (!token) { window.location.href = '/login.html'; return; }
+
+  // Tab switching
+  document.getElementById('tabs').addEventListener('click', (e) => {
+    if (!e.target.classList.contains('pg-tab')) return;
+    document.querySelectorAll('.pg-tab').forEach(t => t.classList.remove('active'));
+    e.target.classList.add('active');
+    const tab = e.target.dataset.tab;
+    document.querySelectorAll('[id^="tab-"]').forEach(d => d.classList.add('hidden'));
+    document.getElementById('tab-' + tab).classList.remove('hidden');
+    if (tab === 'transactions') loadTransactions();
+    if (tab === 'mall') loadMall();
+    if (tab === 'ranking') loadRanking();
+  });
+
+  // Level config
+  const levels = [
+    { name:'青铜', emoji:'🥉', min:0, max:999, color:'#CD7F32' },
+    { name:'白银', emoji:'🥈', min:1000, max:4999, color:'#C0C0C0' },
+    { name:'黄金', emoji:'🥇', min:5000, max:19999, color:'#FFD700' },
+    { name:'铂金', emoji:'💎', min:20000, max:49999, color:'#E5E4E2' },
+    { name:'钻石', emoji:'👑', min:50000, max:9999999, color:'#B9F2FF' },
+  ];
+
+  function getLevel(pts) {
+    for (let i = levels.length - 1; i >= 0; i--) {
+      if (pts >= levels[i].min) return { ...levels[i], index: i };
+    }
+    return { ...levels[0], index: 0 };
+  }
+
+  // Load account
+  async function loadAccount() {
+    try {
+      const data = await ApiClient.getPointsAccount();
+      const bal = data.balance || 0;
+      const lvl = getLevel(bal);
+      const nextLvl = levels[Math.min(lvl.index + 1, levels.length - 1)];
+      const progress = nextLvl.min > lvl.max ? 100 : Math.min(100, Math.round((bal - lvl.min) / (nextLvl.min - lvl.min) * 100));
+
+      document.getElementById('level-emoji').textContent = lvl.emoji;
+      document.getElementById('level-name').textContent = lvl.name + '会员';
+      document.getElementById('balance').textContent = bal.toLocaleString();
+      document.getElementById('total-earned').textContent = (data.total_earned || 0).toLocaleString();
+      document.getElementById('year-earned').textContent = (data.year_earned || 0).toLocaleString();
+      document.getElementById('level-fill').style.width = progress + '%';
+      document.getElementById('level-min').textContent = lvl.min.toLocaleString();
+      document.getElementById('level-next').textContent = nextLvl.min.toLocaleString() + ' → ' + nextLvl.name;
+    } catch(e) {
+      document.getElementById('balance').textContent = '加载失败';
+    }
+  }
+
+  // Load transactions
+  async function loadTransactions() {
+    const list = document.getElementById('txn-list');
+    const empty = document.getElementById('txn-empty');
+    list.innerHTML = '';
+    try {
+      const data = await ApiClient.getPointsTransactions({ limit: 50 });
+      const items = data.items || data || [];
+      if (!items.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      items.forEach(t => {
+        const amount = t.amount || t.points || 0;
+        const isPlus = amount >= 0;
+        const div = document.createElement('div'); div.className = 'txn-row';
+        div.innerHTML = `<div class="txn-left">
+          <span class="txn-desc">${esc(t.description || t.reason || '积分变动')}</span>
+          <span class="txn-time">${esc(t.created_at || '')}</span>
+        </div>
+        <span class="txn-pts ${isPlus ? 'plus' : 'minus'}">${isPlus ? '+' : ''}${amount.toLocaleString()}</span>`;
+        list.appendChild(div);
+      });
+    } catch(e) { empty.classList.remove('hidden'); empty.textContent = '加载失败'; }
+  }
+
+  // Load mall
+  async function loadMall() {
+    const list = document.getElementById('mall-list');
+    const empty = document.getElementById('mall-empty');
+    list.innerHTML = '';
+    try {
+      const data = await ApiClient.getPointsMall();
+      const items = data.items || data || [];
+      if (!items.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      items.forEach(item => {
+        const cost = item.points_cost || item.cost || 0;
+        const div = document.createElement('div'); div.className = 'mall-item';
+        div.innerHTML = `<div class="mall-icon">${esc(item.icon || '🎁')}</div>
+          <div class="mall-info">
+            <div class="mall-name">${esc(item.name || '商品')}</div>
+            <div class="mall-cost">${cost.toLocaleString()} 积分</div>
+          </div>
+          <button class="mall-btn" onclick="redeem('${esc(item.id || '')}',${cost})">兑换</button>`;
+        list.appendChild(div);
+      });
+    } catch(e) { empty.classList.remove('hidden'); empty.textContent = '加载失败'; }
+  }
+
+  // Load ranking
+  async function loadRanking() {
+    const list = document.getElementById('rank-list');
+    const empty = document.getElementById('rank-empty');
+    list.innerHTML = '';
+    try {
+      const data = await ApiClient.getPointsRanking();
+      const items = data.items || data.ranking || data || [];
+      if (!items.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      items.forEach((r, i) => {
+        const rank = r.rank || (i + 1);
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+        const div = document.createElement('div'); div.className = 'rank-row';
+        div.innerHTML = medal
+          ? `<span class="rank-medal">${medal}</span>`
+          : `<span class="rank-num">${rank}</span>`;
+        div.innerHTML += `<span class="rank-name">${esc(r.user_name || r.name || '用户')}</span>
+          <span class="rank-pts">${(r.points || r.balance || 0).toLocaleString()}</span>`;
+        list.appendChild(div);
+      });
+    } catch(e) { empty.classList.remove('hidden'); empty.textContent = '加载失败'; }
+  }
+
+  // Redeem
+  window.redeem = async function(itemId, cost) {
+    if (!confirm(`确认使用 ${cost.toLocaleString()} 积分兑换？`)) return;
+    try {
+      await ApiClient.redeemPoints({ item_id: itemId });
+      alert('兑换成功！');
+      loadAccount();
+    } catch(e) {
+      alert('兑换失败：' + (e.message || '请稍后重试'));
+    }
+  };
+
+  function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  loadAccount();
+})();
+</script>
+</body>
+</html>

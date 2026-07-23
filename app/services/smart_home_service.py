@@ -484,3 +484,175 @@ async def compute_total_price(db: AsyncSession, scheme: SmartHomeScheme) -> dict
         "hub_estimate": hub_estimate,
         "total_price": total,
     }
+
+
+# ── 合规验证 ──
+
+# GB 50311 综合布线系统工程设计规范 — 弱电箱尺寸建议
+WEAK_CURRENT_BOX_SIZE: dict[str, str] = {
+    "small": "300×400mm",   # < 4 个房间
+    "medium": "400×500mm",  # 4-6 个房间
+    "large": "500×600mm",   # > 6 个房间
+}
+
+# GB 50311 — 推荐网线等级
+REQUIRED_CABLE_CATEGORY = "Cat6"
+
+# 涉水区域设备 IP 等级要求
+WATER_AREA_IP_REQUIREMENT = "IP44"
+
+
+def check_weak_current_box(
+    room_count: int,
+    network_points: int,
+    smart_device_count: int,
+) -> dict:
+    """弱电箱合规检查 — 依据 GB 50311
+
+    Args:
+        room_count: 房间数量
+        network_points: 网络信息点数量
+        smart_device_count: 智能设备数量
+
+    Returns:
+        {recommended_size, has_adequate_space, suggestions}
+    """
+    suggestions: list[str] = []
+
+    if room_count < 4:
+        recommended_size = WEAK_CURRENT_BOX_SIZE["small"]
+    elif room_count <= 6:
+        recommended_size = WEAK_CURRENT_BOX_SIZE["medium"]
+    else:
+        recommended_size = WEAK_CURRENT_BOX_SIZE["large"]
+
+    # 空间评估
+    total_connections = network_points + smart_device_count
+    # 小箱约容纳 8 个模块，中箱 16，大箱 24
+    capacity = {"300×400mm": 8, "400×500mm": 16, "500×600mm": 24}
+    max_capacity = capacity.get(recommended_size, 8)
+    has_adequate_space = total_connections <= max_capacity
+
+    suggestions.append(
+        f"推荐弱电箱尺寸 {recommended_size}，可容纳约 {max_capacity} 个模块"
+    )
+
+    if not has_adequate_space:
+        shortage = total_connections - max_capacity
+        suggestions.append(
+            f"当前 {total_connections} 个连接点超过推荐箱体容量 {max_capacity} 个模块，"
+            f"超出 {shortage} 个，建议升级弱电箱尺寸"
+        )
+        # 推荐下一级
+        if recommended_size == WEAK_CURRENT_BOX_SIZE["small"]:
+            suggestions.append(f"建议升级为 {WEAK_CURRENT_BOX_SIZE['medium']} 或更大")
+        elif recommended_size == WEAK_CURRENT_BOX_SIZE["medium"]:
+            suggestions.append(f"建议升级为 {WEAK_CURRENT_BOX_SIZE['large']} 或更大")
+        else:
+            suggestions.append("建议采用机柜式布线方案")
+    else:
+        suggestions.append(
+            f"当前 {total_connections} 个连接点在推荐容量范围内"
+        )
+
+    suggestions.append(
+        f"网线应使用 {REQUIRED_CABLE_CATEGORY} 或以上等级 (GB 50311)"
+    )
+
+    return {
+        "recommended_size": recommended_size,
+        "has_adequate_space": has_adequate_space,
+        "room_count": room_count,
+        "total_connections": total_connections,
+        "max_capacity": max_capacity,
+        "required_cable": REQUIRED_CABLE_CATEGORY,
+        "suggestions": suggestions,
+    }
+
+
+def check_safety_compliance(device_list: list[dict]) -> dict:
+    """设备安全合规检查
+
+    检查每台设备是否符合安全规范:
+      - 涉水区域设备 (bathroom/kitchen) 需 IP44+ 防护等级
+      - 燃气相关设备需有认证标识
+
+    Args:
+        device_list: 设备列表，每个设备为 dict:
+            {device_name, device_type, room_name, features, ...}
+
+    Returns:
+        {compliant, total_devices, device_results, summary}
+    """
+    device_results: list[dict] = []
+    complaint_count = 0
+    issue_count = 0
+
+    for device in device_list:
+        device_name = device.get("device_name", "未知设备")
+        room_name = device.get("room_name", "")
+        features = device.get("features") or {}
+        device_type = device.get("device_type", "")
+
+        issues: list[str] = []
+        compliant = True
+
+        # 1. 涉水区域 IP 防护检查
+        is_water_area = any(kw in (room_name or "").lower()
+                            for kw in ["bathroom", "卫生间", "kitchen", "厨房"])
+        if is_water_area and device_type == "light":
+            # 检查是否标注防水
+            if not features.get("防水"):
+                compliant = False
+                issues.append(
+                    f"{device_name} (位于 {room_name}) 未标注防水功能，"
+                    f"涉水区域灯具需 IP44+ 防护等级"
+                )
+
+        if is_water_area and device_type == "socket":
+            compliant = False
+            issues.append(
+                f"{device_name} (位于 {room_name}) 涉水区域插座需防水盖 + IP44+ 防护"
+            )
+
+        # 2. 燃气相关设备检查
+        if device_type == "sensor" and "燃气" in device_name:
+            if not features.get("燃气报警"):
+                compliant = False
+                issues.append(f"{device_name} 缺少燃气报警功能认证")
+            # 检查是否有联动关阀能力
+            has_shutoff = "联动关阀" in str(features)
+            if not has_shutoff:
+                issues.append(
+                    f"{device_name} 建议增加联动燃气切断阀功能"
+                )
+
+        # 3. 安防设备检查
+        if device_type == "camera":
+            if not features.get("夜视"):
+                issues.append(f"{device_name} 建议增加夜视功能以确保全天候监控")
+
+        if compliant:
+            complaint_count += 1
+        else:
+            issue_count += 1
+
+        device_results.append({
+            "device_name": device_name,
+            "device_type": device_type,
+            "room_name": room_name,
+            "compliant": compliant,
+            "issues": issues,
+        })
+
+    return {
+        "compliant": issue_count == 0,
+        "total_devices": len(device_list),
+        "compliant_count": complaint_count,
+        "issue_count": issue_count,
+        "devices": device_results,
+        "summary": (
+            f"安全合规检查：{len(device_list)} 台设备，"
+            f"{complaint_count} 合规 / {issue_count} 需整改"
+        ),
+    }

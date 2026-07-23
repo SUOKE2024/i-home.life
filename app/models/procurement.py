@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Float, Text, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Float, Text, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,11 +18,16 @@ class Supplier(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=3.0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     quotations = relationship("Quotation", back_populates="supplier")
     orders = relationship("ProcurementOrder", back_populates="supplier")
+
+    __table_args__ = (
+        CheckConstraint("rating >= 0 AND rating <= 5", name="chk_supplier_rating_range"),
+    )
 
 
 class Quotation(Base):
@@ -37,11 +42,20 @@ class Quotation(Base):
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     delivery_days: Mapped[int] = mapped_column(default=7)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     supplier = relationship("Supplier", back_populates="quotations")
     material = relationship("Material")
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="chk_quotation_quantity_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_quotation_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_quotation_total_price_positive"),
+        CheckConstraint("delivery_days > 0", name="chk_quotation_delivery_days_positive"),
+        CheckConstraint("status IN ('pending', 'accepted', 'rejected', 'expired')", name="chk_quotation_status"),
+    )
 
 
 class ProcurementOrder(Base):
@@ -54,6 +68,7 @@ class ProcurementOrder(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     expected_delivery: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -70,8 +85,27 @@ class ProcurementOrder(Base):
     # assembly_difficulty: easy/medium/hard/professional_required
     delivery_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 关联施工任务
+    construction_task_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("construction_tasks.id"), nullable=True, index=True
+    )
+    material_delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     supplier = relationship("Supplier", back_populates="orders")
     lines = relationship("OrderLine", back_populates="order", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("total_amount >= 0", name="chk_procurement_order_total_amount_positive"),
+        CheckConstraint("status IN ('draft', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled')", name="chk_procurement_order_status"),
+        CheckConstraint(
+            "delivery_status IN ('pending', 'shipping', 'in_transit', 'delivered', 'delayed', 'cancelled')",
+            name="chk_procurement_order_delivery_status",
+        ),
+        CheckConstraint(
+            "assembly_difficulty IS NULL OR assembly_difficulty IN ('easy', 'medium', 'hard', 'professional_required')",
+            name="chk_procurement_order_assembly_difficulty",
+        ),
+    )
 
 
 class OrderLine(Base):
@@ -84,7 +118,16 @@ class OrderLine(Base):
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    delivered_quantity: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     order = relationship("ProcurementOrder", back_populates="lines")
     material = relationship("Material")
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="chk_order_line_quantity_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_order_line_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_order_line_total_price_positive"),
+        CheckConstraint("delivered_quantity >= 0", name="chk_order_line_delivered_qty_positive"),
+    )

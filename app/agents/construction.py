@@ -4,6 +4,11 @@ from datetime import datetime, timezone
 
 from app.agents.base import BaseAgent
 from app.services.agent_tool_registry import tool_registry
+from app.standards.acceptance_checklists import (
+    ACCEPTANCE_CHECKLISTS,
+    QUALITY_CHECKLISTS,
+    get_checklist,
+)
 
 _CONSTRUCTION_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("construction")
 
@@ -21,41 +26,10 @@ CONSTRUCTION_PHASES = [
 ]
 
 
-# 质检检查清单（按阶段）
-QUALITY_CHECKLISTS = {
-    "mep": [
-        {"item": "水管打压测试", "standard": "0.8MPa 保压 30 分钟不掉压", "method": "pressure_test"},
-        {"item": "电路绝缘测试", "standard": "绝缘电阻 ≥ 0.5MΩ", "method": "insulation_test"},
-        {"item": "线管布局", "standard": "横平竖直，无三管交叉", "method": "visual_check"},
-        {"item": "强弱电间距", "standard": "≥ 500mm", "method": "distance_check"},
-        {"item": "开关插座位置", "standard": "符合图纸偏差 ≤ 5mm", "method": "dimension_check"},
-    ],
-    "masonry": [
-        {"item": "防水闭水试验", "standard": "蓄水 48h 无渗漏", "method": "water_test"},
-        {"item": "瓷砖空鼓率", "standard": "单砖空鼓 < 5%，整体 < 3%", "method": "tap_test"},
-        {"item": "瓷砖平整度", "standard": "2m 靠尺 ≤ 2mm", "method": "flatness_check"},
-        {"item": "阴阳角方正度", "standard": "偏差 ≤ 3mm", "method": "square_check"},
-        {"item": "地漏坡度", "standard": "坡度 1%-2%，无积水", "method": "slope_check"},
-    ],
-    "carpentry": [
-        {"item": "吊顶平整度", "standard": "2m 靠尺 ≤ 3mm", "method": "flatness_check"},
-        {"item": "柜体对角线偏差", "standard": "≤ 2mm", "method": "diagonal_check"},
-        {"item": "柜门缝隙", "standard": "均匀 1.5-2.5mm", "method": "gap_check"},
-        {"item": "抽屉滑轨", "standard": "顺滑无异响", "method": "function_test"},
-    ],
-    "painting": [
-        {"item": "墙面平整度", "standard": "2m 靠尺 ≤ 3mm", "method": "flatness_check"},
-        {"item": "色差", "standard": "无可见色差", "method": "color_check"},
-        {"item": "流坠/漏刷", "standard": "无流坠、无漏刷", "method": "visual_check"},
-        {"item": "阴阳角", "standard": "顺直，偏差 ≤ 2mm", "method": "straightness_check"},
-    ],
-    "installation": [
-        {"item": "灯具安装牢固度", "standard": "承重 ≥ 灯具重量 4 倍", "method": "load_test"},
-        {"item": "插座接线", "standard": "左零右火上地线", "method": "wiring_check"},
-        {"item": "卫浴下水", "standard": "排水通畅无堵塞", "method": "drainage_test"},
-        {"item": "橱柜门板", "standard": "开关顺滑，缝隙均匀", "method": "function_test"},
-    ],
-}
+# 质检检查清单（按阶段）—— v1.1.31 FP-5：提取至 app.standards.acceptance_checklists
+# 此处 QUALITY_CHECKLISTS / ACCEPTANCE_CHECKLISTS / get_checklist 由顶部 import 提供，
+# 供 ConstructionAgent.get_quality_checklist / analyze_inspection_images 复用，
+# 同时 quality_service.generate_acceptance_report 引用同一标准源（避免两套割裂数据）。
 
 
 class ConstructionAgent(BaseAgent):
@@ -132,8 +106,12 @@ class ConstructionAgent(BaseAgent):
         }
 
     def get_quality_checklist(self, phase: str) -> dict:
-        """获取指定阶段的质检清单"""
-        checklist = QUALITY_CHECKLISTS.get(phase, [])
+        """获取指定阶段的质检清单
+
+        v1.1.31 FP-5: 改用 standards.get_checklist，支持新增的 waterproof/
+        completion 阶段（原 QUALITY_CHECKLISTS 仅 5 阶段）。
+        """
+        checklist = get_checklist(phase)
         return {
             "phase": phase,
             "total_items": len(checklist),
@@ -154,7 +132,7 @@ class ConstructionAgent(BaseAgent):
         """
         phase = inspection_data.get("phase", "")
         images = inspection_data.get("images", [])
-        checklist = QUALITY_CHECKLISTS.get(phase, [])
+        checklist = get_checklist(phase)
 
         # Mock AI 检测结果（实际场景需对接 CV 模型）
         ai_results = []

@@ -437,12 +437,16 @@ def populate_rooms_from_parse(parsed: dict, wall_height: float = 2.8) -> dict:
 # ──────────────────────────────────────────────────────────────
 
 def _estimate_normals_numpy(points, k: int = 30):
-    """使用 numpy 基于 k 近邻 PCA 估算法线。
+    """基于 k 近邻 PCA 估算法线（v1.1.31 FP-8 / S7 升级）。
 
     对每个点:
-      1. 找到 k 个最近邻
+      1. 找到 k 个最近邻（用 scipy.spatial.KDTree，O(n log n) 构建 + O(log n) 查询）
       2. 对局部邻域做 PCA
       3. 最小特征值对应的特征向量即为法线方向
+
+    v1.1.31 FP-8 修复：原实现用 O(n²) 暴力最近邻搜索并标注"KD-tree 风格"
+    （名不副实），且对 >5000 点跳过估算。现优先用 scipy.spatial.KDTree 真实
+    加速，大点云分块处理；scipy 不可用时回退到暴力搜索（诚实标注 brute_force）。
     """
     import numpy as np
 
@@ -450,27 +454,71 @@ def _estimate_normals_numpy(points, k: int = 30):
     if n < 3:
         return None
 
-    # 构建 KD-tree 风格的暴力最近邻搜索 (无需 scipy)
-    normals = np.zeros_like(points)
-    for i in range(n):
-        # 计算当前点到所有点的欧氏距离
-        diff = points - points[i]
-        dists = np.sum(diff * diff, axis=1)
-        # 取 k 个最近邻 (排除自身)
-        nn_indices = np.argpartition(dists, min(k + 1, n))[: min(k + 1, n)]
-        nn_indices = nn_indices[nn_indices != i][:k] if n > 1 else nn_indices[:k]
-        neighbors = points[nn_indices]
+    k = min(k, n - 1)  # 邻居数不能超过点数-1
 
-        # 中心化
-        centered = neighbors - neighbors.mean(axis=0)
-        # PCA: 协方差矩阵的特征分解
-        cov = centered.T @ centered / (len(neighbors) - 1)
-        eigenvalues, eigenvectors = np.linalg.eigh(cov)
-        # 最小特征值对应的特征向量
-        normal = eigenvectors[:, 0]
-        normals[i] = normal / (np.linalg.norm(normal) + 1e-10)
+    # 尝试用 scipy.spatial.KDTree 真实加速
+    tree = None
+    method = "brute_force"
+    try:
+        from scipy.spatial import KDTree as _ScipyKDTree
+        tree = _ScipyKDTree(points)
+        method = "scipy_kdtree"
+    except ImportError:
+        # scipy 未安装：回退到暴力搜索（分块降低峰值内存）
+        method = "brute_force"
+
+    normals = np.zeros_like(points)
+
+    if tree is not None:
+        # scipy KDTree：批量查询 k+1 近邻（含自身），O(log n) 每点
+        try:
+            _dist, nn_idx = tree.query(points, k=k + 1)
+            # nn_idx shape: (n, k+1)；第一列通常是自身
+            for i in range(n):
+                neighbors = points[nn_idx[i][nn_idx[i] != i][:k]] if n > 1 else points[nn_idx[i][:k]]
+                if len(neighbors) < 2:
+                    continue
+                centered = neighbors - neighbors.mean(axis=0)
+                cov = centered.T @ centered / (len(neighbors) - 1)
+                _, eigenvectors = np.linalg.eigh(cov)
+                normal = eigenvectors[:, 0]
+                normals[i] = normal / (np.linalg.norm(normal) + 1e-10)
+            return normals
+        except Exception:
+            # KDTree 查询异常：回退暴力
+            method = "brute_force"
+
+    # 暴力搜索回退（分块：每块 2000 点，避免一次性 O(n²) 矩阵过大）
+    CHUNK = 2000
+    for start in range(0, n, CHUNK):
+        end = min(start + CHUNK, n)
+        chunk = points[start:end]
+        # 当前块到全部点的距离：(chunk_size, n)
+        diff = chunk[:, None, :] - points[None, :, :]
+        dists = np.sum(diff * diff, axis=2)
+        for li in range(len(chunk)):
+            i = start + li
+            nn_indices = np.argpartition(dists[li], min(k + 1, n))[: min(k + 1, n)]
+            nn_indices = nn_indices[nn_indices != i][:k] if n > 1 else nn_indices[:k]
+            neighbors = points[nn_indices]
+            if len(neighbors) < 2:
+                continue
+            centered = neighbors - neighbors.mean(axis=0)
+            cov = centered.T @ centered / (len(neighbors) - 1)
+            _, eigenvectors = np.linalg.eigh(cov)
+            normal = eigenvectors[:, 0]
+            normals[i] = normal / (np.linalg.norm(normal) + 1e-10)
 
     return normals
+
+
+def _normals_method_label() -> str:
+    """返回当前法线估算方法标签（供 process_point_cloud 上报）"""
+    try:
+        from scipy.spatial import KDTree  # noqa: F401
+        return "pca_kdtree"
+    except ImportError:
+        return "pca_brute_force"
 
 
 def process_point_cloud(point_count: int, total_area: float) -> dict:
@@ -500,14 +548,18 @@ def process_point_cloud(point_count: int, total_area: float) -> dict:
             downsampled_points = points[unique_idx]
             downsampled = len(downsampled_points)
 
-            # 法线估算 (k-NN PCA);仅在点数适中时执行以避免 O(n²) 开销
-            if 3 <= downsampled <= 5000:
+            # 法线估算 (k-NN PCA)
+            # v1.1.31 FP-8（S7）：scipy KDTree 可用时上限提至 50000（O(n log n)）；
+            # 仅有暴力回退时保持 5000 上限（O(n²)），超限则跳过并诚实标注
+            _has_scipy = _normals_method_label() == "pca_kdtree"
+            _normals_cap = 50000 if _has_scipy else 5000
+            if 3 <= downsampled <= _normals_cap:
                 _estimate_normals_numpy(downsampled_points, k=min(30, downsampled))
                 normals_estimated = True
-                normals_method = "pca_knn"
+                normals_method = _normals_method_label()
             else:
                 normals_estimated = False
-                normals_method = "skipped" if downsampled > 5000 else "none"
+                normals_method = "skipped_too_large" if downsampled > _normals_cap else "none"
         else:
             downsampled = 0
             normals_estimated = False

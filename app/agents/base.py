@@ -268,10 +268,13 @@ class BaseAgent:
         reply = await self._chat(messages)
 
         # v1.1.28: Model Spec HC 硬约束校验 + 反驳重生成
+        # v1.1.31 FP-9（S6）：升级为 check_output_with_semantic（关键词预筛 + LLM 语义兜底）
         if settings.model_spec_enabled and isinstance(reply, str):
             try:
-                from app.services.rebuttal_engine import check_output, build_rebuttal_context
-                result = check_output(self.agent_name, reply)
+                from app.services.rebuttal_engine import (
+                    check_output_with_semantic, build_rebuttal_context,
+                )
+                result = await check_output_with_semantic(self.agent_name, reply, agent=self)
                 if result["violated"]:
                     rebuttal = build_rebuttal_context(result["violations"])
                     logger.info(
@@ -442,7 +445,12 @@ class BaseAgent:
             from app.services.agent_tool_registry import tool_registry
 
             for tc in tool_calls:
-                exec_result = await tool_registry.execute(tc["name"], tc["arguments"])
+                # v1.1.31 FP-1: 注入隐式上下文 _db / _project_id，让工具 handler
+                # 查真实 DB（受 settings.tool_real_data_enabled 控制）
+                exec_result = await tool_registry.execute(
+                    tc["name"], tc["arguments"],
+                    _db=db, _project_id=project_id,
+                )
                 tool_calls_history.append({
                     "tool": tc["name"],
                     "arguments": tc["arguments"],
@@ -469,13 +477,16 @@ class BaseAgent:
     async def _rebuttal_check(self, messages: list[dict], reply: str) -> str:
         """v1.1.28: Model Spec HC 硬约束校验 + 反驳重生成（借鉴索克生活 rebuttal_engine）。
 
+        v1.1.31 FP-9（S6）：升级为 check_output_with_semantic（关键词预筛 + LLM 语义兜底）。
         输出违规时注入反驳上下文重新调用 _chat 一次。校验失败或无违规时返回原 reply。
         """
         if not settings.model_spec_enabled or not isinstance(reply, str):
             return reply
         try:
-            from app.services.rebuttal_engine import check_output, build_rebuttal_context
-            result = check_output(self.agent_name, reply)
+            from app.services.rebuttal_engine import (
+                check_output_with_semantic, build_rebuttal_context,
+            )
+            result = await check_output_with_semantic(self.agent_name, reply, agent=self)
             if result["violated"]:
                 rebuttal = build_rebuttal_context(result["violations"])
                 logger.info(

@@ -499,8 +499,23 @@ async def sync_to_ecosystem(
     await db.refresh(eco)
 
     msg = messages.get(ecosystem, f"场景已同步至 {ecosystem}")
-    if reason and reason.startswith("not_implemented"):
-        msg = f"[stubbed] {msg} (桥接层未就绪: {reason})"
+    if not success:
+        # v1.2.2 诚实标注：任何失败原因都不应显示"已同步"误导用户。
+        # 原 code 仅在 not_implemented 时追加 [stubbed]，其他失败（凭据缺失/桥接错误）
+        # 仍返回成功文案，造成"已同步"假象。现按失败类型给出诚实描述。
+        eco_display = {
+            "homekit": "HomeKit", "mijia": "米家", "harmonyos": "华为鸿蒙",
+            "alexa": "Alexa", "google_home": "Google Home",
+            "tuya": "涂鸦智能", "matter": "Matter Fabric",
+        }.get(ecosystem, ecosystem)
+        if reason and reason.startswith("not_implemented"):
+            msg = f"[stubbed] {eco_display} 桥接层未就绪，同步未完成"
+        elif reason and reason.startswith("invalid_credentials"):
+            msg = f"{eco_display} 凭据未配置或不完整，同步未完成"
+        elif reason and reason.startswith("bridge_error"):
+            msg = f"{eco_display} 同步失败（桥接错误）"
+        else:
+            msg = f"{eco_display} 同步未完成"
 
     return {
         "scene_id": scene.id,

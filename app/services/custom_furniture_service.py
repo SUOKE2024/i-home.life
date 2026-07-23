@@ -563,3 +563,122 @@ def validate_furniture_spec(design: CustomFurnitureDesign) -> dict:
         "valid": len(issues) == 0,
         "issues": issues,
     }
+
+
+# ── 合规验证 ──
+
+# 板材跨度限制 (mm)
+PANEL_SPAN_LIMITS: dict[int, float] = {
+    18: 800.0,   # 18mm 颗粒板最大跨度 800mm
+    25: 1000.0,  # 25mm 颗粒板最大跨度 1000mm
+}
+
+# 衣柜挂衣杆最大无支撑跨度
+WARDROBE_ROD_MAX_SPAN = 900.0  # mm
+
+
+def check_furniture_load_capacity(
+    furniture_type: str,
+    material: str,
+    span_mm: float,
+) -> dict:
+    """家具承载能力合规检查
+
+    检查规则:
+      - 书柜层板: 18mm 颗粒板最大跨度 800mm, 25mm 最大 1000mm
+      - 衣柜挂衣杆: 最大无支撑跨度 900mm
+
+    Args:
+        furniture_type: 家具类型 (bookshelf/wardrobe 等)
+        material: 板材材质
+        span_mm: 跨度 (mm)
+
+    Returns:
+        {safe, max_recommended_span, suggestions}
+    """
+    suggestions: list[str] = []
+
+    if furniture_type == "bookshelf":
+        # 书柜层板跨度检查
+        # 先匹配最接近的板厚
+        max_span = None
+        matched_thickness = None
+        for thickness, limit in sorted(PANEL_SPAN_LIMITS.items()):
+            max_span = limit
+            matched_thickness = thickness
+
+        if max_span is None:
+            max_span = 800.0
+
+        safe = span_mm <= max_span
+
+        if safe:
+            suggestions.append(
+                f"书柜层板跨度 {span_mm:.0f}mm ≤ {max_span:.0f}mm ({matched_thickness}mm {material})，"
+                f"承载安全"
+            )
+        else:
+            suggestions.append(
+                f"书柜层板跨度 {span_mm:.0f}mm 超过推荐最大跨度 {max_span:.0f}mm "
+                f"({matched_thickness}mm {material})，长期使用可能变形"
+            )
+            # 建议
+            if span_mm <= 1000 and matched_thickness == 18:
+                suggestions.append(
+                    "建议方案: 改用 25mm 厚板材 (最大跨度 1000mm)"
+                )
+            else:
+                suggestions.append(
+                    "建议方案: 增加中隔板支撑，将无支撑跨度控制在 "
+                    f"{max_span:.0f}mm 以内"
+                )
+
+        return {
+            "safe": safe,
+            "furniture_type": furniture_type,
+            "material": material,
+            "span_mm": span_mm,
+            "max_recommended_span": max_span,
+            "suggestions": suggestions,
+        }
+
+    elif furniture_type == "wardrobe":
+        # 衣柜挂衣杆跨度检查
+        max_span = WARDROBE_ROD_MAX_SPAN
+        safe = span_mm <= max_span
+
+        if safe:
+            suggestions.append(
+                f"衣柜挂衣杆跨度 {span_mm:.0f}mm ≤ {max_span:.0f}mm，承载安全"
+            )
+        else:
+            suggestions.append(
+                f"衣柜挂衣杆跨度 {span_mm:.0f}mm 超过最大无支撑跨度 {max_span:.0f}mm，"
+                f"长期挂重衣物可能弯曲变形"
+            )
+            # 计算需要的支撑数量
+            supports_needed = int(span_mm / max_span)
+            suggestions.append(
+                f"建议增加 {supports_needed} 个中间支撑点，"
+                f"将每段无支撑跨度控制在 {max_span:.0f}mm 以内"
+            )
+
+        return {
+            "safe": safe,
+            "furniture_type": furniture_type,
+            "material": material,
+            "span_mm": span_mm,
+            "max_recommended_span": max_span,
+            "suggestions": suggestions,
+        }
+
+    else:
+        # 其他家具类型不做强制检查
+        return {
+            "safe": True,
+            "furniture_type": furniture_type,
+            "material": material,
+            "span_mm": span_mm,
+            "max_recommended_span": None,
+            "suggestions": [f"{furniture_type} 类型无强制跨度限制"],
+        }

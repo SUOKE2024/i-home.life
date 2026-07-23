@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="索克家居 · 变更单管理">
+<meta name="theme-color" content="#08080f">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; img-src 'self' data: https:;">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260724b">
+<title>变更单管理 · 索克家居</title>
+<style>
+.co-page { min-height:100vh; background:var(--bg-deep); color:var(--text-primary); }
+.co-header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px; background:var(--bg-card); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; }
+.co-header h1 { font-size:18px; font-weight:700; color:var(--accent); margin:0; }
+.co-content { padding:16px; max-width:900px; margin:0 auto; }
+.card { background:var(--bg-card); border-radius:12px; border:1px solid var(--border); padding:16px; margin-bottom:12px; }
+.card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.card-title { font-size:15px; font-weight:700; color:var(--accent); }
+/* Order card */
+.order-card { padding:14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; transition:border-color .2s; }
+.order-card:hover { border-color:var(--accent); }
+.order-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.order-title { font-size:14px; font-weight:600; color:var(--text-primary); }
+.order-id { font-size:11px; color:var(--text-secondary); }
+.order-reason { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
+.order-meta { display:flex; gap:16px; font-size:11px; color:var(--text-secondary); flex-wrap:wrap; }
+.order-status { font-size:11px; padding:3px 10px; border-radius:6px; font-weight:600; }
+.status-pending { background:rgba(255,183,77,.15); color:#FFB74D; }
+.status-approved { background:rgba(76,175,80,.15); color:#4CAF50; }
+.status-cancelled { background:rgba(239,83,80,.15); color:#E57373; }
+.status-draft { background:rgba(158,158,158,.15); color:#9E9E9E; }
+/* Detail */
+.co-detail { margin-top:8px; }
+.detail-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.detail-label { color:var(--text-secondary); }
+.detail-value { color:var(--text-primary); font-weight:600; }
+/* Actions */
+.btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
+.btn-primary { background:var(--accent); color:#000; }
+.btn-outline { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+.btn-success { background:rgba(76,175,80,.15); color:#4CAF50; border:1px solid #4CAF50; }
+.btn-danger { background:rgba(239,83,80,.15); color:#E57373; border:1px solid #E57373; }
+.btn-sm { padding:4px 10px; font-size:11px; }
+.btn-group { display:flex; gap:8px; margin-top:12px; }
+/* Form */
+.form-group { margin-bottom:12px; }
+.form-group label { display:block; font-size:12px; color:var(--text-secondary); margin-bottom:4px; }
+.form-group input, .form-group textarea, .form-group select { width:100%; padding:8px 12px; background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-size:13px; box-sizing:border-box; }
+.form-group textarea { min-height:80px; resize:vertical; }
+/* Project selector */
+.proj-select { display:flex; align-items:center; gap:8px; }
+.proj-select select { padding:6px 10px; background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-size:13px; }
+.hidden { display:none !important; }
+.empty { text-align:center; padding:40px 16px; color:var(--text-secondary); font-size:14px; }
+.back-link { color:var(--text-secondary); font-size:13px; text-decoration:none; cursor:pointer; }
+/* Modal */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; z-index:100; }
+.modal-box { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:24px; width:90%; max-width:500px; max-height:80vh; overflow-y:auto; }
+.modal-box h3 { color:var(--accent); margin:0 0 16px; }
+</style>
+</head>
+<body class="co-page">
+<div class="co-header">
+  <h1>变更单管理</h1>
+  <div class="proj-select">
+    <select id="project-select"><option value="">选择项目...</option></select>
+    <a href="/" class="back-link">← 返回</a>
+  </div>
+</div>
+
+<div class="co-content">
+  <div id="list-view">
+    <div class="card-header">
+      <span class="card-title">变更单列表</span>
+      <button class="btn btn-primary btn-sm" onclick="showCreateForm()" id="btn-create" disabled>+ 新建变更</button>
+    </div>
+    <div id="order-list"></div>
+    <div id="order-empty" class="empty">请先选择项目</div>
+  </div>
+
+  <div id="detail-view" class="hidden">
+    <div class="card-header">
+      <button class="btn btn-outline btn-sm" onclick="backToList()">← 返回列表</button>
+    </div>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script src="assets/js/api-client.js?v=20260724b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script>
+(async function() {
+  const token = ApiClient.getToken();
+  if (!token) { window.location.href = '/login.html'; return; }
+
+  let currentProjectId = null;
+  let orders = [];
+  let projects = [];
+
+  const select = document.getElementById('project-select');
+  const btnCreate = document.getElementById('btn-create');
+
+  // Load projects
+  try {
+    const data = await ApiClient.getProjects();
+    projects = Array.isArray(data) ? data : (data.items || []);
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = p.name || p.title || '项目';
+      select.appendChild(opt);
+    });
+    if (projects.length) {
+      select.value = '';
+      document.getElementById('order-empty').textContent = '请选择项目';
+    }
+  } catch(e) {
+    document.getElementById('order-empty').textContent = '项目加载失败';
+  }
+
+  select.addEventListener('change', () => {
+    currentProjectId = select.value || null;
+    btnCreate.disabled = !currentProjectId;
+    if (currentProjectId) loadOrders();
+    else {
+      document.getElementById('order-list').innerHTML = '';
+      document.getElementById('order-empty').classList.remove('hidden');
+      document.getElementById('order-empty').textContent = '请选择项目';
+    }
+  });
+
+  // Load orders
+  async function loadOrders() {
+    const list = document.getElementById('order-list');
+    const empty = document.getElementById('order-empty');
+    list.innerHTML = '';
+    try {
+      const data = await ApiClient.getChangeOrders(currentProjectId);
+      orders = Array.isArray(data) ? data : (data.items || []);
+      if (!orders.length) { empty.classList.remove('hidden'); empty.textContent = '暂无变更单'; return; }
+      empty.classList.add('hidden');
+      orders.forEach(o => {
+        const status = (o.status || 'pending').toString();
+        const statusCls = 'status-' + status;
+        const statusLabel = { pending:'待审批', approved:'已批准', cancelled:'已取消', draft:'草稿' }[status] || status;
+        const div = document.createElement('div'); div.className = 'order-card';
+        div.innerHTML = `<div class="order-header">
+          <div>
+            <div class="order-title">${esc(o.title || '变更单')}</div>
+            <div class="order-id">#${esc((o.id || '').substring(0,8))}</div>
+          </div>
+          <span class="order-status ${statusCls}">${statusLabel}</span>
+        </div>
+        <div class="order-reason">${esc(o.reason || o.description || '')}</div>
+        <div class="order-meta">
+          ${o.impact_cost != null ? '<span>💰 +¥' + esc(String(o.impact_cost)) + '</span>' : ''}
+          ${o.impact_days != null ? '<span>📅 +' + esc(String(o.impact_days)) + '天</span>' : ''}
+          <span>${esc(o.created_at || '')}</span>
+        </div>`;
+        div.addEventListener('click', () => showDetail(o));
+        list.appendChild(div);
+      });
+    } catch(e) {
+      empty.classList.remove('hidden'); empty.textContent = '加载失败';
+    }
+  }
+
+  // Show detail
+  function showDetail(order) {
+    document.getElementById('list-view').classList.add('hidden');
+    document.getElementById('detail-view').classList.remove('hidden');
+    const status = (order.status || 'pending').toString();
+    const container = document.getElementById('detail-content');
+    container.innerHTML = `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">${esc(order.title || '变更单')}</div>
+          <div style="font-size:11px;color:var(--text-secondary);">#${esc((order.id || '').substring(0,8))}</div>
+        </div>
+        <span class="order-status status-${status}">${{pending:'待审批',approved:'已批准',cancelled:'已取消',draft:'草稿'}[status] || status}</span>
+      </div>
+      <div style="margin-top:12px;">
+        <div class="detail-row"><span class="detail-label">变更原因</span><span class="detail-value">${esc(order.reason || order.description || '—')}</span></div>
+        ${order.impact_cost != null ? `<div class="detail-row"><span class="detail-label">成本影响</span><span class="detail-value" style="color:#FFB74D;">+¥${esc(String(order.impact_cost))}</span></div>` : ''}
+        ${order.impact_days != null ? `<div class="detail-row"><span class="detail-label">工期影响</span><span class="detail-value">+${esc(String(order.impact_days))} 天</span></div>` : ''}
+        ${order.detail ? `<div class="detail-row"><span class="detail-label">详细说明</span><span class="detail-value">${esc(order.detail)}</span></div>` : ''}
+        <div class="detail-row"><span class="detail-label">创建时间</span><span class="detail-value">${esc(order.created_at || '—')}</span></div>
+        ${order.approved_at ? `<div class="detail-row"><span class="detail-label">审批时间</span><span class="detail-value">${esc(order.approved_at)}</span></div>` : ''}
+        ${order.reviewer ? `<div class="detail-row"><span class="detail-label">审批人</span><span class="detail-value">${esc(order.reviewer)}</span></div>` : ''}
+      </div>
+      ${status === 'pending' ? `<div class="btn-group">
+        <button class="btn btn-success" onclick="handleApprove('${esc(order.id)}','approve')">同意</button>
+        <button class="btn btn-danger" onclick="handleApprove('${esc(order.id)}','cancel')">驳回</button>
+      </div>` : ''}
+    </div>`;
+  }
+
+  window.backToList = function() {
+    document.getElementById('list-view').classList.remove('hidden');
+    document.getElementById('detail-view').classList.add('hidden');
+  };
+
+  window.handleApprove = async function(changeId, decision) {
+    if (!confirm(decision === 'approve' ? '确认同意该变更？' : '确认驳回该变更？')) return;
+    try {
+      await ApiClient.approveChangeOrder(changeId, decision);
+      alert(decision === 'approve' ? '已批准变更' : '已驳回变更');
+      loadOrders();
+      backToList();
+    } catch(e) { alert('操作失败：' + (e.message || '')); }
+  };
+
+  // Create form
+  window.showCreateForm = function() {
+    if (!currentProjectId) return;
+    const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box">
+      <h3>新建变更单</h3>
+      <div class="form-group"><label>变更标题</label><input id="cf-title" placeholder="变更内容概述"></div>
+      <div class="form-group"><label>变更原因</label><textarea id="cf-reason" placeholder="详细说明变更原因"></textarea></div>
+      <div class="form-group"><label>成本影响 (元)</label><input id="cf-cost" type="number" placeholder="0"></div>
+      <div class="form-group"><label>工期影响 (天)</label><input id="cf-days" type="number" placeholder="0"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="cf-submit">提交</button>
+        <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button>
+      </div></div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.getElementById('cf-submit').addEventListener('click', async () => {
+      const title = document.getElementById('cf-title').value.trim();
+      if (!title) return alert('请输入标题');
+      try {
+        await ApiClient.createChangeOrder({
+          project_id: currentProjectId,
+          title,
+          reason: document.getElementById('cf-reason').value,
+          impact_cost: parseInt(document.getElementById('cf-cost').value) || 0,
+          impact_days: parseInt(document.getElementById('cf-days').value) || 0,
+        });
+        overlay.remove(); loadOrders();
+      } catch(e) { alert('提交失败：' + (e.message || '')); }
+    });
+  };
+
+  function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+})();
+</script>
+</body>
+</html>

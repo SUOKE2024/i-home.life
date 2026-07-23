@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/floor_plan_canvas.dart';
 
 class SmartHomePage extends StatefulWidget {
   final String projectId;
@@ -55,7 +57,7 @@ class _SmartHomePageState extends State<SmartHomePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _nlController = TextEditingController();
     _loadSchemes();
     _loadEcosystems();
@@ -403,6 +405,7 @@ class _SmartHomePageState extends State<SmartHomePage>
             Tab(text: '设备管理'),
             Tab(text: '场景自动化'),
             Tab(text: '户型部署'),
+            Tab(text: '设备布局图'),
           ],
         ),
       ),
@@ -413,6 +416,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           _buildDevicesTab(),
           _buildScenesTab(),
           _buildFloorPlanTab(),
+          _buildDeviceCanvasTab(),
         ],
       ),
     );
@@ -1438,7 +1442,7 @@ class _SmartHomePageState extends State<SmartHomePage>
   Widget _buildFloorPlanTab() {
     if (_selectedSchemeId == null || _devices.isEmpty) {
       return _buildEmptyState(
-        icon: Icons.floor_plan,
+        icon: Icons.architecture,
         message: '请先选择方案并加载设备',
         actionLabel: '去选择方案',
         onAction: () => _tabController.animateTo(0),
@@ -1459,7 +1463,7 @@ class _SmartHomePageState extends State<SmartHomePage>
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.floor_plan, color: _brandColor, size: 20),
+                  const Icon(Icons.architecture, color: _brandColor, size: 20),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -1808,6 +1812,284 @@ class _SmartHomePageState extends State<SmartHomePage>
         return Icons.speaker;
       default:
         return Icons.devices_other;
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  // Tab5: 设备布局图 (FloorPlanCanvas)
+  // ═══════════════════════════════════════════
+
+  /// 设备类型 -> 分类颜色
+  Color _deviceCategoryColor(String type) {
+    final t = type.toLowerCase();
+    if (t.contains('灯') || t.contains('light') || t.contains('照明')) {
+      return Colors.amber;
+    }
+    if (t.contains('锁') || t.contains('lock') ||
+        t.contains('传感器') || t.contains('sensor') ||
+        t.contains('报警') || t.contains('alarm') ||
+        t.contains('摄像头') || t.contains('camera')) {
+      return Colors.red;
+    }
+    if (t.contains('空调') || t.contains('ac') ||
+        t.contains('窗帘') || t.contains('curtain') ||
+        t.contains('温控') || t.contains('thermostat') ||
+        t.contains('风扇') || t.contains('fan')) {
+      return Colors.blue;
+    }
+    if (t.contains('电视') || t.contains('tv') ||
+        t.contains('音响') || t.contains('speaker') ||
+        t.contains('投影') || t.contains('projector')) {
+      return Colors.purple;
+    }
+    return Colors.green;
+  }
+
+  String _deviceCategoryLabel(String type) {
+    final t = type.toLowerCase();
+    if (t.contains('灯') || t.contains('light') || t.contains('照明')) return '照明';
+    if (t.contains('锁') || t.contains('lock') ||
+        t.contains('传感器') || t.contains('sensor') ||
+        t.contains('报警') || t.contains('alarm') ||
+        t.contains('摄像头') || t.contains('camera')) return '安防';
+    if (t.contains('空调') || t.contains('ac') ||
+        t.contains('窗帘') || t.contains('curtain') ||
+        t.contains('温控') || t.contains('thermostat') ||
+        t.contains('风扇') || t.contains('fan')) return '气候';
+    if (t.contains('电视') || t.contains('tv') ||
+        t.contains('音响') || t.contains('speaker') ||
+        t.contains('投影') || t.contains('projector')) return '娱乐';
+    return '家电';
+  }
+
+  Widget _buildDeviceCanvasTab() {
+    if (_selectedSchemeId == null) {
+      return _buildEmptyState(
+        icon: Icons.dashboard_customize,
+        message: '请先在"智能方案"中选择一个方案',
+        actionLabel: '去选择方案',
+        onAction: () => _tabController.animateTo(0),
+      );
+    }
+
+    if (_devicesLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: _brandColor));
+    }
+
+    if (_devices.isEmpty) {
+      return _buildEmptyState(
+        icon: Icons.devices_other,
+        message: '暂无设备，请先添加设备',
+        actionLabel: '去添加设备',
+        onAction: () => _tabController.animateTo(1),
+      );
+    }
+
+    const double roomW = 8000;
+    const double roomH = 6000;
+
+    final areaPositions = {
+      'entry': Offset(roomW * 0.70, roomH * 0.80),
+      'living': Offset(roomW * 0.40, roomH * 0.40),
+      'bedroom': Offset(roomW * 0.08, roomH * 0.20),
+      'kitchen': Offset(roomW * 0.55, roomH * 0.12),
+      'bathroom': Offset(roomW * 0.75, roomH * 0.20),
+    };
+
+    final List<FloorPlanComponent> components = [];
+    final areaCounts = <String, int>{};
+
+    for (int i = 0; i < _devices.length; i++) {
+      final device = _devices[i] as Map<String, dynamic>;
+      final location = (device['location'] ?? '').toString();
+      final areaKey = _matchArea(location);
+      final deviceType = (device['type'] ?? '').toString();
+      final deviceName = (device['name'] ?? '').toString();
+      final color = _deviceCategoryColor(deviceType);
+
+      final basePos = areaPositions[areaKey]!;
+      final count = areaCounts[areaKey] ?? 0;
+      areaCounts[areaKey] = count + 1;
+
+      final offsetX = (count % 3) * 250.0;
+      final offsetY = (count ~/ 3) * 250.0;
+      final px = basePos.dx + offsetX;
+      final py = basePos.dy + offsetY;
+
+      components.add(FloorPlanComponent(
+        id: (device['id'] ?? 'device_$i').toString(),
+        label: deviceName.isNotEmpty ? deviceName : deviceType,
+        type: deviceType,
+        x: px,
+        y: py,
+        width: 300,
+        height: 200,
+        color: color,
+      ));
+    }
+
+    final Map<String, int> categoryCounts = {};
+    for (final device in _devices) {
+      final dt = (device as Map<String, dynamic>)['type']?.toString() ?? '';
+      final label = _deviceCategoryLabel(dt);
+      categoryCounts[label] = (categoryCounts[label] ?? 0) + 1;
+    }
+
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Card(
+            color: _cardColor,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.dashboard_customize,
+                          color: _brandColor, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
+                          style: const TextStyle(
+                              color: _primaryText,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _brandColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_devices.length} 台设备',
+                          style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: categoryCounts.entries.map((e) {
+                      return _buildCategoryBadge(
+                          e.key, e.value, _categoryLegendColor(e.key));
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(height: 1, color: _borderColor),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      _buildDeviceLegend(Colors.amber, '照明'),
+                      _buildDeviceLegend(Colors.red, '安防'),
+                      _buildDeviceLegend(Colors.blue, '气候'),
+                      _buildDeviceLegend(Colors.purple, '娱乐'),
+                      _buildDeviceLegend(Colors.green, '家电'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: FloorPlanCanvas(
+              roomWidth: roomW,
+              roomHeight: roomH,
+              roomLabel:
+                  '${_selectedScheme?['name'] ?? '智能方案'} · 设备布局',
+              showDimensions: true,
+              showGrid: true,
+              showMEPLayer: false,
+              components: components,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryBadge(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$label ×$count',
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDeviceLegend(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(color: _secondaryText, fontSize: 11)),
+      ],
+    );
+  }
+
+  Color _categoryLegendColor(String category) {
+    switch (category) {
+      case '照明':
+        return Colors.amber;
+      case '安防':
+        return Colors.red;
+      case '气候':
+        return Colors.blue;
+      case '娱乐':
+        return Colors.purple;
+      case '家电':
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 }

@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/floor_plan_canvas.dart';
 
 class HardDecorationPage extends StatefulWidget {
   final String projectId;
@@ -38,7 +40,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadSchemes();
   }
 
@@ -232,6 +234,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             Tab(text: '地面'),
             Tab(text: '墙面'),
             Tab(text: '天花'),
+            Tab(text: '方案预览'),
           ],
         ),
       ),
@@ -242,6 +245,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           _buildFloorsTab(),
           _buildWallsTab(),
           _buildCeilingsTab(),
+          _buildPreviewTab(),
         ],
       ),
     );
@@ -734,6 +738,151 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         ),
       ),
     );
+  }
+
+  // ── Tab5: 方案预览 ──
+
+  Widget _buildPreviewTab() {
+    if (_selectedSchemeId == null) {
+      return _buildEmptyState(
+        icon: Icons.preview_outlined,
+        message: '请先在"方案列表"中选择一个方案',
+        actionLabel: '去选择方案',
+        onAction: () => _tabController.animateTo(0),
+      );
+    }
+
+    // 从第一个地面项计算房间尺寸（近似正方形）
+    double roomWidthMm = 3000;
+    double roomHeightMm = 4000;
+    if (_floors.isNotEmpty) {
+      final firstFloor = _floors[0] as Map<String, dynamic>;
+      final area = (firstFloor['area'] as num?)?.toDouble() ?? 12;
+      final sideMm = math.sqrt(area) * 1000;
+      roomWidthMm = sideMm;
+      roomHeightMm = sideMm;
+    }
+
+    // 将地面项转换为组件，使用材质颜色
+    final components = <FloorPlanComponent>[];
+    double yOffset = 0;
+    for (final floor in _floors) {
+      final floorMap = floor as Map<String, dynamic>;
+      final id = (floorMap['id'] ?? '').toString();
+      final material = (floorMap['material'] ?? '').toString();
+      final area = (floorMap['area'] as num?)?.toDouble() ?? 0;
+      final blockHeight = area > 0 ? (area / (roomWidthMm / 1000) * 1000) : 800;
+      components.add(FloorPlanComponent(
+        id: 'floor_$id',
+        label: '${floorMap['room_name'] ?? '地面'} ($material)',
+        type: 'floor_$material',
+        x: 0,
+        y: yOffset,
+        width: roomWidthMm,
+        height: blockHeight.clamp(200, roomHeightMm).toDouble(),
+        color: _materialColor(material),
+      ));
+      yOffset += blockHeight.clamp(200, roomHeightMm);
+    }
+
+    return Stack(
+      children: [
+        FloorPlanCanvas(
+          roomWidth: roomWidthMm,
+          roomHeight: roomHeightMm,
+          roomLabel: _selectedScheme!['name']?.toString() ?? '硬装方案',
+          components: components,
+          showGrid: true,
+          showDimensions: true,
+        ),
+        // 墙面/天花信息注释文字叠加层
+        if (_walls.isNotEmpty || _ceilings.isNotEmpty)
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _cardColor.withValues(alpha: 0.85),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _borderColor),
+              ),
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_walls.isNotEmpty) ...[
+                    const Text('墙面',
+                        style: TextStyle(
+                            color: _brandColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
+                    ..._walls.take(2).map((w) {
+                      final wMap = w as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '${wMap['room_name'] ?? ''}：${wMap['material'] ?? '-'}',
+                          style: const TextStyle(
+                              color: _primaryText, fontSize: 11),
+                        ),
+                      );
+                    }),
+                    if (_walls.length > 2)
+                      Text('...等 ${_walls.length} 项',
+                          style: const TextStyle(
+                              color: _secondaryText, fontSize: 10)),
+                  ],
+                  if (_ceilings.isNotEmpty) ...[
+                    if (_walls.isNotEmpty) const SizedBox(height: 8),
+                    const Text('天花',
+                        style: TextStyle(
+                            color: _brandColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
+                    ..._ceilings.take(2).map((c) {
+                      final cMap = c as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '${cMap['room_name'] ?? ''}：${cMap['shape'] ?? cMap['material'] ?? '-'}',
+                          style: const TextStyle(
+                              color: _primaryText, fontSize: 11),
+                        ),
+                      );
+                    }),
+                    if (_ceilings.length > 2)
+                      Text('...等 ${_ceilings.length} 项',
+                          style: const TextStyle(
+                              color: _secondaryText, fontSize: 10)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Color _materialColor(String material) {
+    final m = material.toLowerCase();
+    if (m.contains('瓷砖') || m.contains('tile') || m.contains('ceramic')) {
+      return const Color(0x998B4513); // 半透明棕色（瓷砖）
+    }
+    if (m.contains('木') || m.contains('wood') || m.contains('地板')) {
+      return const Color(0x99FFBF00); // 半透明琥珀色（木地板）
+    }
+    if (m.contains('石材') || m.contains('大理石') || m.contains('marble') || m.contains('stone')) {
+      return const Color(0x99A9A9A9); // 半透明灰色（石材）
+    }
+    if (m.contains('水泥') || m.contains('混凝土') || m.contains('concrete')) {
+      return const Color(0x99808080); // 半透明深灰（水泥）
+    }
+    if (m.contains('地毯') || m.contains('carpet')) {
+      return const Color(0x99CD853F); // 半透明秘色（地毯）
+    }
+    return const Color(0x996D4C41); // 默认半透明棕色
   }
 
   // ── 通用组件 ──

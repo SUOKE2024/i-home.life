@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="物料管理 · 索克家居 — BOM 物料清单、自动生成与导出">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+<meta property="og:title" content="物料管理 · 索克家居">
+
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:description" content="BOM 物料清单管理、自动生成与 Excel 导出">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260724b">
+<link rel="manifest" href="manifest.json">
+<title>物料管理 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","name":"物料管理 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"},"description":"BOM 物料清单管理、自动生成与 Excel 导出"}
+</script>
+<style>
+  /* 物料管理页专属样式（沿用设计 Token） */
+  .materials-container {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(160deg, #1a1a2e 0%, var(--bg-deep) 100%);
+    padding: 0 0 40px;
+  }
+  .materials-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: rgba(8, 8, 15, 0.85);
+    backdrop-filter: saturate(180%) blur(12px);
+    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .materials-back {
+    font-size: 22px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: color var(--transition), background var(--transition);
+    flex-shrink: 0;
+  }
+  .materials-back:hover { color: var(--accent); background: var(--bg-card-hover); }
+  .materials-title {
+    flex: 1;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .materials-settings-link {
+    font-size: 18px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: color var(--transition), background var(--transition);
+    flex-shrink: 0;
+  }
+  .materials-settings-link:hover { color: var(--accent); background: var(--bg-card-hover); }
+
+  .materials-main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* 项目选择器 */
+  .mat-project-bar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .mat-project-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .mat-project-select {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-active);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color var(--transition);
+  }
+  .mat-project-select:focus { outline: none; border-color: var(--accent); }
+
+  /* 卡片通用 */
+  .mat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 16px;
+    margin-bottom: 16px;
+  }
+  .mat-card-title {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* 汇总卡片 */
+  .mat-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .mat-summary-item {
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+  }
+  .mat-summary-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .mat-summary-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .mat-summary-value.accent { color: var(--accent-bright); }
+  .mat-summary-value.warning { color: var(--warning); }
+  .mat-cat-breakdown {
+    grid-column: 1 / -1;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+  }
+  .mat-cat-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .mat-cat-chip {
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border-active);
+    border-radius: 999px;
+    color: var(--text-secondary);
+  }
+  .mat-cat-chip strong { color: var(--accent-bright); margin-left: 4px; }
+
+  /* 操作按钮组 */
+  .mat-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .mat-actions .btn { width: auto; flex: 1; min-width: 140px; }
+  .mat-btn-generate { background: var(--accent); color: var(--bg-deep); }
+  .mat-btn-export { background: var(--bg-card); color: var(--accent-bright); border: 1px solid var(--accent); }
+
+  /* 分类筛选 Tabs */
+  .mat-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 4px 0 12px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .mat-tabs::-webkit-scrollbar { display: none; }
+  .mat-tab {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-active);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+  .mat-tab:hover { color: var(--text-primary); border-color: var(--accent); }
+  .mat-tab.active {
+    background: var(--accent);
+    color: var(--bg-deep);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* BOM 表格 */
+  .mat-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 560px;
+  }
+  .mat-table thead th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-active);
+    font-weight: 600;
+    background: var(--bg-deep);
+  }
+  .mat-table tbody td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+  .mat-table tbody tr:last-child td { border-bottom: none; }
+  .mat-table tbody tr:hover { background: var(--bg-card-hover); }
+  .mat-table .col-price { color: var(--accent-bright); font-weight: 600; }
+  .mat-table .col-total { color: var(--warning); font-weight: 700; }
+  .mat-table .col-cat {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-card-hover);
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .mat-table .col-qty { color: var(--text-secondary); }
+  .mat-delete-btn {
+    background: transparent;
+    border: 1px solid var(--border-active);
+    color: var(--danger);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all var(--transition);
+  }
+  .mat-delete-btn:hover { border-color: var(--danger); background: rgba(201,74,74,0.1); }
+  .mat-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* 状态条 */
+  .mat-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+  .mat-state.error { color: var(--danger); }
+  .mat-state .mat-state-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* 添加物料表单 */
+  .mat-add-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .mat-add-form .full-row { grid-column: 1 / -1; }
+  .mat-field { display: flex; flex-direction: column; gap: 4px; }
+  .mat-field label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mat-field select,
+  .mat-field input {
+    padding: 10px 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color var(--transition);
+  }
+  .mat-field select:focus,
+  .mat-field input:focus { outline: none; border-color: var(--accent); }
+  .mat-field .mat-price-preview {
+    font-size: 11px;
+    color: var(--accent-bright);
+    margin-top: 2px;
+  }
+  .mat-add-submit { width: auto; }
+
+  /* 响应式 */
+  @media (max-width: 600px) {
+    .mat-add-form { grid-template-columns: 1fr; }
+    .mat-summary-grid { grid-template-columns: 1fr; }
+    .materials-main { padding: 12px; }
+  }
+
+  /* 图表区域 */
+  .charts-section { padding: 0 16px 24px; max-width: var(--mw, 960px); margin: 0 auto; }
+  .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .chart-card { background: var(--bg-card, #12121d); border: 1px solid var(--border, #1e1e32); border-radius: var(--radius, 16px); padding: 16px; }
+  .chart-card-header { font-size: 13px; font-weight: 700; color: var(--text-primary, #e8e6e1); margin-bottom: 12px; }
+  @media (max-width:480px){ .charts-grid{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){ .chart-card{animation:none} }
+
+  /* ── 768px 平板适配 ── */
+  @media (min-width: 768px) {
+    .materials-main { padding: 20px; }
+    .mat-card { padding: 24px 20px; }
+    .mat-actions { gap: 14px; }
+    .mat-actions .btn { flex: none; min-width: 180px; }
+    .mat-table { font-size: 14px; }
+    .mat-table thead th { padding: 12px 14px; font-size: 11px; }
+    .mat-table tbody td { padding: 14px; }
+    .mat-summary-value { font-size: 22px; }
+    .charts-grid { gap: 18px; }
+  }
+  /* ── 1024px 桌面适配 ── */
+  @media (min-width: 1024px) {
+    .materials-main { max-width: 1100px; }
+    .mat-add-form { grid-template-columns: repeat(3, 1fr); }
+    .mat-summary-grid { grid-template-columns: repeat(3, 1fr); }
+    .charts-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">跳过导航，直达内容</a>
+<main class="materials-container" role="main" aria-label="物料管理">
+  <!-- 顶栏 -->
+  <header class="materials-header" role="banner">
+    <a href="workbench.html" class="materials-back" aria-label="返回工作台">‹</a>
+    <div class="materials-title" id="page-title">物料管理</div>
+    <a href="settings.html" class="materials-settings-link" aria-label="设置">⋯</a>
+  </header>
+
+  <div class="materials-main">
+    <!-- 项目选择器 -->
+    <div class="mat-project-bar">
+      <span class="mat-project-label">项目</span>
+      <select id="project-select" class="mat-project-select" aria-label="选择项目" disabled>
+        <option value="">加载中…</option>
+      </select>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="mat-actions" role="group" aria-label="BOM 操作">
+      <button class="btn mat-btn-generate" id="generate-btn" aria-label="基于项目房间自动生成 BOM" disabled>✨ 生成 BOM</button>
+      <button class="btn mat-btn-export" id="export-btn" aria-label="导出 BOM 为 Excel" disabled>📥 导出 Excel</button>
+    </div>
+
+    <!-- 汇总卡片 -->
+    <section class="mat-card" aria-labelledby="summary-title">
+      <div class="mat-card-title">
+        <span id="summary-title">📊 汇总</span>
+      </div>
+      <div class="mat-summary-grid" id="summary-grid" aria-live="polite">
+        <div class="mat-summary-item">
+          <div class="mat-summary-label">物料项数</div>
+          <div class="mat-summary-value" id="sum-items">—</div>
+        </div>
+        <div class="mat-summary-item">
+          <div class="mat-summary-label">合计金额</div>
+          <div class="mat-summary-value warning" id="sum-total">¥ —</div>
+        </div>
+        <div class="mat-cat-breakdown" id="cat-breakdown" hidden>
+          <div class="mat-summary-label">品类分布</div>
+          <div class="mat-cat-list" id="cat-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 数据可视化 -->
+    <div class="charts-section" role="region" aria-label="物料数据图表">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-header">📊 物料品类分布</div>
+          <div id="chart-categories" role="img" aria-label="物料品类分布环形图，展示各品类物料金额占比" style="height:260px"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-header">📈 物料金额 Top 10</div>
+          <div id="chart-top-materials" role="img" aria-label="物料金额前10名柱状图" style="height:260px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 分类筛选 Tabs -->
+    <div class="mat-tabs" id="category-tabs" role="tablist" aria-label="按品类筛选">
+      <button class="mat-tab active" role="tab" aria-selected="true" data-cat="all" id="tab-all">全部</button>
+    </div>
+
+    <!-- BOM 表格 -->
+    <section class="mat-card" aria-labelledby="bom-title">
+      <div class="mat-card-title">
+        <span id="bom-title">📦 物料清单</span>
+      </div>
+      <div class="mat-table-wrap">
+        <table class="mat-table" id="bom-table" aria-label="BOM 物料清单">
+          <thead>
+            <tr>
+              <th scope="col">物料</th>
+              <th scope="col">品类</th>
+              <th scope="col">数量</th>
+              <th scope="col">单价</th>
+              <th scope="col">小计</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody id="bom-tbody">
+            <tr><td colspan="6" class="mat-state">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 添加物料表单 -->
+    <section class="mat-card" aria-labelledby="add-title">
+      <div class="mat-card-title"><span id="add-title">➕ 新增物料项</span></div>
+      <form id="add-form" class="mat-add-form" novalidate>
+        <div class="mat-field full-row">
+          <label for="add-category">品类</label>
+          <select id="add-category" aria-label="选择物料品类" required>
+            <option value="">— 选择品类 —</option>
+          </select>
+        </div>
+        <div class="mat-field full-row">
+          <label for="add-material">物料</label>
+          <select id="add-material" aria-label="选择物料" required disabled>
+            <option value="">— 先选择品类 —</option>
+          </select>
+        </div>
+        <div class="mat-field">
+          <label for="add-qty">数量</label>
+          <input id="add-qty" type="number" min="0.01" step="0.01" value="1" aria-label="数量" required>
+        </div>
+        <div class="mat-field">
+          <label for="add-price">单价 (¥)</label>
+          <input id="add-price" type="number" min="0" step="0.01" value="0" aria-label="单价" required>
+          <span class="mat-price-preview" id="price-preview"></span>
+        </div>
+        <div class="mat-field full-row">
+          <button type="submit" class="btn btn-primary mat-add-submit" id="add-submit" disabled>添加到 BOM</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<script src="assets/js/api-client.js?v=20260724b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script src="assets/js/echarts.min.js?v=20260724b"></script>
+<script>
+(function() {
+  // ============ 元素引用 ============
+  const projectSelect = document.getElementById('project-select');
+  const generateBtn = document.getElementById('generate-btn');
+  const exportBtn = document.getElementById('export-btn');
+  const sumItemsEl = document.getElementById('sum-items');
+  const sumTotalEl = document.getElementById('sum-total');
+  const catBreakdown = document.getElementById('cat-breakdown');
+  const catListEl = document.getElementById('cat-list');
+  const categoryTabs = document.getElementById('category-tabs');
+  const bomTbody = document.getElementById('bom-tbody');
+  const addForm = document.getElementById('add-form');
+  const addCategory = document.getElementById('add-category');
+  const addMaterial = document.getElementById('add-material');
+  const addQty = document.getElementById('add-qty');
+  const addPrice = document.getElementById('add-price');
+  const pricePreview = document.getElementById('price-preview');
+  const addSubmit = document.getElementById('add-submit');
+  const pageTitle = document.getElementById('page-title');
+
+  // ============ 状态 ============
+  let projectId = null;
+  let allProjects = [];
+  let categories = [];           // [{id,name,code,...}]
+  let bomItems = [];             // [{id,material:{...},quantity,unit_price,total_price,...}]
+  let materialsCache = {};       // categoryCode -> [materials]
+  let currentFilter = 'all';     // 'all' 或 category code
+
+  const params = new URLSearchParams(window.location.search);
+
+  // ============ 工具 ============
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  }
+  function fmtMoney(n) {
+    return '¥' + (Number(n || 0)).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  }
+  function getCatCode(item) {
+    return (item.material && item.material.category && item.material.category.code) || 'unknown';
+  }
+  function getCatName(item) {
+    return (item.material && item.material.category && item.material.category.name) || '未分类';
+  }
+  function getMatName(item) {
+    const m = item.material || {};
+    return m.name || m.sku || '物料';
+  }
+  function getMatUnit(item) {
+    return (item.material && item.material.unit) || '';
+  }
+
+  // ============ 鉴权 ============
+  function ensureAuth() {
+    const token = ApiClient.getToken();
+    if (!token) {
+      window.location.href = 'login.html';
+      return false;
+    }
+    return true;
+  }
+
+  // ============ 项目选择 ============
+  function renderProjectSelect() {
+    if (!allProjects.length) {
+      projectSelect.innerHTML = '<option value="">暂无项目</option>';
+      projectSelect.disabled = true;
+      return;
+    }
+    projectSelect.innerHTML = allProjects.map(p =>
+      `<option value="${escapeHtml(p.id)}"${p.id === projectId ? ' selected' : ''}>${escapeHtml(p.name || '未命名项目')}</option>`
+    ).join('');
+    projectSelect.disabled = false;
+  }
+
+  projectSelect.addEventListener('change', () => {
+    const id = projectSelect.value;
+    if (!id || id === projectId) return;
+    // 更新 URL 参数（不刷新页面）
+    const url = new URL(window.location.href);
+    url.searchParams.set('project_id', id);
+    window.history.replaceState({}, '', url);
+    projectId = id;
+    loadAll();
+  });
+
+  // ============ 品类 Tabs ============
+  function renderCategoryTabs() {
+    const tabs = [`<button class="mat-tab active" role="tab" aria-selected="true" data-cat="all" id="tab-all">全部</button>`];
+    categories.forEach(c => {
+      tabs.push(`<button class="mat-tab" role="tab" aria-selected="false" data-cat="${escapeHtml(c.code)}">${escapeHtml(c.name)}</button>`);
+    });
+    categoryTabs.innerHTML = tabs.join('');
+    categoryTabs.querySelectorAll('.mat-tab').forEach(t => {
+      t.addEventListener('click', () => {
+        categoryTabs.querySelectorAll('.mat-tab').forEach(x => {
+          x.classList.remove('active');
+          x.setAttribute('aria-selected', 'false');
+        });
+        t.classList.add('active');
+        t.setAttribute('aria-selected', 'true');
+        currentFilter = t.dataset.cat;
+        renderBOMTable();
+      });
+    });
+  }
+
+  // ============ 添加表单：品类下拉 ============
+  function renderAddCategories() {
+    addCategory.innerHTML = '<option value="">— 选择品类 —</option>' +
+      categories.map(c => `<option value="${escapeHtml(c.code)}" data-id="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+  }
+
+  addCategory.addEventListener('change', async () => {
+    const code = addCategory.value;
+    addMaterial.innerHTML = '<option value="">加载中…</option>';
+    addMaterial.disabled = true;
+    addSubmit.disabled = true;
+    if (!code) {
+      addMaterial.innerHTML = '<option value="">— 先选择品类 —</option>';
+      return;
+    }
+    try {
+      // 通过 code 找到 category_id
+      const cat = categories.find(c => c.code === code);
+      const catId = cat ? cat.id : '';
+      let materials = materialsCache[code];
+      if (!materials) {
+        const resp = await ApiClient.getMaterials({ category_id: catId, limit: 200 });
+        materials = Array.isArray(resp) ? resp : (resp.items || []);
+        materialsCache[code] = materials;
+      }
+      if (!materials.length) {
+        addMaterial.innerHTML = '<option value="">该品类下无物料</option>';
+        return;
+      }
+      addMaterial.innerHTML = '<option value="">— 选择物料 —</option>' +
+        materials.map(m =>
+          `<option value="${escapeHtml(m.id)}" data-price="${Number(m.unit_price || 0)}" data-unit="${escapeHtml(m.unit || '')}">${escapeHtml(m.name)} (${escapeHtml(m.sku || '')}) · ${fmtMoney(m.unit_price)}/${escapeHtml(m.unit || '')}</option>`
+        ).join('');
+      addMaterial.disabled = false;
+      addSubmit.disabled = false;
+      addMaterial.focus();
+    } catch (e) {
+      addMaterial.innerHTML = '<option value="">加载失败</option>';
+    }
+  });
+
+  addMaterial.addEventListener('change', () => {
+    const opt = addMaterial.options[addMaterial.selectedIndex];
+    const price = opt ? parseFloat(opt.dataset.price) : 0;
+    if (price) addPrice.value = price;
+    updatePricePreview();
+  });
+
+  [addQty, addPrice].forEach(el => el.addEventListener('input', updatePricePreview));
+
+  function updatePricePreview() {
+    const qty = parseFloat(addQty.value) || 0;
+    const price = parseFloat(addPrice.value) || 0;
+    if (qty > 0 && price > 0) {
+      pricePreview.textContent = `小计：${fmtMoney(qty * price)}`;
+    } else {
+      pricePreview.textContent = '';
+    }
+  }
+
+  // ============ 提交新增 ============
+  addForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const materialId = addMaterial.value;
+    const qty = parseFloat(addQty.value);
+    const price = parseFloat(addPrice.value);
+    if (!materialId) { alert('请选择物料'); return; }
+    if (!qty || qty <= 0) { alert('数量必须大于 0'); return; }
+    if (price == null || price < 0) { alert('单价不能为负'); return; }
+
+    addSubmit.disabled = true;
+    const original = addSubmit.textContent;
+    addSubmit.textContent = '添加中…';
+    try {
+      await ApiClient.addBOMItem({
+        project_id: projectId,
+        material_id: materialId,
+        quantity: qty,
+        unit_price: price,
+      });
+      // 重置表单（保留品类选择以便连续添加）
+      addQty.value = 1;
+      addMaterial.value = '';
+      pricePreview.textContent = '';
+      await loadBOM();
+    } catch (err) {
+      alert('添加失败：' + (err && err.message ? err.message : '未知错误'));
+    } finally {
+      addSubmit.disabled = false;
+      addSubmit.textContent = original;
+    }
+  });
+
+  // ============ 渲染汇总 ============
+  function renderSummary(summary) {
+    if (!summary) {
+      sumItemsEl.textContent = bomItems.length || '0';
+      const total = bomItems.reduce((s, it) => s + (it.total_price || 0), 0);
+      sumTotalEl.textContent = fmtMoney(total);
+      catBreakdown.hidden = true;
+      return;
+    }
+    sumItemsEl.textContent = summary.total_items || 0;
+    sumTotalEl.textContent = fmtMoney(summary.total_price);
+    const cats = summary.categories || [];
+    if (cats.length > 0) {
+      catListEl.innerHTML = cats.map(c =>
+        `<span class="mat-cat-chip">${escapeHtml(c.category_name)} ×${c.item_count}<strong>${fmtMoney(c.total_price)}</strong></span>`
+      ).join('');
+      catBreakdown.hidden = false;
+    } else {
+      catBreakdown.hidden = true;
+    }
+  }
+
+  // ============ 渲染 BOM 表格 ============
+  function renderBOMTable() {
+    const filtered = currentFilter === 'all'
+      ? bomItems
+      : bomItems.filter(it => getCatCode(it) === currentFilter);
+
+    if (!filtered.length) {
+      const msg = bomItems.length === 0
+        ? '暂无物料项'
+        : '该品类下暂无物料';
+      const hint = bomItems.length === 0
+        ? '点击「生成 BOM」自动生成，或在下方新增物料项'
+        : '';
+      bomTbody.innerHTML = `<tr><td colspan="6" class="mat-state">${escapeHtml(msg)}<div class="mat-state-hint">${escapeHtml(hint)}</div></td></tr>`;
+      return;
+    }
+
+    bomTbody.innerHTML = filtered.map(it => `
+      <tr>
+        <td>
+          <div>${escapeHtml(getMatName(it))}</div>
+          ${it.material && it.material.sku ? `<div style="font-size:10px;color:var(--text-muted)">${escapeHtml(it.material.sku)}</div>` : ''}
+        </td>
+        <td><span class="col-cat">${escapeHtml(getCatName(it))}</span></td>
+        <td class="col-qty">${Number(it.quantity).toLocaleString('zh-CN')} ${escapeHtml(getMatUnit(it))}</td>
+        <td class="col-price">${fmtMoney(it.unit_price)}</td>
+        <td class="col-total">${fmtMoney(it.total_price)}</td>
+        <td>
+          <button class="mat-delete-btn" data-id="${escapeHtml(it.id)}" aria-label="删除物料 ${escapeHtml(getMatName(it))}" title="删除">×</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  // ============ 删除 ============
+  bomTbody.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.mat-delete-btn');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    if (!confirm('确定删除该物料项？')) return;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = '…';
+    try {
+      await ApiClient.deleteBOMItem(id);
+      await loadBOM();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = original;
+      alert('删除失败：' + (err && err.message ? err.message : '未知错误'));
+    }
+  });
+
+  // ============ 生成 BOM ============
+  generateBtn.addEventListener('click', async () => {
+    if (!projectId) return;
+    if (!confirm('将基于项目房间信息自动生成 BOM，可能覆盖已有物料项。继续？')) return;
+    generateBtn.disabled = true;
+    const original = generateBtn.textContent;
+    generateBtn.textContent = '生成中…';
+    try {
+      const resp = await ApiClient.generateBOM(projectId);
+      const count = resp.generated_count || (resp.items ? resp.items.length : 0);
+      await loadBOM();
+      alert(`已生成 ${count} 项物料，合计 ${fmtMoney(resp.total_price)}`);
+    } catch (err) {
+      alert('生成失败：' + (err && err.message ? err.message : '请先创建房间信息'));
+    } finally {
+      generateBtn.disabled = false;
+      generateBtn.textContent = original;
+    }
+  });
+
+  // ============ 导出 Excel ============
+  exportBtn.addEventListener('click', async () => {
+    if (!projectId) return;
+    exportBtn.disabled = true;
+    const original = exportBtn.textContent;
+    exportBtn.textContent = '导出中…';
+    try {
+      const blob = await ApiClient.exportBOM(projectId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bom-${projectId.slice(0, 8)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      exportBtn.textContent = '✓ 已下载';
+    } catch (err) {
+      exportBtn.textContent = '导出失败';
+    } finally {
+      setTimeout(() => {
+        exportBtn.disabled = false;
+        exportBtn.textContent = original;
+      }, 2000);
+    }
+  });
+
+  // ============ 数据加载 ============
+  async function loadBOM() {
+    bomTbody.innerHTML = `<tr><td colspan="6" class="mat-state">加载中…</td></tr>`;
+    // 并行加载 BOM 列表与汇总
+    const [bomResp, summary] = await Promise.allSettled([
+      ApiClient.getProjectBOM(projectId),
+      ApiClient.getBOMSummary(projectId),
+    ]);
+
+    // BOM 列表
+    if (bomResp.status === 'fulfilled') {
+      bomItems = Array.isArray(bomResp.value) ? bomResp.value : (bomResp.value.items || []);
+    } else {
+      bomItems = [];
+      bomTbody.innerHTML = `<tr><td colspan="6" class="mat-state error">加载失败<div class="mat-state-hint">${escapeHtml(bomResp.reason?.message || '请稍后重试')}</div></td></tr>`;
+      renderSummary(null);
+      return;
+    }
+
+    // 汇总（404 表示无数据，正常处理）
+    if (summary.status === 'fulfilled') {
+      renderSummary(summary.value);
+    } else {
+      renderSummary(null);
+    }
+
+    renderBOMTable();
+    renderCharts();
+  }
+
+  // ============ 图表渲染 ============
+  const DARK_PALETTE = ['#c9973b', '#4a9e6e', '#c97a3b', '#5a7ec9', '#9b6ac9', '#4ac9a3', '#c94a4a'];
+  let chartCategories = null;
+  let chartTopMaterials = null;
+
+  function getSafeCatName(item) {
+    return item.material?.category?.name || item.category_name || '其他';
+  }
+
+  function getSafeMatName(item) {
+    return item.material?.name || item.material_name || '';
+  }
+
+  function renderCharts() {
+    renderCategoriesChart();
+    renderTopMaterialsChart();
+  }
+
+  function renderCategoriesChart() {
+    const dom = document.getElementById('chart-categories');
+    if (!dom) return;
+
+    // 按品类聚合金额
+    const catMap = {};
+    bomItems.forEach(it => {
+      const name = getSafeCatName(it);
+      catMap[name] = (catMap[name] || 0) + (it.total_price || 0);
+    });
+    const entries = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
+
+    // 检查已有实例并销毁
+    const existing = echarts.getInstanceByDom(dom);
+    if (existing) existing.dispose();
+
+    if (entries.length === 0) {
+      chartCategories = echarts.init(dom);
+      chartCategories.setOption({
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#8a8894', fontSize: 14, fontWeight: 'normal' } }
+      });
+      return;
+    }
+
+    chartCategories = echarts.init(dom);
+    chartCategories.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: ¥{c}' },
+      legend: { bottom: 0, textStyle: { color: '#8a8894', fontSize: 10 } },
+      series: [{
+        type: 'pie',
+        radius: ['40%', '65%'],
+        center: ['50%', '48%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 4, borderColor: '#12121d', borderWidth: 2 },
+        label: { show: false },
+        emphasis: { label: { show: true, fontSize: 12, fontWeight: 'bold' } },
+        data: entries.map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 })),
+        color: DARK_PALETTE,
+      }]
+    });
+  }
+
+  function renderTopMaterialsChart() {
+    const dom = document.getElementById('chart-top-materials');
+    if (!dom) return;
+
+    // 按 total_price 降序取前 10
+    const top10 = [...bomItems]
+      .sort((a, b) => (b.total_price || 0) - (a.total_price || 0))
+      .slice(0, 10);
+
+    // 品类 → 颜色映射（基于 DARK_PALETTE 循环）
+    const catColorMap = {};
+    let colorIdx = 0;
+    const categoriesSet = new Set();
+    top10.forEach(it => categoriesSet.add(getSafeCatName(it)));
+    categoriesSet.forEach(cat => { catColorMap[cat] = DARK_PALETTE[colorIdx % DARK_PALETTE.length]; colorIdx++; });
+
+    const names = top10.map(it => {
+      const raw = getSafeMatName(it);
+      return raw.length > 8 ? raw.slice(0, 7) + '…' : raw;
+    });
+    const values = top10.map(it => Math.round((it.total_price || 0) * 100) / 100);
+    const colors = top10.map(it => catColorMap[getSafeCatName(it)] || DARK_PALETTE[0]);
+
+    const existing = echarts.getInstanceByDom(dom);
+    if (existing) existing.dispose();
+
+    if (top10.length === 0) {
+      chartTopMaterials = echarts.init(dom);
+      chartTopMaterials.setOption({
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#8a8894', fontSize: 14, fontWeight: 'normal' } }
+      });
+      return;
+    }
+
+    chartTopMaterials = echarts.init(dom);
+    chartTopMaterials.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: ¥{c}' },
+      grid: { left: '3%', right: '8%', bottom: '8%', top: '8%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: names,
+        axisLabel: { color: '#8a8894', fontSize: 9, rotate: 30 },
+        axisLine: { lineStyle: { color: '#2a2a45' } }
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { color: '#8a8894', fontSize: 10, formatter: '¥{value}' },
+        splitLine: { lineStyle: { color: '#1e1e32' } }
+      },
+      series: [{
+        type: 'bar',
+        data: values.map((v, i) => ({ value: v, itemStyle: { color: colors[i], borderRadius: [4, 4, 0, 0] } })),
+        barMaxWidth: 40,
+      }]
+    });
+  }
+
+  async function loadCategories() {
+    try {
+      const resp = await ApiClient.getMaterialCategories();
+      categories = Array.isArray(resp) ? resp : (resp.items || []);
+    } catch (e) {
+      categories = [];
+    }
+    renderCategoryTabs();
+    renderAddCategories();
+  }
+
+  async function loadAll() {
+    if (!projectId) return;
+    generateBtn.disabled = true;
+    exportBtn.disabled = true;
+    addSubmit.disabled = true;
+    await loadCategories();
+    await loadBOM();
+    generateBtn.disabled = false;
+    exportBtn.disabled = false;
+    // addSubmit 的禁用态由品类/物料选择控制
+    if (!addMaterial.value) addSubmit.disabled = true;
+  }
+
+  // ============ 初始化 ============
+  async function init() {
+    if (!ensureAuth()) return;
+
+    // 加载项目列表
+    try {
+      const projects = await ApiClient.getProjects();
+      allProjects = Array.isArray(projects) ? projects : (projects.items || []);
+    } catch (err) {
+      projectSelect.innerHTML = '<option value="">项目加载失败</option>';
+      bomTbody.innerHTML = `<tr><td colspan="6" class="mat-state error">无法加载项目列表<div class="mat-state-hint">${escapeHtml(err?.message || '请检查网络或重新登录')}</div></td></tr>`;
+      return;
+    }
+
+    if (!allProjects.length) {
+      projectSelect.innerHTML = '<option value="">暂无项目，请先在工作台创建</option>';
+      bomTbody.innerHTML = `<tr><td colspan="6" class="mat-state">暂无项目<div class="mat-state-hint">前往工作台创建项目后再管理物料</div></td></tr>`;
+      return;
+    }
+
+    // 优先使用 URL 参数 ?project_id=xxx，否则取第一个项目
+    const requestedId = params.get('project_id');
+    const selected = (requestedId && allProjects.find(p => p.id === requestedId)) || allProjects[0];
+    projectId = selected.id;
+
+    renderProjectSelect();
+    await loadAll();
+  }
+
+  // ============ 图表清理与响应式 ============
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      chartCategories?.resize();
+      chartTopMaterials?.resize();
+    }, 150);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    chartCategories?.dispose();
+    chartTopMaterials?.dispose();
+  });
+
+  init();
+})();
+</script>
+<script defer src="assets/js/analytics.js?v=20260724b"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

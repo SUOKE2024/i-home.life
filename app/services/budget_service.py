@@ -72,7 +72,26 @@ async def create_budget(db: AsyncSession, data: dict) -> Budget:
     return await get_budget(db, data["project_id"])
 
 
-async def generate_budget_from_bom(db: AsyncSession, project_id: str) -> Budget | None:
+async def generate_budget_from_bom(
+    db: AsyncSession, project_id: str, tier: str = "comfort",
+) -> Budget | None:
+    """从 BOM 生成预算
+
+    v1.1.31 FP-6（S5）：受 ``settings.quota_library_enabled`` 控制
+    - True：estimated = BOM量 × 定额单价（app.standards.quota_library 按
+      category_code × tier 查询），定额缺失时回退到 BOMItem.total_price
+    - False：直接用 BOMItem.total_price（原行为）
+
+    Args:
+        db: 异步数据库会话
+        project_id: 项目 ID
+        tier: 档次（economy/comfort/premium/luxury），定额查询用，默认 comfort
+    """
+    from app.config import get_settings
+    from app.standards.quota_library import get_quota_price
+
+    settings = get_settings()
+
     result = await db.execute(
         select(BOMItem)
         .where(BOMItem.project_id == project_id)
@@ -104,16 +123,31 @@ async def generate_budget_from_bom(db: AsyncSession, project_id: str) -> Budget 
         cat_code = item.material.category.code if item.material and item.material.category else "other"
         label = category_names.get(cat_code, "其他工程")
 
+        # v1.1.31 FP-6: 定额优先，回退到 BOM 采购价
+        estimated = item.total_price
+        applied_unit_price = item.unit_price
+        pricing_source = "bom_price"
+        if settings.quota_library_enabled:
+            quota_price, quota_unit = get_quota_price(cat_code, tier)
+            if quota_price is not None:
+                # 定额按标准计量单位计价；BOM 量与定额单位一致时直接乘
+                # （mep/custom_furniture 按 ㎡，doors_windows 按 樘，soft_decor 按 项）
+                estimated = round(item.quantity * quota_price, 2)
+                applied_unit_price = quota_price
+                pricing_source = "quota"
+
         bl = BudgetLine(
             budget_id=budget.id,
             category=label,
             name=item.material.name if item.material else f"物料-{item.material_id[:8]}",
-            estimated_amount=item.total_price,
+            estimated_amount=estimated,
             unit=item.material.unit if item.material else "项",
             quantity=item.quantity,
-            unit_price=item.unit_price,
+            unit_price=applied_unit_price,
+            # note 记录定价来源（定额 vs 采购价），便于成本对比
+            note=f"pricing_source={pricing_source}; tier={tier}" if settings.quota_library_enabled else None,
         )
-        total += item.total_price
+        total += estimated
         db.add(bl)
 
     budget.total_estimated = total

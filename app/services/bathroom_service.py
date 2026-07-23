@@ -190,13 +190,20 @@ def compute_drain_slope(design: BathroomDesign) -> dict:
 def validate_waterproof(design: BathroomDesign) -> dict:
     """防水规范校验 (淋浴区墙面防水 ≥ 1.8m, 其他墙面 ≥ 0.3m, 地面全防水)
 
+    v1.1.31 FP-2 修复：原后4项硬编码 passed=True（伪专业），现对 design 真实字段做真校验。
+    受 settings.waterproof_strict_check flag 控制：True（默认）= 真校验；False = 回滚到旧行为（紧急回滚用）。
+    闭水试验标准统一为 ≥ 48h（与 HC-005 / QUALITY_CHECKLISTS 对齐，原误写 24h）。
+
     Args:
         design: 卫生间设计
     """
+    from app.config import get_settings
+    strict = get_settings().waterproof_strict_check
+
     checks = []
     all_pass = True
 
-    # 1. 淋浴区墙面防水 ≥ 1.8m
+    # 1. 淋浴区墙面防水 ≥ 1.8m（原本即真校验）
     shower_height_m = design.waterproof_height_mm / 1000
     passed = design.waterproof_height_mm >= 1800
     checks.append({
@@ -209,45 +216,68 @@ def validate_waterproof(design: BathroomDesign) -> dict:
     if not passed:
         all_pass = False
 
-    # 2. 其他墙面防水 ≥ 0.3m
-    other_wall_height = 0.3  # 标准要求
-    checks.append({
-        "item": "其他墙面防水 ≥ 0.3m",
-        "value": other_wall_height,
-        "unit": "m",
-        "passed": True,
-        "standard": "≥ 0.3m (翻边高度)",
-    })
+    if strict:
+        # ── 真校验：取 design 实际字段 ──
+        # 2. 其他墙面防水 ≥ 0.3m
+        other_h = design.other_wall_waterproof_height_mm if design.other_wall_waterproof_height_mm is not None else 300
+        passed2 = other_h >= 300
+        checks.append({
+            "item": "其他墙面防水 ≥ 0.3m",
+            "value": round(other_h / 1000, 3),
+            "unit": "m",
+            "passed": passed2,
+            "standard": "≥ 0.3m (翻边高度)",
+        })
+        if not passed2:
+            all_pass = False
 
-    # 3. 地面全防水
-    checks.append({
-        "item": "地面全防水",
-        "value": "全做",
-        "passed": True,
-        "standard": "地面满做防水涂层",
-    })
+        # 3. 地面全防水
+        floor_done = bool(design.floor_waterproof_done) if design.floor_waterproof_done is not None else True
+        checks.append({
+            "item": "地面全防水",
+            "value": "全做" if floor_done else "未做/局部",
+            "passed": floor_done,
+            "standard": "地面满做防水涂层",
+        })
+        if not floor_done:
+            all_pass = False
 
-    # 4. 防水层厚度 ≥ 1.5mm
-    checks.append({
-        "item": "防水层厚度 ≥ 1.5mm",
-        "value": 1.5,
-        "unit": "mm",
-        "passed": True,
-        "standard": "≥ 1.5mm (聚氨酯防水涂料)",
-    })
+        # 4. 防水层厚度 ≥ 1.5mm
+        thickness = design.waterproof_thickness_mm if design.waterproof_thickness_mm is not None else 1.5
+        passed4 = thickness >= 1.5
+        checks.append({
+            "item": "防水层厚度 ≥ 1.5mm",
+            "value": thickness,
+            "unit": "mm",
+            "passed": passed4,
+            "standard": "≥ 1.5mm (聚氨酯防水涂料)",
+        })
+        if not passed4:
+            all_pass = False
 
-    # 5. 闭水试验 ≥ 24h
-    checks.append({
-        "item": "闭水试验 ≥ 24h",
-        "value": 24,
-        "unit": "h",
-        "passed": True,
-        "standard": "≥ 24h 蓄水试验无渗漏",
-    })
+        # 5. 闭水试验 ≥ 48h（统一标准，原误写 24h）
+        wt_hours = design.water_test_hours if design.water_test_hours is not None else 48.0
+        passed5 = wt_hours >= 48
+        checks.append({
+            "item": "闭水试验 ≥ 48h",
+            "value": wt_hours,
+            "unit": "h",
+            "passed": passed5,
+            "standard": "≥ 48h 蓄水试验无渗漏",
+        })
+        if not passed5:
+            all_pass = False
+    else:
+        # ── 旧行为回滚（waterproof_strict_check=False，紧急回滚用）──
+        checks.append({"item": "其他墙面防水 ≥ 0.3m", "value": 0.3, "unit": "m", "passed": True, "standard": "≥ 0.3m (翻边高度)"})
+        checks.append({"item": "地面全防水", "value": "全做", "passed": True, "standard": "地面满做防水涂层"})
+        checks.append({"item": "防水层厚度 ≥ 1.5mm", "value": 1.5, "unit": "mm", "passed": True, "standard": "≥ 1.5mm (聚氨酯防水涂料)"})
+        checks.append({"item": "闭水试验 ≥ 48h", "value": 48, "unit": "h", "passed": True, "standard": "≥ 48h 蓄水试验无渗漏"})
 
     return {
         "compliant": all_pass,
         "waterproof_height_mm": design.waterproof_height_mm,
+        "strict_check": strict,
         "checks": checks,
         "total_checks": len(checks),
         "passed_checks": sum(1 for c in checks if c.get("passed")),
@@ -259,6 +289,9 @@ def validate_waterproof(design: BathroomDesign) -> dict:
 def analyze_ventilation(design: BathroomDesign) -> dict:
     """通风分析 (自然通风面积 ≥ 地面 1/20, 机械通风风量 ≥ 80m³/h)
 
+    v1.1.31 FP-2 修复：原 assumed_window_area=0.54 写死、mechanical_compliant 永真（伪专业），
+    现按 design.has_natural_window/window_area_m2/mechanical_vent_airflow 真校验。
+
     Args:
         design: 卫生间设计
     """
@@ -266,15 +299,22 @@ def analyze_ventilation(design: BathroomDesign) -> dict:
 
     # 自然通风: 窗户面积 ≥ 地面面积 1/20
     required_natural_vent = floor_area / 20
-    # 假设窗户面积为 0.6m × 0.9m = 0.54m² (有窗情况)
-    assumed_window_area = 0.54
-    natural_compliant = assumed_window_area >= required_natural_vent
+    has_window = bool(design.has_natural_window) if design.has_natural_window is not None else False
+    if design.window_area_m2 is not None:
+        window_area = design.window_area_m2
+    elif has_window:
+        # 有窗但未填面积，按常见 0.6×0.9=0.54m² 估算（仅估算，标注 estimated）
+        window_area = 0.54
+    else:
+        window_area = 0.0
+    natural_compliant = has_window and window_area >= required_natural_vent
 
-    # 机械通风: 风量 ≥ 80 m³/h
-    required_mechanical = 80.0
+    # 机械通风: 风量 ≥ 80 m³/h（取 design 实际值，不再永真）
+    required_airflow = 80.0  # 标准阈值（m³/h），暴露给前端便于展示合规边界
+    airflow = design.mechanical_vent_airflow if design.mechanical_vent_airflow is not None else required_airflow
     # 换气次数 ≥ 5次/h
-    air_change_rate = required_mechanical / (floor_area * design.ceiling_height)
-    mechanical_compliant = required_mechanical >= 80
+    air_change_rate = airflow / (floor_area * design.ceiling_height) if (floor_area * design.ceiling_height) > 0 else 0.0
+    mechanical_compliant = airflow >= required_airflow
 
     # 综合判定
     if natural_compliant and mechanical_compliant:
@@ -291,12 +331,14 @@ def analyze_ventilation(design: BathroomDesign) -> dict:
         "floor_area": round(floor_area, 2),
         "natural_ventilation": {
             "required_area": round(required_natural_vent, 3),
-            "assumed_window_area": assumed_window_area,
+            "window_area": round(window_area, 3),
+            "estimated": design.window_area_m2 is None,
             "compliant": natural_compliant,
             "standard": "自然通风面积 ≥ 地面 1/20",
         },
         "mechanical_ventilation": {
-            "required_airflow": required_mechanical,
+            "required_airflow": required_airflow,
+            "actual_airflow": airflow,
             "unit": "m³/h",
             "air_change_rate": round(air_change_rate, 1),
             "compliant": mechanical_compliant,

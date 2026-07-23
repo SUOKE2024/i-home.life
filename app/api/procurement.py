@@ -49,6 +49,17 @@ class CompareRequest(BaseModel):
     quotations: list[QuotationItem]
 
 
+def _mask_phone(phone: str | None) -> str | None:
+    """供应商手机号脱敏：保留前 3 后 4，中间 ****（138****1234）。
+
+    v1.2.1 P1-6：供应商联系电话属 PII，列表接口对多用户可见，必须脱敏。
+    过短或非标准号码原样返回（避免破坏非手机号格式的联系方式）。
+    """
+    if not phone or len(phone) < 7:
+        return phone
+    return phone[:3] + "****" + phone[-4:]
+
+
 @router.get(
     "/suppliers",
     response_model=list[SupplierResponse],
@@ -57,14 +68,22 @@ class CompareRequest(BaseModel):
     response_description="供应商列表",
     responses={
         200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
     },
 )
 async def list_suppliers(
     category: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # v1.2.1 P1-6 修复：原 list_suppliers 无 get_current_user 鉴权，匿名可枚举供应商
+    # （含联系电话 PII）。现强制登录；并在 pii_masking_enabled 时对手机号脱敏。
     suppliers = await procurement_service.get_suppliers(db, category)
-    return [SupplierResponse.model_validate(s) for s in suppliers]
+    results = [SupplierResponse.model_validate(s) for s in suppliers]
+    if get_settings().pii_masking_enabled:
+        for r in results:
+            r.phone = _mask_phone(r.phone)
+    return results
 
 
 @router.post(
@@ -549,3 +568,181 @@ async def recommend_suppliers(
 ):
     agent = ProcurementAgent()
     return agent.recommend_suppliers(category)
+
+
+# ── BOM 自动生成采购订单 ──
+
+
+class VerifyDeliveryRequest(BaseModel):
+    notes: str | None = None
+
+
+class LinkToConstructionRequest(BaseModel):
+    order_id: str
+    task_id: str
+
+
+@router.post(
+    "/generate-from-bom/{project_id}",
+    summary="从 BOM 生成采购订单",
+    description="根据项目的 BOM 物料清单自动生成采购订单，按物料品类分组，"
+    "为每个品类选择评分最高的供应商创建 draft 状态订单。",
+    response_description="生成的采购订单列表",
+    responses={
+        200: {"description": "生成成功"},
+        400: {"description": "项目无 BOM 物料清单"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["采购"],
+)
+async def generate_from_bom(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """从 BOM 物料清单自动生成采购订单"""
+    await _verify_project_owner(db, project_id, current_user)
+    try:
+        result = await procurement_service.generate_from_bom(db, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await ws_manager.broadcast_to_project(project_id, "procurement.bom_generated", result)
+    return result
+
+
+@router.get(
+    "/compare-suppliers/{material_id}",
+    summary="供应商比价",
+    description="获取同一物料的所有供应商报价，按总价排序进行比价分析，"
+    "包含供应商评分、交货天数和总成本。",
+    response_description="比价结果",
+    responses={
+        200: {"description": "比价成功"},
+        400: {"description": "物料不存在"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+    tags=["采购"],
+)
+async def compare_suppliers(
+    material_id: str,
+    quantity: float = Query(default=100.0, description="采购数量"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """多供应商比价分析"""
+    try:
+        return await procurement_service.compare_suppliers(db, material_id, quantity)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/verify-delivery/{order_id}",
+    summary="到货核验",
+    description="核验采购订单的实际到货情况，对比每个订单行明细的订购数量与实际到货数量，"
+    "记录核验时间和差异清单。",
+    response_description="核验结果",
+    responses={
+        200: {"description": "核验成功"},
+        400: {"description": "订单不存在"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+    },
+    tags=["采购"],
+)
+async def verify_delivery(
+    order_id: str,
+    data: VerifyDeliveryRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """到货核验"""
+    existing = await procurement_service.get_order(db, order_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    await _verify_project_owner(db, existing.project_id, current_user)
+
+    try:
+        result = await procurement_service.verify_delivery(db, order_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # 追加用户备注到 delivery_notes
+    if data.notes:
+        existing = await procurement_service.get_order(db, order_id)
+        if existing:
+            existing.delivery_notes = (
+                (existing.delivery_notes or "") + f"\n[核验备注] {data.notes}"
+            ).strip()
+            await db.commit()
+
+    await ws_manager.broadcast_to_project(
+        existing.project_id, "procurement.delivery_verified", result
+    )
+    return result
+
+
+@router.post(
+    "/link-to-construction",
+    summary="采购-施工联动",
+    description="将采购订单关联到施工任务，当订单已交付时自动更新关联的施工任务状态，"
+    "并记录物料到达时间。",
+    response_description="联动结果",
+    responses={
+        200: {"description": "关联成功"},
+        400: {"description": "订单或任务不存在，或项目不一致"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单或任务不存在"},
+    },
+    tags=["采购"],
+)
+async def link_to_construction(
+    data: LinkToConstructionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """将采购订单关联到施工任务"""
+    existing = await procurement_service.get_order(db, data.order_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    await _verify_project_owner(db, existing.project_id, current_user)
+
+    try:
+        result = await procurement_service.link_to_construction(
+            db, data.order_id, data.task_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await ws_manager.broadcast_to_project(
+        existing.project_id, "procurement.linked_to_construction", result
+    )
+    return result
+
+
+@router.get(
+    "/material-availability/{material_id}",
+    summary="物料库存查询",
+    description="查询物料在各供应商的库存和可供应情况，返回可用数量、交货周期等信息。",
+    response_description="物料供应情况",
+    responses={
+        200: {"description": "查询成功"},
+        400: {"description": "物料不存在"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+    tags=["采购"],
+)
+async def get_material_availability(
+    material_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """查询物料在各供应商的库存和可供应情况"""
+    try:
+        return await procurement_service.get_material_availability(db, material_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

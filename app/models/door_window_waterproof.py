@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -41,10 +41,34 @@ class DoorWindowSpec(Base):
     has_lock: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # 是否带锁
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
+
+    __table_args__ = (
+        CheckConstraint(
+            "spec_type IN ('entry_door', 'interior_door', 'window', 'sliding_door', 'french_window')",
+            name="chk_door_window_spec_type",
+        ),
+        CheckConstraint(
+            "material IN ('solid_wood', 'wood_composite', 'aluminum', 'pvc', 'steel')",
+            name="chk_door_window_spec_material",
+        ),
+        CheckConstraint("width > 0", name="chk_door_window_spec_width_positive"),
+        CheckConstraint("height > 0", name="chk_door_window_spec_height_positive"),
+        CheckConstraint("thickness IS NULL OR thickness > 0", name="chk_door_window_spec_thickness_positive"),
+        CheckConstraint("price >= 0", name="chk_door_window_spec_price_positive"),
+        CheckConstraint(
+            "opening_direction IN ('inward', 'outward', 'sliding', 'folding')",
+            name="chk_door_window_spec_opening_direction",
+        ),
+        CheckConstraint(
+            "glass_type IS NULL OR glass_type IN ('single', 'double', 'triple', 'laminated', 'low_e')",
+            name="chk_door_window_spec_glass_type",
+        ),
+    )
 
 
 class WaterproofPlan(Base):
@@ -78,7 +102,29 @@ class WaterproofPlan(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project")
+
+    __table_args__ = (
+        CheckConstraint(
+            "room_type IN ('bathroom', 'kitchen', 'balcony', 'terrace', 'laundry')",
+            name="chk_waterproof_plan_room_type",
+        ),
+        CheckConstraint("wall_height_mm >= 0", name="chk_waterproof_plan_wall_height_mm_positive"),
+        CheckConstraint("floor_area >= 0", name="chk_waterproof_plan_floor_area_positive"),
+        CheckConstraint("wall_area >= 0", name="chk_waterproof_plan_wall_area_positive"),
+        CheckConstraint(
+            "waterproof_material IN ('polyurethane', 'JS', 'cement_based', 'SBS')",
+            name="chk_waterproof_plan_material",
+        ),
+        CheckConstraint("coating_layers >= 0", name="chk_waterproof_plan_coating_layers_positive"),
+        CheckConstraint("thickness_mm >= 0", name="chk_waterproof_plan_thickness_mm_positive"),
+        CheckConstraint("closure_test_hours >= 0", name="chk_waterproof_plan_closure_test_hours_positive"),
+        CheckConstraint("material_quantity >= 0", name="chk_waterproof_plan_material_quantity_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_waterproof_plan_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_waterproof_plan_total_price_positive"),
+        CheckConstraint("status IN ('draft', 'completed')", name="chk_waterproof_plan_status"),
+    )

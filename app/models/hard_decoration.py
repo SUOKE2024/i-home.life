@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,6 +26,7 @@ class HardDecorationScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft / completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -33,6 +34,15 @@ class HardDecorationScheme(Base):
     floors = relationship("HardDecorationFloor", back_populates="scheme", cascade="all, delete-orphan")
     walls = relationship("WallFinish", back_populates="scheme", cascade="all, delete-orphan")
     ceilings = relationship("CeilingDesign", back_populates="scheme", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("scheme_type IN ('floor', 'wall', 'ceiling')", name="chk_hard_decoration_scheme_type"),
+        CheckConstraint("floor_area >= 0", name="chk_hard_decoration_floor_area_positive"),
+        CheckConstraint("wall_area >= 0", name="chk_hard_decoration_wall_area_positive"),
+        CheckConstraint("ceiling_area >= 0", name="chk_hard_decoration_ceiling_area_positive"),
+        CheckConstraint("total_budget >= 0", name="chk_hard_decoration_total_budget_positive"),
+        CheckConstraint("status IN ('draft', 'completed')", name="chk_hard_decoration_status"),
+    )
 
 
 class HardDecorationFloor(Base):
@@ -59,9 +69,23 @@ class HardDecorationFloor(Base):
     # 材料总量 (m²)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="floors")
+
+    __table_args__ = (
+        CheckConstraint(
+            "material_type IN ('tile', 'wood', 'laminate', 'vinyl', 'stone', 'carpet')",
+            name="chk_hard_decoration_floor_material_type",
+        ),
+        CheckConstraint("pattern IN ('直铺', '人字拼', '鱼骨拼', '工字铺', '菱形')", name="chk_hard_decoration_floor_pattern"),
+        CheckConstraint("coverage_area >= 0", name="chk_hard_decoration_floor_coverage_area_positive"),
+        CheckConstraint("waste_percent >= 0 AND waste_percent <= 100", name="chk_hard_decoration_floor_waste_percent_range"),
+        CheckConstraint("total_material >= 0", name="chk_hard_decoration_floor_total_material_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_hard_decoration_floor_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_hard_decoration_floor_total_price_positive"),
+    )
 
 
 class WallFinish(Base):
@@ -84,9 +108,23 @@ class WallFinish(Base):
     # 材料总量 (L 或 m²)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="walls")
+
+    __table_args__ = (
+        CheckConstraint(
+            "finish_type IN ('paint', 'wallpaper', 'tile', 'panel', 'stone', 'wainscoting')",
+            name="chk_wall_finish_type",
+        ),
+        CheckConstraint("coverage_area >= 0", name="chk_wall_finish_coverage_area_positive"),
+        CheckConstraint("coats >= 0", name="chk_wall_finish_coats_positive"),
+        CheckConstraint("waste_percent >= 0 AND waste_percent <= 100", name="chk_wall_finish_waste_percent_range"),
+        CheckConstraint("total_material >= 0", name="chk_wall_finish_total_material_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_wall_finish_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_wall_finish_total_price_positive"),
+    )
 
 
 class CeilingDesign(Base):
@@ -108,6 +146,18 @@ class CeilingDesign(Base):
     total_area: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     scheme = relationship("HardDecorationScheme", back_populates="ceilings")
+
+    __table_args__ = (
+        CheckConstraint(
+            "ceiling_type IN ('flat', 'suspended', 'gypsum_perimeter', 'coffered', 'curve')",
+            name="chk_ceiling_design_type",
+        ),
+        CheckConstraint("height_drop_mm >= 0", name="chk_ceiling_design_height_drop_mm_positive"),
+        CheckConstraint("total_area >= 0", name="chk_ceiling_design_total_area_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_ceiling_design_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_ceiling_design_total_price_positive"),
+    )

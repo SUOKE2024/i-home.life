@@ -361,3 +361,179 @@ async def list_ceilings(db: AsyncSession, scheme_id: str) -> list[CeilingDesign]
         .order_by(CeilingDesign.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+# ── 合规验证 ──
+
+# DIN 51130 防滑等级 — 材料 → 典型防滑等级
+MATERIAL_SLIP_GRADE: dict[str, str] = {
+    "瓷砖": "R9",
+    "防滑瓷砖": "R10",
+    "哑光瓷砖": "R10",
+    "仿古砖": "R11",
+    "石材": "R9",
+    "大理石": "R9",
+    "花岗岩": "R10",
+    "实木地板": "R9",
+    "复合地板": "R9",
+    "强化地板": "R9",
+    "SPC石塑地板": "R10",
+    "LVT地板": "R10",
+    "水磨石": "R9",
+    "微水泥": "R9",
+    "环氧地坪": "R10",
+    "防滑地砖": "R12",
+    "马赛克": "R10",
+}
+
+# DIN 51130 — 各房间防滑等级要求
+ROOM_SLIP_REQUIREMENT: dict[str, str] = {
+    "bathroom": "R10",
+    "kitchen": "R10",
+    "balcony": "R11",
+}
+
+# GB 50222 — 墙面材料防火等级 (简化映射)
+MATERIAL_FIRE_RATING: dict[str, str] = {
+    "乳胶漆": "B1",
+    "壁纸": "B2",
+    "壁布": "B2",
+    "瓷砖": "A",
+    "石材": "A",
+    "大理石": "A",
+    "岩板": "A",
+    "微水泥": "A",
+    "木质饰面板": "B2",
+    "防火板": "B1",
+    "护墙板": "B2",
+    "硅藻泥": "A",
+    "艺术漆": "B1",
+}
+
+# GB 50222 — 各房间墙面防火等级要求
+ROOM_FIRE_REQUIREMENT: dict[str, str] = {
+    "kitchen": "B1",
+    "escape_route": "A",
+    "corridor": "A",
+}
+
+
+def check_floor_slip_resistance(room_type: str, floor_material: str) -> dict:
+    """地面防滑合规检查 — 依据 DIN 51130
+
+    Args:
+        room_type: 房间类型 (bathroom/kitchen/balcony 等)
+        floor_material: 地面材料名称
+
+    Returns:
+        {compliant, required_grade, material_grade, suggestions}
+    """
+    suggestions: list[str] = []
+    required_grade = ROOM_SLIP_REQUIREMENT.get(room_type)
+    material_grade = MATERIAL_SLIP_GRADE.get(floor_material, "未知")
+
+    if required_grade is None:
+        # 非潮湿区域无强制防滑要求
+        return {
+            "compliant": True,
+            "required_grade": "无强制要求",
+            "material_grade": material_grade,
+            "suggestions": [f"{room_type} 无强制防滑等级要求 (DIN 51130)"],
+        }
+
+    # 比较防滑等级 (R9 < R10 < R11 < R12 < R13)
+    grade_order = ["R9", "R10", "R11", "R12", "R13"]
+    try:
+        material_idx = grade_order.index(material_grade)
+        required_idx = grade_order.index(required_grade)
+        compliant = material_idx >= required_idx
+    except ValueError:
+        compliant = False
+        suggestions.append(
+            f"无法识别材料 {floor_material} 的防滑等级，"
+            f"建议选用防滑等级 ≥ {required_grade} 的材料"
+        )
+
+    if compliant:
+        suggestions.append(
+            f"{room_type} 地面材料 {floor_material} 防滑等级 {material_grade} "
+            f"满足要求 ≥ {required_grade} (DIN 51130)"
+        )
+    else:
+        suggestions.append(
+            f"{room_type} 地面材料 {floor_material} 防滑等级 {material_grade} "
+            f"不满足要求 ≥ {required_grade} (DIN 51130)"
+        )
+        suggestions.append(
+            f"建议更换为防滑等级 ≥ {required_grade} 的材料，"
+            f"如防滑瓷砖(R10+)、仿古砖(R11)或做防滑处理"
+        )
+
+    return {
+        "compliant": compliant,
+        "required_grade": required_grade,
+        "material_grade": material_grade,
+        "suggestions": suggestions,
+    }
+
+
+def check_wall_fire_rating(room_type: str, wall_material: str) -> dict:
+    """墙面防火合规检查 — 依据 GB 50222
+
+    Args:
+        room_type: 房间类型 (kitchen/escape_route/corridor 等)
+        wall_material: 墙面材料名称
+
+    Returns:
+        {compliant, required_rating, material_rating, suggestions}
+    """
+    suggestions: list[str] = []
+    required_rating = ROOM_FIRE_REQUIREMENT.get(room_type)
+    material_rating = MATERIAL_FIRE_RATING.get(wall_material, "未知")
+
+    if required_rating is None:
+        return {
+            "compliant": True,
+            "required_rating": "无强制要求",
+            "material_rating": material_rating,
+            "suggestions": [f"{room_type} 无特殊防火等级要求 (GB 50222)"],
+        }
+
+    # 比较防火等级 (A > B1 > B2 > B3)
+    rating_order = ["A", "B1", "B2", "B3"]
+    try:
+        material_idx = rating_order.index(material_rating)
+        required_idx = rating_order.index(required_rating)
+        compliant = material_idx <= required_idx  # 越小越优
+    except ValueError:
+        compliant = False
+        suggestions.append(
+            f"无法识别材料 {wall_material} 的防火等级，"
+            f"建议选用防火等级 ≥ {required_rating} 的材料"
+        )
+
+    if compliant:
+        suggestions.append(
+            f"{room_type} 墙面材料 {wall_material} 防火等级 {material_rating} "
+            f"满足要求 ≥ {required_rating} (GB 50222)"
+        )
+    else:
+        suggestions.append(
+            f"{room_type} 墙面材料 {wall_material} 防火等级 {material_rating} "
+            f"不满足要求 ≥ {required_rating} (GB 50222)"
+        )
+        if room_type == "kitchen":
+            suggestions.append(
+                "厨房墙面建议使用瓷砖(A级)、岩板(A级)或防火板(B1级)"
+            )
+        elif room_type in ("escape_route", "corridor"):
+            suggestions.append(
+                "疏散通道/走廊墙面必须使用 A 级不燃材料，如瓷砖、石材、微水泥等"
+            )
+
+    return {
+        "compliant": compliant,
+        "required_rating": required_rating,
+        "material_rating": material_rating,
+        "suggestions": suggestions,
+    }

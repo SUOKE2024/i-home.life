@@ -35,23 +35,41 @@ def _get_fernet() -> Fernet | None:
     """获取 Fernet 加密实例。
 
     密钥派生自 PASETO secret_key（SHA256 → 32 字节 → base64 → Fernet key）。
-    若 PASETO key 未配置（开发环境默认值），则加密层自动降级为空操作。
+
+    v1.2.1 P1-8 修复：原密钥不可用（默认/空）时静默降级为明文存储（PII 泄露风险）。
+    现引入 allow_plaintext_session 硬校验：
+    - 密钥可用 → 返回 Fernet（正常加密）
+    - 密钥不可用且 allow_plaintext_session=True → 返回 None（明文，开发显式 opt-in）
+    - 密钥不可用且 allow_plaintext_session=False → raise ValueError（拒绝明文存储）
     """
-    try:
-        from app.config import get_settings
-        paseto_key = get_settings().paseto_secret_key
-        if not paseto_key or paseto_key == "change-me-to-a-random-32-byte-key-minimum":
+    from app.config import get_settings
+    settings = get_settings()
+    paseto_key = settings.paseto_secret_key
+    if not paseto_key or paseto_key == "change-me-to-a-random-32-byte-key-minimum":
+        if getattr(settings, "allow_plaintext_session", False):
+            logger.warning(
+                "agent_session: PASETO 密钥未配置，allow_plaintext_session=True 显式允许明文存储"
+                "（仅开发环境，生产必须配置强密钥）"
+            )
             return None
-        # 从 PASETO key 派生稳定的 Fernet key（32 字节 URL-safe base64）
-        key_bytes = hashlib.sha256(paseto_key.encode()).digest()
-        fernet_key = base64.urlsafe_b64encode(key_bytes)
-        return Fernet(fernet_key)
-    except Exception:
-        return None
+        raise ValueError(
+            "Agent 会话加密密钥不可用（PASETO_SECRET_KEY 为默认值或空）。"
+            "拒绝明文存储会话消息（PII 保护）。请在 .env 配置强密钥，"
+            "或开发环境显式设 ALLOW_PLAINTEXT_SESSION=true 临时降级（生产禁止）。"
+        )
+    # 从 PASETO key 派生稳定的 Fernet key（32 字节 URL-safe base64）
+    key_bytes = hashlib.sha256(paseto_key.encode()).digest()
+    fernet_key = base64.urlsafe_b64encode(key_bytes)
+    return Fernet(fernet_key)
 
 
 def _encrypt(text: str) -> str:
-    """加密消息内容。若 Fernet 不可用则原样返回（开发/测试降级）。"""
+    """加密消息内容。
+
+    - Fernet 可用 → 返回密文
+    - allow_plaintext_session=True 且密钥不可用 → 原样返回明文（开发降级）
+    - allow_plaintext_session=False 且密钥不可用 → _get_fernet() raise ValueError（拒绝明文）
+    """
     f = _get_fernet()
     if f is None:
         return text
@@ -62,7 +80,12 @@ def _encrypt(text: str) -> str:
 
 
 def _decrypt(text: str) -> str:
-    """解密消息内容。若 Fernet 不可用则原样返回。"""
+    """解密消息内容。
+
+    - Fernet 可用 → 返回明文
+    - allow_plaintext_session=True 且密钥不可用 → 原样返回（明文存储时无需解密）
+    - allow_plaintext_session=False 且密钥不可用 → _get_fernet() raise ValueError
+    """
     f = _get_fernet()
     if f is None:
         return text

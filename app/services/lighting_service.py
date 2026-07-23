@@ -1,5 +1,7 @@
 """F29/F30 灯光设计器服务层 — 照度计算 + 色温规划 + AI 方案 + CRUD"""
 
+import math
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -355,3 +357,246 @@ async def delete_fixture(db: AsyncSession, fixture_id: str) -> bool:
     await db.delete(fixture)
     await db.commit()
     return True
+
+
+# ── 合规验证 ──
+
+# GB 50034 住宅建筑照明标准 — 各房间最低照度 (lx)
+GB50034_MIN_ILLUMINANCE: dict[str, float] = {
+    "living_room": 100.0,
+    "bedroom": 75.0,
+    "kitchen": 150.0,
+    "bathroom": 100.0,
+    "study": 300.0,
+}
+
+# GB 50034 — 住宅空间 UGR 上限
+GB50034_RESIDENTIAL_UGR_LIMIT = 19
+
+# GB 50034 — 住宅照度均匀度 U0 最低要求
+GB50034_UNIFORMITY_MIN = 0.7
+
+
+def check_illuminance_compliance(room_type: str, area_sq_m: float, total_lumens: float) -> dict:
+    """照度合规检查 — 依据 GB 50034
+
+    Args:
+        room_type: 房间类型 (living_room/bedroom/kitchen/bathroom/study)
+        area_sq_m: 房间面积 (m²)
+        total_lumens: 灯具总光通量 (lm)
+
+    Returns:
+        {compliant, actual_lx, required_lx, room_type, suggestions}
+    """
+    suggestions: list[str] = []
+    required_lx = GB50034_MIN_ILLUMINANCE.get(room_type)
+
+    if required_lx is None:
+        return {
+            "compliant": True,
+            "actual_lx": None,
+            "required_lx": None,
+            "room_type": room_type,
+            "suggestions": [f"未知房间类型 {room_type}，跳过照度合规检查"],
+        }
+
+    if area_sq_m <= 0:
+        return {
+            "compliant": False,
+            "actual_lx": 0.0,
+            "required_lx": required_lx,
+            "room_type": room_type,
+            "suggestions": ["房间面积为 0 或无效，无法计算照度"],
+        }
+
+    actual_lx = total_lumens * UTILIZATION_COEFFICIENT * MAINTENANCE_COEFFICIENT / area_sq_m
+    actual_lx = round(actual_lx, 1)
+
+    compliant = actual_lx >= required_lx
+
+    if not compliant:
+        deficit = required_lx - actual_lx
+        suggestions.append(
+            f"当前照度 {actual_lx} lx 不满足 {room_type} 最低要求 {required_lx} lx (GB 50034)，"
+            f"缺少 {deficit:.1f} lx"
+        )
+        # 建议增加光通量
+        extra_lumens = deficit * area_sq_m / (UTILIZATION_COEFFICIENT * MAINTENANCE_COEFFICIENT)
+        suggestions.append(
+            f"建议增加总光通量约 {extra_lumens:.0f} lm，或增加灯具数量"
+        )
+    else:
+        suggestions.append(
+            f"当前照度 {actual_lx} lx 满足 {room_type} 最低要求 {required_lx} lx (GB 50034)"
+        )
+
+    return {
+        "compliant": compliant,
+        "actual_lx": actual_lx,
+        "required_lx": required_lx,
+        "room_type": room_type,
+        "suggestions": suggestions,
+    }
+
+
+def check_glare_compliance(ugr_value: float) -> dict:
+    """眩光合规检查 — 依据 GB 50034 住宅空间 UGR ≤ 19
+
+    Args:
+        ugr_value: 统一眩光值 (UGR)
+
+    Returns:
+        {compliant, ugr_value, ugr_limit, suggestions}
+    """
+    compliant = ugr_value <= GB50034_RESIDENTIAL_UGR_LIMIT
+    suggestions: list[str] = []
+
+    if compliant:
+        suggestions.append(
+            f"UGR {ugr_value} ≤ {GB50034_RESIDENTIAL_UGR_LIMIT}，满足住宅空间眩光限制 (GB 50034)"
+        )
+    else:
+        suggestions.append(
+            f"UGR {ugr_value} 超过住宅空间上限 {GB50034_RESIDENTIAL_UGR_LIMIT} (GB 50034)，"
+            f"可能产生不适眩光"
+        )
+        suggestions.append("建议使用防眩灯具（深杯筒灯、格栅灯）或调整灯具安装位置")
+
+    return {
+        "compliant": compliant,
+        "ugr_value": ugr_value,
+        "ugr_limit": GB50034_RESIDENTIAL_UGR_LIMIT,
+        "suggestions": suggestions,
+    }
+
+
+async def check_uniformity(lighting_scheme_id: str, db: AsyncSession) -> dict:
+    """照度均匀度检查 — Emin/Eavg ≥ 0.7 (GB 50034)
+
+    Args:
+        lighting_scheme_id: 灯光方案 ID
+        db: 数据库会话
+
+    Returns:
+        {compliant, uniformity_ratio, suggestions, assessment_type}
+    """
+    scheme = await get_scheme(db, lighting_scheme_id)
+    if not scheme:
+        return {
+            "compliant": False,
+            "uniformity_ratio": None,
+            "suggestions": [f"灯光方案 {lighting_scheme_id} 不存在"],
+            "assessment_type": "error",
+        }
+
+    fixtures = scheme.fixtures or await list_fixtures(db, lighting_scheme_id)
+
+    if not fixtures:
+        return {
+            "compliant": False,
+            "uniformity_ratio": None,
+            "suggestions": ["当前方案无灯具数据，无法计算均匀度"],
+            "assessment_type": "preliminary",
+        }
+
+    # 检查是否有位置坐标数据
+    positioned_fixtures = [
+        f for f in fixtures
+        if f.position_x is not None and f.position_y is not None
+    ]
+
+    if len(positioned_fixtures) < 2:
+        # 灯具数据不足，给出初步评估
+        return {
+            "compliant": False,
+            "uniformity_ratio": None,
+            "suggestions": [
+                f"当前方案仅有 {len(positioned_fixtures)} 个有坐标的灯具，"
+                f"无法准确计算照度均匀度",
+                "建议确保灯具均匀布置，避免局部过亮或过暗",
+                f"住宅空间照度均匀度 U0 应 ≥ {GB50034_UNIFORMITY_MIN} (GB 50034)",
+            ],
+            "assessment_type": "preliminary",
+        }
+
+    # 基于灯具光通量和位置估算照度分布
+    room_side = scheme.room_area ** 0.5 if scheme.room_area else 5.0
+    grid_size = 0.5  # 0.5m 网格
+    grid_points: list[float] = []
+    x_range = [i * grid_size for i in range(int(room_side / grid_size) + 1)]
+    y_range = [i * grid_size for i in range(int(room_side / grid_size) + 1)]
+
+    for px in x_range:
+        for py in y_range:
+            # 逐点计算照度 (平方反比法简化)
+            point_lx = 0.0
+            for f in positioned_fixtures:
+                dx = px - float(f.position_x or 0)
+                dy = py - float(f.position_y or 0)
+                dist = (dx ** 2 + dy ** 2) ** 0.5
+                # 灯具安装高度 (默认 2.8m)
+                h = float(f.position_z or 2.8)
+                # 照度 ∝ 光通量 × cos³θ / d²，简化为光强 / 距离²
+                # 距离 = sqrt(水平距离² + 高度²)
+                total_dist = (dist ** 2 + h ** 2) ** 0.5
+                if total_dist < 0.1:
+                    total_dist = 0.1  # 避免除零
+                # 简化模型：点光源在水平面的照度
+                cos_theta = h / total_dist
+                illumination = (float(f.lumens or 0) * float(f.quantity or 1)
+                                * cos_theta / (total_dist ** 2))
+                # 加入光束角影响
+                beam_angle = float(f.beam_angle or 120)
+                if dist > 0:
+                    angle_rad = math.atan(dist / h)
+                    if angle_rad > math.radians(beam_angle / 2):
+                        illumination *= 0.3  # 光束角外衰减
+                point_lx += illumination
+
+            # 应用利用系数和维护系数
+            point_lx *= UTILIZATION_COEFFICIENT * MAINTENANCE_COEFFICIENT
+            grid_points.append(point_lx)
+
+    if not grid_points:
+        return {
+            "compliant": False,
+            "uniformity_ratio": None,
+            "suggestions": ["无法生成照度网格，请检查灯具数据"],
+            "assessment_type": "preliminary",
+        }
+
+    emin = min(grid_points)
+    eavg = sum(grid_points) / len(grid_points)
+
+    if eavg <= 0:
+        return {
+            "compliant": False,
+            "uniformity_ratio": None,
+            "suggestions": ["平均照度为 0，请检查灯具光通量和位置数据"],
+            "assessment_type": "preliminary",
+        }
+
+    uniformity = round(emin / eavg, 3)
+    compliant = uniformity >= GB50034_UNIFORMITY_MIN
+
+    suggestions: list[str] = []
+    if compliant:
+        suggestions.append(
+            f"照度均匀度 U0={uniformity} ≥ {GB50034_UNIFORMITY_MIN}，满足 GB 50034 要求"
+        )
+    else:
+        suggestions.append(
+            f"照度均匀度 U0={uniformity} < {GB50034_UNIFORMITY_MIN}，不满足 GB 50034 要求"
+        )
+        suggestions.append("建议调整灯具间距、增加辅助照明或增加灯具数量以提升均匀度")
+
+    return {
+        "compliant": compliant,
+        "uniformity_ratio": uniformity,
+        "eavg_lx": round(eavg, 1),
+        "emin_lx": round(emin, 1),
+        "grid_points_count": len(grid_points),
+        "required_uniformity": GB50034_UNIFORMITY_MIN,
+        "suggestions": suggestions,
+        "assessment_type": "full",
+    }

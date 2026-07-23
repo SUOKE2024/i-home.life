@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+<meta name="description" content="索克家居 · BIM 结构建模 — 承重墙/梁/柱/楼板/基础设计">
+<meta name="theme-color" content="#08080f">
+<meta property="og:title" content="结构建模 · 索克家居">
+<meta property="og:description" content="BIM 结构建模工具，支持承重墙/梁/柱/楼板/基础设计与工程量统计">
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="apple-touch-icon" href="assets/images/icons/desktop/suoke-logo-128.png">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<title>结构建模 · 索克家居</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+/* ═══ CSS Variables ═══ */
+:root {
+  --bg-deep: #08080f;
+  --bg-panel: #12121d;
+  --bg-card: #1a1a2e;
+  --border: #1e1e32;
+  --border-active: #2a2a45;
+  --text: #e0e0e0;
+  --text-secondary: #8a8894;
+  --text-muted: #5a5866;
+  --accent: #c9973b;
+  --accent-bright: #e0aa4a;
+  --success: #4a9e6e;
+  --danger: #c94a4a;
+  --warning: #c97a3b;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.5);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'DM Sans', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.6;
+  color: var(--text); background: var(--bg-deep); overflow: hidden; height: 100vh;
+}
+
+/* ═══ Skip Link ═══ */
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 1000; background: var(--accent); color: #111; padding: 8px 14px; border-radius: 0 0 6px 0; text-decoration: none; font-size: 0.8rem; font-weight: 600; }
+.skip-link:focus { left: 0; outline: 2px solid var(--accent-bright); outline-offset: 2px; }
+
+/* ═══ Top Navbar ═══ */
+#navbar {
+  height: 48px; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  flex-shrink: 0; z-index: 20;
+}
+#navbar .nav-back {
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 5px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 0.75rem; font-family: inherit; text-decoration: none;
+  transition: all var(--transition);
+}
+#navbar .nav-back:hover { border-color: var(--accent); color: var(--accent); }
+#navbar .nav-title {
+  font-size: 0.95rem; font-weight: 700; color: var(--accent); flex: 1;
+}
+#navbar .nav-actions { display: flex; gap: 8px; align-items: center; }
+#navbar .nav-actions button {
+  background: none; border: 1px solid var(--border); color: var(--text-secondary);
+  padding: 5px 12px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 0.7rem; font-family: inherit; transition: all var(--transition);
+}
+#navbar .nav-actions button:hover { border-color: var(--accent); color: var(--accent); }
+#navbar .nav-actions .btn-accent { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+#navbar .nav-actions .btn-accent:hover { background: var(--accent-bright); }
+
+/* ═══ App Layout ═══ */
+#app { display: flex; height: calc(100vh - 48px); }
+
+/* ═══ Sidebar ═══ */
+#sidebar {
+  width: 260px; background: var(--bg-panel); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+}
+.sidebar-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.sidebar-tab {
+  flex: 1; padding: 10px 4px; border: none; background: none; color: var(--text-muted);
+  cursor: pointer; font-size: 0.65rem; font-family: inherit; text-align: center;
+  border-bottom: 2px solid transparent; transition: all var(--transition);
+  white-space: nowrap;
+}
+.sidebar-tab:hover { color: var(--text-secondary); }
+.sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.sidebar-content { flex: 1; overflow-y: auto; padding: 8px; }
+.sidebar-content h3 {
+  font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+}
+.sidebar-content h3 button {
+  background: none; border: 1px solid var(--border); color: var(--accent);
+  padding: 2px 8px; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 0.6rem; font-family: inherit; transition: all var(--transition);
+}
+.sidebar-content h3 button:hover { background: rgba(201,151,59,0.1); }
+.element-list { display: flex; flex-direction: column; gap: 4px; }
+.element-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 0.7rem; cursor: pointer; transition: all var(--transition);
+}
+.element-item:hover { border-color: var(--accent); background: rgba(201,151,59,0.05); }
+.element-item .el-info { flex: 1; min-width: 0; }
+.element-item .el-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.element-item .el-meta { font-size: 0.6rem; color: var(--text-muted); }
+.element-item .el-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.element-item .el-actions button {
+  background: none; border: 1px solid var(--border); color: var(--text-muted);
+  padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 0.6rem;
+  font-family: inherit; transition: all var(--transition);
+}
+.element-item .el-actions button:hover { border-color: var(--danger); color: var(--danger); }
+.element-item .el-actions .el-edit:hover { border-color: var(--accent); color: var(--accent); }
+.element-empty { text-align: center; padding: 20px 10px; color: var(--text-muted); font-size: 0.7rem; }
+
+/* ═══ Main Content ═══ */
+#main-content { flex: 1; position: relative; overflow: hidden; }
+#canvas-area { display: flex; height: 100%; }
+#canvas-2d-wrap { flex: 1; position: relative; border-right: 1px solid var(--border); }
+#canvas-3d-wrap { flex: 1; position: relative; }
+#canvas-2d-wrap canvas, #canvas-3d-wrap canvas { display: block; width: 100%; height: 100%; }
+#status-bar {
+  position: absolute; bottom: 8px; left: 8px; right: 8px;
+  display: flex; justify-content: space-between; z-index: 5; pointer-events: none;
+}
+#status-bar span {
+  background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 6px;
+  font-size: 0.6rem; color: var(--text-muted);
+}
+
+/* ═══ Sidebar Toggle (Mobile) ═══ */
+#sidebar-toggle { display: none; position: absolute; top: 8px; left: 8px; z-index: 30; background: var(--bg-panel); border: 1px solid var(--border); color: var(--accent); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 1rem; font-family: inherit; line-height: 1; }
+#sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; }
+
+/* ═══ Dialog ═══ */
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 110; display: none; align-items: center; justify-content: center; padding: 20px;
+}
+.dialog-overlay.open { display: flex; }
+.dialog-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  width: min(92vw, 440px); box-shadow: var(--shadow-lg); overflow: hidden;
+}
+.dialog-header {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 700; color: var(--text);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.dialog-close {
+  background: none; border: none; color: var(--text-secondary); font-size: 18px;
+  cursor: pointer; padding: 2px 6px;
+}
+.dialog-close:hover { color: var(--text); }
+.dialog-body { padding: 16px; max-height: 60vh; overflow-y: auto; }
+.dialog-field { margin-bottom: 14px; }
+.dialog-label {
+  display: block; font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;
+}
+.dialog-input {
+  width: 100%; padding: 10px 12px; background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text); font-size: 13px;
+  font-family: inherit; transition: border-color var(--transition);
+}
+.dialog-input:focus { outline: none; border-color: var(--accent); }
+.dialog-input::placeholder { color: var(--text-muted); }
+.dialog-select {
+  width: 100%; padding: 10px 12px; background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text); font-size: 13px;
+  font-family: inherit; transition: border-color var(--transition);
+  appearance: none; cursor: pointer;
+}
+.dialog-select:focus { outline: none; border-color: var(--accent); }
+.dialog-error {
+  font-size: 11px; color: var(--danger); text-align: center; margin-bottom: 10px;
+}
+.dialog-submit {
+  width: 100%; padding: 10px; background: var(--accent); color: #111;
+  border: none; border-radius: var(--radius-sm); cursor: pointer;
+  font-size: 13px; font-weight: 600; font-family: inherit; transition: all var(--transition);
+}
+.dialog-submit:hover { background: var(--accent-bright); }
+.dialog-submit:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+.dialog-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.dialog-check-label {
+  display: flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-secondary);
+  cursor: pointer; margin-bottom: 8px;
+}
+.dialog-check-label input[type=checkbox] { accent-color: var(--accent); }
+
+/* ═══ Confirm Dialog ═══ */
+#confirm-dialog .dialog-card { max-width: 360px; }
+#confirm-dialog .dialog-body { text-align: center; }
+#confirm-dialog .dialog-body p { margin-bottom: 16px; font-size: 0.85rem; }
+#confirm-dialog .confirm-actions { display: flex; gap: 8px; }
+#confirm-dialog .confirm-actions button { flex: 1; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8rem; font-family: inherit; font-weight: 600; }
+#confirm-dialog .btn-cancel { background: none; border: 1px solid var(--border); color: var(--text-secondary); }
+#confirm-dialog .btn-danger { background: var(--danger); border: none; color: #fff; }
+#confirm-dialog .btn-primary { background: var(--accent); border: none; color: #111; }
+
+/* ═══ Loading Spinner ═══ */
+#loading-overlay {
+  position: fixed; inset: 0; background: var(--bg-deep); display: flex;
+  align-items: center; justify-content: center; z-index: 200; flex-direction: column;
+}
+.spinner { width: 32px; height: 32px; border: 2px solid #333; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 10px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading-overlay .load-text { font-size: 0.7rem; color: var(--text-muted); }
+
+/* ═══ Quantity Takeoff Table ═══ */
+.qty-table { width: 100%; border-collapse: collapse; font-size: 0.65rem; margin-top: 8px; }
+.qty-table th, .qty-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.qty-table th { color: var(--text-muted); font-weight: 600; }
+.qty-table td { color: var(--text); }
+.qty-table .qty-value { text-align: right; color: var(--accent); font-weight: 600; }
+
+/* ═══ IFC Export Progress ═══ */
+#ifc-progress { display: none; padding: 8px; background: var(--bg-card); border-top: 1px solid var(--border); text-align: center; font-size: 0.65rem; color: var(--text-muted); }
+
+/* ═══ Responsive ═══ */
+@media (max-width: 1024px) {
+  #sidebar { width: 220px; }
+  .sidebar-tab { font-size: 0.6rem; padding: 8px 2px; }
+  .element-item { padding: 6px 8px; }
+}
+@media (max-width: 768px) {
+  #sidebar-toggle { display: block; }
+  #sidebar { position: absolute; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%); transition: transform 0.3s ease; }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar.open ~ #main-content #sidebar-overlay { display: block; }
+  #canvas-area { flex-direction: column; }
+  #canvas-2d-wrap { border-right: none; border-bottom: 1px solid var(--border); }
+  .dialog-card { max-width: 95vw; }
+  #navbar { padding: 0 8px; }
+  #navbar .nav-title { font-size: 0.8rem; }
+}
+@media (max-width: 480px) {
+  body { font-size: 12px; }
+  #sidebar { width: 200px; }
+  #navbar .nav-back { padding: 4px 8px; font-size: 0.65rem; }
+  #navbar .nav-title { font-size: 0.75rem; }
+  #navbar .nav-actions button { padding: 4px 8px; font-size: 0.6rem; }
+  .sidebar-tab { font-size: 0.55rem; padding: 6px 1px; }
+  .element-item { font-size: 0.65rem; padding: 5px 6px; }
+  .dialog-body { padding: 12px; }
+  .dialog-field-row { grid-template-columns: 1fr; }
+  #status-bar span { font-size: 0.55rem; padding: 3px 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  * { transition: none !important; animation-duration: 0.01ms !important; }
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">跳到主内容</a>
+
+<!-- Loading -->
+<div id="loading-overlay" role="status" aria-live="polite">
+  <div class="spinner" aria-hidden="true"></div>
+  <span class="load-text">加载结构建模引擎...</span>
+</div>
+
+<!-- Top Navbar -->
+<nav id="navbar" role="banner" aria-label="顶部导航">
+  <a href="workbench.html" class="nav-back" aria-label="返回主页">‹ 返回</a>
+  <span class="nav-title">🏗️ 结构建模</span>
+  <div class="nav-actions">
+    <button onclick="exportIFC()" aria-label="导出 IFC 文件" title="导出 IFC 结构模型">📤 导出 IFC</button>
+    <button class="btn-accent" onclick="syncTo3D()" aria-label="同步到3D视图" title="同步到3D视图">🔄 同步3D</button>
+  </div>
+</nav>
+
+<!-- App -->
+<div id="app" style="display:none">
+  <aside id="sidebar" role="navigation" aria-label="结构元素面板">
+    <div class="sidebar-tabs" role="tablist" aria-label="结构元素类型">
+      <button class="sidebar-tab active" data-tab="walls" role="tab" aria-selected="true">🧱 承重墙</button>
+      <button class="sidebar-tab" data-tab="beams" role="tab" aria-selected="false">🪵 梁</button>
+      <button class="sidebar-tab" data-tab="columns" role="tab" aria-selected="false">🏛️ 柱</button>
+      <button class="sidebar-tab" data-tab="slabs" role="tab" aria-selected="false">⬜ 楼板</button>
+      <button class="sidebar-tab" data-tab="foundations" role="tab" aria-selected="false">🏗️ 基础</button>
+      <button class="sidebar-tab" data-tab="takeoff" role="tab" aria-selected="false">📊 工程量</button>
+    </div>
+    <div class="sidebar-content" id="sidebar-content" role="tabpanel" aria-label="元素列表"></div>
+    <div id="ifc-progress">⏳ IFC 导出中...</div>
+  </aside>
+
+  <main id="main-content">
+    <button id="sidebar-toggle" aria-label="切换侧边栏菜单">☰</button>
+    <div id="sidebar-overlay" aria-hidden="true"></div>
+    <div id="canvas-area">
+      <div id="canvas-2d-wrap">
+        <canvas id="c2d"></canvas>
+      </div>
+      <div id="canvas-3d-wrap">
+        <canvas id="c3d"></canvas>
+      </div>
+    </div>
+    <div id="status-bar" role="status" aria-live="polite">
+      <span id="status-left">0 个元素</span>
+      <span id="status-right">就绪</span>
+    </div>
+  </main>
+</div>
+
+<!-- Form Dialog -->
+<div class="dialog-overlay" id="form-dialog" role="dialog" aria-modal="true" aria-label="元素表单">
+  <div class="dialog-card">
+    <div class="dialog-header">
+      <span id="form-title">添加元素</span>
+      <button class="dialog-close" aria-label="关闭" onclick="closeDialog()">✕</button>
+    </div>
+    <form id="form-body" novalidate>
+      <div class="dialog-body" id="form-fields"></div>
+      <div class="dialog-body" style="padding-top:0">
+        <p class="dialog-error" id="form-error" role="alert" hidden></p>
+        <button type="submit" class="dialog-submit" id="form-submit">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div class="dialog-overlay" id="confirm-dialog" role="dialog" aria-modal="true" aria-label="确认操作">
+  <div class="dialog-card">
+    <div class="dialog-header">
+      <span>确认操作</span>
+      <button class="dialog-close" aria-label="关闭" onclick="closeConfirm()">✕</button>
+    </div>
+    <div class="dialog-body">
+      <p id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button class="btn-cancel" onclick="closeConfirm()">取消</button>
+        <button class="btn-danger" id="confirm-btn" onclick="doConfirm()">确认删除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/api-client.js?v=20260724b" defer></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ═══════════════════════════════════════════
+// DATA MODEL
+// ═══════════════════════════════════════════
+const params = new URLSearchParams(window.location.search);
+const projectId = params.get('project_id') || '';
+let currentTab = 'walls';
+let editingId = null;
+let confirmCallback = null;
+
+const elements = {
+  walls: [],
+  beams: [],
+  columns: [],
+  slabs: [],
+  foundations: [],
+};
+
+// ═══════════════════════════════════════════
+// API HELPERS
+// ═══════════════════════════════════════════
+function checkAuth() {
+  const token = ApiClient.getToken();
+  if (!token) {
+    const go = confirm('此功能需要先登录。\n\n点击「确定」跳转到登录页。');
+    if (go) window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+    return false;
+  }
+  return true;
+}
+
+async function loadElements() {
+  if (!projectId) return;
+  try {
+    const types = ['walls', 'beams', 'columns', 'slabs', 'foundations'];
+    const results = await Promise.all(
+      types.map(t => ApiClient.request(`/api/structural/projects/${projectId}/${t}`))
+    );
+    elements.walls = results[0];
+    elements.beams = results[1];
+    elements.columns = results[2];
+    elements.slabs = results[3];
+    elements.foundations = results[4];
+    renderElementList();
+    draw2D();
+    syncTo3D();
+  } catch (e) {
+    console.warn('结构数据加载失败，使用本地数据:', e.message);
+  }
+}
+
+async function saveElement(type, data) {
+  if (!projectId || !data || data.length === 0) return;
+  try {
+    await ApiClient.request(`/api/structural/${type}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: projectId,
+        ...data[0],
+      }),
+    });
+  } catch (e) {
+    console.warn(`保存${type}失败:`, e.message);
+  }
+}
+
+async function saveElements() {
+  if (!projectId) return;
+  try {
+    const saves = [];
+    for (const el of elements.walls) saves.push(saveElement('walls', [el]));
+    for (const el of elements.beams) saves.push(saveElement('beams', [el]));
+    for (const el of elements.columns) saves.push(saveElement('columns', [el]));
+    for (const el of elements.slabs) saves.push(saveElement('slabs', [el]));
+    for (const el of elements.foundations) saves.push(saveElement('foundations', [el]));
+    await Promise.all(saves);
+    document.getElementById('status-right').textContent = '已保存';
+    setTimeout(() => { document.getElementById('status-right').textContent = '就绪'; }, 2000);
+  } catch (e) {
+    console.warn('结构数据保存失败:', e.message);
+    document.getElementById('status-right').textContent = '保存失败';
+  }
+}
+
+// ═══════════════════════════════════════════
+// DIALOG MANAGEMENT
+// ═══════════════════════════════════════════
+function openDialog(formTitle, fieldsHtml, submitLabel) {
+  document.getElementById('form-title').textContent = formTitle;
+  document.getElementById('form-fields').innerHTML = fieldsHtml;
+  document.getElementById('form-submit').textContent = submitLabel || '保存';
+  document.getElementById('form-error').hidden = true;
+  document.getElementById('form-dialog').classList.add('open');
+  // Focus first input
+  setTimeout(() => {
+    const first = document.querySelector('#form-fields input, #form-fields select');
+    if (first) first.focus();
+  }, 50);
+}
+
+function closeDialog() {
+  document.getElementById('form-dialog').classList.remove('open');
+  editingId = null;
+}
+
+function openConfirm(message, onConfirm) {
+  document.getElementById('confirm-message').textContent = message;
+  document.getElementById('confirm-dialog').classList.add('open');
+  confirmCallback = onConfirm;
+}
+
+function closeConfirm() {
+  document.getElementById('confirm-dialog').classList.remove('open');
+  confirmCallback = null;
+}
+
+function doConfirm() {
+  if (confirmCallback) confirmCallback();
+  closeConfirm();
+}
+
+// ═══════════════════════════════════════════
+// ELEMENT FORM TEMPLATES
+// ═══════════════════════════════════════════
+function wallForm(el) {
+  return `
+    <div class="dialog-field"><label class="dialog-label" for="f-name">名称 *</label>
+      <input class="dialog-input" id="f-name" value="${el?.name || ''}" placeholder="如：W-01 外墙" required maxlength="100"></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-thickness">厚度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-thickness" value="${el?.thickness || 240}" min="50" max="1000" step="10"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-length">长度 (m)</label>
+        <input class="dialog-input" type="number" id="f-length" value="${el?.length || 3}" min="0.5" max="50" step="0.1"></div>
+    </div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-height">高度 (m)</label>
+        <input class="dialog-input" type="number" id="f-height" value="${el?.height || 2.8}" min="2.0" max="10" step="0.1"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-material">材料</label>
+        <select class="dialog-select" id="f-material">
+          <option value="砖砌体" ${el?.material === '砖砌体' ? 'selected' : ''}>砖砌体</option>
+          <option value="钢筋混凝土" ${el?.material === '钢筋混凝土' ? 'selected' : ''}>钢筋混凝土</option>
+          <option value="加气混凝土砌块" ${el?.material === '加气混凝土砌块' ? 'selected' : ''}>加气混凝土砌块</option>
+          <option value="轻质隔墙板" ${el?.material === '轻质隔墙板' ? 'selected' : ''}>轻质隔墙板</option>
+        </select></div>
+    </div>
+    <label class="dialog-check-label"><input type="checkbox" id="f-loadbearing" ${el?.loadbearing !== false ? 'checked' : ''}> 承重墙</label>
+  `;
+}
+
+function beamForm(el) {
+  return `
+    <div class="dialog-field"><label class="dialog-label" for="f-name">名称 *</label>
+      <input class="dialog-input" id="f-name" value="${el?.name || ''}" placeholder="如：B-01 主梁" required maxlength="100"></div>
+    <div class="dialog-field"><label class="dialog-label" for="f-type">类型</label>
+      <select class="dialog-select" id="f-type">
+        <option value="主梁" ${el?.type === '主梁' ? 'selected' : ''}>主梁</option>
+        <option value="次梁" ${el?.type === '次梁' ? 'selected' : ''}>次梁</option>
+        <option value="圈梁" ${el?.type === '圈梁' ? 'selected' : ''}>圈梁</option>
+      </select></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-width">宽度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-width" value="${el?.width || 250}" min="100" max="1000" step="10"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-height">高度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-height" value="${el?.height || 500}" min="100" max="2000" step="10"></div>
+    </div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-length">长度 (m)</label>
+        <input class="dialog-input" type="number" id="f-length" value="${el?.length || 4}" min="0.5" max="50" step="0.1"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-material">材料</label>
+        <select class="dialog-select" id="f-material">
+          <option value="钢筋混凝土" ${el?.material === '钢筋混凝土' ? 'selected' : ''}>钢筋混凝土</option>
+          <option value="钢结构" ${el?.material === '钢结构' ? 'selected' : ''}>钢结构</option>
+          <option value="预应力混凝土" ${el?.material === '预应力混凝土' ? 'selected' : ''}>预应力混凝土</option>
+        </select></div>
+    </div>
+    <div class="dialog-field"><label class="dialog-label" for="f-concrete">混凝土等级</label>
+      <select class="dialog-select" id="f-concrete">
+        <option value="C25" ${el?.concrete || 'C30' === 'C25' ? 'selected' : ''}>C25</option>
+        <option value="C30" ${!el || el?.concrete === 'C30' ? 'selected' : ''}>C30</option>
+        <option value="C35" ${el?.concrete === 'C35' ? 'selected' : ''}>C35</option>
+        <option value="C40" ${el?.concrete === 'C40' ? 'selected' : ''}>C40</option>
+        <option value="C50" ${el?.concrete === 'C50' ? 'selected' : ''}>C50</option>
+      </select></div>
+  `;
+}
+
+function columnForm(el) {
+  return `
+    <div class="dialog-field"><label class="dialog-label" for="f-name">名称 *</label>
+      <input class="dialog-input" id="f-name" value="${el?.name || ''}" placeholder="如：C-01 框架柱" required maxlength="100"></div>
+    <div class="dialog-field"><label class="dialog-label" for="f-type">截面类型</label>
+      <select class="dialog-select" id="f-type">
+        <option value="矩形" ${el?.type === '矩形' ? 'selected' : ''}>矩形</option>
+        <option value="圆形" ${el?.type === '圆形' ? 'selected' : ''}>圆形</option>
+        <option value="L形" ${el?.type === 'L形' ? 'selected' : ''}>L形</option>
+        <option value="T形" ${el?.type === 'T形' ? 'selected' : ''}>T形</option>
+      </select></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-width">宽度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-width" value="${el?.width || 400}" min="100" max="3000" step="10"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-depth">深度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-depth" value="${el?.depth || 400}" min="100" max="3000" step="10"></div>
+    </div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-height">高度 (m)</label>
+        <input class="dialog-input" type="number" id="f-height" value="${el?.height || 3}" min="2.0" max="20" step="0.1"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-material">材料</label>
+        <select class="dialog-select" id="f-material">
+          <option value="钢筋混凝土" ${el?.material === '钢筋混凝土' ? 'selected' : ''}>钢筋混凝土</option>
+          <option value="钢结构" ${el?.material === '钢结构' ? 'selected' : ''}>钢结构</option>
+          <option value="钢骨混凝土" ${el?.material === '钢骨混凝土' ? 'selected' : ''}>钢骨混凝土</option>
+        </select></div>
+    </div>
+    <div class="dialog-field"><label class="dialog-label" for="f-concrete">混凝土等级</label>
+      <select class="dialog-select" id="f-concrete">
+        <option value="C25" ${el?.concrete === 'C25' ? 'selected' : ''}>C25</option>
+        <option value="C30" ${!el || el?.concrete === 'C30' ? 'selected' : ''}>C30</option>
+        <option value="C35" ${el?.concrete === 'C35' ? 'selected' : ''}>C35</option>
+        <option value="C40" ${el?.concrete === 'C40' ? 'selected' : ''}>C40</option>
+        <option value="C50" ${el?.concrete === 'C50' ? 'selected' : ''}>C50</option>
+      </select></div>
+  `;
+}
+
+function slabForm(el) {
+  return `
+    <div class="dialog-field"><label class="dialog-label" for="f-name">名称 *</label>
+      <input class="dialog-input" id="f-name" value="${el?.name || ''}" placeholder="如：S-01 楼板" required maxlength="100"></div>
+    <div class="dialog-field"><label class="dialog-label" for="f-type">楼板类型</label>
+      <select class="dialog-select" id="f-type">
+        <option value="实心板" ${el?.type === '实心板' ? 'selected' : ''}>实心板</option>
+        <option value="空心板" ${el?.type === '空心板' ? 'selected' : ''}>空心板</option>
+        <option value="复合板" ${el?.type === '复合板' ? 'selected' : ''}>复合板</option>
+      </select></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-thickness">厚度 (mm)</label>
+        <input class="dialog-input" type="number" id="f-thickness" value="${el?.thickness || 150}" min="80" max="500" step="10"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-area">面积 (㎡)</label>
+        <input class="dialog-input" type="number" id="f-area" value="${el?.area || 20}" min="1" max="1000" step="0.1"></div>
+    </div>
+    <div class="dialog-field"><label class="dialog-label" for="f-concrete">混凝土等级</label>
+      <select class="dialog-select" id="f-concrete">
+        <option value="C25" ${el?.concrete === 'C25' ? 'selected' : ''}>C25</option>
+        <option value="C30" ${!el || el?.concrete === 'C30' ? 'selected' : ''}>C30</option>
+        <option value="C35" ${el?.concrete === 'C35' ? 'selected' : ''}>C35</option>
+        <option value="C40" ${el?.concrete === 'C40' ? 'selected' : ''}>C40</option>
+      </select></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-rebar">钢筋直径 (mm)</label>
+        <input class="dialog-input" type="number" id="f-rebar" value="${el?.rebar_dia || 12}" min="6" max="32" step="1"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-spacing">钢筋间距 (mm)</label>
+        <input class="dialog-input" type="number" id="f-spacing" value="${el?.rebar_spacing || 150}" min="50" max="500" step="10"></div>
+    </div>
+  `;
+}
+
+function foundationForm(el) {
+  return `
+    <div class="dialog-field"><label class="dialog-label" for="f-name">名称 *</label>
+      <input class="dialog-input" id="f-name" value="${el?.name || ''}" placeholder="如：F-01 条形基础" required maxlength="100"></div>
+    <div class="dialog-field"><label class="dialog-label" for="f-type">基础类型</label>
+      <select class="dialog-select" id="f-type">
+        <option value="条形基础" ${el?.type === '条形基础' ? 'selected' : ''}>条形基础</option>
+        <option value="独立基础" ${el?.type === '独立基础' ? 'selected' : ''}>独立基础</option>
+        <option value="筏板基础" ${el?.type === '筏板基础' ? 'selected' : ''}>筏板基础</option>
+        <option value="桩基础" ${el?.type === '桩基础' ? 'selected' : ''}>桩基础</option>
+      </select></div>
+    <div class="dialog-field-row">
+      <div class="dialog-field"><label class="dialog-label" for="f-bearing">承载力 (kPa)</label>
+        <input class="dialog-input" type="number" id="f-bearing" value="${el?.bearing_capacity || 200}" min="50" max="5000" step="10"></div>
+      <div class="dialog-field"><label class="dialog-label" for="f-depth">埋深 (m)</label>
+        <input class="dialog-input" type="number" id="f-depth" value="${el?.depth || 1.5}" min="0.5" max="50" step="0.1"></div>
+    </div>
+    <div class="dialog-field"><label class="dialog-label" for="f-soil">土壤类型</label>
+      <select class="dialog-select" id="f-soil">
+        <option value="黏土" ${el?.soil_type === '黏土' ? 'selected' : ''}>黏土</option>
+        <option value="砂土" ${el?.soil_type === '砂土' ? 'selected' : ''}>砂土</option>
+        <option value="粉土" ${el?.soil_type === '粉土' ? 'selected' : ''}>粉土</option>
+        <option value="岩石" ${el?.soil_type === '岩石' ? 'selected' : ''}>岩石</option>
+        <option value="填土" ${el?.soil_type === '填土' ? 'selected' : ''}>填土</option>
+      </select></div>
+  `;
+}
+
+// ═══════════════════════════════════════════
+// RENDER ELEMENT LIST
+// ═══════════════════════════════════════════
+function renderElementList() {
+  const container = document.getElementById('sidebar-content');
+  const list = elements[currentTab] || [];
+  const tabLabels = {
+    walls: { title: '承重墙', empty: '暂无承重墙' },
+    beams: { title: '梁', empty: '暂无梁' },
+    columns: { title: '柱', empty: '暂无柱' },
+    slabs: { title: '楼板', empty: '暂无楼板' },
+    foundations: { title: '基础', empty: '暂无基础' },
+    takeoff: { title: '工程量统计', empty: '暂无数据' },
+  };
+  const label = tabLabels[currentTab];
+
+  if (currentTab === 'takeoff') {
+    container.innerHTML = renderTakeoff();
+    return;
+  }
+
+  const itemsHtml = list.length === 0
+    ? `<div class="element-empty">${label.empty}</div>`
+    : list.map((el, i) => `
+      <div class="element-item" role="listitem" tabindex="0" aria-label="${el.name}">
+        <div class="el-info" onclick="editElement(${i})">
+          <div class="el-name">${escapeHtml(el.name)}</div>
+          <div class="el-meta">${formatElementMeta(el, currentTab)}</div>
+        </div>
+        <div class="el-actions">
+          <button class="el-edit" aria-label="编辑 ${escapeHtml(el.name)}" onclick="editElement(${i})">✎</button>
+          <button aria-label="删除 ${escapeHtml(el.name)}" onclick="deleteElement(${i})">✕</button>
+        </div>
+      </div>
+    `).join('');
+
+  container.innerHTML = `
+    <h3>${label.title} <button onclick="addElement()" aria-label="添加${label.title}">+ 添加</button></h3>
+    <div class="element-list" role="list" aria-label="${label.title}列表">${itemsHtml}</div>
+  `;
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function formatElementMeta(el, tab) {
+  switch (tab) {
+    case 'walls': return `${el.thickness || '-'}mm · ${el.length || '-'}m · ${el.material || '-'}`;
+    case 'beams': return `${el.type || '-'} · ${el.width || '-'}×${el.height || '-'}mm · ${el.length || '-'}m`;
+    case 'columns': return `${el.type || '-'} · ${el.width || '-'}×${el.depth || '-'}mm · ${el.height || '-'}m`;
+    case 'slabs': return `${el.type || '-'} · ${el.thickness || '-'}mm · ${el.area || '-'}㎡`;
+    case 'foundations': return `${el.type || '-'} · ${el.bearing_capacity || '-'}kPa · 埋深${el.depth || '-'}m`;
+    default: return '';
+  }
+}
+
+function renderTakeoff() {
+  const stats = calculateTakeoff();
+  return `
+    <h3>📊 工程量统计</h3>
+    <table class="qty-table">
+      <thead><tr><th>项目</th><th>数量</th><th>单位</th></tr></thead>
+      <tbody>
+        <tr><td>砖砌体</td><td class="qty-value">${stats.masonry.toFixed(2)}</td><td>m³</td></tr>
+        <tr><td>混凝土</td><td class="qty-value">${stats.concrete.toFixed(2)}</td><td>m³</td></tr>
+        <tr><td>模板</td><td class="qty-value">${stats.formwork.toFixed(2)}</td><td>㎡</td></tr>
+        <tr><td>钢筋</td><td class="qty-value">${stats.rebar.toFixed(2)}</td><td>kg</td></tr>
+        <tr><td>承重墙</td><td class="qty-value">${elements.walls.length}</td><td>个</td></tr>
+        <tr><td>梁</td><td class="qty-value">${elements.beams.length}</td><td>个</td></tr>
+        <tr><td>柱</td><td class="qty-value">${elements.columns.length}</td><td>个</td></tr>
+        <tr><td>楼板</td><td class="qty-value">${elements.slabs.length}</td><td>个</td></tr>
+        <tr><td>基础</td><td class="qty-value">${elements.foundations.length}</td><td>个</td></tr>
+      </tbody>
+    </table>
+    <p style="font-size:0.6rem;color:var(--text-muted);margin-top:8px;text-align:center">自动计算 · 仅供参考</p>
+  `;
+}
+
+function calculateTakeoff() {
+  let masonry = 0, concrete = 0, formwork = 0, rebar = 0;
+
+  elements.walls.forEach(w => {
+    const vol = (w.thickness || 240) / 1000 * (w.length || 3) * (w.height || 2.8);
+    if (w.material === '砖砌体' || w.material === '加气混凝土砌块') masonry += vol;
+    else concrete += vol;
+    formwork += (w.length || 3) * (w.height || 2.8) * 2;
+  });
+
+  elements.beams.forEach(b => {
+    const vol = (b.width || 250) / 1000 * (b.height || 500) / 1000 * (b.length || 4);
+    concrete += vol;
+    formwork += (b.length || 4) * ((b.height || 500) / 1000) * 2;
+  });
+
+  elements.columns.forEach(c => {
+    const vol = (c.width || 400) / 1000 * (c.depth || 400) / 1000 * (c.height || 3);
+    concrete += vol;
+    formwork += ((c.width || 400) / 1000 + (c.depth || 400) / 1000) * 2 * (c.height || 3);
+  });
+
+  elements.slabs.forEach(s => {
+    const vol = (s.thickness || 150) / 1000 * (s.area || 20);
+    concrete += vol;
+    formwork += (s.area || 20);
+    // 钢筋估算：面积 / 间距 × 直径² × π / 4 × 2方向 × 7850kg/m³
+    const spacing = (s.rebar_spacing || 150) / 1000;
+    const dia = (s.rebar_dia || 12) / 1000;
+    const area_m = s.area || 20;
+    const barCount = Math.ceil(Math.sqrt(area_m) / spacing) * 2;
+    const barLen = Math.sqrt(area_m) * barCount;
+    rebar += barLen * (Math.PI * dia * dia / 4) * 7850;
+  });
+
+  elements.foundations.forEach(f => {
+    formwork += 10; // 基础模板估算
+    concrete += 3;  // 基础混凝土估算
+  });
+
+  return { masonry, concrete, formwork, rebar: Math.round(rebar) };
+}
+
+// ═══════════════════════════════════════════
+// ELEMENT CRUD
+// ═══════════════════════════════════════════
+function addElement() {
+  editingId = null;
+  const forms = {
+    walls: () => openDialog('添加承重墙', wallForm(null), '添加'),
+    beams: () => openDialog('添加梁', beamForm(null), '添加'),
+    columns: () => openDialog('添加柱', columnForm(null), '添加'),
+    slabs: () => openDialog('添加楼板', slabForm(null), '添加'),
+    foundations: () => openDialog('添加基础', foundationForm(null), '添加'),
+  };
+  (forms[currentTab] || (() => {}))();
+}
+
+function editElement(index) {
+  const list = elements[currentTab];
+  if (!list || !list[index]) return;
+  editingId = index;
+  const el = list[index];
+  const forms = {
+    walls: () => openDialog('编辑承重墙', wallForm(el), '保存'),
+    beams: () => openDialog('编辑梁', beamForm(el), '保存'),
+    columns: () => openDialog('编辑柱', columnForm(el), '保存'),
+    slabs: () => openDialog('编辑楼板', slabForm(el), '保存'),
+    foundations: () => openDialog('编辑基础', foundationForm(el), '保存'),
+  };
+  (forms[currentTab] || (() => {}))();
+}
+
+function deleteElement(index) {
+  const list = elements[currentTab];
+  if (!list || !list[index]) return;
+  const el = list[index];
+  openConfirm(`确定要删除「${el.name}」吗？此操作不可撤销。`, () => {
+    list.splice(index, 1);
+    renderElementList();
+    draw2D();
+    syncTo3D();
+    saveElements();
+  });
+}
+
+// ═══════════════════════════════════════════
+// FORM SUBMIT HANDLER
+// ═══════════════════════════════════════════
+document.getElementById('form-body').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('form-error');
+  errEl.hidden = true;
+
+  const name = document.getElementById('f-name')?.value?.trim();
+  if (!name) {
+    errEl.textContent = '请输入元素名称';
+    errEl.hidden = false;
+    return;
+  }
+
+  let data = { name };
+
+  switch (currentTab) {
+    case 'walls':
+      data.thickness = parseInt(document.getElementById('f-thickness')?.value) || 240;
+      data.length = parseFloat(document.getElementById('f-length')?.value) || 3;
+      data.height = parseFloat(document.getElementById('f-height')?.value) || 2.8;
+      data.material = document.getElementById('f-material')?.value || '砖砌体';
+      data.loadbearing = document.getElementById('f-loadbearing')?.checked !== false;
+      break;
+    case 'beams':
+      data.type = document.getElementById('f-type')?.value || '主梁';
+      data.width = parseInt(document.getElementById('f-width')?.value) || 250;
+      data.height = parseInt(document.getElementById('f-height')?.value) || 500;
+      data.length = parseFloat(document.getElementById('f-length')?.value) || 4;
+      data.material = document.getElementById('f-material')?.value || '钢筋混凝土';
+      data.concrete = document.getElementById('f-concrete')?.value || 'C30';
+      break;
+    case 'columns':
+      data.type = document.getElementById('f-type')?.value || '矩形';
+      data.width = parseInt(document.getElementById('f-width')?.value) || 400;
+      data.depth = parseInt(document.getElementById('f-depth')?.value) || 400;
+      data.height = parseFloat(document.getElementById('f-height')?.value) || 3;
+      data.material = document.getElementById('f-material')?.value || '钢筋混凝土';
+      data.concrete = document.getElementById('f-concrete')?.value || 'C30';
+      break;
+    case 'slabs':
+      data.type = document.getElementById('f-type')?.value || '实心板';
+      data.thickness = parseInt(document.getElementById('f-thickness')?.value) || 150;
+      data.area = parseFloat(document.getElementById('f-area')?.value) || 20;
+      data.concrete = document.getElementById('f-concrete')?.value || 'C30';
+      data.rebar_dia = parseInt(document.getElementById('f-rebar')?.value) || 12;
+      data.rebar_spacing = parseInt(document.getElementById('f-spacing')?.value) || 150;
+      break;
+    case 'foundations':
+      data.type = document.getElementById('f-type')?.value || '条形基础';
+      data.bearing_capacity = parseInt(document.getElementById('f-bearing')?.value) || 200;
+      data.depth = parseFloat(document.getElementById('f-depth')?.value) || 1.5;
+      data.soil_type = document.getElementById('f-soil')?.value || '黏土';
+      break;
+  }
+
+  const list = elements[currentTab];
+  if (editingId !== null && list[editingId]) {
+    list[editingId] = { ...list[editingId], ...data };
+  } else {
+    list.push({ id: 'el-' + Date.now(), ...data });
+  }
+
+  closeDialog();
+  renderElementList();
+  draw2D();
+  syncTo3D();
+  saveElements();
+});
+
+// ═══════════════════════════════════════════
+// KEYBOARD SUPPORT FOR DIALOGS
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (document.getElementById('confirm-dialog').classList.contains('open')) {
+      closeConfirm();
+    } else if (document.getElementById('form-dialog').classList.contains('open')) {
+      closeDialog();
+    }
+  }
+});
+
+// Close dialogs on overlay click
+document.getElementById('form-dialog').addEventListener('click', function(e) {
+  if (e.target === this) closeDialog();
+});
+document.getElementById('confirm-dialog').addEventListener('click', function(e) {
+  if (e.target === this) closeConfirm();
+});
+
+// ═══════════════════════════════════════════
+// SIDEBAR TABS
+// ═══════════════════════════════════════════
+document.querySelectorAll('.sidebar-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.sidebar-tab').forEach(t => {
+      t.classList.remove('active');
+      t.setAttribute('aria-selected', 'false');
+    });
+    this.classList.add('active');
+    this.setAttribute('aria-selected', 'true');
+    currentTab = this.dataset.tab;
+    renderElementList();
+    if (currentTab !== 'takeoff') draw2D();
+  });
+});
+
+// ═══════════════════════════════════════════
+// 2D CANVAS
+// ═══════════════════════════════════════════
+const PX_PER_M = 30;
+const c2d = document.getElementById('c2d');
+const ctx = c2d.getContext('2d');
+let scale2d = 1, offset2d = { x: 30, y: 30 };
+let panStart = null, panOrig = null;
+
+function resize2D() {
+  const w = document.getElementById('canvas-2d-wrap').clientWidth;
+  const h = document.getElementById('canvas-2d-wrap').clientHeight;
+  c2d.width = w; c2d.height = h;
+  draw2D();
+}
+
+function draw2D() {
+  ctx.clearRect(0, 0, c2d.width, c2d.height);
+  ctx.save();
+  ctx.translate(offset2d.x * scale2d, offset2d.y * scale2d);
+
+  const gs = PX_PER_M * scale2d;
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 0.5;
+  for (let x = -20 * gs; x < c2d.width * 2; x += gs) { ctx.beginPath(); ctx.moveTo(x, -2000); ctx.lineTo(x, 10000); ctx.stroke(); }
+  for (let y = -20 * gs; y < c2d.height * 2; y += gs) { ctx.beginPath(); ctx.moveTo(-2000, y); ctx.lineTo(10000, y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+  for (let x = -20 * gs; x < c2d.width * 2; x += gs * 5) { ctx.beginPath(); ctx.moveTo(x, -2000); ctx.lineTo(x, 10000); ctx.stroke(); }
+  for (let y = -20 * gs; y < c2d.height * 2; y += gs * 5) { ctx.beginPath(); ctx.moveTo(-2000, y); ctx.lineTo(10000, y); ctx.stroke(); }
+
+  // Draw walls
+  elements.walls.forEach((w, i) => {
+    const x = (i % 4) * 6 * PX_PER_M, y = Math.floor(i / 4) * 6 * PX_PER_M;
+    const l = (w.length || 3) * PX_PER_M, thk = ((w.thickness || 240) / 1000) * PX_PER_M;
+    ctx.fillStyle = w.loadbearing !== false ? 'rgba(201,151,59,0.3)' : 'rgba(150,150,180,0.3)';
+    ctx.strokeStyle = w.loadbearing !== false ? '#c9973b' : '#888';
+    ctx.lineWidth = 1.5 * scale2d;
+    ctx.fillRect(x, y, l, thk);
+    ctx.strokeRect(x, y, l, thk);
+    ctx.fillStyle = '#ccc'; ctx.font = `${9 * scale2d}px sans-serif`; ctx.textAlign = 'left';
+    ctx.fillText(w.name, x + 4 * scale2d, y + thk / 2 + 3 * scale2d);
+  });
+
+  // Draw columns
+  elements.columns.forEach((c, i) => {
+    const x = 3 + (i % 5) * 6, y = 3 + Math.floor(i / 5) * 6;
+    const cx = x * PX_PER_M, cy = y * PX_PER_M;
+    const ww = ((c.width || 400) / 1000) * PX_PER_M, dd = ((c.depth || 400) / 1000) * PX_PER_M;
+    ctx.fillStyle = 'rgba(90,126,201,0.4)';
+    ctx.strokeStyle = '#5a7ec9'; ctx.lineWidth = 1.5 * scale2d;
+    if (c.type === '圆形') {
+      ctx.beginPath(); ctx.arc(cx + ww / 2, cy + dd / 2, ww / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillRect(cx, cy, ww, dd);
+      ctx.strokeRect(cx, cy, ww, dd);
+    }
+    ctx.fillStyle = '#ccc'; ctx.font = `${9 * scale2d}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText(c.name, cx + ww / 2, cy + dd + 12 * scale2d);
+  });
+
+  // Draw beams (lines between columns)
+  elements.beams.forEach((b, i) => {
+    const x1 = 3 * PX_PER_M, y1 = (3 + i * 1.5) * PX_PER_M;
+    const x2 = (3 + (b.length || 4)) * PX_PER_M, y2 = y1;
+    ctx.strokeStyle = 'rgba(74,158,110,0.7)'; ctx.lineWidth = 3 * scale2d;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.fillStyle = '#4a9e6e'; ctx.font = `${9 * scale2d}px sans-serif`;
+    ctx.fillText(b.name, (x1 + x2) / 2, y1 - 6 * scale2d);
+  });
+
+  // Draw slabs (transparent rectangles)
+  elements.slabs.forEach((s, i) => {
+    const x = (i % 3) * 8 * PX_PER_M, y = 8 + Math.floor(i / 3) * 6 * PX_PER_M;
+    const side = Math.sqrt(s.area || 20) * PX_PER_M;
+    ctx.fillStyle = 'rgba(201,122,59,0.2)';
+    ctx.strokeStyle = '#c97a3b'; ctx.lineWidth = 1 * scale2d;
+    ctx.setLineDash([4 * scale2d, 2 * scale2d]);
+    ctx.fillRect(x, y, side, side);
+    ctx.strokeRect(x, y, side, side);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#c97a3b'; ctx.font = `${9 * scale2d}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText(s.name, x + side / 2, y + side / 2);
+  });
+
+  ctx.restore();
+
+  const totalCount = elements.walls.length + elements.beams.length + elements.columns.length + elements.slabs.length + elements.foundations.length;
+  document.getElementById('status-left').textContent = `${totalCount} 个结构元素`;
+}
+
+// 2D zoom/pan
+c2d.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  scale2d = Math.max(0.15, Math.min(4, scale2d + e.deltaY * -0.001));
+  draw2D();
+});
+c2d.addEventListener('mousedown', function(e) {
+  if (e.button === 2) {
+    panStart = { x: e.clientX, y: e.clientY };
+    panOrig = { x: offset2d.x, y: offset2d.y };
+  }
+});
+window.addEventListener('mousemove', function(e) {
+  if (panStart) {
+    offset2d.x = panOrig.x + (e.clientX - panStart.x) / scale2d;
+    offset2d.y = panOrig.y + (e.clientY - panStart.y) / scale2d;
+    draw2D();
+  }
+});
+window.addEventListener('mouseup', function() { panStart = null; });
+c2d.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
+// ═══════════════════════════════════════════
+// 3D THREE.JS VIEWER
+// ═══════════════════════════════════════════
+let scene, camera, renderer3d, controls3d;
+
+function init3D() {
+  const wrap = document.getElementById('canvas-3d-wrap');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+
+  camera = new THREE.PerspectiveCamera(55, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+  camera.position.set(15, 10, 15);
+  camera.lookAt(8, 1.5, 8);
+
+  const canvas = document.getElementById('c3d');
+  renderer3d = new THREE.WebGLRenderer({ antialias: true, canvas });
+  renderer3d.setSize(wrap.clientWidth, wrap.clientHeight);
+  renderer3d.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer3d.shadowMap.enabled = true;
+
+  controls3d = new OrbitControls(camera, renderer3d.domElement);
+  controls3d.enableDamping = true;
+  controls3d.dampingFactor = 0.1;
+  controls3d.target.set(8, 1.5, 8);
+  controls3d.update();
+
+  // Lights
+  const amb = new THREE.AmbientLight(0x404060, 0.6);
+  scene.add(amb);
+  const sun = new THREE.DirectionalLight(0xffeedd, 1.2);
+  sun.position.set(15, 20, 5);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(512, 512);
+  scene.add(sun);
+  const hem = new THREE.HemisphereLight(0x87ceeb, 0x444422, 0.4);
+  scene.add(hem);
+
+  // Ground plane
+  const groundGeo = new THREE.PlaneGeometry(30, 30);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(10, -0.01, 10);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  window.addEventListener('resize', function() {
+    resize2D();
+    const ww = wrap.clientWidth, wh = wrap.clientHeight;
+    camera.aspect = ww / wh;
+    camera.updateProjectionMatrix();
+    renderer3d.setSize(ww, wh);
+  });
+
+  animate3D();
+}
+
+function animate3D() {
+  requestAnimationFrame(animate3D);
+  controls3d.update();
+  renderer3d.render(scene, camera);
+}
+
+let meshGroup = null;
+
+function syncTo3D() {
+  if (!scene) return;
+  if (meshGroup) scene.remove(meshGroup);
+  meshGroup = new THREE.Group();
+
+  // Walls
+  elements.walls.forEach((w, i) => {
+    const x = (i % 4) * 6, z = Math.floor(i / 4) * 6;
+    const l = w.length || 3, h = w.height || 2.8, thk = (w.thickness || 240) / 1000;
+    const geo = new THREE.BoxGeometry(l, h, thk);
+    const color = w.loadbearing !== false ? 0xc9973b : 0x888888;
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.7, transparent: true, opacity: 0.8 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + l / 2, h / 2, z + thk / 2);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    meshGroup.add(mesh);
+  });
+
+  // Columns
+  elements.columns.forEach((c, i) => {
+    const x = 3 + (i % 5) * 6, z = 3 + Math.floor(i / 5) * 6;
+    const ww = (c.width || 400) / 1000, dd = (c.depth || 400) / 1000, h = c.height || 3;
+    let geo;
+    if (c.type === '圆形') {
+      geo = new THREE.CylinderGeometry(ww / 2, ww / 2, h, 16);
+    } else {
+      geo = new THREE.BoxGeometry(ww, h, dd);
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5a7ec9, roughness: 0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + ww / 2, h / 2, z + dd / 2);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    meshGroup.add(mesh);
+  });
+
+  // Beams
+  elements.beams.forEach((b, i) => {
+    const l = b.length || 4, bw = (b.width || 250) / 1000, bh = (b.height || 500) / 1000;
+    const x = 3, z = 3 + i * 1.5;
+    const geo = new THREE.BoxGeometry(l, bh, bw);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x4a9e6e, roughness: 0.5 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + l / 2, 3, z);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    meshGroup.add(mesh);
+  });
+
+  // Slabs
+  elements.slabs.forEach((s, i) => {
+    const x = (i % 3) * 8, z = 8 + Math.floor(i / 3) * 6;
+    const side = Math.sqrt(s.area || 20), thk = (s.thickness || 150) / 1000;
+    const geo = new THREE.BoxGeometry(side, thk, side);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xc97a3b, roughness: 0.6, transparent: true, opacity: 0.7 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x + side / 2, 3.2, z + side / 2);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    meshGroup.add(mesh);
+  });
+
+  scene.add(meshGroup);
+  document.getElementById('status-right').textContent = '3D 已同步';
+  setTimeout(() => { document.getElementById('status-right').textContent = '就绪'; }, 2000);
+}
+
+// ═══════════════════════════════════════════
+// IFC EXPORT
+// ═══════════════════════════════════════════
+async function exportIFC() {
+  if (!projectId) {
+    alert('请先通过 URL 参数指定 project_id，如 ?project_id=xxx');
+    return;
+  }
+  if (!checkAuth()) return;
+
+  const progress = document.getElementById('ifc-progress');
+  progress.style.display = 'block';
+  progress.textContent = '⏳ IFC 导出中...';
+
+  try {
+    const blob = await ApiClient.exportStructuralIFC(projectId);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `structural-${projectId.slice(0, 8)}.ifc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    progress.textContent = '✅ IFC 导出完成';
+  } catch (e) {
+    progress.textContent = '❌ IFC 导出失败: ' + e.message;
+    console.error('IFC export error:', e);
+  }
+  setTimeout(() => { progress.style.display = 'none'; }, 3000);
+}
+
+// ═══════════════════════════════════════════
+// MOBILE SIDEBAR TOGGLE
+// ═══════════════════════════════════════════
+document.getElementById('sidebar-toggle').addEventListener('click', function() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebar-overlay');
+  sb.classList.toggle('open');
+  if (ov) ov.style.display = sb.classList.contains('open') ? 'block' : 'none';
+  setTimeout(resize2D, 300);
+});
+document.getElementById('sidebar-overlay').addEventListener('click', function() {
+  document.getElementById('sidebar').classList.remove('open');
+  this.style.display = 'none';
+  setTimeout(resize2D, 300);
+});
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+(function init() {
+  // Check auth silently
+  const token = ApiClient.getToken();
+  if (token) {
+    console.log('🔑 PASETO token 已就绪');
+  }
+
+  // Add demo data if empty
+  if (elements.walls.length === 0) {
+    elements.walls.push(
+      { id: 'w1', name: 'W-01 承重外墙', thickness: 240, length: 5, height: 2.8, material: '钢筋混凝土', loadbearing: true },
+      { id: 'w2', name: 'W-02 承重内墙', thickness: 240, length: 4, height: 2.8, material: '砖砌体', loadbearing: true },
+      { id: 'w3', name: 'W-03 隔墙', thickness: 120, length: 3, height: 2.8, material: '加气混凝土砌块', loadbearing: false },
+    );
+    elements.columns.push(
+      { id: 'c1', name: 'C-01 框架柱', type: '矩形', width: 400, depth: 400, height: 3, material: '钢筋混凝土', concrete: 'C30' },
+      { id: 'c2', name: 'C-02 角柱', type: '矩形', width: 500, depth: 500, height: 3, material: '钢筋混凝土', concrete: 'C35' },
+    );
+    elements.beams.push(
+      { id: 'b1', name: 'B-01 主梁', type: '主梁', width: 250, height: 500, length: 5, material: '钢筋混凝土', concrete: 'C30' },
+      { id: 'b2', name: 'B-02 次梁', type: '次梁', width: 200, height: 400, length: 4, material: '钢筋混凝土', concrete: 'C25' },
+    );
+    elements.slabs.push(
+      { id: 's1', name: 'S-01 一层楼板', type: '实心板', thickness: 150, area: 25, concrete: 'C30', rebar_dia: 12, rebar_spacing: 150 },
+    );
+    elements.foundations.push(
+      { id: 'f1', name: 'F-01 条形基础', type: '条形基础', bearing_capacity: 200, depth: 1.5, soil_type: '黏土' },
+    );
+  }
+
+  // Init 3D after Three.js loads
+  function startApp() {
+    if (typeof THREE === 'undefined') {
+      setTimeout(startApp, 100);
+      return;
+    }
+    init3D();
+    syncTo3D();
+    resize2D();
+    renderElementList();
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+
+    // Load from API
+    if (projectId && token) {
+      loadElements();
+    }
+  }
+  startApp();
+})();
+
+// ── 暴露 inline onclick 处理器到全局（模块作用域隔离，需显式挂 window）──
+// 结构页 HTML 含静态与模板生成的 onclick="fn()"，模块化后这些函数不再自动全局，须显式暴露。
+window.exportIFC = exportIFC;
+window.syncTo3D = syncTo3D;
+window.closeDialog = closeDialog;
+window.closeConfirm = closeConfirm;
+window.doConfirm = doConfirm;
+window.editElement = editElement;
+window.deleteElement = deleteElement;
+window.addElement = addElement;
+
+// Global error handling
+window.addEventListener('error', function(e) {
+  if (e.target === window) {
+    console.error('[Structure] 全局错误:', e.error?.message || e.message);
+  }
+});
+window.addEventListener('unhandledrejection', function(e) {
+  console.error('[Structure] 未处理的 Promise 拒绝:', e.reason);
+});
+</script>
+</body>
+</html>

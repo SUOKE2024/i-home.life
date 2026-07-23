@@ -136,7 +136,9 @@ async def process_voice_enhanced(
             logger.warning(f"route_voice_to_agent_failed: intent={intent}, error={e}")
             # 降级：硬编码工具调用 + 模板回复
             if settings.agent_function_call_enabled:
-                tool_calls = await _auto_tool_call(intent, text)
+                tool_calls = await _auto_tool_call(
+                    intent, text, db=db, project_id=data.project_id or "",
+                )
                 if tool_calls:
                     reply = _format_tool_results(intent, tool_calls)
             if not reply:
@@ -365,8 +367,15 @@ async def _route_voice_to_agent(  # noqa: C901
 
 # ── 原有辅助函数（保留用于降级和特殊情况） ──
 
-async def _auto_tool_call(intent: str, text: str) -> list[dict]:
-    """根据意图自动选择并执行工具调用"""
+async def _auto_tool_call(
+    intent: str, text: str, db=None, project_id: str = "",
+) -> list[dict]:
+    """根据意图自动选择并执行工具调用
+
+    v1.1.31 FP-1: 接受可选 db / project_id，透传给 tool_registry.execute
+    以便工具 handler 查真实 DB（受 settings.tool_real_data_enabled 控制）。
+    db 为 None 时工具回退到样例数据（降级路径可接受）。
+    """
     results = []
 
     # 解析文本中的关键参数
@@ -379,24 +388,27 @@ async def _auto_tool_call(intent: str, text: str) -> list[dict]:
     }
     style = next((v for k, v in style_map.items() if k in text), "")
 
+    # v1.1.31 FP-1: 隐式上下文参数（仅 _db 非 None 时注入）
+    _inject = {"_db": db, "_project_id": project_id} if db is not None else {}
+
     try:
         if intent == "budget" and area > 0:
-            result = await tool_registry.execute("get_budget", {"area": area, "style": style})
+            result = await tool_registry.execute("get_budget", {"area": area, "style": style}, **_inject)
             results.append({"tool": "get_budget", "result": result})
         elif intent == "design" and area > 0:
-            result = await tool_registry.execute("get_design_layout", {"area": area, "style": style or "modern"})
+            result = await tool_registry.execute("get_design_layout", {"area": area, "style": style or "modern"}, **_inject)
             results.append({"tool": "get_design_layout", "result": result})
         elif intent == "procurement":
             for kw in ["瓷砖", "地板", "涂料"]:
                 if kw in text:
-                    result = await tool_registry.execute("search_materials", {"keyword": kw})
+                    result = await tool_registry.execute("search_materials", {"keyword": kw}, **_inject)
                     results.append({"tool": "search_materials", "result": result})
                     break
         elif intent == "construction":
-            result = await tool_registry.execute("get_construction_progress", {})
+            result = await tool_registry.execute("get_construction_progress", {}, **_inject)
             results.append({"tool": "get_construction_progress", "result": result})
         elif intent == "qa_inspector":
-            result = await tool_registry.execute("run_qa_inspection", {"phase": "all"})
+            result = await tool_registry.execute("run_qa_inspection", {"phase": "all"}, **_inject)
             results.append({"tool": "run_qa_inspection", "result": result})
     except Exception as e:
         logger.warning(f"auto_tool_call_error: intent={intent}, error={e}")
@@ -543,7 +555,13 @@ async def _qwen_events_to_client(  # noqa: C901
                     args = {}
 
                 try:
-                    result = await tool_registry.execute(func_name, args)
+                    # v1.1.31 FP-1: 注入隐式 _db / _project_id，让工具查真实 DB
+                    # 按需创建 async session（工具 handler 内部 try/except 回退样例）
+                    async with async_session() as _tool_db:
+                        result = await tool_registry.execute(
+                            func_name, args,
+                            _db=_tool_db, _project_id=session.project_id or "",
+                        )
                     await websocket.send_json({
                         "type": "tool_call",
                         "name": func_name,

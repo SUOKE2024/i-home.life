@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Float
+from sqlalchemy import String, DateTime, ForeignKey, func, Float, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,7 @@ class MaterialCategory(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     materials = relationship("Material", back_populates="category")
@@ -33,11 +34,16 @@ class Material(Base):
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     category = relationship("MaterialCategory", back_populates="materials")
     bom_items = relationship("BOMItem", back_populates="material")
+
+    __table_args__ = (
+        CheckConstraint("unit_price >= 0", name="chk_material_unit_price_positive"),
+    )
 
 
 class BOMItem(Base):
@@ -52,8 +58,16 @@ class BOMItem(Base):
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     project = relationship("Project", back_populates="bom_items")
     material = relationship("Material", back_populates="bom_items")
+
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="chk_bom_item_quantity_positive"),
+        CheckConstraint("unit_price >= 0", name="chk_bom_item_unit_price_positive"),
+        CheckConstraint("total_price >= 0", name="chk_bom_item_total_price_positive"),
+        CheckConstraint("status IN ('pending', 'ordered', 'delivered', 'installed', 'auto_generated')", name="chk_bom_item_status"),
+    )

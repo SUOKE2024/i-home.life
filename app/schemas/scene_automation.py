@@ -135,3 +135,6 @@ class SceneSyncResult(BaseModel):
     ecosystem: str
     synced: bool = Field(description="是否同步成功")
     message: str = Field(default="", description="同步消息")
+    # v1.2.2：暴露失败原因（not_implemented/invalid_credentials/bridge_error），
+    # 便于前端按原因差异化提示，亦方便排障。成功时为 None。
+    reason: str | None = Field(default=None, description="失败原因（成功时为 None）")

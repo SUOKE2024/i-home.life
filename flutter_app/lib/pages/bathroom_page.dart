@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
+import '../widgets/floor_plan_canvas.dart';
 
 class BathroomPage extends StatefulWidget {
   final String projectId;
@@ -24,7 +25,7 @@ class _BathroomPageState extends State<BathroomPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
     _loadDesigns();
   }
@@ -440,6 +441,7 @@ class _BathroomPageState extends State<BathroomPage>
           tabs: const [
             Tab(text: '卫浴方案'),
             Tab(text: '卫浴设施'),
+            Tab(text: '平面图'),
           ],
         ),
       ),
@@ -448,6 +450,7 @@ class _BathroomPageState extends State<BathroomPage>
         children: [
           _buildDesignsTab(),
           _buildFixturesTab(),
+          _buildFloorPlanTab(),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -644,6 +647,122 @@ class _BathroomPageState extends State<BathroomPage>
           ),
         );
       },
+    );
+  }
+
+  // ── Tab3: 平面图 ──
+
+  Widget _buildFloorPlanTab() {
+    if (_selectedDesign == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.map_outlined, size: 64,
+                color: SuokeDesignTokens.textSecondary),
+            const SizedBox(height: 16),
+            const Text('请先在「卫浴方案」中选择一个方案',
+                style: TextStyle(
+                    color: SuokeDesignTokens.textSecondary, fontSize: 16)),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: SuokeDesignTokens.accent,
+                foregroundColor: SuokeDesignTokens.bgDeep,
+              ),
+              onPressed: () => _tabController.animateTo(0),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('去选择方案'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final roomWidthM = (_selectedDesign!['room_width'] as num?)?.toDouble() ?? 2.0;
+    final roomLengthM = (_selectedDesign!['room_length'] as num?)?.toDouble() ?? 3.0;
+    final roomWidthMm = roomWidthM * 1000;
+    final roomLengthMm = roomLengthM * 1000;
+
+    final components = _fixtures.map((f) {
+      final fMap = f as Map<String, dynamic>;
+      final id = (fMap['id'] ?? '').toString();
+      final type = (fMap['fixture_type'] ?? '').toString();
+      final px = (fMap['position_x'] as num?)?.toDouble() ?? 0;
+      final py = (fMap['position_y'] as num?)?.toDouble() ?? 0;
+      final w = (fMap['width'] as num?)?.toDouble() ?? 600;
+      final d = (fMap['depth'] as num?)?.toDouble() ?? 500;
+      return FloorPlanComponent(
+        id: id,
+        label: type,
+        type: type,
+        x: px,
+        y: py,
+        width: w,
+        height: d,
+      );
+    }).toList();
+
+    return FloorPlanCanvas(
+      roomWidth: roomWidthMm,
+      roomHeight: roomLengthMm,
+      roomLabel: _selectedDesign!['room_name']?.toString() ?? '卫生间',
+      components: components,
+      onComponentTap: (componentId) {
+        final fixture = _fixtures.firstWhere(
+          (f) => (f['id'] ?? '').toString() == componentId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (fixture.isNotEmpty) {
+          _showFixtureDetailSheet(fixture as Map<String, dynamic>);
+        }
+      },
+    );
+  }
+
+  void _showFixtureDetailSheet(Map<String, dynamic> fixture) {
+    final type = fixture['fixture_type']?.toString() ?? '未指定';
+    final brand = fixture['brand']?.toString() ?? '-';
+    final model = fixture['model']?.toString() ?? '-';
+    final material = fixture['material']?.toString() ?? '-';
+    final price = (fixture['price'] as num?)?.toDouble() ?? 0;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SuokeDesignTokens.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: SuokeDesignTokens.textSecondary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(type,
+                style: const TextStyle(
+                    color: SuokeDesignTokens.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            _infoRow('品牌', brand),
+            _infoRow('型号', model),
+            _infoRow('材质', material),
+            _infoRow('价格', '¥${price.toStringAsFixed(0)}'),
+          ],
+        ),
+      ),
     );
   }
 

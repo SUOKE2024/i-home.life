@@ -1,0 +1,14 @@
+/* ============================================
+   此文件已弃用，所有样式已合并到 workbench.css
+
+   - Design Tokens → workbench.css :root
+   - .skip-link     → workbench.css（底部无障碍区域）
+   - .sr-only       → workbench.css（底部无障碍区域）
+
+   原引用本文件的页面已切换至 workbench.css：
+   - assets/guide/user-guide.html
+   - assets/legal/privacy-policy.html
+   - assets/legal/terms-of-service.html
+
+   版本：20260719e
+   ============================================ */

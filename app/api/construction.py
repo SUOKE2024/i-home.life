@@ -988,6 +988,41 @@ async def list_quality_assessments(
     return [_assessment_to_response(a) for a in assessments]
 
 
+@router.get(
+    "/quality-assessments/{project_id}/acceptance-report",
+    summary="生成验收报告（标准清单 + 实际问题比对）",
+    description="v1.1.31 FP-5：比对 app.standards.acceptance_checklists 标准验收清单与项目实际 "
+    "QualityIssue，自动生成各检查项状态（pass/fail/pending）、合格率与验收结论。"
+    "可选 phase 参数限定单阶段（mep/waterproof/masonry/carpentry/painting/installation/completion）。",
+    responses={
+        200: {"description": "生成成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
+async def generate_acceptance_report(
+    project_id: str,
+    phase: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """生成验收报告：标准验收清单 vs 实际质量问题
+
+    受 settings.acceptance_checklist_enabled 控制（默认 True）：
+    - True：完整比对标准清单 + 实际 issue
+    - False：仅汇总实际 issue（回退）
+    """
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    return await quality_service.generate_acceptance_report(db, project_id, phase=phase)
+
+
 @router.post(
     "/logs/analyze-defects",
     summary="AI 施工日志缺陷分析",
@@ -1335,3 +1370,195 @@ async def get_construction_dashboard(
     dashboard = await pm_svc.get_dashboard(project_id, db, project_name=project.name)
     dashboard["active_risks"] = [_risk_to_response(r) for r in dashboard["active_risks"]]
     return dashboard
+
+
+# ── WBS 生成与任务依赖管理 ──
+
+
+class AddDependencyRequest(BaseModel):
+    parent_task_id: str
+    child_task_id: str
+
+
+@router.post(
+    "/generate-wbs/{project_id}",
+    summary="生成 WBS 任务分解",
+    description="为项目自动生成标准 WBS（Work Breakdown Structure），"
+    "创建 8 个阶段任务并建立依赖关系：拆除→水电改造→防水→瓦工→木工→油漆→安装→竣工验收。",
+    response_description="WBS 任务分解结果",
+    responses={
+        200: {"description": "生成成功"},
+        400: {"description": "项目不存在或 WBS 已存在"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
+async def generate_wbs(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """为项目自动生成标准 WBS 任务分解"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    try:
+        result = await construction_service.generate_wbs(db, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await ws_manager.broadcast_to_project(project_id, "wbs.generated", result)
+    return result
+
+
+@router.post(
+    "/add-dependency",
+    summary="添加任务依赖",
+    description="为一个施工任务添加前置依赖任务，子任务不可在前置任务完成前开始。",
+    response_description="添加成功，返回子任务信息",
+    responses={
+        200: {"description": "添加成功"},
+        400: {"description": "无效的依赖关系（如循环依赖）"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "任务不存在"},
+    },
+    tags=["施工管理"],
+)
+async def add_dependency(
+    data: AddDependencyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """添加任务前置依赖"""
+    # 校验子任务归属
+    child_task = await db.get(ConstructionTask, data.child_task_id)
+    if not child_task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="子任务不存在")
+    await verify_project_access(project_id=child_task.project_id, current_user=current_user, db=db)
+
+    try:
+        result = await construction_service.add_task_dependency(
+            db, data.parent_task_id, data.child_task_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    resp = TaskResponse.model_validate(result)
+    await ws_manager.broadcast_to_project(
+        child_task.project_id, "task.dependency_added", resp.model_dump()
+    )
+    return resp
+
+
+@router.get(
+    "/task-chain/{task_id}",
+    summary="获取任务依赖链",
+    description="获取指定任务的完整依赖链，包含所有前置任务和后续任务。",
+    response_description="任务依赖链信息",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "任务不存在"},
+    },
+    tags=["施工管理"],
+)
+async def get_task_chain(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取任务的完整依赖链"""
+    task = await db.get(ConstructionTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
+
+    try:
+        return await construction_service.get_task_chain(db, task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.get(
+    "/critical-path/{project_id}",
+    summary="计算关键路径",
+    description="基于任务依赖关系和预估工期，计算项目的关键路径（瓶颈路径），"
+    "返回关键路径任务列表和总工期。",
+    response_description="关键路径计算结果",
+    responses={
+        200: {"description": "计算成功"},
+        400: {"description": "项目无施工任务"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+    tags=["施工管理"],
+)
+async def calculate_critical_path(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """计算项目关键路径"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    try:
+        return await construction_service.calculate_critical_path(db, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get(
+    "/ai-predict-duration/{project_id}",
+    summary="AI 工期预测",
+    description="基于历史同类型项目数据，使用 PERT 三点估算法预测项目工期，"
+    "给出乐观/悲观/最可能三种估计和置信区间。",
+    response_description="工期预测结果",
+    responses={
+        200: {"description": "预测成功"},
+        400: {"description": "项目无 WBS 任务"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+    tags=["施工管理"],
+)
+async def ai_predict_duration(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """AI 辅助工期预测（PERT 三点估算法）"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    result = await construction_service.ai_predict_duration(db, project_id)
+    if "error" in result:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    return result
+
+
+@router.get(
+    "/estimate-duration/{task_id}",
+    summary="估算任务工期",
+    description="根据任务类型和项目面积估算施工工期，返回预估最小/最大天数。",
+    response_description="工期估算结果",
+    responses={
+        200: {"description": "估算成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "任务不存在"},
+    },
+    tags=["施工管理"],
+)
+async def estimate_duration(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """估算施工任务工期"""
+    task = await db.get(ConstructionTask, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
+
+    try:
+        return await construction_service.estimate_duration(db, task_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

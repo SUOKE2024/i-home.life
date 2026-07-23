@@ -231,7 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           leading: const Icon(Icons.info_outline, color: _textSecondary),
           title: const Text('版本', style: TextStyle(color: _textPrimary)),
-          trailing: const Text('1.1.17', style: TextStyle(color: _textSecondary)),
+          trailing: const Text('1.2.0', style: TextStyle(color: _textSecondary)),
         ),
         const Divider(color: _textSecondary, height: 1),
         ListTile(

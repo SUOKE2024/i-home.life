@@ -858,10 +858,19 @@ async def test_scene_sync_to_ecosystem(client: AsyncClient):
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    assert data["synced"] is True
-    assert "米家" in data["message"]
+    # v1.2.2 诚实标注：未配置凭据时米家桥接 connect() 抛 ValueError（缺 username/password），
+    # 服务返回 synced=False + reason=invalid_credentials + 诚实失败文案（不再显示"已同步"）。
+    # 原测试断言 synced=True 是 stub 实现前的期望，现校验诚实降级行为。
+    assert data["synced"] is False
+    assert "米家" in data["message"], f"message 应含生态显示名: {data['message']}"
+    assert "同步未完成" in data["message"], f"message 应诚实标注失败: {data['message']}"
+    assert data["reason"] is not None
+    assert data["reason"].startswith("invalid_credentials"), (
+        f"reason 应为 invalid_credentials: {data['reason']}"
+    )
 
-    # 验证生态对接记录已创建
+    # 验证生态对接记录已创建（sync 失败但记录仍存），auth_status 保持 disconnected
+    # （未真正连接，不应误报 connected）
     ecos = await client.get(
         f"/api/scene-automation/ecosystems/project/{project_id}",
         headers={"Authorization": f"Bearer {token}"},
@@ -869,7 +878,7 @@ async def test_scene_sync_to_ecosystem(client: AsyncClient):
     assert ecos.status_code == 200
     assert len(ecos.json()) == 1
     assert ecos.json()[0]["ecosystem"] == "mijia"
-    assert ecos.json()[0]["auth_status"] == "connected"
+    assert ecos.json()[0]["auth_status"] == "disconnected"
 
 
 @pytest.mark.asyncio

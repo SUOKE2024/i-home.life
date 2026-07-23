@@ -322,3 +322,243 @@ def check_mep_compliance(points: list[dict]) -> dict:
             if issues else f"合规检查：{len(points)} 个点位全部符合规范"
         ),
     }
+
+
+# ── 合规验证 ──
+
+
+def check_equipotential_bonding(
+    room_type: str,
+    has_water_heater: bool,
+    has_metal_pipes: bool,
+) -> dict:
+    """等电位联结合规检查 — 依据 GB 50096-2011 §6.5
+
+    卫生间必须设置局部等电位联结 (LEB)，将 PE 线、金属管道、金属构件等
+    进行等电位联结，防止触电事故。
+
+    Args:
+        room_type: 房间类型 (bathroom 等)
+        has_water_heater: 是否有电热水器
+        has_metal_pipes: 是否有金属管道
+
+    Returns:
+        {required, compliant, regulation_ref, suggestions}
+    """
+    suggestions: list[str] = []
+    # 卫生间强制需要 LEB
+    required = room_type in ("bathroom", "卫生间")
+
+    if not required:
+        return {
+            "required": False,
+            "compliant": True,
+            "regulation_ref": "GB 50096-2011 §6.5",
+            "suggestions": [f"{room_type} 无强制等电位联结要求"],
+        }
+
+    # 卫生间需要 LEB
+    compliant = True  # 默认假定已设置，由现场确认
+
+    suggestions.append(
+        "卫生间必须设置局部等电位联结 (LEB)，将下列金属部件可靠连接:"
+    )
+    suggestions.append("  - PE 保护接地线")
+    suggestions.append("  - 金属给排水管道")
+    suggestions.append("  - 金属浴盆、金属洗脸盆")
+    suggestions.append("  - 金属采暖管道")
+    suggestions.append("  - 建筑物钢筋（如果有）")
+
+    if has_water_heater:
+        suggestions.append("  - 电热水器外壳及 PE 端子必须接入 LEB")
+        suggestions.append("  ⚠ 电热水器未接入等电位联结存在严重触电风险")
+
+    if has_metal_pipes:
+        suggestions.append("  - 金属管道必须全部接入 LEB，不得遗漏")
+    else:
+        suggestions.append("  - 如使用 PPR/PVC 等非金属管道，管道本身无需联结")
+
+    suggestions.append("等电位联结线应采用 ≥ 4mm² 铜芯线 (GB 50096-2011 §6.5.3)")
+
+    return {
+        "required": True,
+        "compliant": compliant,
+        "regulation_ref": "GB 50096-2011 §6.5",
+        "suggestions": suggestions,
+    }
+
+
+def check_load_balance(circuits: list[dict]) -> dict:
+    """配电负荷平衡检查
+
+    检查规则:
+      - 每回路负荷不超过断路器额定值的 80%
+      - 总负荷不超过总开关额定值
+      - 三相配电各相负荷尽量均衡
+
+    Args:
+        circuits: 回路列表，每个回路为 dict:
+            {name, load_w, breaker_rating_a, phase (可选: L1/L2/L3), voltage (默认 220)}
+
+    Returns:
+        {balanced, overloaded_circuits, total_load_kw, suggestions}
+    """
+    suggestions: list[str] = []
+    overloaded: list[dict] = []
+    total_load_w = 0.0
+
+    # 分相统计
+    phase_loads: dict[str, float] = {"L1": 0.0, "L2": 0.0, "L3": 0.0}
+    has_three_phase = False
+
+    for circuit in circuits:
+        name = circuit.get("name", "未命名回路")
+        load_w = float(circuit.get("load_w", 0))
+        breaker_rating_a = float(circuit.get("breaker_rating_a", 16))
+        voltage = float(circuit.get("voltage", 220))
+        phase = circuit.get("phase")
+
+        # 断路器容量 = 额定电流 × 电压
+        breaker_capacity_w = breaker_rating_a * voltage
+        # 80% 安全余量
+        safe_limit_w = breaker_capacity_w * 0.8
+
+        if load_w > safe_limit_w:
+            overload_pct = round(load_w / breaker_capacity_w * 100, 1)
+            overloaded.append({
+                "name": name,
+                "load_w": load_w,
+                "breaker_rating_a": breaker_rating_a,
+                "safe_limit_w": safe_limit_w,
+                "usage_pct": overload_pct,
+            })
+            suggestions.append(
+                f"{name}: 负荷 {load_w}W 超过断路器 {breaker_rating_a}A 的 80% "
+                f"安全余量 ({safe_limit_w}W)，当前使用率 {overload_pct}%"
+            )
+
+        total_load_w += load_w
+
+        # 分相统计
+        if phase and phase in phase_loads:
+            phase_loads[phase] += load_w
+            has_three_phase = True
+
+    # 三相平衡检查
+    if has_three_phase:
+        phase_values = [phase_loads["L1"], phase_loads["L2"], phase_loads["L3"]]
+        if sum(phase_values) > 0:
+            max_phase = max(phase_values)
+            min_phase = min(phase_values)
+            avg_phase = sum(phase_values) / 3
+            # 不平衡度 = (最大相 - 最小相) / 平均相 × 100%
+            imbalance = (max_phase - min_phase) / avg_phase * 100 if avg_phase > 0 else 0
+
+            if imbalance > 15:
+                suggestions.append(
+                    f"三相负荷不平衡度 {imbalance:.1f}% 超过 15%，"
+                    f"建议调整回路分配: L1={phase_loads['L1']:.0f}W, "
+                    f"L2={phase_loads['L2']:.0f}W, L3={phase_loads['L3']:.0f}W"
+                )
+            else:
+                suggestions.append(
+                    f"三相负荷基本均衡，不平衡度 {imbalance:.1f}% ≤ 15%"
+                )
+
+    balanced = len(overloaded) == 0
+
+    if balanced:
+        suggestions.append("所有回路负荷在安全范围内")
+
+    return {
+        "balanced": balanced,
+        "overloaded_circuits": overloaded,
+        "total_load_kw": round(total_load_w / 1000, 2),
+        "circuit_count": len(circuits),
+        "phase_loads": phase_loads if has_three_phase else None,
+        "suggestions": suggestions,
+    }
+
+
+# 排水管道最小坡度 (GB 50015 建筑给水排水设计规范)
+DRAINAGE_SLOPE_REQUIRED: dict[str, float] = {
+    "DN50": 0.010,   # 1.0%
+    "DN75": 0.008,   # 0.8%
+    "DN100": 0.005,  # 0.5%
+    "DN150": 0.004,  # 0.4%
+}
+
+VENT_SLOPE_REQUIRED = 0.010  # 通气管最小坡度 1%
+
+
+def check_drainage_slope(
+    pipe_type: str,
+    pipe_length_m: float,
+    elevation_drop_m: float,
+) -> dict:
+    """排水管道坡度合规检查 — 依据 GB 50015
+
+    Args:
+        pipe_type: 管道类型 (DN50/DN75/DN100/DN150 或 vent)
+        pipe_length_m: 管道长度 (m)
+        elevation_drop_m: 高程差 (m)，排水方向起点到终点的高差
+
+    Returns:
+        {compliant, actual_slope, required_slope, suggestions}
+    """
+    suggestions: list[str] = []
+
+    if pipe_length_m <= 0:
+        return {
+            "compliant": False,
+            "actual_slope": None,
+            "required_slope": None,
+            "suggestions": ["管道长度无效，无法计算坡度"],
+        }
+
+    actual_slope = elevation_drop_m / pipe_length_m
+    actual_slope = round(actual_slope, 4)
+
+    if pipe_type == "vent":
+        required_slope = VENT_SLOPE_REQUIRED
+        pipe_desc = "通气管"
+    else:
+        required_slope = DRAINAGE_SLOPE_REQUIRED.get(pipe_type)
+        pipe_desc = f"排水管 {pipe_type}"
+
+    if required_slope is None:
+        return {
+            "compliant": True,
+            "actual_slope": actual_slope,
+            "required_slope": None,
+            "suggestions": [f"未知管道类型 {pipe_type}，跳过坡度检查"],
+        }
+
+    compliant = actual_slope >= required_slope
+
+    actual_pct = round(actual_slope * 100, 2)
+    required_pct = round(required_slope * 100, 2)
+
+    if compliant:
+        suggestions.append(
+            f"{pipe_desc} 坡度 {actual_pct}% ≥ 最小要求 {required_pct}%，满足 GB 50015 要求"
+        )
+    else:
+        suggestions.append(
+            f"{pipe_desc} 坡度 {actual_pct}% < 最小要求 {required_pct}% (GB 50015)，"
+            f"可能导致排水不畅"
+        )
+        suggestions.append(
+            f"建议调整管道敷设，确保 {pipe_length_m}m 管道的高程差不小于 "
+            f"{round(required_slope * pipe_length_m * 1000, 0)}mm"
+        )
+
+    return {
+        "compliant": compliant,
+        "actual_slope": actual_slope,
+        "actual_slope_pct": actual_pct,
+        "required_slope": required_slope,
+        "required_slope_pct": required_pct,
+        "pipe_type": pipe_type,
+        "suggestions": suggestions,
+    }

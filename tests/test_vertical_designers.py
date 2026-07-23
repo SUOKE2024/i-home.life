@@ -631,6 +631,11 @@ async def test_bathroom_ventilation(client: AsyncClient):
             "room_width": 2.0,
             "room_length": 3.0,
             "ceiling_height": 2.6,
+            # v1.2.2：FP-2 通风真校验需显式声明窗户与机械通风参数
+            # （create schema 已补齐这些字段）。0.54 m² > 0.3 m² 必要面积 → 自然通风合规
+            "has_natural_window": True,
+            "window_area_m2": 0.54,
+            "mechanical_vent_airflow": 80.0,
         },
         headers=headers,
     )

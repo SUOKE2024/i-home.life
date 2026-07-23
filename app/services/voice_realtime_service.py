@@ -8,8 +8,10 @@
 - 工具调用 (FunctionCall)
 """
 
+import base64
 import json
 import logging
+import time
 from typing import Any, AsyncGenerator
 
 import httpx
@@ -312,13 +314,19 @@ class VoiceRealtimeSession:
 
         try:
             # 调用百炼 ASR API（使用 REST 接口）
+            # v1.2.1 P1-9 修复：原 audio_data.hex() 与百炼 DashScope 协议不符
+            # （DashScope 要求 base64 编码音频），导致 ASR 永远返回空/乱码文本。
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription",
                     headers={"Authorization": f"Bearer {settings.qwen_audio_api_key}"},
                     json={
                         "model": settings.voice_asr_model,
-                        "input": {"audio": audio_data.hex() if isinstance(audio_data, bytes) else audio_data},
+                        "input": {
+                            "audio": base64.b64encode(audio_data).decode()
+                            if isinstance(audio_data, bytes)
+                            else audio_data
+                        },
                         "parameters": {"format": audio_format, "sample_rate": 16000},
                     },
                 )
@@ -385,9 +393,11 @@ class VoiceRealtimeSession:
                     json=params,
                 )
                 data = response.json()
-                audio_hex = data.get("output", {}).get("audio", "")
-                if audio_hex:
-                    return bytes.fromhex(audio_hex)
+                # v1.2.1 P1-9 修复：原 bytes.fromhex(audio_hex) 与百炼协议不符
+                # （DashScope TTS 返回 base64 编码音频），导致解码失败返回 None。
+                audio_b64 = data.get("output", {}).get("audio", "")
+                if audio_b64:
+                    return base64.b64decode(audio_b64)
                 return None
         except Exception as e:
             logger.warning(f"voice_realtime: TTS 失败: {e}")
@@ -550,39 +560,84 @@ class VoiceRealtimeSession:
 # ── 会话管理器 ──
 
 class VoiceSessionManager:
-    """语音会话管理器（单例）"""
+    """语音会话管理器（单例）。
+
+    v1.2.1 P1-9 修复：原 _sessions dict 无过期机制，长运行下 WebSocket 会话对象
+    常驻内存导致泄漏。现存储 (session, last_active_ts) 元组，在 create/get 时惰性
+    淘汰超过 voice_session_ttl_seconds 的空闲会话，并通过 asyncio.ensure_future
+    主动关闭其 WS 连接（不阻塞同步调用方）。
+    """
 
     _instance = None
-    _sessions: dict[str, VoiceRealtimeSession] = {}
+    # value: (VoiceRealtimeSession, last_active_monotonic_ts)
+    _sessions: dict[str, tuple[VoiceRealtimeSession, float]] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+    def _evict_expired(self) -> None:
+        """惰性淘汰超时空闲会话。
+
+        同步方法，无法 await session.close()，故用 asyncio.ensure_future 调度
+        异步关闭；无事件循环时（如测试）仅解除引用，依赖 GC + 对端超时兜底。
+        """
+        import asyncio
+
+        ttl = settings.voice_session_ttl_seconds
+        now = time.monotonic()
+        expired_keys = [
+            k for k, (_, ts) in self._sessions.items() if now - ts > ttl
+        ]
+        for k in expired_keys:
+            session, _ = self._sessions.pop(k)
+            logger.info(
+                f"voice_session_manager: 惰性淘汰超时空闲会话 {k} (TTL={ttl}s)"
+            )
+            try:
+                asyncio.ensure_future(session.close())
+            except RuntimeError:
+                # 无运行中事件循环（测试/同步上下文），解除 WS 引用便于 GC
+                session._ws = None
+
     def create_session(
         self, user_id: str, project_id: str | None = None
     ) -> VoiceRealtimeSession:
-        """创建或获取语音会话"""
+        """创建或获取语音会话（刷新活跃时间）"""
+        self._evict_expired()
         session_key = f"{user_id}:{project_id or 'default'}"
-        if session_key not in self._sessions:
-            self._sessions[session_key] = VoiceRealtimeSession(
+        entry = self._sessions.get(session_key)
+        if entry is None:
+            session = VoiceRealtimeSession(
                 user_id=user_id, project_id=project_id
             )
-        return self._sessions[session_key]
+        else:
+            session = entry[0]
+        # 写入/刷新活跃时间
+        self._sessions[session_key] = (session, time.monotonic())
+        return session
 
     def get_session(self, user_id: str, project_id: str | None = None) -> VoiceRealtimeSession | None:
+        self._evict_expired()
         session_key = f"{user_id}:{project_id or 'default'}"
-        return self._sessions.get(session_key)
+        entry = self._sessions.get(session_key)
+        if entry is None:
+            return None
+        session = entry[0]
+        # 命中即刷新活跃时间
+        self._sessions[session_key] = (session, time.monotonic())
+        return session
 
     async def close_session(self, user_id: str, project_id: str | None = None):
         session_key = f"{user_id}:{project_id or 'default'}"
-        session = self._sessions.pop(session_key, None)
-        if session:
+        entry = self._sessions.pop(session_key, None)
+        if entry:
+            session, _ = entry
             await session.close()
 
     async def close_all(self):
-        for session in self._sessions.values():
+        for session, _ in self._sessions.values():
             await session.close()
         self._sessions.clear()
 

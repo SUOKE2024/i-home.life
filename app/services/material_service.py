@@ -334,3 +334,313 @@ async def search_materials(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+# ── 房间类型 → 物料品类映射 ──
+ROOM_TO_CATEGORY_MAP: dict[str, list[str]] = {
+    "living": ["flooring", "wall", "ceiling", "doors_windows"],
+    "bedroom": ["flooring", "wall", "ceiling", "doors_windows", "custom_furniture"],
+    "kitchen": ["flooring", "wall", "ceiling", "kitchen_bath", "custom_furniture"],
+    "bathroom": ["flooring", "wall", "ceiling", "kitchen_bath", "doors_windows"],
+    "dining": ["flooring", "wall", "ceiling"],
+    "study": ["flooring", "wall", "ceiling", "custom_furniture"],
+    "balcony": ["flooring", "wall", "ceiling"],
+}
+
+# ── 风格 → 关键词映射 ──
+STYLE_KEYWORD_MAP: dict[str, list[str]] = {
+    "modern": ["现代", "简约", "极简", "现代简约"],
+    "nordic": ["北欧", "斯堪的纳维亚"],
+    "chinese": ["新中式", "中式", "东方"],
+    "american": ["美式", "美式经典", "美式乡村"],
+    "french": ["法式", "法式浪漫"],
+    "industrial": ["工业", "工业风", "loft"],
+    "japanese": ["日式", "和风", "侘寂"],
+    "luxury": ["轻奢", "奢华", "高端"],
+}
+
+
+def _calc_match_score(
+    material: Material,
+    target_categories: list[str],
+    style: str | None,
+    budget_level: str | None,
+) -> int:
+    """计算物料匹配分数 (0-100)"""
+    score = 0
+
+    # 品类匹配 (0-50 分)
+    cat_code = material.category.code if material.category else ""
+    if cat_code in target_categories:
+        score += 50
+
+    # 风格匹配 (0-25 分)
+    if style:
+        keywords = STYLE_KEYWORD_MAP.get(style, [])
+        text = (material.name or "") + " " + (material.description or "")
+        for kw in keywords:
+            if kw in text:
+                score += 25
+                break
+        else:
+            # 部分匹配给一半分数
+            for kw in keywords:
+                for sub_kw in kw:
+                    if sub_kw in text:
+                        score += 10
+                        break
+
+    # 品牌加分 (0-10 分)
+    if material.brand:
+        score += 5
+        if material.brand in ("立邦", "多乐士", "三棵树", "马可波罗", "东鹏", "诺贝尔", "科勒", "TOTO", "方太", "老板", "欧派", "索菲亚"):
+            score += 5
+
+    # 规格/描述丰富度 (0-5 分)
+    if material.spec and len(material.spec) > 20:
+        score += 5
+
+    # 价格合理性 (0-10 分) — 根据预算等级调整
+    if budget_level:
+        if budget_level == "economy" and material.unit_price <= 150:
+            score += 10
+        elif budget_level == "standard" and 50 <= material.unit_price <= 500:
+            score += 10
+        elif budget_level == "premium" and material.unit_price >= 300:
+            score += 10
+    else:
+        score += 5  # 无预算偏好的基础分
+
+    return min(score, 100)
+
+
+def _derive_budget_level(budget: "Budget | None") -> str:
+    """根据预算推断等级"""
+    if not budget or not budget.total_estimated:
+        return "standard"
+    total = budget.total_estimated
+    if total < 80000:
+        return "economy"
+    elif total > 200000:
+        return "premium"
+    return "standard"
+
+
+def _estimate_environmental_grade(material: Material) -> str:
+    """从物料名称/规格推断环保等级"""
+    text = (material.name or "") + " " + (material.spec or "") + " " + (material.description or "")
+    if "E0" in text:
+        return "E0"
+    if "E1" in text:
+        return "E1"
+    if "F4" in text or "F☆☆☆☆" in text:
+        return "F4"
+    if "零甲醛" in text or "无醛" in text or "ENF" in text:
+        return "ENF"
+    if "A+" in text or "A+级" in text:
+        return "A+"
+    if material.category and material.category.code in ("flooring", "custom_furniture"):
+        return "E1"  # 板材类默认 E1
+    return "A"
+
+
+async def recommend_materials(
+    db: AsyncSession,
+    project_id: str,
+    room_type: str | None = None,
+    style: str | None = None,
+    budget_level: str | None = None,  # "economy" / "standard" / "premium"
+) -> dict:
+    """AI 物料推荐引擎
+
+    基于项目预算、房间类型和风格偏好，从数据库中筛选并推荐物料。
+    每个品类返回 top 5 推荐，含匹配分数和推荐理由。
+    """
+    from app.models.budget import Budget
+    from app.models.procurement import Quotation
+
+    # 1. 获取项目预算并推断预算等级
+    budget_result = await db.execute(
+        select(Budget).where(Budget.project_id == project_id)
+    )
+    budget = budget_result.scalar_one_or_none()
+
+    if not budget_level:
+        budget_level = _derive_budget_level(budget)
+
+    total_budget = budget.total_estimated if budget else 0.0
+    if total_budget <= 0:
+        total_budget = 100000.0  # 默认 10 万
+
+    # 2. 确定目标品类
+    if room_type:
+        target_categories = ROOM_TO_CATEGORY_MAP.get(
+            room_type, ["flooring", "wall", "ceiling"]
+        )
+    else:
+        target_categories = None  # 不限制品类
+
+    # 3. 查询所有活跃物料
+    all_materials = await get_materials(db, limit=1000)
+
+    # 如果指定了品类，过滤
+    if target_categories:
+        all_materials = [
+            m for m in all_materials
+            if m.category and m.category.code in target_categories
+        ]
+
+    if not all_materials:
+        return {
+            "project_id": project_id,
+            "budget_level": budget_level,
+            "total_budget": round(total_budget, 2),
+            "recommendations": [],
+            "total_estimated_cost": 0.0,
+            "budget_utilization_percent": 0.0,
+            "alternative_suggestions": ["当前数据库中暂无匹配物料，请先添加物料数据"],
+        }
+
+    # 4. 为每个物料计算匹配分数
+    scored_materials: list[tuple[Material, int]] = []
+    for m in all_materials:
+        score = _calc_match_score(m, target_categories or [], style, budget_level)
+        scored_materials.append((m, score))
+
+    # 5. 按品类分组，每个品类取 top 5
+    grouped: dict[str, list[tuple[Material, int]]] = {}
+    for m, score in scored_materials:
+        cat_code = m.category.code if m.category else "unknown"
+        if cat_code not in grouped:
+            grouped[cat_code] = []
+        grouped[cat_code].append((m, score))
+
+    # 按预算等级排序
+    for cat_code in grouped:
+        if budget_level == "economy":
+            # 低价优先，同价格按分数降序
+            grouped[cat_code].sort(key=lambda x: (x[0].unit_price, -x[1]))
+        elif budget_level == "premium":
+            # 高价优先，同价格按分数降序
+            grouped[cat_code].sort(key=lambda x: (-x[0].unit_price, -x[1]))
+        else:
+            # 标准：按分数降序
+            grouped[cat_code].sort(key=lambda x: -x[1])
+
+        # 只保留 top 5
+        grouped[cat_code] = grouped[cat_code][:5]
+
+    # 6. 生成推荐结果
+    recommendations: list[dict] = []
+    total_material_cost = 0.0
+
+    # 为每个物料的 supplier 做批量查询
+    supplier_cache: dict[str, str] = {}  # material_id -> supplier_name
+
+    for cat_code, items in grouped.items():
+        for m, score in items:
+            # 查询供应商信息 (若有报价)
+            if m.id not in supplier_cache:
+                q_result = await db.execute(
+                    select(Quotation)
+                    .where(Quotation.material_id == m.id)
+                    .options(selectinload(Quotation.supplier))
+                    .order_by(Quotation.unit_price.asc())
+                    .limit(1)
+                )
+                quotation = q_result.scalar_one_or_none()
+                if quotation and quotation.supplier:
+                    supplier_cache[m.id] = quotation.supplier.name
+                else:
+                    supplier_cache[m.id] = m.brand or "未指定"
+
+            # 估算用量（默认 50㎡面积用量）
+            estimated_qty = 50.0
+            cat_code_val = m.category.code if m.category else ""
+            if cat_code_val in WASTE_FACTOR:
+                estimated_qty = round(50.0 * WASTE_FACTOR[cat_code_val], 2)
+            if cat_code_val == "wall" and m.unit and "桶" in m.unit:
+                wall_area = 50.0 * WALL_TO_FLOOR_RATIO
+                buckets = wall_area / PAINT_COVERAGE_PER_BUCKET
+                estimated_qty = float(int(buckets) + (1 if buckets % 1 > 0 else 0))
+
+            estimated_cost = round(estimated_qty * m.unit_price, 2)
+            total_material_cost += estimated_cost
+
+            # 生成推荐理由
+            reasons: list[str] = []
+            if cat_code_val in (target_categories or []):
+                reasons.append(f"匹配目标房间类型")
+            if style:
+                style_kws = STYLE_KEYWORD_MAP.get(style, [])
+                text = (m.name or "") + " " + (m.description or "")
+                matched_kw = next((kw for kw in style_kws if kw in text), None)
+                if matched_kw:
+                    reasons.append(f"风格匹配「{matched_kw}」")
+            if m.brand:
+                reasons.append(f"品牌「{m.brand}」")
+            if budget_level == "economy" and m.unit_price <= 100:
+                reasons.append("经济实惠")
+            elif budget_level == "premium" and m.unit_price >= 300:
+                reasons.append("高端品质")
+            if not reasons:
+                reasons.append("综合评分较高")
+
+            recommendations.append({
+                "material_id": m.id,
+                "name": m.name,
+                "category": m.category.name if m.category else "未分类",
+                "category_code": cat_code_val,
+                "unit_price": m.unit_price,
+                "unit": m.unit,
+                "estimated_quantity": estimated_qty,
+                "estimated_cost": estimated_cost,
+                "environmental_grade": _estimate_environmental_grade(m),
+                "supplier": supplier_cache.get(m.id, "未指定"),
+                "brand": m.brand,
+                "match_score": score,
+                "reason": "，".join(reasons),
+            })
+
+    # 按匹配分数降序排列所有推荐
+    recommendations.sort(key=lambda x: x["match_score"], reverse=True)
+
+    # 7. 计算预算利用率
+    budget_utilization = round((total_material_cost / total_budget) * 100, 1) if total_budget > 0 else 0.0
+
+    # 8. 生成替代建议
+    alternative_suggestions: list[str] = []
+    if budget_utilization > 90:
+        alternative_suggestions.append(
+            f"推荐物料总费用 {total_material_cost:.0f} 元接近预算 {total_budget:.0f} 元（{budget_utilization}%），"
+            f"建议将预算等级从 {budget_level} 调整为标准，或优先选择低价替代品"
+        )
+    elif budget_utilization < 30 and budget_level == "premium":
+        alternative_suggestions.append(
+            f"当前预算利用率仅 {budget_utilization}%，建议考虑更高品质物料"
+        )
+    if budget_level == "economy":
+        alternative_suggestions.append("您选择了经济型预算，推荐关注性价比高的物料")
+    elif budget_level == "premium":
+        alternative_suggestions.append("您选择了高端预算，推荐关注环保等级高、品牌知名的物料")
+
+    # 品类覆盖建议
+    if target_categories:
+        covered = {r["category_code"] for r in recommendations}
+        missing = set(target_categories) - covered
+        if missing:
+            alternative_suggestions.append(f"以下品类暂无推荐物料：{', '.join(sorted(missing))}，建议补充数据库")
+
+    return {
+        "project_id": project_id,
+        "room_type": room_type,
+        "style": style,
+        "budget_level": budget_level,
+        "total_budget": round(total_budget, 2),
+        "recommendations": recommendations,
+        "total_recommendations": len(recommendations),
+        "categories_covered": len(set(r["category_code"] for r in recommendations)),
+        "total_estimated_cost": round(total_material_cost, 2),
+        "budget_utilization_percent": budget_utilization,
+        "alternative_suggestions": alternative_suggestions,
+    }

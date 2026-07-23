@@ -216,7 +216,9 @@ async def test_generate_budget_from_bom(client: AsyncClient):
     )
     mat_id = mat_resp.json()["id"]
 
-    # 添加 BOM 项（quantity=100, unit_price=180 → total=18000）
+    # 添加 BOM 项（quantity=100, unit_price=180 → BOM 采购总价 18000）
+    # v1.1.31 FP-6：启用定额库后，预算 = BOM量 × 定额单价
+    #   flooring @ comfort = 320元/㎡ → 100 × 320 = 32000（定额基准，非采购价）
     await client.post(
         "/api/materials/bom",
         json={"project_id": proj_id, "material_id": mat_id, "quantity": 100.0, "unit_price": 180.0},
@@ -229,10 +231,13 @@ async def test_generate_budget_from_bom(client: AsyncClient):
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["total_estimated"] == 18000.0
+    # 定额库启用：flooring comfort 档 320 元/㎡ × 100 = 32000
+    assert data["total_estimated"] == 32000.0
     assert len(data["lines"]) == 1
     assert data["lines"][0]["name"] == "750×1500 大板砖"
     assert data["lines"][0]["category"] == "地面工程"
+    # 定价来源标记（note 含 pricing_source=quota）
+    assert "pricing_source=quota" in (data["lines"][0].get("note") or "")
 
 
 @pytest.mark.asyncio

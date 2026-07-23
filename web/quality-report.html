@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="description" content="质检报告 · 索克家居 AI 自治运营平台">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
+<meta property="og:title" content="质检报告 · 索克家居">
+
+<meta property="og:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:image:width" content="512">
+<meta property="og:image:height" content="512">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://i-home.life/assets/images/icons/desktop/suoke-logo-512.png">
+<meta property="og:description" content="索克家居 AI 装修平台质检报告，含验收记录、质量问题与进度预警">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="索克家居">
+<meta name="theme-color" content="#08080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
+<link rel="preload" href="assets/js/echarts.min.js?v=20260724b" as="script">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260724b">
+<link rel="manifest" href="manifest.json">
+<title>质检报告 · 索克家居</title>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebPage","name":"质检报告 · 索克家居","isPartOf":{"@type":"WebSite","name":"索克家居","url":"https://i-home.life"},"description":"索克家居 AI 装修平台质检报告，含验收记录、质量问题与进度预警"}
+</script>
+<style>
+  /* 质检报告页专属样式（复用 workbench.css 变量） */
+  .qr-page {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: linear-gradient(160deg, #1a1a2e 0%, var(--bg-deep) 100%);
+    display: flex;
+    flex-direction: column;
+  }
+  .qr-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(18, 18, 29, 0.95);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .qr-back {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 22px;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color var(--transition);
+  }
+  .qr-back:hover { color: var(--accent); }
+  .qr-title-block { flex: 1; min-width: 0; }
+  .qr-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .qr-subtitle {
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .qr-settings-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 18px;
+    padding: 4px 8px;
+    transition: color var(--transition);
+  }
+  .qr-settings-link:hover { color: var(--accent); }
+
+  .qr-main {
+    flex: 1;
+    padding: 16px 14px 32px;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* 项目选择器 */
+  .qr-project-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .qr-project-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  .qr-project-select {
+    flex: 1;
+    padding: 9px 12px;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-active);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color var(--transition);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path fill='%238a8894' d='M6 8L2 4h8z'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .qr-project-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* 状态视图（loading / error / empty） */
+  .qr-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-secondary);
+  }
+  .qr-state .state-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .qr-state .state-msg {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .qr-state .state-err {
+    font-size: 11px;
+    color: var(--text-muted);
+    word-break: break-word;
+  }
+  .qr-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: qr-spin 0.8s linear infinite;
+  }
+  @keyframes qr-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .qr-spinner { animation: none; }
+  }
+
+  /* 卡片 */
+  .qr-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .qr-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .qr-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    letter-spacing: 0.02em;
+  }
+  .qr-card-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+
+  /* 汇总卡片 */
+  .qr-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .qr-stat {
+    text-align: center;
+    padding: 10px 4px;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+  }
+  .qr-stat-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .qr-stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+  }
+  .qr-stat.passed .qr-stat-value { color: var(--success); }
+  .qr-stat.failed .qr-stat-value { color: var(--danger); }
+  .qr-stat.pending .qr-stat-value { color: var(--warning); }
+  .qr-score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--bg-deep);
+    border-radius: var(--radius-sm);
+    margin-top: 8px;
+  }
+  .qr-score-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .qr-score-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-bright);
+  }
+  .qr-score-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    margin: 0 12px;
+    overflow: hidden;
+  }
+  .qr-score-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--warning), var(--accent), var(--success));
+    transition: width 0.6s var(--ease-out);
+  }
+
+  /* 区块标题 */
+  .qr-section-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin: 18px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .qr-section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .qr-section-count {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: var(--border-active);
+    color: var(--text-secondary);
+    margin-left: 6px;
+  }
+
+  /* 验收项卡片 */
+  .qr-inspection {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border-active);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    transition: border-color var(--transition);
+  }
+  .qr-inspection.passed { border-left-color: var(--success); }
+  .qr-inspection.failed { border-left-color: var(--danger); }
+  .qr-inspection.pending { border-left-color: var(--warning); }
+  .qr-inspection-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .qr-inspection-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+  }
+  .qr-inspection-type {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .qr-status-badge {
+    font-size: 10px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .qr-status-badge.passed { background: rgba(74,158,110,0.18); color: var(--success); }
+  .qr-status-badge.failed { background: rgba(201,74,74,0.18); color: var(--danger); }
+  .qr-status-badge.pending { background: rgba(201,122,59,0.18); color: var(--warning); }
+  .qr-inspection-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .qr-inspection-meta span { white-space: nowrap; }
+  .qr-inspection-findings {
+    font-size: 12px;
+    color: var(--text-primary);
+    line-height: 1.5;
+    margin-bottom: 8px;
+    word-break: break-word;
+  }
+  .qr-inspection-photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .qr-inspection-photo {
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: transform var(--transition);
+  }
+  .qr-inspection-photo:hover { transform: scale(1.04); }
+  .qr-inspection-standards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .qr-standard-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--bg-deep);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  /* 质量问题列表 */
+  .qr-issue {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+  }
+  .qr-issue-severity {
+    width: 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    align-self: stretch;
+  }
+  .qr-issue-severity.critical { background: var(--danger); }
+  .qr-issue-severity.warning { background: var(--warning); }
+  .qr-issue-severity.info { background: var(--info); }
+  .qr-issue-body { flex: 1; min-width: 0; }
+  .qr-issue-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .qr-issue-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+  .qr-severity-tag {
+    font-size: 9px;
+    padding: 1px 7px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .qr-severity-tag.critical { background: rgba(201,74,74,0.18); color: var(--danger); }
+  .qr-severity-tag.warning { background: rgba(201,122,59,0.18); color: var(--warning); }
+  .qr-severity-tag.info { background: rgba(90,126,201,0.18); color: var(--info); }
+  .qr-issue-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .qr-issue-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* 预警时间线 */
+  .qr-timeline {
+    position: relative;
+    padding-left: 20px;
+  }
+  .qr-timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border);
+  }
+  .qr-timeline-item {
+    position: relative;
+    padding: 4px 0 14px 14px;
+  }
+  .qr-timeline-item:last-child { padding-bottom: 0; }
+  .qr-timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -17px;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 2px solid var(--text-muted);
+  }
+  .qr-timeline-item.critical::before { background: var(--danger); border-color: var(--danger); }
+  .qr-timeline-item.warning::before { background: var(--warning); border-color: var(--warning); }
+  .qr-timeline-item.info::before { background: var(--info); border-color: var(--info); }
+  .qr-timeline-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+  .qr-timeline-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .qr-empty-section {
+    padding: 18px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+  }
+
+  .qr-footer-link {
+    text-align: center;
+    margin-top: 20px;
+  }
+  .qr-footer-link a {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-decoration: none;
+  }
+  .qr-footer-link a:hover { color: var(--accent); }
+
+  @media (max-width: 480px) {
+    .qr-summary-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* 图表区域 */
+  .charts-section { padding: 0 14px 24px; max-width: var(--mw, 720px); margin: 0 auto; }
+  .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .chart-card { background: var(--bg-card, #12121d); border: 1px solid var(--border, #1e1e32); border-radius: var(--radius, 16px); padding: 16px; }
+  .chart-card-header { font-size: 13px; font-weight: 700; color: var(--text-primary, #e8e6e1); margin-bottom: 12px; }
+  @media (max-width:480px){ .charts-grid{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){ .chart-card{animation:none} }
+
+  .spinner-sm { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 480px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ── 768px 平板适配 ── */
+  @media (min-width: 768px) {
+    .qr-main { padding: 16px 24px 32px; }
+    .qr-card { padding: 20px 24px; }
+    .qr-summary-grid { gap: 12px; }
+    .qr-stat { padding: 14px 8px; }
+    .qr-inspection { padding: 14px 18px; }
+    .qr-inspection-photo { width: 80px; height: 80px; }
+    .qr-score-value { font-size: 24px; }
+    .charts-grid { gap: 18px; }
+  }
+  @media (max-width: 768px) {
+    .qr-summary-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  /* ── 1024px 桌面适配 ── */
+  @media (min-width: 1024px) {
+    .qr-main { max-width: 900px; }
+    .charts-grid { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { gap: 20px; }
+  }
+
+  .card-header { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+  .card-body { font-size: 13px; color: var(--text-primary); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 20px; border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--transition); font-family: inherit; width: auto; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-bright); }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">跳过导航，直达内容</a>
+<main class="qr-page" role="main">
+  <!-- 顶栏 -->
+  <header class="qr-header" role="banner">
+    <a href="workbench.html" class="qr-back" aria-label="返回工作台">‹</a>
+    <div class="qr-title-block">
+      <div class="qr-title">质检报告</div>
+      <div class="qr-subtitle" id="qr-subtitle">AI 质检 Agent · 实时验收</div>
+    </div>
+    <a href="settings.html" class="qr-settings-link" aria-label="设置">⋯</a>
+  </header>
+
+  <!-- 主体 -->
+  <div class="qr-main">
+    <!-- 项目选择器 -->
+    <div class="qr-project-bar">
+      <span class="qr-project-label">项目</span>
+      <select id="qr-project-select" class="qr-project-select" aria-label="选择项目" disabled>
+        <option>加载中…</option>
+      </select>
+    </div>
+
+    <!-- 状态视图 -->
+    <div id="qr-state" class="qr-state" role="status" aria-live="polite">
+      <div class="qr-spinner" aria-hidden="true"></div>
+      <div class="state-msg">正在加载质检数据…</div>
+    </div>
+
+    <!-- 数据容器 -->
+    <div id="qr-content" hidden>
+      <!-- 汇总卡片 -->
+      <section class="qr-card" aria-labelledby="qr-summary-title">
+        <div class="qr-card-header">
+          <div class="qr-card-title" id="qr-summary-title">质检汇总</div>
+          <div class="qr-card-badge" id="qr-summary-badge">—</div>
+        </div>
+        <div class="qr-summary-grid">
+          <div class="qr-stat">
+            <div class="qr-stat-label">总验收</div>
+            <div class="qr-stat-value" id="qr-total">0</div>
+          </div>
+          <div class="qr-stat passed">
+            <div class="qr-stat-label">通过</div>
+            <div class="qr-stat-value" id="qr-passed">0</div>
+          </div>
+          <div class="qr-stat failed">
+            <div class="qr-stat-label">不合格</div>
+            <div class="qr-stat-value" id="qr-failed">0</div>
+          </div>
+          <div class="qr-stat pending">
+            <div class="qr-stat-label">待检</div>
+            <div class="qr-stat-value" id="qr-pending">0</div>
+          </div>
+        </div>
+        <div class="qr-score-row">
+          <span class="qr-score-label">质量评分</span>
+          <div class="qr-score-bar" aria-hidden="true">
+            <div class="qr-score-bar-fill" id="qr-score-bar" style="width:0%"></div>
+          </div>
+          <span class="qr-score-value" id="qr-score">—</span>
+        </div>
+      </section>
+
+      <!-- 数据可视化 -->
+      <div class="charts-section" role="region" aria-label="质检数据图表">
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-card-header">🎯 检查项通过率</div>
+            <div id="chart-inspection-gauge" role="img" aria-label="检查项通过率仪表盘" style="height:280px"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-header">⚠️ 质量问题分布</div>
+            <div id="chart-issue-types" role="img" aria-label="质量问题按严重度分布柱状图" style="height:260px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI 智能分析 -->
+      <div class="qr-section" role="region" aria-label="AI 智能分析">
+        <div class="qr-section-title">🤖 AI 智能分析</div>
+        <div class="grid-2">
+          <div class="qr-card" id="ai-bom-match">
+            <div class="card-header">📦 BOM 物料匹配</div>
+            <div id="bom-match-result" class="card-body" style="min-height:80px;text-align:center;color:var(--text-muted);padding:20px">
+              <div class="spinner-sm" style="display:none" id="bom-spinner"></div>
+              <button class="btn btn-primary" id="btn-bom-match" style="width:auto;padding:8px 20px;margin:0 auto">智能匹配物料库</button>
+            </div>
+          </div>
+          <div class="qr-card" id="ai-defect-detect">
+            <div class="card-header">🔍 施工日志分析</div>
+            <div id="defect-result" class="card-body" style="min-height:80px;text-align:center;color:var(--text-muted);padding:20px">
+              <div class="spinner-sm" style="display:none" id="defect-spinner"></div>
+              <button class="btn btn-primary" id="btn-defect-detect" style="width:auto;padding:8px 20px;margin:0 auto">检测潜在缺陷</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 验收清单 -->
+      <h2 class="qr-section-title">
+        验收清单 <span class="qr-section-count" id="qr-inspections-count">0</span>
+      </h2>
+      <div id="qr-inspections" role="list" aria-label="验收清单"></div>
+
+      <!-- 质量问题 -->
+      <h2 class="qr-section-title">
+        质量问题 <span class="qr-section-count" id="qr-issues-count">0</span>
+      </h2>
+      <div id="qr-issues" role="list" aria-label="质量问题"></div>
+
+      <!-- 进度预警 -->
+      <h2 class="qr-section-title">
+        进度预警 <span class="qr-section-count" id="qr-alerts-count">0</span>
+      </h2>
+      <div id="qr-alerts" role="list" aria-label="进度预警时间线"></div>
+
+      <p class="qr-footer-link">
+        <a href="workbench.html">← 返回工作台</a>
+      </p>
+    </div>
+  </div>
+</main>
+
+<script src="assets/js/api-client.js?v=20260724b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260724b"></script>
+<script src="assets/js/echarts.min.js?v=20260724b"></script>
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const stateEl = document.getElementById('qr-state');
+  const contentEl = document.getElementById('qr-content');
+  const projectSelect = document.getElementById('qr-project-select');
+  const subtitleEl = document.getElementById('qr-subtitle');
+
+  let allProjects = [];
+  let currentProjectId = null;
+
+  // ============ 状态展示 ============
+  function showLoading(msg) {
+    contentEl.hidden = true;
+    stateEl.hidden = false;
+    stateEl.innerHTML = `
+      <div class="qr-spinner" aria-hidden="true"></div>
+      <div class="state-msg">${msg || '正在加载质检数据…'}</div>
+    `;
+  }
+
+  function showError(msg, detail) {
+    contentEl.hidden = true;
+    stateEl.hidden = false;
+    stateEl.innerHTML = `
+      <span class="state-icon" aria-hidden="true">⚠️</span>
+      <div class="state-msg">${msg || '加载失败'}</div>
+      ${detail ? `<div class="state-err">${detail}</div>` : ''}
+    `;
+  }
+
+  function showEmpty(msg) {
+    contentEl.hidden = true;
+    stateEl.hidden = false;
+    stateEl.innerHTML = `
+      <span class="state-icon" aria-hidden="true">📋</span>
+      <div class="state-msg">${msg || '暂无数据'}</div>
+    `;
+  }
+
+  function showContent() {
+    stateEl.hidden = true;
+    contentEl.hidden = false;
+  }
+
+  // ============ 工具函数 ============
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function formatDate(s) {
+    if (!s) return '—';
+    try {
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return escapeHtml(s);
+      return d.toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (_) { return escapeHtml(s); }
+  }
+
+  // 标准化验收状态 → passed / failed / pending
+  function normalizeStatus(raw) {
+    if (!raw) return 'pending';
+    const s = String(raw).toLowerCase();
+    if (['passed', 'pass', 'approved', '合格', '通过', 'done', 'completed', 'ok'].includes(s)) return 'passed';
+    if (['failed', 'fail', 'rejected', '不合格', '不通过', 'reject'].includes(s)) return 'failed';
+    return 'pending';
+  }
+
+  const STATUS_LABEL = { passed: '通过', failed: '不合格', pending: '待检' };
+  const SEVERITY_LABEL = { critical: '严重', warning: '警告', info: '提示' };
+
+  function normalizeSeverity(raw) {
+    if (!raw) return 'info';
+    const s = String(raw).toLowerCase();
+    if (['critical', 'high', '严重', '高'].includes(s)) return 'critical';
+    if (['warning', 'medium', '警告', '中'].includes(s)) return 'warning';
+    return 'info';
+  }
+
+  function normalizeAlertLevel(raw) {
+    return normalizeSeverity(raw);
+  }
+
+  // ============ 项目选择器 ============
+  function renderProjectPicker() {
+    if (!allProjects.length) {
+      projectSelect.innerHTML = '<option value="">暂无项目</option>';
+      projectSelect.disabled = true;
+      return;
+    }
+    projectSelect.innerHTML = allProjects.map(p =>
+      `<option value="${escapeHtml(p.id)}" ${p.id === currentProjectId ? 'selected' : ''}>${escapeHtml(p.name || '未命名项目')}</option>`
+    ).join('');
+    projectSelect.disabled = false;
+  }
+
+  projectSelect.addEventListener('change', () => {
+    const pid = projectSelect.value;
+    if (!pid || pid === currentProjectId) return;
+    currentProjectId = pid;
+    // 同步 URL，便于分享
+    const url = new URL(window.location.href);
+    url.searchParams.set('project_id', pid);
+    window.history.replaceState({}, '', url.toString());
+    loadReport(pid);
+  });
+
+  // ============ 数据加载 ============
+  async function loadReport(projectId) {
+    if (!projectId) {
+      showEmpty('未选择项目');
+      return;
+    }
+    showLoading('正在加载质检数据…');
+
+    // 1. 获取施工任务（用于派生 task_id 列表）
+    let taskIds = [];
+    let tasksData = null;
+    try {
+      tasksData = await ApiClient.getConstructionTasks(projectId);
+      // 兼容多种返回结构
+      const taskList = Array.isArray(tasksData) ? tasksData
+        : (tasksData && Array.isArray(tasksData.items) ? tasksData.items
+        : (tasksData ? [tasksData] : []));
+      taskIds = taskList
+        .map(t => t.id || t.task_id)
+        .filter(Boolean);
+      // 若顶层有 tasks/checklist 嵌套，也尝试取 id
+      if (taskIds.length === 0 && taskList.length > 0) {
+        const nested = (taskList[0].tasks || taskList[0].checklist || []);
+        taskIds = nested.map(n => n.id || n.task_id).filter(Boolean);
+      }
+    } catch (e) {
+      // 任务接口失败时，仍可继续尝试质量问题/预警
+    }
+
+    // 2. 并行加载：每个 task 的验收记录 + 每个 task 的施工日志 + 项目质量问题 + 项目进度预警
+    const inspectionPromises = taskIds.map(tid =>
+      ApiClient.getInspections(tid).then(data => ({ taskId: tid, data, ok: true }))
+        .catch(err => ({ taskId: tid, err, ok: false }))
+    );
+    const logPromises = taskIds.map(tid =>
+      ApiClient.getConstructionLogs(tid).then(data => ({ taskId: tid, data, ok: true }))
+        .catch(err => ({ taskId: tid, err, ok: false }))
+    );
+
+    const [inspectionResults, logResults, issuesResult, alertsResult] = await Promise.allSettled([
+      Promise.all(inspectionPromises),
+      Promise.all(logPromises),
+      ApiClient.getQualityIssues(projectId),
+      ApiClient.getProgressAlerts(projectId),
+    ]);
+
+    // 3. 聚合验收记录
+    let inspections = [];
+    if (inspectionResults.status === 'fulfilled') {
+      inspectionResults.value.forEach(r => {
+        if (!r.ok) return;
+        const arr = Array.isArray(r.data) ? r.data
+          : (r.data && Array.isArray(r.data.items) ? r.data.items
+          : (r.data ? [r.data] : []));
+        inspections = inspections.concat(arr.map(it => ({ ...it, _taskId: r.taskId })));
+      });
+    }
+
+    // 4. 聚合施工日志（作为补充材料，暂不在 UI 展示明细，保留供扩展）
+    let logs = [];
+    if (logResults.status === 'fulfilled') {
+      logResults.value.forEach(r => {
+        if (!r.ok) return;
+        const arr = Array.isArray(r.data) ? r.data
+          : (r.data && Array.isArray(r.data.items) ? r.data.items
+          : (r.data ? [r.data] : []));
+        logs = logs.concat(arr);
+      });
+    }
+
+    // 5. 质量问题
+    let issues = [];
+    if (issuesResult.status === 'fulfilled' && issuesResult.value) {
+      const v = issuesResult.value;
+      issues = Array.isArray(v) ? v : (Array.isArray(v.items) ? v.items : [v]);
+      issues = issues.filter(Boolean);
+    }
+
+    // 6. 进度预警
+    let alerts = [];
+    if (alertsResult.status === 'fulfilled' && alertsResult.value) {
+      const v = alertsResult.value;
+      alerts = Array.isArray(v) ? v : (Array.isArray(v.items) ? v.items : [v]);
+      alerts = alerts.filter(Boolean);
+    }
+
+    // 7. 渲染
+    renderReport({ inspections, issues, alerts, logs, tasksData, projectId });
+  }
+
+  // ============ 渲染 ============
+  function renderReport({ inspections, issues, alerts, logs, tasksData, projectId }) {
+    // 派生统计
+    const counts = { passed: 0, failed: 0, pending: 0 };
+    inspections.forEach(i => {
+      counts[normalizeStatus(i.status)]++;
+    });
+    const total = inspections.length;
+    const score = computeScore(counts, total);
+
+    // 副标题
+    const projectName = (allProjects.find(p => p.id === projectId) || {}).name || '当前项目';
+    subtitleEl.textContent = `${projectName} · 共 ${total} 项验收`;
+
+    // 汇总卡片
+    document.getElementById('qr-total').textContent = total;
+    document.getElementById('qr-passed').textContent = counts.passed;
+    document.getElementById('qr-failed').textContent = counts.failed;
+    document.getElementById('qr-pending').textContent = counts.pending;
+    document.getElementById('qr-score').textContent = total > 0 ? `${score}` : '—';
+    document.getElementById('qr-score-bar').style.width = `${score}%`;
+    const badge = document.getElementById('qr-summary-badge');
+    if (total === 0) {
+      badge.textContent = '无数据';
+    } else if (counts.failed > 0) {
+      badge.textContent = '需整改';
+      badge.style.color = 'var(--danger)';
+      badge.style.background = 'rgba(201,74,74,0.18)';
+    } else if (counts.pending > 0) {
+      badge.textContent = '进行中';
+    } else {
+      badge.textContent = '全部通过';
+      badge.style.color = 'var(--success)';
+      badge.style.background = 'rgba(74,158,110,0.18)';
+    }
+
+    // 验收清单
+    document.getElementById('qr-inspections-count').textContent = inspections.length;
+    const inspectionsEl = document.getElementById('qr-inspections');
+    if (inspections.length === 0) {
+      inspectionsEl.innerHTML = '<div class="qr-empty-section">暂无验收记录</div>';
+    } else {
+      inspectionsEl.innerHTML = inspections.map(renderInspection).join('');
+    }
+
+    // 质量问题
+    document.getElementById('qr-issues-count').textContent = issues.length;
+    const issuesEl = document.getElementById('qr-issues');
+    if (issues.length === 0) {
+      issuesEl.innerHTML = '<div class="qr-empty-section">暂无质量问题</div>';
+    } else {
+      issuesEl.innerHTML = issues.map(renderIssue).join('');
+    }
+
+    // 进度预警
+    document.getElementById('qr-alerts-count').textContent = alerts.length;
+    const alertsEl = document.getElementById('qr-alerts');
+    if (alerts.length === 0) {
+      alertsEl.innerHTML = '<div class="qr-empty-section">暂无进度预警</div>';
+    } else {
+      alertsEl.innerHTML = `<div class="qr-timeline">${alerts.map(renderAlert).join('')}</div>`;
+    }
+
+    showContent();
+    renderReportCharts({ inspections, issues });
+  }
+
+  // ============ 图表渲染 ============
+  let chartInspectionGauge = null;
+  let chartIssueTypes = null;
+
+  function renderReportCharts({ inspections, issues }) {
+    renderInspectionGauge(inspections);
+    renderIssueTypesChart(issues);
+  }
+
+  function renderInspectionGauge(inspections) {
+    const dom = document.getElementById('chart-inspection-gauge');
+    if (!dom) return;
+
+    const counts = { passed: 0, failed: 0, pending: 0 };
+    inspections.forEach(i => { counts[normalizeStatus(i.status)]++; });
+    const total = inspections.length;
+    const passRate = total > 0 ? Math.round((counts.passed / total) * 100) : 0;
+
+    let gaugeColor = '#c94a4a';
+    if (passRate >= 90) gaugeColor = '#4a9e6e';
+    else if (passRate >= 70) gaugeColor = '#c97a3b';
+
+    const existing = echarts.getInstanceByDom(dom);
+    if (existing) existing.dispose();
+
+    if (total === 0) {
+      chartInspectionGauge = echarts.init(dom);
+      chartInspectionGauge.setOption({
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#8a8894', fontSize: 14, fontWeight: 'normal' } }
+      });
+      return;
+    }
+
+    chartInspectionGauge = echarts.init(dom);
+    chartInspectionGauge.setOption({
+      series: [{
+        type: 'gauge',
+        startAngle: 210,
+        endAngle: -30,
+        center: ['50%', '55%'],
+        radius: '85%',
+        min: 0,
+        max: 100,
+        splitNumber: 10,
+        axisLine: {
+          show: true,
+          lineStyle: {
+            width: 16,
+            color: [
+              [0.7, '#c94a4a'],
+              [0.9, '#c97a3b'],
+              [1, '#4a9e6e']
+            ]
+          }
+        },
+        pointer: { icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z', length: '60%', width: 8, offsetCenter: [0, '-10%'], itemStyle: { color: 'auto' } },
+        axisTick: { distance: -18, length: 6, lineStyle: { width: 2, color: '#5a5866' } },
+        splitLine: { distance: -22, length: 14, lineStyle: { width: 3, color: '#5a5866' } },
+        axisLabel: { color: '#8a8894', distance: 30, fontSize: 10 },
+        anchor: { show: true, showAbove: true, size: 16, itemStyle: { borderWidth: 2, borderColor: '#5a5866' } },
+        title: { show: false },
+        detail: {
+          valueAnimation: true,
+          fontSize: 28,
+          fontWeight: 'bold',
+          offsetCenter: [0, '50%'],
+          formatter: '{value}%',
+          color: gaugeColor
+        },
+        data: [{ value: passRate }]
+      }]
+    });
+  }
+
+  function renderIssueTypesChart(issues) {
+    const dom = document.getElementById('chart-issue-types');
+    if (!dom) return;
+
+    const severityMap = { critical: 0, major: 0, minor: 0 };
+    issues.forEach(issue => {
+      const sev = normalizeSeverity(issue.severity || issue.level);
+      // normalizeSeverity returns 'critical', 'warning', 'info'
+      if (sev === 'critical') severityMap.critical++;
+      else if (sev === 'warning') severityMap.major++;
+      else severityMap.minor++;
+    });
+
+    const existing = echarts.getInstanceByDom(dom);
+    if (existing) existing.dispose();
+
+    if (issues.length === 0) {
+      chartIssueTypes = echarts.init(dom);
+      chartIssueTypes.setOption({
+        title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#8a8894', fontSize: 14, fontWeight: 'normal' } }
+      });
+      return;
+    }
+
+    chartIssueTypes = echarts.init(dom);
+    chartIssueTypes.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: '3%', right: '8%', bottom: '8%', top: '8%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: ['严重', '警告', '提示'],
+        axisLabel: { color: '#8a8894', fontSize: 11 },
+        axisLine: { lineStyle: { color: '#2a2a45' } }
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { color: '#8a8894', fontSize: 10 },
+        splitLine: { lineStyle: { color: '#1e1e32' } }
+      },
+      series: [{
+        type: 'bar',
+        barWidth: '50%',
+        data: [
+          { value: severityMap.critical, itemStyle: { color: '#c94a4a', borderRadius: [4, 4, 0, 0] } },
+          { value: severityMap.major, itemStyle: { color: '#c97a3b', borderRadius: [4, 4, 0, 0] } },
+          { value: severityMap.minor, itemStyle: { color: '#5a7ec9', borderRadius: [4, 4, 0, 0] } }
+        ]
+      }]
+    });
+  }
+
+  function computeScore(counts, total) {
+    if (total === 0) return 0;
+    // 通过 +90, 待检 +60, 不合格 +30
+    const s = (counts.passed * 90 + counts.pending * 60 + counts.failed * 30) / total;
+    return Math.round(s);
+  }
+
+  function renderInspection(ins) {
+    const status = normalizeStatus(ins.status);
+    const name = escapeHtml(ins.inspection_name || ins.name || ins.title || ins.type || '验收项');
+    const type = escapeHtml(ins.inspection_type || ins.type || ins.category || '');
+    const inspector = escapeHtml(ins.inspector || ins.inspector_name || ins.auditor || (ins.is_ai ? 'AI 质检 Agent' : '') || '—');
+    const date = formatDate(ins.inspection_date || ins.inspected_at || ins.created_at || ins.date);
+    const findings = escapeHtml(ins.findings || ins.result || ins.description || ins.notes || ins.summary || '');
+    const standards = Array.isArray(ins.standards || ins.standard_references)
+      ? (ins.standards || ins.standard_references)
+      : (ins.standard ? [ins.standard] : []);
+    const photos = Array.isArray(ins.photos || ins.images)
+      ? (ins.photos || ins.images)
+      : (ins.photo_url ? [ins.photo_url] : []);
+
+    const standardsHtml = standards.length
+      ? `<div class="qr-inspection-standards" aria-label="参考标准">
+           ${standards.map(s => `<span class="qr-standard-tag">${escapeHtml(s)}</span>`).join('')}
+         </div>`
+      : '';
+
+    const photosHtml = photos.length
+      ? `<div class="qr-inspection-photos">
+           ${photos.map(p => {
+             const url = typeof p === 'string' ? p : (p.url || p.thumbnail || p.path || '');
+             const cap = typeof p === 'string' ? '' : (p.caption || p.description || '');
+             return url ? `<img class="qr-inspection-photo" src="${escapeHtml(url)}" alt="${escapeHtml(cap || '验收照片')}" loading="lazy">` : '';
+           }).join('')}
+         </div>`
+      : '';
+
+    return `
+      <article class="qr-inspection ${status}" role="listitem">
+        <div class="qr-inspection-head">
+          <div>
+            <div class="qr-inspection-name">${name}</div>
+            ${type ? `<div class="qr-inspection-type">${type}</div>` : ''}
+          </div>
+          <span class="qr-status-badge ${status}" aria-label="状态：${STATUS_LABEL[status]}">${STATUS_LABEL[status]}</span>
+        </div>
+        <div class="qr-inspection-meta">
+          <span>👤 ${inspector}</span>
+          <span>🕐 ${date}</span>
+        </div>
+        ${findings ? `<div class="qr-inspection-findings">${findings}</div>` : ''}
+        ${photosHtml}
+        ${standardsHtml}
+      </article>
+    `;
+  }
+
+  function renderIssue(issue) {
+    const severity = normalizeSeverity(issue.severity || issue.level);
+    const title = escapeHtml(issue.title || issue.name || issue.issue || '质量问题');
+    const desc = escapeHtml(issue.description || issue.detail || issue.notes || issue.findings || '');
+    const location = escapeHtml(issue.location || issue.area || '');
+    const status = escapeHtml(issue.status || '');
+    const date = formatDate(issue.created_at || issue.reported_at || issue.date);
+
+    return `
+      <div class="qr-issue" role="listitem">
+        <div class="qr-issue-severity ${severity}" aria-hidden="true"></div>
+        <div class="qr-issue-body">
+          <div class="qr-issue-head">
+            <div class="qr-issue-title">${title}</div>
+            <span class="qr-severity-tag ${severity}" aria-label="严重程度：${SEVERITY_LABEL[severity]}">${SEVERITY_LABEL[severity]}</span>
+          </div>
+          ${desc ? `<div class="qr-issue-desc">${desc}</div>` : ''}
+          <div class="qr-issue-meta">
+            ${location ? `<span>📍 ${location}</span> · ` : ''}${date}${status ? ` · ${status}` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAlert(alert) {
+    const level = normalizeAlertLevel(alert.severity || alert.level || alert.priority);
+    const title = escapeHtml(alert.title || alert.message || alert.alert || alert.description || '进度预警');
+    const meta = formatDate(alert.created_at || alert.alerted_at || alert.date || alert.timestamp);
+    const detail = escapeHtml(alert.detail || alert.action || alert.recommendation || '');
+
+    return `
+      <div class="qr-timeline-item ${level}" role="listitem">
+        <div class="qr-timeline-title">${title}</div>
+        <div class="qr-timeline-meta">${meta}${detail ? ` · ${detail}` : ''}</div>
+      </div>
+    `;
+  }
+
+  // ============ AI 智能分析 ============
+
+  // BOM 物料匹配
+  document.getElementById('btn-bom-match').addEventListener('click', async function () {
+    const btn = this;
+    const resultEl = document.getElementById('bom-match-result');
+    const spinner = document.getElementById('bom-spinner');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    try {
+      const token = ApiClient.getToken();
+      const baseURL = ApiClient.BASE_URL || '';
+      const resp = await fetch(baseURL + '/api/materials/bom/auto-match?project_id=' + currentProjectId, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) throw new Error('API error');
+      const data = await resp.json();
+      let html =
+        '<div style="font-size: 28px; font-weight: 800; color: var(--accent); margin-bottom: 4px;">' +
+        data.matchRate +
+        '%</div>';
+      html +=
+        '<div style="font-size: 12px; color: var(--text-secondary);">' +
+        data.matched +
+        '/' +
+        data.total +
+        ' 项匹配</div>';
+      if (data.results && data.results.length > 0) {
+        html +=
+          '<div style="margin-top: 12px; max-height: 200px; overflow-y: auto; text-align: left;">';
+        data.results.slice(0, 10).forEach(function (r) {
+          var badgeColor =
+            r.matchLevel === 'exact'
+              ? 'var(--success)'
+              : r.matchLevel === 'fuzzy'
+                ? 'var(--info)'
+                : r.matchLevel === 'category'
+                  ? 'var(--warning)'
+                  : 'var(--danger)';
+          html +=
+            '<div style="font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border);">';
+          html += '<span style="color: ' + badgeColor + ';">[' + r.matchLevel + ']</span> ';
+          html += r.materialName || '--';
+          if (r.matchedMaterial) html += ' → ' + r.matchedMaterial.name;
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+      resultEl.innerHTML = html;
+    } catch (e) {
+      resultEl.innerHTML =
+        '<div style="color: var(--danger);">匹配失败: ' + e.message + '</div>';
+    } finally {
+      btn.style.display = 'none';
+      spinner.style.display = 'none';
+    }
+  });
+
+  // 施工日志缺陷检测
+  document.getElementById('btn-defect-detect').addEventListener('click', async function () {
+    const btn = this;
+    const resultEl = document.getElementById('defect-result');
+    const spinner = document.getElementById('defect-spinner');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+    try {
+      const token = ApiClient.getToken();
+      const baseURL = ApiClient.BASE_URL || '';
+      const resp = await fetch(baseURL + '/api/construction/logs/analyze-defects?project_id=' + currentProjectId, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) throw new Error('API error');
+      const data = await resp.json();
+      let html =
+        '<div style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">' +
+        data.reply +
+        '</div>';
+      html +=
+        '<div style="display: flex; gap: 12px; justify-content: center; margin-bottom: 8px;">';
+      html += '<span style="color: var(--danger);">⚠ 严重: ' + (data.criticalCount || 0) + '</span>';
+      html += '<span style="color: var(--warning);">⚡ 高危: ' + (data.highCount || 0) + '</span>';
+      html +=
+        '<span style="color: var(--text-muted);">共: ' + (data.issueCount || 0) + ' 个问题</span>';
+      html += '</div>';
+      if (data.issues && data.issues.length > 0) {
+        html += '<div style="max-height: 180px; overflow-y: auto; text-align: left;">';
+        data.issues.slice(0, 8).forEach(function (issue) {
+          var sevColor =
+            issue.severity === 'critical'
+              ? 'var(--danger)'
+              : issue.severity === 'high'
+                ? 'var(--warning)'
+                : 'var(--text-muted)';
+          html +=
+            '<div style="font-size: 11px; padding: 6px 0; border-bottom: 1px solid var(--border);">';
+          html += '<span style="color: ' + sevColor + ';">[' + issue.category + ']</span> ';
+          html += (issue.taskName || '') + ' → ' + (issue.logExcerpt || '');
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+      resultEl.innerHTML = html;
+    } catch (e) {
+      resultEl.innerHTML =
+        '<div style="color: var(--danger);">分析失败: ' + e.message + '</div>';
+    } finally {
+      btn.style.display = 'none';
+      spinner.style.display = 'none';
+    }
+  });
+
+  // ============ 初始化 ============
+  async function init() {
+    const token = ApiClient.getToken();
+    if (!token) {
+      window.location.href = `login.html?next=${encodeURIComponent('quality-report.html' + window.location.search)}`;
+      return;
+    }
+
+    showLoading('正在加载项目列表…');
+
+    try {
+      const projects = await ApiClient.getProjects();
+      allProjects = Array.isArray(projects) ? projects : (projects.items || []);
+
+      if (!allProjects.length) {
+        showEmpty('你还没有项目，请先在工作台创建项目');
+        projectSelect.innerHTML = '<option value="">暂无项目</option>';
+        return;
+      }
+
+      // 解析 URL 参数指定项目，否则取第一个
+      const requestedId = params.get('project_id');
+      const selected = (requestedId && allProjects.find(p => p.id === requestedId)) || allProjects[0];
+      currentProjectId = selected.id;
+      renderProjectPicker();
+
+      await loadReport(currentProjectId);
+    } catch (err) {
+      const detail = err && (err.message || (err.body && (err.body.detail || JSON.stringify(err.body))));
+      if (err && err.status === 401) return; // request 已跳转登录
+      showError('后端服务不可达', detail);
+    }
+  }
+
+  // ============ 图表清理与响应式 ============
+  let qrResizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(qrResizeTimer);
+    qrResizeTimer = setTimeout(() => {
+      chartInspectionGauge?.resize();
+      chartIssueTypes?.resize();
+    }, 150);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    chartInspectionGauge?.dispose();
+    chartIssueTypes?.dispose();
+  });
+
+  init();
+})();
+</script>
+<script defer src="assets/js/analytics.js?v=20260724b"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function(e) {
+      console.warn('SW 注册失败:', e);
+    });
+  });
+}
+</script>
+</body>
+</html>

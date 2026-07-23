@@ -106,6 +106,13 @@ async def rate_limit_middleware(request: Request, call_next) -> Response:
     if not settings.rate_limit_enabled:
         return await call_next(request)
 
+    # v1.2.1：压测旁路令牌。仅当配置了 rate_limit_bench_token 且请求携带匹配的
+    # X-Bench-Token 头时跳过限流。默认 token 为空 → 此分支永不命中 → 生产无影响。
+    # 用途：scripts/bench-api.py 测量原始吞吐，避免 429 污染基线数据。
+    bench_token = settings.rate_limit_bench_token
+    if bench_token and request.headers.get("x-bench-token") == bench_token:
+        return await call_next(request)
+
     path: str = request.url.path
 
     # 健康检查 / 指标端点不受限

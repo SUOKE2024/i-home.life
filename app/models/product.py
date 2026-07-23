@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Text, Boolean, Float
+from sqlalchemy import String, DateTime, ForeignKey, func, Text, Boolean, Float, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -49,3 +49,15 @@ class Product(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+
+    __table_args__ = (
+        CheckConstraint(
+            "category IN ('tile', 'flooring', 'cabinet', 'paint', 'lighting', 'appliance', 'curtain', 'custom_furniture', 'service', 'other')",
+            name="chk_product_category",
+        ),
+        CheckConstraint("stock_status IN ('in_stock', 'pre_order', 'out_of_stock')", name="chk_product_stock_status"),
+        CheckConstraint("status IN ('draft', 'published', 'archived')", name="chk_product_status"),
+        CheckConstraint("price_min IS NULL OR price_min >= 0", name="chk_product_price_min_positive"),
+        CheckConstraint("price_max IS NULL OR price_max >= 0", name="chk_product_price_max_positive"),
+    )

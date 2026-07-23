@@ -4,11 +4,15 @@
 ``logging.getLogger(__name__)`` 调用与 structlog 原生日志均输出统一 JSON。
 
 标准字段: timestamp, level, logger, message, request_id, user_id,
-path, method, duration_ms（后四个由 contextvars 在中间件中注入）。
+path, method, duration_ms（后四个由 contextvars 在中间件中注入），
+trace_id, span_id（v1.2.2 F4：由 inject_trace_context 从活跃 OTel span 注入，
+tracing 未启用或无活跃 span 时缺失，不影响日志）。
 """
 import logging
 
 import structlog
+
+from app.observability.tracing import inject_trace_context
 
 # 需脱敏的字段名（小写匹配）
 _SENSITIVE_KEYS = frozenset(
@@ -43,6 +47,9 @@ _shared_processors = [
     structlog.processors.StackInfoRenderer(),
     structlog.processors.format_exc_info,
     _redact_sensitive,
+    # v1.2.2 F4：日志-追踪关联。注入活跃 OTel span 的 trace_id/span_id；
+    # tracing 未启用或无活跃 span 时为 no-op，零开销。
+    inject_trace_context,
 ]
 
 

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -7,18 +9,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../main.dart' show ThemeState;
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 import '../services/agent_router.dart';
 import '../services/api.dart';
 import '../services/project_context.dart';
 import '../services/sse_service.dart';
+import '../services/sensor_service.dart';
 import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
 import 'ar_scan_page.dart';
+import 'settings_page.dart';
 
 class AIChatPage extends StatefulWidget {
   final String? projectId;
@@ -43,49 +46,27 @@ class _AIChatPageState extends State<AIChatPage> {
   String? _currentProjectId;
   String? _currentSessionId;
 
-  // v1.1.29: 自主权控制与思考步骤追踪
-  AutonomyMode _autonomyMode = AutonomyMode.coPilot;
+  // 思考步骤追踪
   final List<String> _activeThinkingSteps = [];
   String _currentProcessingAgent = 'master';
 
-  // v1.1.29: 回到底部 FAB 状态
-  bool _showScrollToBottom = false;
-  int _unreadBelow = 0;
+  // ── 头像状态 ──
+  static const _customAvatarKey = 'custom_avatar_path';
+  static const _avatarCount = 109;
+  String? _avatarAssetPath;
+  String? _customAvatarPath;
 
   StreamSubscription<SseEvent>? _sseSub;
   VoidCallback? _wsUnsubscribe;
-
-  late final List<AgentInfo> _agents;
-
-  /// 快览导航项（对齐 Web 端 .quick-nav）
-  static const _quickNavItems = [
-    ('主页', '#'),
-    ('项目详情', 'project-detail'),
-    ('物料管理', 'materials'),
-    ('设置', 'settings'),
-  ];
 
   static const _sessionKey = 'agent_session_id';
 
   @override
   void initState() {
     super.initState();
-    _agents = AgentInfo.standardAgents;
+    _initAvatar();
     _connectWebSocket();
     _restoreSessionId();
-    // v1.1.29: 监听滚动位置控制 FAB 显示
-    _scrollCtrl.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    if (!_scrollCtrl.hasClients) return;
-    final pos = _scrollCtrl.position;
-    final atBottom = pos.pixels >= pos.maxScrollExtent - 60;
-    if (atBottom) {
-      if (_showScrollToBottom) setState(() { _showScrollToBottom = false; _unreadBelow = 0; });
-    } else {
-      if (!_showScrollToBottom) setState(() => _showScrollToBottom = true);
-    }
   }
 
   Future<void> _restoreSessionId() async {
@@ -234,10 +215,6 @@ class _AIChatPageState extends State<AIChatPage> {
   void _addMessage(ChatMessage msg) {
     setState(() => _messages.add(msg));
     _scrollToBottom();
-    // v1.1.29: 跟踪未读消息
-    if (_showScrollToBottom) {
-      _unreadBelow++;
-    }
   }
 
   void _updateLastAgentMessage(String content, {String? agent}) {
@@ -294,57 +271,6 @@ class _AIChatPageState extends State<AIChatPage> {
     });
   }
 
-  /// v1.1.29: 回到底部 FAB（带未读计数）
-  Widget _buildScrollToBottomFab() {
-    return GestureDetector(
-      onTap: () {
-        _scrollCtrl.animateTo(
-          _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-        setState(() { _showScrollToBottom = false; _unreadBelow = 0; });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: _unreadBelow > 0 ? null : 40,
-        height: 40,
-        padding: EdgeInsets.symmetric(
-          horizontal: _unreadBelow > 0 ? 12 : 0,
-        ),
-        decoration: BoxDecoration(
-          color: SuokeDesignTokens.cardBg,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-          border: Border.all(color: SuokeDesignTokens.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.keyboard_arrow_down, size: 22, color: SuokeDesignTokens.accent),
-            if (_unreadBelow > 0) ...[
-              const SizedBox(width: 4),
-              Text(
-                _unreadBelow > 99 ? '99+' : '$_unreadBelow',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: SuokeDesignTokens.accent,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   // ── 发送消息 ──
 
@@ -474,52 +400,185 @@ class _AIChatPageState extends State<AIChatPage> {
     }
   }
 
-  /// 创建项目弹窗
+  /// 项目户型选项
+  static const _houseTypes = ['公寓', '别墅', '平层', '复式/LOFT', '商铺', '办公楼', '自定义'];
+
+  /// 创建项目弹窗 — 含户型选择、位置定位、通讯方式
   Future<void> _showCreateProjectDialog(ProjectContext pc) async {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
+    final contactNameCtrl = TextEditingController();
+    final contactPhoneCtrl = TextEditingController();
+    final addressCtrl = TextEditingController();
+    String selectedHouseType = _houseTypes.first;
+    final customHouseTypeCtrl = TextEditingController();
+    bool showCustomHouseType = false;
+    double? latitude, longitude;
+    bool locating = false;
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('创建项目'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: '项目名称',
-                hintText: '例如：我的新家装修',
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('创建项目'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 项目名称
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: '项目名称 *',
+                      hintText: '例如：我的新家装修',
+                    ),
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 12),
+                  // 项目描述
+                  TextField(
+                    controller: descCtrl,
+                    decoration: const InputDecoration(
+                      labelText: '项目描述（可选）',
+                      hintText: '描述您的项目',
+                    ),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 16),
+                  // ── 户型选择 ──
+                  const Text('户型选择', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedHouseType,
+                    decoration: const InputDecoration(
+                      labelText: '户型',
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: _houseTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setDialogState(() {
+                          selectedHouseType = v;
+                          showCustomHouseType = v == '自定义';
+                        });
+                      }
+                    },
+                  ),
+                  if (showCustomHouseType) ...[
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: customHouseTypeCtrl,
+                      decoration: const InputDecoration(
+                        labelText: '自定义户型',
+                        hintText: '请输入户型描述',
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  // ── 位置 / 定位 ──
+                  const Text('项目位置', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: addressCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '地址',
+                            hintText: '输入地址或使用定位',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: locating
+                              ? null
+                              : () async {
+                                  setDialogState(() => locating = true);
+                                  final sensor = SensorService();
+                                  final loc = await sensor.getCurrentLocation();
+                                  if (loc != null) {
+                                    latitude = loc['latitude'] as double;
+                                    longitude = loc['longitude'] as double;
+                                    if (addressCtrl.text.isEmpty) {
+                                      addressCtrl.text = '$latitude, $longitude';
+                                    }
+                                  }
+                                  setDialogState(() => locating = false);
+                                },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          child: locating
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.my_location, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (latitude != null && longitude != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '已定位: $latitude, $longitude',
+                      style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textSecondary),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  // ── 通讯方式 ──
+                  const Text('通讯方式', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: contactNameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: '联系人姓名（可选）',
+                      hintText: '请输入联系人姓名',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: contactPhoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: '联系电话（可选）',
+                      hintText: '请输入联系电话',
+                    ),
+                  ),
+                ],
               ),
-              autofocus: true,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              decoration: const InputDecoration(
-                labelText: '项目描述（可选）',
-                hintText: '描述您的项目',
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('取消'),
               ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
+              FilledButton(
+                onPressed: () {
+                  final houseTypeValue = showCustomHouseType
+                      ? customHouseTypeCtrl.text.trim()
+                      : selectedHouseType;
+                  Navigator.pop(ctx, <String, dynamic>{
+                    'name': nameCtrl.text.trim(),
+                    'description': descCtrl.text.trim(),
+                    'house_type': houseTypeValue,
+                    'address': addressCtrl.text.trim(),
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'contact_name': contactNameCtrl.text.trim(),
+                    'contact_phone': contactPhoneCtrl.text.trim(),
+                  });
+                },
+                child: const Text('创建'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, <String, dynamic>{
-              'name': nameCtrl.text,
-              'description': descCtrl.text,
-            }),
-            child: const Text('创建'),
-          ),
-        ],
-      ),
+        );
+      },
     );
-    if (result == null || (result['name'] ?? '').trim().isEmpty) return;
+    if (result == null || (result['name'] ?? '').toString().trim().isEmpty) return;
 
     final api = ApiClient();
     final r = await api.post('/projects', result);
@@ -548,35 +607,6 @@ class _AIChatPageState extends State<AIChatPage> {
         SnackBar(content: Text(r.error ?? '创建项目失败')),
       );
     }
-  }
-
-  void _showSessionList() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => _SessionListSheet(
-        onSelect: (sessionId) {
-          Navigator.pop(ctx);
-          _persistSessionId(sessionId);
-          _loadSessionMessages();
-        },
-        onNewChat: () {
-          Navigator.pop(ctx);
-          _persistSessionId(null);
-          setState(() {
-            _messages.clear();
-            _messages.add(ChatMessage.agentText(
-              text: '新对话开始。我是索克家居 AI 总控 Agent，请告诉我您的需求。',
-              agent: 'master',
-            ));
-          });
-        },
-        currentSessionId: _currentSessionId,
-      ),
-    );
   }
 
   String _agentToBackend(String agentKey) {
@@ -768,19 +798,15 @@ class _AIChatPageState extends State<AIChatPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: SuokeDesignTokens.bgDeep,
+      backgroundColor: isDark ? SuokeDesignTokens.bgDeep : SuokeDesignTokens.lightBg,
       body: SafeArea(
         bottom: false,
         child: Stack(
           children: [
             Column(
               children: [
-                // ── 聊天头部（对齐 Web chat-header：半透明 + 底部边框） ──
-                _buildChatHeader(pc, projects, title, isDark),
-                // ── Agent 选择栏 ──
-                _buildAgentChips(),
-                // ── 快览导航（对齐 Web .quick-nav） ──
-                _buildQuickNav(),
+                // ── 聊天头部（半透明 + 底部边框） ──
+                _buildChatHeader(pc, projects, title),
                 // ── 消息流 ──
                 Expanded(
                   child: _buildMessageList(),
@@ -792,25 +818,19 @@ class _AIChatPageState extends State<AIChatPage> {
                 _buildInputBar(),
               ],
             ),
-            // v1.1.29: 回到底部 FAB
-            if (_showScrollToBottom)
-              Positioned(
-                right: 16,
-                bottom: _isLoading ? 56 : 12,
-                child: _buildScrollToBottomFab(),
-              ),
           ],
         ),
       ),
     );
   }
 
-  /// 聊天头部（半透明玻璃效果，对齐 Web chat-header）
-  Widget _buildChatHeader(ProjectContext pc, List<Map<String, dynamic>> projects, String title, bool isDark) {
+  /// 聊天头部（半透明玻璃效果）
+  Widget _buildChatHeader(ProjectContext pc, List<Map<String, dynamic>> projects, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBgSemi,
-        border: const Border(bottom: BorderSide(color: SuokeDesignTokens.border)),
+        color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
+        border: Border(bottom: BorderSide(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder)),
       ),
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top > 0 ? 0 : 8,
@@ -857,75 +877,104 @@ class _AIChatPageState extends State<AIChatPage> {
                 ),
               ),
             ),
-          // 会话历史
-          GestureDetector(
-            onTap: _showSessionList,
-            child: Container(
-              width: 36,
-              height: 36,
-              margin: const EdgeInsets.only(right: 4),
-              decoration: BoxDecoration(
-                color: SuokeDesignTokens.bgDeep,
-                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
-                border: Border.all(color: SuokeDesignTokens.border),
-              ),
-              child: Icon(
-                Icons.history,
-                size: 18,
-                color: SuokeDesignTokens.textSecondary,
-              ),
-            ),
-          ),
-          // v1.1.29: 自主权模式切换
-          GestureDetector(
-            onTap: _cycleAutonomyMode,
-            child: Container(
-              width: 36,
-              height: 36,
-              margin: const EdgeInsets.only(right: 4),
-              decoration: BoxDecoration(
-                color: _autonomyColor().withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
-                border: Border.all(color: _autonomyColor().withValues(alpha: 0.4)),
-              ),
-              child: Icon(
-                _autonomyIcon(),
-                size: 17,
-                color: _autonomyColor(),
-              ),
-            ),
-          ),
-          // 主题切换
-          GestureDetector(
-            onTap: () => context.read<ThemeState>().toggle(),
-            child: Container(
-              width: 36,
-              height: 36,
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: SuokeDesignTokens.bgDeep,
-                borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
-                border: Border.all(color: SuokeDesignTokens.border),
-              ),
-              child: Icon(
-                isDark ? Icons.light_mode : Icons.dark_mode,
-                size: 18,
-                color: SuokeDesignTokens.accent,
-              ),
-            ),
-          ),
+          const SizedBox(width: 8),
+          // 用户头像
+          _buildAvatar(),
         ],
       ),
     );
   }
 
+  /// 用户头像：点击打开设置，长按从相册更换
+  Widget _buildAvatar() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsPage()),
+        );
+      },
+      onLongPress: _pickCustomAvatar,
+      child: Container(
+        width: 36,
+        height: 36,
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: SuokeDesignTokens.border, width: 1.5),
+        ),
+        child: ClipOval(
+          child: _customAvatarPath != null
+              ? Image.file(
+                  File(_customAvatarPath!),
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildAvatarFallback(),
+                )
+              : _avatarAssetPath != null
+                  ? Image.asset(
+                      _avatarAssetPath!,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildAvatarFallback(),
+                    )
+                  : _buildAvatarFallback(),
+        ),
+      ),
+    );
+  }
+
+  /// 头像加载失败 / 等待中 fallback
+  Widget _buildAvatarFallback() {
+    return Container(
+      color: SuokeDesignTokens.accent.withValues(alpha: 0.2),
+      child: Icon(Icons.person, size: 20, color: SuokeDesignTokens.accent),
+    );
+  }
+
+  /// 从相册自定义头像
+  Future<void> _pickCustomAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 256,
+      maxHeight: 256,
+    );
+    if (picked == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_customAvatarKey, picked.path);
+    setState(() {
+      _customAvatarPath = picked.path;
+      _avatarAssetPath = null;
+    });
+  }
+
+  /// 初始化头像：已有自定义则加载，否则随机选一个
+  Future<void> _initAvatar() async {
+    final prefs = await SharedPreferences.getInstance();
+    final customPath = prefs.getString(_customAvatarKey);
+    if (customPath != null) {
+      setState(() => _customAvatarPath = customPath);
+      return;
+    }
+    // 每次登录随机加载
+    final index = Random().nextInt(_avatarCount) + 1;
+    setState(() {
+      _avatarAssetPath = 'assets/images/avatars/hand-drawn-profiles/$index.webp';
+    });
+  }
+
   Widget _buildProjectDropdown(ProjectContext pc, String currentTitle) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return PopupMenuButton<String>(
       offset: const Offset(0, 44),
-      color: SuokeDesignTokens.cardBg,
+      color: isDark ? SuokeDesignTokens.cardBg : SuokeDesignTokens.lightCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
-        side: const BorderSide(color: SuokeDesignTokens.border),
+        side: BorderSide(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder),
       ),
       child: Padding(
         padding: const EdgeInsets.only(left: 16),
@@ -1004,73 +1053,12 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  /// 快览导航栏（对齐 Web 端 .quick-nav）
-  Widget _buildQuickNav() {
-    if (_currentProjectId == null || _currentProjectId!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      height: 40,
-      decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBgSemi,
-        border: const Border(
-          bottom: BorderSide(color: SuokeDesignTokens.border, width: 1),
-        ),
-      ),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        itemCount: _quickNavItems.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 4),
-        itemBuilder: (context, index) {
-          final item = _quickNavItems[index];
-          return GestureDetector(
-            onTap: () => _handleQuickNav(item.$2),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: SuokeDesignTokens.border.withValues(alpha: 0.6)),
-              ),
-              child: Text(
-                item.$1,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: SuokeDesignTokens.textSecondary,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _handleQuickNav(String target) {
-    final pid = _currentProjectId;
-    if (pid == null) return;
-
-    Widget? page;
-    switch (target) {
-      case 'project-detail':
-        // 需要在 Navigator 中打开
-        break;
-      case 'materials':
-        // 同样需要 Navigator
-        break;
-      case 'settings':
-        // 打开设置
-        break;
-    }
-    // 快览导航的业务跳转逻辑可根据需要扩展
-  }
-
   Widget _buildMessageList() {
     if (_messages.isEmpty) {
       return _buildWelcomeScreen();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final items = <Widget>[];
     String? lastDate;
 
@@ -1099,7 +1087,7 @@ class _AIChatPageState extends State<AIChatPage> {
 
     return RefreshIndicator(
       color: SuokeDesignTokens.accent,
-      backgroundColor: SuokeDesignTokens.cardBg,
+      backgroundColor: isDark ? SuokeDesignTokens.cardBg : SuokeDesignTokens.lightCard,
       onRefresh: _refreshMessages,
       child: ListView.builder(
         controller: _scrollCtrl,
@@ -1112,24 +1100,26 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 日期分隔线（对齐 Web .date-separator）
   Widget _buildDateSeparator(String label) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+          Expanded(child: Divider(color: borderColor)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: SuokeDesignTokens.cardBgSemi,
+                color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(label,
                   style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeXs)),
             ),
           ),
-          const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+          Expanded(child: Divider(color: borderColor)),
         ],
       ),
     );
@@ -1172,10 +1162,11 @@ class _AIChatPageState extends State<AIChatPage> {
   Widget _buildThinkingIndicator() {
     final processingAgentInfo = AgentInfo.getByKey(_currentProcessingAgent);
     final lastStep = _activeThinkingSteps.isNotEmpty ? _activeThinkingSteps.last : null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-      color: SuokeDesignTokens.cardBgSemi,
+      color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1202,20 +1193,6 @@ class _AIChatPageState extends State<AIChatPage> {
               ),
               const SizedBox(width: 8),
               _buildAnimatedDots(),
-              // v1.1.29: 自主权模式标签
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _autonomyColor().withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _autonomyColor().withValues(alpha: 0.3)),
-                ),
-                child: Text(
-                  _autonomyLabel(),
-                  style: TextStyle(fontSize: 10, color: _autonomyColor()),
-                ),
-              ),
             ],
           ),
           // 最新思考步骤
@@ -1375,68 +1352,6 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  // ── v1.1.29: 自主权控制 ──
-
-  Color _autonomyColor() {
-    switch (_autonomyMode) {
-      case AutonomyMode.suggest:
-        return SuokeDesignTokens.warning;
-      case AutonomyMode.coPilot:
-        return SuokeDesignTokens.accent;
-      case AutonomyMode.autopilot:
-        return SuokeDesignTokens.success;
-    }
-  }
-
-  String _autonomyLabel() {
-    switch (_autonomyMode) {
-      case AutonomyMode.suggest:
-        return '仅建议';
-      case AutonomyMode.coPilot:
-        return '协同';
-      case AutonomyMode.autopilot:
-        return '自动';
-    }
-  }
-
-  void _cycleAutonomyMode() {
-    setState(() {
-      switch (_autonomyMode) {
-        case AutonomyMode.suggest:
-          _autonomyMode = AutonomyMode.coPilot;
-        case AutonomyMode.coPilot:
-          _autonomyMode = AutonomyMode.autopilot;
-        case AutonomyMode.autopilot:
-          _autonomyMode = AutonomyMode.suggest;
-      }
-    });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Agent 模式切换至：${_autonomyLabel()}'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: SuokeDesignTokens.cardBg,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
-            side: const BorderSide(color: SuokeDesignTokens.border),
-          ),
-        ),
-      );
-    }
-  }
-
-  IconData _autonomyIcon() {
-    switch (_autonomyMode) {
-      case AutonomyMode.suggest:
-        return Icons.lightbulb_outline;
-      case AutonomyMode.coPilot:
-        return Icons.sync;
-      case AutonomyMode.autopilot:
-        return Icons.auto_mode;
-    }
-  }
-
   /// v1.1.29: 增强错误恢复 — 提供重试/切换 Agent 等恢复建议
   void _handleAgentError(String errorMsg, String failedAgent) {
     final agentName = AgentInfo.getByKey(failedAgent).name;
@@ -1464,9 +1379,10 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 旧版思考中指示器（保留作为 fallback）
   Widget _buildThinkingIndicatorLegacy() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      color: SuokeDesignTokens.cardBgSemi,
+      color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1509,11 +1425,17 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 输入栏（对齐 Web chat-input-bar）
   Widget _buildInputBar() {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inputBg = isDark ? SuokeDesignTokens.inputBg : cs.surfaceContainerHighest;
+    final borderColor = isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder;
+    final containerBg = isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95);
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBgSemi,
-        border: const Border(top: BorderSide(color: SuokeDesignTokens.border)),
+        color: containerBg,
+        border: Border(top: BorderSide(color: borderColor)),
       ),
       child: SafeArea(
         top: false,
@@ -1526,9 +1448,9 @@ class _AIChatPageState extends State<AIChatPage> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: SuokeDesignTokens.inputBg,
+                  color: inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
-                  border: Border.all(color: SuokeDesignTokens.border),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Icon(Icons.add, color: SuokeDesignTokens.textSecondary, size: 22),
               ),
@@ -1537,9 +1459,9 @@ class _AIChatPageState extends State<AIChatPage> {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: SuokeDesignTokens.inputBg,
+                  color: inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
-                  border: Border.all(color: SuokeDesignTokens.border),
+                  border: Border.all(color: borderColor),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
@@ -1565,9 +1487,9 @@ class _AIChatPageState extends State<AIChatPage> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: SuokeDesignTokens.inputBg,
+                  color: inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
-                  border: Border.all(color: SuokeDesignTokens.border),
+                  border: Border.all(color: borderColor),
                 ),
                 child: Icon(Icons.emoji_emotions_outlined, color: SuokeDesignTokens.textSecondary, size: 22),
               ),
@@ -1580,9 +1502,9 @@ class _AIChatPageState extends State<AIChatPage> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: _isVoiceMode ? SuokeDesignTokens.accent : SuokeDesignTokens.inputBg,
+                  color: _isVoiceMode ? SuokeDesignTokens.accent : inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
-                  border: Border.all(color: _isVoiceMode ? SuokeDesignTokens.accent : SuokeDesignTokens.border),
+                  border: Border.all(color: _isVoiceMode ? SuokeDesignTokens.accent : borderColor),
                 ),
                 child: Icon(
                   Icons.mic,
@@ -1611,12 +1533,13 @@ class _AIChatPageState extends State<AIChatPage> {
   }
 
   void _showAttachmentSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: SuokeDesignTokens.cardBg,
+      backgroundColor: isDark ? SuokeDesignTokens.cardBg : SuokeDesignTokens.lightCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
-        side: const BorderSide(color: SuokeDesignTokens.border),
+        side: BorderSide(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -1787,85 +1710,12 @@ class _AIChatPageState extends State<AIChatPage> {
     _addMessage(ChatMessage.system(text: '🔗 正在打开链接…'));
   }
 
-  Widget _buildAgentChips() {
-    final processingInfo = _isLoading ? AgentInfo.getByKey(_currentProcessingAgent) : null;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBgSemi,
-        border: const Border(bottom: BorderSide(color: SuokeDesignTokens.border)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _agents.map((agent) {
-            final isSelected = _selectedAgent == agent.key;
-            final isProcessing = processingInfo != null && processingInfo.key == agent.key;
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () => setState(() => _selectedAgent = agent.key),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: isSelected ? agent.color.withValues(alpha: 0.15) : SuokeDesignTokens.bgDeep,
-                    borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
-                    border: Border.all(
-                      color: isSelected ? agent.color : SuokeDesignTokens.border,
-                      width: isSelected ? 1.5 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${agent.emoji} ${agent.name}',
-                        style: TextStyle(
-                          fontSize: SuokeDesignTokens.fontSizeSm,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                          color: isSelected ? agent.color : SuokeDesignTokens.textSecondary,
-                        ),
-                      ),
-                      // v1.1.29: 处理中脉冲动画
-                      if (isProcessing) ...[
-                        const SizedBox(width: 5),
-                        _buildPulsingDot(agent.color),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  /// v1.1.29: 脉冲动画点（表示 Agent 正在处理）
-  Widget _buildPulsingDot(Color color) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.3, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: value),
-            shape: BoxShape.circle,
-          ),
-        );
-      },
-    );
-  }
-
   // ── 欢迎页面 ──
 
   Widget _buildWelcomeScreen() {
     final agentCount = AgentInfo.standardAgents.length;
     final coreCount = 8; // master, design, budget, procurement, construction, quality, settlement, support
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final suggestions = [
       (emoji: '💰', text: '查看预算情况', agent: 'budget'),
       (emoji: '📐', text: '我的设计方案', agent: 'design'),
@@ -1877,7 +1727,7 @@ class _AIChatPageState extends State<AIChatPage> {
 
     return RefreshIndicator(
       color: SuokeDesignTokens.accent,
-      backgroundColor: SuokeDesignTokens.cardBg,
+      backgroundColor: isDark ? SuokeDesignTokens.cardBg : SuokeDesignTokens.lightCard,
       onRefresh: _refreshMessages,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1930,6 +1780,7 @@ class _AIChatPageState extends State<AIChatPage> {
   }
 
   Widget _buildSuggestionChip(String emoji, String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () {
         _msgCtrl.text = text;
@@ -1941,182 +1792,17 @@ class _AIChatPageState extends State<AIChatPage> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
         decoration: BoxDecoration(
-          color: SuokeDesignTokens.cardBgSemi,
+          color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
-          border: Border.all(color: SuokeDesignTokens.border),
+          border: Border.all(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder),
         ),
         child: Text(
           '$emoji  $text',
-          style: TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 15),
+          style: TextStyle(color: isDark ? SuokeDesignTokens.textPrimary : SuokeDesignTokens.lightTextPrimary, fontSize: 15),
         ),
       ),
     );
   }
 }
 
-/// 会话列表弹窗组件
-class _SessionListSheet extends StatefulWidget {
-  final void Function(String sessionId) onSelect;
-  final VoidCallback onNewChat;
-  final String? currentSessionId;
 
-  const _SessionListSheet({
-    required this.onSelect,
-    required this.onNewChat,
-    this.currentSessionId,
-  });
-
-  @override
-  State<_SessionListSheet> createState() => _SessionListSheetState();
-}
-
-class _SessionListSheetState extends State<_SessionListSheet> {
-  List<dynamic> _sessions = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSessions();
-  }
-
-  Future<void> _loadSessions() async {
-    try {
-      final result = await ApiClient().listAgentSessions();
-      if (result.isSuccess && result.data != null) {
-        setState(() {
-          _sessions = (result.data as List<dynamic>?) ?? [];
-          _loading = false;
-        });
-      } else {
-        setState(() => _loading = false);
-      }
-    } catch (_) {
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 标题栏
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 12, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('会话历史',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                GestureDetector(
-                  onTap: widget.onNewChat,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: SuokeDesignTokens.accent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('+ 新对话',
-                        style: TextStyle(fontSize: 13, color: SuokeDesignTokens.accent)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // 列表
-          Flexible(
-            child: _loading
-                ? const Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : _sessions.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(40),
-                        child: Text('暂无历史会话', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _sessions.length,
-                        itemBuilder: (ctx, idx) {
-                          final s = _sessions[idx] as Map<String, dynamic>;
-                          final isActive = s['id']?.toString() == widget.currentSessionId;
-                          return _buildSessionItem(s, isActive);
-                        },
-                      ),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSessionItem(Map<String, dynamic> session, bool isActive) {
-    final title = (session['title'] ?? '新的对话').toString();
-    final agentType = (session['primary_agent_type'] ?? '').toString();
-    final msgCount = session['message_count'] ?? 0;
-    final updatedAt = session['updated_at']?.toString() ?? '';
-
-    // agent_type → 显示名
-    const agentNames = {
-      'designer': '设计师', 'budget': '预算师', 'procurement': '采购师',
-      'construction': '施工员', 'qa_inspector': '监理师', 'settlement': '结算师',
-      'concierge': '客服', 'content_publisher': '内容', 'orchestrator': '总控',
-    };
-    final agentLabel = agentNames[agentType] ?? agentType;
-
-    return GestureDetector(
-      onTap: () => widget.onSelect(session['id']?.toString() ?? ''),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: isActive ? SuokeDesignTokens.accent.withOpacity(0.05) : null,
-          border: Border(bottom: BorderSide(color: SuokeDesignTokens.border.withOpacity(0.5))),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isActive ? SuokeDesignTokens.accent : SuokeDesignTokens.textPrimary)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      if (agentLabel.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: SuokeDesignTokens.bgDeep,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(agentLabel,
-                              style: const TextStyle(fontSize: 10, color: SuokeDesignTokens.textSecondary)),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Text('$msgCount 条消息',
-                          style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textMuted)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (isActive)
-              Icon(Icons.check_circle, size: 18, color: SuokeDesignTokens.accent),
-          ],
-        ),
-      ),
-    );
-  }
-}

@@ -2,10 +2,23 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.1.29 · 家居补短 5 项落地：FC 3.0 微服务拆分 + A2UI 协议内化 + HMAC 审计签名 + 装修知识库 + 施工健康 OS（2026-07-22）
+> v1.2.0 · 家装全链路专业性提升：诊断报告 P1-P5 修复 + 正向设计算量（floorplan SSOT）+ 模型即图纸施工图 + IFC 真实坐标 + AI 渲染去 stub（2026-07-23）
 > 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图 + DWG/DXF 导入 + 22 Agent 全链路 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + WebGPU 降级 + 475+ API + Flutter 41 页面 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议 + FC 3.0 微服务
 
 ## 最近更新
+
+### 2026-07-23 · v1.2.0 家装全链路专业性提升
+
+基于 2026 行业最新技术对标（飞流AI 空间智能 / 鲁班正向算量 / EasyBIM 模型即图纸 / ControlNet 几何锁定），系统修复家装功能诊断报告 P1-P5 五大专业性缺陷，建立"设计→几何→算量→报价→采购→施工→图纸"贯通链路。所有改动配套 feature flag 可回滚。
+
+- **P1 AI 渲染去 stub（消除幻觉债）**: [app/services/ai_render_service.py](app/services/ai_render_service.py) 新增 `render_backend`/`reconstruction_available` 诚实标识；`_detect_room_type` 不再 `len(photo)%len(rooms)` 伪随机；`real_ai_render_enabled`+`ai_render_backend_url` 接入 ControlNet 几何锁定（对标 2026 Geometry Locking 强制标准）
+- **P2 设计→BOM→报价链路贯通（正向设计算量）**: 新增 [app/services/quantity_takeoff_service.py](app/services/quantity_takeoff_service.py)（floorplan.data 作 SSOT，对标鲁班 1:1 BIM 布尔运算）+ `GET /takeoff/project/{id}` 正向算量端点
+- **P3 IFC 真实坐标 + Pset 属性集**: [app/services/ifc_export_service.py](app/services/ifc_export_service.py) 墙体/门窗 placement 用 floorplan 真实坐标（不再 `i*5000` 一字排开）+ `_attach_pset_wall_common`（FireRating/ThermalTransmittance/IsExternal/Material），对标飞流 BIM 毫米级可施工
+- **P4 施工图自动生成（模型即图纸）**: 新增 [app/services/construction_drawing_service.py](app/services/construction_drawing_service.py) + [app/api/construction_drawing.py](app/api/construction_drawing.py)（SVG 平/立/剖面，floorplan 变 → 图纸自动重生成，对标鲁班/酷家乐）
+- **P5 2D CAD 参数化升级**: [flutter_app/lib/pages/cad_element.dart](flutter_app/lib/pages/cad_element.dart) `toFloorplanWallJson()` 建立 CAD→算量→图纸链路入口
+- **Feature flags**: 10 项新开关（forward_takeoff_enabled / bom_from_geometry_enabled / real_ai_render_enabled / ai_render_backend_url / ifc_real_placement_enabled / construction_drawing_enabled / parametric_cad_enabled / spatial_perception_enabled / spatial_reasoning_enabled / spatial_interaction_enabled）
+- **测试**: 新增 30 项专业性测试（test_quantity_takeoff_service / test_construction_drawing_service / test_v120_professionalism），关键回归 75 passed / 7 skipped / 0 failed
+- **文档**: [诊断报告](docs/superpowers/specs/2026-07-23-renovation-professionalism-diagnosis.md) + [实施总结](docs/superpowers/specs/2026-07-23-renovation-professionalism-implementation.md)
 
 ### 2026-07-22 · v1.1.29 家居补短 5 项落地
 

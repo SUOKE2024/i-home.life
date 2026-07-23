@@ -217,3 +217,203 @@ async def list_assessments(db: AsyncSession, project_id: str) -> list[QualityAss
         .order_by(QualityAssessment.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+# ── 验收报告生成（v1.1.31 FP-5 / S4：验收清单贯通）──
+
+def _issue_to_check_status(issue_status: str) -> str:
+    """QualityIssue.status → 验收项状态映射
+
+    open/in_progress → fail（未通过），resolved → warning（已整改待复验），
+    verified/closed → pass（已验收）。
+    """
+    return {
+        "open": "fail",
+        "in_progress": "fail",
+        "resolved": "warning",
+        "verified": "pass",
+        "closed": "pass",
+    }.get(issue_status, "warning")
+
+
+async def generate_acceptance_report(
+    db: AsyncSession,
+    project_id: str,
+    phase: str | None = None,
+) -> dict:
+    """生成验收报告：比对标准验收清单与项目实际质量问题
+
+    v1.1.31 FP-5（S4）：原 quality_service 与 ConstructionAgent 的
+    QUALITY_CHECKLISTS 割裂，现统一引用 ``app.standards.acceptance_checklists``。
+
+    逻辑：
+    1. 从标准库加载该阶段验收清单（每项含 item/standard/method/regulation）
+    2. 查询项目该阶段的 QualityIssue
+    3. 按 category/item 名称模糊匹配，将 issue 关联到 checklist 项
+    4. 未匹配到 issue 的 checklist 项标记为 "pending"（待检）
+    5. 计算合格率与验收结论
+
+    受 ``settings.acceptance_checklist_enabled`` 控制：
+    - True：完整比对（标准清单 + 实际 issue）
+    - False：仅汇总实际 issue（回退，不比对标准清单）
+
+    Args:
+        db: 异步数据库会话
+        project_id: 项目 ID
+        phase: 阶段码（mep/waterproof/masonry/carpentry/painting/installation/completion）；
+                None 表示全阶段汇总
+
+    Returns:
+        验收报告 dict（含 checklist_items / issues / pass_rate / verdict）
+    """
+    from app.config import get_settings
+    from app.standards.acceptance_checklists import all_phases, get_checklist
+
+    settings = get_settings()
+
+    # 查询项目实际质量问题
+    stmt = select(QualityIssue).where(QualityIssue.project_id == project_id)
+    if phase:
+        stmt = stmt.where(QualityIssue.phase == phase)
+    result = await db.execute(stmt)
+    issues = list(result.scalars().all())
+
+    # 关闭 flag 或无标准清单时：仅汇总 issue
+    if not settings.acceptance_checklist_enabled:
+        return _summarize_issues_only(project_id, phase, issues)
+
+    # 加载标准验收清单
+    phases_to_check = [phase] if phase else all_phases()
+    checklist_items: list[dict] = []
+    for ph in phases_to_check:
+        for item in get_checklist(ph):
+            checklist_items.append({**item, "phase": ph})
+
+    # 按 category + item 名称匹配 issue（同 phase 前提下）
+    results: list[dict] = []
+    passed = 0
+    failed = 0
+    pending = 0
+    for ci in checklist_items:
+        matched_issues: list[QualityIssue] = []
+        cat = ci.get("category", "")
+        for iss in issues:
+            if iss.phase != ci["phase"]:
+                continue
+            # category 精确/包含匹配，或 issue.category 包含 checklist item 名
+            if (cat and cat in iss.category) or (ci["item"] in iss.category) or (iss.category in ci["item"]):
+                matched_issues.append(iss)
+
+        if not matched_issues:
+            # 无对应 issue：待检（不算合格也不算不合格）
+            status = "pending"
+            pending += 1
+        else:
+            # 取最严重的 issue 状态
+            severities = [i.status for i in matched_issues]
+            if any(s in ("open", "in_progress") for s in severities):
+                status = "fail"
+                failed += 1
+            elif any(s == "resolved" for s in severities):
+                status = "warning"
+                passed += 1  # 已整改视为条件合格
+            else:
+                status = "pass"
+                passed += 1
+
+        results.append({
+            "phase": ci["phase"],
+            "item": ci["item"],
+            "standard": ci["standard"],
+            "method": ci.get("method", ""),
+            "regulation": ci.get("regulation", ""),
+            "category": ci.get("category", ""),
+            "status": status,
+            "matched_issue_count": len(matched_issues),
+            "matched_issues": [
+                {
+                    "id": i.id, "category": i.category, "severity": i.severity,
+                    "issue_status": i.status, "description": i.description,
+                    "location": i.location or "",
+                } for i in matched_issues[:3]
+            ],
+        })
+
+    total_checked = passed + failed
+    pass_rate = round(passed / max(total_checked, 1) * 100, 1)
+    # 验收结论：有待检项不影响结论，仅看已检项
+    if failed == 0 and total_checked > 0:
+        verdict = "pass" if pending == 0 else "conditional_pass"
+        verdict_text = "合格" if pending == 0 else "有条件合格（含待检项）"
+    elif pass_rate >= 85:
+        verdict = "conditional_pass"
+        verdict_text = "有条件合格（需整改）"
+    else:
+        verdict = "fail"
+        verdict_text = "不合格（需返工）"
+
+    return {
+        "source": "standard_checklist",
+        "project_id": project_id,
+        "phase": phase or "all",
+        "total_checklist_items": len(checklist_items),
+        "passed": passed,
+        "failed": failed,
+        "pending": pending,
+        "pass_rate": pass_rate,
+        "verdict": verdict,
+        "verdict_text": verdict_text,
+        "checklist_items": results,
+        "issues_summary": {
+            "total_issues": len(issues),
+            "by_status": _count_by(issues, lambda i: i.status),
+            "by_severity": _count_by(issues, lambda i: i.severity),
+        },
+    }
+
+
+def _count_by(items: list, key_fn) -> dict[str, int]:
+    """按 key_fn 分组计数"""
+    counts: dict[str, int] = {}
+    for it in items:
+        k = key_fn(it)
+        counts[k] = counts.get(k, 0) + 1
+    return counts
+
+
+def _summarize_issues_only(project_id: str, phase: str | None, issues: list[QualityIssue]) -> dict:
+    """acceptance_checklist_enabled=False 时的回退：仅汇总 issue，不比对标准清单"""
+    passed = sum(1 for i in issues if i.status in ("verified", "closed"))
+    failed = sum(1 for i in issues if i.status in ("open", "in_progress"))
+    warning = sum(1 for i in issues if i.status == "resolved")
+    total = len(issues)
+    pass_rate = round(passed / max(total, 1) * 100, 1)
+    if failed == 0 and total > 0:
+        verdict = "pass"
+        verdict_text = "合格"
+    elif pass_rate >= 85:
+        verdict = "conditional_pass"
+        verdict_text = "有条件合格（需整改）"
+    else:
+        verdict = "fail"
+        verdict_text = "不合格（需返工）"
+    return {
+        "source": "issues_only_fallback",
+        "project_id": project_id,
+        "phase": phase or "all",
+        "total_issues": total,
+        "passed": passed,
+        "failed": failed,
+        "warning": warning,
+        "pass_rate": pass_rate,
+        "verdict": verdict,
+        "verdict_text": verdict_text,
+        "issues": [
+            {
+                "id": i.id, "phase": i.phase, "category": i.category,
+                "severity": i.severity, "status": i.status,
+                "description": i.description, "standard": i.standard or "",
+                "location": i.location or "",
+            } for i in issues
+        ],
+    }

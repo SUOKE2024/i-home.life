@@ -77,16 +77,27 @@ class AgenticRAG:
     async def _retrieve_vector(
         self, query: str, project_id: str | None
     ) -> list[dict[str, Any]]:
-        """向量数据库语义检索（Qdrant/Milvus）。"""
+        """向量数据库语义检索（Qdrant/Milvus）。
+
+        v1.1.31 FP-3 修复：原用 [0.0]*128 占位向量（伪 RAG，语义检索失效），
+        现通过 embedding_service.embed_query 获取真实 query 向量后再检索。
+        embedding 禁用/失败时返回空列表，由 retrieve() 降级到关键词匹配。
+        """
         try:
-            # 简化实现：调用向量库的 search 端点
-            # 生产环境应使用 embedding 模型将 query 向量化后检索
+            from app.services.embedding_service import embed_query
+            query_vector = await embed_query(query)
+            if query_vector is None:
+                # 真实 embedding 未启用或失败：不再用 [0.0]*128 假向量（伪 RAG），
+                # 直接返回空，让 retrieve() 走关键词降级
+                logger.debug("vector_retrieve: 无真实 embedding，降级到关键词匹配")
+                return []
+
             async with httpx.AsyncClient(timeout=10) as client:
-                # Qdrant 风格的搜索端点
+                # Qdrant 风格的搜索端点（Milvus 需另适配）
                 resp = await client.post(
                     f"{settings.vector_db_url}/collections/{settings.vector_db_collection}/points/search",
                     json={
-                        "vector": [0.0] * 128,  # placeholder — 生产环境用真实 embedding
+                        "vector": query_vector,
                         "limit": self.max_evidence,
                         "with_payload": True,
                     },

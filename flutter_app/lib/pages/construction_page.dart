@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/gantt_chart.dart';
 import '../theme/suoke_theme.dart';
 
 class ConstructionPage extends StatefulWidget {
@@ -22,6 +23,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   String? _error;
   double _totalArea = 0;
   String _tier = 'comfort';
+  bool _showGantt = true;
 
   @override
   void initState() {
@@ -210,14 +212,18 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         ),
       );
     }
-    final tasks = (_plan!['tasks'] as List?) ?? [];
-    final milestones = (_plan!['milestones'] as List?) ?? [];
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final ganttTasks = _planTasksToGantt();
+    final planStart = DateTime.now();
+    final planEnd = planStart.add(Duration(days: (_plan!['total_duration_days'] as int?) ?? 1));
+
+    return Column(
       children: [
+        // Summary card
         Card(
-          color: Colors.blue.shade50,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? SuokeDesignTokens.surface2
+              : Colors.blue.shade50,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -231,31 +237,130 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        const Text('施工阶段', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
+
+        // View toggle
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              const Text('施工阶段', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const Spacer(),
+              _ViewToggleButton(
+                isGantt: _showGantt,
+                onToggle: () => setState(() => _showGantt = !_showGantt),
+              ),
+            ],
+          ),
+        ),
+
+        // Content
+        Expanded(
+          child: _showGantt
+              ? GanttChart(
+                  tasks: ganttTasks,
+                  projectStart: planStart,
+                  projectEnd: planEnd,
+                  onTaskTap: (task) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('已选中：${task.name}'),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                )
+              : _buildPlanListContent(),
+        ),
+      ],
+    );
+  }
+
+  /// Convert API plan data into GanttTask list
+  List<GanttTask> _planTasksToGantt() {
+    final rawTasks = (_plan!['tasks'] as List?) ?? [];
+    final planStart = DateTime.now();
+    final List<GanttTask> result = [];
+
+    // Track IDs for dependency mapping
+    final Map<int, String> indexToId = {};
+
+    for (int i = 0; i < rawTasks.length; i++) {
+      final t = rawTasks[i] as Map<String, dynamic>;
+      final id = 'plan-$i';
+      indexToId[i] = id;
+
+      final name = t['name']?.toString() ?? '';
+      final startDay = (t['start_day'] as num?)?.toInt() ?? 1;
+      final endDay = (t['end_day'] as num?)?.toInt() ?? 1;
+
+      // Simple dependency chaining: each task depends on the previous one
+      final deps = <String>[];
+      if (i > 0) {
+        deps.add('plan-${i - 1}');
+      }
+
+      result.add(GanttTask(
+        id: id,
+        name: name,
+        phase: _extractPhase(name),
+        startDate: planStart.add(Duration(days: startDay - 1)),
+        endDate: planStart.add(Duration(days: endDay)),
+        status: 'pending',
+        dependencies: deps,
+        progress: 0.0,
+      ));
+    }
+
+    return result;
+  }
+
+  String _extractPhase(String taskName) {
+    const phases = ['拆除', '水电', '防水', '瓦工', '木工', '油漆', '安装', '验收'];
+    for (final p in phases) {
+      if (taskName.contains(p)) return p;
+    }
+    return '施工';
+  }
+
+  /// Existing card-based list view (used when toggle is off)
+  Widget _buildPlanListContent() {
+    final tasks = (_plan!['tasks'] as List?) ?? [];
+    final milestones = (_plan!['milestones'] as List?) ?? [];
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
         ...tasks.map((task) => RepaintBoundary(
               child: Card(
                 child: ListTile(
-                  leading: CircleAvatar(child: Text('${task['start_day']}-\n${task['end_day']}', style: const TextStyle(fontSize: 10))),
+                  leading: CircleAvatar(
+                    child: Text(
+                      '${task['start_day']}-\n${task['end_day']}',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                  ),
                   title: Text(task['name'] ?? ''),
                   subtitle: Text('${task['duration_days']}天 · ${task['description'] ?? ''}'),
                 ),
               ),
             )),
-        const SizedBox(height: 16),
-        const Text('里程碑节点', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        ...milestones.map((m) => RepaintBoundary(
-              child: Card(
-                color: Colors.amber.shade50,
-                child: ListTile(
-                  leading: const Icon(Icons.flag, color: Colors.amber),
-                  title: Text(m['name'] ?? ''),
-                  trailing: Text('第 ${m['day']} 天'),
+        if (milestones.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 8),
+            child: Text('里程碑节点', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          ...milestones.map((m) => RepaintBoundary(
+                child: Card(
+                  color: Colors.amber.shade50,
+                  child: ListTile(
+                    leading: const Icon(Icons.flag, color: Colors.amber),
+                    title: Text(m['name'] ?? ''),
+                    trailing: Text('第 ${m['day']} 天'),
+                  ),
                 ),
-              ),
-            )),
+              )),
+        ],
       ],
     );
   }
@@ -374,5 +479,96 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('质检失败：${result.error}')));
       }
     }
+  }
+}
+
+/// Toggle button switching between Gantt chart and list view
+class _ViewToggleButton extends StatelessWidget {
+  final bool isGantt;
+  final VoidCallback onToggle;
+
+  const _ViewToggleButton({
+    required this.isGantt,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? SuokeDesignTokens.surface1
+            : const Color(0xFFEEEEEE),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ToggleChip(
+            label: '甘特图',
+            icon: Icons.view_timeline,
+            isSelected: isGantt,
+            onTap: isGantt ? null : onToggle,
+          ),
+          _ToggleChip(
+            label: '列表',
+            icon: Icons.view_list,
+            isSelected: !isGantt,
+            onTap: isGantt ? onToggle : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _ToggleChip({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? SuokeDesignTokens.accent.withValues(alpha: 0.2) : SuokeDesignTokens.accent.withValues(alpha: 0.15))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -30,8 +30,14 @@ jobs:
         env:
           DATABASE_URL: "sqlite+aiosqlite:///./data/test_${{ github.run_id }}.db"
           SECRET_KEY: "ci-test-secret-key-64-chars-random-string-xxxxxxxxxxxxxxxx"
+          # v1.2.1 P0-1/P1-8：debug 默认 False + paseto_strict_mode 默认 True 后，
+          # CI 无 .env，必须显式提供合法 PASETO 密钥（>=32 字节且非默认值），否则
+          # Settings() 在 model_validator 阶段直接 raise，全部测试 import 失败。
+          PASETO_SECRET_KEY: "ci-test-paseto-secret-key-32-bytes-min!!"
+          PASETO_STRICT_MODE: "false"
+          ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.1.26"
+          APP_VERSION: "1.2.0"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto
@@ -173,7 +179,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.1.27"
+          APP_VERSION: "1.2.0"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -356,3 +362,53 @@ jobs:
         if: failure()
         run: |
           echo "::warning::Deploy failed, please check logs: ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} 'journalctl -u ihome.service -n 100'"
+
+  # ── Alembic 迁移双向测试（v1.2.1 P0-2 修复）──
+  # 验证迁移双向可逆：upgrade head → downgrade -1 → upgrade head
+  # 背景：versions/ 目录 13 个迁移版本，此前 CI 从不跑迁移测试，生产迁移未在 CI 验证，
+  # 违反"生产改动必配回滚方案"约束（P0 风险）。本 job 用 SQLite 临时库验证正/逆向应用。
+  # SQLite 兼容性：迁移脚本已处理 PG 特性——CONCURRENTLY 走 is_pg 分支（SQLite 用普通
+  # CREATE INDEX），列变更用 batch_alter_table 兼容 SQLite，故无需 continue-on-error。
+  # 项目约束：不使用 Docker，故无 service 容器；SQLite 文件库即满足测试需求。
+  migration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # job 级 env：alembic env.py 调 get_settings() 触发 PASETO 校验（strict_mode 默认 True），
+    # 故除 DATABASE_URL 外需提供合法 PASETO_SECRET_KEY（>=32 字节且非默认值）。
+    env:
+      # v1.2.1 修复：app/database.py 在 import 时用 create_async_engine(database_url)
+      # 创建异步引擎，必须含 +aiosqlite 驱动；env.py 内部会 strip +aiosqlite 用同步
+      # engine_from_config 跑迁移。原 sqlite:/// 缺驱动 → import app.database 即 raise。
+      DATABASE_URL: "sqlite+aiosqlite:///./test_migration.db"
+      PASETO_SECRET_KEY: "ci-migration-paseto-key-32-bytes-random-xx"
+      PASETO_STRICT_MODE: "false"
+      ALLOW_PLAINTEXT_SESSION: "true"
+      APP_NAME: "i-home.life"
+      APP_VERSION: "1.2.0"
+      DEBUG: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Upgrade head（正向应用全部 13 个迁移）
+        run: alembic upgrade head
+
+      - name: Downgrade -1（回滚最近一个迁移，验证可逆）
+        run: alembic downgrade -1
+
+      - name: Upgrade head again（回滚后重新应用，验证幂等可重放）
+        run: alembic upgrade head
+
+      - name: Cleanup test database
+        if: always()
+        run: rm -f test_migration.db

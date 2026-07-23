@@ -17,6 +17,12 @@ class BathroomDesignCreate(BaseModel):
     waterproof_height_mm: int = 1800
     drain_slope_percent: float = 1.5
     status: str = "draft"
+    # v1.2.2：补齐 FP-2 通风真校验所需字段。原 FP-2 在 service 层按这些字段真校验，
+    # 但 create/update schema 未暴露，导致 API 创建的设计 has_natural_window 恒为 False、
+    # natural_ventilation.compliant 恒为 False（功能不可达）。现补齐使通风分析可用。
+    has_natural_window: bool = False            # 是否有自然通风窗（无窗需依赖机械通风）
+    window_area_m2: float | None = None         # 窗户面积 m²，None 时按 has_natural_window 推断
+    mechanical_vent_airflow: float | None = 80.0  # 机械通风风量 m³/h，默认 80（标准 ≥ 80）
 
 
 class BathroomDesignUpdate(BaseModel):
@@ -30,6 +36,9 @@ class BathroomDesignUpdate(BaseModel):
     waterproof_height_mm: int | None = None
     drain_slope_percent: float | None = None
     status: str | None = None
+    has_natural_window: bool | None = None
+    window_area_m2: float | None = None
+    mechanical_vent_airflow: float | None = None
 
 
 class BathroomDesignResponse(BaseModel):
@@ -46,6 +55,9 @@ class BathroomDesignResponse(BaseModel):
     waterproof_height_mm: int
     drain_slope_percent: float
     status: str
+    has_natural_window: bool
+    window_area_m2: float | None
+    mechanical_vent_airflow: float | None
     created_at: datetime
     updated_at: datetime
 

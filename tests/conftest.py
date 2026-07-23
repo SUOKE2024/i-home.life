@@ -17,6 +17,16 @@ os.environ["DEEPSEEK_API_KEY"] = ""
 # test_rate_limit.py 通过 monkeypatch 显式启用限流
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 
+# v1.2.1 P0-1/P1-8：测试环境 PASETO 与会话加密隔离。
+# conftest 不依赖 .env（CI/fresh clone 无 .env），故显式提供：
+# - PASETO_SECRET_KEY：合法 32+ 字节测试密钥，使 strict_mode 校验通过
+# - PASETO_STRICT_MODE=false：放宽校验，避免任何密钥边缘条件阻断测试
+# - ALLOW_PLAINTEXT_SESSION=true：Agent 会话测试关注业务逻辑而非加密，
+#   显式允许明文降级（生产禁止）。相关行为由专门的单测覆盖。
+os.environ.setdefault("PASETO_SECRET_KEY", "test-paseto-key-for-pytest-32-bytes!!")
+os.environ.setdefault("PASETO_STRICT_MODE", "false")
+os.environ.setdefault("ALLOW_PLAINTEXT_SESSION", "true")
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: F401, E402

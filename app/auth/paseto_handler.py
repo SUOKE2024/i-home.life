@@ -27,9 +27,20 @@ def _get_key() -> SymmetricKey:
 
     密钥内容来自 settings.paseto_secret_key，进程生命周期内不变，
     使用 lru_cache(maxsize=1) 实现模块级单例。
+
+    v1.2.1 P1-7 修复：原密钥 <32 字节时用 \\x00 填充（弱化密钥，安全风险）。
+    现 paseto_strict_mode=True 时硬 raise，仅 strict_mode=False 时回退 \\x00 填充（紧急回滚用）。
+    注意：config.py 的 model_validator 已在启动时拦截默认/过短密钥，此处为运行期二次防御。
     """
     key_bytes = settings.paseto_secret_key.encode()
     if len(key_bytes) < 32:
+        if getattr(settings, "paseto_strict_mode", True):
+            # 严格模式：硬失败，拒绝弱密钥（生产默认）
+            raise ValueError(
+                "PASETO secret key 长度不足 32 字节（当前 %d 字节），paseto_strict_mode=True 拒绝填充。"
+                "请在 .env 配置强密钥，或设 PASETO_STRICT_MODE=false 临时回退（不推荐生产）。"
+                % len(key_bytes)
+            )
         logger.warning(
             "PASETO secret key 长度不足 32 字节，正在用 \\x00 填充，生产环境必须配置强密钥"
         )

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
+import '../widgets/floor_plan_canvas.dart';
 
 class KitchenPage extends StatefulWidget {
   final String projectId;
@@ -30,7 +31,7 @@ class _KitchenPageState extends State<KitchenPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadDesigns();
   }
 
@@ -292,6 +293,7 @@ class _KitchenPageState extends State<KitchenPage>
           tabs: const [
             Tab(text: '厨房设计方案'),
             Tab(text: '组件列表'),
+            Tab(text: '平面图'),
           ],
         ),
       ),
@@ -300,6 +302,7 @@ class _KitchenPageState extends State<KitchenPage>
         children: [
           _buildDesignsTab(),
           _buildComponentsTab(),
+          _buildFloorPlanTab(),
         ],
       ),
     );
@@ -550,6 +553,219 @@ class _KitchenPageState extends State<KitchenPage>
         ),
       ],
     );
+  }
+
+  // ── Tab3: 平面图 ──
+
+  Widget _buildFloorPlanTab() {
+    if (_selectedDesignId == null) {
+      return _buildEmptyState(
+        icon: Icons.map_outlined,
+        message: '请先在"厨房设计方案"中选择一个方案',
+        actionLabel: '去选择方案',
+        onAction: () => _tabController.animateTo(0),
+      );
+    }
+
+    // 从设计数据获取房间尺寸（米 → 毫米）
+    final roomWidthM = (_selectedDesign?['room_width'] as num?)?.toDouble() ?? 3.0;
+    final roomLengthM = (_selectedDesign?['room_length'] as num?)?.toDouble() ?? 3.0;
+    final roomWidthMm = roomWidthM * 1000;
+    final roomLengthMm = roomLengthM * 1000;
+    final roomName = _selectedDesign?['room_name']?.toString() ?? '厨房';
+
+    // 转换组件数据
+    final floorPlanComps = _components
+        .whereType<Map<String, dynamic>>()
+        .map((comp) => FloorPlanComponent.fromMap(comp))
+        .toList();
+
+    if (_componentsLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+    }
+
+    return Column(
+      children: [
+        // 顶部信息栏
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          child: Card(
+            color: SuokeDesignTokens.cardBg,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  const Icon(Icons.map, color: SuokeDesignTokens.accent, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '$roomName  ${roomWidthM.toStringAsFixed(1)}m × ${roomLengthM.toStringAsFixed(1)}m',
+                      style: const TextStyle(
+                          color: SuokeDesignTokens.textPrimary, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Text(
+                    '${floorPlanComps.length} 个组件',
+                    style: const TextStyle(
+                        color: SuokeDesignTokens.textSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // 画布
+        Expanded(
+          child: floorPlanComps.isEmpty
+              ? _buildEmptyState(
+                  icon: Icons.grid_view,
+                  message: '暂无组件，平面图为空',
+                  actionLabel: '去添加组件',
+                  onAction: () => _tabController.animateTo(1),
+                )
+              : FloorPlanCanvas(
+                  roomWidth: roomWidthMm,
+                  roomHeight: roomLengthMm,
+                  roomLabel: roomName,
+                  components: floorPlanComps,
+                  showGrid: true,
+                  showDimensions: true,
+                  onComponentTap: (componentId) {
+                    final comp = _components.firstWhere(
+                      (c) => (c['id'] ?? '').toString() == componentId,
+                      orElse: () => <String, dynamic>{},
+                    );
+                    if (comp.isNotEmpty) {
+                      _showComponentDetailSheet(comp);
+                    }
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  void _showComponentDetailSheet(Map<String, dynamic> comp) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: SuokeDesignTokens.surface3,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final type = comp['component_type']?.toString() ?? '未分类';
+        final brand = comp['brand']?.toString();
+        final model = comp['model']?.toString();
+        final material = comp['material']?.toString();
+        final price = (comp['price'] as num?)?.toDouble();
+        final pos = _formatPosition(comp);
+        final spec = _formatSpec(comp);
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 拖拽手柄
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: SuokeDesignTokens.textMuted,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 标题行
+              Row(
+                children: [
+                  Icon(_componentTypeIcon(type),
+                      color: SuokeDesignTokens.accent, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      type,
+                      style: const TextStyle(
+                          color: SuokeDesignTokens.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (price != null)
+                    Text(
+                      '¥${price.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          color: SuokeDesignTokens.accent,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // 详情字段
+              _detailRow('规格', spec),
+              _detailRow('位置', pos),
+              if (brand != null && brand.isNotEmpty) _detailRow('品牌', brand),
+              if (model != null && model.isNotEmpty) _detailRow('型号', model),
+              if (material != null && material.isNotEmpty)
+                _detailRow('材质', material),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 56,
+            child: Text(label,
+                style: const TextStyle(
+                    color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: const TextStyle(
+                    color: SuokeDesignTokens.textPrimary, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _componentTypeIcon(String type) {
+    switch (type) {
+      case '橱柜':
+        return Icons.kitchen;
+      case '抽油烟机':
+        return Icons.air;
+      case '灶具':
+        return Icons.local_fire_department;
+      case '水槽':
+        return Icons.water_drop;
+      case '冰箱':
+        return Icons.kitchen;
+      case '洗碗机':
+        return Icons.wash;
+      case '烤箱':
+        return Icons.whatshot;
+      case '微波炉':
+        return Icons.microwave;
+      default:
+        return Icons.inventory_2;
+    }
   }
 
   Widget _buildComponentCard(Map<String, dynamic> comp) {

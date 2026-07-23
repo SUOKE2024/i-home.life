@@ -17,6 +17,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from app.config import get_settings
 from app.database import init_db, engine
 from app.logging_config import configure_logging
+from app.observability.tracing import instrument_fastapi, setup_tracing
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.cache_control import cache_control_middleware
 from app.middleware.slow_query import register_slow_query_logging, set_current_endpoint
@@ -48,6 +49,7 @@ from app.api import cad_import
 from app.api import mcp as mcp_api
 from app.api import ai_render
 from app.api import ifc_export
+from app.api import construction_drawing
 from app.api import eval as eval_api
 from app.api import a2a as a2a_api
 from app.api import energy
@@ -61,6 +63,10 @@ SLOW_REQUEST_THRESHOLD = 3.0  # 慢请求阈值（秒）
 _ALERT_WINDOW_SIZE = 100      # 异常率告警滑动窗口
 _ALERT_ERROR_RATE = 0.10      # 5xx 比例告警阈值
 _alert_status_window: deque = deque(maxlen=_ALERT_WINDOW_SIZE)
+
+# v1.2.2 F4：OTel tracer provider 关闭句柄。lifespan 启动时由 setup_tracing 返回
+# （tracing_enabled=False 时为 None），teardown 时调用以刷新未导出的 span。
+_tracing_shutdown = None
 
 
 def _extract_user_id(request: Request):
@@ -130,6 +136,7 @@ def _is_uuid(s: str) -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _tracing_shutdown
     await init_db()
     configure_logging(debug=settings.debug)
     # 注册慢查询日志中间件（v1.1.27）— SQLAlchemy 事件监听
@@ -142,8 +149,20 @@ async def lifespan(app: FastAPI):
             "WebAuthn 挑战存储: 未配置 Redis (redis_url)，"
             "多 worker 部署下挑战将不共享，可能导致注册/登录失败。"
         )
+    # 事件总线编排规则注册（v1.2.2）— 跨模块松耦合通信
+    if settings.integration_event_bus_enabled:
+        from app.services.orchestration_rules import register_all_rules
+        register_all_rules()
+        logger.info("Event bus orchestration rules registered")
+    # v1.2.2 F4：OpenTelemetry 追踪初始化。tracing_enabled=False 时 setup_tracing
+    # 返回 None（零开销），instrument_fastapi 也为 no-op。启用时为每个 HTTP 请求
+    # 生成 server span，DB 查询生成 client span，trace_id/span_id 注入结构化日志。
+    _tracing_shutdown = setup_tracing(settings)
+    instrument_fastapi(app)
     yield
     # 应用关闭时清理
+    if _tracing_shutdown is not None:
+        _tracing_shutdown()
     await stop_metrics_samplers()
     from app.services.cache_service import cache
     await cache.close()
@@ -357,6 +376,7 @@ api_router.include_router(cad_import.router)       # /api/cad-import/*
 api_router.include_router(mcp_api.router)          # /api/mcp/* (MCP 2026-07-28)
 api_router.include_router(ai_render.router)        # /api/ai-render/* (2D/3D/restage)
 api_router.include_router(ifc_export.router)      # /api/bim/export/* (IFC 导出)
+api_router.include_router(construction_drawing.router)  # /api/construction-drawing/* (施工图 v1.2.0)
 # v1.1.28 借鉴索克生活：评估框架 + A2A 协议端点
 api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
 api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)

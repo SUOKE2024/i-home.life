@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../widgets/floor_plan_canvas.dart';
 
 class MepPage extends StatefulWidget {
   final String projectId;
@@ -39,7 +41,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadPlans();
   }
 
@@ -269,6 +271,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             Tab(text: '水电方案'),
             Tab(text: '点位列表'),
             Tab(text: '回路列表'),
+            Tab(text: '点位图'),
           ],
         ),
       ),
@@ -278,6 +281,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           _buildPlansTab(),
           _buildPointsTab(),
           _buildCircuitsTab(),
+          _buildPointsCanvasTab(),
         ],
       ),
     );
@@ -707,6 +711,148 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           ],
         ),
       ),
+    );
+  }
+
+  // ── Tab4: 点位图 ──
+
+  Widget _buildPointsCanvasTab() {
+    if (_selectedPlanId == null) {
+      return _buildEmptyState(
+        icon: Icons.map_outlined,
+        message: '请先在"水电方案"中选择一个方案',
+        actionLabel: '去选择方案',
+        onAction: () => _tabController.animateTo(0),
+      );
+    }
+
+    if (_pointsLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: _brandColor));
+    }
+
+    // 从方案数据中尝试获取房间尺寸
+    final roomW = (_selectedPlan?['room_width'] as num?)?.toDouble() ?? 5000;
+    final roomH = (_selectedPlan?['room_height'] as num?)?.toDouble() ?? 4000;
+
+    // 将点位转换为 MEPPoint，自动布局在网格中
+    final List<MEPPoint> mepPoints = [];
+    final cols = math.max(1, (math.sqrt(_points.length.toDouble())).ceil());
+    const double spacing = 600; // mm
+    const double margin = 400;
+
+    for (int i = 0; i < _points.length; i++) {
+      final point = _points[i] as Map<String, dynamic>;
+      final rawType = point['_category'] ?? point['point_type'] ?? point['type'];
+      final typeLabel = _pointTypeLabel(rawType);
+
+      MEPType mepType;
+      switch (typeLabel) {
+        case '水':
+          mepType = MEPType.water;
+        case '燃气':
+          mepType = MEPType.gas;
+        default:
+          mepType = MEPType.electric;
+      }
+
+      final col = i % cols;
+      final row = i ~/ cols;
+      final px = margin + col * spacing;
+      final py = margin + row * spacing;
+
+      mepPoints.add(MEPPoint(
+        id: (point['id'] ?? i.toString()).toString(),
+        position: Offset(px, py),
+        type: mepType,
+        label: point['location']?.toString() ?? typeLabel,
+      ));
+    }
+
+    return Column(
+      children: [
+        // 信息栏 + 图例
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Card(
+            color: _cardColor,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.map_outlined, color: _brandColor, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
+                        style: const TextStyle(
+                            color: _primaryText, fontWeight: FontWeight.w600),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${_points.length} 个点位',
+                        style: const TextStyle(color: _secondaryText, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 图例
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLegendItem(Colors.red, '电'),
+                      const SizedBox(width: 16),
+                      _buildLegendItem(Colors.blue, '水'),
+                      const SizedBox(width: 16),
+                      _buildLegendItem(Colors.amber, '燃气'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        // 画布
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: FloorPlanCanvas(
+              roomWidth: roomW,
+              roomHeight: roomH,
+              roomLabel: '${_selectedPlan?['name'] ?? '水电方案'} · 点位布局',
+              showDimensions: true,
+              showGrid: true,
+              showMEPLayer: true,
+              mepPoints: mepPoints,
+              components: const [],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: const TextStyle(color: _secondaryText, fontSize: 12)),
+      ],
     );
   }
 

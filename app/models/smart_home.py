@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Float, Text, JSON, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,6 +28,7 @@ class SmartHomeScheme(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # status: draft(草稿) / planned(已规划) / installing(安装中) / completed(已完成)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -37,6 +38,27 @@ class SmartHomeScheme(Base):
         back_populates="scheme",
         cascade="all, delete-orphan",
         order_by="SmartDevice.created_at",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "room_type IN ('living_room', 'bedroom', 'kitchen', 'bathroom', 'entrance', 'study')",
+            name="chk_smart_home_scheme_room_type",
+        ),
+        CheckConstraint(
+            "protocol IN ('zigbee', 'wifi', 'bluetooth', 'matter', 'homekit')",
+            name="chk_smart_home_scheme_protocol",
+        ),
+        CheckConstraint(
+            "hub_brand IN ('xiaomi', 'huawei', 'apple', 'tuya', 'alexa')",
+            name="chk_smart_home_scheme_hub_brand",
+        ),
+        CheckConstraint("device_count >= 0", name="chk_smart_home_scheme_device_count_positive"),
+        CheckConstraint("total_price >= 0", name="chk_smart_home_scheme_total_price_positive"),
+        CheckConstraint(
+            "status IN ('draft', 'planned', 'installing', 'completed')",
+            name="chk_smart_home_scheme_status",
+        ),
     )
 
 
@@ -70,7 +92,29 @@ class SmartDevice(Base):
     # 功能特性 JSON: {"调光": true, "色温": true}
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     # status: planned(已规划) / installed(已安装) / online(在线) / offline(离线)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     scheme = relationship("SmartHomeScheme", back_populates="devices")
+
+    __table_args__ = (
+        CheckConstraint(
+            "device_type IN ('light', 'switch', 'socket', 'sensor', 'camera', 'lock', 'curtain', 'speaker', 'thermostat', 'air_purifier', 'robot_vacuum')",
+            name="chk_smart_device_type",
+        ),
+        CheckConstraint(
+            "protocol IN ('zigbee', 'wifi', 'bluetooth', 'matter', 'homekit')",
+            name="chk_smart_device_protocol",
+        ),
+        CheckConstraint(
+            "control_mode IN ('manual', 'voice', 'app', 'automation')",
+            name="chk_smart_device_control_mode",
+        ),
+        CheckConstraint("power_w IS NULL OR power_w >= 0", name="chk_smart_device_power_w_positive"),
+        CheckConstraint("price >= 0", name="chk_smart_device_price_positive"),
+        CheckConstraint(
+            "status IN ('planned', 'installed', 'online', 'offline')",
+            name="chk_smart_device_status",
+        ),
+    )

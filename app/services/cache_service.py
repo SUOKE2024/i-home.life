@@ -183,16 +183,27 @@ class CacheService:
 
         示例: await cache.delete_pattern("material:*")
 
+        v1.2.1 P1-5 修复：原 redis.keys(pattern) 是 O(N) 阻塞命令，大 key 空间下
+        会卡住 Redis 主线程（生产事故常见源）。改用 scan_iter（非阻塞 SCAN 游标
+        迭代）分批匹配 + 分批删除，单批 200 个键，避免主线程阻塞。
+
         Returns:
             删除的键数量
         """
         redis = await self._ensure_redis()
         if redis is not None:
             try:
-                keys = await redis.keys(pattern)
-                if keys:
-                    return await redis.delete(*keys)
-                return 0
+                deleted = 0
+                batch: list = []
+                # SCAN 非阻塞迭代，count=200 平衡往返次数与单次负载
+                async for key in redis.scan_iter(match=pattern, count=200):
+                    batch.append(key)
+                    if len(batch) >= 200:
+                        deleted += await redis.delete(*batch)
+                        batch = []
+                if batch:
+                    deleted += await redis.delete(*batch)
+                return deleted
             except Exception as e:
                 logger.warning("cache_service.redis_delete_pattern_error", pattern=pattern, error=str(e))
                 return 0

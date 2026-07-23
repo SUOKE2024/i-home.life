@@ -1830,7 +1830,7 @@ class _RenderComparisonCardState extends State<_RenderComparisonCard> {
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary,
                     ),
                   ),
@@ -2040,7 +2040,7 @@ class _RenderProgressCard extends StatelessWidget {
 
   static const List<_ProgressStage> _stages = [
     _ProgressStage('准备', Icons.build_circle),
-    _ProgressStage('拆改', Icons.hammer),
+    _ProgressStage('拆改', Icons.handyman),
     _ProgressStage('水电', Icons.electrical_services),
     _ProgressStage('泥木', Icons.carpenter),
     _ProgressStage('油漆', Icons.format_paint),

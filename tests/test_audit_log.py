@@ -47,7 +47,9 @@ async def test_log_audit_event_basic(db_session):
     assert entry.action == "LOGIN"
     assert entry.resource_type == "user"
     assert entry.resource_id == "test-user-1"
-    assert entry.details == {"role": "homeowner"}
+    # v1.1.29: PII 脱敏为 details 注入 _hmac 签名
+    assert entry.details.get("role") == "homeowner"
+    assert entry.details.get("_hmac") is not None  # PII HMAC signature
     assert entry.request_ip == "127.0.0.1"
     assert entry.user_agent == "Mozilla/5.0"
     assert entry.created_at is not None
@@ -68,7 +70,8 @@ async def test_log_audit_event_minimal_fields(db_session):
     assert entry is not None
     assert entry.resource_id is None
     assert entry.user_agent is None
-    assert entry.details is None
+    # v1.1.29: PII 脱敏为 details 注入 _hmac，原始 details 可能为 None 或空 dict
+    assert entry.details is None or entry.details.get("_hmac") is not None
 
 
 @pytest.mark.asyncio
