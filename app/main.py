@@ -8,7 +8,6 @@ import structlog
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
@@ -174,7 +173,7 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     lifespan=lifespan,
-    # 将 docs/openapi 路径置于 /api/ 前缀下，避免被根路径 StaticFiles 拦截
+    # 将 docs/openapi 路径置于 /api/ 前缀下
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -630,7 +629,3 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):  # noqa: C9
         ws_manager.disconnect(websocket)
 
 
-# ── 站点静态文件（挂载在根路径，确保 index.html / studio.html 直接可访问） ──
-web_dir = os.path.join(os.path.dirname(__file__), "..", "web")
-if os.path.isdir(web_dir):
-    app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")

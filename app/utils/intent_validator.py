@@ -10,7 +10,7 @@
 - pattern_id 必须为 snake_case
 - validation_status 必须为 validated/draft/deprecated 之一
 - examples 至少 1 条
-- 与 web/assets/js/agent-router.js 的 patterns 做一致性比对（可选）
+- 与 agent-router.js 的 patterns 做一致性比对（可选，需提供 router_js 路径）
 
 退出码：0=通过，1=校验失败
 """
@@ -97,16 +97,18 @@ def validate_contract(contract: dict | None = None) -> list[str]:
     return errors
 
 
-def validate_against_router_js() -> list[str]:
-    """与 web/assets/js/agent-router.js 的 patterns 做一致性比对。
+def validate_against_router_js(router_js_path: str | None = None) -> list[str]:
+    """与 agent-router.js 的 patterns 做一致性比对。
 
-    返回不一致的 pattern_id 列表（仅警告，不阻断 CI）。
+    需显式传入 router_js 文件路径，返回不一致的 pattern_id 列表（仅警告，不阻断 CI）。
     """
     errors: list[str] = []
+    if not router_js_path:
+        return ["未提供 agent-router.js 路径，跳过一致性比对"]
     try:
-        router_js = Path(__file__).resolve().parents[2] / "web" / "assets" / "js" / "agent-router.js"
+        router_js = Path(router_js_path)
         if not router_js.exists():
-            return ["agent-router.js 不存在，跳过一致性比对"]
+            return [f"agent-router.js 不存在: {router_js_path}，跳过一致性比对"]
         content = router_js.read_text(encoding="utf-8")
         # 提取 agent: 'xxx' 或 agent: "xxx" 的值作为 pattern id
         router_ids = set(re.findall(r"agent['\"]?\s*:\s*['\"]([a-z0-9_]+)['\"]", content))
