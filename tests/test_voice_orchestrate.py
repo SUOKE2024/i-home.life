@@ -340,3 +340,126 @@ async def test_ws_hook_single_intent_passthrough(monkeypatch):
     )
     assert handled is False
     assert ws.messages == []
+
+
+# ── Qwen Realtime 编排工具（tool_registry FunctionCall）──
+
+
+@pytest.fixture
+def orch_tool_enabled(monkeypatch):
+    from app.services import agent_tool_registry
+
+    monkeypatch.setattr(
+        agent_tool_registry.settings, "voice_agent_orchestration_enabled", True
+    )
+
+
+@pytest.mark.asyncio
+async def test_tool_launch_agent_task(orch_tool_enabled):
+    """launch_agent_task 工具：启动后台任务并完成"""
+    from app.services.agent_tool_registry import tool_registry
+    from app.services.voice_orchestrator import voice_task_registry
+
+    result = await tool_registry.execute(
+        "launch_agent_task",
+        {"command": "帮我做一份100平的预算"},
+        _user_id="tool-user-1",
+    )
+    assert result["launched"] is True
+    assert result["intent"] == "budget"
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        tasks = await voice_task_registry.list("tool-user-1")
+        if tasks and tasks[0].status == "done":
+            break
+        await asyncio.sleep(0.05)
+    assert tasks[0].status == "done"
+
+
+@pytest.mark.asyncio
+async def test_tool_launch_flag_disabled():
+    """flag 关闭时工具返回未启用错误"""
+    from app.services.agent_tool_registry import tool_registry
+
+    result = await tool_registry.execute(
+        "launch_agent_task",
+        {"command": "帮我做预算"},
+        _user_id="tool-user-2",
+    )
+    assert result["launched"] is False
+    assert "未启用" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_tool_launch_missing_user(orch_tool_enabled):
+    """缺少 _user_id 时工具拒绝启动"""
+    from app.services.agent_tool_registry import tool_registry
+
+    result = await tool_registry.execute(
+        "launch_agent_task", {"command": "帮我做预算"},
+    )
+    assert result["launched"] is False
+    assert "用户上下文" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_tool_launch_general_intent_not_launched(orch_tool_enabled):
+    """general 意图不启动任务"""
+    from app.services.agent_tool_registry import tool_registry
+
+    result = await tool_registry.execute(
+        "launch_agent_task", {"command": "你好呀"}, _user_id="tool-user-3",
+    )
+    assert result["launched"] is False
+
+
+@pytest.mark.asyncio
+async def test_tool_get_and_cancel_voice_tasks(orch_tool_enabled, monkeypatch):
+    """get_voice_tasks / cancel_agent_task 工具闭环"""
+    from app.api import voice_realtime
+    from app.services.agent_tool_registry import tool_registry
+
+    async def _slow_agent(text, intent, user_name, context="", emotion=None):
+        await asyncio.sleep(30)
+        return "不应到达"
+
+    monkeypatch.setattr(voice_realtime, "_route_voice_to_agent", _slow_agent)
+
+    launch = await tool_registry.execute(
+        "launch_agent_task", {"command": "帮我设计客厅"}, _user_id="tool-user-4",
+    )
+    assert launch["launched"] is True
+
+    status = await tool_registry.execute(
+        "get_voice_tasks", {"task_ref": ""}, _user_id="tool-user-4",
+    )
+    assert status["total"] == 1
+    assert status["tasks"][0]["status"] == "running"
+
+    cancel = await tool_registry.execute(
+        "cancel_agent_task", {"task_ref": ""}, _user_id="tool-user-4",
+    )
+    assert cancel["cancelled"] is True
+    assert cancel["task"]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_existing_tools_tolerate_user_id_injection(orch_tool_enabled):
+    """既有工具注入 _user_id 后不受影响（签名兼容）"""
+    from app.services.agent_tool_registry import tool_registry
+
+    result = await tool_registry.execute(
+        "get_budget", {"area": 100, "style": "", "project_id": ""},
+        _user_id="tool-user-5",
+    )
+    assert "error" not in result
+    assert "tiers" in result
+
+
+def test_orchestration_tools_in_qwen_schemas():
+    """编排工具已注册并暴露给 Qwen Realtime"""
+    from app.services.agent_tool_registry import tool_registry
+
+    names = {t["function"]["name"] for t in tool_registry.get_qwen_schemas()}
+    assert {"launch_agent_task", "get_voice_tasks", "cancel_agent_task"} <= names

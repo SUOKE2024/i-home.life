@@ -57,6 +57,15 @@ VOICE_SYSTEM_INSTRUCTIONS_PLUS = (
     "能够识别笑声、叹息、犹豫等非语言信号并适当回应。"
 )
 
+# 语音智能体编排增强指令（voice_agent_orchestration_enabled 时追加）
+VOICE_ORCHESTRATION_INSTRUCTIONS = (
+    "当用户一句话提出多项任务（含「同时/顺便/另外」）时，除当前任务外，"
+    "对其余任务调用 launch_agent_task 后台执行，并告知用户任务已启动；"
+    "当用户询问任务进度/结果时调用 get_voice_tasks；"
+    "当用户要求取消任务时调用 cancel_agent_task。"
+    "后台任务启动后不要重复执行同一任务。"
+)
+
 
 class VoiceTextRequest(BaseModel):
     """语音文本处理请求"""
@@ -515,10 +524,12 @@ async def _qwen_events_to_client(  # noqa: C901
                 try:
                     # v1.1.31 FP-1: 注入隐式 _db / _project_id，让工具查真实 DB
                     # 按需创建 async session（工具 handler 内部 try/except 回退样例）
+                    # _user_id: 语音编排工具（launch_agent_task 等）定位用户任务
                     async with async_session() as _tool_db:
                         result = await tool_registry.execute(
                             func_name, args,
                             _db=_tool_db, _project_id=session.project_id or "",
+                            _user_id=user_id,
                         )
                     await websocket.send_json({
                         "type": "tool_call",
@@ -782,13 +793,17 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     # ── Realtime 模式：初始化会话 + 启动后台事件转发 ──
     qwen_task: asyncio.Task | None = None
     if is_realtime:
+        instructions = (
+            VOICE_SYSTEM_INSTRUCTIONS_PLUS
+            if settings.qwen_audio_model.endswith("-plus")
+            else VOICE_SYSTEM_INSTRUCTIONS
+        )
+        # 语音编排：flag 开启时追加调度指令，让模型自主调用编排工具
+        if settings.voice_agent_orchestration_enabled:
+            instructions += VOICE_ORCHESTRATION_INSTRUCTIONS
         await session.init_realtime_session(
             tools=tool_registry.get_qwen_schemas(),
-            instructions=(
-                VOICE_SYSTEM_INSTRUCTIONS_PLUS
-                if settings.qwen_audio_model.endswith("-plus")
-                else VOICE_SYSTEM_INSTRUCTIONS
-            ),
+            instructions=instructions,
         )
         qwen_task = asyncio.create_task(
             _qwen_events_to_client(websocket, session, user_id)

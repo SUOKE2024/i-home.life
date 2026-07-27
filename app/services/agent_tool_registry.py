@@ -109,7 +109,7 @@ _QA_STATUS_MAP = {
 
 async def _tool_get_budget(
     project_id: str = "", area: float = 0, style: str = "",
-    _db=None, _project_id: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
 ) -> dict:
     """查询装修预算"""
     effective_pid = project_id or _project_id
@@ -194,7 +194,7 @@ async def _tool_get_budget(
 
 async def _tool_get_design_layout(
     area: float = 100, style: str = "modern", rooms: str = "",
-    _db=None, _project_id: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
 ) -> dict:
     """获取装修设计方案"""
     layouts = {
@@ -247,7 +247,7 @@ async def _tool_get_design_layout(
 
 async def _tool_search_materials(
     category: str = "", keyword: str = "", budget_range: str = "",
-    _db=None, _project_id: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
 ) -> dict:
     """搜索装修物料"""
     # v1.1.31 FP-1: 真实 DB 查询 Material 表
@@ -331,7 +331,7 @@ async def _tool_search_materials(
 
 
 async def _tool_get_progress(
-    project_id: str = "", _db=None, _project_id: str = "",
+    project_id: str = "", _db=None, _project_id: str = "", _user_id: str = "",
 ) -> dict:
     """查询施工进度"""
     effective_pid = project_id or _project_id
@@ -433,7 +433,7 @@ async def _tool_get_progress(
 
 async def _tool_run_qa_inspection(
     project_id: str = "", phase: str = "", categories: str = "",
-    _db=None, _project_id: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
 ) -> dict:
     """执行质检"""
     effective_pid = project_id or _project_id
@@ -513,6 +513,84 @@ async def _tool_run_qa_inspection(
     }
 
 
+# ── 语音智能体编排工具（voice_agent_orchestration_enabled 门控）──
+#
+# 借鉴 GPT Voice / Claude Voice 调度范式：让 Qwen Realtime 模式的 LLM
+# 可通过 FunctionCall 启动/查询/取消后台 Agent 任务。
+# 需要 ``_user_id`` 隐式参数（由 ToolRegistry.execute 注入）。
+
+async def _tool_launch_agent_task(
+    command: str,
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """启动后台 Agent 任务（语音编排）"""
+    if not settings.voice_agent_orchestration_enabled:
+        return {"launched": False, "error": "语音智能体编排功能未启用"}
+    if not _user_id:
+        return {"launched": False, "error": "缺少用户上下文，无法启动任务"}
+
+    # 延迟导入避免模块级循环依赖（voice_realtime 依赖本模块）
+    from app.agents.orchestrator import OrchestratorAgent
+    from app.api.voice_realtime import _route_voice_to_agent
+    from app.services.voice_orchestrator import voice_task_registry
+
+    intent = OrchestratorAgent.fallback_classify(command).get("intent", "general")
+    if intent == "general":
+        return {
+            "launched": False, "intent": intent,
+            "message": "未识别为可执行任务，请向用户确认具体需求",
+        }
+    task = await voice_task_registry.launch(
+        _user_id, intent, command,
+        _route_voice_to_agent(command, intent, "user"),
+    )
+    return {
+        "launched": True,
+        "task_id": task.task_id,
+        "seq": task.seq,
+        "intent": intent,
+        "message": f"已启动任务 {task.seq}（{intent}），后台处理中，用户可随时查询进度或取消",
+    }
+
+
+async def _tool_get_voice_tasks(
+    task_ref: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """查询语音任务进度/列表"""
+    if not settings.voice_agent_orchestration_enabled:
+        return {"error": "语音智能体编排功能未启用"}
+
+    from app.services.voice_orchestrator import voice_task_registry
+
+    if task_ref:
+        task = await voice_task_registry.resolve(_user_id, task_ref)
+        tasks = [task] if task else []
+    else:
+        tasks = await voice_task_registry.list(_user_id)
+    recent = tasks[-5:]
+    return {
+        "total": len(tasks),
+        "tasks": [t.to_dict() for t in recent],
+    }
+
+
+async def _tool_cancel_agent_task(
+    task_ref: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """取消运行中的语音任务"""
+    if not settings.voice_agent_orchestration_enabled:
+        return {"cancelled": False, "error": "语音智能体编排功能未启用"}
+
+    from app.services.voice_orchestrator import voice_task_registry
+
+    task = await voice_task_registry.cancel(_user_id, task_ref or None)
+    if task is None:
+        return {"cancelled": False, "message": "未找到对应任务"}
+    return {"cancelled": task.status == "cancelled", "task": task.to_dict()}
+
+
 # ── 工具注册表 ──
 
 BUILTIN_TOOLS: list[AgentTool] = [
@@ -569,6 +647,34 @@ BUILTIN_TOOLS: list[AgentTool] = [
         handler=_tool_run_qa_inspection,
         category="qa",
     ),
+    # ── 语音智能体编排（voice_agent_orchestration_enabled 门控）──
+    AgentTool(
+        name="launch_agent_task",
+        description="启动一个后台 Agent 任务异步执行（不阻塞当前对话）。当用户要求「顺便/同时」处理另一件事、或任务预计耗时较长时使用。启动后用户可随时查询进度或取消。",
+        parameters={
+            "command": {"type": "string", "description": "要执行的任务指令原文（如「做一份100平的预算」）"},
+        },
+        handler=_tool_launch_agent_task,
+        category="orchestration",
+    ),
+    AgentTool(
+        name="get_voice_tasks",
+        description="查询语音后台任务的进度和结果。当用户问「任务做得怎么样了/任务列表」时使用。",
+        parameters={
+            "task_ref": {"type": "string", "description": "任务序号或ID（可选，留空返回最近任务列表）"},
+        },
+        handler=_tool_get_voice_tasks,
+        category="orchestration",
+    ),
+    AgentTool(
+        name="cancel_agent_task",
+        description="取消一个正在运行的语音后台任务。当用户说「取消任务/别做了」时使用。",
+        parameters={
+            "task_ref": {"type": "string", "description": "任务序号或ID（可选，留空取消最近一个）"},
+        },
+        handler=_tool_cancel_agent_task,
+        category="orchestration",
+    ),
 ]
 
 
@@ -613,7 +719,7 @@ class ToolRegistry:
 
     async def execute(
         self, name: str, arguments: dict,
-        _db=None, _project_id: str = "",
+        _db=None, _project_id: str = "", _user_id: str = "",
     ) -> Any:
         """执行工具调用
 
@@ -621,6 +727,7 @@ class ToolRegistry:
         这两个参数不暴露在 OpenAI schema 中（下划线前缀避免与 LLM 提供的
         ``project_id`` 参数冲突），仅用于 handler 内部查真实 DB。
         当 ``_db is None`` 时不注入，handler 走默认回退逻辑。
+        ``_user_id`` 同理（语音编排工具需要定位用户任务）。
         """
         tool = self.get(name)
         if not tool:
@@ -631,6 +738,8 @@ class ToolRegistry:
             inject["_db"] = _db
         if _project_id:
             inject["_project_id"] = _project_id
+        if _user_id:
+            inject["_user_id"] = _user_id
         return await tool.execute(**arguments, **inject)
 
     @property
