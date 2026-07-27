@@ -1343,6 +1343,21 @@ class ApiClient {
     return delete('/agents/sessions/$sessionId');
   }
 
+  // ── 语音智能体编排（voice_agent_orchestration_enabled 门控）──
+
+  /// 语音智能体编排：一句话启动 / 查询 / 取消后台 Agent 任务
+  /// 对齐 Web 端 ApiClient.orchestrateVoice
+  Future<Result<dynamic>> orchestrateVoice(String text, {String? projectId}) =>
+      post('/voice/orchestrate', {
+        'text': text,
+        if (projectId != null) 'project_id': projectId,
+      });
+
+  /// 语音任务列表（供 UI 轮询后台任务进度）
+  /// 对齐 Web 端 ApiClient.listVoiceTasks
+  Future<Result<dynamic>> listVoiceTasks() =>
+      get('/voice/orchestrate/tasks');
+
   // ── 预算模块 (P1) ──
 
   Future<Result<dynamic>> getBudget(String projectId) =>
