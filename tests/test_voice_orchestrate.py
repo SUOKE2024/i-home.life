@@ -457,8 +457,8 @@ async def test_existing_tools_tolerate_user_id_injection(orch_tool_enabled):
     assert "tiers" in result
 
 
-def test_orchestration_tools_in_qwen_schemas():
-    """编排工具已注册并暴露给 Qwen Realtime"""
+def test_orchestration_tools_in_qwen_schemas(orch_tool_enabled):
+    """编排工具已注册并在 flag 开启时暴露给 Qwen Realtime（flag 关闭时隐藏）"""
     from app.services.agent_tool_registry import tool_registry
 
     names = {t["function"]["name"] for t in tool_registry.get_qwen_schemas()}

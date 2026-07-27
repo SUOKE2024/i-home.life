@@ -82,7 +82,8 @@ async def test_mcp_manifest(client: AsyncClient):
     assert "version" in data
     assert "protocol_version" in data
     assert "tools_count" in data
-    # 项目内置 5 个 Agent 工具
+    # 项目内置 8 个 Agent 工具，其中 3 个编排工具受
+    # voice_agent_orchestration_enabled 门控（默认关）→ 默认可见 5 个
     assert data["tools_count"] == 5
 
 
@@ -122,6 +123,20 @@ async def test_mcp_list_tools(client: AsyncClient):
         "get_construction_progress",
         "run_qa_inspection",
     }
+
+
+@pytest.mark.asyncio
+async def test_mcp_list_tools_orchestration_flag_on(client: AsyncClient, monkeypatch):
+    """voice_agent_orchestration_enabled=True 时编排工具可见（5 → 8）"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "voice_agent_orchestration_enabled", True)
+    token = await _register(client, "13900007015")
+    resp = await client.get("/api/mcp/tools", headers=_headers(token))
+    assert resp.status_code == 200, resp.text
+    tools = resp.json()["tools"]
+    names = {t["name"] for t in tools}
+    assert len(tools) == 8
+    assert {"launch_agent_task", "get_voice_tasks", "cancel_agent_task"} <= names
 
 
 # === /api/mcp/tools/call ===

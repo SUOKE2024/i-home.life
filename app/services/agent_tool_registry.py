@@ -701,21 +701,30 @@ class ToolRegistry:
     def get(self, name: str) -> AgentTool | None:
         return self._tools.get(name)
 
-    def list_tools(self, category: str | None = None) -> list[AgentTool]:
+    def _visible_tools(self) -> list[AgentTool]:
+        """flag 感知工具列表：voice_agent_orchestration_enabled=False 时
+        隐藏 orchestration 类别工具，避免 MCP manifest / Qwen Realtime
+        广告不可执行的工具（诚实降级）。执行路径由 handler 二次门控。"""
         tools = list(self._tools.values())
+        if not settings.voice_agent_orchestration_enabled:
+            tools = [t for t in tools if t.category != "orchestration"]
+        return tools
+
+    def list_tools(self, category: str | None = None) -> list[AgentTool]:
+        tools = self._visible_tools()
         if category:
             tools = [t for t in tools if t.category == category]
         return tools
 
     def get_openai_schemas(self) -> list[dict]:
-        return [t.to_openai_schema() for t in self._tools.values()]
+        return [t.to_openai_schema() for t in self._visible_tools()]
 
     def get_openai_schemas_for_category(self, category: str) -> list[dict]:
         """获取指定类别的工具 OpenAI schemas"""
         return [t.to_openai_schema() for t in self.list_tools(category)]
 
     def get_qwen_schemas(self) -> list[dict]:
-        return [t.to_qwen_schema() for t in self._tools.values()]
+        return [t.to_qwen_schema() for t in self._visible_tools()]
 
     async def execute(
         self, name: str, arguments: dict,
@@ -744,7 +753,7 @@ class ToolRegistry:
 
     @property
     def tool_count(self) -> int:
-        return len(self._tools)
+        return len(self._visible_tools())
 
 
 tool_registry = ToolRegistry()
