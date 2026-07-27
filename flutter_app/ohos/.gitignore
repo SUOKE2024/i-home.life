@@ -4,3 +4,5 @@
 build
 .cxx
 local.properties
+# 签名材料禁止入库（私钥/证书/Profile 仅存本地或 CI Secrets）
+/signing
