@@ -23,13 +23,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260727a" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260727a" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260727a" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260727a" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260727a" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260727b" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260727b" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260727b" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260727b" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260727b" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260727a">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260727b">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
 <!-- v1.2.1 性能优化: 预连接第三方 CDN -->
@@ -398,6 +398,37 @@
     </div>
   </div>
 
+  <!-- 语音任务面板（语音智能体编排，voice_agent_orchestration_enabled 时可用） -->
+  <style>
+    #voice-task-panel{position:fixed;right:16px;bottom:76px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:var(--card-bg,#1e1e24);border:1px solid var(--border,#333);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:900;font-size:.85rem}
+    #voice-task-panel .vtp-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border,#333);font-weight:600}
+    #voice-task-panel .vtp-header button{background:none;border:none;color:inherit;font-size:1.1rem;cursor:pointer}
+    #voice-task-panel .vtp-launch{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border,#333)}
+    #voice-task-panel .vtp-launch input{flex:1;padding:6px 10px;border:1px solid var(--border,#333);border-radius:8px;background:var(--input-bg,#14141a);color:inherit;font-family:inherit}
+    #voice-task-panel .vtp-launch button{padding:6px 14px;border:none;border-radius:8px;background:var(--accent,#c9a961);color:#111;cursor:pointer;font-weight:600}
+    #voice-task-panel .vtp-note{margin:8px 14px;padding:8px 10px;border-radius:8px;background:rgba(201,169,97,.12);color:var(--accent,#c9a961);white-space:pre-wrap}
+    #voice-task-panel .vtp-list{list-style:none;margin:0;padding:8px 14px;overflow-y:auto}
+    #voice-task-panel .vtp-item{padding:8px 0;border-bottom:1px dashed var(--border,#2c2c34)}
+    #voice-task-panel .vtp-item:last-child{border-bottom:none}
+    #voice-task-panel .vtp-item-head{display:flex;align-items:center;gap:8px}
+    #voice-task-panel .vtp-badge{padding:1px 8px;border-radius:999px;font-size:.72rem;color:#fff}
+    #voice-task-panel .vtp-cmd{color:var(--text-dim,#999);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #voice-task-panel .vtp-cancel{margin-left:auto;padding:2px 10px;border:1px solid var(--danger,#c53030);border-radius:6px;background:none;color:var(--danger,#c53030);cursor:pointer;font-size:.72rem}
+    #voice-task-panel .vtp-empty{padding:16px 0;text-align:center;color:var(--text-dim,#999)}
+  </style>
+  <div id="voice-task-panel" role="dialog" aria-label="语音任务面板" hidden>
+    <div class="vtp-header">
+      <span>🎯 语音任务</span>
+      <button id="vtp-close" aria-label="关闭任务面板">×</button>
+    </div>
+    <div class="vtp-launch">
+      <input id="vtp-input" type="text" placeholder="试试：帮我设计客厅，同时做份预算" aria-label="语音任务指令" enterkeyhint="send">
+      <button id="vtp-send">启动</button>
+    </div>
+    <div id="vtp-note" class="vtp-note" hidden></div>
+    <ul id="vtp-list" class="vtp-list"></ul>
+  </div>
+
   <!-- 底栏 -->
   <footer class="chat-input-bar" role="contentinfo">
     <button class="input-attach" id="attach-btn" aria-label="添加附件" aria-expanded="false">+</button>
@@ -410,17 +441,18 @@
       autocomplete="off"
       enterkeyhint="send"
     >
+    <button class="input-tasks" id="voice-tasks-btn" aria-label="语音任务" title="语音任务（后台智能体）">🎯</button>
     <button class="input-voice" id="voice-btn" aria-label="语音输入">🎤</button>
   </footer>
   </div><!-- /.workbench-main -->
 </div>
 
 <script>window.API_BASE_URL = window.location.origin;</script>
-<script src="assets/js/api-client.js?v=20260727a"></script>
-<script src="assets/js/im-client.js?v=20260727a"></script>
-<script src="assets/js/agent-router.js?v=20260727a"></script>
-<script src="assets/js/message-renderers.js?v=20260727a"></script>
-<script defer src="assets/js/perf-optimizer.js?v=20260727a"></script>
+<script src="assets/js/api-client.js?v=20260727b"></script>
+<script src="assets/js/im-client.js?v=20260727b"></script>
+<script src="assets/js/agent-router.js?v=20260727b"></script>
+<script src="assets/js/message-renderers.js?v=20260727b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260727b"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -2058,6 +2090,120 @@
     voiceBtn.style.color = '';
   }
 
+  // ============ 语音任务面板（语音智能体编排）============
+  // 后端 flag: voice_agent_orchestration_enabled（未启用时面板提示并停止轮询）
+  const vtpBtn = document.getElementById('voice-tasks-btn');
+  const vtpPanel = document.getElementById('voice-task-panel');
+  const vtpList = document.getElementById('vtp-list');
+  const vtpNote = document.getElementById('vtp-note');
+  const vtpInput = document.getElementById('vtp-input');
+  let vtpPollTimer = null;
+
+  const VTP_STATUS = {
+    running:   ['进行中', '#b7791f'],
+    done:      ['已完成', '#2f855a'],
+    failed:    ['失败',   '#c53030'],
+    cancelled: ['已取消', '#718096'],
+  };
+  const VTP_INTENT = {
+    design: '设计方案', budget: '预算分析', procurement: '物料采购',
+    construction: '施工进度', qa_inspector: '质量检查', settlement: '结算对账',
+    concierge: '客服咨询', ar_measurement: 'AR 测量',
+  };
+
+  function vtpEscape(s) {
+    const d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+  }
+
+  function vtpShowNote(text) {
+    vtpNote.textContent = text;
+    vtpNote.hidden = !text;
+  }
+
+  function vtpStopPoll() {
+    if (vtpPollTimer) { clearInterval(vtpPollTimer); vtpPollTimer = null; }
+  }
+
+  function vtpStartPoll() {
+    vtpStopPoll();
+    vtpPollTimer = setInterval(vtpRefresh, 3000);
+  }
+
+  function vtpRenderTasks(tasks) {
+    if (!tasks.length) {
+      vtpList.innerHTML = '<li class="vtp-empty">暂无后台任务</li>';
+      return;
+    }
+    vtpList.innerHTML = tasks.slice().reverse().map(t => {
+      const st = VTP_STATUS[t.status] || [t.status, '#718096'];
+      const label = VTP_INTENT[t.intent] || t.intent;
+      const cancelBtn = t.status === 'running'
+        ? `<button class="vtp-cancel" data-seq="${t.seq}">取消</button>` : '';
+      return `<li class="vtp-item">
+        <div class="vtp-item-head">
+          <span class="vtp-badge" style="background:${st[1]}">${st[0]}</span>
+          <span>任务 ${t.seq} · ${vtpEscape(label)}</span>
+          ${cancelBtn}
+        </div>
+        <div class="vtp-cmd" title="${vtpEscape(t.command)}">${vtpEscape(t.command)}</div>
+      </li>`;
+    }).join('');
+    vtpList.querySelectorAll('.vtp-cancel').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await ApiClient.orchestrateVoice(`取消任务 ${btn.dataset.seq}`);
+        } catch (e) { /* 忽略，刷新后呈现真实状态 */ }
+        vtpRefresh();
+      });
+    });
+  }
+
+  async function vtpRefresh() {
+    try {
+      const data = await ApiClient.listVoiceTasks();
+      vtpRenderTasks(data.tasks || []);
+    } catch (e) {
+      vtpShowNote('语音智能体编排未启用（voice_agent_orchestration_enabled）');
+      vtpStopPoll();
+    }
+  }
+
+  function vtpToggle(show) {
+    vtpPanel.hidden = !show;
+    if (show) {
+      vtpShowNote('');
+      vtpRefresh();
+      vtpStartPoll();
+    } else {
+      vtpStopPoll();
+    }
+  }
+
+  vtpBtn.addEventListener('click', () => vtpToggle(vtpPanel.hidden));
+  document.getElementById('vtp-close').addEventListener('click', () => vtpToggle(false));
+
+  async function vtpLaunch() {
+    const text = vtpInput.value.trim();
+    if (!text) return;
+    vtpInput.value = '';
+    try {
+      const resp = await ApiClient.orchestrateVoice(text);
+      vtpShowNote(resp.reply || '');
+    } catch (e) {
+      vtpShowNote('语音智能体编排未启用（voice_agent_orchestration_enabled）');
+      vtpStopPoll();
+      return;
+    }
+    vtpRefresh();
+  }
+  document.getElementById('vtp-send').addEventListener('click', vtpLaunch);
+  vtpInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); vtpLaunch(); }
+  });
+
   // ============ @mention ============
   const mentionPopup = document.getElementById('mention-popup');
   const AGENTS = [
@@ -3230,7 +3376,7 @@
   init();
 })();
 </script>
-<script defer src="assets/js/analytics.js?v=20260727a"></script>
+<script defer src="assets/js/analytics.js?v=20260727b"></script>
 <script>
 if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
