@@ -8,16 +8,23 @@
 基于全量全链路开发进度评估报告（综合成熟度 ~65%）的系统修复：
 
 #### P0 修复：版本号一致性
-- 全项目 14 处版本号同步至 1.2.4（config.py / pubspec.yaml / CI / scripts / Flutter / 测试）
-- Flutter: `1.2.3+19` → `1.2.4+20`
-- Web: `app-config.js` 1.1.28 → 1.2.4，资源版本 `v=20260722a` → `v=20260726a`
-- `sw.js` CACHE_VERSION 2 → 3（强制执行新一轮旧 SW 清理）
-- `version.json` 1.2.3+19 → 1.2.4+20
+- 全项目版本号统一至 1.2.5（config.py / pubspec.yaml / CI / scripts / .env 示例 / Flutter / 测试）
+- Flutter: `1.2.3+19` → `1.2.5+21`
+- Web: `app-config.js` 1.1.28 → 1.2.5，资源版本 `v=20260722a` → `v=20260727a`
+- `sw.js` CACHE_VERSION 2 → 5（强制执行新一轮旧 SW 清理）
+- `version.json` 1.2.3+19 → 1.2.5+21
+
+#### 回归修复（2026-07-27）
+- A2A `/api/a2a/agents` 列表序列化修复：Agent 类对象 → 可序列化字典（name/class_name/description）
+- `ChangeOrderStateError` 注册专属异常处理器：变更单非法状态流转返回 409 Conflict（而非 500）
+- 28 个因 API 演进过期的测试用例修复（灯具 CHECK 约束 / 健康监测 schema / 变更单状态机 / 家具 PATCH / Matter 501 等）
+- 全量回归：1387 passed / 0 failed / 17 skipped
+- 安全：鸿蒙 ohos/signing/ 21 个签名文件移出 git 跟踪，`.gitignore` 新增 `/signing` 规则
 
 #### P0 修复：API 测试覆盖率提升
 - **37 个缺失 API 测试文件全部补齐**（覆盖率 21/58 → 58/58）
 - 新增约 320 个测试函数，覆盖所有 API 模块的 CRUD / Auth / 越权 / 边界 case
-- 测试通过率：88%（173/197 通过，24 个因子代理字段名偏差待修复）
+- 测试通过率：子代理初稿 88%（173/197），2026-07-27 主代理逐根因修复后全量回归 1387 passed / 0 failed
 - 一批覆盖：energy / smart_home / vr_panorama / lighting / voice / voice_realtime
 - 二批覆盖：sketch_to_3d / construction_drawing / takeoff / location / camera_scan / product_batch
 - 三批覆盖：crews / workers / files / admin / config_api / identity / eval

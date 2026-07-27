@@ -11,7 +11,7 @@
 
 基于全量全链路开发进度评估报告（综合成熟度 ~65%）的系统修复：
 
-- **P0 版本号一致性**: 全项目 14 处版本号同步至 1.2.4（config.py / pubspec.yaml 1.2.4+20 / CI / scripts / Flutter / 测试）
+- **P0 版本号一致性**: 全项目版本号统一至 1.2.5（config.py / pubspec.yaml 1.2.5+21 / CI / scripts / .env 示例 / Flutter / 测试）
 - **P0 API 测试覆盖率**: 37 个缺失 API 测试文件全部补齐（覆盖率 21/58 → 58/58），新增 ~320 个测试函数
 - **P1 Web 完善**: 新增 `web/404.html` 自定义错误页面，nginx 增加 `error_page 404` 指令 + HSTS 注释
 - **清理**: 清理 ~2,180 个 pycache 文件 + 过期 DB journal + 旧 server.log
