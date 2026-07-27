@@ -21,6 +21,7 @@ import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
+import '../widgets/voice_task_panel.dart';
 import '../services/a2ui_renderer.dart';
 import 'ar_scan_page.dart';
 import 'settings_page.dart';
@@ -894,6 +895,13 @@ class _AIChatPageState extends State<AIChatPage> {
               ),
             ),
           const SizedBox(width: 8),
+          // 语音任务面板入口（语音智能体编排）
+          IconButton(
+            icon: const Icon(Icons.task_alt, size: 22),
+            color: SuokeDesignTokens.textSecondary,
+            tooltip: '语音任务',
+            onPressed: () => VoiceTaskPanel.show(context, projectId: _currentProjectId),
+          ),
           // 用户头像
           _buildAvatar(),
         ],
