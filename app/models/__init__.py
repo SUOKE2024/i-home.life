@@ -57,6 +57,7 @@ from app.models.points import (
     PointsMallItem, PointsRedemption, PointsRanking,
 )
 from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
+from app.models.a2a_task import A2ATask
 from app.models.webauthn_credential import WebAuthnCredential
 from app.models.device_token import DeviceToken
 from app.models.permission import Permission, RolePermission
@@ -166,6 +167,7 @@ __all__ = [
     "PointsRanking",
     "OrchestratorTask",
     "TaskCandidate",
+    "A2ATask",
     "WebAuthnCredential",
     "DeviceToken",
     "Permission",

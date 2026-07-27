@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -15,14 +16,6 @@ class _PointsPageState extends State<PointsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bg = Color(0xFF08080F);
-  static const Color _card = Color(0xFF12121D);
-  static const Color _brand = Color(0xFFC9973B);
-  static const Color _border = Color(0xFF1E1E32);
-  static const Color _textMain = Color(0xFFE8E6E1);
-  static const Color _textSub = Color(0xFF8A8894);
 
   Map<String, dynamic>? _account;
   List<dynamic> _transactions = [];
@@ -183,11 +176,11 @@ class _PointsPageState extends State<PointsPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _card,
-        title: const Text('确认兑换', style: TextStyle(color: _textMain)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('确认兑换', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text(
           '商品：$itemName\n消耗积分：$points\n兑换后余额：${balance - points}',
-          style: const TextStyle(color: _textSub),
+          style: const TextStyle(color: SuokeDesignTokens.textSub(context)),
         ),
         actions: [
           TextButton(
@@ -195,7 +188,7 @@ class _PointsPageState extends State<PointsPage>
             child: const Text('取消'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brand),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('确认兑换'),
           ),
@@ -270,16 +263,16 @@ class _PointsPageState extends State<PointsPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bg,
-        title: const Text('积分商城', style: TextStyle(color: _textMain)),
-        iconTheme: const IconThemeData(color: _textMain),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: const Text('积分商城', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        iconTheme: const IconThemeData(color: SuokeDesignTokens.text(context)),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brand,
-          unselectedLabelColor: _textSub,
-          indicatorColor: _brand,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '我的积分'),
             Tab(text: '商城'),
@@ -314,12 +307,12 @@ class _PointsPageState extends State<PointsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.stars, size: 64, color: _textSub),
+            const Icon(Icons.stars, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无积分账户', style: TextStyle(color: _textSub)),
+            const Text('暂无积分账户', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brand),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadAccount,
               child: const Text('刷新'),
             ),
@@ -337,7 +330,7 @@ class _PointsPageState extends State<PointsPage>
     final lv = _levelInfo(yearEarned);
 
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadAccount,
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -352,7 +345,7 @@ class _PointsPageState extends State<PointsPage>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _border),
+              border: Border.all(color: SuokeDesignTokens.borderClr(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +355,7 @@ class _PointsPageState extends State<PointsPage>
                   children: [
                     const Text(
                       '我的积分',
-                      style: TextStyle(color: _textSub, fontSize: 14),
+                      style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 14),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -370,14 +363,14 @@ class _PointsPageState extends State<PointsPage>
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _brand.withValues(alpha: 0.15),
+                        color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _brand),
+                        border: Border.all(color: SuokeDesignTokens.accent),
                       ),
                       child: Text(
                         lv['name'] as String,
                         style: const TextStyle(
-                          color: _brand,
+                          color: SuokeDesignTokens.accent,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -389,7 +382,7 @@ class _PointsPageState extends State<PointsPage>
                 Text(
                   '$balance',
                   style: const TextStyle(
-                    color: _textMain,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 48,
                     fontWeight: FontWeight.bold,
                   ),
@@ -421,11 +414,11 @@ class _PointsPageState extends State<PointsPage>
                   children: [
                     Text(
                       '距下一等级',
-                      style: TextStyle(color: _textSub, fontSize: 12),
+                      style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                     ),
                     Text(
                       '$yearEarned/${lv['max']}',
-                      style: const TextStyle(color: _textSub, fontSize: 12),
+                      style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                     ),
                   ],
                 ),
@@ -434,8 +427,8 @@ class _PointsPageState extends State<PointsPage>
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: lv['progress'] as double,
-                    backgroundColor: _border,
-                    valueColor: const AlwaysStoppedAnimation<Color>(_brand),
+                    backgroundColor: SuokeDesignTokens.borderClr(context),
+                    valueColor: const AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
                     minHeight: 6,
                   ),
                 ),
@@ -469,7 +462,7 @@ class _PointsPageState extends State<PointsPage>
           Row(
             children: [
               Expanded(
-                child: _statCard('累计获得', '$totalEarned', Icons.savings, _brand),
+                child: _statCard('累计获得', '$totalEarned', Icons.savings, SuokeDesignTokens.accent),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -477,7 +470,7 @@ class _PointsPageState extends State<PointsPage>
                   '累计消耗',
                   '$totalSpent',
                   Icons.shopping_bag,
-                  _textSub,
+                  SuokeDesignTokens.textSub(context),
                 ),
               ),
             ],
@@ -487,7 +480,7 @@ class _PointsPageState extends State<PointsPage>
           const Text(
             '快捷入口',
             style: TextStyle(
-              color: _textMain,
+              color: SuokeDesignTokens.text(context),
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
@@ -528,14 +521,14 @@ class _PointsPageState extends State<PointsPage>
               const Text(
                 '最近流水',
                 style: TextStyle(
-                  color: _textMain,
+                  color: SuokeDesignTokens.text(context),
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               TextButton(
                 onPressed: _loadAccount,
-                child: const Text('刷新', style: TextStyle(color: _brand)),
+                child: const Text('刷新', style: TextStyle(color: SuokeDesignTokens.accent)),
               ),
             ],
           ),
@@ -544,7 +537,7 @@ class _PointsPageState extends State<PointsPage>
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(
-                child: Text('暂无流水记录', style: TextStyle(color: _textSub)),
+                child: Text('暂无流水记录', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
               ),
             )
           else
@@ -560,9 +553,9 @@ class _PointsPageState extends State<PointsPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,13 +565,13 @@ class _PointsPageState extends State<PointsPage>
           Text(
             value,
             style: const TextStyle(
-              color: _textMain,
+              color: SuokeDesignTokens.text(context),
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: _textSub, fontSize: 12)),
+          Text(label, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
         ],
       ),
     );
@@ -590,15 +583,15 @@ class _PointsPageState extends State<PointsPage>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: _card,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _border),
+          border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         ),
         child: Column(
           children: [
-            Icon(icon, color: _brand, size: 28),
+            Icon(icon, color: SuokeDesignTokens.accent, size: 28),
             const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: _textMain, fontSize: 13)),
+            Text(label, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
           ],
         ),
       ),
@@ -620,9 +613,9 @@ class _PointsPageState extends State<PointsPage>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Row(
         children: [
@@ -638,12 +631,12 @@ class _PointsPageState extends State<PointsPage>
               children: [
                 Text(
                   description.isNotEmpty ? description : source,
-                  style: const TextStyle(color: _textMain, fontSize: 14),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '$source · $timeStr',
-                  style: const TextStyle(color: _textSub, fontSize: 11),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
                 ),
               ],
             ),
@@ -675,12 +668,12 @@ class _PointsPageState extends State<PointsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.storefront, size: 64, color: _textSub),
+            const Icon(Icons.storefront, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('商城暂无商品', style: TextStyle(color: _textSub)),
+            const Text('商城暂无商品', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brand),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadMallItems,
               child: const Text('刷新'),
             ),
@@ -689,7 +682,7 @@ class _PointsPageState extends State<PointsPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadMallItems,
       child: GridView.builder(
         padding: const EdgeInsets.all(16),
@@ -719,9 +712,9 @@ class _PointsPageState extends State<PointsPage>
 
     return Container(
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,7 +723,7 @@ class _PointsPageState extends State<PointsPage>
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: _border,
+                color: SuokeDesignTokens.borderClr(context),
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
@@ -759,7 +752,7 @@ class _PointsPageState extends State<PointsPage>
                 Text(
                   name,
                   style: const TextStyle(
-                    color: _textMain,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
@@ -769,17 +762,17 @@ class _PointsPageState extends State<PointsPage>
                 const SizedBox(height: 4),
                 Text(
                   category,
-                  style: const TextStyle(color: _textSub, fontSize: 11),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.stars, color: _brand, size: 14),
+                    const Icon(Icons.stars, color: SuokeDesignTokens.accent, size: 14),
                     const SizedBox(width: 4),
                     Text(
                       '$points',
                       style: const TextStyle(
-                        color: _brand,
+                        color: SuokeDesignTokens.accent,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -789,15 +782,15 @@ class _PointsPageState extends State<PointsPage>
                 const SizedBox(height: 4),
                 Text(
                   '库存 $stock',
-                  style: const TextStyle(color: _textSub, fontSize: 11),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: canRedeem ? _brand : _border,
-                      foregroundColor: canRedeem ? _bg : _textSub,
+                      backgroundColor: canRedeem ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context),
+                      foregroundColor: canRedeem ? SuokeDesignTokens.bg(context) : SuokeDesignTokens.textSub(context),
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       minimumSize: const Size.fromHeight(30),
                     ),
@@ -815,7 +808,7 @@ class _PointsPageState extends State<PointsPage>
 
   Widget _imgPlaceholder() {
     return const Center(
-      child: Icon(Icons.card_giftcard, color: _textSub, size: 40),
+      child: Icon(Icons.card_giftcard, color: SuokeDesignTokens.textSub(context), size: 40),
     );
   }
 
@@ -836,12 +829,12 @@ class _PointsPageState extends State<PointsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.receipt_long, size: 64, color: _textSub),
+            const Icon(Icons.receipt_long, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无兑换记录', style: TextStyle(color: _textSub)),
+            const Text('暂无兑换记录', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brand),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadRedemptions,
               child: const Text('刷新'),
             ),
@@ -850,7 +843,7 @@ class _PointsPageState extends State<PointsPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadRedemptions,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -892,20 +885,20 @@ class _PointsPageState extends State<PointsPage>
         break;
       case 'cancelled':
         statusText = '已取消';
-        statusColor = _textSub;
+        statusColor = SuokeDesignTokens.textSub(context);
         break;
       default:
         statusText = '未知';
-        statusColor = _textSub;
+        statusColor = SuokeDesignTokens.textSub(context);
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -917,7 +910,7 @@ class _PointsPageState extends State<PointsPage>
                 child: Text(
                   itemName,
                   style: const TextStyle(
-                    color: _textMain,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
@@ -939,11 +932,11 @@ class _PointsPageState extends State<PointsPage>
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.stars, color: _brand, size: 16),
+              const Icon(Icons.stars, color: SuokeDesignTokens.accent, size: 16),
               const SizedBox(width: 4),
               Text(
                 '消耗 $pointsSpent 积分',
-                style: const TextStyle(color: _brand, fontSize: 14),
+                style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 14),
               ),
             ],
           ),
@@ -952,17 +945,17 @@ class _PointsPageState extends State<PointsPage>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _border,
+                color: SuokeDesignTokens.borderClr(context),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.local_offer, color: _brand, size: 16),
+                  const Icon(Icons.local_offer, color: SuokeDesignTokens.accent, size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '兑换码：$discountCode',
-                      style: const TextStyle(color: _textMain, fontSize: 13),
+                      style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
                     ),
                   ),
                 ],
@@ -970,7 +963,7 @@ class _PointsPageState extends State<PointsPage>
             ),
           ],
           const SizedBox(height: 8),
-          Text(timeStr, style: const TextStyle(color: _textSub, fontSize: 12)),
+          Text(timeStr, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
         ],
       ),
     );
@@ -990,12 +983,12 @@ class _PointsPageState extends State<PointsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.leaderboard, size: 64, color: _textSub),
+            const Icon(Icons.leaderboard, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无排行榜数据', style: TextStyle(color: _textSub)),
+            const Text('暂无排行榜数据', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brand),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadRanking,
               child: const Text('刷新'),
             ),
@@ -1004,7 +997,7 @@ class _PointsPageState extends State<PointsPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadRanking,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -1032,7 +1025,7 @@ class _PointsPageState extends State<PointsPage>
     };
     final roleText = roleMap[role] ?? role;
 
-    Color rankColor = _textSub;
+    Color rankColor = SuokeDesignTokens.textSub(context);
     if (rank == 1) {
       rankColor = const Color(0xFFFFD700);
     } else if (rank == 2) {
@@ -1045,9 +1038,9 @@ class _PointsPageState extends State<PointsPage>
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: rank <= 3 ? rankColor : _border),
+        border: Border.all(color: rank <= 3 ? rankColor : SuokeDesignTokens.borderClr(context)),
       ),
       child: Row(
         children: [
@@ -1056,7 +1049,7 @@ class _PointsPageState extends State<PointsPage>
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: rank <= 3 ? rankColor.withValues(alpha: 0.15) : _border,
+              color: rank <= 3 ? rankColor.withValues(alpha: 0.15) : SuokeDesignTokens.borderClr(context),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
@@ -1073,7 +1066,7 @@ class _PointsPageState extends State<PointsPage>
                   : Text(
                       '$rank',
                       style: const TextStyle(
-                        color: _textSub,
+                        color: SuokeDesignTokens.textSub(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -1084,10 +1077,10 @@ class _PointsPageState extends State<PointsPage>
           // 头像占位
           CircleAvatar(
             radius: 18,
-            backgroundColor: _border,
+            backgroundColor: SuokeDesignTokens.borderClr(context),
             child: Text(
               userName.isNotEmpty ? userName[0] : '?',
-              style: const TextStyle(color: _textMain),
+              style: const TextStyle(color: SuokeDesignTokens.text(context)),
             ),
           ),
           const SizedBox(width: 12),
@@ -1099,7 +1092,7 @@ class _PointsPageState extends State<PointsPage>
                 Text(
                   userName,
                   style: const TextStyle(
-                    color: _textMain,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1107,7 +1100,7 @@ class _PointsPageState extends State<PointsPage>
                 const SizedBox(height: 2),
                 Text(
                   roleText + (level != null ? ' · $level' : ''),
-                  style: const TextStyle(color: _textSub, fontSize: 11),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
                 ),
               ],
             ),
@@ -1115,12 +1108,12 @@ class _PointsPageState extends State<PointsPage>
           // 积分
           Row(
             children: [
-              const Icon(Icons.stars, color: _brand, size: 16),
+              const Icon(Icons.stars, color: SuokeDesignTokens.accent, size: 16),
               const SizedBox(width: 4),
               Text(
                 '$yearEarned',
                 style: const TextStyle(
-                  color: _brand,
+                  color: SuokeDesignTokens.accent,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),

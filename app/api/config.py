@@ -22,8 +22,8 @@ async def get_feature_flags(current_user: User = Depends(get_current_user)):
         "agent_learning_enabled": settings.agent_learning_enabled,
         "agent_function_call_enabled": settings.agent_function_call_enabled,
         "vector_db_url_configured": bool(settings.vector_db_url),
-        "harness_enabled": True,
-        "agent_evolution_enabled": True,
+        "harness_enabled": settings.harness_trace_enabled,
+        "agent_evolution_enabled": settings.agent_evolution_enabled,
         # v1.1.12 新增 feature flags
         "mcp_enabled": settings.mcp_enabled,
         "ai_render_enabled": settings.ai_render_enabled,

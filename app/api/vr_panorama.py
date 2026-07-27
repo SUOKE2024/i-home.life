@@ -9,6 +9,7 @@ from app.rbac import verify_project_access
 from app.models.user import User
 from app.schemas.vr_panorama import (
     VRPanoramaCreate,
+    VRPanoramaUpdate,
     VRPanoramaResponse,
     VRPanoramaListItem,
     HotspotCreate,
@@ -106,6 +107,28 @@ async def render_panorama(
     resp = VRPanoramaResponse.model_validate(rendered)
     await ws_manager.broadcast_to_project(
         panorama.project_id, "vr.panorama.rendered", resp.model_dump()
+    )
+    return resp
+
+
+@router.patch("/panoramas/{panorama_id}", response_model=VRPanoramaResponse)
+async def update_panorama(
+    panorama_id: str,
+    body: VRPanoramaUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """更新全景图元数据 (image_url/thumbnail_url/status)。"""
+    panorama = await vr_panorama_service.get_panorama(db, panorama_id)
+    if not panorama:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
+    updated = await vr_panorama_service.update_panorama(db, panorama_id, body.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    resp = VRPanoramaResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(
+        panorama.project_id, "vr.panorama.updated", resp.model_dump()
     )
     return resp
 

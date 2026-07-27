@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -16,14 +17,6 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _textPrimary = Color(0xFFE8E6E1);
-  static const Color _textSecondary = Color(0xFF8A8894);
 
   List<dynamic> _panoramas = [];
   List<dynamic> _scenes = [];
@@ -125,7 +118,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       case 'error':
         return Colors.red;
       default:
-        return _brandColor;
+        return SuokeDesignTokens.accent;
     }
   }
 
@@ -162,8 +155,8 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: _cardColor,
-          title: const Text('创建全景图', style: TextStyle(color: _textPrimary)),
+          backgroundColor: SuokeDesignTokens.card(context),
+          title: const Text('创建全景图', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -172,7 +165,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                 children: [
                   TextFormField(
                     decoration: const InputDecoration(labelText: '房间名称'),
-                    style: const TextStyle(color: _textPrimary),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? '请输入房间名称' : null,
                     onSaved: (v) => roomName = v?.trim() ?? '',
@@ -181,7 +174,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   DropdownButtonFormField<String>(
                     initialValue: panoType,
                     decoration: const InputDecoration(labelText: '全景类型'),
-                    dropdownColor: _cardColor,
+                    dropdownColor: SuokeDesignTokens.card(context),
                     items: [
                       DropdownItem(value: 'equirectangular', label: 'equirectangular'),
                       DropdownItem(value: 'cubemap', label: 'cubemap'),
@@ -192,7 +185,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   DropdownButtonFormField<String>(
                     initialValue: resolution,
                     decoration: const InputDecoration(labelText: '分辨率'),
-                    dropdownColor: _cardColor,
+                    dropdownColor: SuokeDesignTokens.card(context),
                     items: [
                       DropdownItem(value: '2K', label: '2K'),
                       DropdownItem(value: '4K', label: '4K'),
@@ -204,7 +197,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   DropdownButtonFormField<String>(
                     initialValue: quality,
                     decoration: const InputDecoration(labelText: '渲染质量'),
-                    dropdownColor: _cardColor,
+                    dropdownColor: SuokeDesignTokens.card(context),
                     items: [
                       DropdownItem(value: 'draft', label: 'draft'),
                       DropdownItem(value: 'standard', label: 'standard'),
@@ -217,7 +210,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     initialValue: fov,
                     decoration: const InputDecoration(labelText: '视场角 FOV'),
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: _textPrimary),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
                     onSaved: (v) => fov = v ?? '360',
                   ),
                 ],
@@ -271,10 +264,10 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('删除全景', style: TextStyle(color: _textPrimary)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('删除全景', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text('确认删除「${pano['room_name'] ?? ''}」？此操作不可恢复。',
-            style: const TextStyle(color: _textPrimary)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -325,9 +318,9 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: Text(detail['room_name'] ?? '全景详情',
-            style: const TextStyle(color: _textPrimary)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context))),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView(
@@ -368,11 +361,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
           SizedBox(
             width: 80,
             child: Text(label,
-                style: const TextStyle(color: _textSecondary, fontSize: 13)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
           ),
           Expanded(
             child: Text(value ?? '-',
-                style: const TextStyle(color: _textPrimary, fontSize: 13)),
+                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
           ),
         ],
       ),
@@ -401,8 +394,8 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: _cardColor,
-          title: const Text('创建 VR 场景', style: TextStyle(color: _textPrimary)),
+          backgroundColor: SuokeDesignTokens.card(context),
+          title: const Text('创建 VR 场景', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -411,7 +404,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                 children: [
                   TextFormField(
                     decoration: const InputDecoration(labelText: '场景名称'),
-                    style: const TextStyle(color: _textPrimary),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? '请输入场景名称' : null,
                     onSaved: (v) => name = v?.trim() ?? '',
@@ -420,7 +413,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   DropdownButtonFormField<String>(
                     initialValue: transition,
                     decoration: const InputDecoration(labelText: '转场类型'),
-                    dropdownColor: _cardColor,
+                    dropdownColor: SuokeDesignTokens.card(context),
                     items: [
                       DropdownItem(value: 'fade', label: '淡入淡出'),
                       DropdownItem(value: 'dissolve', label: '溶解'),
@@ -431,7 +424,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   const SizedBox(height: 12),
                   TextFormField(
                     decoration: const InputDecoration(labelText: '备注（可选）'),
-                    style: const TextStyle(color: _textPrimary),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
                     maxLines: 2,
                     onSaved: (v) => notes = v ?? '',
                   ),
@@ -440,7 +433,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                       padding: const EdgeInsets.only(top: 8),
                       child: Text('将自动包含当前选中全景',
                           style: const TextStyle(
-                              color: _textSecondary, fontSize: 12)),
+                              color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                     ),
                 ],
               ),
@@ -492,10 +485,10 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('删除场景', style: TextStyle(color: _textPrimary)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('删除场景', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text('确认删除场景「${scene['name'] ?? ''}」？',
-            style: const TextStyle(color: _textPrimary)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -540,8 +533,8 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          backgroundColor: _cardColor,
-          title: const Text('生成热点', style: TextStyle(color: _textPrimary)),
+          backgroundColor: SuokeDesignTokens.card(context),
+          title: const Text('生成热点', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -551,7 +544,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   DropdownButtonFormField<String>(
                     initialValue: type,
                     decoration: const InputDecoration(labelText: '热点类型'),
-                    dropdownColor: _cardColor,
+                    dropdownColor: SuokeDesignTokens.card(context),
                     items: [
                       DropdownItem(value: 'info', label: '信息'),
                       DropdownItem(value: 'panorama', label: '跳转全景'),
@@ -563,7 +556,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   const SizedBox(height: 12),
                   TextFormField(
                     decoration: const InputDecoration(labelText: '标签'),
-                    style: const TextStyle(color: _textPrimary),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? '请输入标签' : null,
                     onSaved: (v) => label = v?.trim() ?? '',
@@ -575,7 +568,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                         child: TextFormField(
                           decoration: const InputDecoration(labelText: 'X'),
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: _textPrimary),
+                          style: const TextStyle(color: SuokeDesignTokens.text(context)),
                           onSaved: (v) => posX = v ?? '0',
                         ),
                       ),
@@ -584,7 +577,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                         child: TextFormField(
                           decoration: const InputDecoration(labelText: 'Y'),
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: _textPrimary),
+                          style: const TextStyle(color: SuokeDesignTokens.text(context)),
                           onSaved: (v) => posY = v ?? '0',
                         ),
                       ),
@@ -593,7 +586,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                         child: TextFormField(
                           decoration: const InputDecoration(labelText: 'Z'),
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: _textPrimary),
+                          style: const TextStyle(color: SuokeDesignTokens.text(context)),
                           onSaved: (v) => posZ = v ?? '0',
                         ),
                       ),
@@ -604,7 +597,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     TextFormField(
                       decoration:
                           const InputDecoration(labelText: '目标全景 ID'),
-                      style: const TextStyle(color: _textPrimary),
+                      style: const TextStyle(color: SuokeDesignTokens.text(context)),
                       onSaved: (v) => targetPanoId = v,
                     ),
                   ],
@@ -663,16 +656,16 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('VR 全景管理', style: TextStyle(color: _textPrimary)),
-        iconTheme: const IconThemeData(color: _textPrimary),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: const Text('VR 全景管理', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        iconTheme: const IconThemeData(color: SuokeDesignTokens.text(context)),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _textSecondary,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '全景列表'),
             Tab(text: '场景管理'),
@@ -687,7 +680,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: _brandColor,
+        backgroundColor: SuokeDesignTokens.accent,
         onPressed: _createPanorama,
         child: const Icon(Icons.add, color: Colors.black),
       ),
@@ -706,12 +699,12 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.panorama_photosphere_select,
-                size: 64, color: _textSecondary),
+                size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无全景图', style: TextStyle(color: _textSecondary)),
+            const Text('暂无全景图', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _createPanorama,
               icon: const Icon(Icons.add, color: Colors.black),
               label: const Text('创建全景图',
@@ -739,11 +732,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final status = pano['status']?.toString();
     final selected = _selectedPanorama?['id'] == id;
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: selected ? _brandColor : _borderColor, width: selected ? 1.5 : 1),
+            color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: selected ? 1.5 : 1),
       ),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -757,7 +750,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   child: Text(
                     pano['room_name']?.toString() ?? '未命名',
                     style: const TextStyle(
-                        color: _textPrimary,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -768,24 +761,24 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
             const SizedBox(height: 8),
             Text(
               '类型：${pano['panorama_type'] ?? '-'} · 分辨率：${pano['resolution'] ?? '-'}',
-              style: const TextStyle(color: _textSecondary, fontSize: 13),
+              style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
             ),
             const SizedBox(height: 6),
             Row(
               children: [
                 const Icon(Icons.view_in_ar,
-                    size: 14, color: _textSecondary),
+                    size: 14, color: SuokeDesignTokens.textSub(context)),
                 const SizedBox(width: 4),
                 Text('场景 ${_sceneCount(id)}',
                     style: const TextStyle(
-                        color: _textSecondary, fontSize: 12)),
+                        color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                 const SizedBox(width: 12),
                 const Icon(Icons.access_time,
-                    size: 14, color: _textSecondary),
+                    size: 14, color: SuokeDesignTokens.textSub(context)),
                 const SizedBox(width: 4),
                 Text(_fmtTime(pano['created_at']),
                     style: const TextStyle(
-                        color: _textSecondary, fontSize: 12)),
+                        color: SuokeDesignTokens.textSub(context), fontSize: 12)),
               ],
             ),
             const SizedBox(height: 10),
@@ -841,10 +834,10 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: const [
-            Icon(Icons.touch_app, size: 64, color: _textSecondary),
+            Icon(Icons.touch_app, size: 64, color: SuokeDesignTokens.textSub(context)),
             SizedBox(height: 16),
             Text('请先在「全景列表」中选择一个全景',
-                style: TextStyle(color: _textSecondary)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ],
         ),
       );
@@ -861,10 +854,10 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       children: [
         // 当前全景
         Card(
-          color: _cardColor,
+          color: SuokeDesignTokens.card(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: _brandColor, width: 1.2),
+            side: const BorderSide(color: SuokeDesignTokens.accent, width: 1.2),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -874,13 +867,13 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                 Row(
                   children: [
                     const Icon(Icons.panorama_photosphere,
-                        color: _brandColor, size: 20),
+                        color: SuokeDesignTokens.accent, size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         pano['room_name']?.toString() ?? '未命名',
                         style: const TextStyle(
-                            color: _textPrimary,
+                            color: SuokeDesignTokens.text(context),
                             fontSize: 16,
                             fontWeight: FontWeight.bold),
                       ),
@@ -894,7 +887,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: _brandColor),
+                            backgroundColor: SuokeDesignTokens.accent),
                         onPressed: _addHotspot,
                         icon: const Icon(Icons.add_location_alt,
                             color: Colors.black, size: 18),
@@ -906,12 +899,12 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                            backgroundColor: _cardColor,
-                            side: const BorderSide(color: _brandColor)),
+                            backgroundColor: SuokeDesignTokens.card(context),
+                            side: const BorderSide(color: SuokeDesignTokens.accent)),
                         onPressed: _createScene,
-                        icon: const Icon(Icons.layers, color: _brandColor),
+                        icon: const Icon(Icons.layers, color: SuokeDesignTokens.accent),
                         label: const Text('添加场景',
-                            style: TextStyle(color: _brandColor)),
+                            style: TextStyle(color: SuokeDesignTokens.accent)),
                       ),
                     ),
                   ],
@@ -924,11 +917,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
         // 热点列表
         Row(
           children: [
-            const Icon(Icons.location_on, color: _brandColor, size: 18),
+            const Icon(Icons.location_on, color: SuokeDesignTokens.accent, size: 18),
             const SizedBox(width: 6),
             Text('热点（${_hotspots.length}）',
                 style: const TextStyle(
-                    color: _textPrimary,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 15,
                     fontWeight: FontWeight.bold)),
           ],
@@ -947,11 +940,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
         // 场景列表
         Row(
           children: [
-            const Icon(Icons.layers, color: _brandColor, size: 18),
+            const Icon(Icons.layers, color: SuokeDesignTokens.accent, size: 18),
             const SizedBox(width: 6),
             Text('场景（${relatedScenes.length}）',
                 style: const TextStyle(
-                    color: _textPrimary,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 15,
                     fontWeight: FontWeight.bold)),
           ],
@@ -969,12 +962,12 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Center(
-        child: Text(text, style: const TextStyle(color: _textSecondary)),
+        child: Text(text, style: const TextStyle(color: SuokeDesignTokens.textSub(context))),
       ),
     );
   }
@@ -989,19 +982,19 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
       posStr = pos;
     }
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: _borderColor),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: ListTile(
-        leading: const Icon(Icons.location_on, color: _brandColor),
+        leading: const Icon(Icons.location_on, color: SuokeDesignTokens.accent),
         title: Text(hp['label']?.toString() ?? '热点 $index',
-            style: const TextStyle(color: _textPrimary)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context))),
         subtitle: Text(
           '类型：${hp['type'] ?? '-'} · 位置：$posStr',
-          style: const TextStyle(color: _textSecondary, fontSize: 12),
+          style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
         ),
       ),
     );
@@ -1010,11 +1003,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
   Widget _buildSceneCard(Map<String, dynamic> scene) {
     final panoIds = _parsePanoramaIds(scene['panorama_ids']);
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       margin: const EdgeInsets.only(bottom: 8),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: _borderColor),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -1027,7 +1020,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   child: Text(
                     scene['name']?.toString() ?? '未命名场景',
                     style: const TextStyle(
-                        color: _textPrimary, fontWeight: FontWeight.bold),
+                        color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold),
                   ),
                 ),
                 _statusChip(scene['status']?.toString()),
@@ -1036,7 +1029,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
             const SizedBox(height: 6),
             Text(
               '视角：${scene['transition_type'] ?? '-'} · 全景 ${panoIds.length}',
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
+              style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
             ),
             if (scene['thumbnail_url'] != null) ...[
               const SizedBox(height: 8),
@@ -1049,15 +1042,15 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                   fit: BoxFit.cover,
                   placeholder: (context, url) => Container(
                     height: 120,
-                    color: _borderColor,
+                    color: SuokeDesignTokens.borderClr(context),
                     child: const Center(
                         child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                   errorWidget: (context, url, error) => Container(
                     height: 120,
-                    color: _borderColor,
+                    color: SuokeDesignTokens.borderClr(context),
                     child: const Icon(Icons.broken_image,
-                        color: _textSecondary),
+                        color: SuokeDesignTokens.textSub(context)),
                   ),
                 ),
               ),

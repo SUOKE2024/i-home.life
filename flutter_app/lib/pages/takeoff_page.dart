@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -14,14 +15,6 @@ class TakeoffPage extends StatefulWidget {
 class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   // 参数输入
   final _wallLengthCtrl = TextEditingController(text: '10.0');
@@ -189,15 +182,15 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('工程量计算', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: const Text('工程量计算', style: TextStyle(color: SuokeDesignTokens.text(context))),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '工程量汇总'),
             Tab(text: '明细列表'),
@@ -236,8 +229,8 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             icon: const Icon(Icons.calculate),
             label: const Text('自动计算'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
@@ -249,24 +242,24 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _cardColor,
+              color: SuokeDesignTokens.card(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _borderColor),
+              border: Border.all(color: SuokeDesignTokens.borderClr(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: const [
-                    Icon(Icons.summarize, color: _brandColor, size: 20),
+                    Icon(Icons.summarize, color: SuokeDesignTokens.accent, size: 20),
                     SizedBox(width: 8),
-                    Text('计算结果', style: TextStyle(color: _brandColor, fontWeight: FontWeight.bold)),
+                    Text('计算结果', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
                   _result!['reply'] ?? '',
-                  style: const TextStyle(color: _primaryText, fontSize: 14, height: 1.6),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, height: 1.6),
                 ),
               ],
             ),
@@ -281,22 +274,22 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: const [
-              Icon(Icons.input, color: _brandColor, size: 20),
+              Icon(Icons.input, color: SuokeDesignTokens.accent, size: 20),
               SizedBox(width: 8),
-              Text('参数输入', style: TextStyle(color: _brandColor, fontWeight: FontWeight.bold)),
+              Text('参数输入', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-          const Text('墙体参数', style: TextStyle(color: _secondaryText, fontSize: 12)),
+          const Text('墙体参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -308,7 +301,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             ],
           ),
           const SizedBox(height: 16),
-          const Text('楼板参数', style: TextStyle(color: _secondaryText, fontSize: 12)),
+          const Text('楼板参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -318,7 +311,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             ],
           ),
           const SizedBox(height: 16),
-          const Text('地面参数', style: TextStyle(color: _secondaryText, fontSize: 12)),
+          const Text('地面参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           _buildInputField('面积(m²)', _floorAreaCtrl),
         ],
@@ -330,20 +323,20 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: const TextStyle(color: _primaryText, fontSize: 14),
+      style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: _secondaryText, fontSize: 12),
+        labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
         filled: true,
-        fillColor: _bgColor,
+        fillColor: SuokeDesignTokens.bg(context),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _borderColor),
+          borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: _brandColor),
+          borderSide: const BorderSide(color: SuokeDesignTokens.accent),
         ),
       ),
     );
@@ -390,9 +383,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,8 +394,8 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(color: _secondaryText, fontSize: 13)),
-              Icon(icon, color: _brandColor, size: 20),
+              Text(title, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+              Icon(icon, color: SuokeDesignTokens.accent, size: 20),
             ],
           ),
           Column(
@@ -410,9 +403,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             children: [
               Text(
                 value,
-                style: const TextStyle(color: _primaryText, fontSize: 24, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              Text(unit, style: const TextStyle(color: _secondaryText, fontSize: 12)),
+              Text(unit, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
             ],
           ),
         ],
@@ -430,7 +423,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       return _buildEmptyState();
     }
     if (_details.isEmpty) {
-      return const Center(child: Text('暂无明细数据', style: TextStyle(color: _secondaryText)));
+      return const Center(child: Text('暂无明细数据', style: TextStyle(color: SuokeDesignTokens.textSub(context))));
     }
 
     final totalCost = _details.fold<double>(
@@ -453,16 +446,16 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _brandColor),
+            border: Border.all(color: SuokeDesignTokens.accent),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('合价总计', style: TextStyle(color: _brandColor, fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('合价总计', style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 16, fontWeight: FontWeight.bold)),
               Text('¥${totalCost.toStringAsFixed(2)}',
-                  style: const TextStyle(color: _brandColor, fontSize: 20, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 20, fontWeight: FontWeight.bold)),
             ],
           ),
         );
@@ -482,25 +475,25 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             detail['name'] ?? '',
-            style: const TextStyle(color: _primaryText, fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('公式：', style: TextStyle(color: _secondaryText, fontSize: 12)),
+              const Text('公式：', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
               Expanded(
                 child: Text(
                   detail['formula'] ?? '',
-                  style: const TextStyle(color: _secondaryText, fontSize: 12),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                 ),
               ),
             ],
@@ -523,9 +516,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: _secondaryText, fontSize: 11)),
+        Text(label, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: _primaryText, fontSize: 14, fontWeight: FontWeight.w500)),
+        Text(value, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -537,11 +530,11 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: const [
-          Icon(Icons.calculate, size: 64, color: _secondaryText),
+          Icon(Icons.calculate, size: 64, color: SuokeDesignTokens.textSub(context)),
           SizedBox(height: 16),
-          Text('暂无工程量数据', style: TextStyle(color: _secondaryText, fontSize: 16)),
+          Text('暂无工程量数据', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
           SizedBox(height: 8),
-          Text('请输入参数后点击「自动计算」', style: TextStyle(color: _secondaryText, fontSize: 13)),
+          Text('请输入参数后点击「自动计算」', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         ],
       ),
     );

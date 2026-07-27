@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/floor_plan_canvas.dart';
 
@@ -15,13 +16,6 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
 
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   // 方案
   List<dynamic> _plans = [];
@@ -234,7 +228,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       case '燃气':
         return Colors.orange;
       default:
-        return _secondaryText;
+        return SuokeDesignTokens.textSub(context);
     }
   }
 
@@ -257,16 +251,16 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _cardColor,
-        foregroundColor: _primaryText,
+        backgroundColor: SuokeDesignTokens.card(context),
+        foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('水电工程'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '水电方案'),
             Tab(text: '点位列表'),
@@ -291,7 +285,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
 
   Widget _buildPlansTab() {
     if (_plansLoading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return _buildErrorRetry(_error!, _loadPlans);
@@ -313,8 +307,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showCreatePlanDialog,
                   icon: const Icon(Icons.add),
@@ -324,8 +318,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadPlans,
                 icon: const Icon(Icons.refresh),
@@ -336,7 +330,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         ),
         Expanded(
           child: RefreshIndicator(
-            color: _brandColor,
+            color: SuokeDesignTokens.accent,
             onRefresh: _loadPlans,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -356,11 +350,11 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     final id = (plan['id'] ?? plan['plan_id'] ?? '').toString();
     final isSelected = _selectedPlanId == id;
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? _brandColor : _borderColor, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -371,20 +365,20 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             Row(
               children: [
                 Icon(Icons.plumbing,
-                    color: isSelected ? _brandColor : _primaryText, size: 20),
+                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     plan['name']?.toString() ?? '未命名方案',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (isSelected)
                   const Icon(Icons.check_circle,
-                      color: _brandColor, size: 18),
+                      color: SuokeDesignTokens.accent, size: 18),
               ],
             ),
             const SizedBox(height: 8),
@@ -439,20 +433,20 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.plumbing, color: _brandColor, size: 20),
+                  const Icon(Icons.plumbing, color: SuokeDesignTokens.accent, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
                       style: const TextStyle(
-                          color: _primaryText, fontWeight: FontWeight.w600),
+                          color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -467,8 +461,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddPointDialog,
                   icon: const Icon(Icons.add),
@@ -478,8 +472,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadPoints,
                 icon: const Icon(Icons.refresh),
@@ -492,7 +486,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         Expanded(
           child: _pointsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _points.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.place,
@@ -519,10 +513,10 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     final typeLabel = _pointTypeLabel(rawType);
     final typeColor = _pointTypeColor(typeLabel);
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -550,7 +544,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 const Spacer(),
                 Text(
                   point['location']?.toString() ?? '',
-                  style: const TextStyle(color: _primaryText, fontSize: 14),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
                 ),
               ],
             ),
@@ -588,7 +582,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -596,13 +590,13 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               child: Row(
                 children: [
                   const Icon(Icons.electrical_services,
-                      color: _brandColor, size: 20),
+                      color: SuokeDesignTokens.accent, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
                       style: const TextStyle(
-                          color: _primaryText, fontWeight: FontWeight.w600),
+                          color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -617,8 +611,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddCircuitDialog,
                   icon: const Icon(Icons.add),
@@ -628,8 +622,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadCircuits,
                 icon: const Icon(Icons.refresh),
@@ -642,7 +636,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         Expanded(
           child: _circuitsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _circuits.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.electrical_services,
@@ -666,10 +660,10 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
 
   Widget _buildCircuitCard(Map<String, dynamic> circuit) {
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -680,20 +674,20 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             Row(
               children: [
                 const Icon(Icons.electrical_services,
-                    color: _brandColor, size: 20),
+                    color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '回路 ${circuit['circuit_number']?.toString() ?? circuit['number']?.toString() ?? '-'}',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 Text(
                   circuit['circuit_type']?.toString() ?? circuit['type']?.toString() ?? '-',
-                  style: const TextStyle(color: _brandColor, fontSize: 13),
+                  style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 13),
                 ),
               ],
             ),
@@ -728,7 +722,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
 
     if (_pointsLoading) {
       return const Center(
-          child: CircularProgressIndicator(color: _brandColor));
+          child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
 
     // 从方案数据中尝试获取房间尺寸
@@ -776,7 +770,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -786,17 +780,17 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.map_outlined, color: _brandColor, size: 20),
+                      const Icon(Icons.map_outlined, color: SuokeDesignTokens.accent, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         '方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
                         style: const TextStyle(
-                            color: _primaryText, fontWeight: FontWeight.w600),
+                            color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                       ),
                       const Spacer(),
                       Text(
                         '${_points.length} 个点位',
-                        style: const TextStyle(color: _secondaryText, fontSize: 13),
+                        style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
                       ),
                     ],
                   ),
@@ -851,7 +845,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         ),
         const SizedBox(width: 4),
         Text(label,
-            style: const TextStyle(color: _secondaryText, fontSize: 12)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
       ],
     );
   }
@@ -868,15 +862,15 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _secondaryText),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             onPressed: onAction,
             icon: const Icon(Icons.add),
@@ -895,12 +889,12 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
@@ -916,9 +910,9 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: _secondaryText, fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: _primaryText, fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
       ],
     );
   }
@@ -933,9 +927,9 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       height: 32,
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : _brandColor,
+          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : _borderColor),
+              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -957,30 +951,30 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.card(context),
           title: const Text('创建水电方案',
-              style: TextStyle(color: _primaryText)),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('方案名称'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: type,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('方案类型'),
                   items: planTypes
                       .map((t) => DropdownMenuItem(
                           value: t,
                           child: Text(t,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => type = v);
@@ -989,15 +983,15 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: status,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('状态'),
                   items: statuses
                       .map((s) => DropdownMenuItem(
                           value: s,
                           child: Text(s,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => status = v);
@@ -1010,11 +1004,11 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: _secondaryText)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandColor, foregroundColor: _bgColor),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
@@ -1041,24 +1035,24 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.card(context),
           title: const Text('添加点位',
-              style: TextStyle(color: _primaryText)),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: type,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('点位类型'),
                   items: pointTypes
                       .map((t) => DropdownMenuItem(
                           value: t,
                           child: Text(t,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => type = v);
@@ -1067,13 +1061,13 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 const SizedBox(height: 12),
                 TextField(
                   controller: locationCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('位置（如：厨房水槽下方）'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: specCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('规格（如：DN20 4分PPR）'),
                 ),
               ],
@@ -1083,11 +1077,11 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: _secondaryText)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandColor, foregroundColor: _bgColor),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 final location = locationCtrl.text.trim();
                 if (location.isEmpty) {
@@ -1115,30 +1109,30 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.card(context),
           title: const Text('添加回路',
-              style: TextStyle(color: _primaryText)),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: numberCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('回路编号（如：L1）'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: type,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('回路类型'),
                   items: circuitTypes
                       .map((t) => DropdownMenuItem(
                           value: t,
                           child: Text(t,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => type = v);
@@ -1147,13 +1141,13 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 const SizedBox(height: 12),
                 TextField(
                   controller: loadCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('负载（如：3000W）'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: breakerCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('断路器（如：C16 1P）'),
                 ),
               ],
@@ -1163,11 +1157,11 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: _secondaryText)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandColor, foregroundColor: _bgColor),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 final number = numberCtrl.text.trim();
                 if (number.isEmpty) {
@@ -1190,16 +1184,16 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此水电方案吗？关联的点位与回路也会被清除。此操作不可撤销。',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1219,20 +1213,20 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: _secondaryText),
+      labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
       filled: true,
-      fillColor: _bgColor,
+      fillColor: SuokeDesignTokens.bg(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _brandColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.accent),
       ),
     );
   }

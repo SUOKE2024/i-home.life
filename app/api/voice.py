@@ -1,14 +1,188 @@
+"""语音处理 API — 关键词匹配 + LLM 语义意图分类"""
+import json
+import logging
+import re
+from typing import Any
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models.user import User
-from app.models.project import Project
+from app.agents.base import PROVIDER_REGISTRY
 from app.auth import get_current_user
+from app.config import get_settings
+from app.database import get_db
+from app.models.project import Project
+from app.models.user import User
+from app.services.reply_templates import ReplyTemplates
 
 router = APIRouter(prefix="/voice", tags=["语音"])
+
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# ── LLM 语义分类 prompt ──────────────────────────────────────
+
+VOICE_INTENT_CLASSIFICATION_PROMPT = """你是一个智能家居平台的意图分类器。根据用户的语音转文字输入，判断用户意图属于以下哪个类别。
+
+类别定义：
+- design: 室内设计、户型布局、方案生成、画墙、添加房间、建造
+- measurement: 测量、丈量、激光扫描、LiDAR、量房、测距、面积计算
+- budget: 预算、报价、价格、费用、成本
+- procurement: 采购、购买、材料、建材、供应商
+- construction: 施工、进度、验收、质检、工地管理
+- settlement: 结算、对账、尾款、付款、账单
+- qa: 质量检查、整改、返工、验收标准
+- smart_home: 智能家居、设备控制、场景联动、Matter、能耗
+- scene: 场景模式、离家模式、回家模式、观影模式
+- general: 其他通用问题、闲聊、问候
+
+请严格只输出一个 JSON 对象，格式为：{"intent": "<类别>"}
+不要输出任何其他内容。"""
+
+
+# ── 关键词匹配规则（快速降级路径） ──────────────────────────
+
+_KEYWORD_INTENT_MAP: list[tuple[list[str], str]] = [
+    # 每项: (关键词列表, 意图)
+    (["设计", "布局", "方案", "户型", "画", "墙", "房间", "添加", "加一个", "新建", "建造", "装修"], "design"),
+    (["测量", "丈量", "扫描", "激光", "LiDAR", "摄像头", "拍照测量", "量房", "测距", "面积"], "measurement"),
+    (["预算", "价格", "费用", "成本", "多少钱", "报价"], "budget"),
+    (["采购", "买", "材料", "建材", "供应商"], "procurement"),
+    (["施工", "进度", "验收", "质检", "工地", "工序"], "construction"),
+    (["结算", "对账", "尾款", "付款", "账单", "发票"], "settlement"),
+    (["整改", "返工", "验收标准", "质检报告", "不合格"], "qa"),
+    (["智能家居", "智能设备", "Matter", "能耗", "节能", "灯", "空调", "窗帘", "传感器"], "smart_home"),
+    (["离家模式", "回家模式", "观影模式", "场景", "一键"], "scene"),
+]
+
+
+def _classify_by_keywords(text: str) -> str:
+    """基于关键词的意图分类（快速降级路径）。"""
+    for keywords, intent in _KEYWORD_INTENT_MAP:
+        if any(kw in text for kw in keywords):
+            return intent
+    return "general"
+
+
+# ── LLM 语义分类 ────────────────────────────────────────────
+
+# 语义分类的 fallback chain 顺序：deepseek → glm → qwen
+_VOICE_LLM_FALLBACK_CHAIN = ["deepseek", "glm", "qwen"]
+
+
+async def _classify_by_llm(text: str) -> str | None:
+    """使用 LLM 进行语义意图分类。
+
+    按 fallback chain 尝试每个供应商，成功返回 intent 字符串；
+    全部失败返回 None，由调用方降级到关键词匹配。
+    """
+    messages = [
+        {"role": "system", "content": VOICE_INTENT_CLASSIFICATION_PROMPT},
+        {"role": "user", "content": text},
+    ]
+
+    for provider in _VOICE_LLM_FALLBACK_CHAIN:
+        cfg = PROVIDER_REGISTRY[provider]
+        api_key = cfg["api_key"]()
+        if not api_key:
+            logger.debug("voice_llm_classify: 供应商 %s API key 未配置，跳过", provider)
+            continue
+
+        try:
+            async with httpx.AsyncClient(
+                base_url=cfg["api_base"](),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                },
+                timeout=httpx.Timeout(15.0),
+            ) as client:
+                response = await client.post(
+                    cfg["chat_path"],
+                    json={
+                        "model": cfg["model"](),
+                        "messages": messages,
+                        "temperature": 0.0,
+                        "max_tokens": 64,
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                content = data["choices"][0]["message"].get("content", "").strip()
+
+                # 解析 LLM 返回的 JSON
+                parsed = _parse_intent_response(content)
+                if parsed:
+                    logger.info(
+                        "voice_llm_classify: text=%r → intent=%s (provider=%s)",
+                        text[:80], parsed, provider,
+                    )
+                    return parsed
+                logger.warning(
+                    "voice_llm_classify: %s 返回无法解析的响应 %r",
+                    provider, content[:100],
+                )
+        except Exception as e:
+            logger.warning(
+                "voice_llm_classify: 供应商 %s 调用失败 (error=%s)", provider, e,
+            )
+
+    return None
+
+
+def _parse_intent_response(content: str) -> str | None:
+    """从 LLM 响应中解析 intent。
+
+    支持多种格式：纯 JSON、JSON 在 markdown code block 中、纯文本中提取。
+    """
+    if not content:
+        return None
+
+    # 尝试直接 JSON 解析
+    candidates = [content]
+    # 尝试提取 markdown code block 中的 JSON
+    code_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+    if code_match:
+        candidates.insert(0, code_match.group(1))
+    # 尝试提取任意 {...} JSON 对象
+    json_match = re.search(r'\{[^{}]*"intent"[^{}]*\}', content)
+    if json_match and json_match.group() not in candidates:
+        candidates.insert(0, json_match.group())
+
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+            intent = parsed.get("intent", "").strip().lower()
+            if intent:
+                return intent
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            continue
+
+    return None
+
+
+async def _route_intent(text: str) -> str:
+    """意图路由：LLM 语义分类优先，关键词匹配降级。
+
+    返回 intent 字符串：design/measurement/budget/procurement/construction/
+    settlement/qa/smart_home/scene/general
+    """
+    # 检查 LLM 路由是否启用
+    if settings.voice_llm_routing_enabled:
+        llm_intent = await _classify_by_llm(text)
+        if llm_intent:
+            return llm_intent
+        logger.info("voice_route: LLM 分类失败，降级到关键词匹配 (text=%r)", text[:80])
+
+    return _classify_by_keywords(text)
+
+
+# ════════════════════════════════════════════════════════════════
+# Pydantic 模型
+# ════════════════════════════════════════════════════════════════
 
 
 class VoiceMessage(BaseModel):
@@ -21,57 +195,23 @@ class VoiceResponse(BaseModel):
     intent: str = "general"
     reply: str
     actions: list[dict] = []
+    emotion: dict | None = None  # v1.2.4: emotion detection result
 
 
-@router.post("/process", response_model=VoiceResponse)
-async def process_voice(
-    data: VoiceMessage,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    # 校验项目归属(若指定了 project_id),与 /voice/process-enhanced 保持一致
-    if data.project_id:
-        result = await db.execute(select(Project).where(Project.id == data.project_id))
-        project = result.scalar_one_or_none()
-        if not project:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-        if current_user.role != "admin" and project.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
-
-    text = data.text
-    intent = "general"
-
-    if any(kw in text for kw in ["设计", "布局", "方案", "户型", "画", "墙", "房间", "添加", "加一个", "新建", "建造"]):
-        intent = "design"
-    elif any(kw in text for kw in ["测量", "丈量", "扫描", "激光", "LiDAR", "摄像头", "拍照测量", "量房", "测距", "面积"]):
-        intent = "measurement"
-    elif any(kw in text for kw in ["预算", "价格", "费用", "成本", "多少钱"]):
-        intent = "budget"
-    elif any(kw in text for kw in ["采购", "买", "材料", "建材", "供应商"]):
-        intent = "procurement"
-    elif any(kw in text for kw in ["施工", "进度", "验收", "质检"]):
-        intent = "construction"
-
-    from app.agents.orchestrator import OrchestratorAgent
-    classification = OrchestratorAgent.fallback_classify(text)
-    fallback_intent = classification.get("intent", "general")
-    # 仅当 fallback 给出更具体的意图时才覆盖(避免 general 覆盖已识别的具体意图)
-    if fallback_intent != "general":
-        intent = fallback_intent
-
-    reply, actions = _handle_intent(text, intent)
-    return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions)
+# ════════════════════════════════════════════════════════════════
+# 端点
+# ════════════════════════════════════════════════════════════════
 
 
 def _handle_intent(text: str, intent: str) -> tuple[str, list[dict]]:
-    actions = []
+    """根据意图生成回复和动作。"""
+    actions: list[dict] = []
     if intent == "measurement":
         reply = _build_measurement_guide(text)
         actions = _extract_room_from_text(text)
     elif intent == "design":
-        reply = f"收到设计需求：「{text}」。正在为您生成布局方案..."
+        reply = ReplyTemplates.design(text)
         if "加" in text or "添加" in text or "建" in text:
-            import re
             name_match = re.search(r"(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊)", text)
             size_match = re.search(r"(\d+(\.\d+)?)[×xX](\d+(\.\d+)?)", text)
             w = float(size_match.group(1)) if size_match else 4
@@ -86,16 +226,129 @@ def _handle_intent(text: str, intent: str) -> tuple[str, list[dict]]:
                 "action": "add_room", "x": 0, "y": 0, "w": w, "h": h,
                 "name": name, "roomType": type_map.get(name, "living_room"),
             }]
-            reply = f"已创建 {name} ({w}×{h}m)"
+            reply = ReplyTemplates.design_room_created(name, w, h)
     elif intent == "budget":
-        reply = f"预算分析：「{text}」。建议按舒适型标准（1200-2000/㎡）估算。"
+        reply = ReplyTemplates.budget(text)
     elif intent == "procurement":
-        reply = f"采购分析：「{text}」。已为您匹配优质供应商，请查看推荐列表。"
+        reply = ReplyTemplates.procurement(text)
     elif intent == "construction":
-        reply = f"施工计划：「{text}」。建议按 8 阶段推进，预计工期 45 天。"
+        reply = ReplyTemplates.construction(text)
+    elif intent == "settlement":
+        reply = f"结算分析：「{text}」。正在核对账单明细，请稍候。"
+    elif intent == "qa":
+        reply = f"质检诉求：「{text}」。已启动质量检查流程，请确认验收标准。"
+    elif intent == "smart_home":
+        reply = f"智能家居指令：「{text}」。正在为您执行设备操作/场景联动。"
+    elif intent == "scene":
+        reply = f"场景模式：「{text}」。正在切换场景并同步各设备状态。"
     else:
-        reply = f"收到您的消息：「{text}」。我是索克家居 AI 助手，可以帮您进行设计、预算、采购、施工管理。"
+        reply = ReplyTemplates.general(text)
     return reply, actions
+
+
+@router.post("/process", response_model=VoiceResponse)
+async def process_voice(
+    data: VoiceMessage,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """语音处理（关键词匹配路由）。
+
+    使用关键词匹配进行意图分类，并调用 OrchestratorAgent.fallback_classify 作为辅助。
+    """
+    # 校验项目归属
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    text = data.text
+    intent = _classify_by_keywords(text)
+
+    # 辅助分类增强
+    from app.agents.orchestrator import OrchestratorAgent
+    classification = OrchestratorAgent.fallback_classify(text)
+    fallback_intent = classification.get("intent", "general")
+    if fallback_intent != "general":
+        intent = fallback_intent
+
+    reply, actions = _handle_intent(text, intent)
+    return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions)
+
+
+@router.post("/process-enhanced", response_model=VoiceResponse)
+async def process_voice_enhanced(
+    data: VoiceMessage,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """语音处理增强版（LLM 语义路由）。
+
+    优先使用 LLM 进行语义意图分类（deepseek → glm → qwen fallback），
+    LLM 不可用时自动降级到关键词匹配。
+    受 settings.voice_llm_routing_enabled feature flag 控制。
+    """
+    # 校验项目归属
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    text = data.text
+
+    # LLM 语义路由（带自动降级到关键词匹配）
+    intent = await _route_intent(text)
+
+    # 情绪检测
+    emotion = _detect_emotion(text)
+
+    reply, actions = _handle_intent(text, intent)
+    return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions, emotion=emotion)
+
+
+# ════════════════════════════════════════════════════════════════
+# 辅助函数：测量 + 房间提取
+# ════════════════════════════════════════════════════════════════
+
+
+def _detect_emotion(text: str) -> dict | None:
+    """简单情绪检测 — 基于关键词的情绪分类。
+
+    当 voice_emotion_detection feature flag 关闭时返回 None。
+    生产环境可替换为 LLM 情绪分析。
+    """
+    if not settings.voice_emotion_detection:
+        return None
+
+    text_lower = text.lower()
+    emotion_keywords = {
+        "anxious": ["着急", "焦虑", "担心", "延期", "超支", "怎么办", "害怕", "紧张", "不安"],
+        "angry": ["生气", "太慢", "投诉", "差劲", "坑", "骗", "火大", "怒"],
+        "sad": ["失望", "难过", "伤心", "后悔", "无奈", "心累"],
+        "tired": ["累了", "烦", "麻烦", "头疼", "不想", "崩溃"],
+        "excited": ["期待", "兴奋", "太好", "完美", "超赞", "喜欢", "开心"],
+        "happy": ["满意", "不错", "很好", "感谢", "谢谢", "棒"],
+    }
+
+    scores: dict[str, int] = {}
+    for label, keywords in emotion_keywords.items():
+        score = sum(1 for kw in keywords if kw in text_lower)
+        if score > 0:
+            scores[label] = score
+
+    if not scores:
+        return None
+
+    # 返回得分最高的情绪
+    top_label = max(scores, key=scores.get)
+    confidence = min(0.3 + scores[top_label] * 0.2, 0.9)
+    return {"label": top_label, "confidence": round(confidence, 2), "source": "keyword"}
 
 
 def _build_measurement_guide(text: str) -> str:
@@ -117,8 +370,7 @@ def _build_measurement_guide(text: str) -> str:
 
 def _extract_room_from_text(text: str) -> list[dict]:
     """从语音文本中提取房间测量信息"""
-    import re
-    actions = []
+    actions: list[dict] = []
     # 匹配模式: "客厅 6×7" 或 "主卧 4米×5米"
     pattern = re.compile(r"(客厅|主卧|次卧|卧室|厨房|卫生间|书房|阳台|餐厅|走廊|玄关).*?(\d+(?:\.\d+)?)[×xX米]*\s*[×xX]*\s*(\d+(?:\.\d+)?)")
     for m in pattern.finditer(text):

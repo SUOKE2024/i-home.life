@@ -1,0 +1,21 @@
+# 索克家居 i-home.life 爬虫协议
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /ws/
+Disallow: /health
+Disallow: /openapi.json
+Disallow: /docs
+Disallow: /redoc
+Disallow: /workbench.html
+Disallow: /settings.html
+
+# 后端 API 不索引
+User-agent: GPTBot
+Disallow: /api/
+
+User-agent: CCBot
+Disallow: /api/
+
+# 站点地图
+Sitemap: https://i-home.life/sitemap.xml

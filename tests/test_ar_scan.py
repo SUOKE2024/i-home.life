@@ -626,14 +626,14 @@ async def test_parse_usdz_unsupported_format():
 
 def test_process_point_cloud_with_numpy():
     """numpy 可用时,点云下采样使用真实体素算法"""
-    from app.services.ar_scan_service import process_point_cloud
+    from app.services.ar_scan_service import process_point_cloud, _normals_method_label
 
     result = process_point_cloud(5000, 25.0)
     assert result["original_points"] == 5000
     assert 0 < result["downsampled_points"] <= 5000
     assert result["voxel_size_cm"] == 2.0
     assert result["normals_estimated"] is True
-    assert result["normals_method"] == "pca_knn"
+    assert result["normals_method"] == _normals_method_label()
     assert result["wall_planes"] >= 4
     assert result["floor_planes"] == 1
     assert result["ceiling_planes"] == 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 全站页面 HTTP 冒烟测试
+# 全站页面 HTTP 冒烟测试 — v1.2.4+
+# 适配 Flutter SPA 架构：检查 Flutter Web 核心资源 + PWA 文件
 # 用法: ./scripts/e2e-pages.sh [base_url]
 # 默认 base_url: http://localhost:8766
 
@@ -9,25 +10,17 @@ BASE_URL="${1:-http://localhost:8766}"
 PASS=0
 FAIL=0
 
-# 测试页面列表（路径, 期望状态码）
+# Flutter SPA 核心资源（路径, 期望状态码）
 PAGES=(
   "index.html 200"
-  "login.html 200"
-  "workbench.html 200"
-  "settings.html 200"
-  "project-detail.html 200"
-  "materials.html 200"
-  "quality-report.html 200"
-  "manifest.json 200"
+  "main.dart.js 200"
+  "flutter.js 200"
+  "flutter_bootstrap.js 200"
+  "flutter_service_worker.js 200"
   "sw.js 200"
-  "sitemap.xml 200"
-  "robots.txt 200"
-  "assets/css/workbench.css 200"
-  "assets/js/api-client.js 200"
-  "assets/js/im-client.js 200"
-  "assets/js/agent-router.js 200"
-  "assets/js/message-renderers.js 200"
-  "assets/js/analytics.js 200"
+  "manifest.json 200"
+  "version.json 200"
+  "favicon.png 200"
 )
 
 echo "╔════════════════════════════════════════════╗"

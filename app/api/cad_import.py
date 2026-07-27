@@ -148,6 +148,9 @@ def _try_convert_dwg(content: bytes) -> bytes:
                 "4. 直接上传 DXF 文件"
             ),
         )
+    # 安全加固：仅允许系统标准路径下的 dwg2dxf
+    if not any(dwg2dxf.startswith(p) for p in ("/usr/bin/", "/usr/local/bin/", "/opt/homebrew/bin/")):
+        raise HTTPException(status_code=422, detail="dwg2dxf 路径不在白名单中")
 
     with tempfile.NamedTemporaryFile(suffix=".dwg", delete=False) as dwg_tmp:
         dwg_tmp.write(content)

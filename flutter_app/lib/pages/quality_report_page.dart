@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -27,11 +28,6 @@ class _QualityReportPageState extends State<QualityReportPage> {
   bool _loading = true;
   String? _error;
 
-  static const _brand = Color(0xFFC9973B);
-  static const _bg = Color(0xFF08080F);
-  static const _card = Color(0xFF12121D);
-  static const _textPrimary = Color(0xFFE8E6E1);
-  static const _textSecondary = Color(0xFF8A8894);
   static const _success = Color(0xFF4CAF50);
   static const _danger = Color(0xFFE57373);
   static const _warning = Color(0xFFFFB74D);
@@ -109,17 +105,17 @@ class _QualityReportPageState extends State<QualityReportPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _card,
-        title: const Text('质检报告', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('质检报告', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _textSecondary),
+          icon: Icon(Icons.arrow_back, color: SuokeDesignTokens.textSub(context)),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: _textSecondary),
+            icon: Icon(Icons.refresh, color: SuokeDesignTokens.textSub(context)),
             onPressed: _loadData,
           ),
         ],
@@ -165,19 +161,19 @@ class _QualityReportPageState extends State<QualityReportPage> {
   Widget _buildProjectSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: _card,
+      color: SuokeDesignTokens.card(context),
       child: Row(
         children: [
-          const Icon(Icons.verified, color: _brand, size: 18),
+          const Icon(Icons.verified, color: SuokeDesignTokens.accent, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedProjectId,
                 isExpanded: true,
-                dropdownColor: _card,
-                style: const TextStyle(color: _textPrimary, fontSize: 14),
-                icon: const Icon(Icons.expand_more, color: _textSecondary),
+                dropdownColor: SuokeDesignTokens.card(context),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
+                icon: Icon(Icons.expand_more, color: SuokeDesignTokens.textSub(context)),
                 items: _projects.map<DropdownMenuItem<String>>((p) {
                   return DropdownMenuItem(
                     value: p['id']?.toString(),
@@ -217,15 +213,15 @@ class _QualityReportPageState extends State<QualityReportPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: _card,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.15)),
+          border: Border.all(color: color.withValues(alpha:0.15)),
         ),
         child: Column(
           children: [
             Text(value, style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text('$label ($unit)', style: const TextStyle(color: _textSecondary, fontSize: 11)),
+            Text('$label ($unit)', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
           ],
         ),
       ),
@@ -239,7 +235,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
     final color = _passRate >= 0.8 ? _success : (_passRate >= 0.5 ? _warning : _danger);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: SuokeDesignTokens.card(context), borderRadius: BorderRadius.circular(12)),
       child: Row(
         children: [
           // 环形进度
@@ -258,7 +254,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('综合通过率', style: TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
+                Text('综合通过率', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 15, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 Text(
                   _passRate >= 0.8 ? '质量良好，继续推进' : (_passRate >= 0.5 ? '存在改进空间，需关注' : '质量问题严重，需立即整改'),
@@ -267,7 +263,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: _passRate,
-                  backgroundColor: color.withOpacity(0.15),
+                  backgroundColor: color.withValues(alpha:0.15),
                   valueColor: AlwaysStoppedAnimation<Color>(color),
                   minHeight: 4,
                 ),
@@ -334,7 +330,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
         return _listTile(
           title: alert['message']?.toString() ?? alert['title']?.toString() ?? '预警',
           subtitle: alert['created_at']?.toString() ?? '',
-          trailing: Icon(Icons.chevron_right, color: _textSecondary.withOpacity(0.5), size: 18),
+          trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context).withValues(alpha:0.5), size: 18),
         );
       }).toList(),
     );
@@ -345,15 +341,15 @@ class _QualityReportPageState extends State<QualityReportPage> {
   Widget _sectionCard({required String title, required IconData icon, Color? color, required List<Widget> children}) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: SuokeDesignTokens.card(context), borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, size: 18, color: color ?? _brand),
+              Icon(icon, size: 18, color: color ?? SuokeDesignTokens.accent),
               const SizedBox(width: 8),
-              Text(title, style: TextStyle(color: _textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 10),
@@ -372,10 +368,10 @@ class _QualityReportPageState extends State<QualityReportPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: _textPrimary, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (subtitle.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(color: _textSecondary, fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(subtitle, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ],
             ),
@@ -390,7 +386,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
   Widget _statusChip(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: color.withValues(alpha:0.15), borderRadius: BorderRadius.circular(6)),
       child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),
     );
   }
@@ -398,8 +394,8 @@ class _QualityReportPageState extends State<QualityReportPage> {
   Widget _emptyCard(String text) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
-      child: Center(child: Text(text, style: const TextStyle(color: _textSecondary))),
+      decoration: BoxDecoration(color: SuokeDesignTokens.card(context), borderRadius: BorderRadius.circular(12)),
+      child: Center(child: Text(text, style: TextStyle(color: SuokeDesignTokens.textSub(context)))),
     );
   }
 }
@@ -416,7 +412,7 @@ class _GaugePainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2 - 4;
     final bgPaint = Paint()
-      ..color = color.withOpacity(0.12)
+      ..color = color.withValues(alpha:0.12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 5;
     final fgPaint = Paint()

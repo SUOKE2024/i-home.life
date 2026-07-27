@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/floor_plan_canvas.dart';
 
@@ -15,14 +16,6 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   // 方案
   List<dynamic> _schemes = [];
@@ -134,6 +127,49 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     }
   }
 
+  Future<void> _loadBudget(String schemeId) async {
+    final result = await _api.hardDecoGetBudget(schemeId);
+    if (result.isSuccess && mounted) {
+      final data = result.data as Map<String, dynamic>? ?? {};
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('预算概览'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildBudgetRow('地面', data['floor_cost']),
+              _buildBudgetRow('墙面', data['wall_cost']),
+              _buildBudgetRow('天花', data['ceiling_cost']),
+              const Divider(),
+              _buildBudgetRow('合计', data['total_cost'], bold: true),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+          ],
+        ),
+      );
+    } else {
+      _showError('预算加载失败：${result.error}');
+    }
+  }
+
+  Widget _buildBudgetRow(String label, dynamic value, {bool bold = false}) {
+    final text = value != null ? '¥${(value is double ? value : double.tryParse('$value') ?? 0).toStringAsFixed(2)}' : '-';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+          Text(text, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        ],
+      ),
+    );
+  }
+
   void _selectScheme(Map<String, dynamic> scheme) {
     final id = (scheme['id'] ?? '').toString();
     setState(() {
@@ -219,16 +255,16 @@ class _HardDecorationPageState extends State<HardDecorationPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _cardColor,
-        foregroundColor: _primaryText,
+        backgroundColor: SuokeDesignTokens.card(context),
+        foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('硬装设计'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '方案列表'),
             Tab(text: '地面'),
@@ -255,19 +291,19 @@ class _HardDecorationPageState extends State<HardDecorationPage>
 
   Widget _buildSchemesTab() {
     if (_schemesLoading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: _secondaryText)),
+            Text(_error!, style: const TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: _brandColor,
-                side: const BorderSide(color: _borderColor),
+                foregroundColor: SuokeDesignTokens.accent,
+                side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               onPressed: _loadSchemes,
               icon: const Icon(Icons.refresh),
@@ -294,8 +330,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showCreateSchemeDialog,
                   icon: const Icon(Icons.add),
@@ -305,8 +341,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadSchemes,
                 icon: const Icon(Icons.refresh),
@@ -317,7 +353,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         ),
         Expanded(
           child: RefreshIndicator(
-            color: _brandColor,
+            color: SuokeDesignTokens.accent,
             onRefresh: _loadSchemes,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -339,11 +375,11 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     final status = scheme['status']?.toString() ?? 'draft';
     final isActive = status == 'active';
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? _brandColor : _borderColor, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -354,13 +390,13 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             Row(
               children: [
                 Icon(Icons.layers,
-                    color: isSelected ? _brandColor : _primaryText, size: 20),
+                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     scheme['name']?.toString() ?? '未命名方案',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -370,14 +406,14 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: isActive
-                        ? _brandColor.withValues(alpha: 0.15)
+                        ? SuokeDesignTokens.accent.withValues(alpha: 0.15)
                         : Colors.grey.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     _statusLabel(scheme['status']?.toString()),
                     style: TextStyle(
-                      color: isActive ? _brandColor : _secondaryText,
+                      color: isActive ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
                       fontSize: 12,
                     ),
                   ),
@@ -397,6 +433,11 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               spacing: 8,
               runSpacing: 8,
               children: [
+                _buildActionButton(
+                  '预算',
+                  Icons.attach_money,
+                  () => _loadBudget(id),
+                ),
                 _buildActionButton(
                   '选为当前',
                   Icons.check,
@@ -437,8 +478,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddFloorDialog,
                   icon: const Icon(Icons.add),
@@ -448,8 +489,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadDetails(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -462,7 +503,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         Expanded(
           child: _detailsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _floors.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.grid_on_outlined,
@@ -485,10 +526,10 @@ class _HardDecorationPageState extends State<HardDecorationPage>
 
   Widget _buildFloorCard(Map<String, dynamic> floor) {
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -498,13 +539,13 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           children: [
             Row(
               children: [
-                const Icon(Icons.grid_on, color: _brandColor, size: 20),
+                const Icon(Icons.grid_on, color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     floor['room_name']?.toString() ?? '未指定房间',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -550,8 +591,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddWallDialog,
                   icon: const Icon(Icons.add),
@@ -561,8 +602,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadDetails(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -575,7 +616,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         Expanded(
           child: _detailsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _walls.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.view_quilt_outlined,
@@ -598,10 +639,10 @@ class _HardDecorationPageState extends State<HardDecorationPage>
 
   Widget _buildWallCard(Map<String, dynamic> wall) {
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -611,13 +652,13 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           children: [
             Row(
               children: [
-                const Icon(Icons.view_quilt, color: _brandColor, size: 20),
+                const Icon(Icons.view_quilt, color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     wall['room_name']?.toString() ?? '未指定房间',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -659,8 +700,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             width: double.infinity,
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
-                foregroundColor: _primaryText,
-                side: const BorderSide(color: _borderColor),
+                foregroundColor: SuokeDesignTokens.text(context),
+                side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               onPressed: () => _loadDetails(_selectedSchemeId!),
               icon: const Icon(Icons.refresh),
@@ -672,7 +713,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         Expanded(
           child: _detailsLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _ceilings.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.calendar_view_day_outlined,
@@ -696,10 +737,10 @@ class _HardDecorationPageState extends State<HardDecorationPage>
 
   Widget _buildCeilingCard(Map<String, dynamic> ceiling) {
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -710,13 +751,13 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             Row(
               children: [
                 const Icon(Icons.calendar_view_day,
-                    color: _brandColor, size: 20),
+                    color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     ceiling['room_name']?.toString() ?? '未指定房间',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -803,9 +844,9 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _cardColor.withValues(alpha: 0.85),
+                color: SuokeDesignTokens.card(context).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _borderColor),
+                border: Border.all(color: SuokeDesignTokens.borderClr(context)),
               ),
               constraints: const BoxConstraints(maxWidth: 200),
               child: Column(
@@ -815,7 +856,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                   if (_walls.isNotEmpty) ...[
                     const Text('墙面',
                         style: TextStyle(
-                            color: _brandColor,
+                            color: SuokeDesignTokens.accent,
                             fontSize: 12,
                             fontWeight: FontWeight.bold)),
                     ..._walls.take(2).map((w) {
@@ -825,20 +866,20 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                         child: Text(
                           '${wMap['room_name'] ?? ''}：${wMap['material'] ?? '-'}',
                           style: const TextStyle(
-                              color: _primaryText, fontSize: 11),
+                              color: SuokeDesignTokens.text(context), fontSize: 11),
                         ),
                       );
                     }),
                     if (_walls.length > 2)
                       Text('...等 ${_walls.length} 项',
                           style: const TextStyle(
-                              color: _secondaryText, fontSize: 10)),
+                              color: SuokeDesignTokens.textSub(context), fontSize: 10)),
                   ],
                   if (_ceilings.isNotEmpty) ...[
                     if (_walls.isNotEmpty) const SizedBox(height: 8),
                     const Text('天花',
                         style: TextStyle(
-                            color: _brandColor,
+                            color: SuokeDesignTokens.accent,
                             fontSize: 12,
                             fontWeight: FontWeight.bold)),
                     ..._ceilings.take(2).map((c) {
@@ -848,14 +889,14 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                         child: Text(
                           '${cMap['room_name'] ?? ''}：${cMap['shape'] ?? cMap['material'] ?? '-'}',
                           style: const TextStyle(
-                              color: _primaryText, fontSize: 11),
+                              color: SuokeDesignTokens.text(context), fontSize: 11),
                         ),
                       );
                     }),
                     if (_ceilings.length > 2)
                       Text('...等 ${_ceilings.length} 项',
                           style: const TextStyle(
-                              color: _secondaryText, fontSize: 10)),
+                              color: SuokeDesignTokens.textSub(context), fontSize: 10)),
                   ],
                 ],
               ),
@@ -892,20 +933,20 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       child: Card(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              const Icon(Icons.layers, color: _brandColor, size: 20),
+              const Icon(Icons.layers, color: SuokeDesignTokens.accent, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   '当前方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
                   style: const TextStyle(
-                      color: _primaryText, fontWeight: FontWeight.w600),
+                      color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -925,15 +966,15 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _secondaryText),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             onPressed: onAction,
             icon: const Icon(Icons.add),
@@ -949,9 +990,9 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: _secondaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: _primaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
       ],
     );
   }
@@ -966,9 +1007,9 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : _brandColor,
+          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : _borderColor),
+              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -986,22 +1027,22 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('创建硬装方案',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('方案名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: styleCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('风格（如：现代、北欧、新中式）'),
               ),
             ],
@@ -1011,11 +1052,11 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isEmpty) {
@@ -1041,35 +1082,35 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('添加地面',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: roomCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('房间名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('材质（如：实木、瓷砖、强化地板）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: specCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('规格（如：800×800mm）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: areaCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('面积（㎡）'),
               ),
             ],
@@ -1079,11 +1120,11 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final room = roomCtrl.text.trim();
               if (room.isEmpty) {
@@ -1114,29 +1155,29 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title:
-            const Text('添加墙面', style: TextStyle(color: _primaryText)),
+            const Text('添加墙面', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: roomCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('房间名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('材质（如：乳胶漆、壁纸、瓷砖）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: areaCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('面积（㎡）'),
               ),
             ],
@@ -1146,11 +1187,11 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final room = roomCtrl.text.trim();
               if (room.isEmpty) {
@@ -1177,16 +1218,16 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此方案吗？此操作不可撤销。',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1206,20 +1247,20 @@ class _HardDecorationPageState extends State<HardDecorationPage>
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: _secondaryText),
+      labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
       filled: true,
-      fillColor: _bgColor,
+      fillColor: SuokeDesignTokens.bg(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _brandColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.accent),
       ),
     );
   }

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="索克家居 · i-home.life — AI驱动的全链路智能家居建造平台">
+  <meta name="theme-color" content="#0175C2">
+  <meta property="og:title" content="索克家居 · i-home.life">
+  <meta property="og:description" content="9 AI 智能体 7×24 自治运营，覆盖设计→预算→采购→施工→质检→结算全流程">
+  <title>索克家居 · i-home.life</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <style>
+    body { margin: 0; padding: 0; background: #08080f; }
+    .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #888; font-family: system-ui, sans-serif; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #0175C2; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <div>索克家居正在加载…</div>
+  </div>
+  <script src="flutter.js?v=20260726f" defer></script>
+  <script src="flutter_bootstrap.js?v=20260726f" defer></script>
+</body>
+</html>

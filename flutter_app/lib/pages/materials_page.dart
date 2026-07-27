@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
@@ -11,7 +13,7 @@ class MaterialsPage extends StatefulWidget {
 }
 
 class _MaterialsPageState extends State<MaterialsPage> {
-  List<Map<String, dynamic>> _materials = [];
+  List<Material> _materials = [];
   List<Map<String, dynamic>> _categories = [];
   String _selectedCategory = '';
   String _search = '';
@@ -38,7 +40,9 @@ class _MaterialsPageState extends State<MaterialsPage> {
       setState(() {
         _categories = List<Map<String, dynamic>>.from(
           (catsData is List ? catsData : (catsData['data'] as List? ?? [])));
-        _materials = List<Map<String, dynamic>>.from(matsData as List);
+        _materials = (matsData as List)
+            .map((e) => Material.fromJson(e as Map<String, dynamic>))
+            .toList();
         _loading = false;
       });
     } else {
@@ -49,13 +53,12 @@ class _MaterialsPageState extends State<MaterialsPage> {
     }
   }
 
-  List<Map<String, dynamic>> get _filtered {
+  List<Material> get _filtered {
     return _materials.where((m) {
-      final name = (m['name'] ?? '').toString().toLowerCase();
-      final sku = (m['sku'] ?? '').toString().toLowerCase();
-      final brand = (m['brand'] ?? '').toString().toLowerCase();
-      final cat = m['category'];
-      final catCode = cat is Map ? (cat['code'] ?? '') : '';
+      final name = m.name.toLowerCase();
+      final sku = (m.sku ?? '').toLowerCase();
+      final brand = (m.brand ?? '').toLowerCase();
+      final catCode = m.category?.code ?? '';
 
       final matchesSearch = _search.isEmpty ||
           name.contains(_search.toLowerCase()) ||
@@ -141,14 +144,14 @@ class _MaterialsPageState extends State<MaterialsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            m['brand'] ?? '',
+                            m.brand ?? '',
                             style: const TextStyle(fontSize: 10, color: Color(0xFFC9973B), letterSpacing: 1),
                           ),
                           const SizedBox(height: 4),
                           Expanded(
                             child: Text(
-                              m['name'] ?? '',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFFE8E6E1)),
+                              m.name,
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: SuokeDesignTokens.text(context)),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -157,11 +160,11 @@ class _MaterialsPageState extends State<MaterialsPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '¥${((m['unit_price'] ?? 0) as num).toInt()}',
+                                '¥${(m.unitPrice ?? 0).toInt()}',
                                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFE0AA4A)),
                               ),
                               Text(
-                                '/${m['unit'] ?? '件'}',
+                                '/${m.unit ?? '件'}',
                                 style: const TextStyle(fontSize: 11, color: Color(0xFF5A5866)),
                               ),
                             ],
@@ -187,14 +190,14 @@ class _MaterialsPageState extends State<MaterialsPage> {
       padding: const EdgeInsets.only(right: 8),
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: selected ? const Color(0xFFC9973B) : const Color(0xFF2A2A45)),
+          border: Border.all(color: selected ? SuokeDesignTokens.accent : const Color(0xFF2A2A45)),
           borderRadius: BorderRadius.circular(20),
         ),
         child: ChoiceChip(
-          label: Text(label, style: TextStyle(fontSize: 12, color: selected ? const Color(0xFFC9973B) : const Color(0xFF8A8894))),
+          label: Text(label, style: TextStyle(fontSize: 12, color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context))),
           selected: selected,
           onSelected: (_) => setState(() => _selectedCategory = code),
-          selectedColor: const Color(0xFFC9973B).withValues(alpha: 0.15),
+          selectedColor: SuokeDesignTokens.accent.withValues(alpha: 0.15),
           showCheckmark: false,
         ),
       ),

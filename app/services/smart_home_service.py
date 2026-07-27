@@ -201,6 +201,18 @@ async def delete_scheme(db: AsyncSession, scheme_id: str) -> bool:
     return True
 
 
+async def update_scheme(db: AsyncSession, scheme_id: str, data: dict) -> SmartHomeScheme | None:
+    scheme = await get_scheme(db, scheme_id)
+    if not scheme:
+        return None
+    for key, value in data.items():
+        if value is not None:
+            setattr(scheme, key, value)
+    await db.commit()
+    await db.refresh(scheme)
+    return scheme
+
+
 async def _update_scheme_summary(db: AsyncSession, scheme: SmartHomeScheme) -> None:
     """重新计算方案设备数与总价"""
     result = await db.execute(select(SmartDevice).where(SmartDevice.scheme_id == scheme.id))
@@ -246,6 +258,22 @@ async def delete_device(db: AsyncSession, device_id: str) -> bool:
     if scheme:
         await _update_scheme_summary(db, scheme)
     return True
+
+
+async def update_device(db: AsyncSession, device_id: str, data: dict) -> SmartDevice | None:
+    result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        return None
+    for key, value in data.items():
+        if value is not None:
+            setattr(device, key, value)
+    await db.commit()
+    await db.refresh(device)
+    scheme = await get_scheme(db, device.scheme_id)
+    if scheme:
+        await _update_scheme_summary(db, scheme)
+    return device
 
 
 # ── 自动推荐设备点位 ──

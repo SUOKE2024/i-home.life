@@ -30,6 +30,8 @@ class SseEvent {
   final String? messageType;
   // v1.1.26: 卡片 payload（含 title/project_id/sensor_type 等）
   final Map<String, dynamic>? cardPayload;
+  // v1.2.3: A2UI 卡片列表
+  final List<Map<String, dynamic>>? a2uiCards;
 
   SseEvent({
     required this.type,
@@ -38,6 +40,7 @@ class SseEvent {
     this.sessionId,
     this.messageType,
     this.cardPayload,
+    this.a2uiCards,
   });
 
   @override
@@ -156,7 +159,15 @@ class SseService {
             );
           } else if (msgType == 'done') {
             receivedDone = true;
-            yield SseEvent(type: SseEventType.done, sessionId: sid);
+            final a2uiRaw = data['a2ui_cards'] as List?;
+            yield SseEvent(
+              type: SseEventType.done,
+              sessionId: sid,
+              a2uiCards: a2uiRaw != null
+                  ? List<Map<String, dynamic>>.from(
+                      a2uiRaw.map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{}))
+                  : null,
+            );
           } else if (msgType == 'thinking_step') {
             yield SseEvent(
               type: SseEventType.thinking_step,

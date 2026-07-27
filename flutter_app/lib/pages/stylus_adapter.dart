@@ -1,5 +1,6 @@
 import 'dart:ui' as dart_ui;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 
 enum StylusPlatform { applePencil, harmonyMPencil, unknown }
 
@@ -129,18 +130,18 @@ class StylusCursorPainter extends CustomPainter {
     final baseRadius = radius + pressure * 8.0;
 
     final outerPaint = Paint()
-      ..color = const Color(0x30C9973B)
+      ..color = SuokeDesignTokens.accent.withValues(alpha: 0.19)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawCircle(position, baseRadius, outerPaint);
 
     final innerPaint = Paint()
-      ..color = const Color(0x60C9973B)
+      ..color = SuokeDesignTokens.accent.withValues(alpha: 0.38)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(position, baseRadius * 0.4, innerPaint);
 
     final dotPaint = Paint()
-      ..color = const Color(0xA0C9973B)
+      ..color = SuokeDesignTokens.accent.withValues(alpha: 0.63)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(position, 2.5, dotPaint);
   }
@@ -173,7 +174,7 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('笔触适配器'),
-        backgroundColor: const Color(0xFF12121D),
+        backgroundColor: SuokeDesignTokens.card(context),
         foregroundColor: Colors.white,
       ),
       body: Container(
@@ -191,17 +192,17 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
               child: Column(
                 children: [
                   Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                    _infoChip('笔类型', _stylusType, const Color(0xFFC9973B)),
+                    _infoChip('笔类型', _stylusType, SuokeDesignTokens.accent),
                     _infoChip('压感', '${(_pressure * 4096).round()}/4096', const Color(0xFF4A9E6E)),
                     _infoChip('倾斜角', '${(_tilt * 90).round()}°', const Color(0xFF5A7EC9)),
                   ]),
                   const SizedBox(height: 12),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    const Text('防手掌误触', style: TextStyle(color: Color(0xFF8A8894), fontSize: 13)),
+                    Text('防手掌误触', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
                     Switch(
                       value: _palmRejection,
                       onChanged: (v) => setState(() => _palmRejection = v),
-                      activeTrackColor: const Color(0xFFC9973B),
+                      activeTrackColor: SuokeDesignTokens.accent,
                     ),
                   ]),
                 ],
@@ -296,7 +297,7 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
 
   Widget _infoChip(String label, String value, Color color) {
     return Column(children: [
-      Text(label, style: const TextStyle(color: Color(0xFF8A8894), fontSize: 11)),
+      Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
       const SizedBox(height: 4),
       Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
     ]);

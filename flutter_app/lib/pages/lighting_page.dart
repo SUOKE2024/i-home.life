@@ -118,6 +118,21 @@ class _LightingPageState extends State<LightingPage>
     }
   }
 
+  Future<void> _aiDesign(String schemeId) async {
+    _showSuccess('AI 设计已触发，正在生成灯具布局...');
+    final result = await _api.lightingAiDesign(schemeId, {
+      'room_area': _selectedScheme?['room_area'] ?? 20.0,
+      'ceiling_height': _selectedScheme?['ceiling_height'] ?? 2.8,
+    });
+    if (result.isSuccess) {
+      _showSuccess('AI 灯具设计完成');
+      _loadFixtures(schemeId);
+      _loadSchemes();
+    } else {
+      _showError('AI 设计失败：${result.error}');
+    }
+  }
+
   void _selectScheme(Map<String, dynamic> scheme) {
     final id = (scheme['id'] ?? '').toString();
     setState(() {
@@ -237,15 +252,15 @@ class _LightingPageState extends State<LightingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SuokeDesignTokens.bgDeep,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: SuokeDesignTokens.cardBg,
-        foregroundColor: SuokeDesignTokens.textPrimary,
+        backgroundColor: SuokeDesignTokens.card(context),
+        foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('灯光设计'),
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,
-          unselectedLabelColor: SuokeDesignTokens.textSecondary,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
           indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '照明方案'),
@@ -276,12 +291,12 @@ class _LightingPageState extends State<LightingPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+            Text(_error!, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: SuokeDesignTokens.accent,
-                side: const BorderSide(color: SuokeDesignTokens.border),
+                side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               onPressed: _loadSchemes,
               icon: const Icon(Icons.refresh),
@@ -309,7 +324,7 @@ class _LightingPageState extends State<LightingPage>
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: SuokeDesignTokens.accent,
-                    foregroundColor: SuokeDesignTokens.bgDeep,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showCreateSchemeDialog,
                   icon: const Icon(Icons.add),
@@ -319,8 +334,8 @@ class _LightingPageState extends State<LightingPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: SuokeDesignTokens.textPrimary,
-                  side: const BorderSide(color: SuokeDesignTokens.border),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadSchemes,
                 icon: const Icon(Icons.refresh),
@@ -353,11 +368,11 @@ class _LightingPageState extends State<LightingPage>
     final status = scheme['status']?.toString() ?? 'draft';
     final isActive = status == 'active';
     return Card(
-      color: SuokeDesignTokens.cardBg,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.border, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -368,13 +383,13 @@ class _LightingPageState extends State<LightingPage>
             Row(
               children: [
                 Icon(Icons.lightbulb,
-                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textPrimary, size: 20),
+                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     scheme['room_name'] ?? '未命名方案',
                     style: const TextStyle(
-                        color: SuokeDesignTokens.textPrimary,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -391,7 +406,7 @@ class _LightingPageState extends State<LightingPage>
                   child: Text(
                     _statusLabel(scheme['status']),
                     style: TextStyle(
-                      color: isActive ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+                      color: isActive ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
                       fontSize: 12,
                     ),
                   ),
@@ -418,6 +433,11 @@ class _LightingPageState extends State<LightingPage>
               spacing: 8,
               runSpacing: 8,
               children: [
+                _buildActionButton(
+                  'AI 设计',
+                  Icons.auto_fix_high,
+                  () => _aiDesign(id),
+                ),
                 _buildActionButton(
                   '选为当前',
                   Icons.check,
@@ -454,7 +474,7 @@ class _LightingPageState extends State<LightingPage>
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: SuokeDesignTokens.cardBg,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -467,7 +487,7 @@ class _LightingPageState extends State<LightingPage>
                     child: Text(
                       '当前方案：${_selectedScheme?['room_name'] ?? _selectedSchemeId}',
                       style: const TextStyle(
-                          color: SuokeDesignTokens.textPrimary, fontWeight: FontWeight.w600),
+                          color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -483,7 +503,7 @@ class _LightingPageState extends State<LightingPage>
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: SuokeDesignTokens.accent,
-                    foregroundColor: SuokeDesignTokens.bgDeep,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddFixtureDialog,
                   icon: const Icon(Icons.add),
@@ -493,8 +513,8 @@ class _LightingPageState extends State<LightingPage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: SuokeDesignTokens.textPrimary,
-                  side: const BorderSide(color: SuokeDesignTokens.border),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadFixtures(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -534,10 +554,10 @@ class _LightingPageState extends State<LightingPage>
     final dimmable = fixture['dimmable'] == true;
     final smartControl = fixture['smart_control'] == true;
     return Card(
-      color: SuokeDesignTokens.cardBg,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: SuokeDesignTokens.border, width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -553,7 +573,7 @@ class _LightingPageState extends State<LightingPage>
                   child: Text(
                     _fixtureName(fixture),
                     style: const TextStyle(
-                        color: SuokeDesignTokens.textPrimary,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -639,7 +659,7 @@ class _LightingPageState extends State<LightingPage>
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: SuokeDesignTokens.cardBg,
+            color: SuokeDesignTokens.card(context),
             child: Row(
               children: [
                 const Icon(Icons.thermostat_outlined,
@@ -648,7 +668,7 @@ class _LightingPageState extends State<LightingPage>
                 Text(
                   '色温：${colorTempK.toStringAsFixed(0)} K',
                   style: const TextStyle(
-                      color: SuokeDesignTokens.textSecondary, fontSize: 13),
+                      color: SuokeDesignTokens.textSub(context), fontSize: 13),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -732,7 +752,7 @@ class _LightingPageState extends State<LightingPage>
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: SuokeDesignTokens.cardBg,
+      backgroundColor: SuokeDesignTokens.card(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -747,7 +767,7 @@ class _LightingPageState extends State<LightingPage>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: SuokeDesignTokens.textSecondary.withValues(alpha: 0.3),
+                  color: SuokeDesignTokens.textSub(context).withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -755,7 +775,7 @@ class _LightingPageState extends State<LightingPage>
             const SizedBox(height: 16),
             Text('${brand.isNotEmpty ? '$brand ' : ''}$model',
                 style: const TextStyle(
-                    color: SuokeDesignTokens.textPrimary,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 18,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
@@ -790,15 +810,15 @@ class _LightingPageState extends State<LightingPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: SuokeDesignTokens.textSecondary),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSecondary)),
+              style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: SuokeDesignTokens.accent,
-              foregroundColor: SuokeDesignTokens.bgDeep,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             onPressed: onAction,
             icon: const Icon(Icons.add),
@@ -814,9 +834,9 @@ class _LightingPageState extends State<LightingPage>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
       ],
     );
   }
@@ -833,7 +853,7 @@ class _LightingPageState extends State<LightingPage>
       child: Text(
         enabled ? '$label：开' : '$label：关',
         style: TextStyle(
-          color: enabled ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+          color: enabled ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
           fontSize: 12,
         ),
       ),
@@ -852,7 +872,7 @@ class _LightingPageState extends State<LightingPage>
         style: OutlinedButton.styleFrom(
           foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : SuokeDesignTokens.border),
+              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -879,29 +899,29 @@ class _LightingPageState extends State<LightingPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: SuokeDesignTokens.cardBg,
+          backgroundColor: SuokeDesignTokens.card(context),
           title: const Text('创建照明方案',
-              style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('房间名称'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: schemeType,
-                  dropdownColor: SuokeDesignTokens.cardBg,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('方案风格'),
                   items: types
                       .map((t) => DropdownMenuItem(
                             value: t.$1,
                             child: Text(t.$2,
-                                style: const TextStyle(color: SuokeDesignTokens.textPrimary)),
+                                style: TextStyle(color: SuokeDesignTokens.text(context))),
                           ))
                       .toList(),
                   onChanged: (v) {
@@ -912,14 +932,14 @@ class _LightingPageState extends State<LightingPage>
                 TextField(
                   controller: areaCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('房间面积（㎡）'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: heightCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('层高（m）'),
                 ),
               ],
@@ -929,11 +949,11 @@ class _LightingPageState extends State<LightingPage>
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bgDeep),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
@@ -962,42 +982,42 @@ class _LightingPageState extends State<LightingPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.cardBg,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('添加灯具',
-            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: typeCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('灯具类型（如：筒灯、射灯、吊灯）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: brandCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('品牌'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: modelCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('型号'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: wattageCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('功率（W）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: lumensCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('光通量（lm）'),
               ),
             ],
@@ -1007,11 +1027,11 @@ class _LightingPageState extends State<LightingPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bgDeep),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final type = typeCtrl.text.trim();
               if (type.isEmpty) {
@@ -1040,16 +1060,16 @@ class _LightingPageState extends State<LightingPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.cardBg,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此方案吗？此操作不可撤销。',
-            style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1070,16 +1090,16 @@ class _LightingPageState extends State<LightingPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.cardBg,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此灯具吗？',
-            style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1099,16 +1119,16 @@ class _LightingPageState extends State<LightingPage>
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: SuokeDesignTokens.textSecondary),
+      labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
       filled: true,
-      fillColor: SuokeDesignTokens.bgDeep,
+      fillColor: SuokeDesignTokens.bg(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: SuokeDesignTokens.border),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: SuokeDesignTokens.border),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),

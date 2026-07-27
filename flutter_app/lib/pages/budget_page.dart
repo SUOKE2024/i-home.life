@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
@@ -14,7 +15,8 @@ class BudgetPage extends StatefulWidget {
 class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-  Map<String, dynamic>? _budget;
+  Budget? _budget;
+  double _totalActual = 0;
   Map<String, dynamic>? _compareResult;
   List<dynamic> _templates = [];
   bool _loading = false;
@@ -41,7 +43,10 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
     });
     final result = await _api.get('/budgets/project/${widget.projectId}');
     if (result.isSuccess) {
-      setState(() => _budget = result.data);
+      final rawBudget = result.data as Map<String, dynamic>;
+      _budget = Budget.fromJson(rawBudget);
+      _totalActual = (rawBudget['total_actual'] as num?)?.toDouble() ?? 0;
+      setState(() {});
     } else {
       // 区分 404（预算尚未创建）与真实加载错误
       if (result.statusCode == 404) {
@@ -65,8 +70,10 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
     setState(() => _loading = true);
     final result = await _api.post('/budgets/generate-from-bom/${widget.projectId}', {});
     if (result.isSuccess) {
-      final data = result.data;
-      setState(() => _budget = data);
+      final data = result.data as Map<String, dynamic>;
+      _budget = Budget.fromJson(data);
+      _totalActual = (data['total_actual'] as num?)?.toDouble() ?? 0;
+      setState(() {});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('已从 BOM 生成预算，总价 ¥${(data['total_estimated'] as num?)?.toDouble() ?? 0}')),
@@ -141,11 +148,11 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
         ),
       );
     }
-    final totalEstimated = (_budget!['total_estimated'] as num?)?.toDouble() ?? 0;
-    final totalActual = (_budget!['total_actual'] as num?)?.toDouble() ?? 0;
+    final totalEstimated = _budget!.totalEstimated;
+    final totalActual = _totalActual;
     final variance = totalActual - totalEstimated;
     final variancePct = totalEstimated > 0 ? (variance / totalEstimated * 100).toStringAsFixed(2) : '0.00';
-    final lines = (_budget!['lines'] as List?) ?? [];
+    final lines = _budget!.items;
 
     return RefreshIndicator(
       onRefresh: _loadBudget,
@@ -196,9 +203,9 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
           ...lines.map((line) => RepaintBoundary(
                 child: Card(
                   child: ListTile(
-                    title: Text(line['name'] ?? ''),
-                    subtitle: Text(line['category'] ?? ''),
-                    trailing: Text('¥${(line['estimated_amount'] as num?)?.toDouble().toStringAsFixed(2) ?? '0.00'}'),
+                    title: Text(line.lineName ?? ''),
+                    subtitle: Text(line.category),
+                    trailing: Text('¥${line.amount.toStringAsFixed(2)}'),
                   ),
                 ),
               )),

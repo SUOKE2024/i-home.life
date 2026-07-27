@@ -9,6 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.health_monitor import HealthMonitor, AirQualityRecord
 
 
+# ── 预警级别序数映射 ──
+
+_ALERT_ORDER: dict[str, int] = {"normal": 0, "warning": 1, "critical": 2}
+
+
+def _max_alert(a: str, b: str) -> str:
+    """返回两个预警级别中较高的一个（语义级别而非字典序）"""
+    return a if _ALERT_ORDER.get(a, 0) >= _ALERT_ORDER.get(b, 0) else b
+
+
 # ── 阈值常量 ──
 
 THRESHOLDS: dict[str, Any] = {
@@ -215,7 +225,7 @@ def check_thresholds(
                 alert_level = "critical"
                 messages.append(f"PM2.5 严重超标: {pm25} μg/m³")
             elif pm25 > THRESHOLDS.get("pm25", {}).get("warning", 75):
-                alert_level = max(alert_level, "warning") if alert_level != "critical" else "critical"
+                alert_level = _max_alert(alert_level, "warning") if alert_level != "critical" else "critical"
                 messages.append(f"PM2.5 超标: {pm25} μg/m³")
 
         if formaldehyde is not None:
@@ -223,18 +233,18 @@ def check_thresholds(
                 alert_level = "critical"
                 messages.append(f"甲醛严重超标: {formaldehyde} mg/m³")
             elif formaldehyde > THRESHOLDS.get("formaldehyde", {}).get("warning", 0.08):
-                alert_level = max(alert_level, "warning") if alert_level != "critical" else "critical"
+                alert_level = _max_alert(alert_level, "warning") if alert_level != "critical" else "critical"
                 messages.append(f"甲醛浓度超标: {formaldehyde} mg/m³")
 
         if co2 is not None and co2 > THRESHOLDS.get("co2", {}).get("critical", 2000):
-            alert_level = max(alert_level, "warning") if alert_level != "critical" else "critical"
+            alert_level = _max_alert(alert_level, "warning") if alert_level != "critical" else "critical"
             messages.append(f"CO2 浓度偏高: {co2} ppm")
         elif co2 is not None and co2 > THRESHOLDS.get("co2", {}).get("warning", 1000):
-            alert_level = max(alert_level, "warning") if alert_level != "critical" else "critical"
+            alert_level = _max_alert(alert_level, "warning") if alert_level != "critical" else "critical"
             messages.append(f"CO2 浓度偏高: {co2} ppm")
 
         if tvoc is not None and tvoc > THRESHOLDS.get("tvoc", {}).get("critical", 1000):
-            alert_level = max(alert_level, "warning") if alert_level != "critical" else "critical"
+            alert_level = _max_alert(alert_level, "warning") if alert_level != "critical" else "critical"
             messages.append(f"TVOC 浓度偏高: {tvoc} ppb")
 
         if messages:
@@ -256,28 +266,28 @@ def check_air_quality_thresholds(record: AirQualityRecord) -> tuple[str, str | N
         alert_level = "critical"
         messages.append(f"PM2.5 严重超标: {record.pm25} μg/m³")
     elif record.pm25 > THRESHOLDS.get("pm25", {}).get("warning", 75):
-        alert_level = "warning"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"PM2.5 超标: {record.pm25} μg/m³")
 
     if record.formaldehyde > THRESHOLDS.get("formaldehyde", {}).get("critical", 0.10):
         alert_level = "critical"
         messages.append(f"甲醛严重超标: {record.formaldehyde} mg/m³")
     elif record.formaldehyde > THRESHOLDS.get("formaldehyde", {}).get("warning", 0.08):
-        alert_level = "warning" if alert_level != "critical" else "critical"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"甲醛浓度超标: {record.formaldehyde} mg/m³")
 
     if record.co2 > THRESHOLDS.get("co2", {}).get("critical", 2000):
-        alert_level = "warning" if alert_level != "critical" else "critical"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"CO2 浓度偏高: {record.co2} ppm")
     elif record.co2 > THRESHOLDS.get("co2", {}).get("warning", 1000):
-        alert_level = "warning" if alert_level != "critical" else "critical"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"CO2 浓度偏高: {record.co2} ppm")
 
     if record.tvoc > THRESHOLDS.get("tvoc", {}).get("critical", 1000):
-        alert_level = "warning" if alert_level != "critical" else "critical"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"TVOC 浓度偏高: {record.tvoc} ppb")
     elif record.tvoc > THRESHOLDS.get("tvoc", {}).get("warning", 500):
-        alert_level = "warning" if alert_level != "critical" else "critical"
+        alert_level = _max_alert(alert_level, "warning")
         messages.append(f"TVOC 浓度偏高: {record.tvoc} ppb")
 
     if not messages:

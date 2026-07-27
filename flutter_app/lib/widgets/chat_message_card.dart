@@ -225,7 +225,7 @@ class ChatMessageCard extends StatelessWidget {
     final agentInfo = message.agentInfo;
     final displayName = message.displayName ??
         (isUser ? '我' : '${agentInfo?.emoji ?? ''} ${agentInfo?.name ?? 'Agent'}');
-    final bubbleColor = isUser ? _bubbleUser : _bubbleAgent;
+    final bubbleColor = (isUser ? _bubbleUser : _bubbleAgent).withValues(alpha: 0.50);
     final leftBorderColor = isUser ? null : message.agentColor;
     final alignment = isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final radius = isUser
@@ -323,6 +323,8 @@ class ChatMessageCard extends StatelessWidget {
           _feedbackBtn('👍', 'like'),
           const SizedBox(width: 4),
           _feedbackBtn('👎', 'dislike'),
+          const SizedBox(width: 4),
+          _feedbackBtn('↗', 'share'),
         ],
       ),
     );
@@ -515,7 +517,7 @@ class ChatMessageCard extends StatelessWidget {
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isUser ? _bubbleUser : _bubbleAgent,
+              color: (isUser ? _bubbleUser : _bubbleAgent).withValues(alpha: 0.50),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: border),
             ),
@@ -1807,7 +1809,6 @@ class _RenderComparisonCardState extends State<_RenderComparisonCard> {
     final title = (p['title'] ?? widget.message.content ?? '方案对比').toString();
 
     final textPrimary = SuokeDesignTokens.textPrimary;
-    final textSecondary = SuokeDesignTokens.textSecondary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

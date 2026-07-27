@@ -1,0 +1,1172 @@
+/* ═══════════════════════════════════════════
+   A2UI 卡片样式 — Agent-to-UI 渲染协议
+   暗色主题 · 响应式 · 无障碍
+   ═══════════════════════════════════════════ */
+
+/* ── 设计令牌 ── */
+:root {
+  --a2ui-bg-deep: #08080F;
+  --a2ui-bg-card: #12121D;
+  --a2ui-bg-surface2: #1A1A2A;
+  --a2ui-bg-surface3: #222238;
+  --a2ui-border: #1E1E32;
+  --a2ui-border-active: #2A2A45;
+  --a2ui-text-primary: #E8E6E1;
+  --a2ui-text-secondary: #8A8894;
+  --a2ui-text-muted: #6B6978;
+  --a2ui-accent: #C9973B;
+  --a2ui-accent-bright: #E0AA4A;
+  --a2ui-success: #4A9E6E;
+  --a2ui-warning: #C97A3B;
+  --a2ui-danger: #C94A4A;
+  --a2ui-info: #5A7EC9;
+  --a2ui-purple: #9B6AC9;
+  --a2ui-teal: #4AC9A3;
+  --a2ui-radius-sm: 10px;
+  --a2ui-radius: 12px;
+  --a2ui-radius-lg: 16px;
+  --a2ui-radius-input: 8px;
+  --a2ui-spacing-xs: 4px;
+  --a2ui-spacing-sm: 8px;
+  --a2ui-spacing-md: 12px;
+  --a2ui-spacing-lg: 16px;
+  --a2ui-spacing-xl: 24px;
+  --a2ui-font-xs: 10px;
+  --a2ui-font-sm: 12px;
+  --a2ui-font-md: 13px;
+  --a2ui-font-lg: 16px;
+  --a2ui-touch-min: 44px;
+}
+
+/* ── 动画：入场滑入 ── */
+@keyframes a2ui-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* reduced-motion 支持 */
+@media (prefers-reduced-motion: reduce) {
+  .a2ui-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── 基础卡片 ── */
+.a2ui-card {
+  background: var(--a2ui-bg-card);
+  border: 1px solid var(--a2ui-border);
+  border-radius: var(--a2ui-radius-lg);
+  margin: var(--a2ui-spacing-sm) var(--a2ui-spacing-lg);
+  overflow: hidden;
+  animation: a2ui-slide-in 0.3s ease-out both;
+  /* 入口可见性 */
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.a2ui-card.a2ui-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── 卡片头部 ── */
+.a2ui-card-header {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--a2ui-spacing-lg) var(--a2ui-spacing-lg) var(--a2ui-spacing-sm);
+  border-bottom: 1px solid var(--a2ui-border);
+}
+
+.a2ui-accent-bar {
+  width: 3px;
+  min-height: 20px;
+  border-radius: 2px;
+  margin-right: var(--a2ui-spacing-sm);
+  flex-shrink: 0;
+}
+
+.a2ui-accent-design { background: var(--a2ui-info); }
+.a2ui-accent-budget { background: var(--a2ui-success); }
+.a2ui-accent-construction { background: var(--a2ui-danger); }
+.a2ui-accent-procurement { background: var(--a2ui-warning); }
+.a2ui-accent-quality { background: var(--a2ui-teal); }
+.a2ui-accent-settlement { background: var(--a2ui-purple); }
+.a2ui-accent-master { background: var(--a2ui-accent); }
+
+.a2ui-card-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.a2ui-card-title {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.a2ui-card-subtitle {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: 2px;
+}
+
+/* ── 卡片内容区 ── */
+.a2ui-card-body {
+  padding: var(--a2ui-spacing-lg);
+}
+
+/* ── 卡片操作按钮区 ── */
+.a2ui-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--a2ui-spacing-sm);
+  padding: var(--a2ui-spacing-md) var(--a2ui-spacing-lg);
+  border-top: 1px solid var(--a2ui-border);
+}
+
+/* ── 按钮 ── */
+.a2ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--a2ui-spacing-sm) var(--a2ui-spacing-lg);
+  border-radius: var(--a2ui-radius-input);
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  min-width: var(--a2ui-touch-min);
+  min-height: var(--a2ui-touch-min);
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.a2ui-btn-primary {
+  background: var(--a2ui-accent);
+  color: var(--a2ui-bg-deep);
+}
+
+.a2ui-btn-primary:hover {
+  background: var(--a2ui-accent-bright);
+}
+
+.a2ui-btn-primary:focus-visible {
+  outline: 2px solid var(--a2ui-accent-bright);
+  outline-offset: 2px;
+}
+
+.a2ui-btn-secondary {
+  background: transparent;
+  color: var(--a2ui-text-primary);
+  border-color: var(--a2ui-border-active);
+}
+
+.a2ui-btn-secondary:hover {
+  background: var(--a2ui-bg-surface2);
+}
+
+.a2ui-btn-secondary:focus-visible {
+  outline: 2px solid var(--a2ui-text-secondary);
+  outline-offset: 2px;
+}
+
+.a2ui-btn-outline {
+  background: transparent;
+  color: var(--a2ui-text-primary);
+  border-color: var(--a2ui-border-active);
+}
+
+.a2ui-btn-danger {
+  color: var(--a2ui-danger);
+  border-color: var(--a2ui-danger);
+  background: transparent;
+}
+
+.a2ui-btn-danger:hover {
+  background: rgba(201, 74, 74, 0.1);
+}
+
+/* 分割线 */
+.a2ui-divider {
+  border: none;
+  border-top: 1px solid var(--a2ui-border);
+  margin: var(--a2ui-spacing-md) 0;
+}
+
+/* ── 标签 ── */
+.a2ui-tag {
+  display: inline-block;
+  padding: 2px var(--a2ui-spacing-sm);
+  border-radius: var(--a2ui-radius-input);
+  font-size: var(--a2ui-font-xs);
+  font-weight: 500;
+}
+
+.a2ui-tag-design {
+  background: rgba(90, 126, 201, 0.15);
+  color: var(--a2ui-info);
+  border: 1px solid rgba(90, 126, 201, 0.3);
+}
+
+.a2ui-tag-construction {
+  background: rgba(201, 74, 74, 0.1);
+  color: var(--a2ui-danger);
+}
+
+.a2ui-tag-category {
+  background: var(--a2ui-border);
+  color: var(--a2ui-text-secondary);
+  margin-right: var(--a2ui-spacing-sm);
+}
+
+.a2ui-tag-cert {
+  background: rgba(74, 158, 110, 0.1);
+  color: var(--a2ui-success);
+  border: 1px solid rgba(74, 158, 110, 0.3);
+}
+
+.a2ui-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--a2ui-spacing-xs);
+  margin-bottom: var(--a2ui-spacing-md);
+}
+
+/* ── 状态徽章 ── */
+.a2ui-badge {
+  display: inline-block;
+  padding: 2px var(--a2ui-spacing-sm);
+  border-radius: var(--a2ui-radius-sm);
+  font-size: var(--a2ui-font-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.a2ui-badge-success {
+  background: rgba(74, 158, 110, 0.15);
+  color: var(--a2ui-success);
+}
+
+.a2ui-badge-warning {
+  background: rgba(201, 122, 59, 0.15);
+  color: var(--a2ui-warning);
+}
+
+.a2ui-badge-danger {
+  background: rgba(201, 74, 74, 0.15);
+  color: var(--a2ui-danger);
+}
+
+.a2ui-badge-muted {
+  background: rgba(107, 105, 120, 0.15);
+  color: var(--a2ui-text-muted);
+}
+
+/* ── 信息行 ── */
+.a2ui-info-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: var(--a2ui-spacing-sm);
+  font-size: var(--a2ui-font-sm);
+}
+
+.a2ui-info-label {
+  width: 64px;
+  flex-shrink: 0;
+  color: var(--a2ui-text-muted);
+}
+
+.a2ui-info-value {
+  flex: 1;
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-info-value-bold {
+  font-weight: 600;
+}
+
+.a2ui-text-success { color: var(--a2ui-success); }
+
+/* ── 节标题 ── */
+.a2ui-section-title {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-secondary);
+  margin-bottom: var(--a2ui-spacing-sm);
+}
+
+/* ═══════════════════════════════════════════
+   设计方案卡片 (design_plan)
+   ═══════════════════════════════════════════ */
+
+.a2ui-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-room-tile {
+  background: var(--a2ui-bg-surface2);
+  border: 1px solid var(--a2ui-border);
+  border-radius: var(--a2ui-radius-sm);
+  padding: var(--a2ui-spacing-sm);
+  text-align: center;
+}
+
+.a2ui-room-name {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-room-area {
+  font-size: var(--a2ui-font-xs);
+  font-weight: 700;
+  color: var(--a2ui-accent);
+  margin-top: 2px;
+}
+
+.a2ui-room-orientation {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   预算明细卡片 (budget_breakdown)
+   ═══════════════════════════════════════════ */
+
+.a2ui-summary-line {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.a2ui-summary-total {
+  border-top: 1px solid var(--a2ui-border);
+  padding-top: var(--a2ui-spacing-sm);
+  margin-top: var(--a2ui-spacing-xs);
+}
+
+.a2ui-summary-label {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-secondary);
+}
+
+.a2ui-summary-total .a2ui-summary-label {
+  font-size: var(--a2ui-font-md);
+  font-weight: 700;
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-summary-value {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+  font-weight: 600;
+}
+
+.a2ui-summary-total .a2ui-summary-value {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 700;
+  color: var(--a2ui-warning);
+}
+
+/* 预算明细表格 */
+.a2ui-budget-table {
+  margin-top: var(--a2ui-spacing-sm);
+}
+
+.a2ui-budget-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--a2ui-spacing-sm);
+}
+
+.a2ui-budget-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.a2ui-budget-item-name {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a2ui-budget-qty {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin: 0 var(--a2ui-spacing-sm);
+  white-space: nowrap;
+}
+
+.a2ui-budget-amount {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+  white-space: nowrap;
+}
+
+/* 质保信息 */
+.a2ui-warranty-info {
+  margin-top: var(--a2ui-spacing-md);
+  padding: var(--a2ui-spacing-md);
+  background: rgba(74, 158, 110, 0.08);
+  border: 1px solid rgba(74, 158, 110, 0.2);
+  border-radius: var(--a2ui-radius-sm);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-success);
+}
+
+.a2ui-warranty-icon {
+  margin-right: var(--a2ui-spacing-xs);
+}
+
+/* 付款阶段 */
+.a2ui-payment-stage-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--a2ui-spacing-sm);
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--a2ui-border);
+  flex-shrink: 0;
+}
+
+.a2ui-stage-dot-paid {
+  background: var(--a2ui-success);
+}
+
+.a2ui-stage-name {
+  flex: 1;
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-stage-ratio {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+}
+
+.a2ui-stage-amount {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-more-hint {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: var(--a2ui-spacing-xs);
+}
+
+/* ═══════════════════════════════════════════
+   施工进度卡片 (construction_progress)
+   ═══════════════════════════════════════════ */
+
+.a2ui-progress-section {
+  margin-bottom: var(--a2ui-spacing-md);
+}
+
+.a2ui-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--a2ui-spacing-sm);
+}
+
+.a2ui-progress-label {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-secondary);
+}
+
+.a2ui-progress-pct {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 700;
+  color: var(--a2ui-accent);
+}
+
+.a2ui-progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--a2ui-border);
+  overflow: hidden;
+}
+
+.a2ui-progress-fill {
+  height: 100%;
+  background: var(--a2ui-danger);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* 班组信息 */
+.a2ui-crew-info {
+  padding: var(--a2ui-spacing-md);
+  background: var(--a2ui-bg-surface2);
+  border: 1px solid var(--a2ui-border);
+  border-radius: var(--a2ui-radius-sm);
+  margin-bottom: var(--a2ui-spacing-md);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-crew-leader {
+  display: block;
+  margin-bottom: var(--a2ui-spacing-xs);
+}
+
+.a2ui-crew-size {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-left: var(--a2ui-spacing-md);
+}
+
+/* 里程碑 */
+.a2ui-milestone {
+  padding: var(--a2ui-spacing-md);
+  background: rgba(201, 122, 59, 0.08);
+  border: 1px solid rgba(201, 122, 59, 0.2);
+  border-radius: var(--a2ui-radius-sm);
+  margin-bottom: var(--a2ui-spacing-md);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-warning);
+}
+
+.a2ui-milestone-icon {
+  margin-right: var(--a2ui-spacing-xs);
+}
+
+.a2ui-milestone-date {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: var(--a2ui-spacing-xs);
+  padding-left: 24px;
+}
+
+/* 阶段行 */
+.a2ui-phase-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--a2ui-spacing-sm);
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-phase-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.a2ui-phase-name {
+  flex: 1;
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-phase-pct {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-secondary);
+}
+
+/* ═══════════════════════════════════════════
+   采购订单卡片 (procurement_order)
+   ═══════════════════════════════════════════ */
+
+.a2ui-supplier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--a2ui-spacing-md);
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-supplier-name {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-order-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--a2ui-spacing-sm);
+}
+
+.a2ui-order-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.a2ui-order-item-name {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-order-item-specs {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: 1px;
+}
+
+.a2ui-order-item-qty {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-secondary);
+  margin-left: var(--a2ui-spacing-sm);
+  white-space: nowrap;
+}
+
+.a2ui-order-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: var(--a2ui-spacing-xs);
+}
+
+.a2ui-order-total-label,
+.a2ui-order-date-label {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+}
+
+.a2ui-order-total-amount {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 700;
+  color: var(--a2ui-warning);
+}
+
+.a2ui-order-date-value {
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+}
+
+/* ═══════════════════════════════════════════
+   质检报告卡片 (qa_report)
+   ═══════════════════════════════════════════ */
+
+.a2ui-qa-result {
+  display: flex;
+  align-items: center;
+  padding: var(--a2ui-spacing-md);
+  border-radius: var(--a2ui-radius-sm);
+  margin-bottom: var(--a2ui-spacing-md);
+  gap: var(--a2ui-spacing-md);
+}
+
+.a2ui-qa-passed {
+  background: rgba(74, 158, 110, 0.1);
+  border: 1px solid rgba(74, 158, 110, 0.3);
+}
+
+.a2ui-qa-failed {
+  background: rgba(201, 74, 74, 0.1);
+  border: 1px solid rgba(201, 74, 74, 0.3);
+}
+
+.a2ui-qa-result-icon {
+  font-size: 24px;
+}
+
+.a2ui-qa-result-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.a2ui-qa-result-title {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 700;
+}
+
+.a2ui-qa-passed .a2ui-qa-result-title {
+  color: var(--a2ui-success);
+}
+
+.a2ui-qa-failed .a2ui-qa-result-title {
+  color: var(--a2ui-danger);
+}
+
+.a2ui-qa-result-stats {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-secondary);
+  margin-top: 2px;
+}
+
+.a2ui-qa-pct {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.a2ui-qa-passed .a2ui-qa-pct {
+  color: var(--a2ui-success);
+}
+
+.a2ui-qa-failed .a2ui-qa-pct {
+  color: var(--a2ui-danger);
+}
+
+.a2ui-qa-deadline {
+  padding: var(--a2ui-spacing-sm);
+  background: rgba(201, 74, 74, 0.08);
+  border-radius: var(--a2ui-radius-sm);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-danger);
+  font-weight: 600;
+  margin-bottom: var(--a2ui-spacing-md);
+}
+
+.a2ui-checkpoint-row {
+  display: flex;
+  align-items: flex-start;
+  padding-bottom: var(--a2ui-spacing-sm);
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-checkpoint-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.a2ui-checkpoint-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.a2ui-checkpoint-name {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-primary);
+}
+
+.a2ui-checkpoint-detail {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   结算汇总卡片 (settlement_summary)
+   ═══════════════════════════════════════════ */
+
+.a2ui-money-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--a2ui-spacing-sm);
+  margin-bottom: var(--a2ui-spacing-md);
+}
+
+.a2ui-money-box {
+  background: var(--a2ui-bg-surface2);
+  border: 1px solid var(--a2ui-border);
+  border-radius: var(--a2ui-radius-sm);
+  padding: var(--a2ui-spacing-sm);
+  text-align: center;
+}
+
+.a2ui-money-label {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+}
+
+.a2ui-money-value {
+  font-size: var(--a2ui-font-md);
+  font-weight: 700;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a2ui-money-total .a2ui-money-value { color: var(--a2ui-text-primary); }
+.a2ui-money-paid .a2ui-money-value { color: var(--a2ui-success); }
+.a2ui-money-balance .a2ui-money-value { color: var(--a2ui-warning); }
+
+/* 待付信息 */
+.a2ui-next-payment {
+  padding: var(--a2ui-spacing-md);
+  background: rgba(201, 122, 59, 0.08);
+  border: 1px solid rgba(201, 122, 59, 0.2);
+  border-radius: var(--a2ui-radius-sm);
+  margin-bottom: var(--a2ui-spacing-md);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-warning);
+}
+
+.a2ui-next-pay-icon {
+  margin-right: var(--a2ui-spacing-xs);
+}
+
+.a2ui-next-pay-date,
+.a2ui-next-pay-condition {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  margin-top: var(--a2ui-spacing-xs);
+  padding-left: 20px;
+}
+
+/* 付款历史 */
+.a2ui-payment-history-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--a2ui-spacing-sm);
+  gap: var(--a2ui-spacing-sm);
+}
+
+.a2ui-payment-date {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+  white-space: nowrap;
+}
+
+.a2ui-payment-method {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-secondary);
+}
+
+.a2ui-payment-amount {
+  flex: 1;
+  text-align: right;
+  font-size: var(--a2ui-font-sm);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+}
+
+/* ═══════════════════════════════════════════
+   材料详情卡片 (material_card)
+   ═══════════════════════════════════════════ */
+
+.a2ui-material-price-row {
+  display: flex;
+  align-items: center;
+  gap: var(--a2ui-spacing-xs);
+  margin-bottom: var(--a2ui-spacing-md);
+}
+
+.a2ui-material-price {
+  font-size: var(--a2ui-font-lg);
+  font-weight: 700;
+  color: var(--a2ui-warning);
+}
+
+.a2ui-material-unit {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-muted);
+  margin-right: auto;
+}
+
+.a2ui-material-desc {
+  margin-top: var(--a2ui-spacing-md);
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-secondary);
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════
+   系统告警卡片 (alert_card)
+   ═══════════════════════════════════════════ */
+
+.a2ui-alert {
+  border-radius: var(--a2ui-radius-lg);
+  border: 1px solid;
+  padding: var(--a2ui-spacing-lg);
+  margin: var(--a2ui-spacing-sm) var(--a2ui-spacing-lg);
+}
+
+/* 告警颜色 */
+.a2ui-alert-critical {
+  background: rgba(201, 74, 74, 0.08);
+  border-color: rgba(201, 74, 74, 0.3);
+}
+
+.a2ui-alert-error {
+  background: rgba(201, 74, 74, 0.06);
+  border-color: rgba(201, 74, 74, 0.2);
+}
+
+.a2ui-alert-warning {
+  background: rgba(201, 122, 59, 0.08);
+  border-color: rgba(201, 122, 59, 0.3);
+}
+
+.a2ui-alert-info {
+  background: rgba(90, 126, 201, 0.06);
+  border-color: rgba(90, 126, 201, 0.2);
+}
+
+.a2ui-alert-header {
+  display: flex;
+  align-items: center;
+  gap: var(--a2ui-spacing-sm);
+  margin-bottom: var(--a2ui-spacing-sm);
+}
+
+.a2ui-alert-badge {
+  display: inline-block;
+  padding: 2px var(--a2ui-spacing-sm);
+  border-radius: 4px;
+  font-size: var(--a2ui-font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.a2ui-alert-critical .a2ui-alert-badge {
+  background: rgba(201, 74, 74, 0.2);
+  color: var(--a2ui-danger);
+}
+
+.a2ui-alert-error .a2ui-alert-badge {
+  background: rgba(201, 74, 74, 0.15);
+  color: var(--a2ui-danger);
+}
+
+.a2ui-alert-warning .a2ui-alert-badge {
+  background: rgba(201, 122, 59, 0.2);
+  color: var(--a2ui-warning);
+}
+
+.a2ui-alert-info .a2ui-alert-badge {
+  background: rgba(90, 126, 201, 0.15);
+  color: var(--a2ui-info);
+}
+
+.a2ui-alert-source {
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-muted);
+}
+
+.a2ui-alert-title {
+  font-size: var(--a2ui-font-md);
+  font-weight: 600;
+  color: var(--a2ui-text-primary);
+  margin-bottom: var(--a2ui-spacing-xs);
+}
+
+.a2ui-alert-message {
+  font-size: var(--a2ui-font-sm);
+  color: var(--a2ui-text-secondary);
+  line-height: 1.5;
+}
+
+.a2ui-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--a2ui-spacing-sm);
+  margin-top: var(--a2ui-spacing-md);
+}
+
+.a2ui-alert-btn-critical {
+  color: var(--a2ui-danger);
+  border-color: rgba(201, 74, 74, 0.5);
+}
+
+.a2ui-alert-btn-error {
+  color: var(--a2ui-danger);
+  border-color: rgba(201, 74, 74, 0.4);
+}
+
+.a2ui-alert-btn-warning {
+  color: var(--a2ui-warning);
+  border-color: rgba(201, 122, 59, 0.5);
+}
+
+.a2ui-alert-btn-info {
+  color: var(--a2ui-info);
+  border-color: rgba(90, 126, 201, 0.4);
+}
+
+/* ═══════════════════════════════════════════
+   未知卡片 (fallback)
+   ═══════════════════════════════════════════ */
+
+.a2ui-unknown-json {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: var(--a2ui-font-xs);
+  color: var(--a2ui-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════
+   无障碍 (a11y)
+   ═══════════════════════════════════════════ */
+
+/* 键盘焦点 */
+.a2ui-btn:focus-visible,
+.a2ui-card:focus-visible {
+  outline: 2px solid var(--a2ui-accent);
+  outline-offset: 2px;
+}
+
+/* 高对比度模式 */
+@media (prefers-contrast: high) {
+  .a2ui-card {
+    border-width: 2px;
+  }
+
+  .a2ui-badge-success,
+  .a2ui-badge-warning,
+  .a2ui-badge-danger,
+  .a2ui-badge-muted {
+    border: 1px solid currentColor;
+  }
+}
+
+/* 屏幕阅读器专用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ═══════════════════════════════════════════
+   响应式
+   ═══════════════════════════════════════════ */
+
+/* ≤1024px: 平板端 */
+@media (max-width: 1024px) {
+  .a2ui-money-grid {
+    gap: var(--a2ui-spacing-xs);
+  }
+
+  .a2ui-money-box {
+    padding: var(--a2ui-spacing-sm) var(--a2ui-spacing-xs);
+  }
+}
+
+/* ≤768px: 小平板 / 大屏手机 */
+@media (max-width: 768px) {
+  .a2ui-card {
+    margin: var(--a2ui-spacing-sm) var(--a2ui-spacing-md);
+  }
+
+  .a2ui-card-header {
+    padding: var(--a2ui-spacing-md) var(--a2ui-spacing-md) var(--a2ui-spacing-sm);
+  }
+
+  .a2ui-card-body {
+    padding: var(--a2ui-spacing-md);
+  }
+
+  .a2ui-card-actions {
+    padding: var(--a2ui-spacing-sm) var(--a2ui-spacing-md);
+  }
+
+  /* 预算表格 → 堆叠 */
+  .a2ui-budget-row {
+    flex-wrap: wrap;
+  }
+
+  .a2ui-budget-name {
+    width: 100%;
+    margin-bottom: var(--a2ui-spacing-xs);
+  }
+
+  .a2ui-budget-amount {
+    margin-left: auto;
+  }
+
+  /* 付款历史 → 堆叠 */
+  .a2ui-payment-history-row {
+    flex-wrap: wrap;
+  }
+
+  .a2ui-payment-method {
+    margin-left: auto;
+  }
+
+  .a2ui-payment-amount {
+    width: 100%;
+    text-align: left;
+    margin-top: 2px;
+  }
+}
+
+/* ≤480px: 小屏手机 */
+@media (max-width: 480px) {
+  .a2ui-card {
+    border-radius: var(--a2ui-radius);
+    margin: var(--a2ui-spacing-sm) var(--a2ui-spacing-sm);
+  }
+
+  .a2ui-card-header {
+    padding: var(--a2ui-spacing-md) var(--a2ui-spacing-md) var(--a2ui-spacing-xs);
+  }
+
+  .a2ui-card-body {
+    padding: var(--a2ui-spacing-md);
+  }
+
+  .a2ui-card-actions {
+    padding: var(--a2ui-spacing-sm) var(--a2ui-spacing-md);
+    flex-direction: column;
+  }
+
+  .a2ui-card-actions .a2ui-btn {
+    width: 100%;
+  }
+
+  /* 金额网格 → 堆叠 */
+  .a2ui-money-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 房间网格 → 两列 */
+  .a2ui-room-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* 质检结果 → 堆叠 */
+  .a2ui-qa-result {
+    flex-wrap: wrap;
+  }
+
+  .a2ui-qa-pct {
+    margin-left: auto;
+  }
+
+  /* 订单底部 → 堆叠 */
+  .a2ui-order-bottom {
+    flex-direction: column;
+    gap: var(--a2ui-spacing-sm);
+  }
+
+  /* 班组信息 */
+  .a2ui-crew-info {
+    font-size: var(--a2ui-font-xs);
+  }
+
+  /* 告警按钮全宽 */
+  .a2ui-alert-actions .a2ui-btn {
+    width: 100%;
+  }
+}

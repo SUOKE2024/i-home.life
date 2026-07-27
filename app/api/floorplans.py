@@ -7,6 +7,7 @@ from app.schemas.floorplan import (
     FloorPlanCreate,
     FloorPlanResponse,
     FloorPlanListItem,
+    FloorPlanUpdate,
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access, verify_project_collaborator_access
@@ -65,6 +66,27 @@ async def update_plan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     plan = await floorplan_service.update_floor_plan(db, plan_id, data.model_dump())
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    resp = FloorPlanResponse.model_validate(plan)
+    await ws_manager.broadcast_to_project(plan.project_id, "floorplan.updated", resp.model_dump())
+    return resp
+
+
+@router.patch("/{plan_id}", response_model=FloorPlanResponse)
+async def patch_plan(
+    plan_id: str,
+    data: FloorPlanUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """部分更新户型方案（如仅切换 is_active 状态）"""
+    existing = await floorplan_service.get_floor_plan(db, plan_id)
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
+    update_data = data.model_dump(exclude_none=True)
+    plan = await floorplan_service.update_floor_plan(db, plan_id, update_data)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     resp = FloorPlanResponse.model_validate(plan)

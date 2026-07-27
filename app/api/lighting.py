@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.lighting import (
     LightingSchemeCreate,
+    LightingSchemeUpdate,
     LightingSchemeResponse,
     LightingFixtureCreate,
     LightingFixtureResponse,
@@ -105,6 +106,26 @@ async def ai_design(
     final_scheme = await lighting_service.get_scheme(db, scheme_id)
     resp = LightingSchemeResponse.model_validate(final_scheme)
     await ws_manager.broadcast_to_project(scheme.project_id, "lighting.ai_design_completed", resp.model_dump())
+    return resp
+
+
+@router.patch("/schemes/{scheme_id}", response_model=LightingSchemeResponse)
+async def update_scheme(
+    scheme_id: str,
+    data: LightingSchemeUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新灯光方案"""
+    scheme = await lighting_service.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    updated = await lighting_service.update_scheme(db, scheme_id, data.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="灯光方案不存在")
+    resp = LightingSchemeResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(scheme.project_id, "lighting.scheme_updated", resp.model_dump())
     return resp
 
 

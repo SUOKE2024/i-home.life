@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -27,11 +28,6 @@ class _TimelinePageState extends State<TimelinePage> {
   bool _loading = true;
   String? _error;
 
-  static const _brand = Color(0xFFC9973B);
-  static const _bg = Color(0xFF08080F);
-  static const _card = Color(0xFF12121D);
-  static const _textPrimary = Color(0xFFE8E6E1);
-  static const _textSecondary = Color(0xFF8A8894);
 
   // 7 阶段定义
   static const _phases = [
@@ -142,17 +138,17 @@ class _TimelinePageState extends State<TimelinePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _card,
-        title: const Text('装修向导', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('装修向导', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _textSecondary),
+          icon: Icon(Icons.arrow_back, color: SuokeDesignTokens.textSub(context)),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: _textSecondary),
+            icon: Icon(Icons.refresh, color: SuokeDesignTokens.textSub(context)),
             onPressed: _loadTimeline,
           ),
         ],
@@ -180,19 +176,19 @@ class _TimelinePageState extends State<TimelinePage> {
   Widget _buildProjectSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: _card,
+      color: SuokeDesignTokens.card(context),
       child: Row(
         children: [
-          const Icon(Icons.home_work, color: _brand, size: 18),
+          const Icon(Icons.home_work, color: SuokeDesignTokens.accent, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _selectedProjectId,
                 isExpanded: true,
-                dropdownColor: _card,
-                style: const TextStyle(color: _textPrimary, fontSize: 14),
-                icon: const Icon(Icons.expand_more, color: _textSecondary),
+                dropdownColor: SuokeDesignTokens.card(context),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
+                icon: Icon(Icons.expand_more, color: SuokeDesignTokens.textSub(context)),
                 items: _projects.map<DropdownMenuItem<String>>((p) {
                   return DropdownMenuItem(
                     value: p['id']?.toString(),
@@ -222,9 +218,9 @@ class _TimelinePageState extends State<TimelinePage> {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _brand.withOpacity(0.2)),
+        border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,9 +230,9 @@ class _TimelinePageState extends State<TimelinePage> {
             children: [
               Text(
                 _selectedProject?['name'] ?? _selectedProject?['title'] ?? '项目进度',
-                style: const TextStyle(color: _textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.w600),
               ),
-              Text('$pct%', style: TextStyle(color: _brand, fontSize: 24, fontWeight: FontWeight.w700)),
+              Text('$pct%', style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 24, fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 10),
@@ -244,15 +240,15 @@ class _TimelinePageState extends State<TimelinePage> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: _progressPercent,
-              backgroundColor: _brand.withOpacity(0.15),
-              valueColor: const AlwaysStoppedAnimation<Color>(_brand),
+              backgroundColor: SuokeDesignTokens.accent.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
               minHeight: 6,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             _selectedProject?['address'] ?? '',
-            style: const TextStyle(color: _textSecondary, fontSize: 12),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
           ),
         ],
       ),
@@ -291,14 +287,14 @@ class _TimelinePageState extends State<TimelinePage> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: taskCount > 0 ? color.withOpacity(0.2) : _card,
+                    color: taskCount > 0 ? color.withValues(alpha:0.2) : SuokeDesignTokens.card(context),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: taskCount > 0 ? color : _textSecondary.withOpacity(0.3), width: 1.5),
+                    border: Border.all(color: taskCount > 0 ? color : SuokeDesignTokens.textSub(context).withValues(alpha:0.3), width: 1.5),
                   ),
                   child: Icon(
                     phase['icon'] as IconData,
                     size: 16,
-                    color: taskCount > 0 ? color : _textSecondary,
+                    color: taskCount > 0 ? color : SuokeDesignTokens.textSub(context),
                   ),
                 ),
                 if (!isLast)
@@ -306,7 +302,7 @@ class _TimelinePageState extends State<TimelinePage> {
                     child: Container(
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: taskCount > 0 ? color.withOpacity(0.3) : _textSecondary.withOpacity(0.1),
+                      color: taskCount > 0 ? color.withValues(alpha:0.3) : SuokeDesignTokens.textSub(context).withValues(alpha:0.1),
                     ),
                   ),
               ],
@@ -318,9 +314,9 @@ class _TimelinePageState extends State<TimelinePage> {
               margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: _card,
+                color: SuokeDesignTokens.card(context),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: _textSecondary.withOpacity(0.1)),
+                border: Border.all(color: SuokeDesignTokens.textSub(context).withValues(alpha:0.1)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +327,7 @@ class _TimelinePageState extends State<TimelinePage> {
                       Text(
                         phase['label'] as String,
                         style: TextStyle(
-                          color: _textPrimary,
+                          color: SuokeDesignTokens.text(context),
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -351,13 +347,13 @@ class _TimelinePageState extends State<TimelinePage> {
                     const SizedBox(height: 8),
                     Text(
                       '${_getPhaseDescription(phase['key'] as String)} — 展开查看详情',
-                      style: const TextStyle(color: _textSecondary, fontSize: 12),
+                      style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                     ),
                   ],
                   if (taskCount == 0 && !hasChange)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text('暂无任务', style: TextStyle(color: _textSecondary, fontSize: 12)),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('暂无任务', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                     ),
                 ],
               ),
@@ -372,7 +368,7 @@ class _TimelinePageState extends State<TimelinePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha:0.15),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),

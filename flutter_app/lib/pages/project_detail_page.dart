@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -22,12 +23,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   bool _loading = true;
   bool _actionBusy = false;
   String? _error;
-
-  static const _brand = Color(0xFFC9973B);
-  static const _bg = Color(0xFF08080F);
-  static const _card = Color(0xFF12121D);
-  static const _textPrimary = Color(0xFFE8E6E1);
-  static const _textSecondary = Color(0xFF8A8894);
 
   @override
   void initState() {
@@ -76,7 +71,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       case 'completed':
         return const Color(0xFF5B8EC4);
       default:
-        return _textSecondary;
+        return SuokeDesignTokens.textSub(context);
     }
   }
 
@@ -156,14 +151,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _card,
-        title: const Text('删除项目', style: TextStyle(color: _textPrimary)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('删除项目', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除该项目吗？此操作不可恢复。',
-            style: TextStyle(color: _textSecondary)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _textSecondary)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -196,9 +191,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _card,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('项目详情',
             style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'DM Sans')),
         leading: IconButton(
@@ -218,7 +213,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                             SizedBox(height: 120),
                             Center(
                               child: Text('项目不存在或已被删除',
-                                  style: TextStyle(color: _textSecondary)),
+                                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                             ),
                           ],
                         )
@@ -249,7 +244,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     final p = _project!;
     final status = (p['status'] ?? 'draft').toString();
     return Card(
-      color: _card,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFF1E1E32)),
@@ -267,7 +262,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: _textPrimary,
+                      color: SuokeDesignTokens.text(context),
                       fontFamily: 'DM Sans',
                     ),
                   ),
@@ -300,11 +295,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   Widget _infoRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: _textSecondary),
+        Icon(icon, size: 16, color: SuokeDesignTokens.textSub(context)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(text,
-              style: const TextStyle(color: _textSecondary, fontSize: 13),
+              style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
               overflow: TextOverflow.ellipsis),
         ),
       ],
@@ -319,7 +314,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         style: const TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: _textPrimary,
+          color: SuokeDesignTokens.text(context),
           fontFamily: 'DM Sans',
         ),
       ),
@@ -339,7 +334,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             final floor = Map<String, dynamic>.from(f as Map);
             final rooms = (floor['rooms'] as List?) ?? [];
             return Card(
-              color: _card,
+              color: SuokeDesignTokens.card(context),
               margin: const EdgeInsets.only(bottom: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -357,13 +352,13 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                           height: 28,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: _brand.withValues(alpha: 0.15),
+                            color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '${floor['floor_number'] ?? 1}',
                             style: const TextStyle(
-                                color: _brand, fontWeight: FontWeight.bold),
+                                color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -373,21 +368,21 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: _textPrimary,
+                              color: SuokeDesignTokens.text(context),
                             ),
                           ),
                         ),
                         if (floor['area'] != null)
                           Text('${floor['area']}㎡',
                               style: const TextStyle(
-                                  color: _textSecondary, fontSize: 12)),
+                                  color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                       ],
                     ),
                     if (rooms.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(top: 10),
                         child: Text('暂无房间',
-                            style: TextStyle(color: _textSecondary, fontSize: 12)),
+                            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                       )
                     else
                       Padding(
@@ -423,24 +418,24 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         children: [
           Text(
             (room['name'] ?? '-').toString(),
-            style: const TextStyle(color: _textPrimary, fontSize: 13),
+            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
           ),
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: _brand.withValues(alpha: 0.12),
+              color: SuokeDesignTokens.accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               _roomTypeText((room['room_type'] ?? '').toString()),
-              style: const TextStyle(color: _brand, fontSize: 10),
+              style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 10),
             ),
           ),
           if (room['area'] != null) ...[
             const SizedBox(width: 6),
             Text('${room['area']}㎡',
-                style: const TextStyle(color: _textSecondary, fontSize: 11)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
           ],
         ],
       ),
@@ -456,7 +451,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           _emptyHint('暂无物料，请先添加物料清单')
         else
           Card(
-            color: _card,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: const BorderSide(color: Color(0xFF1E1E32)),
@@ -483,7 +478,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       title: Text(
         (mat['name'] ?? '物料').toString(),
-        style: const TextStyle(color: _textPrimary, fontSize: 14),
+        style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 4),
@@ -493,14 +488,14 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Text((mat['brand']).toString(),
-                    style: const TextStyle(color: _brand, fontSize: 11)),
+                    style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 11)),
               ),
             Text('x$qty ${mat['unit'] ?? ''}',
-                style: const TextStyle(color: _textSecondary, fontSize: 12)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
             const SizedBox(width: 8),
             if (status.isNotEmpty)
               Text(_bomStatusText(status),
-                  style: const TextStyle(color: _textSecondary, fontSize: 11)),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
           ],
         ),
       ),
@@ -518,7 +513,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       children: [
         _sectionTitle('设计深化'),
         Card(
-          color: _card,
+          color: SuokeDesignTokens.card(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: Color(0xFF1E1E32)),
@@ -530,23 +525,23 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: _brand.withValues(alpha: 0.15),
+                color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.design_services_outlined,
-                  color: _brand, size: 22),
+                  color: SuokeDesignTokens.accent, size: 22),
             ),
             title: const Text('设计深化（厨卫水电/硬装/门窗防水/智家/场景）',
                 style: TextStyle(
-                    color: _textPrimary,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w600)),
             subtitle: const Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text('F18 / F21 / F23 / F31 / F32',
-                  style: TextStyle(color: _textSecondary, fontSize: 11)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
             ),
-            trailing: const Icon(Icons.chevron_right, color: _textSecondary),
+            trailing: const Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -565,7 +560,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       children: [
         _sectionTitle('采购增强'),
         Card(
-          color: _card,
+          color: SuokeDesignTokens.card(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: const BorderSide(color: Color(0xFF1E1E32)),
@@ -577,23 +572,23 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
               height: 40,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: _brand.withValues(alpha: 0.15),
+                color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(Icons.shopping_cart_checkout,
-                  color: _brand, size: 22),
+                  color: SuokeDesignTokens.accent, size: 22),
             ),
             title: const Text('采购增强（比价/托管支付/物流/样品）',
                 style: TextStyle(
-                    color: _textPrimary,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 14,
                     fontWeight: FontWeight.w600)),
             subtitle: const Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text('F33 / F34',
-                  style: TextStyle(color: _textSecondary, fontSize: 11)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
             ),
-            trailing: const Icon(Icons.chevron_right, color: _textSecondary),
+            trailing: const Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -695,12 +690,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: _card,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF1E1E32)),
       ),
       child: Center(
-        child: Text(text, style: const TextStyle(color: _textSecondary, fontSize: 13)),
+        child: Text(text, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
       ),
     );
   }

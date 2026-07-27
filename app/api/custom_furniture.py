@@ -1,7 +1,11 @@
 """F27 定制家具设计器 API"""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models.user import User
@@ -157,9 +161,15 @@ async def delete_module(
     if design_id:
         try:
             await _verify_design_owner(db, design_id, current_user)
-        except HTTPException:
+        except HTTPException as e:
             # 设计可能已删除，仅做广播
-            pass
+            logger.warning(
+                "furniture_design_owner_verify_failed",
+                design_id=design_id,
+                module_id=module_id,
+                status_code=e.status_code,
+                detail=str(e.detail),
+            )
     design = await svc.get_design(db, design_id)
     if design:
         await ws_manager.broadcast_to_project(design.project_id, "furniture.module.deleted", {"id": module_id})

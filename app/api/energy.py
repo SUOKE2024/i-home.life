@@ -77,6 +77,38 @@ async def get_records_by_project(
     return [EnergyMonitorResponse.model_validate(r) for r in records]
 
 
+@router.get("/records/{record_id}", response_model=EnergyMonitorResponse)
+async def get_record(
+    record_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """获取单条能耗记录"""
+    _check_feature_flag()
+    record = await svc.get_record_by_id(db, record_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="记录不存在")
+    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
+    return EnergyMonitorResponse.model_validate(record)
+
+
+@router.delete("/records/{record_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_record(
+    record_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除能耗记录"""
+    _check_feature_flag()
+    record = await svc.get_record_by_id(db, record_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="记录不存在")
+    await verify_project_access(project_id=record.project_id, current_user=current_user, db=db)
+    deleted = await svc.delete_record(db, record_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="记录不存在")
+
+
 # ── 能耗报告 ──
 
 
@@ -142,3 +174,45 @@ async def apply_tip(
         await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
 
     return EnergySavingTipResponse.model_validate(tip)
+
+
+@router.post("/tips", response_model=EnergySavingTipResponse, status_code=status.HTTP_201_CREATED)
+async def create_tip(
+    data: EnergySavingTipCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """手动创建节能建议"""
+    _check_feature_flag()
+    # 通过 scheme 做归属校验
+    from sqlalchemy import select as sql_select
+    scheme_result = await db.execute(sql_select(SmartHomeScheme).where(SmartHomeScheme.id == data.scheme_id))
+    scheme = scheme_result.scalar_one_or_none()
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    tip = await svc.create_tip(db, data.model_dump())
+    return EnergySavingTipResponse.model_validate(tip)
+
+
+@router.delete("/tips/{tip_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_tip(
+    tip_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """删除节能建议"""
+    _check_feature_flag()
+    from sqlalchemy import select as sql_select
+    from app.models.energy_monitor import EnergySavingTip
+    tip_result = await db.execute(sql_select(EnergySavingTip).where(EnergySavingTip.id == tip_id))
+    tip = tip_result.scalar_one_or_none()
+    if not tip:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="建议不存在")
+    scheme_result = await db.execute(sql_select(SmartHomeScheme).where(SmartHomeScheme.id == tip.scheme_id))
+    scheme = scheme_result.scalar_one_or_none()
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    deleted = await svc.delete_tip(db, tip_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="建议不存在")

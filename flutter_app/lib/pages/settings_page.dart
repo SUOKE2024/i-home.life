@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../main.dart' show AuthGate;
+import 'dart:async';  // unawaited
+import '../main.dart' show AuthGate, ThemeState;
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 
 /// 用户设置页面
@@ -29,12 +32,6 @@ class _SettingsPageState extends State<SettingsPage> {
   static const _notifyDailyKey = 'settings_notify_daily';
   static const _notifyInspectionKey = 'settings_notify_inspection';
   static const _notifyAgentKey = 'settings_notify_agent';
-
-  static const _brand = Color(0xFFC9973B);
-  static const _bg = Color(0xFF08080F);
-  static const _card = Color(0xFF12121D);
-  static const _textPrimary = Color(0xFFE8E6E1);
-  static const _textSecondary = Color(0xFF8A8894);
 
   @override
   void initState() {
@@ -82,13 +79,13 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _card,
-        title: const Text('退出登录', style: TextStyle(color: _textPrimary)),
-        content: const Text('确定要退出登录吗？', style: TextStyle(color: _textSecondary)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('退出登录', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        content: Text('确定要退出登录吗？', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _textSecondary)),
+            child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -104,10 +101,10 @@ class _SettingsPageState extends State<SettingsPage> {
       await prefs.remove('passkey_registered');
       await prefs.remove('last_phone');
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
+        unawaited(Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const AuthGate()),
           (route) => false,
-        );
+        ));
       }
     }
   }
@@ -115,25 +112,25 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _card,
-        title: const Text('设置', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('设置', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: _textSecondary),
+          icon: Icon(Icons.arrow_back, color: SuokeDesignTokens.textSub(context)),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _brand))
+          ? const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
           : _error != null
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_error!, style: const TextStyle(color: _textSecondary)),
+                      Text(_error!, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                       const SizedBox(height: 12),
-                      TextButton(onPressed: _loadUser, child: const Text('重试', style: TextStyle(color: _brand))),
+                      TextButton(onPressed: _loadUser, child: const Text('重试', style: TextStyle(color: SuokeDesignTokens.accent))),
                     ],
                   ),
                 )
@@ -141,6 +138,8 @@ class _SettingsPageState extends State<SettingsPage> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
                   children: [
                     _buildProfileSection(),
+                    const SizedBox(height: 16),
+                    _buildThemeSection(),
                     const SizedBox(height: 16),
                     _buildNotificationSection(),
                     const SizedBox(height: 16),
@@ -168,29 +167,66 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               CircleAvatar(
                 radius: 36,
-                backgroundColor: _brand.withOpacity(0.2),
+                backgroundColor: SuokeDesignTokens.accent.withValues(alpha: 0.2),
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: _brand, fontSize: 28, fontWeight: FontWeight.w700),
+                  style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 28, fontWeight: FontWeight.w700),
                 ),
               ),
               const SizedBox(height: 12),
-              Text(name, style: const TextStyle(color: _textPrimary, fontSize: 18, fontWeight: FontWeight.w600)),
+              Text(name, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 4),
-              Text('$roleLabel  ·  $maskedPhone', style: const TextStyle(color: _textSecondary, fontSize: 13)),
+              Text('$roleLabel  ·  $maskedPhone', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             ],
           ),
         ),
-        const Divider(color: _textSecondary, height: 32),
+        Divider(color: SuokeDesignTokens.textSub(context), height: 32),
         // 角色信息
         _settingRow(Icons.badge, '角色', roleLabel, trailing: _roleIcon(role)),
         _settingRow(Icons.phone_android, '手机号', maskedPhone),
         // 修改密码入口
         ListTile(
-          leading: const Icon(Icons.lock_outline, color: _textSecondary),
-          title: const Text('修改密码', style: TextStyle(color: _textPrimary)),
-          trailing: const Icon(Icons.chevron_right, color: _textSecondary),
+          leading: Icon(Icons.lock_outline, color: SuokeDesignTokens.textSub(context)),
+          title: Text('修改密码', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
           enabled: false,
+        ),
+      ],
+    );
+  }
+
+  // ── 主题设置 ──
+
+  Widget _buildThemeSection() {
+    final themeState = context.watch<ThemeState>();
+    final currentMode = themeState.mode;
+
+    return _sectionCard(
+      title: '主题设置',
+      children: [
+        RadioListTile<ThemeMode>(
+          title: Text('跟随系统', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
+          subtitle: Text('自动切换深色/浅色模式', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          value: ThemeMode.system,
+          groupValue: currentMode,
+          activeColor: SuokeDesignTokens.accent,
+          onChanged: (v) => themeState.setMode(v!),
+        ),
+        RadioListTile<ThemeMode>(
+          title: Text('浅色模式', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
+          subtitle: Text('始终使用浅色主题', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          value: ThemeMode.light,
+          groupValue: currentMode,
+          activeColor: SuokeDesignTokens.accent,
+          onChanged: (v) => themeState.setMode(v!),
+        ),
+        RadioListTile<ThemeMode>(
+          title: Text('深色模式', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
+          subtitle: Text('始终使用深色主题', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          value: ThemeMode.dark,
+          groupValue: currentMode,
+          activeColor: SuokeDesignTokens.accent,
+          onChanged: (v) => themeState.setMode(v!),
         ),
       ],
     );
@@ -229,11 +265,11 @@ class _SettingsPageState extends State<SettingsPage> {
       title: '其他',
       children: [
         ListTile(
-          leading: const Icon(Icons.info_outline, color: _textSecondary),
-          title: const Text('版本', style: TextStyle(color: _textPrimary)),
-          trailing: const Text('1.2.0', style: TextStyle(color: _textSecondary)),
+          leading: Icon(Icons.info_outline, color: SuokeDesignTokens.textSub(context)),
+          title: Text('版本', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Text('1.2.5', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         ),
-        const Divider(color: _textSecondary, height: 1),
+        Divider(color: SuokeDesignTokens.textSub(context), height: 1),
         ListTile(
           leading: const Icon(Icons.logout, color: Color(0xFFE57373)),
           title: const Text('退出登录', style: TextStyle(color: Color(0xFFE57373))),
@@ -247,13 +283,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _sectionCard({required String title, required List<Widget> children}) {
     return Container(
-      decoration: BoxDecoration(color: _card, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: SuokeDesignTokens.card(context), borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
-            child: Text(title, style: const TextStyle(color: _textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text(title, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12, fontWeight: FontWeight.w600)),
           ),
           ...children,
         ],
@@ -263,18 +299,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _settingRow(IconData icon, String label, String value, {Widget? trailing}) {
     return ListTile(
-      leading: Icon(icon, color: _textSecondary),
-      title: Text(label, style: const TextStyle(color: _textPrimary, fontSize: 14)),
-      trailing: trailing ?? Text(value, style: const TextStyle(color: _textSecondary, fontSize: 13)),
+      leading: Icon(icon, color: SuokeDesignTokens.textSub(context)),
+      title: Text(label, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
+      trailing: trailing ?? Text(value, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
     );
   }
 
   Widget _switchRow(String title, String subtitle, bool value, Function(bool) onChanged) {
     return SwitchListTile(
-      title: Text(title, style: const TextStyle(color: _textPrimary, fontSize: 14)),
-      subtitle: Text(subtitle, style: const TextStyle(color: _textSecondary, fontSize: 12)),
+      title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
+      subtitle: Text(subtitle, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
       value: value,
-      activeColor: _brand,
+      activeColor: SuokeDesignTokens.accent,
       onChanged: onChanged,
     );
   }
@@ -306,6 +342,6 @@ class _SettingsPageState extends State<SettingsPage> {
       case 'carpenter': icon = Icons.carpenter; break;
       default: icon = Icons.person;
     }
-    return Icon(icon, color: _brand, size: 20);
+    return Icon(icon, color: SuokeDesignTokens.accent, size: 20);
   }
 }

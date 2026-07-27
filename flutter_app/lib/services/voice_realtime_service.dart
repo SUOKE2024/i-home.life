@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import '../config.dart';
+import '../ws_helper.dart';
 
 /// 语音服务连接状态
 enum VoiceConnectionStatus {
@@ -29,7 +29,7 @@ class VoiceRealtimeService {
   factory VoiceRealtimeService() => _instance;
   VoiceRealtimeService._();
 
-  WebSocket? _ws;
+  WsSocket? _ws;
   String? _token;
   String? _projectId;
   String? _sessionId;
@@ -60,7 +60,7 @@ class VoiceRealtimeService {
   VoiceConnectionStatus get status => _status;
 
   bool get isConnected =>
-      _ws != null && _ws!.readyState == WebSocket.open;
+      _ws != null && _ws!.readyState == WsState.open;
 
   String get mode => _mode;
   String? get sessionId => _sessionId;
@@ -108,15 +108,16 @@ class VoiceRealtimeService {
 
     try {
       final uri = _buildUri();
-      _ws = await WebSocket.connect(uri.toString());
+      _ws = await wsConnect(uri.toString());
       _setStatus(VoiceConnectionStatus.connected);
 
       // 启动心跳
       _startHeartbeat();
 
       // 监听消息
-      _ws!.listen(
-        _onMessage,
+      wsListen(
+        _ws!,
+        onData: _onMessage,
         onError: (error) {
           _onError('WebSocket error: $error');
         },
@@ -137,7 +138,9 @@ class VoiceRealtimeService {
   Future<void> disconnect() async {
     _intentionalClose = true;
     _stopHeartbeat();
-    await _ws?.close();
+    if (_ws != null) {
+      await wsClose(_ws!);
+    }
     _ws = null;
     _sessionId = null;
     _mode = 'mock';
@@ -188,8 +191,8 @@ class VoiceRealtimeService {
   // ── 发送消息 ──
 
   void _send(Map<String, dynamic> msg) {
-    if (_ws != null && _ws!.readyState == WebSocket.open) {
-      _ws!.add(jsonEncode(msg));
+    if (_ws != null && _ws!.readyState == WsState.open) {
+      wsSend(_ws!, jsonEncode(msg));
     }
   }
 

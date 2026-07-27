@@ -1,5 +1,6 @@
 """高德地图定位服务 — 地址智能补全 + IP定位 + 附近楼盘搜索"""
 import httpx
+import structlog
 from fastapi import APIRouter, Depends
 
 from app.config import get_settings
@@ -8,6 +9,7 @@ from app.models.user import User
 
 router = APIRouter(prefix="/location", tags=["位置服务"])
 settings = get_settings()
+_log = structlog.get_logger("location")
 
 
 def _build_url(path: str, **params) -> str:
@@ -37,6 +39,7 @@ async def search_places(keywords: str, city: str = "", limit: int = 10, current_
             types="120300|120302|120303", offset=str(limit),
         )
     except Exception:
+        _log.warning("amap_search_failed", keywords=keywords, city=city, exc_info=True)
         return {"pois": [], "hint": "高德 API 不可用或未配置 KEY"}
 
     pois = data.get("pois", [])
@@ -62,6 +65,7 @@ async def geocode(address: str, city: str = "", current_user: User = Depends(get
     try:
         data = await _amap_get("/geocode/geo", address=address, city=city)
     except Exception:
+        _log.warning("amap_geocode_failed", address=address, city=city, exc_info=True)
         return {"error": "高德 API 不可用或未配置 KEY"}
 
     geos = data.get("geocodes", [])
@@ -100,7 +104,7 @@ async def autocomplete(keywords: str, city: str = "北京", limit: int = 8, curr
                 "location": p.get("location"), "type": "poi",
             })
     except Exception:
-        pass
+        _log.debug("amap_autocomplete_poi_failed", keywords=keywords, exc_info=True)
 
     # IP 定位(仅首次，用于确定当前城市)
     try:
@@ -112,6 +116,6 @@ async def autocomplete(keywords: str, city: str = "北京", limit: int = 8, curr
             "rectangle": ip_data.get("rectangle", ""),
         }
     except Exception:
-        pass
+        _log.debug("amap_ip_location_failed", exc_info=True)
 
     return result

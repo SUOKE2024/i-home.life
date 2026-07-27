@@ -11,15 +11,20 @@
 """
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.harness import AgentRunStatus, get_harness
 from app.auth import get_current_user
 from app.config import get_settings
+from app.database import get_db
+from app.models.a2a_task import A2ATask, A2A_TASK_DEFAULT_TTL_HOURS
 from app.models.user import User
 
 router = APIRouter(prefix="/a2a", tags=["A2A 协议"])
@@ -63,9 +68,6 @@ _AGENT_DESCRIPTIONS: dict[str, str] = {
     "TakeoffAgent": "工程量计算，算量",
     "IfcExportAgent": "BIM/IFC 模型导出",
 }
-
-# 内存任务存储（简化实现；生产环境可换 Redis）
-_tasks: dict[str, dict] = {}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -113,6 +115,36 @@ class A2ATaskResponse(BaseModel):
 
 
 # ════════════════════════════════════════════════════════════════
+# 辅助函数
+# ════════════════════════════════════════════════════════════════
+
+
+async def _cleanup_expired_tasks(db: AsyncSession) -> None:
+    """清理已过期的 A2A 任务记录。
+
+    在生产部署中也可用定时任务（如 APScheduler / cron）周期性调用。
+    此处作为每次写入前的轻量清理，避免过期任务堆积。
+    """
+    now = datetime.now(timezone.utc)
+    expired = await db.execute(
+        select(A2ATask).where(A2ATask.expires_at < now)
+    )
+    for task in expired.scalars().all():
+        await db.delete(task)
+    await db.commit()
+
+
+def _task_to_dict(task: A2ATask) -> dict[str, Any]:
+    """将 A2ATask ORM 对象转为 API 返回字典。"""
+    return {
+        "task_id": task.task_id,
+        "state": task.state,
+        "result": task.result,
+        "error": task.error,
+    }
+
+
+# ════════════════════════════════════════════════════════════════
 # 端点
 # ════════════════════════════════════════════════════════════════
 
@@ -149,9 +181,19 @@ async def list_agents(
 ) -> dict[str, Any]:
     """列出已注册的 Agent（来自 Harness 注册表）。"""
     harness = get_harness()
+    # 注册表 value 是 Agent 类（type 对象），不可 JSON 序列化，
+    # 转换为可序列化的名称/描述结构
+    agents = [
+        {
+            "name": name,
+            "class_name": agent_cls.__name__,
+            "description": _AGENT_DESCRIPTIONS.get(agent_cls.__name__, ""),
+        }
+        for name, agent_cls in harness._agent_registry.items()
+    ]
     return {
-        "agents": harness._agent_registry,
-        "count": len(harness._agent_registry),
+        "agents": agents,
+        "count": len(agents),
     }
 
 
@@ -159,10 +201,12 @@ async def list_agents(
 async def send_task(
     request: A2ATaskRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> A2ATaskResponse:
     """下发任务到指定 Agent。
 
     通过 Harness 运行 Agent 并返回结果。受 settings.a2a_enabled feature flag 控制。
+    任务状态持久化到 a2a_tasks 表，默认 TTL 24 小时后自动过期。
     """
     if not settings.a2a_enabled:
         raise HTTPException(
@@ -171,13 +215,31 @@ async def send_task(
         )
 
     task_id = f"a2a_{uuid.uuid4().hex[:12]}"
-    _tasks[task_id] = {"task_id": task_id, "state": A2ATaskState.WORKING, "result": None}
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=A2A_TASK_DEFAULT_TTL_HOURS)
+
+    # 轻量过期清理
+    await _cleanup_expired_tasks(db)
+
+    # 创建数据库任务记录
+    db_task = A2ATask(
+        task_id=task_id,
+        agent_name=request.agent_name,
+        message=request.message,
+        project_id=request.project_id,
+        user_id=current_user.id,
+        state=A2ATaskState.WORKING.value,
+        expires_at=expires_at,
+    )
+    db.add(db_task)
+    await db.commit()
+    await db.refresh(db_task)
 
     harness = get_harness()
     agent_cls = harness._agent_registry.get(request.agent_name)
     if not agent_cls:
-        _tasks[task_id]["state"] = A2ATaskState.FAILED
-        _tasks[task_id]["error"] = f"Agent '{request.agent_name}' 未注册"
+        db_task.state = A2ATaskState.FAILED.value
+        db_task.error = f"Agent '{request.agent_name}' 未注册"
+        await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED,
             error=f"Agent '{request.agent_name}' 未注册",
@@ -196,8 +258,9 @@ async def send_task(
             trace=trace,
         )
         harness.finish_trace(trace, AgentRunStatus.SUCCESS)
-        _tasks[task_id]["state"] = A2ATaskState.COMPLETED
-        _tasks[task_id]["result"] = result.get("reply", "")
+        db_task.state = A2ATaskState.COMPLETED.value
+        db_task.result = result.get("reply", "")
+        await db.commit()
         return A2ATaskResponse(
             task_id=task_id,
             state=A2ATaskState.COMPLETED,
@@ -207,8 +270,9 @@ async def send_task(
         logger.error("a2a_task_failed: agent=%s error=%s", request.agent_name, e)
         if trace:
             harness.finish_trace(trace, AgentRunStatus.FAILED)
-        _tasks[task_id]["state"] = A2ATaskState.FAILED
-        _tasks[task_id]["error"] = str(e)
+        db_task.state = A2ATaskState.FAILED.value
+        db_task.error = str(e)
+        await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED, error=str(e),
         )
@@ -218,31 +282,39 @@ async def send_task(
 async def get_task(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """查询任务详情。"""
+    """查询任务详情（从数据库读取）。"""
     if not settings.a2a_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="A2A 协议未启用",
         )
-    task = _tasks.get(task_id)
+    result = await db.execute(
+        select(A2ATask).where(A2ATask.task_id == task_id)
+    )
+    task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    return task
+    return _task_to_dict(task)
 
 
 @router.get("/tasks/{task_id}/status")
 async def get_task_status(
     task_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    """查询任务状态。"""
+    """查询任务状态（从数据库读取）。"""
     if not settings.a2a_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="A2A 协议未启用",
         )
-    task = _tasks.get(task_id)
+    result = await db.execute(
+        select(A2ATask).where(A2ATask.task_id == task_id)
+    )
+    task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    return {"task_id": task_id, "state": task["state"]}
+    return {"task_id": task_id, "state": task.state}

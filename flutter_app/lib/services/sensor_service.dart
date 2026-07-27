@@ -8,10 +8,10 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import '../platform_info.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -238,9 +238,9 @@ class SensorService {
     _capabilityDetected = true;
 
     // 仅 Android/iOS 支持传感器/定位插件，其他平台（HarmonyOS/ohos/Web）直接降级
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (!AppPlatform.isAndroid && !AppPlatform.isIOS) {
       debugPrint('[SensorService] 当前平台不支持传感器/定位插件，全部降级 '
-          '(platform=${Platform.operatingSystem})');
+          '(platform=${AppPlatform.operatingSystem})');
       accelerometerAvailable = false;
       gyroscopeAvailable = false;
       magnetometerAvailable = false;

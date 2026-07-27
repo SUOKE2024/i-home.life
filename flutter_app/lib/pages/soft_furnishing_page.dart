@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 
 class SoftFurnishingPage extends StatefulWidget {
@@ -14,13 +15,6 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
   late TabController _tabController;
   final ApiClient _api = ApiClient();
 
-  // 暗色主题色
-  static const Color _bg = Color(0xFF08080F);
-  static const Color _cardBg = Color(0xFF12121D);
-  static const Color _brand = Color(0xFFC9973B);
-  static const Color _border = Color(0xFF1E1E32);
-  static const Color _textPrimary = Color(0xFFE8E6E1);
-  static const Color _textSecondary = Color(0xFF8A8894);
 
   List<dynamic> _schemes = [];
   List<dynamic> _items = [];
@@ -173,11 +167,11 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   InputDecoration _inputDecoration(String label) => InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: _textSecondary),
+        labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
         enabledBorder:
-            const OutlineInputBorder(borderSide: BorderSide(color: _border)),
+            OutlineInputBorder(borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
         focusedBorder:
-            const OutlineInputBorder(borderSide: BorderSide(color: _brand)),
+            const OutlineInputBorder(borderSide: BorderSide(color: SuokeDesignTokens.accent)),
       );
 
   void _showCreateSchemeDialog() {
@@ -188,23 +182,23 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardBg,
+          backgroundColor: SuokeDesignTokens.card(context),
           title:
-              const Text('创建软装方案', style: TextStyle(color: _textPrimary)),
+              Text('创建软装方案', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: roomNameCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('房间名称'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: style,
-                  dropdownColor: _cardBg,
-                  style: const TextStyle(color: _textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('风格'),
                   items: _styleOptions
                       .map((s) => DropdownMenuItem(value: s, child: Text(s)))
@@ -216,7 +210,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 TextField(
                   controller: budgetCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('预算总额'),
                 ),
               ],
@@ -228,7 +222,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 child: const Text('取消')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 if (roomNameCtrl.text.isEmpty) return;
                 Navigator.pop(ctx);
@@ -264,17 +258,17 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardBg,
+          backgroundColor: SuokeDesignTokens.card(context),
           title:
-              const Text('添加软装单品', style: TextStyle(color: _textPrimary)),
+              Text('添加软装单品', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   value: schemeId,
-                  dropdownColor: _cardBg,
-                  style: const TextStyle(color: _textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('所属方案'),
                   items: _schemes
                       .map((s) => DropdownMenuItem(
@@ -288,8 +282,8 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: itemType,
-                  dropdownColor: _cardBg,
-                  style: const TextStyle(color: _textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('品类'),
                   items: _itemTypeOptions
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -300,13 +294,13 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('名称'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: materialCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('材质'),
                 ),
                 const SizedBox(height: 12),
@@ -316,7 +310,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                       child: TextField(
                         controller: widthCtrl,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: _textPrimary),
+                        style: TextStyle(color: SuokeDesignTokens.text(context)),
                         decoration: _inputDecoration('宽(mm)'),
                       ),
                     ),
@@ -325,7 +319,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                       child: TextField(
                         controller: heightCtrl,
                         keyboardType: TextInputType.number,
-                        style: const TextStyle(color: _textPrimary),
+                        style: TextStyle(color: SuokeDesignTokens.text(context)),
                         decoration: _inputDecoration('高(mm)'),
                       ),
                     ),
@@ -335,7 +329,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 TextField(
                   controller: priceCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('价格'),
                 ),
               ],
@@ -347,7 +341,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 child: const Text('取消')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 if (nameCtrl.text.isEmpty) return;
                 Navigator.pop(ctx);
@@ -388,17 +382,17 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardBg,
+          backgroundColor: SuokeDesignTokens.card(context),
           title:
-              const Text('添加收纳系统', style: TextStyle(color: _textPrimary)),
+              Text('添加收纳系统', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   value: schemeId,
-                  dropdownColor: _cardBg,
-                  style: const TextStyle(color: _textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('所属方案'),
                   items: _schemes
                       .map((s) => DropdownMenuItem(
@@ -412,14 +406,14 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 const SizedBox(height: 12),
                 TextField(
                   controller: roomNameCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('位置/房间'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: storageType,
-                  dropdownColor: _cardBg,
-                  style: const TextStyle(color: _textPrimary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('类型'),
                   items: _storageTypeOptions
                       .map((t) => DropdownMenuItem(value: t, child: Text(t)))
@@ -431,7 +425,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 TextField(
                   controller: capacityCtrl,
                   keyboardType: TextInputType.number,
-                  style: const TextStyle(color: _textPrimary),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('容量(L)'),
                 ),
               ],
@@ -443,7 +437,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 child: const Text('取消')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 if (roomNameCtrl.text.isEmpty) return;
                 Navigator.pop(ctx);
@@ -465,16 +459,16 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bg,
-        title: const Text('软装搭配', style: TextStyle(color: _textPrimary)),
-        iconTheme: const IconThemeData(color: _textPrimary),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: Text('软装搭配', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        iconTheme: IconThemeData(color: SuokeDesignTokens.text(context)),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brand,
-          unselectedLabelColor: _textSecondary,
-          indicatorColor: _brand,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '软装方案'),
             Tab(text: '软装单品'),
@@ -495,18 +489,18 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildSchemesTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _brand));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: _textSecondary)),
+            Text(_error!, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: _loadAll,
               child: const Text('重试'),
             ),
@@ -515,7 +509,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadAll,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -526,7 +520,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               padding: const EdgeInsets.only(top: 16),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: _brand, foregroundColor: _bg),
+                    backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
                 onPressed: _showCreateSchemeDialog,
                 icon: const Icon(Icons.add),
                 label: const Text('创建软装方案'),
@@ -550,8 +544,8 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
-        border: Border.all(color: _border),
+        color: SuokeDesignTokens.card(context),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -564,14 +558,14 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 child: Text(
                   scheme['room_name'] ?? '',
                   style: const TextStyle(
-                      color: _textPrimary,
+                      color: SuokeDesignTokens.text(context),
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline,
-                    color: _textSecondary, size: 20),
+                    color: SuokeDesignTokens.textSub(context), size: 20),
                 onPressed: () =>
                     _deleteScheme(scheme['id'] as String),
               ),
@@ -593,20 +587,20 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildItemsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _brand));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.chair, size: 64, color: _textSecondary),
+            Icon(Icons.chair, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无单品', style: TextStyle(color: _textSecondary)),
+            Text('暂无单品', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: _showAddItemDialog,
               icon: const Icon(Icons.add),
               label: const Text('添加单品'),
@@ -616,7 +610,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadAll,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -627,7 +621,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               padding: const EdgeInsets.only(top: 16),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: _brand, foregroundColor: _bg),
+                    backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
                 onPressed: _showAddItemDialog,
                 icon: const Icon(Icons.add),
                 label: const Text('添加单品'),
@@ -649,8 +643,8 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
-        border: Border.all(color: _border),
+        color: SuokeDesignTokens.card(context),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -659,7 +653,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
           Text(
             item['name'] ?? '',
             style: const TextStyle(
-                color: _textPrimary,
+                color: SuokeDesignTokens.text(context),
                 fontSize: 16,
                 fontWeight: FontWeight.bold),
           ),
@@ -683,20 +677,20 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildStoragesTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _brand));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_storages.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.inventory_2, size: 64, color: _textSecondary),
+            Icon(Icons.inventory_2, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无收纳', style: TextStyle(color: _textSecondary)),
+            Text('暂无收纳', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand, foregroundColor: _bg),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: _showAddStorageDialog,
               icon: const Icon(Icons.add),
               label: const Text('添加收纳'),
@@ -706,7 +700,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       );
     }
     return RefreshIndicator(
-      color: _brand,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadAll,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -717,7 +711,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               padding: const EdgeInsets.only(top: 16),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: _brand, foregroundColor: _bg),
+                    backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
                 onPressed: _showAddStorageDialog,
                 icon: const Icon(Icons.add),
                 label: const Text('添加收纳'),
@@ -738,8 +732,8 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _cardBg,
-        border: Border.all(color: _border),
+        color: SuokeDesignTokens.card(context),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -748,7 +742,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
           Text(
             storage['storage_type'] ?? '',
             style: const TextStyle(
-                color: _textPrimary,
+                color: SuokeDesignTokens.text(context),
                 fontSize: 16,
                 fontWeight: FontWeight.bold),
           ),
@@ -770,11 +764,11 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
           width: 64,
           child: Text(label,
               style:
-                  const TextStyle(color: _textSecondary, fontSize: 13)),
+                  TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         ),
         Expanded(
             child: Text(value,
-                style: const TextStyle(color: _textPrimary, fontSize: 13))),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13))),
       ],
     );
   }

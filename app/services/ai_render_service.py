@@ -388,20 +388,67 @@ class AIRenderService:
         return f"https://placehold.co/800x600/png?text=AI+Render+{render_type}+{style}"
 
     @staticmethod
-    def _detect_room_type(photo_data: bytes) -> str:
+    def _detect_room_type(photo_data: bytes, room_name: str | None = None) -> str:
         """v1.2.0 P1 修复：诚实化房间类型检测
 
-        原实现用 len(photo_data) % len(room_types) 伪随机，违反专业性。
-        现诚实返回 "unknown"（视觉模型未启用）。
-        spatial_perception_enabled=True 时应接入真实视觉模型（CLIP/BLIP），
-        当前为占位，返回 "visual-pending" 标识视觉能力待接入。
+        优先级：
+        1. 如果调用方提供了 room_name（如 API 请求中的房间名），直接使用
+        2. 尝试从房间名称中正则推断（含中文房间名映射）
+        3. spatial_perception_enabled=True 时标识视觉能力待接入
+        4. 诚实降级返回 "unknown"
+
+        Args:
+            photo_data: 照片二进制数据（用于未来视觉模型推断）
+            room_name: 可选的房间名称（来自 API 请求 / 户型数据）
         """
+        # 优先级 1：直接使用提供的房间名
+        if room_name:
+            logger.info(
+                "room_type_from_name: room_name=%s", room_name,
+                extra={"source": "api_request"},
+            )
+            return room_name
+
+        # 优先级 2：正则回退 — 从可能的上下文数据中推断
+        # photo_data 中可能包含文件名/元数据，尝试从字节中解析
+        try:
+            text_hint = photo_data[:512].decode("utf-8", errors="ignore")
+        except Exception:
+            text_hint = ""
+
+        import re
+        room_patterns = {
+            "living_room": r"(客厅|起居室|living\s*room)",
+            "bedroom":     r"(卧室|主卧|次卧|bedroom)",
+            "kitchen":     r"(厨房|kitchen)",
+            "bathroom":    r"(卫生间|浴室|厕所|bathroom)",
+            "study":       r"(书房|study)",
+            "balcony":     r"(阳台|balcony)",
+            "dining_room": r"(餐厅|dining\s*room)",
+            "hallway":     r"(走廊|玄关|过道|hallway)",
+        }
+        for room_type, pattern in room_patterns.items():
+            if re.search(pattern, text_hint, re.IGNORECASE):
+                logger.info(
+                    "room_type_from_regex: detected=%s", room_type,
+                    extra={"source": "regex_fallback"},
+                )
+                return room_type
+
+        # 优先级 3：视觉模型开关已开但模型未接入
         settings = get_settings()
         if settings.spatial_perception_enabled:
-            # TODO: 接入 CLIP/BLIP 视觉模型，从 photo_data 推断房间类型
-            # 当前返回标识，表示视觉能力开关已开但模型未接入
+            logger.info(
+                "room_type_visual_pending: spatial_perception enabled but model not wired",
+                extra={"source": "visual_pending"},
+            )
             return "visual-pending"
-        # 诚实降级：未启用视觉模型时返回 unknown，不再伪随机
+
+        # 优先级 4：诚实降级
+        logger.info(
+            "room_type_unknown: no name, no regex match, spatial perception disabled",
+            extra={"source": "unknown_fallback"},
+        )
         return "unknown"
 
     @staticmethod

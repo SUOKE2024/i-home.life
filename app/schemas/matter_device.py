@@ -115,7 +115,7 @@ class MatterPlacementPlanResponse(BaseModel):
     protocol: str
     rooms: list[dict[str, Any]] = Field(default_factory=list)
     total_device_count: int = 0
-    estimated_power_w: int = 0
+    estimated_power_w: float = 0
     commissioning_guide: str = ""
     commissioned_devices: list[dict[str, Any]] = Field(
         default_factory=list, description="已配对的 Matter 设备列表"

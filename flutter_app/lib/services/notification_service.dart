@@ -7,9 +7,8 @@
 /// - 处理接收到的推送消息并路由到对应页面
 library;
 
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
+import '../platform_info.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -50,9 +49,9 @@ class NotificationService {
     if (_initialized) return;
 
     // 平台检查：仅 Android/iOS 启用原生通知，HarmonyOS/ohos 等未知平台跳过
-    if (!Platform.isAndroid && !Platform.isIOS) {
+    if (!AppPlatform.isAndroid && !AppPlatform.isIOS) {
       debugPrint('[NotificationService] 当前平台不支持原生通知插件，跳过初始化 '
-          '(platform=${Platform.operatingSystem})');
+          '(platform=${AppPlatform.operatingSystem})');
       _nativeSupported = false;
       // 仍然标记为已初始化，避免重复尝试
       _initialized = true;
@@ -110,7 +109,7 @@ class NotificationService {
     debugPrint('[NotificationService] 插件初始化结果: $ok');
 
     // 创建默认 channel（Android 8.0+ 必需）
-    if (Platform.isAndroid) {
+    if (AppPlatform.isAndroid) {
       await _localNotifications
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
@@ -137,7 +136,7 @@ class NotificationService {
   Future<bool> _requestPermission() async {
     bool granted = false;
 
-    if (Platform.isAndroid) {
+    if (AppPlatform.isAndroid) {
       // Android 13+ 需要运行时请求 POST_NOTIFICATIONS
       try {
         final status = await Permission.notification.status;
@@ -152,7 +151,7 @@ class NotificationService {
         // 低版本 Android 不需要运行时权限，默认允许
         granted = true;
       }
-    } else if (Platform.isIOS) {
+    } else if (AppPlatform.isIOS) {
       try {
         final result = await _localNotifications
             .resolvePlatformSpecificImplementation<
@@ -178,7 +177,7 @@ class NotificationService {
   /// TODO: 实际环境通过平台通道获取 FCM/HMS/PushKit token
   /// 当前使用平台标识作为占位 token，确保后端可记录设备
   Future<void> _getDeviceToken() async {
-    final platform = Platform.isIOS ? 'ios' : 'android';
+    final platform = AppPlatform.isIOS ? 'ios' : 'android';
     _deviceToken = '${platform}_device_${DateTime.now().millisecondsSinceEpoch}';
     debugPrint('[NotificationService] 设备 Token: $_deviceToken');
   }
@@ -194,7 +193,7 @@ class NotificationService {
 
     try {
       final api = ApiClient();
-      final platform = Platform.isIOS ? 'ios' : 'android';
+      final platform = AppPlatform.isIOS ? 'ios' : 'android';
       final result = await api.post('/notifications/register-device', {
         'user_id': userId,
         'device_token': _deviceToken,

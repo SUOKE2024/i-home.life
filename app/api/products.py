@@ -100,7 +100,10 @@ async def create_product(
             await db.commit()
             await db.refresh(product)
         except Exception:
-            pass  # AI 生成失败不影响产品创建
+            import structlog
+            structlog.get_logger("product").warning(
+                "ai_generation_failed", product_id=product.id, exc_info=True
+            )
         finally:
             await p_agent.close()
 

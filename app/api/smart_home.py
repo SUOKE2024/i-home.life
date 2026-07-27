@@ -10,8 +10,10 @@ from app.models.user import User
 from app.auth import get_current_user
 from app.schemas.smart_home import (
     SmartHomeSchemeCreate,
+    SmartHomeSchemeUpdate,
     SmartHomeSchemeResponse,
     SmartDeviceCreate,
+    SmartDeviceUpdate,
     SmartDeviceResponse,
     AutoRecommendResult,
     WiringPlanResult,
@@ -90,6 +92,26 @@ async def delete_scheme(
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     await ws_manager.broadcast_to_project(project_id, "smart.scheme.deleted", {"id": scheme_id})
+
+
+@router.patch("/schemes/{scheme_id}", response_model=SmartHomeSchemeResponse)
+async def update_scheme(
+    scheme_id: str,
+    data: SmartHomeSchemeUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新智能家居方案"""
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    updated = await svc.update_scheme(db, scheme_id, data.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    resp = SmartHomeSchemeResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(scheme.project_id, "smart.scheme.updated", resp.model_dump())
+    return resp
 
 
 # ── 自动推荐设备 ──
@@ -225,6 +247,32 @@ async def delete_device(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
 
 
+@router.patch("/devices/{device_id}", response_model=SmartDeviceResponse)
+async def update_device(
+    device_id: str,
+    data: SmartDeviceUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新智能设备"""
+    from sqlalchemy import select
+    from app.models.smart_home import SmartDevice
+    result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
+    scheme = await svc.get_scheme(db, device.scheme_id)
+    if scheme:
+        await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    updated = await svc.update_device(db, device_id, data.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
+    resp = SmartDeviceResponse.model_validate(updated)
+    if scheme:
+        await ws_manager.broadcast_to_project(scheme.project_id, "smart.device.updated", resp.model_dump())
+    return resp
+
+
 # ── Matter 设备点位规划（v1.2.0）──
 
 
@@ -306,11 +354,14 @@ async def generate_matter_placement_plan(
 
     from sqlalchemy import select as sql_select
     from app.models.matter_device import MatterDevice
+    from app.models.project import Floor, Room
 
     result = await db.execute(sql_select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+
+    area = project.total_area or 100
 
     # ── 查询已配对的 Matter 设备 ──
     matter_result = await db.execute(
@@ -335,54 +386,114 @@ async def generate_matter_placement_plan(
         for d in commissioned_devices
     ]
 
-    # ── 基于面积计算推荐设备数量 ──
-    area = project.total_area or 100
+    # 查询项目实际楼层/房间数据
+    floors_result = await db.execute(
+        sql_select(Floor).where(Floor.project_id == project_id).order_by(Floor.floor_number)
+    )
+    floors = floors_result.scalars().all()
+
+    # ── 动态生成房间设备点位 vs 硬编码降级 ──
+    if floors:
+        project_rooms = []
+        for floor in floors:
+            rooms_result = await db.execute(
+                sql_select(Room).where(Room.floor_id == floor.id)
+            )
+            rooms = rooms_result.scalars().all()
+            for room in rooms:
+                project_rooms.append(room)
+    else:
+        project_rooms = []
+
+    # Device type → default power mapping (shared)
+    DEVICE_POWER = {
+        "light_bulb": 10, "light_strip": 15, "light_switch": 0.5,
+        "door_lock": 1, "camera": 5, "smoke_detector": 0.5,
+        "motion_sensor": 0.2, "thermostat": 2, "temp_sensor": 0.1,
+        "air_quality": 0.3, "smart_plug": 0.5, "robot_vacuum": 50,
+        "curtain_motor": 10, "blind_motor": 8,
+    }
+
+    # Room type → default device set
+    ROOM_DEVICE_DEFAULTS = {
+        "living_room": [
+            {"type": "light_bulb", "count": 4, "position": "天花板中央 + 电视背景墙"},
+            {"type": "light_strip", "count": 1, "position": "电视背景墙"},
+            {"type": "smart_plug", "count": 2, "position": "电视柜后 + 沙发旁"},
+            {"type": "curtain_motor", "count": 1, "position": "阳台推拉门"},
+            {"type": "temp_sensor", "count": 1, "position": "空调附近"},
+        ],
+        "bedroom": [
+            {"type": "light_bulb", "count": 2, "position": "天花板 + 床头"},
+            {"type": "curtain_motor", "count": 1, "position": "窗户"},
+            {"type": "temp_sensor", "count": 1, "position": "床头柜"},
+        ],
+        "kitchen": [
+            {"type": "light_bulb", "count": 2, "position": "天花板 + 操作台上方"},
+            {"type": "smoke_detector", "count": 1, "position": "天花板中央"},
+            {"type": "smart_plug", "count": 1, "position": "操作台"},
+        ],
+        "bathroom": [
+            {"type": "light_bulb", "count": 1, "position": "天花板"},
+        ],
+        "entrance": [
+            {"type": "door_lock", "count": 1, "position": "入户门"},
+            {"type": "motion_sensor", "count": 1, "position": "天花板"},
+        ],
+        "study": [
+            {"type": "light_bulb", "count": 2, "position": "天花板 + 书桌上方"},
+            {"type": "smart_plug", "count": 1, "position": "书桌旁"},
+        ],
+        "balcony": [
+            {"type": "light_bulb", "count": 1, "position": "天花板"},
+        ],
+    }
+
+    # Predefined fallback rooms (when no project rooms exist)
+    FALLBACK_ROOMS = [
+        {"name": "客厅", "type": "living_room"},
+        {"name": "主卧", "type": "bedroom"},
+        {"name": "厨房", "type": "kitchen"},
+        {"name": "卫生间", "type": "bathroom"},
+        {"name": "玄关", "type": "entrance"},
+    ]
+
+    rooms_data = []
+    if project_rooms:
+        for room in project_rooms:
+            defaults = ROOM_DEVICE_DEFAULTS.get(
+                "bathroom" if room.room_type in ("bathroom", "toilet") else room.room_type,
+                ROOM_DEVICE_DEFAULTS.get("bedroom", []),
+            )
+            # Scale device count by room area
+            scale = max(0.5, min(3.0, (room.area or 15) / 15))
+            scaled_devices = []
+            for dev in defaults:
+                scaled = dict(dev)
+                scaled["count"] = max(1, round(dev["count"] * scale))
+                scaled_devices.append(scaled)
+            rooms_data.append({
+                "name": room.name or f"房间{room.room_type}",
+                "type": room.room_type,
+                "area": room.area,
+                "devices": scaled_devices,
+            })
+    else:
+        for fb in FALLBACK_ROOMS:
+            defaults = ROOM_DEVICE_DEFAULTS.get(fb["type"], [])
+            rooms_data.append({
+                "name": fb["name"],
+                "type": fb["type"],
+                "area": None,
+                "devices": list(defaults),
+            })
+
     placement_plan = {
         "project_id": project_id,
         "project_name": project.name,
         "estimated_area": area,
         "protocol": "Matter 2.0",
-        "rooms": [
-            {
-                "name": "客厅",
-                "devices": [
-                    {"type": "light_bulb", "count": 4, "position": "天花板中央 + 电视背景墙"},
-                    {"type": "light_strip", "count": 1, "position": "电视背景墙"},
-                    {"type": "smart_plug", "count": 2, "position": "电视柜后 + 沙发旁"},
-                    {"type": "curtain_motor", "count": 1, "position": "阳台推拉门"},
-                    {"type": "temp_sensor", "count": 1, "position": "空调附近"},
-                ],
-            },
-            {
-                "name": "主卧",
-                "devices": [
-                    {"type": "light_bulb", "count": 2, "position": "天花板 + 床头"},
-                    {"type": "curtain_motor", "count": 1, "position": "窗户"},
-                    {"type": "temp_sensor", "count": 1, "position": "床头柜"},
-                ],
-            },
-            {
-                "name": "厨房",
-                "devices": [
-                    {"type": "light_bulb", "count": 2, "position": "天花板 + 操作台上方"},
-                    {"type": "smoke_detector", "count": 1, "position": "天花板中央"},
-                    {"type": "smart_plug", "count": 1, "position": "操作台"},
-                ],
-            },
-            {
-                "name": "卫生间",
-                "devices": [
-                    {"type": "light_bulb", "count": 1, "position": "天花板"},
-                ],
-            },
-            {
-                "name": "玄关",
-                "devices": [
-                    {"type": "door_lock", "count": 1, "position": "入户门"},
-                    {"type": "motion_sensor", "count": 1, "position": "天花板"},
-                ],
-            },
-        ],
+        "rooms": rooms_data,
         "total_device_count": 0,
         "estimated_power_w": 0,
         "commissioning_guide": (
@@ -401,26 +512,7 @@ async def generate_matter_placement_plan(
     for room in placement_plan["rooms"]:
         for dev in room["devices"]:
             total_devices += dev["count"]
-            device_type = next(
-                (t for cat in [
-                    {"id": "light_bulb", "power_w": 10},
-                    {"id": "light_strip", "power_w": 15},
-                    {"id": "light_switch", "power_w": 0.5},
-                    {"id": "door_lock", "power_w": 1},
-                    {"id": "camera", "power_w": 5},
-                    {"id": "smoke_detector", "power_w": 0.5},
-                    {"id": "motion_sensor", "power_w": 0.2},
-                    {"id": "thermostat", "power_w": 2},
-                    {"id": "temp_sensor", "power_w": 0.1},
-                    {"id": "air_quality", "power_w": 0.3},
-                    {"id": "smart_plug", "power_w": 0.5},
-                    {"id": "robot_vacuum", "power_w": 50},
-                    {"id": "curtain_motor", "power_w": 10},
-                    {"id": "blind_motor", "power_w": 8},
-                ] for t in [cat] if t["id"] == dev["type"]),
-                {"power_w": 1},
-            )
-            total_power += dev["count"] * device_type["power_w"]
+            total_power += dev["count"] * DEVICE_POWER.get(dev["type"], 1)
 
     placement_plan["total_device_count"] = total_devices
     placement_plan["estimated_power_w"] = total_power

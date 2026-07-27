@@ -26,6 +26,7 @@ from app.models import ar_scan, lighting, kitchen, bathroom, custom_furniture, s
 from app.models import vr_panorama, ai_image, kitchen_bath_mep, hard_decoration, door_window_waterproof  # noqa: F401
 from app.models import furniture_catalog, smart_home, scene_automation, procurement_enhanced  # noqa: F401
 from app.models import appliance, structural  # noqa: F401
+from app.models import a2a_task  # noqa: F401 — v1.2.4 A2A 任务持久化
 
 config = context.config
 

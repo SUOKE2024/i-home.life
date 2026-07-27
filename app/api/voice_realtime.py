@@ -29,6 +29,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.services.voice_realtime_service import voice_session_manager, VoiceRealtimeSession
 from app.services.agent_tool_registry import tool_registry
+from app.services.reply_templates import ReplyTemplates
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -319,47 +320,17 @@ async def _route_voice_to_agent(  # noqa: C901
 
     # ── ar_measurement ──
     if intent in ("ar_measurement",):
-        return (
-            "AR 空间测量功能需要在移动端 App 上使用。请打开索克家居 App，"
-            "进入项目后点击「AR 扫描」即可开始测量。支持 RoomPlan 全屋扫描、"
-            "激光测距仪辅助校准和墙面特征自动识别。"
-        )
+        return ReplyTemplates.module_guide("ar_measurement")
 
     # ── 新增业务模块（引导回复，后续可接入实际 Service） ──
-    if intent in ("floorplans",):
-        return "户型管理功能可以帮助您查看、保存和修改户型方案。您可以在项目中查看已保存的户型平面图。"
-    if intent in ("structural",):
-        return "土建结构模块支持梁、柱、墙、板等结构元素的设计与分析。请告诉我具体的结构设计需求。"
-    if intent in ("lighting",):
-        return "灯光设计模块支持照明方案规划、照度计算和色温推荐。请告诉我您想为哪个房间设计灯光方案。"
-    if intent in ("smart_home",):
-        return "智能家居模块支持设备配置、场景联动和 Matter/Zigbee 协议。请告诉我您想配置哪种智能设备。"
-    if intent in ("scene_automation",):
-        return "场景自动化支持创建和编辑智能场景联动规则，如离家模式、回家模式、睡眠模式等。"
-    if intent in ("custom_furniture",):
-        return "定制家具模块支持参数化设计柜体（衣柜、橱柜、书柜等），自动计算板材用量和价格。"
-    if intent in ("tasks",):
-        return "任务协调模块支持施工任务的分派、跟踪和管理。请告诉我您想创建或查看什么任务。"
-    if intent in ("change_orders",):
-        return "变更管理模块支持工程变更的申请、审批和跟踪。请告诉我您想做什么样的变更。"
-    if intent in ("crews",):
-        return "工程队管理模块支持班组匹配和施工队调度。请告诉我您的项目需求，我来帮您匹配合适的施工队。"
-    if intent in ("vr_panorama",):
-        return "VR 全景查看器支持 360° 沉浸式漫游和场景切换。请打开 VR 全景页面开始体验。"
-    if intent in ("ai_render",):
-        return "AI 渲染模块支持 2D/3D 效果图生成和风格迁移。请告诉我您想渲染什么内容。"
-    if intent in ("sketch_to_3d",):
-        return "草图转3D 功能可以将手绘草图智能转换为 3D 模型。请上传您的草图，我来帮您转换。"
-    if intent in ("soft_furnishing",):
-        return "软装设计模块支持窗帘、布艺、地毯、饰品等软装配饰的选择与搭配。"
-    if intent in ("hard_decoration",):
-        return "硬装设计模块支持吊顶、墙面装饰、地面铺装等硬装方案设计。"
-    if intent in ("takeoff",):
-        return "工程量计算模块支持材料清单生成和用量估算。请告诉我您需要计算哪些项目的工程量。"
-    if intent in ("points",):
-        return "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
-    if intent in ("cad_import",):
-        return "CAD 导入模块支持 DXF/DWG 格式的户型图纸导入和墙体解析。"
+    if intent in (
+        "floorplans", "structural", "lighting", "smart_home",
+        "scene_automation", "custom_furniture", "tasks", "change_orders",
+        "crews", "vr_panorama", "ai_render", "sketch_to_3d",
+        "soft_furnishing", "hard_decoration", "takeoff", "points",
+        "cad_import",
+    ):
+        return ReplyTemplates.module_guide(intent)
 
     # ── general / 其他 ──
     return _get_enhanced_reply(text, intent, None)
@@ -473,24 +444,11 @@ def _format_tool_results(intent: str, tool_calls: list[dict]) -> str:
 def _get_enhanced_reply(text: str, intent: str, emotion: dict | None) -> str:
     """生成增强版回复（含情绪感知）"""
     emotion_label = emotion.get("label", "neutral") if emotion else "neutral"
-
-    replies = {
-        "design": "收到设计需求，正在为您分析户型并生成布局方案...",
-        "budget": "正在为您进行预算分析，请稍候...",
-        "procurement": "正在搜索匹配的物料和供应商...",
-        "construction": "正在查询施工进度和质检状态...",
-        "qa_inspector": "正在执行质量检测，请稍候...",
-        "concierge": "您好，我是索克家居 AI 客服，请问有什么可以帮您？",
-        "general": "收到您的消息，我是索克家居 AI 助手，可以帮您进行设计、预算、采购、施工管理。",
-    }
-
-    base_reply = replies.get(intent, replies["general"])
-
+    base_reply = ReplyTemplates.enhanced_reply(intent)
     # 根据情绪调整回复语气
-    if emotion_label in ("anxious", "angry", "sad", "tired"):
-        prefix = "理解您的心情，我马上帮您处理。"
+    prefix = ReplyTemplates.emotion_prefix(emotion_label)
+    if prefix:
         return f"{prefix}\n\n{base_reply}"
-
     return base_reply
 
 
@@ -614,6 +572,66 @@ async def _qwen_events_to_client(  # noqa: C901
 
 # ── Mock 模式处理 ──
 
+async def _try_voice_orchestration(
+    websocket: WebSocket,
+    session: VoiceRealtimeSession,
+    text: str,
+) -> bool:
+    """尝试语音智能体编排（任务控制 / 多意图并行）。
+
+    命中编排语义时直接处理并回复，返回 True；返回 False 则走常规单意图路径。
+    仅在 settings.voice_agent_orchestration_enabled 开启时生效。
+    借鉴 GPT Voice / Claude Voice 的语音调度范式：长任务后台跑，语音随时查/停。
+    """
+    if not settings.voice_agent_orchestration_enabled:
+        return False
+
+    # 延迟导入避免模块级循环依赖（voice_orchestrate 依赖本模块的 _route_voice_to_agent）
+    from app.api.voice_orchestrate import (
+        _format_launch_reply,
+        _handle_task_control,
+        _launch_segment_tasks,
+    )
+    from app.services.voice_orchestrator import parse_task_command, split_multi_intent
+
+    # 1. 任务控制指令（"任务进度" / "取消任务" / "任务列表"）
+    control = parse_task_command(text)
+    if control:
+        result = await _handle_task_control(
+            control["action"], control["task_ref"], session.user_id, text,
+        )
+        session.add_to_context("user", text)
+        session.add_to_context("assistant", result.reply, "task_control")
+        await websocket.send_json({
+            "type": "reply",
+            "text": result.reply,
+            "intent": "task_control",
+            "action": result.action,
+            "tasks": result.tasks,
+        })
+        return True
+
+    # 2. 多意图并行编排（单意图走常规路径，不重复处理）
+    segments = split_multi_intent(text)
+    if len(segments) < 2:
+        return False
+    launched, inline_replies = await _launch_segment_tasks(
+        session.user_id, "user", segments,
+    )
+    if not launched:
+        return False
+    reply = _format_launch_reply(launched, inline_replies)
+    session.add_to_context("user", text)
+    session.add_to_context("assistant", reply, "orchestrate")
+    await websocket.send_json({
+        "type": "reply",
+        "text": reply,
+        "intent": "orchestrate",
+        "launched": [t.model_dump() for t in launched],
+    })
+    return True
+
+
 async def _handle_mock_audio(
     websocket: WebSocket,
     session: VoiceRealtimeSession,
@@ -636,6 +654,9 @@ async def _handle_mock_audio(
 
     text = transcript["text"]
     if text and transcript.get("is_final"):
+        # 语音编排：任务控制 / 多意图并行（命中则直接回复）
+        if await _try_voice_orchestration(websocket, session, text):
+            return
         session.add_to_context("user", text)
         intent_result = OrchestratorAgent.fallback_classify(text)
         intent_name = intent_result.get("intent", "general")
@@ -826,6 +847,9 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
                 if is_realtime:
                     await session.send_text_input(text)
                 else:
+                    # 语音编排：任务控制 / 多意图并行（命中则直接回复）
+                    if await _try_voice_orchestration(websocket, session, text):
+                        continue
                     # Mock 模式文本处理
                     session.add_to_context("user", text)
                     intent = OrchestratorAgent.fallback_classify(text)
@@ -857,7 +881,7 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
         try:
             await websocket.send_json({"type": "error", "message": str(e)})
         except Exception:
-            pass
+            logger.warning("voice_ws_error_send_failed", user_id=user_id, exc_info=True)
     finally:
         # 取消后台任务
         if qwen_task and not qwen_task.done():

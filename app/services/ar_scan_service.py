@@ -868,7 +868,7 @@ def _rule_based_features(session: ScanSession, room_count: int) -> list[dict]:
             features.append({
                 "room_name": room_name,
                 "wall_id": f"wall_{(i*4)+3}",
-                "feature_type": "outlet",
+                "feature_type": "socket",
                 "position_x": round(0.8 + j * 0.6, 2),
                 "position_y": round(0.3 + j * 0.1, 2),
                 "width": 0.12,
@@ -1125,7 +1125,9 @@ async def process_scan(
 
     # 2. 解析 USDZ/GLB 模型
     parsed = await parse_usdz_model(model_url or "", model_format)
-    parsed = populate_rooms_from_parse(parsed, session.wall_height)
+    # 仅当真实解析未产出房间数据时才降级到 mock
+    if not parsed.get("rooms"):
+        parsed = populate_rooms_from_parse(parsed, session.wall_height)
     session.room_count = len(parsed["rooms"])
     session.total_area = parsed["total_area"]
     if not scan_points_count:

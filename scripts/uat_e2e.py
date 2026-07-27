@@ -2,8 +2,14 @@
 """UAT 全链路端到端验证 — 模拟用户从注册到交付的完整旅程"""
 import asyncio
 import os
+import sys
 import uuid
 import json
+
+# 确保项目根目录在 Python path 中（支持从任意目录运行）
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 # 使用测试数据库避免污染开发数据
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_uat_{os.getpid()}.db"
@@ -345,5 +351,7 @@ async def cleanup():
 
 if __name__ == "__main__":
     asyncio.run(setup_db())
-    asyncio.run(uat())
-    asyncio.run(cleanup())
+    try:
+        asyncio.run(uat())
+    finally:
+        asyncio.run(cleanup())

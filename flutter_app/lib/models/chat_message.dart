@@ -209,6 +209,9 @@ class ChatMessage {
   /// Agent 自主权模式，用于控制 Agent 行为自由度
   final AutonomyMode? autonomy;
 
+  /// v1.2.3: A2UI 卡片列表 — Agent 输出转换后的 A2UI 卡片供渲染
+  final List<Map<String, dynamic>>? a2uiCards;
+
   const ChatMessage({
     this.id,
     required this.type,
@@ -222,6 +225,7 @@ class ChatMessage {
     this.thinkingSteps,
     this.confidence,
     this.autonomy,
+    this.a2uiCards,
   });
 
   /// 从 API JSON 创建消息实例
@@ -242,6 +246,11 @@ class ChatMessage {
       collaboration: json['collaboration'] is List
           ? List<Map<String, dynamic>>.from(
               (json['collaboration'] as List)
+                  .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{}))
+          : null,
+      a2uiCards: json['a2ui_cards'] is List
+          ? List<Map<String, dynamic>>.from(
+              (json['a2ui_cards'] as List)
                   .map((e) => e is Map<String, dynamic> ? e : <String, dynamic>{}))
           : null,
     );
@@ -316,6 +325,7 @@ class ChatMessage {
     List<String>? thinkingSteps,
     double? confidence,
     AutonomyMode? autonomy,
+    List<Map<String, dynamic>>? a2uiCards,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -330,6 +340,7 @@ class ChatMessage {
       thinkingSteps: thinkingSteps ?? this.thinkingSteps,
       confidence: confidence ?? this.confidence,
       autonomy: autonomy ?? this.autonomy,
+      a2uiCards: a2uiCards ?? this.a2uiCards,
     );
   }
 

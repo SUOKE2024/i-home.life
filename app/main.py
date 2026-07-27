@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from structlog.contextvars import bind_contextvars, clear_contextvars
@@ -19,6 +20,7 @@ from app.logging_config import configure_logging
 from app.observability.tracing import instrument_fastapi, setup_tracing
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.cache_control import cache_control_middleware
+from app.services.change_order_service import ChangeOrderStateError
 from app.middleware.slow_query import register_slow_query_logging, set_current_endpoint
 from app.metrics import (
     http_request_duration_seconds,
@@ -30,7 +32,7 @@ from app.metrics import (
 )
 from app.api import (
     auth, projects, materials, budgets, procurement, construction, settlements,
-    floorplans, voice, voice_realtime, files, agents, surveys, location,
+    floorplans, voice, voice_realtime, voice_orchestrate, files, agents, surveys, location,
     change_orders, takeoff, mep, payments, chat, crews, workers, lighting,
     kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
     kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
@@ -53,6 +55,7 @@ from app.api import eval as eval_api
 from app.api import a2a as a2a_api
 from app.api import energy
 from app.api import health as health_api
+from app.api import sensor_snapshot
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -143,10 +146,16 @@ async def lifespan(app: FastAPI):
     # 启动 Prometheus 指标采样后台任务（DB 连接池 + Redis 状态）
     start_metrics_samplers()
     # 生产环境检查: WebAuthn 挑战存储需要 Redis 实现多 worker 共享
-    if not settings.redis_url and not settings.debug:
+    _redis_valid = False
+    if settings.redis_url:
+        import re
+        _redis_valid = bool(re.match(r'^rediss?://', settings.redis_url.strip()))
+    if not _redis_valid and not settings.debug:
         logger.warning(
-            "WebAuthn 挑战存储: 未配置 Redis (redis_url)，"
-            "多 worker 部署下挑战将不共享，可能导致注册/登录失败。"
+            "WebAuthn 挑战存储: 未配置有效的 Redis URL (redis_url)，"
+            "多 worker 部署下挑战将不共享，注册/登录可能随机失败。"
+            "请设置 REDIS_URL=redis://host:6379/0（TLS 用 rediss://）。"
+            "单 worker 部署可忽略此警告。"
         )
     # 事件总线编排规则注册（v1.2.2）— 跨模块松耦合通信
     if settings.integration_event_bus_enabled:
@@ -158,8 +167,19 @@ async def lifespan(app: FastAPI):
     # 生成 server span，DB 查询生成 client span，trace_id/span_id 注入结构化日志。
     _tracing_shutdown = setup_tracing(settings)
     instrument_fastapi(app)
+    # v1.2.3：启动施工健康主动巡检器
+    if settings.health_os_enabled:
+        from app.services.health_monitor import health_monitor
+        from app.database import async_session
+        health_monitor._db_factory = async_session
+        interval = settings.health_os_check_interval_seconds
+        await health_monitor.start(interval_seconds=interval)
     yield
     # 应用关闭时清理
+    # v1.2.3：停止施工健康巡检
+    if settings.health_os_enabled:
+        from app.services.health_monitor import health_monitor
+        await health_monitor.stop()
     if _tracing_shutdown is not None:
         _tracing_shutdown()
     await stop_metrics_samplers()
@@ -174,7 +194,8 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
     # 将 docs/openapi 路径置于 /api/ 前缀下
-    docs_url="/api/docs",
+    # docs_url 设为 None，手动注册以使用本地 Swagger CSS（避免 jsdelivr CDN 不可达）
+    docs_url=None,
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
@@ -333,6 +354,7 @@ api_router.include_router(settlements.router)   # /api/settlements/*
 api_router.include_router(floorplans.router)    # /api/floorplans/*
 api_router.include_router(voice.router)         # /api/voice/*
 api_router.include_router(voice_realtime.router)  # /api/voice/* (实时语音)
+api_router.include_router(voice_orchestrate.router)  # /api/voice/orchestrate/* (语音智能体编排)
 api_router.include_router(files.router)         # /api/files/*
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(surveys.router)       # /api/surveys/*
@@ -380,9 +402,20 @@ api_router.include_router(construction_drawing.router)  # /api/construction-draw
 api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
 api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)
 api_router.include_router(energy.router)           # /api/energy/* (A1 能耗监测)
+api_router.include_router(sensor_snapshot.router)   # /api/sensors/* (传感器快照 v1.2.3)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
 app.include_router(api_router)
+
+# ── 自定义 Swagger UI（使用本地 CSS 替代 jsdelivr CDN） ──
+@app.get("/api/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    """Swagger UI 文档页面，使用本地 swagger-ui.css 避免 CDN 不可达。"""
+    return get_swagger_ui_html(
+        openapi_url="/api/openapi.json",
+        title=settings.app_name + " - Swagger UI",
+        swagger_css_url="/assets/css/swagger-ui.css",
+    )
 
 # ── 全局异常处理 ──
 
@@ -396,6 +429,20 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "error": True,
             "detail": exc.detail,
             "status_code": exc.status_code,
+            "path": request.url.path,
+        },
+    )
+
+
+@app.exception_handler(ChangeOrderStateError)
+async def change_order_state_error_handler(request: Request, exc: ChangeOrderStateError):
+    """变更单非法状态流转 → 409 Conflict（而非 500）"""
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": True,
+            "detail": str(exc),
+            "status_code": 409,
             "path": request.url.path,
         },
     )

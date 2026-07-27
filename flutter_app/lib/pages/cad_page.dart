@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import 'package:flutter/services.dart';
 import 'cad_element.dart';
 import '../services/api.dart';
@@ -191,12 +192,12 @@ class _CADPageState extends State<CADPage> {
       builder: (ctx) {
         final ctrl = TextEditingController();
         return AlertDialog(
-          backgroundColor: const Color(0xFF12121D),
-          title: const Text('加载项目', style: TextStyle(color: Color(0xFFE8E6E1))),
+          backgroundColor: SuokeDesignTokens.card(context),
+          title: Text('加载项目', style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: TextField(
             controller: ctrl,
             maxLines: 8,
-            style: const TextStyle(color: Color(0xFFE8E6E1), fontSize: 12, fontFamily: 'monospace'),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12, fontFamily: 'monospace'),
             decoration: const InputDecoration(
               hintText: '粘贴 JSON 项目数据...',
               hintStyle: TextStyle(color: Color(0xFF5A5866)),
@@ -231,7 +232,7 @@ class _CADPageState extends State<CADPage> {
   void _showLayerPanel() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF12121D),
+      backgroundColor: SuokeDesignTokens.card(context),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) => Container(
           padding: const EdgeInsets.all(20),
@@ -244,14 +245,14 @@ class _CADPageState extends State<CADPage> {
                 final idx = entry.key;
                 final layer = entry.value;
                 return ListTile(
-                  leading: Icon(Icons.layers, color: layer['visible'] ? const Color(0xFFC9973B) : const Color(0xFF5A5866)),
+                  leading: Icon(Icons.layers, color: layer['visible'] ? SuokeDesignTokens.accent : const Color(0xFF5A5866)),
                   title: Text(layer['name'], style: TextStyle(color: layer['visible'] ? Colors.white : const Color(0xFF5A5866))),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
-                      icon: Icon(layer['visible'] ? Icons.visibility : Icons.visibility_off, color: const Color(0xFF8A8894), size: 20),
+                      icon: Icon(layer['visible'] ? Icons.visibility : Icons.visibility_off, color: SuokeDesignTokens.textSub(context), size: 20),
                       onPressed: () => setModalState(() => _layers[idx]['visible'] = !_layers[idx]['visible']),
                     ),
-                    Radio<int>(value: idx, groupValue: _activeLayerIdx, activeColor: const Color(0xFFC9973B),
+                    Radio<int>(value: idx, groupValue: _activeLayerIdx, activeColor: SuokeDesignTokens.accent,
                       onChanged: (v) => setModalState(() => _activeLayerIdx = v as int)),
                   ]),
                 );
@@ -267,8 +268,8 @@ class _CADPageState extends State<CADPage> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: const Text('确认清空', style: TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('确认清空', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('将删除所有绘图元素，此操作不可恢复。', style: TextStyle(color: Color(0xFF8A8894))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
@@ -480,9 +481,9 @@ class _CADPageState extends State<CADPage> {
       appBar: AppBar(
         title: const Text('设计台', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(icon: const Icon(Icons.undo, size: 20), tooltip: '撤销', onPressed: _undoStack.isNotEmpty ? _undo : null, color: const Color(0xFF8A8894)),
-          IconButton(icon: const Icon(Icons.redo, size: 20), tooltip: '重做', onPressed: _redoStack.isNotEmpty ? _redo : null, color: const Color(0xFF8A8894)),
-          IconButton(icon: const Icon(Icons.layers, size: 20), tooltip: '图层', onPressed: _showLayerPanel, color: const Color(0xFFC9973B)),
+          IconButton(icon: const Icon(Icons.undo, size: 20), tooltip: '撤销', onPressed: _undoStack.isNotEmpty ? _undo : null, color: SuokeDesignTokens.textSub(context)),
+          IconButton(icon: const Icon(Icons.redo, size: 20), tooltip: '重做', onPressed: _redoStack.isNotEmpty ? _redo : null, color: SuokeDesignTokens.textSub(context)),
+          IconButton(icon: const Icon(Icons.layers, size: 20), tooltip: '图层', onPressed: _showLayerPanel, color: SuokeDesignTokens.accent),
           IconButton(icon: const Icon(Icons.save_alt, size: 20), tooltip: '保存项目文件', onPressed: _saveProject, color: const Color(0xFF4A9E6E)),
           IconButton(icon: const Icon(Icons.file_open, size: 20), tooltip: '加载项目文件', onPressed: _loadProject, color: const Color(0xFF5A7EC9)),
           IconButton(icon: const Icon(Icons.folder_open, size: 20), tooltip: '加载方案', onPressed: _loadPlan),
@@ -507,17 +508,17 @@ class _CADPageState extends State<CADPage> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: const Color(0xFF12121D),
+            color: SuokeDesignTokens.card(context),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: _toolNames.entries.map((e) => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: ChoiceChip(
-                    label: Text(e.value, style: TextStyle(fontSize: 12, color: _tool == e.key ? const Color(0xFFC9973B) : const Color(0xFF8A8894))),
+                    label: Text(e.value, style: TextStyle(fontSize: 12, color: _tool == e.key ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context))),
                     selected: _tool == e.key,
                     onSelected: (_) => setState(() => _tool = e.key),
-                    selectedColor: const Color(0xFFC9973B).withValues(alpha: 0.2),
+                    selectedColor: SuokeDesignTokens.accent.withValues(alpha: 0.2),
                   ),
                 )).toList(),
               ),
@@ -543,7 +544,7 @@ class _CADPageState extends State<CADPage> {
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFF12121D),
+            color: SuokeDesignTokens.card(context),
             child: Row(
               children: [
                 Text('${_elements.length} 元素', style: const TextStyle(fontSize: 12, color: Color(0xFF8A8894))),

@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' show VoidCallback;
 
 import '../config.dart';
+import '../ws_helper.dart';
 
 /// WebSocket 连接状态
 enum WsConnectionStatus {
@@ -23,7 +23,7 @@ class WebSocketService {
   factory WebSocketService() => _instance;
   WebSocketService._();
 
-  WebSocket? _ws;
+  WsSocket? _ws;
   String? _token;
   String? _projectId;
   String? _currentUserId;
@@ -45,7 +45,7 @@ class WebSocketService {
   final Set<String> _renderedIds = {};
 
   /// 当前是否已连接
-  bool get isConnected => _ws != null && _ws!.readyState == WebSocket.open;
+  bool get isConnected => _ws != null && _ws!.readyState == WsState.open;
 
   // ── URL 构建 ──
 
@@ -90,12 +90,13 @@ class WebSocketService {
 
   Future<void> _doConnect() async {
     try {
-      _ws = await WebSocket.connect(_buildUri().toString());
+      _ws = await wsConnect(_buildUri().toString());
       _reconnectAttempts = 0;
       _notifyStatus(WsConnectionStatus.connected);
 
-      _ws!.listen(
-        (message) {
+      wsListen(
+        _ws!,
+        onData: (message) {
           _onMessage(message as String);
         },
         onError: (error) {
@@ -167,7 +168,7 @@ class WebSocketService {
     if (!isConnected) {
       return false;
     }
-    _ws!.add(jsonEncode({'event': event, 'data': data}));
+    wsSend(_ws!, jsonEncode({'event': event, 'data': data}));
     return true;
   }
 
@@ -229,7 +230,9 @@ class WebSocketService {
     _intentionalClose = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-    _ws?.close();
+    if (_ws != null) {
+      wsClose(_ws!);
+    }
     _ws = null;
   }
 }

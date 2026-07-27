@@ -20,7 +20,7 @@ _json() { $PYTHON -c "import sys,json;print(json.load(sys.stdin)$1)" 2>/dev/null
 _json_len() { $PYTHON -c "import sys,json;print(len(json.load(sys.stdin)$1))" 2>/dev/null || echo "N/A"; }
 
 echo "# i-home.life 全链路 Demo 报告" > "$REPORT"
-echo "**时间**: $(date '+%Y-%m-%d %H:%M:%S') | **版本**: v1.0.10" >> "$REPORT"
+echo "**时间**: $(date '+%Y-%m-%d %H:%M:%S') | **版本**: v1.2.4" >> "$REPORT"
 echo "" >> "$REPORT"
 
 step() {

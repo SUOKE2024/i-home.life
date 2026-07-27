@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 import '../theme/suoke_theme.dart';
@@ -22,7 +23,7 @@ class _TasksPageState extends State<TasksPage>
   static const Color _priorityMid = SuokeDesignTokens.accent;
   static const Color _priorityLow = Color(0xFF43A047);
 
-  List<dynamic> _tasks = [];
+  List<Task> _tasks = [];
   bool _loading = false;
   String? _error;
 
@@ -54,7 +55,9 @@ class _TasksPageState extends State<TasksPage>
     if (result.isSuccess) {
       final data = result.data;
       setState(() {
-        _tasks = (data['tasks'] as List?) ?? [];
+        _tasks = ((data['tasks'] as List?) ?? [])
+            .map((e) => Task.fromJson(e as Map<String, dynamic>))
+            .toList();
       });
     } else {
       setState(() => _error = '任务加载失败，请检查网络后重试');
@@ -64,16 +67,15 @@ class _TasksPageState extends State<TasksPage>
 
   // ── 任务状态分组 ──
 
-  List<dynamic> _tasksOfColumn(String column) {
+  List<Task> _tasksOfColumn(String column) {
     return _tasks.where((t) {
-      final status = (t as Map<String, dynamic>)['status'] as String? ?? '';
       switch (column) {
         case 'todo':
-          return status == 'pending';
+          return t.status == TaskStatus.pending;
         case 'doing':
-          return status == 'claimed' || status == 'in_progress';
+          return t.status == TaskStatus.claimed || t.status == TaskStatus.inProgress;
         case 'done':
-          return status == 'completed';
+          return t.status == TaskStatus.completed;
         default:
           return false;
       }
@@ -371,8 +373,8 @@ class _TasksPageState extends State<TasksPage>
 
   // ── 任务状态操作 ──
 
-  Future<void> _claimTask(Map<String, dynamic> task) async {
-    final taskId = task['id'] as String;
+  Future<void> _claimTask(Task task) async {
+    final taskId = task.id;
     final res = await _api.taskClaim(taskId);
     if (res.isSuccess) {
       if (mounted) {
@@ -390,8 +392,8 @@ class _TasksPageState extends State<TasksPage>
     }
   }
 
-  Future<void> _completeTask(Map<String, dynamic> task) async {
-    final taskId = task['id'] as String;
+  Future<void> _completeTask(Task task) async {
+    final taskId = task.id;
     final res = await _api.taskComplete(taskId);
     if (res.isSuccess) {
       if (mounted) {
@@ -478,7 +480,7 @@ class _TasksPageState extends State<TasksPage>
   }
 
   Widget _buildKanbanColumn(
-      String title, List<dynamic> tasks, Color accent) {
+      String title, List<Task> tasks, Color accent) {
     return SizedBox(
       width: 280,
       child: Column(
@@ -530,22 +532,20 @@ class _TasksPageState extends State<TasksPage>
               ),
             )
           else
-            ...tasks.map((t) => _buildTaskCard(t as Map<String, dynamic>)),
+            ...tasks.map((t) => _buildTaskCard(t)),
         ],
       ),
     );
   }
 
-  Widget _buildTaskCard(Map<String, dynamic> task) {
-    final title = task['title'] as String? ?? '无标题';
-    final assignee = task['assigned_user_name'] as String? ??
-        task['assigned_agent'] as String? ??
-        '未分配';
-    final priority = (task['priority'] as num?)?.toInt() ?? 5;
-    final status = task['status'] as String? ?? 'pending';
-    final deadline = task['claim_deadline'] as String?;
-    final taskType = task['task_type'] as String?;
-    final claimRole = task['claim_role'] as String?;
+  Widget _buildTaskCard(Task task) {
+    final title = task.title;
+    final assignee = task.assigneeDisplay;
+    final priority = task.priority;
+    final status = task.status.value;
+    final deadline = task.claimDeadline?.toIso8601String();
+    final taskType = task.taskType;
+    final claimRole = task.claimRole;
 
     final pColor = _priorityColor(priority);
     final pLabel = _priorityLabel(priority);
@@ -720,7 +720,7 @@ class _TasksPageState extends State<TasksPage>
                     padding: const EdgeInsets.all(12),
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
-                      final task = filtered[index] as Map<String, dynamic>;
+                      final task = filtered[index];
                       return _buildListTile(task);
                     },
                   ),
@@ -802,12 +802,11 @@ class _TasksPageState extends State<TasksPage>
     );
   }
 
-  List<dynamic> _filteredAndSortedTasks() {
-    var result = _tasks.where((t) {
-      final task = t as Map<String, dynamic>;
+  List<Task> _filteredAndSortedTasks() {
+    var result = _tasks.where((task) {
       // 状态筛选
       if (_filterStatus != 'all') {
-        final status = task['status'] as String? ?? '';
+        final status = task.status.value;
         if (_filterStatus == 'doing') {
           if (status != 'claimed' && status != 'in_progress') return false;
         } else if (status != _filterStatus) {
@@ -816,31 +815,28 @@ class _TasksPageState extends State<TasksPage>
       }
       // 优先级筛选
       if (_filterPriority != 'all') {
-        final priority = (task['priority'] as num?)?.toInt() ?? 5;
-        if (_priorityLabel(priority) != _filterPriority) return false;
+        if (_priorityLabel(task.priority) != _filterPriority) return false;
       }
       return true;
     }).toList();
 
     // 按创建时间倒序
     result.sort((a, b) {
-      final aTime = (a as Map<String, dynamic>)['created_at'] as String? ?? '';
-      final bTime = (b as Map<String, dynamic>)['created_at'] as String? ?? '';
+      final aTime = a.createdAt?.toIso8601String() ?? '';
+      final bTime = b.createdAt?.toIso8601String() ?? '';
       return bTime.compareTo(aTime);
     });
 
     return result;
   }
 
-  Widget _buildListTile(Map<String, dynamic> task) {
-    final title = task['title'] as String? ?? '无标题';
-    final assignee = task['assigned_user_name'] as String? ??
-        task['assigned_agent'] as String? ??
-        '未分配';
-    final priority = (task['priority'] as num?)?.toInt() ?? 5;
-    final status = task['status'] as String? ?? 'pending';
-    final deadline = task['claim_deadline'] as String?;
-    final createdAt = task['created_at'] as String?;
+  Widget _buildListTile(Task task) {
+    final title = task.title;
+    final assignee = task.assigneeDisplay;
+    final priority = task.priority;
+    final status = task.status.value;
+    final deadline = task.claimDeadline?.toIso8601String();
+    final createdAt = task.createdAt?.toIso8601String();
     final pColor = _priorityColor(priority);
     final pLabel = _priorityLabel(priority);
 

@@ -14,31 +14,26 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../platform_info.dart';
+import '../theme/suoke_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../config.dart';
 import '../services/api.dart';
 import '../services/sensor_service.dart';
+import 'ar_scan/ar_scan_coaching.dart';
 
 // ── AR 平台通道（iOS ARKit / Android ARCore / 鸿蒙 AR Engine）──
 const _arChannel = MethodChannel('com.ihome.life/ar_scan');
 
-// ── 设计 Token ──
-const _brand = Color(0xFFC9973B);
-const _bgDeep = Color(0xFF0A0A14);
-const _bgCard = Color(0xFF141428);
-const _textPrimary = Color(0xFFE8E6E1);
-const _textSecondary = Color(0xFF8A8894);
-const _textMuted = Color(0xFF5A5874);
-const _border = Color(0xFF1E1E36);
-const _success = Color(0xFF4CAF50);
-const _warning = Color(0xFFFFA726);
-const _danger = Color(0xFFEF5350);
+// ── 置信度颜色常量 ──
+const _success = SuokeDesignTokens.success;
+const _warning = SuokeDesignTokens.warning;
+const _danger = SuokeDesignTokens.danger;
 
 // ── 房间类型预设 ──
 class RoomPreset {
@@ -172,6 +167,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   // ── 最佳实践 ──
   bool _showCoachingCard = true; // 首次引导卡片
+  bool _showCoachingOverlay = true; // 首次使用全屏引导覆盖层
 
   // ── 户型图上传 ──
   String? _floorplanImageUrl;
@@ -360,22 +356,22 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     setState(() => _scanState = _ScanState.detecting);
 
     // 平台
-    _isIOS = Platform.isIOS;
+    _isIOS = AppPlatform.isIOS;
     _detectionProgress = 10;
 
     // 操作系统版本
     try {
-      _osVersion = Platform.operatingSystemVersion;
+      _osVersion = AppPlatform.operatingSystemVersion;
     } catch (_) {
-      _osVersion = Platform.operatingSystem;
+      _osVersion = AppPlatform.operatingSystem;
     }
 
     // 设备型号
     try {
       final model = await _arChannel.invokeMethod<String>('getDeviceModel');
-      _deviceModel = model ?? (_isIOS ? 'iPhone' : Platform.isAndroid ? 'Android' : 'Mobile');
+      _deviceModel = model ?? (_isIOS ? 'iPhone' : AppPlatform.isAndroid ? 'Android' : 'Mobile');
     } catch (_) {
-      _deviceModel = _isIOS ? 'iPhone' : Platform.isAndroid ? 'Android' : 'Mobile';
+      _deviceModel = _isIOS ? 'iPhone' : AppPlatform.isAndroid ? 'Android' : 'Mobile';
     }
     _detectionProgress = 25;
 
@@ -416,7 +412,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     _detectionProgress = 70;
 
     // 相机可用性（移动平台默认可用）
-    _hasCamera = _isIOS || Platform.isAndroid;
+    _hasCamera = _isIOS || AppPlatform.isAndroid;
     _detectionProgress = 85;
 
     // 确定扫描方法
@@ -522,7 +518,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     final createResult = await _api.post('/surveys/ar/sessions', {
       'project_id': widget.projectId,
       'name': _sessionName,
-      'platform': _isIOS ? 'ios' : Platform.isAndroid ? 'android' : 'unknown',
+      'platform': _isIOS ? 'ios' : AppPlatform.isAndroid ? 'android' : 'unknown',
       'requested_method': _scanMethod,
       'device_capability': {
         'device_model': _deviceModel,
@@ -808,7 +804,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     'high' => _success,
     'medium' => _warning,
     'low' => _danger,
-    _ => _textSecondary,
+    _ => SuokeDesignTokens.textSub(context),
   };
 
   // ═══════════════════════════════════════════════
@@ -817,8 +813,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgDeep,
+    final body = Scaffold(
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -841,24 +837,38 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         ],
       ),
     );
+
+    // 首次使用引导覆盖层
+    if (_showCoachingOverlay) {
+      return Stack(
+        children: [
+          body,
+          CoachingOverlay(
+            scanMethod: _scanMethod,
+            onDismiss: () => setState(() => _showCoachingOverlay = false),
+          ),
+        ],
+      );
+    }
+    return body;
   }
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _bgCard,
-      title: const Row(
+      backgroundColor: SuokeDesignTokens.card(context),
+      title: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.view_in_ar, color: _brand, size: 20),
+          Icon(Icons.view_in_ar, color: SuokeDesignTokens.accent, size: 20),
           SizedBox(width: 8),
-          Text('AR 空间测量', style: TextStyle(color: _textPrimary, fontSize: 17, fontWeight: FontWeight.w600)),
+          Text('AR 空间测量', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 17, fontWeight: FontWeight.w600)),
         ],
       ),
       centerTitle: true,
       leading: Semantics(
         label: '返回上一页',
         child: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: _textSecondary, size: 18),
+          icon: Icon(Icons.arrow_back_ios_new, color: SuokeDesignTokens.textSub(context), size: 18),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -873,12 +883,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      color: _bgCard,
+      color: SuokeDesignTokens.card(context),
       child: Row(
         children: List.generate(steps.length, (i) {
           final isActive = i == _currentStep.index;
           final isPast = i < _currentStep.index;
-          final color = isActive ? _brand : isPast ? _success : _textMuted;
+          final color = isActive ? SuokeDesignTokens.accent : isPast ? _success : SuokeDesignTokens.textSub(context);
 
           return Expanded(
             child: Row(
@@ -889,7 +899,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   Expanded(
                     child: Container(
                       height: 2,
-                      color: isPast ? _success.withValues(alpha: 0.3) : _border,
+                      color: isPast ? _success.withValues(alpha: 0.3) : SuokeDesignTokens.borderClr(context),
                     ),
                   ),
               ],
@@ -916,7 +926,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           child: Icon(icon, size: active ? 16 : 12, color: color),
         ),
         if (active) ...[
-          const SizedBox(height: 3),
+          SizedBox(height: 3),
           AnimatedBuilder(
             animation: _pulseCtrl,
             builder: (_, child) => Container(
@@ -945,13 +955,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader('设备能力仪表盘', Icons.dashboard_customize),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _buildDeviceInfoGrid(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildSensorStatusGrid(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _buildMethodRecommendation(),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           _buildNextStepButton('继续设置房间', () => _goToStep(_ScanStep.roomSetup)),
         ],
       ),
@@ -976,41 +986,41 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                     shape: BoxShape.circle,
                     gradient: SweepGradient(
                       colors: [
-                        _brand.withValues(alpha: 0.0),
-                        _brand.withValues(alpha: 0.3),
-                        _brand.withValues(alpha: 0.0),
+                        SuokeDesignTokens.accent.withValues(alpha: 0.0),
+                        SuokeDesignTokens.accent.withValues(alpha: 0.3),
+                        SuokeDesignTokens.accent.withValues(alpha: 0.0),
                       ],
                     ),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.sensors, color: _brand, size: 32),
+                  child: Center(
+                    child: Icon(Icons.sensors, color: SuokeDesignTokens.accent, size: 32),
                   ),
                 ),
               );
             },
           ),
-          const SizedBox(height: 24),
-          const Text('正在检测设备能力...', style: TextStyle(color: _textPrimary, fontSize: 16)),
-          const SizedBox(height: 12),
+          SizedBox(height: 24),
+          Text('正在检测设备能力...', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16)),
+          SizedBox(height: 12),
           Container(
             width: 200,
             height: 4,
             decoration: BoxDecoration(
-              color: _border,
+              color: SuokeDesignTokens.borderClr(context),
               borderRadius: BorderRadius.circular(2),
             ),
             child: FractionallySizedBox(
               widthFactor: _detectionProgress / 100,
               child: Container(
                 decoration: BoxDecoration(
-                  color: _brand,
+                  color: SuokeDesignTokens.accent,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text('$_detectionProgress%', style: const TextStyle(color: _textSecondary, fontSize: 12)),
+          SizedBox(height: 8),
+          Text('$_detectionProgress%', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
         ],
       ),
     );
@@ -1024,16 +1034,16 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.phone_android, color: _brand, size: 18),
-            const SizedBox(width: 8),
-            const Text('设备信息', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Icon(Icons.phone_android, color: SuokeDesignTokens.accent, size: 18),
+            SizedBox(width: 8),
+            Text('设备信息', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 12,
             runSpacing: 10,
             children: [
-              _infoChip(Icons.devices, '平台', _isIOS ? 'iOS' : Platform.isAndroid ? 'Android' : 'Other'),
+              _infoChip(Icons.devices, '平台', _isIOS ? 'iOS' : AppPlatform.isAndroid ? 'Android' : 'Other'),
               _infoChip(Icons.model_training, '型号', _deviceModel.isEmpty ? '检测中...' : _deviceModel),
               _infoChip(Icons.screenshot_monitor, '屏幕', '${_screenWidth.toStringAsFixed(0)}x${_screenHeight.toStringAsFixed(0)}'),
               _infoChip(Icons.high_quality, '像素比', '${_pixelRatio}x'),
@@ -1053,16 +1063,16 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.sensors, color: _brand, size: 18),
-            const SizedBox(width: 8),
-            const Text('传感器状态', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Icon(Icons.sensors, color: SuokeDesignTokens.accent, size: 18),
+            SizedBox(width: 8),
+            Text('传感器状态', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
             const Spacer(),
             GestureDetector(
               onTap: () { setState(() => _scanState = _ScanState.detecting); _detectRealCapabilities(); },
-              child: const Icon(Icons.refresh, color: _textSecondary, size: 18),
+              child: Icon(Icons.refresh, color: SuokeDesignTokens.textSub(context), size: 18),
             ),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(spacing: 16, runSpacing: 12, children: [
             _sensorBadge('LiDAR', _hasLidarProbed, Icons.bluetooth_searching),
             _sensorBadge('加速度计', _hasAccel, Icons.vibration),
@@ -1079,32 +1089,32 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: _bgDeep,
+        color: SuokeDesignTokens.bg(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: _brand),
-          const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(width: 4),
-          Text(value, style: const TextStyle(color: _textPrimary, fontSize: 11, fontWeight: FontWeight.w500)),
+          Icon(icon, size: 14, color: SuokeDesignTokens.accent),
+          SizedBox(width: 6),
+          Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(width: 4),
+          Text(value, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
   Widget _sensorBadge(String name, bool available, IconData icon) {
-    final color = available ? _success : _textMuted;
+    final color = available ? _success : SuokeDesignTokens.textSub(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 16, color: color),
-        const SizedBox(width: 6),
-        Text(name, style: TextStyle(color: _textPrimary, fontSize: 12)),
-        const SizedBox(width: 4),
+        SizedBox(width: 6),
+        Text(name, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12)),
+        SizedBox(width: 4),
         Container(
           width: 6, height: 6,
           decoration: BoxDecoration(
@@ -1120,38 +1130,38 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration().copyWith(
-        border: Border.all(color: _brand.withValues(alpha: 0.3)),
+        border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.auto_fix_high, color: _brand, size: 18),
-            const SizedBox(width: 8),
-            const Text('智能推荐扫描方法', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Icon(Icons.auto_fix_high, color: SuokeDesignTokens.accent, size: 18),
+            SizedBox(width: 8),
+            Text('智能推荐扫描方法', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _brand.withValues(alpha: 0.1),
+                  color: SuokeDesignTokens.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(_methodIcon(_scanMethod), color: _brand, size: 28),
+                child: Icon(_methodIcon(_scanMethod), color: SuokeDesignTokens.accent, size: 28),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(_methodLabel(_scanMethod),
-                        style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                    const SizedBox(height: 2),
+                        style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 15)),
+                    SizedBox(height: 2),
                     Text(
                       '预计精度: ±${_estimatedAccuracyCm.toStringAsFixed(1)} cm · ${_estimatedTimeMin} 分钟/房间',
-                      style: const TextStyle(color: _textSecondary, fontSize: 11),
+                      style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
                     ),
                   ],
                 ),
@@ -1159,11 +1169,11 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             ],
           ),
           if (_availableMethods.length > 1) ...[
-            const SizedBox(height: 12),
-            const Divider(color: _border),
-            const SizedBox(height: 8),
-            const Text('可选方法:', style: TextStyle(color: _textSecondary, fontSize: 11)),
-            const SizedBox(height: 8),
+            SizedBox(height: 12),
+            Divider(color: SuokeDesignTokens.borderClr(context)),
+            SizedBox(height: 8),
+            Text('可选方法:', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+            SizedBox(height: 8),
             Wrap(
               spacing: 8,
               children: _availableMethods.map((m) => GestureDetector(
@@ -1171,13 +1181,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _scanMethod == m ? _brand.withValues(alpha: 0.15) : _bgDeep,
+                    color: _scanMethod == m ? SuokeDesignTokens.accent.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _scanMethod == m ? _brand : _border),
+                    border: Border.all(color: _scanMethod == m ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
                   ),
                   child: Text(_methodLabel(m),
                       style: TextStyle(
-                        color: _scanMethod == m ? _brand : _textSecondary,
+                        color: _scanMethod == m ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
                         fontSize: 12,
                       )),
                 ),
@@ -1202,39 +1212,39 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader('房间设置', Icons.home_work),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 户型选择
           if (_floorplans.isNotEmpty) ...[
             _buildFloorplanSelector(),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
           ],
 
           // 户型图上传/拍照
           _buildFloorplanUploadSection(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 房间类型
-          const Text('房间类型', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 10),
+          Text('房间类型', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+          SizedBox(height: 10),
           _buildRoomTypeGrid(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 房间尺寸
           _buildDimensionInput(presets),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 快速户型创建
           if (_floorplans.isEmpty && !_loadingFloorplans)
             _buildQuickFloorplanButton(),
 
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _outlineButton('上一步', Icons.arrow_back, () => _goToStep(_ScanStep.deviceCheck)),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(flex: 2, child: _buildNextStepButton('开始扫描引导', () => _goToStep(_ScanStep.scanGuide))),
             ],
           ),
@@ -1250,18 +1260,18 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.layers, color: _brand, size: 16),
+          Row(children: [
+            Icon(Icons.layers, color: SuokeDesignTokens.accent, size: 16),
             SizedBox(width: 6),
-            Text('选择户型', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Text('选择户型', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
           ]),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           SizedBox(
             height: 70,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _floorplans.length + 1, // +1 for "无户型"
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, __) => SizedBox(width: 8),
               itemBuilder: (_, i) {
                 if (i == 0) {
                   final selected = _selectedFloorplanId == null;
@@ -1292,18 +1302,18 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         width: 100,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: selected ? _brand.withValues(alpha: 0.12) : _bgDeep,
+          color: selected ? SuokeDesignTokens.accent.withValues(alpha: 0.12) : SuokeDesignTokens.bg(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: selected ? _brand : _border, width: selected ? 1.5 : 1),
+          border: Border.all(color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: selected ? 1.5 : 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(title, style: TextStyle(
-              color: selected ? _brand : _textPrimary, fontSize: 13, fontWeight: FontWeight.w500,
+              color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context), fontSize: 13, fontWeight: FontWeight.w500,
             ), overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 2),
-            Text(subtitle, style: TextStyle(color: selected ? _brand : _textSecondary, fontSize: 10)),
+            SizedBox(height: 2),
+            Text(subtitle, style: TextStyle(color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context), fontSize: 10)),
           ],
         ),
       ),
@@ -1316,27 +1326,27 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration().copyWith(
-        border: Border.all(color: _border, style: BorderStyle.solid),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context), style: BorderStyle.solid),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.add_photo_alternate, color: _brand, size: 16),
+          Row(children: [
+            Icon(Icons.add_photo_alternate, color: SuokeDesignTokens.accent, size: 16),
             SizedBox(width: 6),
-            Text('户型图', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Text('户型图', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
           ]),
-          const SizedBox(height: 4),
-          const Text('上传或拍摄户型图，辅助扫描定位和门窗标记',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 12),
+          SizedBox(height: 4),
+          Text('上传或拍摄户型图，辅助扫描定位和门窗标记',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 12),
           if (_floorplanImageUrl != null) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 height: 160,
                 width: double.infinity,
-                color: _bgDeep,
+                color: SuokeDesignTokens.bg(context),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -1345,9 +1355,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.image, size: 48, color: _brand.withValues(alpha: 0.3)),
-                          const SizedBox(height: 8),
-                          const Text('户型图已上传', style: TextStyle(color: _textSecondary, fontSize: 12)),
+                          Icon(Icons.image, size: 48, color: SuokeDesignTokens.accent.withValues(alpha: 0.3)),
+                          SizedBox(height: 8),
+                          Text('户型图已上传', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                         ],
                       ),
                     ),
@@ -1361,7 +1371,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                             color: _danger.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Icon(Icons.close, size: 16, color: _danger),
+                          child: Icon(Icons.close, size: 16, color: _danger),
                         ),
                       ),
                     ),
@@ -1369,14 +1379,14 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           ],
           Row(
             children: [
               Expanded(
                 child: _outlineButtonSmall('上传图纸', Icons.upload_file, _pickFloorplanFromGallery),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: _outlineButtonSmall('拍照', Icons.camera_alt, _pickFloorplanPhoto),
               ),
@@ -1422,12 +1432,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: OutlinedButton.icon(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
-          foregroundColor: _textPrimary,
-          side: const BorderSide(color: _border),
+          foregroundColor: SuokeDesignTokens.text(context),
+          side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
         icon: Icon(icon, size: 16),
-        label: Text(label, style: const TextStyle(fontSize: 12)),
+        label: Text(label, style: TextStyle(fontSize: 12)),
       ),
     );
   }
@@ -1452,17 +1462,17 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: selected ? _brand.withValues(alpha: 0.12) : _bgCard,
+              color: selected ? SuokeDesignTokens.accent.withValues(alpha: 0.12) : SuokeDesignTokens.card(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: selected ? _brand : _border, width: selected ? 1.5 : 1),
+              border: Border.all(color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: selected ? 1.5 : 1),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(p.icon, size: 18, color: selected ? _brand : _textSecondary),
-                const SizedBox(width: 6),
+                Icon(p.icon, size: 18, color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context)),
+                SizedBox(width: 6),
                 Text(p.name, style: TextStyle(
-                  color: selected ? _brand : _textPrimary,
+                  color: selected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context),
                   fontSize: 13, fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                 )),
               ],
@@ -1484,9 +1494,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.straighten, color: _brand, size: 16),
-            const SizedBox(width: 6),
-            const Text('房间尺寸', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Icon(Icons.straighten, color: SuokeDesignTokens.accent, size: 16),
+            SizedBox(width: 6),
+            Text('房间尺寸', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
             const Spacer(),
             Semantics(
               label: '切换厘米/米单位',
@@ -1495,13 +1505,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _useCentimeters ? _brand.withValues(alpha: 0.15) : _bgDeep,
+                    color: _useCentimeters ? SuokeDesignTokens.accent.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _useCentimeters ? _brand : _border),
+                    border: Border.all(color: _useCentimeters ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
                   ),
                   child: Text(_useCentimeters ? 'cm' : 'm',
                       style: TextStyle(
-                        color: _useCentimeters ? _brand : _textSecondary,
+                        color: _useCentimeters ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
                         fontSize: 11, fontWeight: FontWeight.w600,
                       )),
                 ),
@@ -1511,23 +1521,23 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           if (preset.description.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Text(preset.description, style: const TextStyle(color: _textSecondary, fontSize: 11)),
+              child: Text(preset.description, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
             ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             children: [
               _dimField('长', _roomLength, (v) => setState(() => _roomLength = v)),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               _dimField('宽', _roomWidth, (v) => setState(() => _roomWidth = v)),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               _dimField('高', _roomHeight, (v) => setState(() => _roomHeight = v)),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
               Text('面积: ${rawArea.toStringAsFixed(1)} $areaUnit',
-                  style: const TextStyle(color: _brand, fontSize: 12, fontWeight: FontWeight.w500)),
+                  style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 12, fontWeight: FontWeight.w500)),
               const Spacer(),
               GestureDetector(
                 onTap: () => setState(() {
@@ -1536,10 +1546,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _bgDeep, borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _border),
+                    color: SuokeDesignTokens.bg(context), borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: SuokeDesignTokens.borderClr(context)),
                   ),
-                  child: Text('$_floorCount 层', style: const TextStyle(color: _textSecondary, fontSize: 11)),
+                  child: Text('$_floorCount 层', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
                 ),
               ),
             ],
@@ -1555,8 +1565,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 4),
+          Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 4),
           Semantics(
             label: '${label}尺寸输入',
             child: TextField(
@@ -1564,23 +1574,23 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 filled: true,
-                fillColor: _bgDeep,
+                fillColor: SuokeDesignTokens.bg(context),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: _border),
+                  borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: _border),
+                  borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: _brand),
+                  borderSide: const BorderSide(color: SuokeDesignTokens.accent),
                 ),
                 suffixText: _useCentimeters ? 'cm' : 'm',
-                suffixStyle: const TextStyle(color: _textMuted, fontSize: 11),
+                suffixStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
               ),
-              style: const TextStyle(color: _textPrimary, fontSize: 13),
+              style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
               keyboardType: TextInputType.number,
               controller: ctrl,
               onChanged: (v) {
@@ -1598,19 +1608,19 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration().copyWith(
-        border: Border.all(color: _brand.withValues(alpha: 0.2), style: BorderStyle.solid),
+        border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.2), style: BorderStyle.solid),
       ),
       child: Column(
         children: [
           Row(children: [
-            const Icon(Icons.add_chart, color: _brand, size: 18),
-            const SizedBox(width: 8),
-            const Text('还没有户型？', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w500, fontSize: 14)),
+            Icon(Icons.add_chart, color: SuokeDesignTokens.accent, size: 18),
+            SizedBox(width: 8),
+            Text('还没有户型？', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w500, fontSize: 14)),
           ]),
-          const SizedBox(height: 4),
-          const Text('创建户型后可关联扫描结果到户型图',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 10),
+          SizedBox(height: 4),
+          Text('创建户型后可关联扫描结果到户型图',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -1619,27 +1629,27 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   child: TextField(
                     decoration: InputDecoration(
                       hintText: '输入户型名称...',
-                      hintStyle: const TextStyle(color: _textMuted, fontSize: 12),
+                      hintStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                      filled: true, fillColor: _bgDeep,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _border)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _border)),
+                      filled: true, fillColor: SuokeDesignTokens.bg(context),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
                     ),
-                    style: const TextStyle(color: _textPrimary, fontSize: 12),
+                    style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12),
                     onSubmitted: (v) => _createQuickFloorplan(v),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _createQuickFloorplan('${_roomPresets[_selectedRoomIndex].name}户型'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                   decoration: BoxDecoration(
-                    color: _brand.withValues(alpha: 0.15),
+                    color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text('快速创建', style: TextStyle(color: _brand, fontSize: 12, fontWeight: FontWeight.w500)),
+                  child: Text('快速创建', style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 12, fontWeight: FontWeight.w500)),
                 ),
               ),
             ],
@@ -1660,43 +1670,44 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         children: [
           _sectionHeader('扫描引导', Icons.live_help),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 首次引导卡片
           if (_showCoachingCard) ...[
             _buildCoachingCard(),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
           ],
 
           // 扫描前检查清单
           _buildPreScanChecklist(),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
-          // 环境条件警告
-          if (_envCondition != _EnvCondition.normal) ...[
-            _buildEnvConditionWarning(),
-            const SizedBox(height: 12),
-          ],
+          // 环境条件警告（主动 coaching）
+          if (_envCondition != _EnvCondition.normal)
+            EnvCoachingBanner(
+              condition: _toSharedEnvCondition(_envCondition),
+              onDismiss: () => setState(() => _envCondition = _EnvCondition.normal),
+            ),
 
           // 预览区域（含 reticle 追踪指示器）
           _buildScanPreview(preset),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 追踪质量指示器
           _buildTrackingQualityIndicator(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 扫描摘要
           _buildScanSummary(preset),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 引导步骤
           _buildGuideSteps(preset),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // 精度声明
           _buildAccuracyDisclaimer(),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 操作按钮
           if (_scanState == _ScanState.scanning || _scanState == _ScanState.uploading || _scanState == _ScanState.processing)
@@ -1718,12 +1729,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [_brand.withValues(alpha: 0.15), _bgCard],
+            colors: [SuokeDesignTokens.accent.withValues(alpha: 0.15), SuokeDesignTokens.card(context)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _brand.withValues(alpha: 0.25)),
+          border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1732,27 +1743,27 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: _brand.withValues(alpha: 0.2),
+                  color: SuokeDesignTokens.accent.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(Icons.lightbulb_outline, color: _brand, size: 16),
+                child: Icon(Icons.lightbulb_outline, color: SuokeDesignTokens.accent, size: 16),
               ),
-              const SizedBox(width: 8),
-              const Text('首次使用？', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+              SizedBox(width: 8),
+              Text('首次使用？', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
               const Spacer(),
               GestureDetector(
                 onTap: () => setState(() => _showCoachingCard = false),
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: _bgDeep.withValues(alpha: 0.5),
+                    color: SuokeDesignTokens.bg(context).withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Icon(Icons.close, size: 14, color: _textSecondary),
+                  child: Icon(Icons.close, size: 14, color: SuokeDesignTokens.textSub(context)),
                 ),
               ),
             ]),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             const _CoachingTip(icon: Icons.light_mode, text: '在光线充足的房间扫描，避免逆光或暗角'),
             const _CoachingTip(icon: Icons.crop_free, text: '缓慢平稳移动手机，对准墙壁和地面保持视线'),
             const _CoachingTip(icon: Icons.straighten, text: '扫描完成后用钢尺复核关键尺寸，提升精度至毫米级'),
@@ -1769,25 +1780,25 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.08) : _bgCard,
+        color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.08) : SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.2) : _border),
+        border: Border.all(color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.2) : SuokeDesignTokens.borderClr(context)),
       ),
       child: Row(
         children: [
           Icon(
             _trackingQuality == _TrackingQuality.normal ? Icons.check_circle : Icons.playlist_add_check,
             size: 16,
-            color: _trackingQuality == _TrackingQuality.normal ? _success : _textSecondary,
+            color: _trackingQuality == _TrackingQuality.normal ? _success : SuokeDesignTokens.textSub(context),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               _trackingQuality == _TrackingQuality.normal
                   ? '扫描就绪 · 光线 · 稳定 · 清除'
                   : '扫描前确认: 光线充足 · 手机稳定 · 地面无杂物',
               style: TextStyle(
-                color: _trackingQuality == _TrackingQuality.normal ? _success : _textSecondary,
+                color: _trackingQuality == _TrackingQuality.normal ? _success : SuokeDesignTokens.textSub(context),
                 fontSize: 11,
               ),
             ),
@@ -1810,12 +1821,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         ),
         child: Row(
           children: [
-            const Icon(Icons.info_outline, size: 14, color: _warning),
-            const SizedBox(width: 6),
+            Icon(Icons.info_outline, size: 14, color: _warning),
+            SizedBox(width: 6),
             Expanded(
               child: Text(
                 'AR 测量存在约 ±${_estimatedAccuracyCm.toStringAsFixed(1)}cm 误差，关键尺寸请用实体尺复核。使用 LiDAR 设备精度更高。',
-                style: const TextStyle(color: _textSecondary, fontSize: 10, height: 1.3),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 10, height: 1.3),
               ),
             ),
           ],
@@ -1824,44 +1835,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildEnvConditionWarning() {
-    IconData icon;
-    String message;
-    Color color;
-    switch (_envCondition) {
-      case _EnvCondition.lowLight:
-        icon = Icons.light_mode;
-        message = '环境光线不足，建议开启灯光或靠近窗户以提高扫描精度';
-        color = _warning;
-      case _EnvCondition.lowTexture:
-        icon = Icons.texture;
-        message = '墙面或地面纹理不足，建议添加临时标记物（如彩色胶带）辅助定位';
-        color = _warning;
-      case _EnvCondition.fastMotion:
-        icon = Icons.speed;
-        message = '移动速度过快，请缓慢平稳地移动设备以避免追踪丢失';
-        color = _danger;
-      case _EnvCondition.normal:
-        icon = Icons.check;
-        message = '';
-        color = _success;
-    }
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(message, style: TextStyle(color: color, fontSize: 12)),
-        ),
-      ]),
-    );
-  }
+  /// 将内部 _EnvCondition 映射到共享 EnvCondition
+  EnvCondition _toSharedEnvCondition(_EnvCondition c) => switch (c) {
+    _EnvCondition.lowLight => EnvCondition.lowLight,
+    _EnvCondition.lowTexture => EnvCondition.lowTexture,
+    _EnvCondition.fastMotion => EnvCondition.fastMotion,
+    _EnvCondition.normal => EnvCondition.normal,
+  };
 
   /// AR 追踪质量指示器（Apple HIG: reticle 三态 + coaching）
   Widget _buildTrackingQualityIndicator() {
@@ -1872,7 +1852,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       case _TrackingQuality.searching:
         label = _trackingHint.isNotEmpty ? _trackingHint : '正在检测平面，请缓慢移动设备...';
         icon = Icons.search;
-        color = _textSecondary;
+        color = SuokeDesignTokens.textSub(context);
       case _TrackingQuality.limited:
         label = _trackingHint.isNotEmpty ? _trackingHint : '追踪受限，请对准纹理丰富的区域';
         icon = Icons.warning_amber;
@@ -1891,7 +1871,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: _bgCard,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
@@ -1903,7 +1883,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             )
           else
             Icon(icon, size: 18, color: color),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(label, style: TextStyle(color: color, fontSize: 12)),
           ),
@@ -1922,14 +1902,14 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           _TrackingQuality.normal => _success,
           _TrackingQuality.limited => _warning,
           _TrackingQuality.lost => _danger,
-          _ => _brand,
+          _ => SuokeDesignTokens.accent,
         };
         return Container(
           height: 200,
           decoration: BoxDecoration(
-            color: _bgCard,
+            color: SuokeDesignTokens.card(context),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.4) : _border),
+            border: Border.all(color: _trackingQuality == _TrackingQuality.normal ? _success.withValues(alpha: 0.4) : SuokeDesignTokens.borderClr(context)),
           ),
           child: Stack(
             alignment: Alignment.center,
@@ -1952,7 +1932,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               Container(
                 width: 120, height: 80,
                 decoration: BoxDecoration(
-                  border: Border.all(color: _brand.withValues(alpha: 0.4 + 0.2 * pulse), width: 2),
+                  border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.4 + 0.2 * pulse), width: 2),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1969,7 +1949,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: _brand.withValues(alpha: alpha.clamp(0.0, 1.0)),
+                            color: SuokeDesignTokens.accent.withValues(alpha: alpha.clamp(0.0, 1.0)),
                             width: 1.5,
                           ),
                         ),
@@ -1982,9 +1962,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 bottom: 12,
                 child: Column(
                   children: [
-                    Text(preset.name, style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+                    Text(preset.name, style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
                     Text('${(_roomLength * _roomWidth).toStringAsFixed(1)} ㎡',
-                        style: const TextStyle(color: _brand, fontSize: 12)),
+                        style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 12)),
                   ],
                 ),
               ),
@@ -1995,16 +1975,16 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _brand.withValues(alpha: 0.15),
+                    color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_methodIcon(_scanMethod), size: 12, color: _brand),
-                      const SizedBox(width: 4),
+                      Icon(_methodIcon(_scanMethod), size: 12, color: SuokeDesignTokens.accent),
+                      SizedBox(width: 4),
                       Text(_methodLabel(_scanMethod),
-                          style: const TextStyle(color: _brand, fontSize: 10, fontWeight: FontWeight.w500)),
+                          style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 10, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
@@ -2033,22 +2013,22 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('扫描摘要', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 10),
+          Text('扫描摘要', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+          SizedBox(height: 10),
           Row(
             children: [
               _summaryChip(Icons.home, '房间', preset.name),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _summaryChip(Icons.auto_fix_high, '方法', _methodLabel(_scanMethod)),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _summaryChip(Icons.speed, '预估', '${_estimatedTimeMin}分钟'),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
               _summaryChip(Icons.square_foot, '面积', '${(_roomLength * _roomWidth * _floorCount).toStringAsFixed(1)} ㎡'),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _summaryChip(Icons.grid_view, '尺寸', '${_roomLength.toStringAsFixed(1)}x${_roomWidth.toStringAsFixed(1)}x${_roomHeight.toStringAsFixed(1)}m'),
             ],
           ),
@@ -2061,15 +2041,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: _bgDeep, borderRadius: BorderRadius.circular(6),
+        color: SuokeDesignTokens.bg(context), borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: _brand),
-          const SizedBox(width: 4),
-          Text('$label: ', style: const TextStyle(color: _textSecondary, fontSize: 10)),
-          Text(value, style: const TextStyle(color: _textPrimary, fontSize: 10, fontWeight: FontWeight.w500)),
+          Icon(icon, size: 12, color: SuokeDesignTokens.accent),
+          SizedBox(width: 4),
+          Text('$label: ', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 10)),
+          Text(value, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 10, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -2082,8 +2062,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('操作指引', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 12),
+          Text('操作指引', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+          SizedBox(height: 12),
           _guideStep(1, '定位', '站在${preset.name}的角落处'),
           _guideStep(2, '扫描', _scanMethod == 'lidar'
               ? '缓慢移动手机，让 LiDAR 传感器扫描墙壁和物体'
@@ -2106,21 +2086,21 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           Container(
             width: 24, height: 24,
             decoration: BoxDecoration(
-              color: _brand.withValues(alpha: 0.15),
+              color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text('$num', style: const TextStyle(color: _brand, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text('$num', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold, fontSize: 12)),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w500, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(desc, style: const TextStyle(color: _textSecondary, fontSize: 11, height: 1.3)),
+                Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w500, fontSize: 13)),
+                SizedBox(height: 2),
+                Text(desc, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11, height: 1.3)),
               ],
             ),
           ),
@@ -2136,13 +2116,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: ElevatedButton.icon(
         onPressed: _startScan,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _brand,
+          backgroundColor: SuokeDesignTokens.accent,
           foregroundColor: Colors.black,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
-        icon: const Icon(Icons.view_in_ar, size: 24),
-        label: Text('开始扫描 ${preset.name}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        icon: Icon(Icons.view_in_ar, size: 24),
+        label: Text('开始扫描 ${preset.name}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -2158,46 +2138,46 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               width: 120, height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _brand.withValues(alpha: alpha),
+                color: SuokeDesignTokens.accent.withValues(alpha: alpha),
               ),
-              child: const Center(
+              child: Center(
                 child: Icon(Icons.view_in_ar, color: Colors.white, size: 48),
               ),
             );
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         Text(
           _scanState == _ScanState.scanning ? '扫描中... 请沿房间行走'
               : _scanState == _ScanState.uploading ? '上传数据中...'
               : '处理中... 解析测量数据',
-          style: const TextStyle(color: _textPrimary, fontSize: 14),
+          style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
         ),
         if (_scanWallsDetected > 0 || _scanPointsDetected > 0) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             '墙面: $_scanWallsDetected 面 · 特征点: $_scanPointsDetected',
-            style: const TextStyle(color: _textSecondary, fontSize: 11),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
           ),
         ],
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SizedBox(
           width: 200, height: 4,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: _scanProgress > 0 ? _scanProgress.clamp(0.0, 1.0) : null,
-              color: _brand,
-              backgroundColor: _border,
+              color: SuokeDesignTokens.accent,
+              backgroundColor: SuokeDesignTokens.borderClr(context),
             ),
           ),
         ),
         if (_scanProgress > 0) ...[
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text('${(_scanProgress * 100).toStringAsFixed(0)}%',
-              style: const TextStyle(color: _textSecondary, fontSize: 11)),
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
         ],
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         // 取消按钮
         Semantics(
           label: '取消扫描',
@@ -2210,8 +2190,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 side: const BorderSide(color: _danger),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              icon: const Icon(Icons.stop, size: 16),
-              label: const Text('取消扫描', style: TextStyle(fontSize: 13)),
+              icon: Icon(Icons.stop, size: 16),
+              label: Text('取消扫描', style: TextStyle(fontSize: 13)),
             ),
           ),
         ),
@@ -2231,15 +2211,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           ),
           child: Column(
             children: [
-              const Icon(Icons.error_outline, color: _danger, size: 32),
-              const SizedBox(height: 8),
+              Icon(Icons.error_outline, color: _danger, size: 32),
+              SizedBox(height: 8),
               Text(_errorMessage.isNotEmpty ? _errorMessage : '扫描失败',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: _danger, fontSize: 13)),
+                  style: TextStyle(color: _danger, fontSize: 13)),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -2248,12 +2228,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               _startScan();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brand,
+              backgroundColor: SuokeDesignTokens.accent,
               foregroundColor: Colors.black,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             ),
-            icon: const Icon(Icons.refresh, size: 20),
-            label: const Text('重试扫描'),
+            icon: Icon(Icons.refresh, size: 20),
+            label: Text('重试扫描'),
           ),
         ),
       ],
@@ -2275,14 +2255,14 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         children: [
           // 复核指南
           _buildReviewGuidanceCard(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 检测结果清单
           _sectionHeader('检测结果复核', Icons.fact_check),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text('请逐项确认 AR 扫描检测结果，必要时用实体尺校准',
-              style: const TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 12),
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 12),
 
           // 房间基本信息
           _buildReviewSection('房间信息', Icons.home, [
@@ -2306,7 +2286,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               hint: '建议用钢尺复核对角线',
             ),
           ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 墙面特征
           if (_wallFeatures > 0)
@@ -2325,7 +2305,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   confidence: 'high',
                 ),
             ]),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 精度信息
           _buildReviewSection('精度评估', Icons.speed, [
@@ -2343,15 +2323,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 confidence: _rmsErrorCm! < 2.0 ? 'high' : 'medium',
               ),
           ]),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 内联校准入口
           _buildInlineCalibration(),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // 复核备注
           _buildReviewNotesField(),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // 确认按钮组
           Row(
@@ -2367,19 +2347,19 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   _goToStep(_ScanStep.roomSetup);
                 }),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: () => _goToStep(_ScanStep.results),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brand,
+                    backgroundColor: SuokeDesignTokens.accent,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  icon: const Icon(Icons.check_circle, size: 20),
-                  label: const Text('确认并查看结果', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                  icon: Icon(Icons.check_circle, size: 20),
+                  label: Text('确认并查看结果', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                 ),
               ),
             ],
@@ -2394,12 +2374,12 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_brand.withValues(alpha: 0.12), _bgCard],
+          colors: [SuokeDesignTokens.accent.withValues(alpha: 0.12), SuokeDesignTokens.card(context)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _brand.withValues(alpha: 0.25)),
+        border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.25)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2407,22 +2387,22 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _brand.withValues(alpha: 0.2),
+              color: SuokeDesignTokens.accent.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.tips_and_updates, color: _brand, size: 20),
+            child: Icon(Icons.tips_and_updates, color: SuokeDesignTokens.accent, size: 20),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('人工复核指南',
-                    style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 4),
+                Text('人工复核指南',
+                    style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+                SizedBox(height: 4),
                 Text(
                   'AR 测量存在 ±${_estimatedAccuracyCm.toStringAsFixed(1)}cm 误差。\n关键尺寸请用钢尺/激光测距仪复核，校准后精度可提升至毫米级。',
-                  style: const TextStyle(color: _textSecondary, fontSize: 11, height: 1.4),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11, height: 1.4),
                 ),
               ],
             ),
@@ -2440,11 +2420,11 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(icon, color: _brand, size: 14),
-            const SizedBox(width: 6),
-            Text(title, style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
+            Icon(icon, color: SuokeDesignTokens.accent, size: 14),
+            SizedBox(width: 6),
+            Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 13)),
           ]),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           ...items.map((item) {
             final confirmed = _reviewConfirmedItems.contains(item.id);
             return Padding(
@@ -2466,8 +2446,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                         width: 28, height: 28,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: confirmed ? _success.withValues(alpha: 0.15) : _bgDeep,
-                          border: Border.all(color: confirmed ? _success : _border, width: confirmed ? 2 : 1),
+                          color: confirmed ? _success.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
+                          border: Border.all(color: confirmed ? _success : SuokeDesignTokens.borderClr(context), width: confirmed ? 2 : 1),
                         ),
                         child: Icon(
                           confirmed ? Icons.check : null,
@@ -2477,15 +2457,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(item.label,
-                            style: const TextStyle(color: _textPrimary, fontSize: 12, fontWeight: FontWeight.w500)),
+                            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12, fontWeight: FontWeight.w500)),
                         Text(item.value,
-                            style: const TextStyle(color: _textSecondary, fontSize: 11)),
+                            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
                       ],
                     ),
                   ),
@@ -2501,19 +2481,19 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                       children: [
                         Container(width: 4, height: 4,
                           decoration: BoxDecoration(shape: BoxShape.circle, color: item.confidenceColor)),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(item.confidenceLabel,
                             style: TextStyle(color: item.confidenceColor, fontSize: 10, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
                   if (item.hint != null) ...[
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Semantics(
                       label: item.hint!,
                       child: Tooltip(
                         message: item.hint!,
-                        child: const Icon(Icons.info_outline, size: 14, color: _textMuted),
+                        child: Icon(Icons.info_outline, size: 14, color: SuokeDesignTokens.textSub(context)),
                       ),
                     ),
                   ],
@@ -2531,51 +2511,51 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _cardDecoration().copyWith(
-        border: Border.all(color: _brand.withValues(alpha: 0.25)),
+        border: Border.all(color: SuokeDesignTokens.accent.withValues(alpha: 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Icon(Icons.tune, color: _brand, size: 16),
-            const SizedBox(width: 6),
-            const Expanded(
+            Icon(Icons.tune, color: SuokeDesignTokens.accent, size: 16),
+            SizedBox(width: 6),
+            Expanded(
               child: Text('精度校准 (推荐)',
-                  style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
             ),
             if (_calibrationPoints.isNotEmpty)
               Text('${_calibrationPoints.length} 个校准点',
-                  style: const TextStyle(color: _brand, fontSize: 11)),
+                  style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 11)),
           ]),
-          const SizedBox(height: 4),
-          const Text('用钢尺测量一条对角线距离，输入实际值和 AR 测量值以提升精度',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 10),
+          SizedBox(height: 4),
+          Text('用钢尺测量一条对角线距离，输入实际值和 AR 测量值以提升精度',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 10),
           Row(children: [
             Expanded(flex: 3, child: _tinyField(_labelCtrl, '标识 (如: 主卧对角线)')),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: _tinyField(_arValueCtrl, 'AR值(m)', number: true)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: _tinyField(_refValueCtrl, '钢尺(m)', number: true)),
           ]),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: _addCalibrationPoint,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('添加校准点'),
-              style: TextButton.styleFrom(foregroundColor: _brand),
+              icon: Icon(Icons.add, size: 16),
+              label: Text('添加校准点'),
+              style: TextButton.styleFrom(foregroundColor: SuokeDesignTokens.accent),
             ),
           ),
           if (_calibrationPoints.isNotEmpty) ...[
-            const Divider(color: _border, height: 16),
+            Divider(color: SuokeDesignTokens.borderClr(context), height: 16),
             ..._calibrationPoints.map((p) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(children: [
-                Expanded(flex: 2, child: Text('${p['label']}', style: const TextStyle(color: _textPrimary, fontSize: 12))),
-                Expanded(child: Text('AR:${p['ar_value']}m', style: const TextStyle(color: _textSecondary, fontSize: 11))),
-                Expanded(child: Text('尺:${p['reference_value']}m', style: const TextStyle(color: _textSecondary, fontSize: 11))),
+                Expanded(flex: 2, child: Text('${p['label']}', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12))),
+                Expanded(child: Text('AR:${p['ar_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
+                Expanded(child: Text('尺:${p['reference_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
                 Text('${(p['deviation'] as num).toStringAsFixed(3)}m',
                     style: TextStyle(
                       color: (p['deviation'] as num).abs() < 0.03 ? _success : _danger,
@@ -2596,21 +2576,21 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('复核备注 (可选)', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 8),
+          Text('复核备注 (可选)', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+          SizedBox(height: 8),
           TextField(
             controller: _reviewNoteCtrl,
             maxLines: 2,
             decoration: InputDecoration(
               hintText: '记录复核中的发现，如 "客厅长边用钢尺核实，误差+2cm"',
-              hintStyle: const TextStyle(color: _textMuted, fontSize: 12),
+              hintStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              filled: true, fillColor: _bgDeep,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _border)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _border)),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: _brand)),
+              filled: true, fillColor: SuokeDesignTokens.bg(context),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: SuokeDesignTokens.accent)),
             ),
-            style: const TextStyle(color: _textPrimary, fontSize: 13),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
           ),
         ],
       ),
@@ -2623,8 +2603,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   Widget _buildResultsStep() {
     if (_scanState != _ScanState.completed) {
-      return const Center(
-        child: Text('扫描尚未完成', style: TextStyle(color: _textSecondary)),
+      return Center(
+        child: Text('扫描尚未完成', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
       );
     }
 
@@ -2648,39 +2628,39 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
-                        colors: [_brand, _brand.withValues(alpha: 0.3)],
+                        colors: [SuokeDesignTokens.accent, SuokeDesignTokens.accent.withValues(alpha: 0.3)],
                         begin: Alignment.topLeft, end: Alignment.bottomRight,
                       ),
                     ),
-                    child: const Icon(Icons.check, color: Colors.white, size: 48),
+                    child: Icon(Icons.check, color: Colors.white, size: 48),
                   ),
                 );
               },
             ),
           ),
-          const SizedBox(height: 16),
-          const Center(
-            child: Text('扫描完成', style: TextStyle(color: _textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(height: 4),
+          SizedBox(height: 16),
           Center(
-            child: Text(_sessionName, style: const TextStyle(color: _textSecondary, fontSize: 13)),
+            child: Text('扫描完成', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 20, fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 4),
+          Center(
+            child: Text(_sessionName, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+          ),
+          SizedBox(height: 20),
 
           // 指标卡片
           Row(
             children: [
-              _resultMetricCard('房间数', '$_roomCount', Icons.home, _brand),
-              const SizedBox(width: 10),
-              _resultMetricCard('总面积', '${area.toStringAsFixed(1)} ㎡', Icons.square_foot, _brand),
+              _resultMetricCard('房间数', '$_roomCount', Icons.home, SuokeDesignTokens.accent),
+              SizedBox(width: 10),
+              _resultMetricCard('总面积', '${area.toStringAsFixed(1)} ㎡', Icons.square_foot, SuokeDesignTokens.accent),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Row(
             children: [
-              _resultMetricCard('墙面特征', '$_wallFeatures', Icons.window, _brand),
-              const SizedBox(width: 10),
+              _resultMetricCard('墙面特征', '$_wallFeatures', Icons.window, SuokeDesignTokens.accent),
+              SizedBox(width: 10),
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.all(16),
@@ -2690,26 +2670,26 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('精度等级', style: TextStyle(color: _textSecondary, fontSize: 11)),
-                      const SizedBox(height: 4),
+                      Text('精度等级', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+                      SizedBox(height: 4),
                       Text(
                         _accuracyLabel(_accuracyLevel),
                         style: TextStyle(color: _accuracyColor(_accuracyLevel), fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       if (_rmsErrorCm != null)
                         Text('RMS: ${_rmsErrorCm!.toStringAsFixed(2)} cm',
-                            style: const TextStyle(color: _textSecondary, fontSize: 10)),
+                            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 10)),
                     ],
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // 校准
           _buildCalibrationSection(),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 操作
           _buildResultActions(),
@@ -2727,10 +2707,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color, size: 20),
-            const SizedBox(height: 8),
-            Text(value, style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(color: _textSecondary, fontSize: 11)),
+            SizedBox(height: 8),
+            Text(value, style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold, fontSize: 18)),
+            SizedBox(height: 2),
+            Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
           ],
         ),
       ),
@@ -2744,40 +2724,40 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.tune, color: _brand, size: 16),
+          Row(children: [
+            Icon(Icons.tune, color: SuokeDesignTokens.accent, size: 16),
             SizedBox(width: 6),
-            Text('精度校准', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+            Text('精度校准', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
           ]),
-          const SizedBox(height: 4),
-          const Text('用钢尺测量对角线距离，对比 AR 值提高精度',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 10),
+          SizedBox(height: 4),
+          Text('用钢尺测量对角线距离，对比 AR 值提高精度',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 10),
           Row(children: [
             Expanded(flex: 3, child: _tinyField(_labelCtrl, '标识 (如: 主卧对角线)')),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: _tinyField(_arValueCtrl, 'AR值(m)', number: true)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: _tinyField(_refValueCtrl, '钢尺(m)', number: true)),
           ]),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: _addCalibrationPoint,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('添加校准点'),
-              style: TextButton.styleFrom(foregroundColor: _brand),
+              icon: Icon(Icons.add, size: 16),
+              label: Text('添加校准点'),
+              style: TextButton.styleFrom(foregroundColor: SuokeDesignTokens.accent),
             ),
           ),
           if (_calibrationPoints.isNotEmpty) ...[
-            const Divider(color: _border, height: 16),
+            Divider(color: SuokeDesignTokens.borderClr(context), height: 16),
             ..._calibrationPoints.map((p) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(children: [
-                Expanded(flex: 2, child: Text('${p['label']}', style: const TextStyle(color: _textPrimary, fontSize: 12))),
-                Expanded(child: Text('AR:${p['ar_value']}m', style: const TextStyle(color: _textSecondary, fontSize: 11))),
-                Expanded(child: Text('尺:${p['reference_value']}m', style: const TextStyle(color: _textSecondary, fontSize: 11))),
+                Expanded(flex: 2, child: Text('${p['label']}', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12))),
+                Expanded(child: Text('AR:${p['ar_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
+                Expanded(child: Text('尺:${p['reference_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
                 Text('${(p['deviation'] as num).toStringAsFixed(3)}m',
                     style: TextStyle(
                       color: (p['deviation'] as num).abs() < 0.03 ? _success : _danger,
@@ -2796,14 +2776,14 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       controller: ctrl,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: _textMuted, fontSize: 11),
+        hintStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        filled: true, fillColor: _bgDeep,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _brand)),
+        filled: true, fillColor: SuokeDesignTokens.bg(context),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: SuokeDesignTokens.accent)),
       ),
-      style: const TextStyle(color: _textPrimary, fontSize: 12),
+      style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12),
       keyboardType: number ? TextInputType.number : TextInputType.text,
     );
   }
@@ -2815,22 +2795,22 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('后续操作', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 12),
-          _actionButton('应用于测量记录', Icons.check_circle_outline, _brand, _applyToSurvey),
-          const SizedBox(height: 8),
-          _actionButton('标记门窗位置', Icons.door_sliding, _textPrimary, () => _goToStep(_ScanStep.doorWindow)),
-          const SizedBox(height: 8),
-          _actionButton('水电点位规划', Icons.electrical_services, _textPrimary, () => _goToStep(_ScanStep.mep)),
-          const SizedBox(height: 8),
-          _actionButton('查看墙面特征', Icons.window, _textPrimary, () {
+          Text('后续操作', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14)),
+          SizedBox(height: 12),
+          _actionButton('应用于测量记录', Icons.check_circle_outline, SuokeDesignTokens.accent, _applyToSurvey),
+          SizedBox(height: 8),
+          _actionButton('标记门窗位置', Icons.door_sliding, SuokeDesignTokens.text(context), () => _goToStep(_ScanStep.doorWindow)),
+          SizedBox(height: 8),
+          _actionButton('水电点位规划', Icons.electrical_services, SuokeDesignTokens.text(context), () => _goToStep(_ScanStep.mep)),
+          SizedBox(height: 8),
+          _actionButton('查看墙面特征', Icons.window, SuokeDesignTokens.text(context), () {
             _showSnack('墙面特征已自动识别，可在测量详情中查看');
           }),
-          const SizedBox(height: 8),
-          _actionButton('导出测量报告 (PDF/CSV)', Icons.file_download, _textPrimary, () {
+          SizedBox(height: 8),
+          _actionButton('导出测量报告 (PDF/CSV)', Icons.file_download, SuokeDesignTokens.text(context), () {
             _showSnack('导出功能开发中，敬请期待');
           }),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _outlineButton('重新扫描', Icons.refresh, () {
             setState(() {
               _scanState = _ScanState.ready;
@@ -2858,7 +2838,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
         icon: Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        label: Text(label, style: TextStyle(fontWeight: FontWeight.w500)),
       ),
     );
   }
@@ -2867,9 +2847,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   Widget _sectionHeader(String title, IconData icon) {
     return Row(children: [
-      Icon(icon, color: _brand, size: 20),
-      const SizedBox(width: 8),
-      Text(title, style: const TextStyle(color: _textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+      Icon(icon, color: SuokeDesignTokens.accent, size: 20),
+      SizedBox(width: 8),
+      Text(title, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 18, fontWeight: FontWeight.bold)),
     ]);
   }
 
@@ -2880,13 +2860,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: ElevatedButton.icon(
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _brand,
+          backgroundColor: SuokeDesignTokens.accent,
           foregroundColor: Colors.black,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 0,
         ),
-        icon: const Icon(Icons.arrow_forward, size: 20),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+        icon: Icon(Icons.arrow_forward, size: 20),
+        label: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
       ),
     );
   }
@@ -2898,20 +2878,20 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: OutlinedButton.icon(
         onPressed: isLoading ? null : onTap,
         style: OutlinedButton.styleFrom(
-          foregroundColor: _textPrimary,
-          side: const BorderSide(color: _border),
+          foregroundColor: SuokeDesignTokens.text(context),
+          side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        icon: isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _border)) : Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        icon: isLoading ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: SuokeDesignTokens.borderClr(context))) : Icon(icon, size: 18),
+        label: Text(label, style: TextStyle(fontWeight: FontWeight.w500)),
       ),
     );
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-    color: _bgCard,
+    color: SuokeDesignTokens.card(context),
     borderRadius: BorderRadius.circular(14),
-    border: Border.all(color: _border),
+    border: Border.all(color: SuokeDesignTokens.borderClr(context)),
   );
 
   // ═══════════════════════════════════════════════
@@ -2925,31 +2905,31 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader('门窗定位', Icons.door_sliding),
-          const SizedBox(height: 4),
-          const Text('标记房间的门、窗位置和尺寸',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 16),
+          SizedBox(height: 4),
+          Text('标记房间的门、窗位置和尺寸',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 16),
 
           // 已标记的门窗列表
           if (_loadingDoorWindows)
-            const Center(child: CircularProgressIndicator(color: _brand))
+            Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
           else if (_doorWindows.isNotEmpty)
             _buildDwList()
           else
             _buildDwEmptyState(),
 
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // 新增门窗表单
           _buildDwForm(),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           Row(
             children: [
               Expanded(
                 child: _outlineButton('返回结果', Icons.arrow_back, () => _goToStep(_ScanStep.results)),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: _buildNextStepButton('水电定位', () => _goToStep(_ScanStep.mep)),
               ),
@@ -2983,8 +2963,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('已标记门窗', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 8),
+          Text('已标记门窗', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 13)),
+          SizedBox(height: 8),
           ..._doorWindows.map((dw) {
             final type = dw['type'] ?? dw['door_window_type'] ?? 'door';
             final width = dw['width']?.toString() ?? '?';
@@ -2994,11 +2974,11 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(children: [
-                Icon(icon, size: 18, color: _brand),
-                const SizedBox(width: 8),
+                Icon(icon, size: 18, color: SuokeDesignTokens.accent),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text('${type == "window" ? "窗" : "门"} ${width}x${height}cm · $pos',
-                      style: const TextStyle(color: _textPrimary, fontSize: 12)),
+                      style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12)),
                 ),
                 GestureDetector(
                   onTap: () async {
@@ -3009,7 +2989,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                       _loadDoorWindows();
                     }
                   },
-                  child: const Icon(Icons.delete_outline, size: 16, color: _danger),
+                  child: Icon(Icons.delete_outline, size: 16, color: _danger),
                 ),
               ]),
             );
@@ -3025,13 +3005,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       decoration: _cardDecoration(),
       child: Column(
         children: [
-          Icon(Icons.door_sliding, size: 40, color: _textMuted.withValues(alpha: 0.5)),
-          const SizedBox(height: 12),
-          const Text('暂无门窗标记', style: TextStyle(color: _textSecondary, fontSize: 14, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          const Text('在下方添加门窗位置和尺寸，用于装修和物料估算',
+          Icon(Icons.door_sliding, size: 40, color: SuokeDesignTokens.textSub(context).withValues(alpha: 0.5)),
+          SizedBox(height: 12),
+          Text('暂无门窗标记', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 14, fontWeight: FontWeight.w500)),
+          SizedBox(height: 4),
+          Text('在下方添加门窗位置和尺寸，用于装修和物料估算',
               textAlign: TextAlign.center,
-              style: TextStyle(color: _textMuted, fontSize: 12)),
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
         ],
       ),
     );
@@ -3044,8 +3024,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('新增门窗', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 10),
+          Text('新增门窗', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 13)),
+          SizedBox(height: 10),
           // 类型选择
           Row(children: [
             Expanded(
@@ -3055,19 +3035,19 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: _dwSelectedType == 'window' ? _brand.withValues(alpha: 0.15) : _bgDeep,
+                    color: _dwSelectedType == 'window' ? SuokeDesignTokens.accent.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _dwSelectedType == 'window' ? _brand : _border),
+                    border: Border.all(color: _dwSelectedType == 'window' ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
                   ),
-                  child: const Column(children: [
-                    Icon(Icons.window, color: _brand, size: 20),
+                  child: Column(children: [
+                    Icon(Icons.window, color: SuokeDesignTokens.accent, size: 20),
                     SizedBox(height: 2),
-                    Text('窗户', style: TextStyle(color: _textPrimary, fontSize: 11)),
+                    Text('窗户', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 11)),
                   ]),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: GestureDetector(
                 onTap: () => setState(() => _dwSelectedType = 'door'),
@@ -3075,39 +3055,39 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: _dwSelectedType == 'door' ? _brand.withValues(alpha: 0.15) : _bgDeep,
+                    color: _dwSelectedType == 'door' ? SuokeDesignTokens.accent.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _dwSelectedType == 'door' ? _brand : _border),
+                    border: Border.all(color: _dwSelectedType == 'door' ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
                   ),
-                  child: const Column(children: [
-                    Icon(Icons.door_sliding, color: _brand, size: 20),
+                  child: Column(children: [
+                    Icon(Icons.door_sliding, color: SuokeDesignTokens.accent, size: 20),
                     SizedBox(height: 2),
-                    Text('门', style: TextStyle(color: _textPrimary, fontSize: 11)),
+                    Text('门', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 11)),
                   ]),
                 ),
               ),
             ),
           ]),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Row(children: [
             Expanded(child: _dwField(_dwWidthCtrl, '宽 (cm)', true)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(child: _dwField(_dwHeightCtrl, '高 (cm)', true)),
           ]),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _dwField(_dwPosCtrl, '位置描述 (如: 南墙、靠窗)', false),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _addDoorWindow,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _brand.withValues(alpha: 0.15),
-                foregroundColor: _brand,
+                backgroundColor: SuokeDesignTokens.accent.withValues(alpha: 0.15),
+                foregroundColor: SuokeDesignTokens.accent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('添加门窗', style: TextStyle(fontSize: 12)),
+              icon: Icon(Icons.add, size: 16),
+              label: Text('添加门窗', style: TextStyle(fontSize: 12)),
             ),
           ),
         ],
@@ -3120,15 +3100,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       controller: ctrl,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: _textMuted, fontSize: 11),
+        hintStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        filled: true, fillColor: _bgDeep,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _border)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _border)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: _brand)),
+        filled: true, fillColor: SuokeDesignTokens.bg(context),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: const BorderSide(color: SuokeDesignTokens.accent)),
       ),
-      style: const TextStyle(color: _textPrimary, fontSize: 12),
+      style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12),
       keyboardType: number ? TextInputType.number : TextInputType.text,
     );
   }
@@ -3178,28 +3158,28 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionHeader('水电定位', Icons.electrical_services),
-          const SizedBox(height: 4),
-          const Text('标记插座、开关、给排水点位等水电设施',
-              style: TextStyle(color: _textSecondary, fontSize: 11)),
-          const SizedBox(height: 16),
+          SizedBox(height: 4),
+          Text('标记插座、开关、给排水点位等水电设施',
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+          SizedBox(height: 16),
 
           // MEP 计划操作
           if (_mepPlanId == null)
             _buildMepCreatePlan()
           else ...[
             _buildMepPointList(),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _buildMepAddForm(),
           ],
 
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Row(
             children: [
               Expanded(
                 child: _outlineButton(isLoading: _loadingMep,
                     '返回门窗', Icons.arrow_back, () => _goToStep(_ScanStep.doorWindow)),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: _outlineButton(isLoading: _loadingMep,
                     '完成', Icons.check, () {
@@ -3219,22 +3199,22 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       decoration: _cardDecoration(),
       child: Column(
         children: [
-          const Icon(Icons.electrical_services, color: _brand, size: 40),
-          const SizedBox(height: 12),
-          const Text('尚未创建水电点位计划',
-              style: TextStyle(color: _textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          const Text('根据房间类型自动生成标准水电点位，或手动逐个添加',
+          Icon(Icons.electrical_services, color: SuokeDesignTokens.accent, size: 40),
+          SizedBox(height: 12),
+          Text('尚未创建水电点位计划',
+              style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 15, fontWeight: FontWeight.w600)),
+          SizedBox(height: 4),
+          Text('根据房间类型自动生成标准水电点位，或手动逐个添加',
               textAlign: TextAlign.center,
-              style: TextStyle(color: _textSecondary, fontSize: 12)),
-          const SizedBox(height: 16),
+              style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          SizedBox(height: 16),
           Row(children: [
             Expanded(
-              child: _actionButton('自动生成', Icons.auto_fix_high, _brand, _autoGenerateMep),
+              child: _actionButton('自动生成', Icons.auto_fix_high, SuokeDesignTokens.accent, _autoGenerateMep),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
-              child: _actionButton('手动添加', Icons.add_circle_outline, _textPrimary, _createMepPlan),
+              child: _actionButton('手动添加', Icons.add_circle_outline, SuokeDesignTokens.text(context), _createMepPlan),
             ),
           ]),
         ],
@@ -3243,13 +3223,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   }
 
   Widget _buildMepPointList() {
-    if (_loadingMep) return const Center(child: CircularProgressIndicator(color: _brand));
+    if (_loadingMep) return Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     if (_mepPoints.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: _cardDecoration(),
-        child: const Center(
-          child: Text('暂无水电点位，点击下方添加', style: TextStyle(color: _textSecondary)),
+        child: Center(
+          child: Text('暂无水电点位，点击下方添加', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         ),
       );
     }
@@ -3269,20 +3249,20 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const Text('已添加点位', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
+            Text('已添加点位', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 13)),
             const Spacer(),
-            Text('${_mepPoints.length} 个', style: const TextStyle(color: _brand, fontSize: 12)),
+            Text('${_mepPoints.length} 个', style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 12)),
           ]),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           ...groups.entries.map((e) {
             final icon = _mepIcon(e.key);
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(children: [
-                Icon(icon, size: 16, color: _brand),
-                const SizedBox(width: 6),
+                Icon(icon, size: 16, color: SuokeDesignTokens.accent),
+                SizedBox(width: 6),
                 Text('${_mepLabel(e.key)} x${e.value.length}',
-                    style: const TextStyle(color: _textPrimary, fontSize: 12)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12)),
               ]),
             );
           }),
@@ -3308,8 +3288,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('添加点位', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 10),
+          Text('添加点位', style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 13)),
+          SizedBox(height: 10),
           // 类型选择
           Wrap(
             spacing: 6,
@@ -3319,35 +3299,35 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _mepTypeCtrl.text == e.key ? _brand.withValues(alpha: 0.15) : _bgDeep,
+                  color: _mepTypeCtrl.text == e.key ? SuokeDesignTokens.accent.withValues(alpha: 0.15) : SuokeDesignTokens.bg(context),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: _mepTypeCtrl.text == e.key ? _brand : _border),
+                  border: Border.all(color: _mepTypeCtrl.text == e.key ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_mepIcon(e.key), size: 12, color: _mepTypeCtrl.text == e.key ? _brand : _textSecondary),
-                  const SizedBox(width: 4),
+                  Icon(_mepIcon(e.key), size: 12, color: _mepTypeCtrl.text == e.key ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context)),
+                  SizedBox(width: 4),
                   Text(e.value, style: TextStyle(
-                    color: _mepTypeCtrl.text == e.key ? _brand : _textSecondary, fontSize: 11,
+                    color: _mepTypeCtrl.text == e.key ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context), fontSize: 11,
                   )),
                 ]),
               ),
             )).toList(),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Row(children: [
             Expanded(child: _dwField(_mepLabelCtrl, '位置/标签 (如: 床头左侧)', false)),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             SizedBox(
               width: 80,
               child: ElevatedButton(
                 onPressed: _addMepPoint,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _brand,
+                  backgroundColor: SuokeDesignTokens.accent,
                   foregroundColor: Colors.black,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
-                child: const Text('添加', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                child: Text('添加', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               ),
             ),
           ]),
@@ -3466,7 +3446,7 @@ class _ReviewItem {
     'high' => _success,
     'medium' => _warning,
     'low' => _danger,
-    _ => _textSecondary,
+    _ => SuokeDesignTokens.success,
   };
 
   String get confidenceLabel => switch (confidence) {
@@ -3493,11 +3473,11 @@ class _CoachingTip extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: _brand),
-          const SizedBox(width: 8),
+          Icon(icon, size: 14, color: SuokeDesignTokens.accent),
+          SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(color: _textSecondary, fontSize: 12, height: 1.3)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12, height: 1.3)),
           ),
         ],
       ),

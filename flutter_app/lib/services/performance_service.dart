@@ -16,9 +16,8 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart';
+import '../platform_info.dart';
 import 'package:flutter/scheduler.dart';
 
 /// 启动阶段标记
@@ -246,8 +245,8 @@ class PerformanceService {
       'stack': stack,
       'context': context,
       'timestamp': DateTime.now().toIso8601String(),
-      'platform': Platform.operatingSystem,
-      'is_harmonyos': !Platform.isAndroid && !Platform.isIOS,
+      'platform': AppPlatform.operatingSystem,
+      'is_harmonyos': !AppPlatform.isAndroid && !AppPlatform.isIOS,
     };
 
     _crashReports.add(report);

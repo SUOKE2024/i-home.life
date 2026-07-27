@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import structlog
 
 from app.database import get_db
 from app.models.user import User
@@ -587,6 +588,9 @@ async def complete_milestone(
         try:
             actual_date = datetime.fromisoformat(data.actual_date.replace("Z", "+00:00"))
         except Exception:
+            structlog.get_logger("construction").warning(
+                "milestone_date_parse_failed", raw_date=data.actual_date, exc_info=True
+            )
             actual_date = None
     record = await progress_service.complete_milestone(
         db, milestone_id, actual_date=actual_date, actual_percent=data.actual_percent, note=data.note

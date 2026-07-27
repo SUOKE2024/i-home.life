@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.2.0"
+    app_version: str = "1.2.5"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -125,6 +125,10 @@ class Settings(BaseSettings):
     # v1.2.1 P1-9：语音会话内存 TTL。VoiceSessionManager._sessions 原无过期机制，
     # 长运行下 WebSocket 会话对象常驻内存导致泄漏。设 TTL 后超时未活跃的会话自动淘汰。
     voice_session_ttl_seconds: int = 3600              # 语音会话空闲超时（秒），默认 1 小时
+    # v1.2.3 P2：语音 LLM 语义路由开关。
+    # 启用后 /voice/process-enhanced 使用 LLM（deepseek → glm → qwen fallback）做意图分类，
+    # 关闭或 LLM 不可用时回退到关键词匹配。
+    voice_llm_routing_enabled: bool = True
 
     # ── Agent FunctionCall / MCP ──
     agent_function_call_enabled: bool = True           # 是否启用 FunctionCall
@@ -150,6 +154,13 @@ class Settings(BaseSettings):
     # 注入系统指令前缀，调整 Agent 语气
     # 需配合 voice_emotion_detection=True 使用
     voice_emotion_routing_enabled: bool = True
+
+    # ── 语音智能体编排（借鉴 GPT Voice / Claude Voice 2026-07 调度范式）──
+    # 启用后 POST /api/voice/orchestrate 可用：
+    # - 一句话启动后台 Agent 任务（长任务不阻塞语音对话）
+    # - 连接词切分多意图并行编排（"同时/另外/再帮我"）
+    # - 语音任务生命周期控制（"任务进度"/"取消任务"）
+    voice_agent_orchestration_enabled: bool = False
 
     # ── Qwen-Audio-3.0-Realtime 模型变体 ──
     # 默认 flash（速度优先），可切换 plus（推理更强 + 情感感知 + 副语言）
@@ -309,6 +320,9 @@ class Settings(BaseSettings):
     # ── 推送通道 ──
     # 启用后 push_sender 可通过 FCM/APNs/WebPush 发送推送通知
     push_enabled: bool = True
+    # 推送提供商（规划中，逗号分隔优先级）：fcm, apns, webpush, sms
+    # 当前为 mock 模式，所有推送走 _send_to_device mock 路径
+    push_provider: str = ""
 
     # ── A2UI 协议 ──
     # 启用后 Agent 回复可输出 A2UI JSON 卡片（Flutter/Web 端渲染）
@@ -401,6 +415,11 @@ class Settings(BaseSettings):
     spatial_perception_enabled: bool = False   # 户型结构/承重/管线识别
     spatial_reasoning_enabled: bool = False    # 设计错误规避规则引擎
     spatial_interaction_enabled: bool = False   # 设计→施工指令→采购多角色协同
+
+    # ── Sketch-to-3D 视觉识别（v1.2.0）──
+    # 启用后 /api/sketch-to-3d/analyze 使用多模态视觉模型（DeepSeek/GLM/Qwen）分析手绘草图
+    # 关闭时返回占位结果（confidence=0, mode="feature_disabled"）
+    sketch_to_3d_vision_enabled: bool = True
 
 
 @lru_cache

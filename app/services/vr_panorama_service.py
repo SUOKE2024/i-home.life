@@ -66,6 +66,20 @@ async def delete_panorama(db: AsyncSession, panorama_id: str) -> bool:
     return True
 
 
+async def update_panorama(db: AsyncSession, panorama_id: str, data: dict) -> VRPanorama | None:
+    """更新全景图元数据 (image_url/thumbnail_url/status)。"""
+    result = await db.execute(select(VRPanorama).where(VRPanorama.id == panorama_id))
+    panorama = result.scalar_one_or_none()
+    if not panorama:
+        return None
+    for key, value in data.items():
+        if value is not None:
+            setattr(panorama, key, value)
+    await db.commit()
+    await db.refresh(panorama)
+    return panorama
+
+
 # ──────────────────────────────────────────────────────────────
 # 渲染 (mock 实现)
 # ──────────────────────────────────────────────────────────────
@@ -82,33 +96,33 @@ def generate_equirectangular(floorplan_data: dict) -> dict:
     """生成等距柱状全景图 (基于户型数据的 mock 实现)。
 
     实际实现需调用渲染集群 (Blender headless / Unreal Engine),
-    本函数返回结构化的元数据,供调用方记录和测试。
+    当前返回诚实降级响应，前端可根据 render_status 和 source 字段
+    显示适当的 UI（如「全景渲染未配置」占位图）。
 
     Args:
         floorplan_data: 户型数据 {rooms, walls, materials, ...}
     Returns:
-        {image_url, thumbnail_url, resolution_width, resolution_height, render_metadata}
+        {render_status, source, message, image_url, ...}
     """
     rooms = floorplan_data.get("rooms", []) if isinstance(floorplan_data, dict) else []
     room_name = rooms[0].get("name", "未命名房间") if rooms else "未命名房间"
 
-    # mock 渲染输出 URL (实际由渲染集群上传到 OSS)
-    render_id = uuid.uuid4().hex[:12]
-    image_url = f"https://cdn.i-home.life/vr/{render_id}_equirectangular.jpg"
-    thumbnail_url = f"https://cdn.i-home.life/vr/{render_id}_thumb.jpg"
-
-    # 等距柱状投影标准比例 2:1
-    # 4K = 4096x2048,8K = 8192x4096
     return {
-        "image_url": image_url,
-        "thumbnail_url": thumbnail_url,
+        "render_status": "not_configured",
+        "source": "mock_fallback",
+        "message": (
+            "全景渲染后端未配置。生产环境需接入 Blender Headless 或 Unreal Engine "
+            "渲染集群，并将结果上传至 OSS。当前返回占位数据仅供开发调试。"
+        ),
+        "image_url": "",  # 无真实渲染后端时为空
+        "thumbnail_url": "",  # 无真实渲染后端时为空
         "resolution_width": 4096,
         "resolution_height": 2048,
         "render_metadata": {
             "projection": "equirectangular",
             "room_name": room_name,
             "rooms_count": len(rooms),
-            "renderer": "blender-3.6-mock",
+            "renderer": "not_configured",
         },
     }
 

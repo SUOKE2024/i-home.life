@@ -1,6 +1,7 @@
 from datetime import datetime
+import json
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RoomMeasureItem(BaseModel):
@@ -9,6 +10,7 @@ class RoomMeasureItem(BaseModel):
     room_type: str = Field(default="bedroom")  # living_room, bedroom, kitchen, bathroom, study, balcony
     width: float = Field(..., gt=0)            # 宽度(米)
     length: float = Field(..., gt=0)           # 长度(米)
+    height: float | None = None                # 房间层高(米) — 挑高/复式可与全局 wall_height 不同
     area: float | None = None                  # 面积(自动计算)
     notes: str | None = None                   # 备注
 
@@ -50,7 +52,7 @@ class SurveyResponse(BaseModel):
     scene_type: str
     wall_height: float
     total_area: float
-    rooms_data: str
+    rooms: list[RoomMeasureItem]
     scan_data: str | None
     voice_transcript: str | None
     device_info: str | None
@@ -60,6 +62,20 @@ class SurveyResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("rooms", mode="before")
+    @classmethod
+    def parse_rooms_from_json(cls, v):
+        """将 ORM 的 rooms_data (JSON string) 解析为结构化 RoomMeasureItem 列表"""
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return [RoomMeasureItem(**r) for r in parsed]
+            except (json.JSONDecodeError, TypeError):
+                return []
+        if isinstance(v, list):
+            return v
+        return []
 
 
 class SurveyListItem(BaseModel):

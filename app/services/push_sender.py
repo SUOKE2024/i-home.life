@@ -190,17 +190,48 @@ async def _send_to_device(
     - WebPush: 使用 Web Push API（需 VAPID keys）
     """
     channel = _platform_to_channel(platform)
+    provider = settings.push_provider or ""
+    providers = [p.strip() for p in provider.split(",") if p.strip()]
+    token_preview = device_token[:12] + "..." if len(device_token) > 12 else device_token
 
-    # Mock 模式：记录日志并返回成功
+    # 诚实模式：根据 push_provider 配置区分真实的 mock vs 已配置但未实现
+    if not providers:
+        status = "mock_unconfigured"
+        message = (
+            "推送以 mock 模式发送（未配置推送提供商）。"
+            "生产环境请设置 PUSH_PROVIDER=fcm,apns 并配置对应的 API 凭证。"
+        )
+    elif all(p not in ("fcm", "apns", "webpush") for p in providers):
+        status = "mock_unsupported"
+        message = (
+            f"推送提供商 '{provider}' 不在支持列表（fcm, apns, webpush）中。"
+            "当前以 mock 模式发送，消息不会实际送达设备。"
+        )
+    else:
+        status = "mock_production"
+        message = (
+            f"推送提供商已配置为 '{provider}'，但对应 Adapter 尚未实现。"
+            "当前以 mock 模式发送，消息不会实际送达设备。"
+        )
+
     logger.info(
-        "push_send_mock: channel=%s token=%s title=%s",
-        channel, device_token[:12], title,
+        "push_send_mock",
+        extra={
+            "channel": channel,
+            "token_preview": token_preview,
+            "title": title,
+            "provider": provider,
+            "status": status,
+        },
     )
     return {
-        "success": True,
-        "channel": f"{channel}_mock",
-        "token": device_token[:12] + "...",
+        "success": False,  # 诚实标注：mock 模式推送未真实送达
+        "status": status,
+        "provider": provider,
+        "channel": channel,
+        "token_preview": token_preview,
         "title": title,
+        "message": message,
     }
 
 

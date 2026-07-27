@@ -2,6 +2,164 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.2.5] - 2026-07-26
+
+### 全链路进度评估修复
+基于全量全链路开发进度评估报告（综合成熟度 ~65%）的系统修复：
+
+#### P0 修复：版本号一致性
+- 全项目 14 处版本号同步至 1.2.4（config.py / pubspec.yaml / CI / scripts / Flutter / 测试）
+- Flutter: `1.2.3+19` → `1.2.4+20`
+- Web: `app-config.js` 1.1.28 → 1.2.4，资源版本 `v=20260722a` → `v=20260726a`
+- `sw.js` CACHE_VERSION 2 → 3（强制执行新一轮旧 SW 清理）
+- `version.json` 1.2.3+19 → 1.2.4+20
+
+#### P0 修复：API 测试覆盖率提升
+- **37 个缺失 API 测试文件全部补齐**（覆盖率 21/58 → 58/58）
+- 新增约 320 个测试函数，覆盖所有 API 模块的 CRUD / Auth / 越权 / 边界 case
+- 测试通过率：88%（173/197 通过，24 个因子代理字段名偏差待修复）
+- 一批覆盖：energy / smart_home / vr_panorama / lighting / voice / voice_realtime
+- 二批覆盖：sketch_to_3d / construction_drawing / takeoff / location / camera_scan / product_batch
+- 三批覆盖：crews / workers / files / admin / config_api / identity / eval
+- 四批覆盖：kitchen / bathroom / door_window_waterproof / custom_furniture / soft_furnishing / appliance / ai_image
+- 直接创建：construction / chat / a2a / health / harness_api / products / change_orders / kitchen_bath_mep / scene_automation / furniture_catalog / agents
+
+#### P1 修复：Web 控制台完善
+- 新增 `web/404.html` 自定义错误页面（中文，品牌一致）
+- nginx 配置增加 `error_page 404 /404.html` 指令（HTTP + HTTPS 双 server）
+- nginx HTTPS server 增加 HSTS 注释（生产有有效 CA 证书时启用）
+- nginx 安全头已完备：X-Frame-Options / X-Content-Type-Options / X-XSS-Protection / Referrer-Policy / CSP / Permissions-Policy
+
+#### 项目冗余清理
+- 清理 ~2,180 个 __pycache__/.pyc 文件
+- 清理过期 data/test_*.db-journal 文件
+- 清理 .superpowers 旧 server.log
+
+## [1.2.4] - 2026-07-25
+
+### P0 修复：Web 控制台恢复
+- **P0-1**: 从 git 历史恢复被 commit 0613533 删除的 19 个 HTML 页面（workbench/login/admin/studio 等）
+- 恢复 web/assets/css/（common.css / workbench.css）和 13 个 JS 文件（api-client/router/app-shell 等）
+- 恢复品牌资源（icons/desktop/）、截图（screenshots/）、壁纸（wallpaper/）、头像（avatars/）
+- 恢复法律页面（privacy-policy.html / terms-of-service.html）、robots.txt、sitemap.xml
+- 恢复 A2UI 协议前端资源（a2ui-cards.css / a2ui-renderer.js）
+- 维持 Flutter PWA `index.html` 为默认入口（含 loading spinner），旧版页面可直接 URL 访问
+
+### P1 修复：功能补全
+- **P1-1**: sketch_to_3d.py 接入真实多模态 AI 视觉模型分析（DeepSeek/GLM/Qwen vision），替换硬编码占位
+  - 新增 `sketch_to_3d_vision_enabled` feature flag（默认 True）
+  - 按 deepseek → glm → qwen 优先级调用视觉模型，含 base64 图片编码 + JSON 结构解析
+- **P1-2**: Flutter 业务实体类型化数据模型（10 个模型文件 + 桶导出）
+  - project / user / budget / task / material / construction / settlement / smart_home / scene_automation / procurement
+  - 遵循不可变模式：fromJson / toJson / copyWith / == / hashCode
+- **P1-4**: A2A 任务持久化 — 从内存 dict 迁移到数据库 A2ATask 表
+  - 新增 `app/models/a2a_task.py` 模型，含 TTL 24h 过期清理
+  - send_task / get_task / get_task_status 三个端点均通过 AsyncSession 操作 DB
+
+### P2 修复：质量提升
+- **P2-1**: voice.py 新增 `/process-enhanced` LLM 语义意图路由端点
+  - 10 类意图分类（design/measurement/budget/procurement/construction/settlement/qa/smart_home/scene/general）
+  - `voice_llm_routing_enabled` feature flag（默认 True），失败自动降级关键词匹配
+- **P2-3**: WebAuthn Redis 配置完善 — main.py 增加 URL 格式校验，.env.example 增加生产 Redis 警告
+
+### P3 修复：技术债务
+- push_sender: 结构化 mock 日志 + push_provider 配置字段
+- ai_render_service: `_detect_room_type()` 4 级降级优先（room_name → 正则提取 → visual-pending → unknown）
+- vr_panorama_service: `generate_equirectangular()` 诚实降级返回 `render_status: not_configured`
+- 回复模板系统：新建 `app/services/reply_templates.py` 集中管理硬编码中文回复
+
+### 清理
+- voice.py / voice_realtime.py 硬编码回复迁移至 ReplyTemplates 模板系统
+- sw.js 添加 CACHE_VERSION 常量和完整迁移策略注释
+
+## [1.2.3] - 2026-07-24
+
+### E2E 全链路验证修复与项目清理
+
+基于 E2E 全量全链路验证报告（`118.31.223.213:8081`），系统修复测试脚本并清理项目冗余。
+
+#### E2E 测试脚本修复（`scripts/e2e_test.py`）
+- 项目创建字段名修正：`area` → `total_area`，移除无效 `style` 字段
+- 增强 HTTP 204 空响应体处理，修复清理步骤崩溃
+- Web 静态资源检查从旧 HTML 页面迁移至 Flutter SPA 核心资源（`main.dart.js`, `flutter.js` 等）
+- 物料端点增加 auth / no-auth 双场景校验
+- 新增 `/api/health/detail` 详细健康检查（database, secret_manager, disk, redis）
+- 失败项包含 HTTP 状态码和错误详情
+
+#### E2E 脚本同步更新
+- [scripts/e2e-pages.sh](scripts/e2e-pages.sh)：17 项旧 HTML 页面 → 9 项 Flutter SPA 核心资源
+- [scripts/e2e-full.sh](scripts/e2e-full.sh)：版本号 v1.0.10 → v1.2.3
+
+#### 全项目版本号同步（14 处 v1.2.3）
+- `app/config.py` / CI (3处) + 6 serverless handler + `deploy-production.sh` + 3 测试脚本
+- `e2e-full.sh` / `e2e-pages.sh` / `e2e_test.py`
+
+#### 项目冗余清理
+- 删除 4 冗余脚本：`e2e-demo.sh`, `e2e-verify.py`, `test_agents.py`, `verify-ac.sh`
+- 删除 `e2e_ar_web.py`（测试旧 Web 资源）
+- 清理 ~473 个过期测试 DB（`data/test_*.db`）+ ~210 个 `__pycache__` 文件
+- 清理 `data/server.log` + 构建日志
+- 修复 `uat_e2e.py` 清理逻辑：`try/finally` 确保异常退出也清理临时 DB
+
+#### 本地测试
+- 修复 `tests/test_v1128_suoke_borrowed.py::test_app_version_bumped` 版本断言 `1.2.0` → `1.2.3`
+- 123 项本地测试通过（`test_v1128` / `test_v1129` / `test_projects` / `test_tracing`）
+
+#### E2E 远程验证结果
+- 82% 通过（23/28），5 项失败全部为服务器端数据库/secret_manager 问题
+
+### 设计台全链路专业化标准化修复
+
+基于设计台 UI/UX 全链路诊断报告，修复 2 个 P0 功能缺陷和 3 个 P1 功能断点。
+
+#### P0 功能缺陷修复
+- [app/schemas/floorplan.py](app/schemas/floorplan.py) 新增 `FloorPlanUpdate` schema（全字段可选）
+- [app/api/floorplans.py](app/api/floorplans.py) 新增 `PATCH /floorplans/{plan_id}` 端点，支持部分更新（如仅切换 is_active 状态）
+- [flutter_app/lib/pages/design_deepening_page.dart](flutter_app/lib/pages/design_deepening_page.dart) `_toggleActive` 的 PATCH 调用此前因后端无 PATCH 端点永远失败，现已修复
+- [flutter_app/lib/pages/custom_furniture_page.dart](flutter_app/lib/pages/custom_furniture_page.dart) `_createDesign` 修复：此前所有 11 种家具类型均创建同一个 wardrobe（硬编码），改为参数化，每种类型使用独立默认尺寸（衣柜 2400×2700×600、橱柜 3000×850×600 等）
+- [flutter_app/lib/pages/custom_furniture_page.dart](flutter_app/lib/pages/custom_furniture_page.dart) POST 字段名修正：`type`→`furniture_type`, `width`→`total_width`, `depth`→`total_depth`, `height`→`total_height`, `material`→`panel_material`
+
+#### P1 UI 功能断点接入
+- [flutter_app/lib/pages/lighting_page.dart](flutter_app/lib/pages/lighting_page.dart) 接入 AI 照明设计：新增 `_aiDesign` 方法 + 方案卡片「AI 设计」按钮，调用 `POST /lighting/schemes/{id}/ai-design` 后端端点（此前端点存在但从 UI 不可达）
+- [flutter_app/lib/pages/hard_decoration_page.dart](flutter_app/lib/pages/hard_decoration_page.dart) 接入预算查询：新增 `_loadBudget` 方法 + 方案卡片「预算」按钮，弹出地面/墙面/天花/合计分项预算对话框
+- [flutter_app/lib/pages/bathroom_page.dart](flutter_app/lib/pages/bathroom_page.dart) 接入专业分析：新增 `_showDrain`/`_showWaterproof`/`_showVentilation` 方法 + 坡度/防水/通风分析芯片按钮，调用后端分析端点（此前端点存在但从 UI 不可达）
+
+#### 验证结果
+- UAT 全链路：30/30 通过（100%）
+- 专项单元测试：73/73 通过（floorplans + furniture_soft + vertical_designers + harddecoration）
+- Flutter analyze：0 errors
+
+### 量房流程全链路专业化标准化修复
+
+基于量房流程 UI/UX 全链路诊断报告，修复 P1 标准化缺陷和 P2 UI/UX 改善。
+
+#### P1 标准化修复
+- [app/schemas/survey.py](app/schemas/survey.py) `RoomMeasureItem` 新增 `height` 字段，支持挑高/复式房间独立层高
+- [app/schemas/survey.py](app/schemas/survey.py) `SurveyResponse.rooms_data` 改为结构化 `rooms: list[RoomMeasureItem]`，通过 `field_validator` 自动解析 JSON string（不再返回裸 JSON 字符串）
+- [app/schemas/floorplan.py](app/schemas/floorplan.py) `FloorPlanCreate.data` 新增 `default=""`，新建户型图不再要求必填矢量数据
+- [app/services/survey_service.py](app/services/survey_service.py) 修复 `update_survey` 遗漏字段：添加 `scene_type`/`device_info`/`scan_data`/`voice_transcript` 更新支持
+- [app/services/survey_service.py](app/services/survey_service.py) `update_survey` rooms 增加 Pydantic→dict 防御转换，防止 ORM writer 类型错误
+- [app/services/survey_service.py](app/services/survey_service.py) `create_survey` 补齐 `scene_type`/`device_info`/`scan_data`/`voice_transcript` 创建参数
+
+#### P2 UI/UX 改善
+- 新增 [flutter_app/lib/pages/ar_scan/ar_scan_shared_widgets.dart](flutter_app/lib/pages/ar_scan/ar_scan_shared_widgets.dart)：提取 14 个跨步骤复用组件（RoomPreset、SensorBadge、InfoChip、SummaryChip、GuideStep、TrackingIndicator、GridPainter、ReticlePainter、ReviewItem 等）
+- 新增 [flutter_app/lib/pages/ar_scan/ar_scan_coaching.dart](flutter_app/lib/pages/ar_scan/ar_scan_coaching.dart)：首次使用全屏引导覆盖层（4 步分页指引）+ 主动环境条件提醒横幅（EnvCoachingBanner）
+- [flutter_app/lib/pages/ar_scan_page.dart](flutter_app/lib/pages/ar_scan_page.dart) 集成 CoachingOverlay（首次打开展示）和 EnvCoachingBanner（光线/纹理/移动速度异常时主动弹出）
+- 旧 `_buildEnvConditionWarning()` 替换为可关闭的 `EnvCoachingBanner`
+
+#### 后端修复
+- [app/services/survey_service.py](app/services/survey_service.py) `update_survey` 修复：rooms 字段 Pydantic 对象→dict 防御转换 + 累计面积重算
+- [app/api/custom_furniture.py](app/api/custom_furniture.py) `except HTTPException: pass` 改为 logging.warning 记录 design_id/module_id/status_code
+
+#### Flutter 清理
+- [flutter_app/lib/widgets/chat_message_card.dart](flutter_app/lib/widgets/chat_message_card.dart) 移除未使用变量 `textSecondary`
+- [flutter_app/test/pages/login_page_test.dart](flutter_app/test/pages/login_page_test.dart) 移除未使用 import `mock_http.dart`
+
+#### 验证结果
+- UAT 全链路：30/30 通过（100%）
+- 单元测试：15/15 通过（surveys + floorplans）
+- Flutter analyze：0 errors
+
 ## [1.2.0] - 2026-07-23
 
 ### 家装全链路专业性提升 — 诊断报告 P1-P5 修复
@@ -49,6 +207,46 @@
 #### 文档
 - 新增 [docs/superpowers/specs/2026-07-23-renovation-professionalism-diagnosis.md](docs/superpowers/specs/2026-07-23-renovation-professionalism-diagnosis.md) 诊断报告
 - 新增 [docs/superpowers/specs/2026-07-23-renovation-professionalism-implementation.md](docs/superpowers/specs/2026-07-23-renovation-professionalism-implementation.md) 实施总结
+
+## [1.2.3] - 2026-07-24
+
+### A2UI 协议系统化完善 — 端到端贯通 + 测试覆盖 + 版本兼容
+
+基于 A2UI 实现系统评估报告的 P0-P2 修复。
+
+#### P0 后端 API 集成
+- [app/api/agents.py](app/api/agents.py) 新增 `_generate_a2ui_cards()` 辅助函数：当 `a2ui_enabled=True` 时自动将 Agent 结构化 JSON 输出转为 A2UI 卡片
+- `AgentResponse` 新增 `a2ui_cards` 字段
+- `/agents/chat` 非流式响应包含 `a2ui_cards`
+- `/agents/chat/stream` SSE `done` 事件包含 `a2ui_cards`
+- 9 个 Agent 类型映射到 7 个转换器 (designer→设计, budget→预算, construction→施工, procurement→采购, qa_inspector→质检, settlement→结算, products→材料)
+
+#### P0 Flutter 前端集成
+- [flutter_app/lib/services/sse_service.dart](flutter_app/lib/services/sse_service.dart) `SseEvent` 新增 `a2uiCards` 字段，`done` 事件解析
+- [flutter_app/lib/models/chat_message.dart](flutter_app/lib/models/chat_message.dart) `ChatMessage` 新增 `a2uiCards` 字段
+- [flutter_app/lib/pages/ai_chat_page.dart](flutter_app/lib/pages/ai_chat_page.dart) 集成 `A2UIRenderer`：Agent 消息下方渲染 A2UI 卡片，支持 `onAction` 回调委托
+
+#### P1 测试覆盖（24→25 项）
+- 补齐 7 个转换器测试：construction/procurement/qa(3)/settlement(2)/material
+- 自动路由测试：7 个 agent_key → card_type 映射验证
+- 批量转换测试：`batch_to_cards` + 无 agent_key 默认值
+- 序列化测试：`card_to_json` + `encode_cards_to_wire` SSE streaming
+- 集成测试：`_generate_a2ui_cards` JSON/纯文本/未注册 Agent 三态
+- 工厂函数测试：`make_alert_card` 快捷创建
+
+#### P2 协议版本兼容
+- [app/services/a2ui_schema.py](app/services/a2ui_schema.py) 版本升级 1.0.0→1.1.0，新增 `MIN_COMPATIBLE_VERSION`
+- 新增 `check_version_compatible()` 函数：语义化版本比较（major 相同 + minor >= 最低兼容）
+- 支持卡片 dict 或版本字符串输入
+
+#### 清理
+- 删除未使用的 `import re`（`_generate_a2ui_cards` 内部）
+
+#### 端到端诊断与验证
+- 修复 DesignerAgent 链路断裂：`raw_reply`（LLM 原始 JSON）→ `_extract_reply_from_llm_json`（提取文本） 导致结构化数据丢失，A2UI 卡片永远无法生成
+- 修复方案：`_finalize()` 新增 `raw_output` 参数，DesignerAgent 路径传入 `raw_reply` 用于卡片生成；`chat_with_agent` + `chat_stream` 双路径均已修复
+- 端到端测试新增 5 项：AgentResponse JSON 序列化、raw_output vs reply_text 对比、DesignerAgent 完整 JSON 流、SSE done 事件结构、全 7 种卡片类型 Flutter 消费验证
+- 全链路验证通过：Router/AgentResponse/_generate_a2ui_cards 导入零错误，54 测试全绿
 
 ## [1.1.30] - 2026-07-22
 

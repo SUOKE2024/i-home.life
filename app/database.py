@@ -114,7 +114,7 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
         if user_cols is not None:
             user_migrations = [
                 ("users", "sub_role", "VARCHAR(30)"),
-                ("users", "is_verified", "BOOLEAN DEFAULT 0 NOT NULL"),
+                ("users", "is_verified", "BOOLEAN DEFAULT FALSE NOT NULL"),
             ]
             for table, column, coltype in user_migrations:
                 if column not in user_cols:
@@ -195,7 +195,7 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 ("settlements", "anomaly_count", "INTEGER DEFAULT 0 NOT NULL"),
                 ("settlements", "critical_anomaly_count", "INTEGER DEFAULT 0 NOT NULL"),
                 ("settlements", "suggested_deduction", "FLOAT DEFAULT 0.0 NOT NULL"),
-                ("settlements", "review_required", "BOOLEAN DEFAULT 0 NOT NULL"),
+                ("settlements", "review_required", "BOOLEAN DEFAULT FALSE NOT NULL"),
                 ("settlements", "review_reason", "VARCHAR(500)"),
                 ("settlements", "reviewed_by", "VARCHAR(36)"),
             ]
@@ -214,7 +214,7 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
         )
         if settlement_line_cols is not None:
             settlement_line_migrations = [
-                ("settlement_lines", "is_anomaly", "BOOLEAN DEFAULT 0 NOT NULL"),
+                ("settlement_lines", "is_anomaly", "BOOLEAN DEFAULT FALSE NOT NULL"),
                 ("settlement_lines", "anomaly_type", "VARCHAR(50)"),
                 ("settlement_lines", "anomaly_severity", "VARCHAR(20)"),
                 ("settlement_lines", "anomaly_detail", "VARCHAR(500)"),
@@ -520,7 +520,7 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 ("procurement_orders", "estimated_delivery_date", "TIMESTAMP"),
                 ("procurement_orders", "actual_delivery_date", "TIMESTAMP"),
                 ("procurement_orders", "delivery_address", "TEXT"),
-                ("procurement_orders", "assembly_required", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("procurement_orders", "assembly_required", "BOOLEAN NOT NULL DEFAULT FALSE"),
                 ("procurement_orders", "assembly_difficulty", "VARCHAR(30)"),
                 ("procurement_orders", "delivery_notes", "TEXT"),
             ]
@@ -573,7 +573,7 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 "  title VARCHAR(100) NOT NULL DEFAULT '新的对话',"
                 "  primary_agent_type VARCHAR(50),"
                 "  message_count INTEGER NOT NULL DEFAULT 0,"
-                "  is_deleted BOOLEAN NOT NULL DEFAULT 0,"
+                "  is_deleted BOOLEAN NOT NULL DEFAULT FALSE,"
                 "  deleted_at TIMESTAMP,"
                 "  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
                 "  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"

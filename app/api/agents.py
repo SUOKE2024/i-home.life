@@ -50,6 +50,7 @@ from app.models.agent_session import AgentSession
 from app.ws import ws_manager
 from app.services import agent_session_service
 from app.services.cache_service import cache
+from app.services.a2ui_generator import agent_output_to_card, AGENT_CONVERTER_MAP
 from app.schemas.agent_session import (
     AgentSessionResponse,
     AgentSessionListItem,
@@ -91,6 +92,8 @@ class AgentResponse(BaseModel):
     # v1.1.26: 支持卡片类型消息（如 ar_scan_trigger/camera_trigger/voice_input_trigger）
     message_type: str = "text"
     card_payload: dict | None = None
+    # v1.2.3: A2UI 卡片列表 — 当 a2ui_enabled 时，Agent 输出转换为 A2UI 卡片供 Flutter 渲染
+    a2ui_cards: list[dict] | None = None
 
 
 class DesignPlanResponse(BaseModel):
@@ -283,6 +286,58 @@ def _looks_like_reasoning_leak(text: str) -> bool:
     return False
 
 
+def _generate_a2ui_cards(agent_key: str, reply_text: str) -> list[dict] | None:
+    """v1.2.3: 将 Agent 文本回复转换为 A2UI 卡片列表。
+
+    仅在 a2ui_enabled 且 agent_key 有对应转换器时生成卡片。
+    尝试将 reply 解析为 JSON 后再转换；若为纯文本则跳过（避免每条回复都变告警卡片）。
+    """
+    if not settings.a2ui_enabled:
+        return None
+    # agent_type → converter_key 映射（designer → design, qa_inspector → quality 等）
+    agent_to_converter = {
+        "designer": "design",
+        "budget": "budget",
+        "procurement": "procurement",
+        "construction": "construction",
+        "qa_inspector": "quality",
+        "settlement": "settlement",
+        "products": "products",
+        "materials": "materials",
+        "furniture": "furniture",
+        "kitchen": "design",       # 厨房设计走设计卡片
+        "bathroom": "design",      # 卫生间设计走设计卡片
+    }
+    converter_key = agent_to_converter.get(agent_key)
+    if converter_key is None:
+        # 尝试 split("_")[0] 作为 fallback
+        converter_key = agent_key.split("_")[0]
+    if converter_key not in AGENT_CONVERTER_MAP:
+        return None
+    # 尝试将 reply 解析为结构化 JSON
+    text = reply_text.strip()
+    # 剥离 ```json ... ``` 包裹
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    try:
+        parsed = json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return None  # 纯文本回复不生成卡片
+    # 仅对 dict 输出尝试转换
+    if not isinstance(parsed, dict):
+        return None
+    # 跳过已是卡片格式的输出（由 generator 内部处理）
+    card = agent_output_to_card(converter_key, parsed)
+    if card is None:
+        return None
+    return [card]
+
+
 @router.post("/chat", response_model=AgentResponse)
 async def chat_with_agent(  # noqa: C901
     data: AgentMessage,
@@ -316,6 +371,10 @@ async def chat_with_agent(  # noqa: C901
                 db, session_id, current_user.id, limit=20,
             )
         except Exception:
+            import structlog
+            structlog.get_logger("agent").warning(
+                "session_history_load_failed", session_id=session_id, exc_info=True
+            )
             db_history = data.history  # 降级：使用空 history
 
     # 构建 history 上下文（多轮对话支持）
@@ -340,13 +399,16 @@ async def chat_with_agent(  # noqa: C901
     )
 
     # 响应包装器：持久化 assistant 消息并附加 session_id
-    async def _finalize(agent_type_str: str, reply_text: str, suggestions_list: list[str] | None = None):
+    async def _finalize(agent_type_str: str, reply_text: str, suggestions_list: list[str] | None = None, raw_output: str | None = None):
         await agent_session_service.persist_message(
             db, session, "assistant", reply_text, agent_type=agent_type_str,
         )
+        # v1.2.3: 生成 A2UI 卡片 — 优先使用 raw_output（结构化 JSON），fallback 到 reply_text
+        a2ui_cards = _generate_a2ui_cards(agent_type_str, raw_output or reply_text)
         return AgentResponse(
             agent_type=agent_type_str, reply=reply_text,
             suggestions=suggestions_list or [], session_id=session_id,
+            a2ui_cards=a2ui_cards,
         )
     # Hybrid routing: LLM classify (with API key) or rule-based (mock mode)
     agent = OrchestratorAgent()
@@ -467,7 +529,8 @@ async def chat_with_agent(  # noqa: C901
                     )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
-                return await _finalize("designer", reply, suggestions_map["designer"])
+                    raw_reply = None  # fallback 时无原始 JSON
+                return await _finalize("designer", reply, suggestions_map["designer"], raw_output=raw_reply)
             finally:
                 await des_agent.close()
 
@@ -576,6 +639,7 @@ async def chat_with_agent(  # noqa: C901
                     ],
                     "prompt": "点击开始 AR 空间测量，扫描房间生成户型图与测量数据",
                 },
+                a2ui_cards=None,  # AR 测量用专用卡片类型，不走 A2UI
             )
 
         elif intent in ("floorplans",):
@@ -851,6 +915,10 @@ async def chat_stream(  # noqa: C901
                 db, stream_session_id, current_user.id, limit=20,
             )
         except Exception:
+            import structlog
+            structlog.get_logger("agent").warning(
+                "stream_history_load_failed", session_id=stream_session_id, exc_info=True
+            )
             db_history = data.history
 
     # 构建 history 上下文
@@ -890,6 +958,7 @@ async def chat_stream(  # noqa: C901
         stream_agent = None
         stream_msg = None
         stream_ctx = None
+        raw_reply_for_cards: str | None = None  # v1.2.3: 结构化 JSON 用于 A2UI 卡片生成
 
         # 获取回复文本（与 /chat 相同逻辑）
         if intent in ("content_publish",):
@@ -910,6 +979,7 @@ async def chat_stream(  # noqa: C901
             des_agent = DesignerAgent()
             try:
                 raw_reply = await des_agent.think(data.message, user_ctx)
+                raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
                 reply = _extract_reply_from_llm_json(raw_reply)
                 if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
                     logger.warning(
@@ -918,6 +988,7 @@ async def chat_stream(  # noqa: C901
                     )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
+                    raw_reply_for_cards = None  # fallback 时无原始 JSON
             finally:
                 await des_agent.close()
         elif intent in ("budget",):
@@ -1166,10 +1237,20 @@ async def chat_stream(  # noqa: C901
                         agent_type=agent_type_meta,
                     )
                 except Exception:
-                    pass  # 持久化失败不影响流式响应
+                    import structlog
+                    structlog.get_logger("agent").warning(
+                        "session_persist_failed", session_id=stream_session_id, exc_info=True
+                    )
 
-            # 发送结束信号（含 session_id）
-            yield f"data: {json.dumps({'event': 'done', 'session_id': stream_session_id})}\n\n"
+            # 发送结束信号（含 session_id 和 A2UI 卡片）
+            done_payload: dict = {'event': 'done', 'session_id': stream_session_id}
+            # v1.2.3: 优先使用 raw_reply_for_cards（结构化 JSON），fallback 到 accumulated_text
+            a2ui_source = raw_reply_for_cards or accumulated_text
+            if a2ui_source:
+                a2ui_cards = _generate_a2ui_cards(agent_type_meta, a2ui_source)
+                if a2ui_cards:
+                    done_payload['a2ui_cards'] = a2ui_cards
+            yield f"data: {json.dumps(done_payload)}\n\n"
 
         return StreamingResponse(
             generate_sse(),

@@ -49,6 +49,8 @@ async def scan_product(
         thumb = image_recognition_service.preprocess_image(content, max_size=256, quality=60)
         thumb_b64 = image_recognition_service.image_to_base64(thumb)
     except Exception:
+        import structlog
+        structlog.get_logger("camera_scan").warning("thumbnail_generation_failed", exc_info=True)
         thumb_b64 = ""
 
     return {
@@ -119,7 +121,6 @@ async def confirm_scan_product(
         specs=None,
         stock_status=stock_status,
         status="draft",
-        ai_assisted=ai_assisted,
     )
 
     db.add(product)
@@ -148,6 +149,10 @@ async def confirm_scan_product(
                 product.tags = json.dumps(merged, ensure_ascii=False)
             product.ai_generated = True
         except Exception:
+            import structlog
+            structlog.get_logger("camera_scan").warning(
+                "ai_tag_generation_failed", product_id=product.id, exc_info=True
+            )
             product.ai_description = _generate_fallback_description(product)
             product.ai_generated = True
 

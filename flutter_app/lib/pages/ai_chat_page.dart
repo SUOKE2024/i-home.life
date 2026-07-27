@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +13,7 @@ import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 import '../services/agent_router.dart';
 import '../services/api.dart';
+import '../image_helper.dart';
 import '../services/project_context.dart';
 import '../services/sse_service.dart';
 import '../services/sensor_service.dart';
@@ -20,6 +21,7 @@ import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
+import '../services/a2ui_renderer.dart';
 import 'ar_scan_page.dart';
 import 'settings_page.dart';
 
@@ -365,6 +367,13 @@ class _AIChatPageState extends State<AIChatPage> {
               if (cardMessageType != null && fullContent.isNotEmpty) {
                 _replaceLastAgentWithCard(cardMessageType!, fullContent, currentAgent, cardPayload);
               }
+              // v1.2.3: A2UI 卡片渲染 — 将后端生成的 A2UI 卡片挂载到消息
+              if (event.a2uiCards != null && event.a2uiCards!.isNotEmpty && _messages.isNotEmpty) {
+                final lastIdx = _messages.length - 1;
+                _messages[lastIdx] = _messages[lastIdx].copyWith(
+                  a2uiCards: event.a2uiCards,
+                );
+              }
               // v1.1.29: 将思考步骤挂载到最后一条消息
               if (_activeThinkingSteps.isNotEmpty && _messages.isNotEmpty) {
                 final lastIdx = _messages.length - 1;
@@ -685,6 +694,13 @@ class _AIChatPageState extends State<AIChatPage> {
     });
   }
 
+  /// v1.2.3: A2UI 卡片操作回调 — 处理 A2UI 卡片上的按钮点击
+  void _handleA2UIAction(String action, Map<String, dynamic> payload, String cardType) {
+    debugPrint('A2UI action: $action on $cardType, payload: $payload');
+    // 委托给通用卡片操作处理器（如 view_3d/confirm_payment 等）
+    _handleCardAction(action, payload);
+  }
+
   void _handleCardAction(String action, Map<String, dynamic> payload) {
     final api = ApiClient();
     final pid = payload['project_id']?.toString() ?? _currentProjectId;
@@ -829,7 +845,7 @@ class _AIChatPageState extends State<AIChatPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
+        color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.50),
         border: Border(bottom: BorderSide(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder)),
       ),
       padding: EdgeInsets.only(
@@ -905,12 +921,12 @@ class _AIChatPageState extends State<AIChatPage> {
         ),
         child: ClipOval(
           child: _customAvatarPath != null
-              ? Image.file(
-                  File(_customAvatarPath!),
+              ? buildLocalImage(
+                  _customAvatarPath!,
                   width: 36,
                   height: 36,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildAvatarFallback(),
+                  errorWidget: _buildAvatarFallback(),
                 )
               : _avatarAssetPath != null
                   ? Image.asset(
@@ -1083,6 +1099,22 @@ class _AIChatPageState extends State<AIChatPage> {
           onReply: _handleReply,
         ),
       );
+      // v1.2.3: A2UI 卡片渲染 — 在 Agent 消息下方渲染 A2UI 卡片
+      if (msg.a2uiCards != null && msg.a2uiCards!.isNotEmpty) {
+        for (final card in msg.a2uiCards!) {
+          items.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: A2UIRenderer(
+                card: card,
+                onAction: (action, payload) {
+                  _handleA2UIAction(action, payload, card['type']?.toString() ?? '');
+                },
+              ),
+            ),
+          );
+        }
+      }
     }
 
     return RefreshIndicator(
@@ -1427,9 +1459,9 @@ class _AIChatPageState extends State<AIChatPage> {
   Widget _buildInputBar() {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inputBg = isDark ? SuokeDesignTokens.inputBg : cs.surfaceContainerHighest;
+    final inputBg = isDark ? SuokeDesignTokens.inputBg.withValues(alpha: 0.50) : cs.surfaceContainerHighest.withValues(alpha: 0.50);
     final borderColor = isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder;
-    final containerBg = isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95);
+    final containerBg = isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.50);
 
     return Container(
       padding: const EdgeInsets.all(12),

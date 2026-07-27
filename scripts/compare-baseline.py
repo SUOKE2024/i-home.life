@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""基线对比脚本 (v1.1.27 / Day 6)
+"""基线对比脚本 (v1.2.3)
 
 对比 before / after 两份 bench-api.py 产出的 JSON, 判定性能回归。
 

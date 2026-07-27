@@ -35,6 +35,16 @@ class SmartHomeSchemeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SmartHomeSchemeUpdate(BaseModel):
+    """更新智能家居方案"""
+    room_name: str | None = None
+    room_type: str | None = None
+    protocol: str | None = None
+    hub_brand: str | None = None
+    status: str | None = None
+    notes: str | None = None
+
+
 # ── 设备 ──
 
 
@@ -83,6 +93,26 @@ class SmartDeviceResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SmartDeviceUpdate(BaseModel):
+    """更新智能设备"""
+    device_type: str | None = None
+    device_name: str | None = None
+    brand: str | None = None
+    model: str | None = None
+    position_x: float | None = None
+    position_y: float | None = None
+    position_z: float | None = None
+    room_name: str | None = None
+    protocol: str | None = None
+    control_mode: str | None = None
+    power_w: float | None = None
+    price: float | None = None
+    wiring_required: bool | None = None
+    wiring_spec: dict[str, Any] | None = None
+    features: dict[str, Any] | None = None
+    status: str | None = None
 
 
 # ── 计算结果 ──

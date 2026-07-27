@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -18,14 +19,6 @@ class _SmartHomePageState extends State<SmartHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   // 方案
   List<dynamic> _schemes = [];
@@ -363,22 +356,22 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: Text(title, style: const TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text(title, style: const TextStyle(color: SuokeDesignTokens.text(context))),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
             child: SelectableText(
               content,
               style: const TextStyle(
-                  color: _secondaryText, fontFamily: 'monospace', fontSize: 13),
+                  color: SuokeDesignTokens.textSub(context), fontFamily: 'monospace', fontSize: 13),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭', style: TextStyle(color: _brandColor)),
+            child: const Text('关闭', style: TextStyle(color: SuokeDesignTokens.accent)),
           ),
         ],
       ),
@@ -390,16 +383,16 @@ class _SmartHomePageState extends State<SmartHomePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _cardColor,
-        foregroundColor: _primaryText,
+        backgroundColor: SuokeDesignTokens.card(context),
+        foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('智能家居管理'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '智能方案'),
             Tab(text: '设备管理'),
@@ -448,8 +441,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showCreateSchemeDialog,
                   icon: const Icon(Icons.add),
@@ -459,8 +452,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadSchemes,
                 icon: const Icon(Icons.refresh),
@@ -471,7 +464,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         ),
         Expanded(
           child: RefreshIndicator(
-            color: _brandColor,
+            color: SuokeDesignTokens.accent,
             onRefresh: _loadSchemes,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -491,11 +484,11 @@ class _SmartHomePageState extends State<SmartHomePage>
     final id = (scheme['id'] ?? '').toString();
     final isSelected = _selectedSchemeId == id;
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? _brandColor : _borderColor, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -506,20 +499,20 @@ class _SmartHomePageState extends State<SmartHomePage>
             Row(
               children: [
                 Icon(Icons.home,
-                    color: isSelected ? _brandColor : _primaryText, size: 20),
+                    color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.text(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     scheme['name'] ?? '未命名方案',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
                 if (isSelected)
                   const Icon(Icons.check_circle,
-                      color: _brandColor, size: 18),
+                      color: SuokeDesignTokens.accent, size: 18),
               ],
             ),
             const SizedBox(height: 8),
@@ -596,20 +589,20 @@ class _SmartHomePageState extends State<SmartHomePage>
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.home, color: _brandColor, size: 20),
+                  const Icon(Icons.home, color: SuokeDesignTokens.accent, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
                       style: const TextStyle(
-                          color: _primaryText, fontWeight: FontWeight.w600),
+                          color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -624,8 +617,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showAddDeviceDialog,
                   icon: const Icon(Icons.add),
@@ -635,8 +628,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadDevices(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -649,7 +642,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         Expanded(
           child: _devicesLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _devices.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.devices,
@@ -675,22 +668,22 @@ class _SmartHomePageState extends State<SmartHomePage>
     final status = device['status'] ?? 'offline';
     final isOnline = status == 'online' || status == true;
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         contentPadding: const EdgeInsets.all(14),
         leading: CircleAvatar(
-          backgroundColor: _bgColor,
-          child: Icon(Icons.devices_other, color: _brandColor, size: 22),
+          backgroundColor: SuokeDesignTokens.bg(context),
+          child: Icon(Icons.devices_other, color: SuokeDesignTokens.accent, size: 22),
         ),
         title: Text(
           device['name'] ?? '未命名设备',
           style: const TextStyle(
-              color: _primaryText, fontWeight: FontWeight.w600),
+              color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
@@ -698,10 +691,10 @@ class _SmartHomePageState extends State<SmartHomePage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('类型：${device['type'] ?? '-'}',
-                  style: const TextStyle(color: _secondaryText, fontSize: 13)),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
               const SizedBox(height: 2),
               Text('位置：${device['location'] ?? '-'}',
-                  style: const TextStyle(color: _secondaryText, fontSize: 13)),
+                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             ],
           ),
         ),
@@ -716,7 +709,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           child: Text(
             isOnline ? '在线' : '离线',
             style: TextStyle(
-              color: isOnline ? Colors.green : _secondaryText,
+              color: isOnline ? Colors.green : SuokeDesignTokens.textSub(context),
               fontSize: 12,
             ),
           ),
@@ -741,9 +734,9 @@ class _SmartHomePageState extends State<SmartHomePage>
       child: Column(
         children: [
           TabBar(
-            labelColor: _brandColor,
-            unselectedLabelColor: _secondaryText,
-            indicatorColor: _brandColor,
+            labelColor: SuokeDesignTokens.accent,
+            unselectedLabelColor: SuokeDesignTokens.textSub(context),
+            indicatorColor: SuokeDesignTokens.accent,
             tabs: const [
               Tab(text: '场景列表'),
               Tab(text: '自然语言解析'),
@@ -772,8 +765,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               Expanded(
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
-                    foregroundColor: _bgColor,
+                    backgroundColor: SuokeDesignTokens.accent,
+                    foregroundColor: SuokeDesignTokens.bg(context),
                   ),
                   onPressed: _showCreateSceneDialog,
                   icon: const Icon(Icons.add),
@@ -783,8 +776,8 @@ class _SmartHomePageState extends State<SmartHomePage>
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _primaryText,
-                  side: const BorderSide(color: _borderColor),
+                  foregroundColor: SuokeDesignTokens.text(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadScenes(),
                 icon: const Icon(Icons.refresh),
@@ -796,7 +789,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         Expanded(
           child: _scenesLoading
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _scenes.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.movie_filter_outlined,
@@ -832,10 +825,10 @@ class _SmartHomePageState extends State<SmartHomePage>
       actionsText = actions?.toString() ?? '-';
     }
     return Card(
-      color: _cardColor,
+      color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: _borderColor, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -846,13 +839,13 @@ class _SmartHomePageState extends State<SmartHomePage>
             Row(
               children: [
                 Icon(Icons.movie_filter,
-                    color: enabled ? _brandColor : _secondaryText, size: 20),
+                    color: enabled ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     scene['name'] ?? '未命名场景',
                     style: const TextStyle(
-                        color: _primaryText,
+                        color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -862,14 +855,14 @@ class _SmartHomePageState extends State<SmartHomePage>
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: enabled
-                        ? _brandColor.withValues(alpha: 0.15)
+                        ? SuokeDesignTokens.accent.withValues(alpha: 0.15)
                         : Colors.grey.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     enabled ? '已启用' : '已禁用',
                     style: TextStyle(
-                      color: enabled ? _brandColor : _secondaryText,
+                      color: enabled ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
                       fontSize: 12,
                     ),
                   ),
@@ -878,10 +871,10 @@ class _SmartHomePageState extends State<SmartHomePage>
             ),
             const SizedBox(height: 10),
             Text('触发条件：${scene['trigger_condition'] ?? '-'}',
-                style: const TextStyle(color: _secondaryText, fontSize: 13)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             const SizedBox(height: 4),
             Text('动作：$actionsText',
-                style: const TextStyle(color: _secondaryText, fontSize: 13)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -920,36 +913,36 @@ class _SmartHomePageState extends State<SmartHomePage>
           const Text(
             '自然语言解析场景',
             style: TextStyle(
-                color: _primaryText,
+                color: SuokeDesignTokens.text(context),
                 fontSize: 18,
                 fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           const Text(
             '输入一段自然语言描述，系统将自动解析为场景配置。',
-            style: TextStyle(color: _secondaryText, fontSize: 13),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _nlController,
             maxLines: 4,
-            style: const TextStyle(color: _primaryText),
+            style: const TextStyle(color: SuokeDesignTokens.text(context)),
             decoration: InputDecoration(
               hintText: '例如：每天早上7点打开客厅灯光，关闭卧室窗帘',
-              hintStyle: const TextStyle(color: _secondaryText),
+              hintStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
               filled: true,
-              fillColor: _cardColor,
+              fillColor: SuokeDesignTokens.card(context),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _borderColor),
+                borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _borderColor),
+                borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: _brandColor),
+                borderSide: const BorderSide(color: SuokeDesignTokens.accent),
               ),
             ),
           ),
@@ -958,8 +951,8 @@ class _SmartHomePageState extends State<SmartHomePage>
             width: double.infinity,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor,
-                foregroundColor: _bgColor,
+                backgroundColor: SuokeDesignTokens.accent,
+                foregroundColor: SuokeDesignTokens.bg(context),
               ),
               onPressed: _parsing
                   ? null
@@ -976,7 +969,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: _bgColor),
+                          strokeWidth: 2, color: SuokeDesignTokens.bg(context)),
                     )
                   : const Icon(Icons.auto_fix_high),
               label: Text(_parsing ? '解析中...' : '解析'),
@@ -987,23 +980,23 @@ class _SmartHomePageState extends State<SmartHomePage>
             const Text(
               '解析结果预览',
               style: TextStyle(
-                  color: _brandColor,
+                  color: SuokeDesignTokens.accent,
                   fontSize: 16,
                   fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Card(
-              color: _cardColor,
+              color: SuokeDesignTokens.card(context),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
-                side: const BorderSide(color: _borderColor),
+                side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: SelectableText(
                   _formatJson(_parsedScene),
                   style: const TextStyle(
-                      color: _secondaryText,
+                      color: SuokeDesignTokens.textSub(context),
                       fontFamily: 'monospace',
                       fontSize: 13),
                 ),
@@ -1015,8 +1008,8 @@ class _SmartHomePageState extends State<SmartHomePage>
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _brandColor,
-                      foregroundColor: _bgColor,
+                      backgroundColor: SuokeDesignTokens.accent,
+                      foregroundColor: SuokeDesignTokens.bg(context),
                     ),
                     onPressed: _saveParsedScene,
                     icon: const Icon(Icons.save),
@@ -1026,8 +1019,8 @@ class _SmartHomePageState extends State<SmartHomePage>
                 const SizedBox(width: 8),
                 OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _primaryText,
-                    side: const BorderSide(color: _borderColor),
+                    foregroundColor: SuokeDesignTokens.text(context),
+                    side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                   ),
                   onPressed: () =>
                       setState(() => _parsedScene = null),
@@ -1042,7 +1035,7 @@ class _SmartHomePageState extends State<SmartHomePage>
             const Text(
               '支持的生态系统',
               style: TextStyle(
-                  color: _primaryText,
+                  color: SuokeDesignTokens.text(context),
                   fontSize: 16,
                   fontWeight: FontWeight.bold),
             ),
@@ -1054,9 +1047,9 @@ class _SmartHomePageState extends State<SmartHomePage>
                 final name = (e is Map) ? (e['name'] ?? e.toString()) : e.toString();
                 return Chip(
                   label: Text(name,
-                      style: const TextStyle(color: _primaryText)),
-                  backgroundColor: _cardColor,
-                  side: const BorderSide(color: _borderColor),
+                      style: const TextStyle(color: SuokeDesignTokens.text(context))),
+                  backgroundColor: SuokeDesignTokens.card(context),
+                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 );
               }).toList(),
             ),
@@ -1078,15 +1071,15 @@ class _SmartHomePageState extends State<SmartHomePage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _secondaryText),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: _secondaryText)),
+              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: _bgColor,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             onPressed: onAction,
             icon: const Icon(Icons.add),
@@ -1102,9 +1095,9 @@ class _SmartHomePageState extends State<SmartHomePage>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: _secondaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: _primaryText, fontSize: 13)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
       ],
     );
   }
@@ -1119,9 +1112,9 @@ class _SmartHomePageState extends State<SmartHomePage>
       height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : _brandColor,
+          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : _borderColor),
+              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -1157,30 +1150,30 @@ class _SmartHomePageState extends State<SmartHomePage>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.card(context),
           title: const Text('创建智能方案',
-              style: TextStyle(color: _primaryText)),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('方案名称'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: protocol,
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('协议类型'),
                   items: protocols
                       .map((p) => DropdownMenuItem(
                           value: p,
                           child: Text(p,
                               style:
-                                  const TextStyle(color: _primaryText))))
+                                  const TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
                   onChanged: (v) {
                     if (v != null) setState(() => protocol = v);
@@ -1190,7 +1183,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                 TextField(
                   controller: descCtrl,
                   maxLines: 3,
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('方案描述'),
                 ),
               ],
@@ -1200,11 +1193,11 @@ class _SmartHomePageState extends State<SmartHomePage>
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('取消',
-                  style: TextStyle(color: _secondaryText)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: _brandColor, foregroundColor: _bgColor),
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
@@ -1229,29 +1222,29 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title:
-            const Text('添加设备', style: TextStyle(color: _primaryText)),
+            const Text('添加设备', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('设备名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: typeCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration(
                     '设备类型（如：灯、窗帘、传感器）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: locationCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('安装位置（如：客厅、卧室）'),
               ),
             ],
@@ -1261,11 +1254,11 @@ class _SmartHomePageState extends State<SmartHomePage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isEmpty) {
@@ -1290,22 +1283,22 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title:
-            const Text('创建场景', style: TextStyle(color: _primaryText)),
+            const Text('创建场景', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('场景名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: triggerCtrl,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration(
                     '触发条件（如：每天 07:00）'),
               ),
@@ -1313,7 +1306,7 @@ class _SmartHomePageState extends State<SmartHomePage>
               TextField(
                 controller: actionsCtrl,
                 maxLines: 3,
-                style: const TextStyle(color: _primaryText),
+                style: const TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration(
                     '动作列表（每行一个动作）'),
               ),
@@ -1324,11 +1317,11 @@ class _SmartHomePageState extends State<SmartHomePage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: _brandColor, foregroundColor: _bgColor),
+                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isEmpty) {
@@ -1350,16 +1343,16 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此方案吗？此操作不可撤销。',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1380,16 +1373,16 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('确认删除',
-            style: TextStyle(color: _primaryText)),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: const Text('确定要删除此场景吗？',
-            style: TextStyle(color: _secondaryText)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('取消',
-                style: TextStyle(color: _secondaryText)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -1409,20 +1402,20 @@ class _SmartHomePageState extends State<SmartHomePage>
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: _secondaryText),
+      labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
       filled: true,
-      fillColor: _bgColor,
+      fillColor: SuokeDesignTokens.bg(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _borderColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: _brandColor),
+        borderSide: const BorderSide(color: SuokeDesignTokens.accent),
       ),
     );
   }
@@ -1457,23 +1450,23 @@ class _SmartHomePageState extends State<SmartHomePage>
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
                 children: [
-                  const Icon(Icons.architecture, color: _brandColor, size: 20),
+                  const Icon(Icons.architecture, color: SuokeDesignTokens.accent, size: 20),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
                       '户型设备部署图',
-                      style: TextStyle(color: _primaryText, fontWeight: FontWeight.w600, fontSize: 16),
+                      style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 16),
                     ),
                   ),
                   Text(
                     '${_devices.length} 个设备',
-                    style: const TextStyle(color: _secondaryText, fontSize: 13),
+                    style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
                   ),
                 ],
               ),
@@ -1500,12 +1493,12 @@ class _SmartHomePageState extends State<SmartHomePage>
               size: const Size(340, 380),
               painter: _FloorPlanPainter(
                 areas: _floorAreas,
-                brandColor: _brandColor,
-                cardColor: _cardColor,
-                bgColor: _bgColor,
-                borderColor: _borderColor,
-                primaryText: _primaryText,
-                secondaryText: _secondaryText,
+                brandColor: SuokeDesignTokens.accent,
+                cardColor: SuokeDesignTokens.card(context),
+                bgColor: SuokeDesignTokens.bg(context),
+                borderColor: SuokeDesignTokens.borderClr(context),
+                primaryText: SuokeDesignTokens.text(context),
+                secondaryText: SuokeDesignTokens.textSub(context),
                 areaDevices: areaDevices,
                 selectedArea: _selectedFloorArea,
               ),
@@ -1533,7 +1526,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: _bgColor,
+          color: SuokeDesignTokens.bg(context),
           child: Row(
             children: [
               GestureDetector(
@@ -1541,33 +1534,33 @@ class _SmartHomePageState extends State<SmartHomePage>
                   _showAreaDeviceList = false;
                   _selectedFloorArea = null;
                 }),
-                child: const Icon(Icons.arrow_back, color: _brandColor, size: 22),
+                child: const Icon(Icons.arrow_back, color: SuokeDesignTokens.accent, size: 22),
               ),
               const SizedBox(width: 8),
-              Icon(def.icon, color: _brandColor, size: 20),
+              Icon(def.icon, color: SuokeDesignTokens.accent, size: 20),
               const SizedBox(width: 6),
               Text(
                 '${def.name} · ${devices.length} 个设备',
-                style: const TextStyle(color: _primaryText, fontSize: 16, fontWeight: FontWeight.w600),
+                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ],
           ),
         ),
-        const Divider(color: _borderColor, height: 1),
+        const Divider(color: SuokeDesignTokens.borderClr(context), height: 1),
         Expanded(
           child: devices.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.devices_other, size: 48, color: _secondaryText),
+                      Icon(Icons.devices_other, size: 48, color: SuokeDesignTokens.textSub(context)),
                       const SizedBox(height: 12),
-                      const Text('该区域暂无设备', style: TextStyle(color: _secondaryText, fontSize: 15)),
+                      const Text('该区域暂无设备', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 15)),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _brandColor,
-                          foregroundColor: _bgColor,
+                          backgroundColor: SuokeDesignTokens.accent,
+                          foregroundColor: SuokeDesignTokens.bg(context),
                         ),
                         onPressed: () {
                           setState(() {
@@ -1607,19 +1600,19 @@ class _SmartHomePageState extends State<SmartHomePage>
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _cardColor,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         ),
         child: Row(
           children: [
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: _bgColor,
+                color: SuokeDesignTokens.bg(context),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: _brandColor, size: 20),
+              child: Icon(icon, color: SuokeDesignTokens.accent, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1628,12 +1621,12 @@ class _SmartHomePageState extends State<SmartHomePage>
                 children: [
                   Text(
                     device['name'] ?? '未命名设备',
-                    style: const TextStyle(color: _primaryText, fontWeight: FontWeight.w600, fontSize: 14),
+                    style: const TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '类型：$type',
-                    style: const TextStyle(color: _secondaryText, fontSize: 12),
+                    style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                   ),
                 ],
               ),
@@ -1646,11 +1639,11 @@ class _SmartHomePageState extends State<SmartHomePage>
               ),
               child: Text(
                 isOnline ? '在线' : '离线',
-                style: TextStyle(color: isOnline ? Colors.green : _secondaryText, fontSize: 12),
+                style: TextStyle(color: isOnline ? Colors.green : SuokeDesignTokens.textSub(context), fontSize: 12),
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: _secondaryText, size: 18),
+            const Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context), size: 18),
           ],
         ),
       ),
@@ -1665,13 +1658,13 @@ class _SmartHomePageState extends State<SmartHomePage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: Row(
           children: [
-            Icon(_deviceIcon(type), color: _brandColor, size: 24),
+            Icon(_deviceIcon(type), color: SuokeDesignTokens.accent, size: 24),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(name, style: const TextStyle(color: _primaryText, fontSize: 16)),
+              child: Text(name, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16)),
             ),
           ],
         ),
@@ -1689,7 +1682,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭', style: TextStyle(color: _secondaryText)),
+            child: const Text('关闭', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
         ],
       ),
@@ -1703,10 +1696,10 @@ class _SmartHomePageState extends State<SmartHomePage>
         children: [
           SizedBox(
             width: 60,
-            child: Text(label, style: const TextStyle(color: _secondaryText, fontSize: 13)),
+            child: Text(label, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
           ),
           Expanded(
-            child: Text(value, style: const TextStyle(color: _primaryText, fontSize: 13)),
+            child: Text(value, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
           ),
         ],
       ),
@@ -1760,15 +1753,15 @@ class _SmartHomePageState extends State<SmartHomePage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(def.icon, size: 14, color: _primaryText.withValues(alpha: 0.7)),
+              Icon(def.icon, size: 14, color: SuokeDesignTokens.text(context).withValues(alpha: 0.7)),
               const SizedBox(width: 2),
-              Text(def.name, style: const TextStyle(color: _primaryText, fontSize: 10)),
+              Text(def.name, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 10)),
               if (count > 0) ...[
                 const SizedBox(width: 4),
                 Container(
                   width: 18, height: 18,
                   decoration: BoxDecoration(
-                    color: _brandColor,
+                    color: SuokeDesignTokens.accent,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
@@ -1874,7 +1867,7 @@ class _SmartHomePageState extends State<SmartHomePage>
 
     if (_devicesLoading) {
       return const Center(
-          child: CircularProgressIndicator(color: _brandColor));
+          child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
 
     if (_devices.isEmpty) {
@@ -1942,7 +1935,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10)),
             child: Padding(
@@ -1953,13 +1946,13 @@ class _SmartHomePageState extends State<SmartHomePage>
                   Row(
                     children: [
                       const Icon(Icons.dashboard_customize,
-                          color: _brandColor, size: 20),
+                          color: SuokeDesignTokens.accent, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
                           style: const TextStyle(
-                              color: _primaryText,
+                              color: SuokeDesignTokens.text(context),
                               fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -1967,7 +1960,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _brandColor,
+                          color: SuokeDesignTokens.accent,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -1990,7 +1983,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                     }).toList(),
                   ),
                   const SizedBox(height: 8),
-                  const Divider(height: 1, color: _borderColor),
+                  const Divider(height: 1, color: SuokeDesignTokens.borderClr(context)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 12,
@@ -2071,7 +2064,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         ),
         const SizedBox(width: 4),
         Text(label,
-            style: const TextStyle(color: _secondaryText, fontSize: 11)),
+            style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
       ],
     );
   }

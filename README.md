@@ -2,10 +2,29 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.2.0 · 家装全链路专业性提升：诊断报告 P1-P5 修复 + 正向设计算量（floorplan SSOT）+ 模型即图纸施工图 + IFC 真实坐标 + AI 渲染去 stub（2026-07-23）
-> 核心能力：15 工具 CAD 设计台 + 平立剖 6 视图 + DWG/DXF 导入 + 22 Agent 全链路 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + WebGPU 降级 + 475+ API + Flutter 41 页面 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议 + FC 3.0 微服务
+> v1.2.5 · 全链路进度评估修复：版本号一致性 + 37 个 API 测试补齐 + Web 404 页面 + 冗余清理（2026-07-26）
+> 核心能力：19 页面 Web 控制台 + Flutter 46 页面 + 58 API 测试全覆盖 + 22 Agent 全链路 + 12 Flutter 数据模型 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + 564+ API + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-07-26 · v1.2.5 全链路进度评估修复
+
+基于全量全链路开发进度评估报告（综合成熟度 ~65%）的系统修复：
+
+- **P0 版本号一致性**: 全项目 14 处版本号同步至 1.2.4（config.py / pubspec.yaml 1.2.4+20 / CI / scripts / Flutter / 测试）
+- **P0 API 测试覆盖率**: 37 个缺失 API 测试文件全部补齐（覆盖率 21/58 → 58/58），新增 ~320 个测试函数
+- **P1 Web 完善**: 新增 `web/404.html` 自定义错误页面，nginx 增加 `error_page 404` 指令 + HSTS 注释
+- **清理**: 清理 ~2,180 个 pycache 文件 + 过期 DB journal + 旧 server.log
+
+### 2026-07-25 · v1.2.4 全链路诊断修复
+
+- **P0-1 Web 控制台恢复**: 从 git 历史恢复 19 个 HTML 页面 + 13 个 JS + 2 个 CSS + 品牌资源 + 法律页面，维持 Flutter PWA 为默认入口
+- **P1-1 sketch-to-3D 真 AI 视觉**: [app/api/sketch_to_3d.py](app/api/sketch_to_3d.py) 接入 DeepSeek/GLM/Qwen 多模态视觉模型替换硬编码占位
+- **P1-2 Flutter 类型化模型**: [flutter_app/lib/models/](flutter_app/lib/models/) 新增 10 个业务实体模型（project/user/budget/task/material 等）+ 桶导出
+- **P1-4 A2A 持久化**: [app/models/a2a_task.py](app/models/a2a_task.py) 从内存 dict 迁移到数据库，TTL 24h 自动清理
+- **P2-1 语音语义路由**: [app/api/voice.py](app/api/voice.py) 新增 `/process-enhanced` LLM 10 类意图分类端点
+- **P3 技术债务**: push_sender 结构化日志、ai_render 4 级降级、vr_panorama 诚实降级、reply_templates 回复模板系统
+- **清理**: 删除 serverless/ 死代码（14 文件）、173 过期测试 DB、391 `__pycache__` 目录
 
 ### 2026-07-23 · v1.2.0 家装全链路专业性提升
 
@@ -22,9 +41,9 @@
 
 ### 2026-07-22 · v1.1.29 家居补短 5 项落地
 
-独立于索克生活的补短板工程，覆盖微服务架构、UI 协议、合规安全、知识增强、主动干预：
+独立于索克生活的补短板工程，覆盖 UI 协议、合规安全、知识增强、主动干预：
 
-- **P0 FC 3.0 微服务拆分**: [serverless/](serverless/) 目录含 7 个微服务的 `s.yaml` + `handler.py`（auth-gateway / agent-orchestrator / design-render / project-flow / commerce / realtime）+ [common/warmup.py](serverless/common/warmup.py) 冷启动优化（OSS 挂载探测 + DB 连接池预热 + 模块预加载），每个服务独立部署、独立扩缩容
+- ~~**P0 FC 3.0 微服务拆分**~~: 已于 v1.2.4 清理，项目为模块化单体架构（modular monolith），所有路由在 `app/main.py` 中无条件加载
 - **P0 A2UI 协议内化**: [app/services/a2ui_schema.py](app/services/a2ui_schema.py) 定义 8 种卡片类型（设计/预算/进度/采购/质检/结算/材料/告警）+ [app/services/a2ui_generator.py](app/services/a2ui_generator.py) Agent→卡片转换器 + [flutter_app/lib/services/a2ui_renderer.dart](flutter_app/lib/services/a2ui_renderer.dart) Flutter 8 种子卡片 Widget + [web/assets/js/a2ui-renderer.js](web/assets/js/a2ui-renderer.js) Web 渲染器 + [web/assets/css/a2ui-cards.css](web/assets/css/a2ui-cards.css) 暗色主题响应式样式
 - **P1 Vault + 合规深化（HMAC 签名）**: [app/services/audit_integrity.py](app/services/audit_integrity.py) HMAC-SHA256 签名 + 密钥版本化 + 防时序攻击 `hmac.compare_digest` + 批量完整性校验 + 字段级脱敏标记（L0-L3 按角色）+ 集成到 `audit_log_service.log_audit_event` 写入时自动签名
 - **P1 Agentic RAG + Skills System**: [knowledge/](knowledge/) 4 个结构化知识库（materials.json 20 条 / techniques.json 20 条 / standards.json 20 条 / faq.json 20 条，含 GB 标准引用）+ [app/services/citation_service.py](app/services/citation_service.py) 来源引用格式化 + [app/services/qa_knowledge_service.py](app/services/qa_knowledge_service.py) QAInspectorAgent 专用知识注入（质检清单/标准查核/缺陷判定）

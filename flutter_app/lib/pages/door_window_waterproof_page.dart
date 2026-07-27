@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 
 class DoorWindowWaterproofPage extends StatefulWidget {
@@ -14,14 +15,6 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题色
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _primaryText = Color(0xFFE8E6E1);
-  static const Color _secondaryText = Color(0xFF8A8894);
 
   List<dynamic> _specs = [];
   List<dynamic> _waterproofs = [];
@@ -103,8 +96,8 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('创建门窗规格', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('创建门窗规格', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -113,7 +106,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
               children: [
                 TextFormField(
                   decoration: _inputDecoration('名称'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   validator: (v) =>
                       (v == null || v.isEmpty) ? '请输入名称' : null,
                   onSaved: (v) => name = v ?? '',
@@ -122,8 +115,8 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 DropdownButtonFormField<String>(
                   initialValue: specType,
                   decoration: _inputDecoration('类型'),
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   items: const [
                     DropdownMenuItem(value: 'door', child: Text('门')),
                     DropdownMenuItem(value: 'window', child: Text('窗')),
@@ -134,13 +127,13 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('材质'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   onSaved: (v) => material = v ?? '',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('宽度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   keyboardType: TextInputType.number,
                   initialValue: widthStr,
                   onSaved: (v) => widthStr = v ?? '900',
@@ -148,7 +141,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('高度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   keyboardType: TextInputType.number,
                   initialValue: heightStr,
                   onSaved: (v) => heightStr = v ?? '2100',
@@ -156,7 +149,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('厚度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   keyboardType: TextInputType.number,
                   initialValue: thicknessStr,
                   onSaved: (v) => thicknessStr = v ?? '40',
@@ -165,8 +158,8 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 DropdownButtonFormField<String>(
                   initialValue: openingMethod,
                   decoration: _inputDecoration('开启方式'),
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   items: const [
                     DropdownMenuItem(value: 'side_hung', child: Text('平开')),
                     DropdownMenuItem(value: 'sliding', child: Text('推拉')),
@@ -184,10 +177,10 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _secondaryText)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 formKey.currentState?.save();
@@ -252,8 +245,8 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('添加防水方案', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('添加防水方案', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -262,7 +255,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
               children: [
                 TextFormField(
                   decoration: _inputDecoration('区域'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   validator: (v) =>
                       (v == null || v.isEmpty) ? '请输入区域' : null,
                   onSaved: (v) => area = v ?? '',
@@ -271,8 +264,8 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 DropdownButtonFormField<String>(
                   initialValue: waterproofLevel,
                   decoration: _inputDecoration('防水等级'),
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   items: const [
                     DropdownMenuItem(value: 'level_1', child: Text('一级防水')),
                     DropdownMenuItem(value: 'level_2', child: Text('二级防水')),
@@ -284,15 +277,15 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('材料'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   onSaved: (v) => material = v ?? '',
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: constructionMethod,
                   decoration: _inputDecoration('施工方式'),
-                  dropdownColor: _cardColor,
-                  style: const TextStyle(color: _primaryText),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   items: const [
                     DropdownMenuItem(value: 'coating', child: Text('涂膜防水')),
                     DropdownMenuItem(value: 'membrane', child: Text('卷材防水')),
@@ -306,7 +299,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('涂刷厚度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   keyboardType: TextInputType.number,
                   initialValue: thicknessStr,
                   onSaved: (v) => thicknessStr = v ?? '1.5',
@@ -314,7 +307,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   decoration: _inputDecoration('上翻高度 (mm)'),
-                  style: const TextStyle(color: _primaryText),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   keyboardType: TextInputType.number,
                   initialValue: heightStr,
                   onSaved: (v) => heightStr = v ?? '300',
@@ -326,10 +319,10 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _secondaryText)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
             onPressed: () {
               if (formKey.currentState?.validate() ?? false) {
                 formKey.currentState?.save();
@@ -375,14 +368,14 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('删除规格', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: const Text('删除规格', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text('确定要删除「${spec['name'] ?? '该规格'}」吗？',
-            style: const TextStyle(color: _primaryText)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: _secondaryText)),
+            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -455,12 +448,12 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
 
   InputDecoration _inputDecoration(String label) => InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: _secondaryText),
+        labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
         enabledBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: _borderColor),
+          borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
         ),
         focusedBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: _brandColor),
+          borderSide: BorderSide(color: SuokeDesignTokens.accent),
         ),
       );
 
@@ -525,15 +518,15 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('门窗防水', style: TextStyle(color: _primaryText)),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: const Text('门窗防水', style: TextStyle(color: SuokeDesignTokens.text(context))),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _secondaryText,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '门窗规格'),
             Tab(text: '防水方案'),
@@ -554,9 +547,9 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
   Widget? _buildFab() {
     if (_tabController.index == 0) {
       return FloatingActionButton(
-        backgroundColor: _brandColor,
+        backgroundColor: SuokeDesignTokens.accent,
         onPressed: _showCreateSpecDialog,
-        child: const Icon(Icons.add, color: _bgColor),
+        child: const Icon(Icons.add, color: SuokeDesignTokens.bg(context)),
       );
     }
     if (_selectedSpec == null) return null;
@@ -565,16 +558,16 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
       children: [
         FloatingActionButton(
           heroTag: 'validate',
-          backgroundColor: _cardColor,
+          backgroundColor: SuokeDesignTokens.card(context),
           onPressed: _validateSpec,
-          child: const Icon(Icons.verified, color: _brandColor),
+          child: const Icon(Icons.verified, color: SuokeDesignTokens.accent),
         ),
         const SizedBox(height: 12),
         FloatingActionButton(
           heroTag: 'add_waterproof',
-          backgroundColor: _brandColor,
+          backgroundColor: SuokeDesignTokens.accent,
           onPressed: _showAddWaterproofDialog,
-          child: const Icon(Icons.add, color: _bgColor),
+          child: const Icon(Icons.add, color: SuokeDesignTokens.bg(context)),
         ),
       ],
     );
@@ -582,17 +575,17 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
 
   Widget _buildSpecsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: _secondaryText)),
+            Text(_error!, style: const TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: _brandColor),
+              style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
               onPressed: _loadSpecs,
               child: const Text('重试'),
             ),
@@ -606,19 +599,19 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.door_front_door,
-                size: 64, color: _secondaryText),
+                size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
             const Text('暂无门窗规格',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
             const SizedBox(height: 8),
             const Text('点击右下角按钮创建',
-                style: TextStyle(color: _secondaryText, fontSize: 12)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           ],
         ),
       );
     }
     return RefreshIndicator(
-      color: _brandColor,
+      color: SuokeDesignTokens.accent,
       onRefresh: _loadSpecs,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -630,11 +623,11 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           final height = spec['height_mm'] ?? spec['height'];
           final thickness = spec['thickness_mm'] ?? spec['thickness'];
           return Card(
-            color: _cardColor,
+            color: SuokeDesignTokens.card(context),
             margin: const EdgeInsets.only(bottom: 12),
             shape: RoundedRectangleBorder(
               side: BorderSide(
-                  color: isSelected ? _brandColor : _borderColor),
+                  color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: InkWell(
@@ -652,7 +645,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                           child: Text(
                             spec['name'] ?? '未命名',
                             style: const TextStyle(
-                              color: _primaryText,
+                              color: SuokeDesignTokens.text(context),
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -660,7 +653,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                         ),
                         if (isSelected)
                           const Icon(Icons.check_circle,
-                              color: _brandColor, size: 18),
+                              color: SuokeDesignTokens.accent, size: 18),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -687,16 +680,16 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.water_drop,
-                size: 64, color: _secondaryText),
+                size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
             const Text('请先在「门窗规格」中选择一个规格',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
           ],
         ),
       );
     }
     if (_waterproofLoading) {
-      return const Center(child: CircularProgressIndicator(color: _brandColor));
+      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
     }
     if (_waterproofs.isEmpty) {
       return Center(
@@ -704,13 +697,13 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.water_drop,
-                size: 64, color: _secondaryText),
+                size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
             const Text('暂无防水方案',
-                style: TextStyle(color: _secondaryText, fontSize: 16)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
             const SizedBox(height: 8),
             const Text('点击右下角按钮添加',
-                style: TextStyle(color: _secondaryText, fontSize: 12)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           ],
         ),
       );
@@ -723,10 +716,10 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
         final thickness = w['thickness_mm'] ?? w['thickness'];
         final height = w['height_mm'] ?? w['height'];
         return Card(
-          color: _cardColor,
+          color: SuokeDesignTokens.card(context),
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(
-            side: const BorderSide(color: _borderColor),
+            side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Padding(
@@ -737,7 +730,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
                 Text(
                   w['area'] ?? '未命名区域',
                   style: const TextStyle(
-                    color: _primaryText,
+                    color: SuokeDesignTokens.text(context),
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -769,11 +762,11 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
           SizedBox(
             width: 72,
             child: Text(label,
-                style: const TextStyle(color: _secondaryText, fontSize: 12)),
+                style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(color: _primaryText, fontSize: 12)),
+                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12)),
           ),
         ],
       ),

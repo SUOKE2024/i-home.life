@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -16,7 +17,7 @@ class ConstructionPage extends StatefulWidget {
 class _ConstructionPageState extends State<ConstructionPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-  List<dynamic> _tasks = [];
+  List<Construction> _tasks = [];
   Map<String, dynamic>? _plan;
   bool _loading = false;
   bool _planLoading = false;
@@ -45,7 +46,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
     });
     final result = await _api.getList('/construction/tasks/${widget.projectId}');
     if (result.isSuccess) {
-      setState(() => _tasks = result.data);
+      setState(() => _tasks = (result.data as List)
+          .map((e) => Construction.fromJson(e as Map<String, dynamic>))
+          .toList());
     } else {
       setState(() => _error = '施工任务加载失败，请检查网络后重试');
     }
@@ -139,25 +142,25 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         padding: const EdgeInsets.all(16),
         itemCount: _tasks.length,
         itemBuilder: (context, index) {
-          final task = _tasks[index] as Map<String, dynamic>;
-          final status = task['status'] as String? ?? 'pending';
+          final task = _tasks[index];
+          final status = task.status;
           final statusColor = {
-            'pending': SuokeDesignTokens.textSecondary,
-            'in_progress': Colors.blue,
-            'completed': Colors.green,
-            'delayed': Colors.red,
+            ConstructionStatus.pending: SuokeDesignTokens.textSecondary,
+            ConstructionStatus.inProgress: Colors.blue,
+            ConstructionStatus.completed: Colors.green,
+            ConstructionStatus.delayed: Colors.red,
           }[status] ?? SuokeDesignTokens.textSecondary;
 
           return Card(
             child: ExpansionTile(
               leading: CircleAvatar(
                 backgroundColor: statusColor,
-                child: Text('${task['priority'] ?? 0}', style: const TextStyle(color: Colors.white)),
+                child: const Text('0', style: TextStyle(color: Colors.white)),
               ),
-              title: Text(task['name'] ?? ''),
-              subtitle: Text('${task['phase'] ?? ''} · $status'),
+              title: Text(task.taskName),
+              subtitle: Text('${task.phase ?? ''} · ${status.value}'),
               trailing: PopupMenuButton<String>(
-                onSelected: (value) => _updateTaskStatus(task['id'], value),
+                onSelected: (value) => _updateTaskStatus(task.id, value),
                 itemBuilder: (_) => [
                   const PopupMenuItem(value: 'pending', child: Text('待开始')),
                   const PopupMenuItem(value: 'in_progress', child: Text('进行中')),
@@ -171,17 +174,12 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (task['description'] != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(task['description']),
-                        ),
-                      if (task['assigned_to'] != null)
-                        Text('负责人：${task['assigned_to']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
-                      if (task['start_date'] != null)
-                        Text('开始：${task['start_date']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
-                      if (task['end_date'] != null)
-                        Text('结束：${task['end_date']}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                      if (task.assignee != null)
+                        Text('负责人：${task.assignee}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                      if (task.startDate != null)
+                        Text('开始：${task.startDate}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                      if (task.endDate != null)
+                        Text('结束：${task.endDate}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
                     ],
                   ),
                 ),

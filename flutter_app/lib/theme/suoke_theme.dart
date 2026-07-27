@@ -144,6 +144,28 @@ class SuokeDesignTokens {
   static const Color lightTextPrimary = Color(0xFF1A1814);
   static const Color lightTextSecondary = Color(0xFF6B6760);
   static const Color lightTextMuted = Color(0xFF9E9A94);
+
+  // ── Theme-aware context helpers ──
+
+  /// 页面背景色
+  static Color bg(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? bgDeep : lightBg;
+
+  /// 卡片背景色
+  static Color card(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? cardBg : lightCard;
+
+  /// 主文字颜色
+  static Color text(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? textPrimary : lightTextPrimary;
+
+  /// 次要文字颜色
+  static Color textSub(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? textSecondary : lightTextSecondary;
+
+  /// 边框色
+  static Color borderClr(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? border : lightBorder;
 }
 
 /// 暗色 + 普通主题工厂

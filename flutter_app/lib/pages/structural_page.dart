@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -16,13 +17,6 @@ class _StructuralPageState extends State<StructuralPage>
   late TabController _tabController;
   final ApiClient _api = ApiClient();
 
-  // 暗色主题色
-  static const _bg = Color(0xFF08080F);
-  static const _cardColor = Color(0xFF12121D);
-  static const _brand = Color(0xFFC9973B);
-  static const _border = Color(0xFF1E1E32);
-  static const _textMain = Color(0xFFE8E6E1);
-  static const _textSub = Color(0xFF8A8894);
 
   List<dynamic> _walls = [];
   List<dynamic> _beams = [];
@@ -83,16 +77,16 @@ class _StructuralPageState extends State<StructuralPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bg,
-        foregroundColor: _textMain,
+        backgroundColor: SuokeDesignTokens.bg(context),
+        foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('土建结构'),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brand,
-          unselectedLabelColor: _textSub,
-          indicatorColor: _brand,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '承重墙'),
             Tab(text: '梁/柱'),
@@ -120,9 +114,9 @@ class _StructuralPageState extends State<StructuralPage>
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: _cardColor,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: child,
     );
@@ -134,11 +128,11 @@ class _StructuralPageState extends State<StructuralPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: _textSub, fontSize: 13)),
+          Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
           Flexible(
             child: Text(
               value,
-              style: const TextStyle(color: _textMain, fontSize: 13),
+              style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
               textAlign: TextAlign.right,
             ),
           ),
@@ -152,7 +146,7 @@ class _StructuralPageState extends State<StructuralPage>
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Text(text,
           style: const TextStyle(
-              color: _textMain, fontSize: 15, fontWeight: FontWeight.bold)),
+              color: SuokeDesignTokens.text(context), fontSize: 15, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -161,18 +155,18 @@ class _StructuralPageState extends State<StructuralPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.foundation, size: 56, color: _textSub),
+          Icon(Icons.foundation, size: 56, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 12),
-          Text(text, style: const TextStyle(color: _textSub, fontSize: 14)),
+          Text(text, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 14)),
           if (onAdd != null && addLabel != null) ...[
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onAdd,
-              icon: const Icon(Icons.add, size: 18, color: _brand),
+              icon: const Icon(Icons.add, size: 18, color: SuokeDesignTokens.accent),
               label: Text(addLabel,
-                  style: const TextStyle(color: _brand)),
+                  style: const TextStyle(color: SuokeDesignTokens.accent)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: _brand),
+                side: const BorderSide(color: SuokeDesignTokens.accent),
               ),
             ),
           ],
@@ -189,8 +183,8 @@ class _StructuralPageState extends State<StructuralPage>
         icon: const Icon(Icons.add, size: 18),
         label: Text(label),
         style: ElevatedButton.styleFrom(
-          backgroundColor: _brand,
-          foregroundColor: _bg,
+          backgroundColor: SuokeDesignTokens.accent,
+          foregroundColor: SuokeDesignTokens.bg(context),
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
@@ -219,7 +213,7 @@ class _StructuralPageState extends State<StructuralPage>
                         Expanded(
                           child: Text(w['wall_name'] ?? '',
                               style: const TextStyle(
-                                  color: _textMain,
+                                  color: SuokeDesignTokens.text(context),
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold)),
                         ),
@@ -228,16 +222,16 @@ class _StructuralPageState extends State<StructuralPage>
                               horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: w['is_load_bearing'] == true
-                                ? _brand.withValues(alpha: 0.15)
-                                : _border,
+                                ? SuokeDesignTokens.accent.withValues(alpha: 0.15)
+                                : SuokeDesignTokens.borderClr(context),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             w['is_load_bearing'] == true ? '承重' : '非承重',
                             style: TextStyle(
                               color: w['is_load_bearing'] == true
-                                  ? _brand
-                                  : _textSub,
+                                  ? SuokeDesignTokens.accent
+                                  : SuokeDesignTokens.textSub(context),
                               fontSize: 12,
                             ),
                           ),
@@ -275,7 +269,7 @@ class _StructuralPageState extends State<StructuralPage>
           if (_beams.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('暂无梁', style: TextStyle(color: _textSub, fontSize: 13)),
+              child: Text('暂无梁', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
           else
             ..._beams.map((b) => _card(
@@ -284,7 +278,7 @@ class _StructuralPageState extends State<StructuralPage>
                     children: [
                       Text(b['beam_name'] ?? '',
                           style: const TextStyle(
-                              color: _textMain,
+                              color: SuokeDesignTokens.text(context),
                               fontSize: 15,
                               fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
@@ -302,7 +296,7 @@ class _StructuralPageState extends State<StructuralPage>
           if (_columns.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('暂无柱', style: TextStyle(color: _textSub, fontSize: 13)),
+              child: Text('暂无柱', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
           else
             ..._columns.map((c) => _card(
@@ -311,7 +305,7 @@ class _StructuralPageState extends State<StructuralPage>
                     children: [
                       Text(c['column_name'] ?? '',
                           style: const TextStyle(
-                              color: _textMain,
+                              color: SuokeDesignTokens.text(context),
                               fontSize: 15,
                               fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
@@ -354,7 +348,7 @@ class _StructuralPageState extends State<StructuralPage>
                 children: [
                   Text(s['slab_name'] ?? '',
                       style: const TextStyle(
-                          color: _textMain,
+                          color: SuokeDesignTokens.text(context),
                           fontSize: 15,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
@@ -396,18 +390,18 @@ class _StructuralPageState extends State<StructuralPage>
                         Expanded(
                           child: Text(q['calc_name'] ?? '',
                               style: const TextStyle(
-                                  color: _textMain,
+                                  color: SuokeDesignTokens.text(context),
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold)),
                         ),
                         Text('¥${q['total_cost'] ?? 0}',
                             style: const TextStyle(
-                                color: _brand, fontWeight: FontWeight.bold)),
+                                color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text('${q['calc_type'] ?? '—'} · ${q['status'] ?? '—'}',
-                        style: const TextStyle(color: _textSub, fontSize: 12)),
+                        style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                     const SizedBox(height: 8),
                     _row('混凝土', '${q['concrete_m3'] ?? '—'} m³'),
                     _row('钢筋', '${q['rebar_kg'] ?? '—'} kg'),
@@ -496,8 +490,8 @@ class _StructuralPageState extends State<StructuralPage>
     return showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: Text(title, style: const TextStyle(color: _textMain)),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -510,15 +504,15 @@ class _StructuralPageState extends State<StructuralPage>
                           controller: controllers[f.key],
                           decoration: InputDecoration(
                             labelText: f.label,
-                            labelStyle: const TextStyle(color: _textSub),
+                            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
                             enabledBorder: const UnderlineInputBorder(
-                              borderSide: BorderSide(color: _border),
+                              borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                             ),
                             focusedBorder: const UnderlineInputBorder(
-                              borderSide: BorderSide(color: _brand),
+                              borderSide: BorderSide(color: SuokeDesignTokens.accent),
                             ),
                           ),
-                          style: const TextStyle(color: _textMain),
+                          style: TextStyle(color: SuokeDesignTokens.text(context)),
                           keyboardType: f.isNumber
                               ? TextInputType.number
                               : TextInputType.text,
@@ -535,12 +529,12 @@ class _StructuralPageState extends State<StructuralPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消', style: TextStyle(color: _textSub)),
+            child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _brand,
-              foregroundColor: _bg,
+              backgroundColor: SuokeDesignTokens.accent,
+              foregroundColor: SuokeDesignTokens.bg(context),
             ),
             child: const Text('保存'),
             onPressed: () {

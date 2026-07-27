@@ -77,6 +77,68 @@ class _BathroomPageState extends State<BathroomPage>
     _tabController.animateTo(1);
   }
 
+  // ── 专业分析 ──
+
+  Future<void> _showDrain(String designId) async {
+    final result = await _api.bathroomDrain(designId);
+    if (mounted) {
+      if (result.isSuccess) {
+        final data = result.data as Map<String, dynamic>? ?? {};
+        _showAnalysisDialog('地漏坡度分析', '坡度: ${data['slope_percent'] ?? '-'}%\n'
+            '最低点高差: ${data['min_height_diff_mm'] ?? '-'} mm\n'
+            '合规: ${data['compliant'] == true ? '是' : '否'}');
+      } else {
+        _showSnack('分析失败: ${result.error}');
+      }
+    }
+  }
+
+  Future<void> _showWaterproof(String designId) async {
+    final result = await _api.bathroomWaterproof(designId);
+    if (mounted) {
+      if (result.isSuccess) {
+        final data = result.data as Map<String, dynamic>? ?? {};
+        _showAnalysisDialog('防水规范分析', '涂刷高度: ${data['coating_height_mm'] ?? '-'} mm\n'
+            '闭水试验: ${data['water_test_hours'] ?? '-'} h\n'
+            '薄弱节点: ${data['weak_points'] is List ? (data['weak_points'] as List).join(', ') : '-'}');
+      } else {
+        _showSnack('分析失败: ${result.error}');
+      }
+    }
+  }
+
+  Future<void> _showVentilation(String designId) async {
+    final result = await _api.bathroomVentilation(designId);
+    if (mounted) {
+      if (result.isSuccess) {
+        final data = result.data as Map<String, dynamic>? ?? {};
+        _showAnalysisDialog('通风分析', '自然通风: ${data['has_natural_window'] == true ? '有' : '无'}\n'
+            '开窗面积: ${data['window_area_m2'] ?? '-'} ㎡\n'
+            '机械通风: ${data['mechanical_vent_airflow'] ?? '-'} m³/h\n'
+            '合规: ${data['compliant'] == true ? '是' : '否'}');
+      } else {
+        _showSnack('分析失败: ${result.error}');
+      }
+    }
+  }
+
+  void _showAnalysisDialog(String title, String content) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
+        ],
+      ),
+    );
+  }
+
+  void _showSnack(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   // ── 创建卫浴方案 ──
 
   Future<void> _showCreateDesignDialog() async {
@@ -555,6 +617,16 @@ class _BathroomPageState extends State<BathroomPage>
                       '${design['room_width']}×${design['room_length']}×${design['ceiling_height']} m',
                     ),
                     _infoRow('地漏数量', '${design['floor_drain_count'] ?? 1} 个'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _analysisChip('坡度', Icons.water_drop, () => _showDrain(design['id'])),
+                        const SizedBox(width: 6),
+                        _analysisChip('防水', Icons.shield, () => _showWaterproof(design['id'])),
+                        const SizedBox(width: 6),
+                        _analysisChip('通风', Icons.air, () => _showVentilation(design['id'])),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -782,6 +854,27 @@ class _BathroomPageState extends State<BathroomPage>
                 style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 12)),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _analysisChip(String label, IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: SuokeDesignTokens.accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: SuokeDesignTokens.accent),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 11, fontWeight: FontWeight.w500)),
+          ],
+        ),
       ),
     );
   }

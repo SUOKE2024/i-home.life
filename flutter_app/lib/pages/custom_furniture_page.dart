@@ -37,6 +37,21 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
     'cloakroom': '衣帽间',
   };
 
+  /// 每种家具类型的默认尺寸 (width, height, depth) mm
+  static const _typeDefaults = {
+    'wardrobe': (2400, 2700, 600),
+    'cabinet': (3000, 850, 600),
+    'shoe_cabinet': (1200, 1100, 350),
+    'bookcase': (1200, 2400, 350),
+    'tatami': (2000, 450, 2000),
+    'tv_cabinet': (2400, 450, 400),
+    'sideboard': (1500, 900, 400),
+    'balcony_cabinet': (1000, 2700, 350),
+    'bathroom_cabinet': (800, 800, 300),
+    'wine_cabinet': (1200, 2200, 400),
+    'cloakroom': (3000, 2700, 600),
+  };
+
   @override
   void initState() {
     super.initState();
@@ -64,20 +79,23 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _createDesign() async {
+  Future<void> _createDesign([String furnitureType = 'wardrobe']) async {
+    final dims = _typeDefaults[furnitureType] ?? _typeDefaults['wardrobe']!;
+    final label = _typeLabels[furnitureType] ?? '家具';
     final result = await _api.post('/custom-furniture/designs', {
       'project_id': widget.projectId,
-      'type': 'wardrobe',
-      'width': 2400.0,
-      'depth': 600.0,
-      'height': 2700.0,
-      'material': '颗粒板',
+      'room_name': '主卧',
+      'furniture_type': furnitureType,
+      'total_width': dims.$1.toDouble(),
+      'total_height': dims.$2.toDouble(),
+      'total_depth': dims.$3.toDouble(),
+      'panel_material': '颗粒板',
     });
     if (result.isSuccess) {
       await _loadDesigns();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('定制方案已创建')),
+          SnackBar(content: Text('$label 方案已创建')),
         );
       }
     } else {
@@ -573,7 +591,7 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
             leading: const Icon(Icons.chevron_right),
             title: Text(e.value),
             trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-            onTap: _createDesign,
+            onTap: () => _createDesign(e.key),
           )),
         ],
       ),

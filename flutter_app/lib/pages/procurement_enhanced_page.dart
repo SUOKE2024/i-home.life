@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -19,10 +21,6 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
   late TabController _tabController;
   final ApiClient _api = ApiClient();
 
-  static const _brand = Color(0xFFC9973B);
-  static const _bg = Color(0xFF08080F);
-  static const _card = Color(0xFF12121D);
-  static const _textSecondary = Color(0xFF8A8894);
 
   @override
   void initState() {
@@ -45,9 +43,9 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _card,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: const Text(
           '采购增强',
           style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'DM Sans'),
@@ -55,9 +53,9 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          labelColor: _brand,
-          unselectedLabelColor: _textSecondary,
-          indicatorColor: _brand,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '比价'),
             Tab(text: '托管支付'),

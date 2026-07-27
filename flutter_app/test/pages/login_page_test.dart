@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ihome_app/pages/login_page.dart';
 
 import '../test_helper.dart';
-import '../mock_http.dart';
 
 void main() {
   setUp(() {

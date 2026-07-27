@@ -88,6 +88,23 @@ async def get_records_by_project(db: AsyncSession, project_id: str) -> list[Ener
     return list(result.scalars().all())
 
 
+async def get_record_by_id(db: AsyncSession, record_id: str) -> EnergyMonitor | None:
+    """获取单条能耗记录"""
+    result = await db.execute(select(EnergyMonitor).where(EnergyMonitor.id == record_id))
+    return result.scalar_one_or_none()
+
+
+async def delete_record(db: AsyncSession, record_id: str) -> bool:
+    """删除能耗记录"""
+    result = await db.execute(select(EnergyMonitor).where(EnergyMonitor.id == record_id))
+    record = result.scalar_one_or_none()
+    if not record:
+        return False
+    await db.delete(record)
+    await db.commit()
+    return True
+
+
 # ── 报告生成 ──
 
 
@@ -286,6 +303,26 @@ async def apply_tip(db: AsyncSession, tip_id: str) -> EnergySavingTip | None:
     await db.commit()
     await db.refresh(tip)
     return tip
+
+
+async def create_tip(db: AsyncSession, data: dict) -> EnergySavingTip:
+    """手动创建节能建议"""
+    tip = EnergySavingTip(**data)
+    db.add(tip)
+    await db.commit()
+    await db.refresh(tip)
+    return tip
+
+
+async def delete_tip(db: AsyncSession, tip_id: str) -> bool:
+    """删除节能建议"""
+    result = await db.execute(select(EnergySavingTip).where(EnergySavingTip.id == tip_id))
+    tip = result.scalar_one_or_none()
+    if not tip:
+        return False
+    await db.delete(tip)
+    await db.commit()
+    return True
 
 
 async def _tip_to_dict(db: AsyncSession, tip: EnergySavingTip) -> dict:

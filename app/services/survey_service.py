@@ -22,9 +22,13 @@ async def create_survey(db: AsyncSession, data: dict, rooms: list[dict]) -> Surv
         name=data.get("name", "现场测量"),
         surveyor=data.get("surveyor"),
         method=data.get("method", "manual"),
+        scene_type=data.get("scene_type", "indoor"),
         wall_height=data.get("wall_height", 2.8),
         total_area=round(total, 2),
         rooms_data=json.dumps(rooms, ensure_ascii=False),
+        scan_data=data.get("scan_data"),
+        voice_transcript=data.get("voice_transcript"),
+        device_info=data.get("device_info"),
         notes=data.get("notes"),
     )
     db.add(survey)
@@ -46,19 +50,26 @@ async def get_survey(db: AsyncSession, survey_id: str) -> Survey | None:
 
 
 async def update_survey(db: AsyncSession, survey: Survey, data: dict) -> Survey:
-    for field in ("name", "surveyor", "method", "wall_height", "status", "notes"):
+    # 标量字段更新（含 scene_type/device_info/scan_data/voice_transcript）
+    for field in ("name", "surveyor", "method", "scene_type", "wall_height", "status",
+                  "device_info", "scan_data", "voice_transcript", "notes"):
         if field in data and data[field] is not None:
             setattr(survey, field, data[field])
+    # rooms 字段：Pydantic RoomMeasureItem → dict 转换后写入 rooms_data
     if "rooms" in data and data["rooms"] is not None:
         rooms = data["rooms"]
+        # 防御：若 rooms 为 Pydantic 对象列表，先 dump 为 dict
+        rooms_dicts = []
         total = 0.0
         for r in rooms:
-            w = r.get("width", 0)
-            h = r.get("length", 0)
-            if "area" not in r or r["area"] is None:
-                r["area"] = round(w * h, 2)
-            total += r["area"]
-        survey.rooms = rooms
+            rd = r.model_dump() if hasattr(r, "model_dump") else dict(r)
+            w = rd.get("width", 0)
+            h = rd.get("length", 0)
+            if "area" not in rd or rd["area"] is None:
+                rd["area"] = round(w * h, 2)
+            total += rd["area"]
+            rooms_dicts.append(rd)
+        survey.rooms = rooms_dicts
         survey.total_area = round(total, 2)
     await db.commit()
     await db.refresh(survey)

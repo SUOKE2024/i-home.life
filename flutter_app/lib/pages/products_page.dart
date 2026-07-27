@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -14,14 +15,6 @@ class _ProductsPageState extends State<ProductsPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final ApiClient _api = ApiClient();
-
-  // 暗色主题
-  static const Color _bgColor = Color(0xFF08080F);
-  static const Color _cardColor = Color(0xFF12121D);
-  static const Color _brandColor = Color(0xFFC9973B);
-  static const Color _borderColor = Color(0xFF1E1E32);
-  static const Color _textPrimary = Color(0xFFE8E6E1);
-  static const Color _textSecondary = Color(0xFF8A8894);
 
   // 产品浏览
   List<dynamic> _products = [];
@@ -135,7 +128,7 @@ class _ProductsPageState extends State<ProductsPage>
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
-        child: CircularProgressIndicator(color: _brandColor),
+        child: CircularProgressIndicator(color: SuokeDesignTokens.accent),
       ),
     );
     final result = await _api.productGet(productId);
@@ -157,9 +150,9 @@ class _ProductsPageState extends State<ProductsPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardColor,
+        backgroundColor: SuokeDesignTokens.card(context),
         title: Text(p['name']?.toString() ?? '产品详情',
-            style: const TextStyle(color: _textPrimary, fontSize: 16)),
+            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16)),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
@@ -178,19 +171,19 @@ class _ProductsPageState extends State<ProductsPage>
                   const SizedBox(height: 12),
                   const Text('描述',
                       style: TextStyle(
-                          color: _brandColor,
+                          color: SuokeDesignTokens.accent,
                           fontSize: 13,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text(p['description'].toString(),
                       style: const TextStyle(
-                          color: _textPrimary, fontSize: 13)),
+                          color: SuokeDesignTokens.text(context), fontSize: 13)),
                 ],
                 if ((p['tags'] as List?)?.isNotEmpty ?? false) ...[
                   const SizedBox(height: 12),
                   const Text('标签',
                       style: TextStyle(
-                          color: _brandColor,
+                          color: SuokeDesignTokens.accent,
                           fontSize: 13,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
@@ -202,13 +195,13 @@ class _ProductsPageState extends State<ProductsPage>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: _bgColor,
+                                color: SuokeDesignTokens.bg(context),
                                 borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: _borderColor),
+                                border: Border.all(color: SuokeDesignTokens.borderClr(context)),
                               ),
                               child: Text(t.toString(),
                                   style: const TextStyle(
-                                      color: _textSecondary, fontSize: 11)),
+                                      color: SuokeDesignTokens.textSub(context), fontSize: 11)),
                             ))
                         .toList(),
                   ),
@@ -219,18 +212,18 @@ class _ProductsPageState extends State<ProductsPage>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _brandColor.withValues(alpha: 0.15),
+                      color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.auto_awesome,
-                            color: _brandColor, size: 14),
+                            color: SuokeDesignTokens.accent, size: 14),
                         SizedBox(width: 4),
                         Text('AI 辅助生成',
                             style:
-                                TextStyle(color: _brandColor, fontSize: 11)),
+                                TextStyle(color: SuokeDesignTokens.accent, fontSize: 11)),
                       ],
                     ),
                   ),
@@ -243,7 +236,7 @@ class _ProductsPageState extends State<ProductsPage>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child:
-                const Text('关闭', style: TextStyle(color: _textSecondary)),
+                const Text('关闭', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
         ],
       ),
@@ -260,11 +253,11 @@ class _ProductsPageState extends State<ProductsPage>
             width: 72,
             child: Text(label,
                 style:
-                    const TextStyle(color: _textSecondary, fontSize: 13)),
+                    const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
           ),
           Expanded(
             child: Text(value,
-                style: const TextStyle(color: _textPrimary, fontSize: 13)),
+                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
           ),
         ],
       ),
@@ -326,7 +319,7 @@ class _ProductsPageState extends State<ProductsPage>
       case 'out_of_stock':
         return Colors.red;
       default:
-        return _textSecondary;
+        return SuokeDesignTokens.textSub(context);
     }
   }
 
@@ -335,16 +328,16 @@ class _ProductsPageState extends State<ProductsPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: _bgColor,
-        title: const Text('产品库', style: TextStyle(color: _textPrimary)),
-        iconTheme: const IconThemeData(color: _textPrimary),
+        backgroundColor: SuokeDesignTokens.bg(context),
+        title: const Text('产品库', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        iconTheme: const IconThemeData(color: SuokeDesignTokens.text(context)),
         bottom: TabBar(
           controller: _tabController,
-          labelColor: _brandColor,
-          unselectedLabelColor: _textSecondary,
-          indicatorColor: _brandColor,
+          labelColor: SuokeDesignTokens.accent,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
+          indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '产品浏览'),
             Tab(text: '搜索'),
@@ -369,7 +362,7 @@ class _ProductsPageState extends State<ProductsPage>
         // 分类筛选
         Container(
           width: double.infinity,
-          color: _bgColor,
+          color: SuokeDesignTokens.bg(context),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -381,13 +374,13 @@ class _ProductsPageState extends State<ProductsPage>
                   child: ChoiceChip(
                     label: Text(cat),
                     selected: selected,
-                    selectedColor: _brandColor,
-                    backgroundColor: _cardColor,
+                    selectedColor: SuokeDesignTokens.accent,
+                    backgroundColor: SuokeDesignTokens.card(context),
                     labelStyle: TextStyle(
-                      color: selected ? _bgColor : _textSecondary,
+                      color: selected ? SuokeDesignTokens.bg(context) : SuokeDesignTokens.textSub(context),
                       fontSize: 13,
                     ),
-                    side: const BorderSide(color: _borderColor),
+                    side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                     onSelected: (_) {
                       setState(() => _selectedCategory = cat);
                       _loadProducts();
@@ -404,7 +397,7 @@ class _ProductsPageState extends State<ProductsPage>
               : _error != null
                   ? ErrorRetryWidget(message: _error!, onRetry: _loadProducts)
                   : RefreshIndicator(
-                      color: _brandColor,
+                      color: SuokeDesignTokens.accent,
                       onRefresh: _loadProducts,
                       child: _products.isEmpty
                           ? _buildEmptyState('暂无产品', Icons.inventory_2_outlined)
@@ -437,9 +430,9 @@ class _ProductsPageState extends State<ProductsPage>
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: _cardColor,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _borderColor),
+          border: Border.all(color: SuokeDesignTokens.borderClr(context)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,12 +444,12 @@ class _ProductsPageState extends State<ProductsPage>
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: _bgColor,
+                    color: SuokeDesignTokens.bg(context),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _borderColor),
+                    border: Border.all(color: SuokeDesignTokens.borderClr(context)),
                   ),
                   child: const Icon(Icons.inventory_2_outlined,
-                      color: _textSecondary, size: 24),
+                      color: SuokeDesignTokens.textSub(context), size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -468,7 +461,7 @@ class _ProductsPageState extends State<ProductsPage>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: _textPrimary,
+                          color: SuokeDesignTokens.text(context),
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                         ),
@@ -477,7 +470,7 @@ class _ProductsPageState extends State<ProductsPage>
                       Text(
                         '$category · $brand',
                         style: const TextStyle(
-                            color: _textSecondary, fontSize: 12),
+                            color: SuokeDesignTokens.textSub(context), fontSize: 12),
                       ),
                     ],
                   ),
@@ -506,7 +499,7 @@ class _ProductsPageState extends State<ProductsPage>
                   child: Text(
                     _priceText(p),
                     style: const TextStyle(
-                      color: _brandColor,
+                      color: SuokeDesignTokens.accent,
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
@@ -516,11 +509,11 @@ class _ProductsPageState extends State<ProductsPage>
                   children: [
                     Icon(Icons.star,
                         size: 14,
-                        color: _brandColor.withValues(alpha: 0.5)),
+                        color: SuokeDesignTokens.accent.withValues(alpha: 0.5)),
                     const SizedBox(width: 2),
                     const Text('暂无评分',
                         style:
-                            TextStyle(color: _textSecondary, fontSize: 11)),
+                            TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
                   ],
                 ),
               ],
@@ -543,23 +536,23 @@ class _ProductsPageState extends State<ProductsPage>
               Expanded(
                 child: TextField(
                   controller: _searchCtrl,
-                  style: const TextStyle(color: _textPrimary),
+                  style: const TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: InputDecoration(
                     hintText: '搜索产品名称、品类、描述...',
-                    hintStyle: const TextStyle(color: _textSecondary),
+                    hintStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
                     prefixIcon:
-                        const Icon(Icons.search, color: _textSecondary),
+                        const Icon(Icons.search, color: SuokeDesignTokens.textSub(context)),
                     filled: true,
-                    fillColor: _cardColor,
+                    fillColor: SuokeDesignTokens.card(context),
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _borderColor),
+                      borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: _brandColor),
+                      borderSide: const BorderSide(color: SuokeDesignTokens.accent),
                     ),
                   ),
                   onSubmitted: (_) => _doSearch(),
@@ -570,14 +563,14 @@ class _ProductsPageState extends State<ProductsPage>
                 height: 48,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brandColor,
+                    backgroundColor: SuokeDesignTokens.accent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: _searching ? null : _doSearch,
                   child:
-                      const Text('搜索', style: TextStyle(color: _bgColor)),
+                      const Text('搜索', style: TextStyle(color: SuokeDesignTokens.bg(context))),
                 ),
               ),
             ],
@@ -586,7 +579,7 @@ class _ProductsPageState extends State<ProductsPage>
         Expanded(
           child: _searching
               ? const Center(
-                  child: CircularProgressIndicator(color: _brandColor))
+                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
               : _searchResults.isEmpty
                   ? _buildEmptyState(
                       _hasSearched ? '未找到匹配产品' : '输入关键词开始搜索',
@@ -612,9 +605,9 @@ class _ProductsPageState extends State<ProductsPage>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: _textSecondary),
+          Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(color: _textSecondary)),
+          Text(message, style: const TextStyle(color: SuokeDesignTokens.textSub(context))),
         ],
       ),
     );

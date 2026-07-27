@@ -51,6 +51,10 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>索克家居需要访问本地网络以连接家居设计服务</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>索克家居需要定位权限以自动获取项目位置，方便选择附近楼盘</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>索克家居需要定位权限以自动获取项目位置，方便选择附近楼盘</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>索克家居使用 Face ID 进行快速登录验证，保护您的账号安全</string>
 	<key>NSCameraUsageDescription</key>

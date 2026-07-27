@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/models.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
 import 'home_page.dart';

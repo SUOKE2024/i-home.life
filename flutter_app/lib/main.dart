@@ -1,8 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
+import 'http_overrides_stub.dart'
+    if (dart.library.io) 'http_overrides_native.dart';
 import 'theme/suoke_theme.dart';
 import 'services/api.dart';
 import 'services/feature_flags_service.dart';
@@ -12,23 +13,11 @@ import 'services/project_context.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
 
-/// 仅用于本地开发：跳过 TLS 证书校验，便于对接使用自签名证书的后端。
-/// 生产环境必须启用完整 SSL 校验。
-class _DevelopmentHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // v1.1.26: 初始化性能监控
   PerformanceService.instance.initialize();
-  if (AppConfig.debugMode) {
-    HttpOverrides.global = _DevelopmentHttpOverrides();
-  }
+  setupHttpOverrides(AppConfig.debugMode);
   // 初始化通知服务（失败不影响应用启动）
   // HarmonyOS 等不支持的平台会自动跳过原生初始化
   NotificationService().initialize().catchError((e) {
@@ -43,10 +32,46 @@ void main() {
   runApp(const IHomeApp());
 }
 
-/// 主题状态管理 — 随系统自动切换暗/亮主题
+/// 主题状态管理 — 支持手动切换暗/亮/自动主题
 class ThemeState extends ChangeNotifier {
-  ThemeMode get mode => ThemeMode.system;
-  bool get isDark => false; // 跟随系统，不固定
+  ThemeMode _mode = ThemeMode.system;
+  static const _themeKey = 'settings_theme_mode';
+
+  ThemeMode get mode => _mode;
+  bool get isDark => _mode == ThemeMode.dark;
+
+  ThemeState() {
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getString(_themeKey) ?? 'system';
+      _mode = v == 'light'
+          ? ThemeMode.light
+          : v == 'dark'
+              ? ThemeMode.dark
+              : ThemeMode.system;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> setMode(ThemeMode mode) async {
+    _mode = mode;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _themeKey,
+        mode == ThemeMode.light
+            ? 'light'
+            : mode == ThemeMode.dark
+                ? 'dark'
+                : 'system',
+      );
+    } catch (_) {}
+  }
 }
 
 /// 全局 Navigator Key，用于未登录时的导航跳转
@@ -69,7 +94,7 @@ class IHomeApp extends StatelessWidget {
               navigatorKey: globalNavigatorKey,
               theme: SuokeTheme.light(),
               darkTheme: SuokeTheme.dark(),
-              themeMode: ThemeMode.system,
+              themeMode: themeState.mode,
               home: const AuthGate(),
             ),
           );

@@ -24,6 +24,9 @@ import asyncio  # v1.2.1: 并行查询优化
 
 router = APIRouter(prefix="/projects", tags=["项目管理"])
 
+import structlog
+_ws_logger = structlog.get_logger("ws")
+
 
 @router.get(
     "",
@@ -89,7 +92,10 @@ async def create_project_handler(
 ):
     project = await create_project(db, current_user.id, data)
     resp = ProjectResponse.model_validate(project)
-    await ws_manager.broadcast_to_project(project.id, "project.created", resp.model_dump())
+    try:
+        await ws_manager.broadcast_to_project(project.id, "project.created", resp.model_dump())
+    except Exception:
+        _ws_logger.warning("project.created broadcast failed", project_id=project.id, exc_info=True)
     return resp
 
 
@@ -120,7 +126,10 @@ async def update_project_handler(
 
     updated = await update_project(db, project_id, data)
     resp = ProjectResponse.model_validate(updated)
-    await ws_manager.broadcast_to_project(project_id, "project.updated", resp.model_dump())
+    try:
+        await ws_manager.broadcast_to_project(project_id, "project.updated", resp.model_dump())
+    except Exception:
+        _ws_logger.warning("project.updated broadcast failed", project_id=project_id, exc_info=True)
     return resp
 
 
@@ -148,7 +157,10 @@ async def delete_project_handler(
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
 
     await delete_project(db, project_id)
-    await ws_manager.broadcast_to_project(project_id, "project.deleted", {"id": project_id})
+    try:
+        await ws_manager.broadcast_to_project(project_id, "project.deleted", {"id": project_id})
+    except Exception:
+        _ws_logger.warning("project.deleted broadcast failed", project_id=project_id, exc_info=True)
 
 
 # ── 全链路装修阶段进度 ──

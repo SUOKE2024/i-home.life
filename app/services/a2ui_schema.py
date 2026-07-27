@@ -18,7 +18,8 @@ from typing import Any
 
 # ── 协议常量 ──
 
-PROTOCOL_VERSION = "1.0.0"
+PROTOCOL_VERSION = "1.1.0"
+MIN_COMPATIBLE_VERSION = "1.0.0"
 
 
 # ── 枚举 ──
@@ -299,3 +300,38 @@ def card_to_json(card: dict[str, Any], indent: int | None = None) -> str:
 def encode_cards_to_wire(cards: list[dict[str, Any]]) -> str:
     """将多个 A2UI 卡片编码为传输格式（单行 JSON，适合 SSE streaming）"""
     return json.dumps({"version": PROTOCOL_VERSION, "cards": cards}, ensure_ascii=False)
+
+
+# ── 版本校验 ──
+
+def check_version_compatible(card_or_version: dict[str, Any] | str) -> bool:
+    """检查卡片或客户端版本是否与当前协议兼容。
+
+    支持语义化版本比较（major.minor.patch），
+    只要 major 相同且 minor >= MIN_COMPATIBLE_VERSION 的 minor 即视为兼容。
+
+    Args:
+        card_or_version: A2UI 卡片 dict（含 version 字段）或版本字符串
+
+    Returns:
+        True 如果兼容
+    """
+    if isinstance(card_or_version, dict):
+        ver_str = card_or_version.get("version", "0.0.0")
+    else:
+        ver_str = str(card_or_version)
+
+    try:
+        parts = [int(x) for x in ver_str.split(".")]
+        min_parts = [int(x) for x in MIN_COMPATIBLE_VERSION.split(".")]
+        if len(parts) < 2 or len(min_parts) < 2:
+            return False
+        # major 必须相同
+        if parts[0] != min_parts[0]:
+            return False
+        # minor 不低于最低兼容版本
+        if parts[1] < min_parts[1]:
+            return False
+        return True
+    except (ValueError, IndexError):
+        return False

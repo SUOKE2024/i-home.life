@@ -615,3 +615,43 @@ def parse_natural_language_scene(text: str) -> dict:
         "actions": actions,
         "raw_text": raw,
     }
+
+
+# ── 传感器实时触发检查 ──
+
+
+async def check_sensor_triggers(
+    db: AsyncSession,
+    user_id: str,
+    ambient_data: dict,
+    device_id: str | None = None,
+) -> list[dict]:
+    """检查传感器数据是否触发了任何场景自动化的 sensor_trigger 条件。
+
+    当传感器上传数据时调用，遍历用户的 sensor_trigger 类型场景自动化，
+    检查触发条件是否满足。满足条件的场景自动执行。
+
+    当前实现为框架级 stub：记录触发检查日志，但不实际执行场景动作。
+    实际执行需要在场景引擎中实现设备控制闭环。
+
+    Returns:
+        被触发的场景列表（当前为空，stub 实现）
+    """
+    import logging
+    log = logging.getLogger("ihome.scene_automation")
+
+    log.debug(
+        "check_sensor_triggers",
+        user_id=user_id,
+        device_id=device_id,
+        ambient_keys=list(ambient_data.keys()),
+        status="framework_stub",
+    )
+
+    # 框架占位：查询 sensor_trigger 类型的场景自动化
+    # 实际实现需要：
+    # 1. 查询用户的所有 sensor_trigger 场景
+    # 2. 根据条件匹配传感器数据（温度/湿度/光照/运动/加速度）
+    # 3. 执行匹配场景的动作（通过设备控制接口）
+    # 4. 记录触发日志到 scene_behavior_logs
+    return []
