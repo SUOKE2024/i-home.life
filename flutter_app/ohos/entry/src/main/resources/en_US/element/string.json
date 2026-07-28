@@ -2,6 +2,9 @@
   "string": [
     { "name": "module_desc", "value": "i-home.life Smart Home Renovation" },
     { "name": "EntryAbility_desc", "value": "i-home.life Entry" },
-    { "name": "EntryAbility_label", "value": "i-home.life" }
+    { "name": "EntryAbility_label", "value": "i-home.life" },
+    { "name": "camera_permission_reason", "value": "Used for construction site photos and AR scanning" },
+    { "name": "sensor_permission_reason", "value": "Used for AR measurement and spatial awareness" },
+    { "name": "location_permission_reason", "value": "Used for locating nearby suppliers and construction sites" }
   ]
 }

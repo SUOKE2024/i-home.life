@@ -2,6 +2,9 @@
   "string": [
     { "name": "module_desc", "value": "i-home.life 智能装修平台" },
     { "name": "EntryAbility_desc", "value": "i-home.life 主入口" },
-    { "name": "EntryAbility_label", "value": "索克家居" }
+    { "name": "EntryAbility_label", "value": "索克家居" },
+    { "name": "camera_permission_reason", "value": "用于拍摄施工现场照片和 AR 扫描" },
+    { "name": "sensor_permission_reason", "value": "用于 AR 测量和空间感知" },
+    { "name": "location_permission_reason", "value": "用于定位附近的供应商和工地" }
   ]
 }
