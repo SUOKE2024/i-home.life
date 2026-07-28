@@ -498,6 +498,6 @@ test.describe('AIRenderPage AI 渲染', () => {
 
     await page.goto('./ai-render');
     await expect(page.getByTestId('wb-airender-error')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByTestId('wb-airender-error')).toContainText('HTTP 500');
+    await expect(page.getByTestId('wb-airender-error')).toContainText('服务异常');
   });
 });

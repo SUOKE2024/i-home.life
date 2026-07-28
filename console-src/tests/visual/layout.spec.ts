@@ -63,20 +63,17 @@ test.describe('SuokeLayout 响应式', () => {
     await expect(page).toHaveScreenshot('layout-desktop.png');
   });
 
-  test('desktop 侧栏导航切换到占位页', async ({ page }) => {
+  test('desktop 侧栏导航切换到设计页（真实页，批次 13）', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
     await expect(page.getByTestId('wb-sidenav')).toBeVisible();
-    // 点击"设计"（仍为占位页，批次 5 实现）
+    // 点击"设计"（批次 13 已从占位升级为真实 DesignPage）
     await page.getByTestId('wb-sidenav-item--design').click();
-    const placeholder = page.getByTestId('wb-placeholder-page');
-    await expect(placeholder).toBeVisible();
-    // 占位页标题为"设计"
-    await expect(placeholder.locator('.wb-placeholder-page__title')).toHaveText('设计');
+    await expect(page.getByTestId('wb-design-page')).toBeVisible();
     // 设计项活跃
     await expect(page.getByTestId('wb-sidenav-item--design')).toHaveAttribute('aria-current', 'page');
-    // 返回工作台
-    await page.getByTestId('wb-placeholder-back').click();
+    // 返回工作台（点侧栏工作台项）
+    await page.getByTestId('wb-sidenav-item--root').click();
     await expect(page.getByTestId('wb-page')).toBeVisible();
     await expect(page.getByTestId('wb-sidenav-item--root')).toHaveAttribute('aria-current', 'page');
   });

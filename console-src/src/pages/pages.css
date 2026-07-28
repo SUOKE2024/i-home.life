@@ -1183,4 +1183,247 @@
   cursor: pointer;
 }
 
+/* ── 批次 13：设计页（设计方案生成 + 动线分析）── */
+
+.wb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+.wb-field__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.wb-input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-family: var(--font-sans);
+}
+.wb-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.wb-textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-family: var(--font-sans);
+  resize: vertical;
+  min-height: 72px;
+}
+.wb-textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.wb-design-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 房间布局编辑器 */
+.wb-design-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.wb-design-room-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 0.7fr 0.7fr 0.7fr 0.7fr 32px;
+  gap: 6px;
+  align-items: center;
+}
+.wb-input--num {
+  padding: 8px 6px;
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+.wb-input--type {
+  padding: 8px 6px;
+  font-size: var(--font-size-sm);
+}
+.wb-design-room-del {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+}
+.wb-design-room-del:hover {
+  background: var(--surface3);
+}
+
+/* 设计方案结果卡 */
+.wb-design-card__body {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.wb-design-card__body--mono {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.wb-design-fullreply {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* 动线分析评分卡 */
+.wb-design-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.wb-design-rating {
+  font-size: 28px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+}
+.wb-design-rating-text {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-design-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.wb-design-rating--excellent,
+.wb-design-circ-score.wb-design-rating--excellent {
+  color: var(--success);
+  background: rgba(74, 158, 110, 0.12);
+}
+.wb-design-rating--good {
+  color: var(--teal);
+  background: rgba(74, 201, 163, 0.12);
+}
+.wb-design-rating--fair {
+  color: var(--warning);
+  background: rgba(201, 122, 59, 0.12);
+}
+.wb-design-rating--poor {
+  color: var(--danger);
+  background: rgba(201, 74, 74, 0.12);
+}
+
+/* 动线卡片 */
+.wb-design-circ-score {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.wb-design-circ-desc {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  margin-bottom: 4px;
+}
+.wb-design-circ-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.wb-design-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.wb-design-segment {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  background: var(--surface2);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+}
+.wb-design-warn {
+  font-size: var(--font-size-xs);
+  color: var(--warning);
+  margin-top: 4px;
+}
+.wb-design-info {
+  font-size: var(--font-size-xs);
+  color: var(--info);
+  margin-top: 4px;
+}
+.wb-design-issues {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wb-design-issue {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.wb-design-issue--critical .wb-design-issue-sev {
+  color: var(--danger);
+}
+.wb-design-issue--warning .wb-design-issue-sev {
+  color: var(--warning);
+}
+.wb-design-issue--info .wb-design-issue-sev {
+  color: var(--info);
+}
+.wb-design-suggestions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--success);
+}
+.wb-design-suggestion-item {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+/* 响应式：窄屏房间行折叠 */
+@media (max-width: 480px) {
+  .wb-design-room-row {
+    grid-template-columns: 1fr 1fr 32px;
+    grid-template-areas:
+      'name type del'
+      'x y w'
+      'h . .';
+  }
+}
+
 

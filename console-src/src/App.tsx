@@ -34,6 +34,7 @@ import AIRenderPage from './pages/AIRenderPage';
 import CADPage from './pages/CADPage';
 import Sketch3DPage from './pages/Sketch3DPage';
 import IFCExportPage from './pages/IFCExportPage';
+import DesignPage from './pages/DesignPage';
 import { SuokeLayout } from './components/layout';
 
 /**
@@ -45,19 +46,14 @@ import { SuokeLayout } from './components/layout';
  * 批次 7：6 个真实页（Floorplans/Lighting/SoftFurnishing/Kitchen/Bathroom/DoorWindow）替换占位
  */
 
-/** 占位路由配置（批次 5 替换为真实页面） */
+/** 占位路由配置（批次 13 全部清零：design 最后一个占位已替换为真实页） */
 const PLACEHOLDER_ROUTES: Array<{
   path: string;
   title: string;
   emoji?: string;
   agent?: string;
 }> = [
-  // 设计（floorplans/lighting/soft-furnishing/hard-decoration/vr-panorama/ai-render/cad/sketch-3d/ifc-export 已实现，见下方真实路由）
-  { path: '/design', title: '设计', agent: 'design' },
-  // 施工（construction/tasks/change-orders/crews/takeoff/structural/mep/quality 已实现，见下方真实路由）
-  // 采购（procurement/materials/products 已实现，见下方真实路由）
-  // 财务（budget/settlement 已实现，见下方真实路由）
-  // 生活（smart-home/scene/kitchen/bathroom/appliance/furniture/custom-furniture 已实现，见下方真实路由）
+  // 全部业务域均已实现真实页面，无占位路由
 ];
 
 export default function App() {
@@ -104,6 +100,8 @@ export default function App() {
       <Route path="/cad" element={<CADPage />} />
       <Route path="/sketch-3d" element={<Sketch3DPage />} />
       <Route path="/ifc-export" element={<IFCExportPage />} />
+      {/* 批次 13 真实页面：设计方案生成 + 动线分析（最后一个占位清零） */}
+      <Route path="/design" element={<DesignPage />} />
       {/* 批次 5/6/7 占位 */}
       {PLACEHOLDER_ROUTES.map((r) => (
         <Route

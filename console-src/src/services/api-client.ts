@@ -68,13 +68,16 @@ export class ApiClient {
         }
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
-      const data = res.ok ? await res.json().catch(() => undefined) : undefined;
-      return {
-        isSuccess: res.ok,
-        status: res.status,
-        data: data as T | undefined,
-        error: res.ok ? undefined : `HTTP ${res.status}`,
-      };
+      if (res.ok) {
+        const data = await res.json().catch(() => undefined);
+        return { isSuccess: true, status: res.status, data: data as T | undefined };
+      }
+      // 非 2xx（非 401）：优先解析后端 detail/message，无则回退 HTTP {status}
+      // 对齐 uploadFile/downloadBlob 的错误体解析，让前端展示真实后端错误而非裸状态码
+      const errorBody = await res.json().catch(() => undefined);
+      const error =
+        (errorBody?.detail as string) ?? (errorBody?.message as string) ?? `HTTP ${res.status}`;
+      return { isSuccess: false, status: res.status, error };
     } catch (err) {
       return {
         isSuccess: false,
@@ -676,6 +679,43 @@ export class ApiClient {
       `/api/bim/export/design/${encodeURIComponent(planId)}`,
       options as unknown as Record<string, unknown>,
     );
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  业务域 API — 批次 13：设计方案生成 + 动线分析
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * 生成设计方案（POST /api/agents/design）。
+   * 后端 DesignerAgent.generate_layouts 为纯算法、确定性（无 LLM），可安全做真实后端 E2E。
+   * 对齐 app/api/agents.py:1268 DesignRequest { message, project_id?, room_info? }。
+   */
+  async requestDesign<T = import('../types/domain').DesignPlanResult>(
+    message: string,
+    roomInfo?: string,
+    projectId?: string,
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { message };
+    if (roomInfo) body.room_info = roomInfo;
+    if (projectId) body.project_id = projectId;
+    return this.request<T>('/api/agents/design', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * 动线分析（POST /api/agents/design/circulation）。
+   * 纯算法：访客/家务/居住三动线评分 + 冲突检测 + 优化建议。确定性，无 LLM。
+   * 对齐 app/agents/designer.py:186 analyze_circulation(rooms)。
+   */
+  async analyzeCirculation<T = import('../types/domain').CirculationAnalysisResult>(
+    rooms: import('../types/domain').CirculationRoom[],
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/design/circulation', {
+      method: 'POST',
+      body: JSON.stringify({ rooms }),
+    });
   }
 }
 

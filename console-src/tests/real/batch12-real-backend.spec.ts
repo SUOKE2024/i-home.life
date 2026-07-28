@@ -1,17 +1,21 @@
 import { test, expect } from '@playwright/test';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import * as path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * 真实后端 E2E — 批次 12 三页（CAD / Sketch-3D / IFC 导出）
  *
- * 连本地后端（vite dev 5173 proxy → uvicorn 8000），验证前端页面 ↔ 后端真实 wire format 接缝。
+ * 连生产/本地后端，验证前端页面 ↔ 后端真实 wire format 接缝。
  * 与 batch12.spec.ts（mock）区别：不 mock /api/*，走真实后端真实文件解析。
  *
  * 前置：
- *   - 本地 uvicorn 8000 在跑
- *   - vite dev 5173 在跑（E2E_BASE_URL=http://localhost:5173/console/）
- *   - 测试用户 13900007788 / E2ELocal123 已注册
- *   - /tmp/test_e2e.dxf 真实 DXF 文件已生成（含 LINE/CIRCLE/POLYLINE/TEXT/ARC）
+ *   - 后端在跑（默认生产 http://118.31.223.213:8081，可用 E2E_BASE_URL 覆盖）
+ *   - 测试用户已注册（13800000002 / E2EVerify123，可用 E2E_LOCAL_PHONE/PASSWORD 覆盖）
+ *   - DXF fixture 随仓库提交（tests/fixtures/test_e2e.dxf，含 LINE/CIRCLE/POLYLINE/TEXT/ARC）
  *
  * 验证点（mock 测试无法覆盖的接缝）：
  *   - CAD：真实 ezdxf 解析返回的 bounds 含 width/height（前端 domain.ts 已补字段）
@@ -19,9 +23,10 @@ import * as fs from 'fs';
  *   - IFC：ifcopenshell 未装返 501（真实环境降级）
  */
 
-const TEST_PHONE = '13900007788';
-const TEST_PASSWORD = 'E2ELocal123';
-const DXF_PATH = '/tmp/test_e2e.dxf';
+const TEST_PHONE = process.env.E2E_LOCAL_PHONE ?? '13800000002';
+const TEST_PASSWORD = process.env.E2E_LOCAL_PASSWORD ?? 'E2EVerify123';
+// 随仓库提交的 DXF fixture（相对测试文件定位，避免依赖 /tmp 外部文件）
+const DXF_PATH = path.join(__dirname, '..', 'fixtures', 'test_e2e.dxf');
 
 /** 登录拿 PASETO token，注入 localStorage */
 async function loginAndInject(page: import('@playwright/test').Page) {

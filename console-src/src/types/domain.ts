@@ -930,3 +930,68 @@ export interface IFCExportRequest {
   include_furniture: boolean;
   lod_level: 'LOD200' | 'LOD300' | 'LOD350';
 }
+
+// ── 设计方案生成（对齐 app/api/agents.py:DesignPlanResponse）──
+// 端点：POST /api/agents/design
+// 后端调用 DesignerAgent.generate_layouts（纯算法、确定性，无 LLM）
+export interface DesignPlanResult {
+  agent_type: string; // "designer"
+  space_planning: string; // 空间规划（layouts.reply）
+  style_suggestion: string; // 风格建议（layouts.recommendation）
+  circulation_analysis: string; // 动线分析摘要（materials 前 2 项拼接）
+  material_plan: string; // 材料方案（materials 逐行）
+  full_reply: string; // 完整 JSON（layouts 序列化）
+}
+
+// ── 动线分析（对齐 app/agents/designer.py:analyze_circulation 返回）──
+// 端点：POST /api/agents/design/circulation
+// 纯算法：访客/家务/居住三条动线评分 + 冲突检测 + 优化建议
+export interface CirculationRoom {
+  name: string;
+  type: string; // living_room | bedroom | kitchen | bathroom | dining_room | balcony | entryway | cloakroom ...
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface CirculationSegment {
+  from: string;
+  to: string;
+  distance: number;
+}
+
+export interface CirculationIssue {
+  type: string; // too_long | cross_room | missing_room
+  severity: string; // critical | warning | info
+  detail: string;
+}
+
+export interface CirculationAnalysis {
+  type: string; // visitor | housework | living
+  name: string; // 访客动线 | 家务动线 | 居住动线
+  description: string;
+  path: Array<{ name: string; type: string }>;
+  segments: CirculationSegment[];
+  total_length: number;
+  crossed_rooms: string[];
+  missing_types: string[];
+  score: number; // 0-100
+  issues: CirculationIssue[];
+  suggestions: string[];
+}
+
+export interface CirculationAnalysisResult {
+  rooms_count: number;
+  circulations: CirculationAnalysis[];
+  overall_score: number;
+  rating: string; // excellent | good | fair | poor
+  rating_text: string; // 优秀 | 良好 | 一般 | 需优化
+  total_issues: number;
+  critical_count: number;
+  warning_count: number;
+  issues: CirculationIssue[];
+  suggestions: string[];
+  reply: string;
+  error?: string; // rooms 为空时后端返回 { error }
+}
