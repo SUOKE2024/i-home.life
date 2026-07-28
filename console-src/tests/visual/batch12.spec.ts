@@ -75,7 +75,7 @@ test.describe('CADPage CAD 导入', () => {
     await page.getByTestId('wb-cad-file-input').setInputFiles({
       name: 'test.dxf',
       mimeType: 'application/dxf',
-      buffer: Uint8Array.from('0\r\nSECTION\r\n'),
+      buffer: Buffer.from('0\r\nSECTION\r\n'),
     });
     await expect(page.getByTestId('wb-cad-file-name')).toContainText('test.dxf');
     await expect(page.getByTestId('wb-cad-upload-btn')).toBeVisible();
@@ -97,7 +97,7 @@ test.describe('CADPage CAD 导入', () => {
     });
     await page.goto('./cad');
     await page.getByTestId('wb-cad-file-input').setInputFiles({
-      name: 'bad.dxf', mimeType: 'application/dxf', buffer: Uint8Array.from('x'),
+      name: 'bad.dxf', mimeType: 'application/dxf', buffer: Buffer.from('x'),
     });
     await page.getByTestId('wb-cad-upload-btn').click();
     await expect(page.getByTestId('wb-cad-error')).toBeVisible();
@@ -151,7 +151,7 @@ test.describe('Sketch3DPage 草图转 3D', () => {
     });
     await page.goto('./sketch-3d');
     await page.getByTestId('wb-sketch-file-input').setInputFiles({
-      name: 'sketch.png', mimeType: 'image/png', buffer: Uint8Array.from([0x89, 0x50, 0x4e, 0x47]),
+      name: 'sketch.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
     });
     await page.getByTestId('wb-sketch-desc-input').fill('三室两厅户型');
     await page.getByTestId('wb-sketch-submit-btn').click();
@@ -173,7 +173,7 @@ test.describe('Sketch3DPage 草图转 3D', () => {
     await expect(page.getByTestId('wb-sketch-tab--generate')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByTestId('wb-sketch-style-select')).toBeVisible();
     await page.getByTestId('wb-sketch-file-input').setInputFiles({
-      name: 'sketch.jpg', mimeType: 'image/jpeg', buffer: Uint8Array.from([0xff, 0xd8, 0xff]),
+      name: 'sketch.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff]),
     });
     await page.getByTestId('wb-sketch-submit-btn').click();
     await expect(page.getByTestId('wb-sketch-generate-result')).toBeVisible();
@@ -187,7 +187,7 @@ test.describe('Sketch3DPage 草图转 3D', () => {
     });
     await page.goto('./sketch-3d');
     await page.getByTestId('wb-sketch-file-input').setInputFiles({
-      name: 's.png', mimeType: 'image/png', buffer: Uint8Array.from([0x89, 0x50]),
+      name: 's.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50]),
     });
     await page.getByTestId('wb-sketch-submit-btn').click();
     await expect(page.getByTestId('wb-sketch-error')).toBeVisible();
