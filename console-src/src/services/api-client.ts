@@ -233,6 +233,15 @@ export class ApiClient {
       }),
     });
 
+    if (res.status === 401) {
+      this.clearToken();
+      if (this.onUnauthorized) {
+        this.onUnauthorized();
+      } else {
+        window.location.href = '/login.html';
+      }
+      throw new Error('认证过期，请重新登录');
+    }
     if (!res.ok || !res.body) {
       throw new Error(`SSE 连接失败: HTTP ${res.status}`);
     }
