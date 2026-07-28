@@ -61,7 +61,11 @@ class _QualityReportPageState extends State<QualityReportPage> {
   }
 
   Future<void> _loadData() async {
-    if (_selectedProjectId == null) return;
+    if (_selectedProjectId == null) {
+      // 无项目时停止 loading（旧实现直接 return 致 _loading 恒 true → 无限 loading）
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -83,14 +87,12 @@ class _QualityReportPageState extends State<QualityReportPage> {
     setState(() => _loading = false);
   }
 
-  List<dynamic> _resultData(dynamic r) {
-    // Result<T> from ApiClient has .data property
-    if (r is Map && r['data'] != null) {
-      final data = r['data'];
-      if (data is List) return data;
-      if (data is Map && data['items'] != null) return data['items'] as List;
-    }
-    if (r is List) return r;
+  List<dynamic> _resultData(Result<dynamic> r) {
+    // Result<T> from ApiClient — 正确访问 .data 字段（旧实现误把 Result 当 Map 解析，致质检数据恒空）
+    if (!r.isSuccess || r.data == null) return [];
+    final data = r.data;
+    if (data is List) return data;
+    if (data is Map && data['items'] != null) return data['items'] as List;
     return [];
   }
 
