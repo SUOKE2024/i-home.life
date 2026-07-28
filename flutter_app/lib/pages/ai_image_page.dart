@@ -126,7 +126,7 @@ class _AIImagePageState extends State<AIImagePage>
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
           title: Text(preset != null ? '基于模板创建任务' : '创建生成任务',
-              style: const TextStyle(color: SuokeDesignTokens.text(context))),
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Form(
               key: formKey,
@@ -136,7 +136,7 @@ class _AIImagePageState extends State<AIImagePage>
                   TextFormField(
                     controller: promptCtrl,
                     maxLines: 3,
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     decoration: _inputDecoration('提示词 Prompt'),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? '请输入提示词' : null,
@@ -145,20 +145,20 @@ class _AIImagePageState extends State<AIImagePage>
                   TextFormField(
                     controller: negativeCtrl,
                     maxLines: 2,
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     decoration: _inputDecoration('负面提示词（可选）'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: inputCtrl,
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     decoration: _inputDecoration('输入图片 URL（可选）'),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: jobType,
                     dropdownColor: SuokeDesignTokens.card(context),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     decoration: _inputDecoration('任务类型'),
                     items: const [
                       DropdownMenuItem(value: 'style_transfer', child: Text('风格迁移')),
@@ -173,7 +173,7 @@ class _AIImagePageState extends State<AIImagePage>
                   DropdownButtonFormField<String>(
                     initialValue: modelName,
                     dropdownColor: SuokeDesignTokens.card(context),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     decoration: _inputDecoration('模型'),
                     items: const [
                       DropdownMenuItem(
@@ -190,7 +190,7 @@ class _AIImagePageState extends State<AIImagePage>
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Text('引导强度', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+                      Text('引导强度', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
                       Expanded(
                         child: Slider(
                           value: guidanceScale,
@@ -204,12 +204,12 @@ class _AIImagePageState extends State<AIImagePage>
                         ),
                       ),
                       Text(guidanceScale.toStringAsFixed(1),
-                          style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
+                          style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
                     ],
                   ),
                   Row(
                     children: [
-                      const Text('推理步数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+                      Text('推理步数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Slider(
@@ -224,7 +224,7 @@ class _AIImagePageState extends State<AIImagePage>
                         ),
                       ),
                       Text('$numSteps',
-                          style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
+                          style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
                     ],
                   ),
                 ],
@@ -234,7 +234,7 @@ class _AIImagePageState extends State<AIImagePage>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+              child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.accent),
@@ -347,7 +347,7 @@ class _AIImagePageState extends State<AIImagePage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: Text('任务详情', style: const TextStyle(color: SuokeDesignTokens.text(context))),
+        title: Text('任务详情', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -368,7 +368,7 @@ class _AIImagePageState extends State<AIImagePage>
                 _detailRow('错误信息', job['error_message'].toString()),
               if (job['output_image_url'] != null) ...[
                 const SizedBox(height: 12),
-                const Text('生成结果',
+                Text('生成结果',
                     style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
                 const SizedBox(height: 8),
                 ClipRRect(
@@ -386,7 +386,7 @@ class _AIImagePageState extends State<AIImagePage>
                     errorWidget: (context, url, error) => Container(
                       height: 200,
                       color: SuokeDesignTokens.borderClr(context),
-                      child: const Center(
+                      child: Center(
                         child: Icon(Icons.broken_image,
                             color: SuokeDesignTokens.textSub(context), size: 40),
                       ),
@@ -400,7 +400,7 @@ class _AIImagePageState extends State<AIImagePage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            child: Text('关闭', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
         ],
       ),
@@ -430,9 +430,9 @@ class _AIImagePageState extends State<AIImagePage>
 
   InputDecoration _inputDecoration(String label) => InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
+        labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
         enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+          borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
           borderRadius: BorderRadius.circular(8),
         ),
         focusedBorder: OutlineInputBorder(
@@ -449,11 +449,11 @@ class _AIImagePageState extends State<AIImagePage>
             SizedBox(
               width: 80,
               child: Text(label,
-                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             ),
             Expanded(
               child: Text(value,
-                  style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
             ),
           ],
         ),
@@ -546,7 +546,7 @@ class _AIImagePageState extends State<AIImagePage>
 
   Widget _buildJobsTab() {
     if (_loadingJobs) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+      return const LoadingSkeleton(itemHeight: 90);
     }
     if (_errorJobs != null) {
       return ErrorRetryWidget(message: _errorJobs!, onRetry: _loadJobs);
@@ -556,9 +556,9 @@ class _AIImagePageState extends State<AIImagePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.image_outlined, size: 64, color: SuokeDesignTokens.textSub(context)),
+            Icon(Icons.image_outlined, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无生成任务',
+            Text('暂无生成任务',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -609,28 +609,28 @@ class _AIImagePageState extends State<AIImagePage>
               children: [
                 _statusChip(status),
                 Text(_formatTime(job['created_at'] as String?),
-                    style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
               ],
             ),
             const SizedBox(height: 10),
             // prompt 摘要
             Text(promptSummary,
-                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 6),
             // 元信息
             Row(
               children: [
-                const Icon(Icons.style, size: 14, color: SuokeDesignTokens.textSub(context)),
+                Icon(Icons.style, size: 14, color: SuokeDesignTokens.textSub(context)),
                 const SizedBox(width: 4),
                 Text(job['job_type']?.toString() ?? '',
-                    style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                 const SizedBox(width: 16),
-                const Icon(Icons.memory, size: 14, color: SuokeDesignTokens.textSub(context)),
+                Icon(Icons.memory, size: 14, color: SuokeDesignTokens.textSub(context)),
                 const SizedBox(width: 4),
                 Text(job['model_name']?.toString() ?? '',
-                    style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                 if (status == 'processing') ...[
                   const SizedBox(width: 16),
                   Text('${job['progress_percent'] ?? 0}%',
@@ -657,7 +657,7 @@ class _AIImagePageState extends State<AIImagePage>
                   errorWidget: (context, url, error) => Container(
                     height: 160,
                     color: SuokeDesignTokens.borderClr(context),
-                    child: const Center(
+                    child: Center(
                       child: Icon(Icons.broken_image,
                           color: SuokeDesignTokens.textSub(context), size: 36),
                     ),
@@ -717,7 +717,7 @@ class _AIImagePageState extends State<AIImagePage>
 
   Widget _buildPresetsTab() {
     if (_loadingPresets) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+      return const LoadingSkeleton(itemHeight: 90);
     }
     if (_errorPresets != null) {
       return ErrorRetryWidget(message: _errorPresets!, onRetry: _loadPresets);
@@ -727,9 +727,9 @@ class _AIImagePageState extends State<AIImagePage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.dashboard_outlined, size: 64, color: SuokeDesignTokens.textSub(context)),
+            Icon(Icons.dashboard_outlined, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无预设模板',
+            Text('暂无预设模板',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -795,7 +795,7 @@ class _AIImagePageState extends State<AIImagePage>
                         ),
                         errorWidget: (context, url, error) => Container(
                           color: SuokeDesignTokens.borderClr(context),
-                          child: const Center(
+                          child: Center(
                             child: Icon(Icons.image_outlined,
                                 color: SuokeDesignTokens.textSub(context), size: 32),
                           ),
@@ -803,7 +803,7 @@ class _AIImagePageState extends State<AIImagePage>
                       )
                     : Container(
                         color: SuokeDesignTokens.borderClr(context),
-                        child: const Center(
+                        child: Center(
                           child: Icon(Icons.image_outlined,
                               color: SuokeDesignTokens.textSub(context), size: 32),
                         ),
@@ -819,7 +819,7 @@ class _AIImagePageState extends State<AIImagePage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: SuokeDesignTokens.text(context),
                             fontSize: 14,
                             fontWeight: FontWeight.bold),
@@ -841,13 +841,13 @@ class _AIImagePageState extends State<AIImagePage>
                         ),
                         const Spacer(),
                         Text('使用 $usageCount',
-                            style: const TextStyle(
+                            style: TextStyle(
                                 color: SuokeDesignTokens.textSub(context), fontSize: 11)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     Text(promptTemplate,
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: SuokeDesignTokens.textSub(context), fontSize: 11),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),

@@ -298,12 +298,12 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_error!, style: const TextStyle(color: SuokeDesignTokens.textSub(context))),
+            Text(_error!, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: SuokeDesignTokens.accent,
-                side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+                side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               onPressed: _loadSchemes,
               icon: const Icon(Icons.refresh),
@@ -342,7 +342,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: SuokeDesignTokens.text(context),
-                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: _loadSchemes,
                 icon: const Icon(Icons.refresh),
@@ -379,7 +379,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -395,7 +395,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                 Expanded(
                   child: Text(
                     scheme['name']?.toString() ?? '未命名方案',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -490,7 +490,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: SuokeDesignTokens.text(context),
-                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadDetails(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -529,7 +529,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -544,7 +544,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                 Expanded(
                   child: Text(
                     floor['room_name']?.toString() ?? '未指定房间',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -603,7 +603,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: SuokeDesignTokens.text(context),
-                  side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+                  side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                 ),
                 onPressed: () => _loadDetails(_selectedSchemeId!),
                 icon: const Icon(Icons.refresh),
@@ -642,7 +642,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -657,7 +657,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                 Expanded(
                   child: Text(
                     wall['room_name']?.toString() ?? '未指定房间',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -701,7 +701,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             child: OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
                 foregroundColor: SuokeDesignTokens.text(context),
-                side: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+                side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
               ),
               onPressed: () => _loadDetails(_selectedSchemeId!),
               icon: const Icon(Icons.refresh),
@@ -740,7 +740,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -756,7 +756,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                 Expanded(
                   child: Text(
                     ceiling['room_name']?.toString() ?? '未指定房间',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -833,8 +833,6 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           roomHeight: roomHeightMm,
           roomLabel: _selectedScheme!['name']?.toString() ?? '硬装方案',
           components: components,
-          showGrid: true,
-          showDimensions: true,
         ),
         // 墙面/天花信息注释文字叠加层
         if (_walls.isNotEmpty || _ceilings.isNotEmpty)
@@ -865,14 +863,14 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '${wMap['room_name'] ?? ''}：${wMap['material'] ?? '-'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.text(context), fontSize: 11),
                         ),
                       );
                     }),
                     if (_walls.length > 2)
                       Text('...等 ${_walls.length} 项',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.textSub(context), fontSize: 10)),
                   ],
                   if (_ceilings.isNotEmpty) ...[
@@ -888,14 +886,14 @@ class _HardDecorationPageState extends State<HardDecorationPage>
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
                           '${cMap['room_name'] ?? ''}：${cMap['shape'] ?? cMap['material'] ?? '-'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.text(context), fontSize: 11),
                         ),
                       );
                     }),
                     if (_ceilings.length > 2)
                       Text('...等 ${_ceilings.length} 项',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.textSub(context), fontSize: 10)),
                   ],
                 ],
@@ -945,7 +943,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
               Expanded(
                 child: Text(
                   '当前方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                 ),
               ),
@@ -969,7 +967,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           Icon(icon, size: 64, color: SuokeDesignTokens.textSub(context)),
           const SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
+              style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
           const SizedBox(height: 24),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
@@ -990,9 +988,9 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('$label：',
-            style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         Text(value,
-            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
       ],
     );
   }
@@ -1028,7 +1026,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('创建硬装方案',
+        title: Text('创建硬装方案',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
@@ -1036,13 +1034,13 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             children: [
               TextField(
                 controller: nameCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('方案名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: styleCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('风格（如：现代、北欧、新中式）'),
               ),
             ],
@@ -1051,7 +1049,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1083,7 +1081,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('添加地面',
+        title: Text('添加地面',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
@@ -1091,26 +1089,26 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             children: [
               TextField(
                 controller: roomCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('房间名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('材质（如：实木、瓷砖、强化地板）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: specCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('规格（如：800×800mm）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: areaCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('面积（㎡）'),
               ),
             ],
@@ -1119,7 +1117,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1157,27 +1155,27 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
         title:
-            const Text('添加墙面', style: TextStyle(color: SuokeDesignTokens.text(context))),
+            Text('添加墙面', style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: roomCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('房间名称'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: materialCtrl,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('材质（如：乳胶漆、壁纸、瓷砖）'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: areaCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                style: TextStyle(color: SuokeDesignTokens.text(context)),
                 decoration: _inputDecoration('面积（㎡）'),
               ),
             ],
@@ -1186,7 +1184,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1219,14 +1217,14 @@ class _HardDecorationPageState extends State<HardDecorationPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('确认删除',
+        title: Text('确认删除',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
-        content: const Text('确定要删除此方案吗？此操作不可撤销。',
+        content: Text('确定要删除此方案吗？此操作不可撤销。',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1247,16 +1245,16 @@ class _HardDecorationPageState extends State<HardDecorationPage>
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
+      labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
       filled: true,
       fillColor: SuokeDesignTokens.bg(context),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+        borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),

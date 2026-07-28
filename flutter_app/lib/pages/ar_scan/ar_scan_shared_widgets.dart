@@ -3,7 +3,6 @@
 /// 从 ar_scan_page.dart 提取，减少单文件体积并提高可维护性。
 library;
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../theme/suoke_theme.dart';
 
@@ -29,15 +28,15 @@ class RoomPreset {
 }
 
 const roomPresets = [
-  RoomPreset(name: '客厅', icon: Icons.weekend, defaultArea: 30.0, defaultHeight: 2.8, description: '家庭活动中心'),
-  RoomPreset(name: '主卧', icon: Icons.king_bed, defaultArea: 18.0, defaultHeight: 2.8, description: '含衣柜/卫生间'),
-  RoomPreset(name: '次卧', icon: Icons.bed, defaultArea: 12.0, defaultHeight: 2.8),
+  RoomPreset(name: '客厅', icon: Icons.weekend, defaultArea: 30.0, description: '家庭活动中心'),
+  RoomPreset(name: '主卧', icon: Icons.king_bed, defaultArea: 18.0, description: '含衣柜/卫生间'),
+  RoomPreset(name: '次卧', icon: Icons.bed, defaultArea: 12.0),
   RoomPreset(name: '厨房', icon: Icons.countertops, defaultArea: 8.0, defaultHeight: 2.4, description: 'L型/U型/一字型'),
   RoomPreset(name: '卫生间', icon: Icons.bathtub, defaultArea: 5.0, defaultHeight: 2.4, description: '干湿分离'),
-  RoomPreset(name: '书房', icon: Icons.menu_book, defaultArea: 10.0, defaultHeight: 2.8),
-  RoomPreset(name: '阳台', icon: Icons.wb_sunny, defaultArea: 6.0, defaultHeight: 2.8, description: '封闭/开放'),
-  RoomPreset(name: '走廊/玄关', icon: Icons.meeting_room, defaultArea: 4.0, defaultHeight: 2.8),
-  RoomPreset(name: '餐厅', icon: Icons.table_restaurant, defaultArea: 12.0, defaultHeight: 2.8),
+  RoomPreset(name: '书房', icon: Icons.menu_book, defaultArea: 10.0),
+  RoomPreset(name: '阳台', icon: Icons.wb_sunny, defaultArea: 6.0, description: '封闭/开放'),
+  RoomPreset(name: '走廊/玄关', icon: Icons.meeting_room, defaultArea: 4.0),
+  RoomPreset(name: '餐厅', icon: Icons.table_restaurant, defaultArea: 12.0),
   RoomPreset(name: '储物间', icon: Icons.inventory_2, defaultArea: 4.0, defaultHeight: 2.4),
 ];
 
@@ -200,7 +199,7 @@ class GuideStep extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text('$num', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold, fontSize: 12)),
+              child: Text('$num', style: const TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold, fontSize: 12)),
             ),
           ),
           const SizedBox(width: 10),
@@ -256,7 +255,7 @@ class TrackingIndicator extends StatelessWidget {
           const SizedBox(width: 8),
           Icon(_envIcon, size: 14, color: arWarning),
           const SizedBox(width: 2),
-          Text(_envLabel, style: TextStyle(color: arWarning, fontSize: 10)),
+          Text(_envLabel, style: const TextStyle(color: arWarning, fontSize: 10)),
         ],
       ],
     );

@@ -22,8 +22,8 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   bool _loading = false;
   bool _planLoading = false;
   String? _error;
-  double _totalArea = 0;
-  String _tier = 'comfort';
+  final double _totalArea = 0;
+  final String _tier = 'comfort';
   bool _showGantt = true;
 
   @override
@@ -113,7 +113,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
 
   Widget _buildTasksView() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+      return const LoadingSkeleton(itemHeight: 90);
     }
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _loadTasks);
@@ -305,7 +305,6 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         endDate: planStart.add(Duration(days: endDay)),
         status: 'pending',
         dependencies: deps,
-        progress: 0.0,
       ));
     }
 

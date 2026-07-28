@@ -15,7 +15,6 @@
 ///   - 内存警告监听（低内存设备降级）
 library;
 
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../platform_info.dart';
 import 'package:flutter/scheduler.dart';
@@ -38,7 +37,7 @@ class PerformanceService {
 
   // ── 启动耗时追踪 ──
   final Map<StartupPhase, int> _startupMarks = {};
-  bool _startupReportingEnabled = true;
+  final bool _startupReportingEnabled = true;
 
   // ── 帧率追踪 ──
   bool _frameTrackingEnabled = false;

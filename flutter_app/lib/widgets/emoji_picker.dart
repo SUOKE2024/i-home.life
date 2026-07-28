@@ -167,7 +167,6 @@ class _EmojiPickerState extends State<EmojiPicker> {
                     padding: const EdgeInsets.all(8),
                     gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 44,
-                      childAspectRatio: 1,
                       crossAxisSpacing: 2,
                       mainAxisSpacing: 2,
                     ),

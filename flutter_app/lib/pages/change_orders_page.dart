@@ -100,7 +100,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
-          title: const Text('发起变更订单',
+          title: Text('发起变更订单',
               style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Form(
@@ -111,7 +111,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                   TextFormField(
                     controller: titleCtrl,
                     decoration: _inputDeco('变更标题'),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? '请输入标题' : null,
                   ),
@@ -119,7 +119,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                   TextFormField(
                     controller: descCtrl,
                     decoration: _inputDeco('变更原因 / 描述'),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     maxLines: 3,
                     validator: (v) =>
                         (v == null || v.isEmpty) ? '请输入变更原因' : null,
@@ -129,7 +129,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                     initialValue: changeType,
                     decoration: _inputDeco('变更类型'),
                     dropdownColor: SuokeDesignTokens.card(context),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     items: const [
                       DropdownMenuItem(value: 'owner_request', child: Text('业主需求')),
                       DropdownMenuItem(value: 'design_issue', child: Text('设计问题')),
@@ -150,7 +150,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                   TextFormField(
                     controller: itemNameCtrl,
                     decoration: _inputDeco('项目名称'),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? '请输入项目名称' : null,
                   ),
@@ -159,7 +159,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                     initialValue: itemAction,
                     decoration: _inputDeco('操作类型'),
                     dropdownColor: SuokeDesignTokens.card(context),
-                    style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                    style: TextStyle(color: SuokeDesignTokens.text(context)),
                     items: const [
                       DropdownMenuItem(value: 'add', child: Text('增项')),
                       DropdownMenuItem(value: 'modify', child: Text('变更')),
@@ -175,7 +175,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                         child: TextFormField(
                           controller: qtyCtrl,
                           decoration: _inputDeco('数量'),
-                          style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                          style: TextStyle(color: SuokeDesignTokens.text(context)),
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
                           validator: (v) {
@@ -190,7 +190,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                         child: TextFormField(
                           controller: priceCtrl,
                           decoration: _inputDeco('单价'),
-                          style: const TextStyle(color: SuokeDesignTokens.text(context)),
+                          style: TextStyle(color: SuokeDesignTokens.text(context)),
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
                           validator: (v) {
@@ -209,7 +209,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+              child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -273,14 +273,14 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('通过审批',
+        title: Text('通过审批',
             style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold)),
-        content: const Text('确认通过该变更订单？',
+        content: Text('确认通过该变更订单？',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -314,14 +314,14 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('拒绝变更',
+        title: Text('拒绝变更',
             style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold)),
-        content: const Text('确认拒绝该变更订单？',
+        content: Text('确认拒绝该变更订单？',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -390,7 +390,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
 
   Widget _buildOrderList() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 110);
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _loadOrders);
@@ -403,7 +403,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
             const Icon(Icons.assignment_outlined,
                 size: 64, color: Color(0xFF5A5866)),
             const SizedBox(height: 16),
-            const Text('暂无变更订单', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            Text('暂无变更订单', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -464,7 +464,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: SuokeDesignTokens.text(context),
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -491,7 +491,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                     ),
                     child: Text(
                       _changeTypeLabel(changeType),
-                      style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
+                      style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                     ),
                   ),
               ],
@@ -502,7 +502,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
               children: [
                 Text(
                   '发起人：$submittedBy',
-                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
                 ),
                 Text(
                   '¥${totalAmount.toStringAsFixed(2)}',
@@ -529,7 +529,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
             const Icon(Icons.assignment_outlined,
                 size: 64, color: Color(0xFF5A5866)),
             const SizedBox(height: 16),
-            const Text('请从列表中选择一个变更订单查看详情',
+            Text('请从列表中选择一个变更订单查看详情',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ],
         ),
@@ -576,7 +576,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -593,7 +593,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                   const SizedBox(width: 8),
                   if (changeType.isNotEmpty)
                     Text('· ${_changeTypeLabel(changeType)}',
-                        style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+                        style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
                 ],
               ),
             ],
@@ -606,7 +606,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
           title: '变更原因',
           child: Text(
             description,
-            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, height: 1.6),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, height: 1.6),
           ),
         ),
         const SizedBox(height: 16),
@@ -615,7 +615,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
         _buildSectionCard(
           title: '变更项（${items.length}）',
           child: items.isEmpty
-              ? const Text('暂无变更项', style: TextStyle(color: SuokeDesignTokens.textSub(context)))
+              ? Text('暂无变更项', style: TextStyle(color: SuokeDesignTokens.textSub(context)))
               : Column(
                   children: items.map<Widget>((item) {
                     final m = item as Map<String, dynamic>;
@@ -656,13 +656,13 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                           color: SuokeDesignTokens.text(context),
                                           fontWeight: FontWeight.w500)),
                                   const SizedBox(height: 4),
                                   Text(
                                     '数量 $qty · 单价 ¥$price',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                         color: SuokeDesignTokens.textSub(context), fontSize: 12),
                                   ),
                                 ],
@@ -783,9 +783,9 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+          Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
           Text(value,
-              style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
+              style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
         ],
       ),
     );
@@ -822,9 +822,9 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
 
   InputDecoration _inputDeco(String label) => InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context)),
+        labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
         enabledBorder: OutlineInputBorder(
-          borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+          borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
           borderRadius: BorderRadius.circular(8),
         ),
         focusedBorder: OutlineInputBorder(

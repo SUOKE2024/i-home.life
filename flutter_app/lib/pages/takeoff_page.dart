@@ -185,7 +185,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
         backgroundColor: SuokeDesignTokens.bg(context),
-        title: const Text('工程量计算', style: TextStyle(color: SuokeDesignTokens.text(context))),
+        title: Text('工程量计算', style: TextStyle(color: SuokeDesignTokens.text(context))),
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,
@@ -211,7 +211,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
 
   Widget _buildSummary() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 100);
+      return const LoadingSkeleton(itemHeight: 100);
     }
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _autoCalculate);
@@ -249,8 +249,8 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Icon(Icons.summarize, color: SuokeDesignTokens.accent, size: 20),
                     SizedBox(width: 8),
                     Text('计算结果', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold)),
@@ -259,7 +259,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
                 const SizedBox(height: 12),
                 Text(
                   _result!['reply'] ?? '',
-                  style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, height: 1.6),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, height: 1.6),
                 ),
               ],
             ),
@@ -281,15 +281,15 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               Icon(Icons.input, color: SuokeDesignTokens.accent, size: 20),
               SizedBox(width: 8),
               Text('参数输入', style: TextStyle(color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 16),
-          const Text('墙体参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          Text('墙体参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -301,7 +301,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             ],
           ),
           const SizedBox(height: 16),
-          const Text('楼板参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          Text('楼板参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -311,7 +311,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             ],
           ),
           const SizedBox(height: 16),
-          const Text('地面参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          Text('地面参数', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           const SizedBox(height: 8),
           _buildInputField('面积(m²)', _floorAreaCtrl),
         ],
@@ -323,16 +323,16 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
+      style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
+        labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
         filled: true,
         fillColor: SuokeDesignTokens.bg(context),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: SuokeDesignTokens.borderClr(context)),
+          borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
@@ -394,7 +394,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+              Text(title, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
               Icon(icon, color: SuokeDesignTokens.accent, size: 20),
             ],
           ),
@@ -403,9 +403,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
             children: [
               Text(
                 value,
-                style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              Text(unit, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+              Text(unit, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
             ],
           ),
         ],
@@ -417,13 +417,13 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
 
   Widget _buildDetailsView() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 110);
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_result == null) {
       return _buildEmptyState();
     }
     if (_details.isEmpty) {
-      return const Center(child: Text('暂无明细数据', style: TextStyle(color: SuokeDesignTokens.textSub(context))));
+      return Center(child: Text('暂无明细数据', style: TextStyle(color: SuokeDesignTokens.textSub(context))));
     }
 
     final totalCost = _details.fold<double>(
@@ -484,16 +484,16 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
         children: [
           Text(
             detail['name'] ?? '',
-            style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('公式：', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+              Text('公式：', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
               Expanded(
                 child: Text(
                   detail['formula'] ?? '',
-                  style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                 ),
               ),
             ],
@@ -516,9 +516,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+        Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14, fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -529,7 +529,7 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(Icons.calculate, size: 64, color: SuokeDesignTokens.textSub(context)),
           SizedBox(height: 16),
           Text('暂无工程量数据', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),

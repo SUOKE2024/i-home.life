@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/models.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
 import 'home_page.dart';
@@ -395,7 +394,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: _role,
+                          initialValue: _role,
                           decoration: const InputDecoration(labelText: '角色'),
                           items: const [
                             DropdownMenuItem(value: 'homeowner', child: Text('业主')),
@@ -410,7 +409,7 @@ class _LoginPageState extends State<LoginPage> {
                         if (_role == 'contractor' || _role == 'designer') ...[
                           const SizedBox(height: 16),
                           DropdownButtonFormField<String>(
-                            value: _subRole,
+                            initialValue: _subRole,
                             decoration: const InputDecoration(labelText: '细分工种'),
                             items: _buildSubRoleItems(),
                             onChanged: (v) => setState(() => _subRole = v ?? ''),
@@ -437,15 +436,15 @@ class _LoginPageState extends State<LoginPage> {
 
                 // ── 生物识别分隔（仅设备支持时显示） ──
                 if (_biometricsSupported)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
                     child: Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Divider(color: SuokeDesignTokens.border),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             '或使用 Passkey',
                             style: TextStyle(
@@ -454,7 +453,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Divider(color: SuokeDesignTokens.border),
                         ),
                       ],

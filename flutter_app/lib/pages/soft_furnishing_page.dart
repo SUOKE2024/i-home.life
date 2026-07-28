@@ -196,7 +196,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: style,
+                  initialValue: style,
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('风格'),
@@ -266,7 +266,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: schemeId,
+                  initialValue: schemeId,
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('所属方案'),
@@ -281,7 +281,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: itemType,
+                  initialValue: itemType,
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('品类'),
@@ -390,7 +390,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: schemeId,
+                  initialValue: schemeId,
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('所属方案'),
@@ -411,7 +411,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: storageType,
+                  initialValue: storageType,
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('类型'),
@@ -557,14 +557,14 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               Expanded(
                 child: Text(
                   scheme['room_name'] ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: SuokeDesignTokens.text(context),
                       fontSize: 16,
                       fontWeight: FontWeight.bold),
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline,
+                icon: Icon(Icons.delete_outline,
                     color: SuokeDesignTokens.textSub(context), size: 20),
                 onPressed: () =>
                     _deleteScheme(scheme['id'] as String),
@@ -652,7 +652,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         children: [
           Text(
             item['name'] ?? '',
-            style: const TextStyle(
+            style: TextStyle(
                 color: SuokeDesignTokens.text(context),
                 fontSize: 16,
                 fontWeight: FontWeight.bold),
@@ -741,7 +741,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         children: [
           Text(
             storage['storage_type'] ?? '',
-            style: const TextStyle(
+            style: TextStyle(
                 color: SuokeDesignTokens.text(context),
                 fontSize: 16,
                 fontWeight: FontWeight.bold),

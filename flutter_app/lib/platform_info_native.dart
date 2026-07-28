@@ -1,4 +1,5 @@
 /// 原生平台信息（iOS / Android / HarmonyOS）。
+library;
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;

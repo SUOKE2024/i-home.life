@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/models.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -269,7 +268,7 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_loading) return const LoadingSkeleton(itemHeight: 90);
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _load);
     }
@@ -474,7 +473,7 @@ class _EscrowTabState extends State<_EscrowTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_loading) return const LoadingSkeleton(itemHeight: 90);
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _load);
     }
@@ -722,7 +721,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_loading) return const LoadingSkeleton(itemHeight: 90);
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _load);
     }
@@ -929,7 +928,7 @@ class _SampleTabState extends State<_SampleTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return const LoadingSkeleton(itemCount: 4, itemHeight: 90);
+    if (_loading) return const LoadingSkeleton(itemHeight: 90);
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _load);
     }

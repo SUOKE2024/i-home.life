@@ -382,7 +382,7 @@ class _KitchenPageState extends State<KitchenPage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.border, width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.border),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -632,8 +632,6 @@ class _KitchenPageState extends State<KitchenPage>
                   roomHeight: roomLengthMm,
                   roomLabel: roomName,
                   components: floorPlanComps,
-                  showGrid: true,
-                  showDimensions: true,
                   onComponentTap: (componentId) {
                     final comp = _components.firstWhere(
                       (c) => (c['id'] ?? '').toString() == componentId,
@@ -775,7 +773,7 @@ class _KitchenPageState extends State<KitchenPage>
       color: SuokeDesignTokens.cardBg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: SuokeDesignTokens.border, width: 1),
+        side: const BorderSide(color: SuokeDesignTokens.border),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -785,7 +783,7 @@ class _KitchenPageState extends State<KitchenPage>
           children: [
             Row(
               children: [
-                Icon(Icons.inventory_2, color: SuokeDesignTokens.accent, size: 20),
+                const Icon(Icons.inventory_2, color: SuokeDesignTokens.accent, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

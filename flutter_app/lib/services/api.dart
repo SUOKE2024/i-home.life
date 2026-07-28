@@ -502,7 +502,7 @@ class ApiClient {
   Future<Result<dynamic>> procAiMatchSuppliers(String bomItemId, {String? location}) =>
       post('/procurement-enhanced/ai-match', {
         'bom_item_id': bomItemId,
-        if (location != null) 'location': location,
+        'location': ?location,
       });
   Future<Result<dynamic>> procGetOrderEscrow(String orderId) =>
       get('/procurement-enhanced/escrow/order/$orderId');
@@ -528,7 +528,7 @@ class ApiClient {
   /// 注册：开始（需已登录）
   Future<Result<dynamic>> webauthnRegisterBegin({String? deviceName}) =>
       post('/auth/webauthn/register/begin', {
-        if (deviceName != null) 'device_name': deviceName,
+        'device_name': ?deviceName,
       });
 
   /// 注册：完成
@@ -538,7 +538,7 @@ class ApiClient {
   /// 登录：开始（获取挑战）
   Future<Result<dynamic>> webauthnLoginBegin({String? phone}) =>
       post('/auth/webauthn/login/begin', {
-        if (phone != null) 'phone': phone,
+        'phone': ?phone,
       });
 
   /// 登录：完成（验证断言，返回 PASETO Token）
@@ -611,7 +611,7 @@ class ApiClient {
       post('/ai-image/jobs/apply-preset', {
         'preset_id': presetId,
         'project_id': projectId,
-        if (floorplanId != null) 'floorplan_id': floorplanId,
+        'floorplan_id': ?floorplanId,
         'input_image_url': inputImageUrl,
         'customizations': customizations ?? {},
       });
@@ -1280,8 +1280,8 @@ class ApiClient {
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
-        if (projectId != null) 'project_id': projectId,
-        if (sessionId != null) 'session_id': sessionId,
+        'project_id': ?projectId,
+        'session_id': ?sessionId,
       });
 
   /// 支持多轮对话历史的 Agent 聊天
@@ -1291,37 +1291,37 @@ class ApiClient {
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
-        if (projectId != null) 'project_id': projectId,
-        if (history != null) 'history': history,
-        if (sessionId != null) 'session_id': sessionId,
+        'project_id': ?projectId,
+        'history': ?history,
+        'session_id': ?sessionId,
       });
 
   /// 设计 Agent 专用端点
   Future<Result<dynamic>> agentDesignChat(String message, {String? projectId}) =>
       post('/agents/design', {
         'message': message,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   /// 预算 Agent 专用端点
   Future<Result<dynamic>> agentBudgetChat(String message, {String? projectId}) =>
       post('/agents/budget', {
         'message': message,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   /// 采购 Agent 专用端点
   Future<Result<dynamic>> agentProcurementChat(String message, {String? projectId}) =>
       post('/agents/procurement', {
         'message': message,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   /// 施工 Agent 专用端点
   Future<Result<dynamic>> agentConstructionChat(String message, {String? projectId}) =>
       post('/agents/construction', {
         'message': message,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   // ── Agent 会话管理 ──
@@ -1350,7 +1350,7 @@ class ApiClient {
   Future<Result<dynamic>> orchestrateVoice(String text, {String? projectId}) =>
       post('/voice/orchestrate', {
         'text': text,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   /// 语音任务列表（供 UI 轮询后台任务进度）
@@ -1444,7 +1444,7 @@ class ApiClient {
           String projectId, String reason, {String? reviewerId}) =>
       post('/settlements/request-review/$projectId', {
         'reason': reason,
-        if (reviewerId != null) 'reviewer_id': reviewerId,
+        'reviewer_id': ?reviewerId,
       });
 
   Future<Result<dynamic>> generateReconciliation(Map<String, dynamic> body) =>
@@ -1580,7 +1580,7 @@ class ApiClient {
   Future<Result<dynamic>> processVoice(String text, {String? projectId}) =>
       post('/voice/process', {
         'text': text,
-        if (projectId != null) 'project_id': projectId,
+        'project_id': ?projectId,
       });
 
   // ── 管理后台 (P2) ──

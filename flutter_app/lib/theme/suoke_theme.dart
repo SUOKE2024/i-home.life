@@ -206,9 +206,9 @@ class SuokeTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
-          side: const BorderSide(color: SuokeDesignTokens.border, width: 1),
+          side: const BorderSide(color: SuokeDesignTokens.border),
         ),
-        margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+        margin: const EdgeInsets.symmetric(vertical: 4),
       ),
 
       // ── 输入框 ──
@@ -401,8 +401,6 @@ class SuokeTheme {
       scaffoldBackgroundColor: SuokeDesignTokens.lightBg,
       colorScheme: const ColorScheme.light(
         primary: SuokeDesignTokens.accent,
-        surface: SuokeDesignTokens.lightCard,
-        onPrimary: Colors.white,
         onSurface: SuokeDesignTokens.lightTextPrimary,
         error: SuokeDesignTokens.danger,
       ),
@@ -426,7 +424,7 @@ class SuokeTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
-          side: const BorderSide(color: SuokeDesignTokens.lightBorder, width: 1),
+          side: const BorderSide(color: SuokeDesignTokens.lightBorder),
         ),
       ),
 

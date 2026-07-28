@@ -1,5 +1,6 @@
 /// Web 平台 WebSocket wrapper。
 /// dart:io WebSocket 在 Web 不可用，用 dart:html 替代。
+library;
 import 'dart:async';
 import 'dart:html' as html;
 

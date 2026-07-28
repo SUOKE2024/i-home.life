@@ -169,7 +169,7 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
                 _loadWorkers();
               },
               selectedColor: colors.primary,
-              backgroundColor: colors.surfaceVariant,
+              backgroundColor: colors.surfaceContainerHighest,
             ),
           );
         }).toList(),

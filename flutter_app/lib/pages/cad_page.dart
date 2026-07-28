@@ -55,8 +55,8 @@ class _CADPageState extends State<CADPage> {
 
   Offset _snapPoint(Offset p) {
     if (!_snapEnabled) return p;
-    double sx = _snapVal(p.dx);
-    double sy = _snapVal(p.dy);
+    final double sx = _snapVal(p.dx);
+    final double sy = _snapVal(p.dy);
     for (final el in _elements) {
       final sp = el.nearestSnap(sx, sy, _snapThreshold);
       if (sp != null) return sp;
@@ -72,8 +72,9 @@ class _CADPageState extends State<CADPage> {
     if (_orthoLock && _drawing != null && _drawing!.type == 'line' && _drawing!.x1 != _drawing!.x2) {
       final dx = (wp.dx - _drawing!.x1).abs();
       final dy = (wp.dy - _drawing!.y1).abs();
-      if (dx > dy * 3) wp = Offset(wp.dx, _drawing!.y1);
-      else if (dy > dx * 3) wp = Offset(_drawing!.x1, wp.dy);
+      if (dx > dy * 3) {
+        wp = Offset(wp.dx, _drawing!.y1);
+      } else if (dy > dx * 3) wp = Offset(_drawing!.x1, wp.dy);
     }
     if (_tool == 'rect') {
       _drawing = DrawingElement.rect(wp.dx, wp.dy, 0, 0, color: _colors[_elements.length % _colors.length]);
@@ -111,8 +112,9 @@ class _CADPageState extends State<CADPage> {
     if (_orthoLock && _drawing != null && _drawing!.type == 'line') {
       final dx = (wp.dx - _drawing!.x1).abs();
       final dy = (wp.dy - _drawing!.y1).abs();
-      if (dx > dy * 2) wp = Offset(wp.dx, _drawing!.y1);
-      else if (dy > dx * 2) wp = Offset(_drawing!.x1, wp.dy);
+      if (dx > dy * 2) {
+        wp = Offset(wp.dx, _drawing!.y1);
+      } else if (dy > dx * 2) wp = Offset(_drawing!.x1, wp.dy);
     }
     if (_drawing != null && _drawing!.type == 'rect') {
       _drawing!.w = math.max(0.3, (wp.dx - _drawing!.x).abs());
@@ -628,7 +630,7 @@ class CADPainter extends CustomPainter {
         canvas.drawParagraph(tp, Offset(el.x * pxPerMeter + rect.width / 2 - tp.width / 2, el.y * pxPerMeter + rect.height / 2 - tp.height / 2));
       }
       final area = (el.w * el.h).toStringAsFixed(1);
-      final ap = _textPainter('${area}㎡', 9 / scale, Colors.white54);
+      final ap = _textPainter('$area㎡', 9 / scale, Colors.white54);
       canvas.drawParagraph(ap, Offset(el.x * pxPerMeter + rect.width / 2 - ap.width / 2, el.y * pxPerMeter + rect.height / 2 + 6 / scale));
       final dimPaint = Paint()..color = Colors.white38..strokeWidth = 0.8 / scale;
       final dimOffset = 8.0 / scale;

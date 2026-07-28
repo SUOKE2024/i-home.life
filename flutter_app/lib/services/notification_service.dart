@@ -93,8 +93,6 @@ class NotificationService {
       requestAlertPermission: false, // 权限统一在 _requestPermission 中请求
       requestBadgePermission: false,
       requestSoundPermission: false,
-      // 前台展示通知
-      requestCriticalPermission: false,
     );
 
     const InitializationSettings settings = InitializationSettings(

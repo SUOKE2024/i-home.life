@@ -144,7 +144,7 @@ class ChatMessageCard extends StatelessWidget {
     final items = <PopupMenuEntry<String>>[
       const PopupMenuItem<String>(
         value: 'copy',
-        child: const Row(
+        child: Row(
           children: [
             Icon(Icons.copy, size: 18, color: textSecondary),
             SizedBox(width: 10),
@@ -158,7 +158,7 @@ class ChatMessageCard extends StatelessWidget {
       items.add(
         const PopupMenuItem<String>(
           value: 'reply',
-          child: const Row(
+          child: Row(
             children: [
               Icon(Icons.reply, size: 18, color: textSecondary),
               SizedBox(width: 10),
@@ -260,7 +260,6 @@ class ChatMessageCard extends StatelessWidget {
               borderRadius: radius,
               border: Border.all(
                 color: border.withValues(alpha: 0.4),
-                width: 1,
               ),
             ),
             child: ClipRRect(
@@ -278,7 +277,6 @@ class ChatMessageCard extends StatelessWidget {
                         child: isUser
                             ? SelectableText(
                                 message.content ?? '',
-                                enableInteractiveSelection: true,
                                 cursorColor: accent,
                                 style: const TextStyle(
                                   fontSize: 14,
@@ -365,13 +363,13 @@ class ChatMessageCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
+            const Row(
               children: [
                 Icon(Icons.psychology_outlined, size: 14, color: textMuted),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'Agent 思考过程',
-                  style: const TextStyle(fontSize: 11, color: textMuted, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 11, color: textMuted, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
@@ -722,7 +720,7 @@ class ChatMessageCard extends StatelessWidget {
                                 fontSize: 13, color: textPrimary,
                                 fontWeight: FontWeight.w600)),
                         Text(
-                          '⭐ ${rating.toStringAsFixed(1)}  积分$points  经验${exp}年  完成${completed}个',
+                          '⭐ ${rating.toStringAsFixed(1)}  积分$points  经验$exp年  完成$completed个',
                           style: const TextStyle(
                               fontSize: 11, color: textSecondary),
                         ),
@@ -1029,7 +1027,7 @@ class ChatMessageCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  border: Border.all(color: info.color, width: 1),
+                  border: Border.all(color: info.color),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text('${info.emoji} ${info.name}',
@@ -1354,7 +1352,7 @@ class ChatMessageCard extends StatelessWidget {
       title: '🎤 ${esc(p['title'] ?? '语音输入')}',
       children: [
         const Text('点击按钮开始语音输入，AI 将实时识别并回复',
-            style: const TextStyle(fontSize: 12, color: textSecondary)),
+            style: TextStyle(fontSize: 12, color: textSecondary)),
         const SizedBox(height: 8),
         actionButton('🎙️ 开始录音', accent, () => onCardAction?.call('start_voice_input', p)),
       ],
@@ -1530,7 +1528,7 @@ class ChatMessageCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (prelude != null) prelude,
+                ?prelude,
                 Text(title,
                     style: const TextStyle(
                       fontSize: 14,
@@ -1683,7 +1681,7 @@ class ChatMessageCard extends StatelessWidget {
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
-            side: BorderSide(color: color, width: 1),
+            side: BorderSide(color: color),
           ),
           padding: const EdgeInsets.symmetric(vertical: 6),
         ),
@@ -1808,7 +1806,7 @@ class _RenderComparisonCardState extends State<_RenderComparisonCard> {
     final afterLabel = (p['after_label'] ?? '改造后').toString();
     final title = (p['title'] ?? widget.message.content ?? '方案对比').toString();
 
-    final textPrimary = SuokeDesignTokens.textPrimary;
+    const textPrimary = SuokeDesignTokens.textPrimary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1831,7 +1829,7 @@ class _RenderComparisonCardState extends State<_RenderComparisonCard> {
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary,
                     ),
                   ),
@@ -1871,7 +1869,6 @@ class _RenderComparisonCardState extends State<_RenderComparisonCard> {
                           ),
                           // 分割线
                           Positioned(
-                            left: null,
                             child: CustomPaint(
                               size: const Size(3, double.infinity),
                               painter: _DividerLinePainter(SuokeDesignTokens.accent),
@@ -2059,10 +2056,10 @@ class _RenderProgressCard extends StatelessWidget {
     final progressPercent = (p['progress'] as num?)?.toDouble() ??
         ((currentStage.clamp(0, 6) / 6.0) * 100);
 
-    final textPrimary = SuokeDesignTokens.textPrimary;
-    final textSecondary = SuokeDesignTokens.textSecondary;
-    final accent = SuokeDesignTokens.accent;
-    final success = SuokeDesignTokens.success;
+    const textPrimary = SuokeDesignTokens.textPrimary;
+    const textSecondary = SuokeDesignTokens.textSecondary;
+    const accent = SuokeDesignTokens.accent;
+    const success = SuokeDesignTokens.success;
 
     final name = '${agentInfo.emoji} ${agentInfo.name} Agent';
 
@@ -2095,12 +2092,12 @@ class _RenderProgressCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         p['title']?.toString() ?? '施工进度',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
                       ),
                     ),
                     Text(
                       '${progressPercent.toInt()}%',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: accent),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: accent),
                     ),
                   ],
                 ),
@@ -2175,7 +2172,7 @@ class _RenderProgressCard extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         '预计完成：$estimatedComplete',
-                        style: TextStyle(fontSize: 12, color: textSecondary),
+                        style: const TextStyle(fontSize: 12, color: textSecondary),
                       ),
                     ],
                   ),
@@ -2265,9 +2262,9 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
     final isLight = deviceType.contains('light') || deviceType.contains('灯');
     final isThermostat = deviceType.contains('thermo') || deviceType.contains('温') || deviceType.contains('ac') || deviceType.contains('空调');
 
-    final textPrimary = SuokeDesignTokens.textPrimary;
-    final textSecondary = SuokeDesignTokens.textSecondary;
-    final accent = SuokeDesignTokens.accent;
+    const textPrimary = SuokeDesignTokens.textPrimary;
+    const textSecondary = SuokeDesignTokens.textSecondary;
+    const accent = SuokeDesignTokens.accent;
     final edgeColor = agentInfo.color;
 
     return Container(
@@ -2291,7 +2288,7 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
             decoration: BoxDecoration(
               color: SuokeDesignTokens.cardBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: edgeColor, width: 1),
+              border: Border.all(color: edgeColor),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -2328,7 +2325,7 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
                                     children: [
                                       Text(
                                         deviceName,
-                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
+                                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textPrimary),
                                       ),
                                       const SizedBox(height: 2),
                                       Row(
@@ -2373,7 +2370,7 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
                               const SizedBox(height: 14),
                               Row(
                                 children: [
-                                  Icon(Icons.brightness_low, size: 16, color: textSecondary),
+                                  const Icon(Icons.brightness_low, size: 16, color: textSecondary),
                                   Expanded(
                                     child: RepaintBoundary(
                                       child: Slider(
@@ -2392,13 +2389,13 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
                                       ),
                                     ),
                                   ),
-                                  Icon(Icons.brightness_high, size: 16, color: textSecondary),
+                                  const Icon(Icons.brightness_high, size: 16, color: textSecondary),
                                 ],
                               ),
                               Center(
                                 child: Text(
                                   '亮度 ${_brightness.toInt()}%',
-                                  style: TextStyle(fontSize: 11, color: textSecondary),
+                                  style: const TextStyle(fontSize: 11, color: textSecondary),
                                 ),
                               ),
                             ],
@@ -2434,7 +2431,7 @@ class _RenderDeviceCardState extends State<_RenderDeviceCard> {
                               Center(
                                 child: Text(
                                   '温度 ${_temperature.toInt()}°C',
-                                  style: TextStyle(fontSize: 11, color: textSecondary),
+                                  style: const TextStyle(fontSize: 11, color: textSecondary),
                                 ),
                               ),
                             ],

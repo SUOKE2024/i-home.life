@@ -54,7 +54,6 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
   Future<void> _loadItems() async {
     setState(() => _loading = true);
     final result = await _api.furnitureListItems(
-      limit: 100,
       category: _selectedCategory == '全部' ? null : _selectedCategory,
     );
     if (result.isSuccess) {
@@ -454,14 +453,14 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
               flex: 3,
               child: Container(
                 width: double.infinity,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: SuokeDesignTokens.bgDeep,
-                  borderRadius: const BorderRadius.only(
+                  borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(8),
                     topRight: Radius.circular(8),
                   ),
                   border: Border(
-                    bottom: BorderSide(color: SuokeDesignTokens.border, width: 1),
+                    bottom: BorderSide(color: SuokeDesignTokens.border),
                   ),
                 ),
                 child: const Icon(Icons.chair,

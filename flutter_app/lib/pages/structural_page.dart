@@ -145,7 +145,7 @@ class _StructuralPageState extends State<StructuralPage>
     return Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 8),
       child: Text(text,
-          style: const TextStyle(
+          style: TextStyle(
               color: SuokeDesignTokens.text(context), fontSize: 15, fontWeight: FontWeight.bold)),
     );
   }
@@ -212,7 +212,7 @@ class _StructuralPageState extends State<StructuralPage>
                       children: [
                         Expanded(
                           child: Text(w['wall_name'] ?? '',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: SuokeDesignTokens.text(context),
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold)),
@@ -267,7 +267,7 @@ class _StructuralPageState extends State<StructuralPage>
         children: [
           _sectionTitle('梁'),
           if (_beams.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text('暂无梁', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
@@ -277,7 +277,7 @@ class _StructuralPageState extends State<StructuralPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(b['beam_name'] ?? '',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.text(context),
                               fontSize: 15,
                               fontWeight: FontWeight.bold)),
@@ -294,7 +294,7 @@ class _StructuralPageState extends State<StructuralPage>
           _addButton('添加梁', _addBeam),
           _sectionTitle('柱'),
           if (_columns.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
               child: Text('暂无柱', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
@@ -304,7 +304,7 @@ class _StructuralPageState extends State<StructuralPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(c['column_name'] ?? '',
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: SuokeDesignTokens.text(context),
                               fontSize: 15,
                               fontWeight: FontWeight.bold)),
@@ -347,7 +347,7 @@ class _StructuralPageState extends State<StructuralPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(s['slab_name'] ?? '',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: SuokeDesignTokens.text(context),
                           fontSize: 15,
                           fontWeight: FontWeight.bold)),
@@ -389,7 +389,7 @@ class _StructuralPageState extends State<StructuralPage>
                       children: [
                         Expanded(
                           child: Text(q['calc_name'] ?? '',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   color: SuokeDesignTokens.text(context),
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold)),
@@ -505,7 +505,7 @@ class _StructuralPageState extends State<StructuralPage>
                           decoration: InputDecoration(
                             labelText: f.label,
                             labelStyle: TextStyle(color: SuokeDesignTokens.textSub(context)),
-                            enabledBorder: const UnderlineInputBorder(
+                            enabledBorder: UnderlineInputBorder(
                               borderSide: BorderSide(color: SuokeDesignTokens.borderClr(context)),
                             ),
                             focusedBorder: const UnderlineInputBorder(

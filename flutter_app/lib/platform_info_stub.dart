@@ -1,5 +1,6 @@
 /// Web 平台信息 stub。
 /// dart:io 在 Web 上不可用，提供 Web 替代值。
+library;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AppPlatform {

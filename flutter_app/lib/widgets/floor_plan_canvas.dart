@@ -39,7 +39,6 @@ class FloorPlanComponent {
       width: (map['width'] as num?)?.toDouble() ?? 600,
       height: (map['depth'] as num?)?.toDouble() ?? 600,
       rotation: (map['rotation'] as num?)?.toDouble() ?? 0,
-      color: null,
       iconName: map['icon']?.toString(),
     );
   }

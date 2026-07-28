@@ -372,7 +372,7 @@ class _LightingPageState extends State<LightingPage>
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -388,7 +388,7 @@ class _LightingPageState extends State<LightingPage>
                 Expanded(
                   child: Text(
                     scheme['room_name'] ?? '未命名方案',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -486,7 +486,7 @@ class _LightingPageState extends State<LightingPage>
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedScheme?['room_name'] ?? _selectedSchemeId}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -557,7 +557,7 @@ class _LightingPageState extends State<LightingPage>
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -572,7 +572,7 @@ class _LightingPageState extends State<LightingPage>
                 Expanded(
                   child: Text(
                     _fixtureName(fixture),
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -667,7 +667,7 @@ class _LightingPageState extends State<LightingPage>
                 const SizedBox(width: 8),
                 Text(
                   '色温：${colorTempK.toStringAsFixed(0)} K',
-                  style: const TextStyle(
+                  style: TextStyle(
                       color: SuokeDesignTokens.textSub(context), fontSize: 13),
                 ),
                 const SizedBox(width: 12),
@@ -774,7 +774,7 @@ class _LightingPageState extends State<LightingPage>
             ),
             const SizedBox(height: 16),
             Text('${brand.isNotEmpty ? '$brand ' : ''}$model',
-                style: const TextStyle(
+                style: TextStyle(
                     color: SuokeDesignTokens.text(context),
                     fontSize: 18,
                     fontWeight: FontWeight.bold)),
@@ -900,7 +900,7 @@ class _LightingPageState extends State<LightingPage>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
-          title: const Text('创建照明方案',
+          title: Text('创建照明方案',
               style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
@@ -948,7 +948,7 @@ class _LightingPageState extends State<LightingPage>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消',
+              child: Text('取消',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
@@ -983,7 +983,7 @@ class _LightingPageState extends State<LightingPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('添加灯具',
+        title: Text('添加灯具',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: SingleChildScrollView(
           child: Column(
@@ -1026,7 +1026,7 @@ class _LightingPageState extends State<LightingPage>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1061,14 +1061,14 @@ class _LightingPageState extends State<LightingPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('确认删除',
+        title: Text('确认删除',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
-        content: const Text('确定要删除此方案吗？此操作不可撤销。',
+        content: Text('确定要删除此方案吗？此操作不可撤销。',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
@@ -1091,14 +1091,14 @@ class _LightingPageState extends State<LightingPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('确认删除',
+        title: Text('确认删除',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
-        content: const Text('确定要删除此灯具吗？',
+        content: Text('确定要删除此灯具吗？',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(

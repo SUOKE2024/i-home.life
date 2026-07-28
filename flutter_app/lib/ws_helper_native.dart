@@ -1,4 +1,5 @@
 /// 原生平台 WebSocket 连接。
+library;
 import 'dart:async';
 import 'dart:io';
 

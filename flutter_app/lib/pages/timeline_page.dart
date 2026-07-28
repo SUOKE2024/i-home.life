@@ -232,7 +232,7 @@ class _TimelinePageState extends State<TimelinePage> {
                 _selectedProject?['name'] ?? _selectedProject?['title'] ?? '项目进度',
                 style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 16, fontWeight: FontWeight.w600),
               ),
-              Text('$pct%', style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 24, fontWeight: FontWeight.w700)),
+              Text('$pct%', style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 24, fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 10),

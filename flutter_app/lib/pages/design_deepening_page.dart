@@ -195,16 +195,16 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
       return ErrorRetryWidget(message: _error!, onRetry: _loadPlans);
     }
     if (_plans.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.design_services_outlined,
                 size: 48, color: SuokeDesignTokens.textMuted),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text('暂无设计方案',
                 style: TextStyle(color: SuokeDesignTokens.textSecondary)),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text('点击右下角 + 新建方案',
                 style: TextStyle(
                     color: SuokeDesignTokens.textSecondary,
@@ -243,7 +243,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
                   Row(children: [
                     Expanded(
                       child: Text(name,
-                          style: TextStyle(
+                          style: const TextStyle(
                               color: SuokeDesignTokens.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 15)),
@@ -273,7 +273,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
                   const SizedBox(height: 8),
                   Text(
                     _formatDate(createdAt),
-                    style: TextStyle(
+                    style: const TextStyle(
                         color: SuokeDesignTokens.textMuted, fontSize: 11),
                   ),
                   const Divider(
@@ -326,7 +326,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage> {
         Icon(icon, size: 14, color: SuokeDesignTokens.textSecondary),
         const SizedBox(width: 4),
         Text(text,
-            style: TextStyle(
+            style: const TextStyle(
                 color: SuokeDesignTokens.textSecondary,
                 fontSize: SuokeDesignTokens.fontSizeSm)),
       ],

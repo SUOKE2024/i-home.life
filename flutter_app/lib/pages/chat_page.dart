@@ -25,7 +25,7 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
   Map<String, dynamic>? _currentRoom;
   bool _loading = false;
   String? _error;
-  int _unreadCount = 0;
+  final int _unreadCount = 0;
 
   @override
   void initState() {
@@ -239,7 +239,7 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
                   hintText: '输入消息...',
                   hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 14),
                   filled: true,
-                  fillColor: colors.surfaceVariant,
+                  fillColor: colors.surfaceContainerHighest,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,

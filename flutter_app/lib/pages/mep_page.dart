@@ -354,7 +354,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context), width: 1),
+            color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -370,7 +370,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 Expanded(
                   child: Text(
                     plan['name']?.toString() ?? '未命名方案',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -445,7 +445,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -516,7 +516,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -595,7 +595,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                   Expanded(
                     child: Text(
                       '当前方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -663,7 +663,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       color: SuokeDesignTokens.card(context),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: SuokeDesignTokens.borderClr(context), width: 1),
+        side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -679,7 +679,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                 Expanded(
                   child: Text(
                     '回路 ${circuit['circuit_number']?.toString() ?? circuit['number']?.toString() ?? '-'}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
@@ -784,7 +784,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                       const SizedBox(width: 8),
                       Text(
                         '方案：${_selectedPlan?['name'] ?? _selectedPlanId}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                       ),
                       const Spacer(),
@@ -819,11 +819,8 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
               roomWidth: roomW,
               roomHeight: roomH,
               roomLabel: '${_selectedPlan?['name'] ?? '水电方案'} · 点位布局',
-              showDimensions: true,
-              showGrid: true,
               showMEPLayer: true,
               mepPoints: mepPoints,
-              components: const [],
             ),
           ),
         ),
@@ -952,7 +949,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
-          title: const Text('创建水电方案',
+          title: Text('创建水电方案',
               style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
@@ -1003,7 +1000,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消',
+              child: Text('取消',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
@@ -1036,7 +1033,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
-          title: const Text('添加点位',
+          title: Text('添加点位',
               style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
@@ -1076,7 +1073,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消',
+              child: Text('取消',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
@@ -1110,7 +1107,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
           backgroundColor: SuokeDesignTokens.card(context),
-          title: const Text('添加回路',
+          title: Text('添加回路',
               style: TextStyle(color: SuokeDesignTokens.text(context))),
           content: SingleChildScrollView(
             child: Column(
@@ -1156,7 +1153,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消',
+              child: Text('取消',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             ),
             ElevatedButton(
@@ -1185,14 +1182,14 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
-        title: const Text('确认删除',
+        title: Text('确认删除',
             style: TextStyle(color: SuokeDesignTokens.text(context))),
-        content: const Text('确定要删除此水电方案吗？关联的点位与回路也会被清除。此操作不可撤销。',
+        content: Text('确定要删除此水电方案吗？关联的点位与回路也会被清除。此操作不可撤销。',
             style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
+            child: Text('取消',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(

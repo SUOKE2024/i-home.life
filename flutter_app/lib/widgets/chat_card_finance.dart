@@ -28,7 +28,7 @@ extension ChatCardFinanceRenderers on ChatMessageCard {
       title: '📊 预算概览',
       children: [
         row('总预算', '¥${ChatMessageCard.fmtNum(total)}', boldValue: true),
-        row('已支出', '¥${ChatMessageCard.fmtNum(spent)}（${percent}%）', boldValue: true),
+        row('已支出', '¥${ChatMessageCard.fmtNum(spent)}（$percent%）', boldValue: true),
         row('剩余', '¥${ChatMessageCard.fmtNum(remaining)}',
             boldValue: true, valueColor: SuokeDesignTokens.success),
         const SizedBox(height: 6),

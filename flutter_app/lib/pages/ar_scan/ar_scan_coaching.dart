@@ -197,7 +197,7 @@ class EnvCoachingBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(color: arWarning, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(title, style: const TextStyle(color: arWarning, fontWeight: FontWeight.w600, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text(hint, style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
               ],

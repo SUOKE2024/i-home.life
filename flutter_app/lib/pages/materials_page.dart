@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Material;
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../models/models.dart';

@@ -150,7 +150,7 @@ class _TasksPageState extends State<TasksPage>
       final dt = DateTime.parse(iso);
       final now = DateTime.now();
       final diff = dt.difference(now);
-      String dateStr =
+      final String dateStr =
           '${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
       if (diff.isNegative) return '已逾期 · $dateStr';
       if (diff.inHours < 24) return '今日截止 · $dateStr';
@@ -450,7 +450,7 @@ class _TasksPageState extends State<TasksPage>
 
   Widget _buildKanbanView() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 3, itemHeight: 120);
+      return const LoadingSkeleton(itemCount: 3);
     }
     if (_error != null) {
       return ErrorRetryWidget(message: _error!, onRetry: _loadTasks);
@@ -803,7 +803,7 @@ class _TasksPageState extends State<TasksPage>
   }
 
   List<Task> _filteredAndSortedTasks() {
-    var result = _tasks.where((task) {
+    final result = _tasks.where((task) {
       // 状态筛选
       if (_filterStatus != 'all') {
         final status = task.status.value;

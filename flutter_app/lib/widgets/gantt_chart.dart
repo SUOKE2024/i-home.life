@@ -267,7 +267,6 @@ class _GanttChartState extends State<GanttChart> {
         scrollDirection: Axis.horizontal,
         controller: _horizontalController,
         child: SingleChildScrollView(
-          scrollDirection: Axis.vertical,
           controller: _verticalController,
           child: CustomPaint(
             size: Size(_totalWidth, _totalHeight),
@@ -721,7 +720,7 @@ class _GanttPainter extends CustomPainter {
     final tp = TextPainter(
       text: const TextSpan(
         text: '今天',
-        style: const TextStyle(
+        style: TextStyle(
           color: SuokeDesignTokens.accent,
           fontSize: 10,
           fontWeight: FontWeight.w600,

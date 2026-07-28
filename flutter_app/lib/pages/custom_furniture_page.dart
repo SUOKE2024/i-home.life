@@ -128,7 +128,7 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
         title: const Text('拆单 BOM'),
         content: SizedBox(
           width: double.maxFinite,
-          child: data is List && (data as List).isNotEmpty
+          child: data is List && (data).isNotEmpty
               ? SingleChildScrollView(
                   child: DataTable(
                     columns: const [
@@ -136,7 +136,7 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
                       DataColumn(label: Text('规格')),
                       DataColumn(label: Text('数量')),
                     ],
-                    rows: (data as List).map<DataRow>((item) {
+                    rows: (data).map<DataRow>((item) {
                       return DataRow(cells: [
                         DataCell(Text(item['name'] ?? '')),
                         DataCell(Text(item['spec'] ?? '')),
@@ -373,9 +373,6 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
               roomWidth: roomW,
               roomHeight: math.max(roomH, 600),
               roomLabel: '$designName Layout',
-              showDimensions: true,
-              showGrid: true,
-              showMEPLayer: false,
               components: components,
             ),
           ),
@@ -394,7 +391,7 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _buildSummaryChip('尺寸', '${w}×${d}×${h}'),
+        _buildSummaryChip('尺寸', '$w×$d×$h'),
         _buildSummaryChip('材质', material.toString()),
         _buildSummaryChip('类型', _typeLabels[design['type']] ?? design['type'] ?? '-'),
       ],

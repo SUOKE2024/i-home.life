@@ -50,7 +50,7 @@ class WebSocketService {
   // ── URL 构建 ──
 
   Uri _buildUri() {
-    final base = AppConfig.apiBaseUrl;
+    const base = AppConfig.apiBaseUrl;
     String wsBase;
     // 优先使用构建期注入的 WebSocket 地址
     if (AppConfig.wsBaseUrl.isNotEmpty) {
@@ -107,7 +107,6 @@ class WebSocketService {
           _notifyStatus(WsConnectionStatus.disconnected);
           _scheduleReconnect();
         },
-        cancelOnError: false,
       );
     } catch (e) {
       _notifyStatus(WsConnectionStatus.error);

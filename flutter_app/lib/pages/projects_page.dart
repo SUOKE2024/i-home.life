@@ -10,6 +10,12 @@ import '../widgets/error_retry.dart';
 import '../models/models.dart';
 import 'project_detail_page.dart';
 
+/// 面积显示：整数面积不带小数点（126.0 → "126"）
+String _fmtArea(double? area) {
+  if (area == null) return '-';
+  return area == area.roundToDouble() ? '${area.toInt()}' : '$area';
+}
+
 class ProjectsPage extends StatefulWidget {
   const ProjectsPage({super.key});
 
@@ -128,7 +134,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
       _locationError = null;
     });
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         setState(() {
           _locating = false;
@@ -199,7 +205,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
         } else {
           locationName = displayName;
         }
-        String fullAddr = [city, district, suburb, road, building]
+        final String fullAddr = [city, district, suburb, road, building]
             .where((s) => s.toString().isNotEmpty)
             .join(' · ');
 
@@ -344,7 +350,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
 
   Widget _buildBody() {
     if (_loading) {
-      return const LoadingSkeleton(itemCount: 4, itemHeight: 80);
+      return const LoadingSkeleton(itemHeight: 80);
     }
     if (_error != null) {
       return ErrorRetryWidget(
@@ -430,7 +436,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${p.address ?? '未填写地址'} · ${p.totalArea ?? '-'}㎡',
+                        '${p.address ?? '未填写地址'} · ${_fmtArea(p.totalArea)}㎡',
                         style: TextStyle(color: textSub, fontSize: 13),
                       ),
                     ],
@@ -446,13 +452,13 @@ class _ProjectsPageState extends State<ProjectsPage> {
   /// 创建项目表单（满宽卡片）
   Widget _buildCreateForm() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = const Color(0xFFC9973B);
+    const accent = Color(0xFFC9973B);
     final cardBg = isDark ? const Color(0xFF12121D) : Colors.white;
     final textPrimary = isDark ? const Color(0xFFE8E6E1) : const Color(0xFF1A1814);
     final textSecondary = isDark ? const Color(0xFF8A8894) : const Color(0xFF6B6760);
     final border = isDark ? const Color(0xFF2A2A3A) : const Color(0xFFE8E5DE);
 
-    Widget _stepper(String label, int value, int min, int max, Function(int) onChanged) {
+    Widget stepper(String label, int value, int min, int max, Function(int) onChanged) {
       return Column(
         children: [
           Text(label, style: TextStyle(color: textSecondary, fontSize: 12)),
@@ -529,7 +535,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: accent),
+                    borderSide: const BorderSide(color: accent),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
@@ -555,16 +561,16 @@ class _ProjectsPageState extends State<ProjectsPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _stepper('楼层', _floors, 1, 5, (v) => setState(() => _floors = v)),
-                  _stepper('室', _bedrooms, 1, 8, (v) => setState(() => _bedrooms = v)),
-                  _stepper('厅', _livingRooms, 1, 4, (v) => setState(() => _livingRooms = v)),
-                  _stepper('厨', _kitchens, 1, 2, (v) => setState(() => _kitchens = v)),
-                  _stepper('卫', _bathrooms, 1, 6, (v) => setState(() => _bathrooms = v)),
+                  stepper('楼层', _floors, 1, 5, (v) => setState(() => _floors = v)),
+                  stepper('室', _bedrooms, 1, 8, (v) => setState(() => _bedrooms = v)),
+                  stepper('厅', _livingRooms, 1, 4, (v) => setState(() => _livingRooms = v)),
+                  stepper('厨', _kitchens, 1, 2, (v) => setState(() => _kitchens = v)),
+                  stepper('卫', _bathrooms, 1, 6, (v) => setState(() => _bathrooms = v)),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
-                '${_floors}层 · ${_bedrooms}室${_livingRooms}厅${_kitchens}厨${_bathrooms}卫',
+                '$_floors层 · $_bedrooms室$_livingRooms厅$_kitchens厨$_bathrooms卫',
                 style: TextStyle(color: textSecondary, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -588,7 +594,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: accent),
+                    borderSide: const BorderSide(color: accent),
                   ),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 ),
@@ -641,7 +647,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(color: accent),
+                          borderSide: const BorderSide(color: accent),
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
@@ -685,7 +691,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: _locationResults.length,
-                    separatorBuilder: (_, __) => Divider(height: 1, color: border),
+                    separatorBuilder: (_, _) => Divider(height: 1, color: border),
                     itemBuilder: (ctx, i) {
                       final item = _locationResults[i];
                       final name = (item['name'] as String?) ?? '';
@@ -698,7 +704,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                         onTap: () {
                           _locationCtrl.text = name.isNotEmpty ? name : displayFull;
                           setState(() {
-                            for (var r in _locationResults) {
+                            for (final r in _locationResults) {
                               r['selected'] = false;
                             }
                             item['selected'] = true;
@@ -755,7 +761,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                                 ),
                               ),
                               if (isSelected)
-                                Icon(Icons.check, color: accent, size: 18),
+                                const Icon(Icons.check, color: accent, size: 18),
                             ],
                           ),
                         ),

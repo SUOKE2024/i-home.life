@@ -130,7 +130,7 @@ void main() {
 
     // 验证创建表单各字段
     expect(find.text('项目名称'), findsOneWidget);
-    expect(find.text('地址'), findsOneWidget);
+    expect(find.text('项目位置'), findsOneWidget);
     expect(find.text('面积 (㎡)'), findsOneWidget);
     // 「创建项目」在空态 OutlinedButton 和表单 ElevatedButton 中各出现一次
     expect(find.text('创建项目'), findsAtLeastNWidgets(1));

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +42,7 @@ class _AIChatPageState extends State<AIChatPage> {
   final SseService _sse = SseService();
   final VoiceRealtimeService _voice = VoiceRealtimeService();
   final WebSocketService _ws = WebSocketService();
-  String _selectedAgent = 'master';
+  final String _selectedAgent = 'master';
   bool _isLoading = false;
   bool _isVoiceMode = false;
   String? _currentProjectId;
@@ -207,7 +206,6 @@ class _AIChatPageState extends State<AIChatPage> {
       type: ChatMessageType.text,
       agent: agentKey,
       displayName: senderName,
-      isSelf: false,
       content: content,
       timestamp: DateTime.now(),
     ));
@@ -395,7 +393,7 @@ class _AIChatPageState extends State<AIChatPage> {
           }
         },
         onError: (e) {
-          _updateLastAgentMessage('抱歉，AI 服务暂时不可用: ${e.toString().length > 80 ? e.toString().substring(0, 80) + '...' : e}', agent: 'master');
+          _updateLastAgentMessage('抱歉，AI 服务暂时不可用: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}...' : e}', agent: 'master');
           _handleAgentError(e.toString(), 'master');
           setState(() => _isLoading = false);
         },
@@ -461,7 +459,7 @@ class _AIChatPageState extends State<AIChatPage> {
                   const Text('户型选择', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedHouseType,
+                    initialValue: selectedHouseType,
                     decoration: const InputDecoration(
                       labelText: '户型',
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -778,7 +776,7 @@ class _AIChatPageState extends State<AIChatPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('已复制', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+          content: const Text('已复制', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
           backgroundColor: SuokeDesignTokens.cardBg,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
@@ -865,7 +863,7 @@ class _AIChatPageState extends State<AIChatPage> {
                 padding: const EdgeInsets.only(left: 16),
                 child: GestureDetector(
                   onTap: () => _showCreateProjectDialog(pc),
-                  child: Column(
+                  child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -878,7 +876,7 @@ class _AIChatPageState extends State<AIChatPage> {
                                 fontSize: SuokeDesignTokens.fontSizeLg,
                                 color: SuokeDesignTokens.textPrimary,
                               )),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Icon(Icons.add_circle_outline,
                               size: 18,
                               color: SuokeDesignTokens.accent),
@@ -942,7 +940,7 @@ class _AIChatPageState extends State<AIChatPage> {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildAvatarFallback(),
+                      errorBuilder: (_, _, _) => _buildAvatarFallback(),
                     )
                   : _buildAvatarFallback(),
         ),
@@ -954,7 +952,7 @@ class _AIChatPageState extends State<AIChatPage> {
   Widget _buildAvatarFallback() {
     return Container(
       color: SuokeDesignTokens.accent.withValues(alpha: 0.2),
-      child: Icon(Icons.person, size: 20, color: SuokeDesignTokens.accent),
+      child: const Icon(Icons.person, size: 20, color: SuokeDesignTokens.accent),
     );
   }
 
@@ -1004,7 +1002,6 @@ class _AIChatPageState extends State<AIChatPage> {
         padding: const EdgeInsets.only(left: 16),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1015,14 +1012,14 @@ class _AIChatPageState extends State<AIChatPage> {
                   children: [
                     Flexible(
                       child: Text(currentTitle,
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: SuokeDesignTokens.fontSizeLg, color: SuokeDesignTokens.textPrimary),
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: SuokeDesignTokens.fontSizeLg, color: SuokeDesignTokens.textPrimary),
                           overflow: TextOverflow.ellipsis),
                     ),
-                    Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary, size: 20),
+                    const Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary, size: 20),
                   ],
                 ),
                 Text('${AgentInfo.standardAgents.length} AI Agent 群策群力',
-                    style: TextStyle(fontSize: SuokeDesignTokens.fontSizeXs, color: SuokeDesignTokens.textSecondary)),
+                    style: const TextStyle(fontSize: SuokeDesignTokens.fontSizeXs, color: SuokeDesignTokens.textSecondary)),
               ],
             ),
           ],
@@ -1051,8 +1048,8 @@ class _AIChatPageState extends State<AIChatPage> {
           child: Row(
             children: [
               if (isSelected)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
                   child: Icon(Icons.check, color: SuokeDesignTokens.accent, size: 16),
                 ),
               Expanded(
@@ -1066,7 +1063,7 @@ class _AIChatPageState extends State<AIChatPage> {
                             fontSize: 13)),
                     if (status.isNotEmpty)
                       Text(status,
-                          style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 10)),
+                          style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 10)),
                   ],
                 ),
               ),
@@ -1156,7 +1153,7 @@ class _AIChatPageState extends State<AIChatPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(label,
-                  style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeXs)),
+                  style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeXs)),
             ),
           ),
           Expanded(child: Divider(color: borderColor)),
@@ -1241,12 +1238,12 @@ class _AIChatPageState extends State<AIChatPage> {
             Row(
               children: [
                 const SizedBox(width: 16),
-                Icon(Icons.subdirectory_arrow_right, size: 14, color: SuokeDesignTokens.textMuted),
+                const Icon(Icons.subdirectory_arrow_right, size: 14, color: SuokeDesignTokens.textMuted),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     lastStep,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: SuokeDesignTokens.fontSizeXs,
                       color: SuokeDesignTokens.textSecondary,
                       height: 1.3,
@@ -1268,9 +1265,9 @@ class _AIChatPageState extends State<AIChatPage> {
                   const SizedBox(width: 16),
                   Text(
                     '${_activeThinkingSteps.length} 个步骤',
-                    style: TextStyle(fontSize: 10, color: SuokeDesignTokens.accent),
+                    style: const TextStyle(fontSize: 10, color: SuokeDesignTokens.accent),
                   ),
-                  Icon(Icons.keyboard_arrow_down, size: 14, color: SuokeDesignTokens.accent),
+                  const Icon(Icons.keyboard_arrow_down, size: 14, color: SuokeDesignTokens.accent),
                 ],
               ),
             ),
@@ -1297,7 +1294,7 @@ class _AIChatPageState extends State<AIChatPage> {
                 child: Container(
                   width: 4,
                   height: 4,
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: SuokeDesignTokens.textMuted,
                     shape: BoxShape.circle,
                   ),
@@ -1314,9 +1311,9 @@ class _AIChatPageState extends State<AIChatPage> {
     showModalBottomSheet(
       context: context,
       backgroundColor: SuokeDesignTokens.cardBg,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
-        side: const BorderSide(color: SuokeDesignTokens.border),
+        side: BorderSide(color: SuokeDesignTokens.border),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -1325,10 +1322,10 @@ class _AIChatPageState extends State<AIChatPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   Icon(Icons.psychology_outlined, color: SuokeDesignTokens.accent, size: 20),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text('Agent 思考过程',
                     style: TextStyle(
                       fontSize: SuokeDesignTokens.fontSizeMd,
@@ -1423,7 +1420,7 @@ class _AIChatPageState extends State<AIChatPage> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
-      child: Row(
+      child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
@@ -1434,7 +1431,7 @@ class _AIChatPageState extends State<AIChatPage> {
               valueColor: AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text('思考中…',
               style: TextStyle(fontSize: SuokeDesignTokens.fontSizeSm, color: SuokeDesignTokens.textSecondary)),
         ],
@@ -1492,7 +1489,7 @@ class _AIChatPageState extends State<AIChatPage> {
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
                   border: Border.all(color: borderColor),
                 ),
-                child: Icon(Icons.add, color: SuokeDesignTokens.textSecondary, size: 22),
+                child: const Icon(Icons.add, color: SuokeDesignTokens.textSecondary, size: 22),
               ),
             ),
             const SizedBox(width: 8),
@@ -1507,12 +1504,12 @@ class _AIChatPageState extends State<AIChatPage> {
                 child: TextField(
                   controller: _msgCtrl,
                   enabled: !_isLoading,
-                  style: TextStyle(fontSize: SuokeDesignTokens.fontSizeMd, color: SuokeDesignTokens.textPrimary),
-                  decoration: InputDecoration(
+                  style: const TextStyle(fontSize: SuokeDesignTokens.fontSizeMd, color: SuokeDesignTokens.textPrimary),
+                  decoration: const InputDecoration(
                     hintText: '说点什么…',
                     hintStyle: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeMd),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(vertical: 12),
                   ),
                   onSubmitted: (_) => _send(),
                   textInputAction: TextInputAction.send,
@@ -1531,7 +1528,7 @@ class _AIChatPageState extends State<AIChatPage> {
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
                   border: Border.all(color: borderColor),
                 ),
-                child: Icon(Icons.emoji_emotions_outlined, color: SuokeDesignTokens.textSecondary, size: 22),
+                child: const Icon(Icons.emoji_emotions_outlined, color: SuokeDesignTokens.textSecondary, size: 22),
               ),
             ),
             const SizedBox(width: 8),
@@ -1578,7 +1575,7 @@ class _AIChatPageState extends State<AIChatPage> {
       context: context,
       backgroundColor: isDark ? SuokeDesignTokens.cardBg : SuokeDesignTokens.lightCard,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(SuokeDesignTokens.radiusLg)),
         side: BorderSide(color: isDark ? SuokeDesignTokens.border : SuokeDesignTokens.lightBorder),
       ),
       builder: (ctx) => SafeArea(
@@ -1588,21 +1585,21 @@ class _AIChatPageState extends State<AIChatPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.camera_alt_outlined, color: SuokeDesignTokens.textPrimary),
-                title: Text('拍照', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
-                subtitle: Text('拍摄现场照片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                leading: const Icon(Icons.camera_alt_outlined, color: SuokeDesignTokens.textPrimary),
+                title: const Text('拍照', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: const Text('拍摄现场照片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
                 onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.camera); },
               ),
               ListTile(
-                leading: Icon(Icons.photo_library_outlined, color: SuokeDesignTokens.textPrimary),
-                title: Text('相册', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
-                subtitle: Text('从相册选择图片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                leading: const Icon(Icons.photo_library_outlined, color: SuokeDesignTokens.textPrimary),
+                title: const Text('相册', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: const Text('从相册选择图片', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
                 onTap: () { Navigator.pop(ctx); _pickImage(ImageSource.gallery); },
               ),
               ListTile(
-                leading: Icon(Icons.attach_file_outlined, color: SuokeDesignTokens.textPrimary),
-                title: Text('文件', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
-                subtitle: Text('选择文档或图纸', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                leading: const Icon(Icons.attach_file_outlined, color: SuokeDesignTokens.textPrimary),
+                title: const Text('文件', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+                subtitle: const Text('选择文档或图纸', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
                 onTap: () { Navigator.pop(ctx); _pickFile(); },
               ),
             ],
@@ -1754,7 +1751,7 @@ class _AIChatPageState extends State<AIChatPage> {
 
   Widget _buildWelcomeScreen() {
     final agentCount = AgentInfo.standardAgents.length;
-    final coreCount = 8; // master, design, budget, procurement, construction, quality, settlement, support
+    const coreCount = 8; // master, design, budget, procurement, construction, quality, settlement, support
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final suggestions = [
       (emoji: '💰', text: '查看预算情况', agent: 'budget'),
@@ -1780,15 +1777,15 @@ class _AIChatPageState extends State<AIChatPage> {
                 const SizedBox(height: 72),
                 const Text('🏠', style: TextStyle(fontSize: 48)),
                 const SizedBox(height: 16),
-                Text('索克家居',
+                const Text('索克家居',
                     style: TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('AI 智能装修助手',
+                const Text('AI 智能装修助手',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
                 const SizedBox(height: 6),
                 Text('$coreCount 位核心 Agent + ${agentCount - coreCount} 位专项 Agent',
-                    style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
-                Text('7×24 全天候在线',
+                    style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+                const Text('7×24 全天候在线',
                     style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
                 const SizedBox(height: 32),
                 for (final s in suggestions) ...[
@@ -1796,17 +1793,17 @@ class _AIChatPageState extends State<AIChatPage> {
                   const SizedBox(height: 10),
                 ],
                 const SizedBox(height: 32),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+                      Expanded(child: Divider(color: SuokeDesignTokens.border)),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: EdgeInsets.symmetric(horizontal: 12),
                         child: Text('或直接输入提问',
                             style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeSm)),
                       ),
-                      const Expanded(child: Divider(color: SuokeDesignTokens.border)),
+                      Expanded(child: Divider(color: SuokeDesignTokens.border)),
                     ],
                   ),
                 ),

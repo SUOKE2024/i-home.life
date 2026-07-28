@@ -550,16 +550,16 @@ class _BathroomPageState extends State<BathroomPage>
       );
     }
     if (_designs.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.bathtub, size: 64, color: SuokeDesignTokens.textSecondary),
-            const SizedBox(height: 16),
-            const Text('暂无卫浴方案',
+            Icon(Icons.bathtub, size: 64, color: SuokeDesignTokens.textSecondary),
+            SizedBox(height: 16),
+            Text('暂无卫浴方案',
                 style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
-            const SizedBox(height: 8),
-            const Text('点击右下角按钮创建',
+            SizedBox(height: 8),
+            Text('点击右下角按钮创建',
                 style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12)),
           ],
         ),
@@ -639,26 +639,26 @@ class _BathroomPageState extends State<BathroomPage>
 
   Widget _buildFixturesTab() {
     if (_selectedDesign == null) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
-            const SizedBox(height: 16),
-            const Text('请先在「卫浴方案」中选择一个方案',
+            Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
+            SizedBox(height: 16),
+            Text('请先在「卫浴方案」中选择一个方案',
                 style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
           ],
         ),
       );
     }
     if (_fixtures.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
-            const SizedBox(height: 16),
-            const Text('暂无设施，点击右下角添加',
+            Icon(Icons.plumbing, size: 64, color: SuokeDesignTokens.textSecondary),
+            SizedBox(height: 16),
+            Text('暂无设施，点击右下角添加',
                 style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 16)),
           ],
         ),

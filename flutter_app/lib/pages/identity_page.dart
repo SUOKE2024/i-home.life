@@ -371,10 +371,10 @@ class _IdentityPageState extends State<IdentityPage>
   Widget _buildSubmitTab() {
     final status = _status?['status'] as String?;
     if (status == 'pending') {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Icon(Icons.hourglass_top, size: 64, color: Colors.blue),
             SizedBox(height: 16),
             Text('您的认证申请正在审核中', style: TextStyle(color: Colors.grey)),
@@ -499,10 +499,10 @@ class _IdentityPageState extends State<IdentityPage>
     final status = _status?['status'] as String? ?? 'not_submitted';
 
     if (status == 'not_submitted' || _status == null) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
+          children: [
             Icon(Icons.history, size: 64, color: Colors.grey),
             SizedBox(height: 16),
             Text('暂无认证记录', style: TextStyle(color: Colors.grey)),
