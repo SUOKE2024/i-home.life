@@ -91,6 +91,109 @@ export class ApiClient {
   }
 
   // ──────────────────────────────────────────────────────────────────
+  //  文件上传 / 二进制下载 — CAD / Sketch-to-3D / IFC 导出
+  // ──────────────────────────────────────────────────────────────────
+
+  /**
+   * multipart 文件上传，返回 JSON 响应。
+   * 不设 Content-Type，让浏览器自动添加 multipart boundary。
+   */
+  async uploadFile<T = unknown>(
+    path: string,
+    file: File,
+    extraFields: Record<string, string> = {},
+  ): Promise<ApiResult<T>> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    for (const [key, value] of Object.entries(extraFields)) {
+      formData.append(key, value);
+    }
+
+    try {
+      const res = await fetch(this.buildUrl(path), {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      if (res.status === 401) {
+        this.clearToken();
+        if (this.onUnauthorized) this.onUnauthorized();
+        else window.location.href = '/login.html';
+        return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
+      }
+      const data = res.ok ? await res.json().catch(() => undefined) : undefined;
+      const errorBody = !res.ok ? await res.json().catch(() => undefined) : undefined;
+      return {
+        isSuccess: res.ok,
+        status: res.status,
+        data: data as T | undefined,
+        error: res.ok ? undefined : (errorBody?.detail ?? `HTTP ${res.status}`),
+      };
+    } catch (err) {
+      return {
+        isSuccess: false,
+        status: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /**
+   * POST JSON 请求并下载二进制文件（blob）。
+   * 用于 IFC 导出等返回 FileResponse 的端点。
+   */
+  async downloadBlob(
+    path: string,
+    body: Record<string, unknown> = {},
+  ): Promise<{ isSuccess: boolean; status: number; blob?: Blob; filename?: string; error?: string }> {
+    const token = this.getToken();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(this.buildUrl(path), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) {
+        this.clearToken();
+        if (this.onUnauthorized) this.onUnauthorized();
+        else window.location.href = '/login.html';
+        return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
+      }
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => undefined);
+        return {
+          isSuccess: false,
+          status: res.status,
+          error: errorBody?.detail ?? `HTTP ${res.status}`,
+        };
+      }
+      const blob = await res.blob();
+      // 从 Content-Disposition 提取文件名
+      const cd = res.headers.get('content-disposition') ?? '';
+      const filenameMatch = cd.match(/filename="?([^"]+)"?/);
+      return {
+        isSuccess: true,
+        status: res.status,
+        blob,
+        filename: filenameMatch?.[1] ?? 'download.ifc',
+      };
+    } catch (err) {
+      return {
+        isSuccess: false,
+        status: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────
   //  聊天 SSE 流式 — 对齐 Flutter SseService.streamChat + api-client.js streamChat
   // ──────────────────────────────────────────────────────────────────
 
@@ -508,6 +611,62 @@ export class ApiClient {
   /** AI 渲染能力（GET /api/ai-render/capabilities） */
   async getAIRenderCapabilities<T = import('../types/domain').AIRenderCapabilities>(): Promise<ApiResult<T>> {
     return this.request<T>('/api/ai-render/capabilities');
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  业务域 API — 批次 12：CAD / Sketch-to-3D / IFC 导出
+  // ──────────────────────────────────────────────────────────────────
+
+  /** CAD DXF 导入解析（POST /api/cad-import/dxf，multipart upload） */
+  async importCadDxf<T = import('../types/domain').CADImportResult>(
+    file: File,
+  ): Promise<ApiResult<T>> {
+    return this.uploadFile<T>('/api/cad-import/dxf', file);
+  }
+
+  /** 草图分析（POST /api/sketch-to-3d/analyze，multipart upload） */
+  async analyzeSketch<T = import('../types/domain').SketchAnalysisResult>(
+    file: File,
+    description: string = '',
+  ): Promise<ApiResult<T>> {
+    return this.uploadFile<T>('/api/sketch-to-3d/analyze', file, { description });
+  }
+
+  /** 草图转 3D 生成（POST /api/sketch-to-3d/generate-3d，multipart upload） */
+  async generate3dFromSketch<T = import('../types/domain').Sketch3DResponse>(
+    file: File,
+    description: string = '',
+    style: string = 'modern',
+  ): Promise<ApiResult<T>> {
+    return this.uploadFile<T>('/api/sketch-to-3d/generate-3d', file, { description, style });
+  }
+
+  /** 草图转 3D 支持格式（GET /api/sketch-to-3d/supported-formats） */
+  async getSketchSupportedFormats<T = string[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/sketch-to-3d/supported-formats');
+  }
+
+  /** 导出结构 IFC（POST /api/bim/export/structural/{projectId}，返回 FileResponse） */
+  async exportStructuralIfc(
+    projectId: string,
+    options: import('../types/domain').IFCExportRequest,
+  ) {
+    return this.downloadBlob(
+      `/api/bim/export/structural/${encodeURIComponent(projectId)}`,
+      options as unknown as Record<string, unknown>,
+    );
+  }
+
+  /** 导出设计 IFC（POST /api/bim/export/design/{planId}，返回 FileResponse） */
+  async exportDesignIfc(
+    planId: string,
+    options: import('../types/domain').IFCExportRequest,
+  ) {
+    return this.downloadBlob(
+      `/api/bim/export/design/${encodeURIComponent(planId)}`,
+      options as unknown as Record<string, unknown>,
+    );
   }
 }
 

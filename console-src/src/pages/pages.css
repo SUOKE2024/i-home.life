@@ -1058,3 +1058,129 @@
 
 /* 质检/家具问题徽章复用 wb-status-badge（见批次 5 样式） */
 
+/* ════════════════════════════════════════════
+   上传/导出页（批次 12：CAD / Sketch-3D / IFC 导出）
+   ════════════════════════════════════════════ */
+.wb-upload-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  text-align: center;
+  margin-bottom: 12px;
+}
+.wb-upload-zone__pick {
+  align-self: center;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.wb-upload-zone__pick:hover {
+  opacity: 0.9;
+}
+.wb-upload-zone__hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  word-break: break-all;
+}
+.wb-upload-action {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+.wb-upload-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.wb-cad-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.wb-cad-summary__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.wb-cad-summary__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.wb-cad-summary__value {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-sketch-desc {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface1);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+.wb-sketch-desc:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.wb-ifc-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+.wb-ifc-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.wb-ifc-checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+.wb-ifc-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.wb-ifc-select select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+

@@ -31,6 +31,9 @@ import VRPanoramaPage from './pages/VRPanoramaPage';
 import CustomFurniturePage from './pages/CustomFurniturePage';
 import QualityPage from './pages/QualityPage';
 import AIRenderPage from './pages/AIRenderPage';
+import CADPage from './pages/CADPage';
+import Sketch3DPage from './pages/Sketch3DPage';
+import IFCExportPage from './pages/IFCExportPage';
 import { SuokeLayout } from './components/layout';
 
 /**
@@ -49,13 +52,10 @@ const PLACEHOLDER_ROUTES: Array<{
   emoji?: string;
   agent?: string;
 }> = [
-  // 设计（floorplans/lighting/soft-furnishing/hard-decoration/vr-panorama/ai-render 已实现，见下方真实路由）
+  // 设计（floorplans/lighting/soft-furnishing/hard-decoration/vr-panorama/ai-render/cad/sketch-3d/ifc-export 已实现，见下方真实路由）
   { path: '/design', title: '设计', agent: 'design' },
-  { path: '/cad', title: 'CAD 导入', agent: 'cad_import' },
-  { path: '/sketch-3d', title: '草图转 3D', agent: 'sketch_to_3d' },
   // 施工（construction/tasks/change-orders/crews/takeoff/structural/mep/quality 已实现，见下方真实路由）
   // 采购（procurement/materials/products 已实现，见下方真实路由）
-  { path: '/ifc-export', title: 'BIM 导出', agent: 'ifc_export' },
   // 财务（budget/settlement 已实现，见下方真实路由）
   // 生活（smart-home/scene/kitchen/bathroom/appliance/furniture/custom-furniture 已实现，见下方真实路由）
 ];
@@ -100,6 +100,10 @@ export default function App() {
       <Route path="/custom-furniture" element={<CustomFurniturePage />} />
       <Route path="/quality" element={<QualityPage />} />
       <Route path="/ai-render" element={<AIRenderPage />} />
+      {/* 批次 12 真实页面（上传/导出类） */}
+      <Route path="/cad" element={<CADPage />} />
+      <Route path="/sketch-3d" element={<Sketch3DPage />} />
+      <Route path="/ifc-export" element={<IFCExportPage />} />
       {/* 批次 5/6/7 占位 */}
       {PLACEHOLDER_ROUTES.map((r) => (
         <Route

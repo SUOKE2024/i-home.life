@@ -346,6 +346,13 @@ test.describe('QualityPage 质检', () => {
     await page.route('**/api/voice/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
+    // QualityPage mount 时同时调 getQualityIssues（项目+阶段维度），未 mock 会 401 重定向
+    await page.route('**/api/construction/quality-issues/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
+    });
+    await page.route('**/api/config/feature-flags', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ console_v2_enabled: true }) });
+    });
   });
 
   test('质检清单渲染（默认水电阶段）+ 阶段切换至泥瓦', async ({ page }) => {

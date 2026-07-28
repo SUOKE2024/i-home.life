@@ -11,6 +11,21 @@ import { test, expect } from '@playwright/test';
  *   3. PlaceholderHome 截图匹配 baseline（仅 desktop 断点）
  */
 test.describe('设计令牌渲染', () => {
+  // mock feature-flags 避免 401 重定向 login.html（PlaceholderHome mount 时调 getFeatureFlags）
+  // 注：vite preview 继承 server.proxy，本地后端在跑时未 mock 的 /api 会 401 触发重定向
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('paseto_token', 'mock-token-tokens');
+    });
+    await page.route('**/api/config/feature-flags', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ console_v2_enabled: true }),
+      });
+    });
+  });
+
   test('textMuted 色块为 #6B6978', async ({ page }) => {
     await page.goto('./tokens');
     const swatch = page.getByTestId('token-swatch--textMuted');

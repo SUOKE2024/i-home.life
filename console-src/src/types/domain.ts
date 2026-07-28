@@ -883,3 +883,50 @@ export interface AIRenderCapabilities {
   render_types: string[];
   note: string;
 }
+
+// ── CAD 导入（对齐 app/api/cad_import.py:CADImportResult）──
+// 端点：POST /api/cad-import/dxf（multipart upload）
+export interface CADImportResult {
+  file_type: string; // dxf | dwg
+  entity_count: number;
+  lines: Array<{ x1: number; y1: number; x2: number; y2: number }>;
+  polylines: Array<Array<{ x: number; y: number }>>;
+  circles: Array<{ x: number; y: number; r: number }>;
+  arcs: Array<{ x: number; y: number; r: number; start_angle: number; end_angle: number }>;
+  texts: Array<{ x: number; y: number; text: string; height: number }>;
+  bounds: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
+  converted_from_dwg: boolean;
+}
+
+// ── 草图转 3D（对齐 app/api/sketch_to_3d.py）──
+// 端点：POST /api/sketch-to-3d/analyze（multipart）+ POST /api/sketch-to-3d/generate-3d（multipart）
+//      GET /api/sketch-to-3d/supported-formats
+export interface SketchAnalysisResult {
+  sketch_id: string;
+  detected_walls: Array<Record<string, unknown>>;
+  detected_doors: Array<Record<string, unknown>>;
+  detected_windows: Array<Record<string, unknown>>;
+  estimated_area: number;
+  room_count: number;
+  confidence: number;
+  raw_layout: Record<string, unknown>;
+}
+
+export interface Sketch3DResponse {
+  sketch_id: string;
+  analysis: SketchAnalysisResult;
+  layout_3d: {
+    plans?: Array<Record<string, unknown>>;
+    recommendation?: string;
+    bim_compatible?: boolean;
+  };
+  suggestions: string[];
+}
+
+// ── IFC/BIM 导出（对齐 app/schemas/ifc_export.py）──
+// 端点：POST /api/bim/export/structural/{projectId} + POST /api/bim/export/design/{planId}
+// 返回 FileResponse（application/x-ifc 二进制下载）
+export interface IFCExportRequest {
+  include_furniture: boolean;
+  lod_level: 'LOD200' | 'LOD300' | 'LOD350';
+}
