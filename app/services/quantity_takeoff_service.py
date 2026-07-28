@@ -199,7 +199,7 @@ async def forward_takeoff_for_project(
     result = await db.execute(
         select(FloorPlan).where(
             FloorPlan.project_id == project_id,
-            FloorPlan.is_active.is_(True),
+            FloorPlan.is_active == True,
         ).order_by(FloorPlan.updated_at.desc()).limit(1)
     )
     plan = result.scalar_one_or_none()

@@ -258,7 +258,7 @@ async def _tool_search_materials(
             stmt = (
                 select(Material, MaterialCategory.name.label("category_name"))
                 .join(MaterialCategory, MaterialCategory.id == Material.category_id, isouter=True)
-                .where(Material.is_active.is_(True), Material.deleted_at.is_(None))
+                .where(Material.is_active == True, Material.deleted_at.is_(None))
             )
             if category:
                 stmt = stmt.where(MaterialCategory.name.like(f"%{category}%"))

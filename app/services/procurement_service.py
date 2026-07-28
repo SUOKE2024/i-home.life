@@ -27,7 +27,7 @@ def is_valid_status_transition(current: str, target: str) -> bool:
 
 
 async def get_suppliers(db: AsyncSession, category: str | None = None) -> list[Supplier]:
-    stmt = select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.rating.desc())
+    stmt = select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
     if category:
         stmt = stmt.where(Supplier.category == category)
     result = await db.execute(stmt)
@@ -174,7 +174,7 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
         # 找该品类下评分最高的活跃供应商
         supplier_result = await db.execute(
             select(Supplier)
-            .where(Supplier.category == cat_name, Supplier.is_active.is_(True))
+            .where(Supplier.category == cat_name, Supplier.is_active == True)
             .order_by(Supplier.rating.desc())
             .limit(1)
         )
@@ -183,7 +183,7 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
             # 如果没有同品类供应商，找任意活跃供应商
             fallback_result = await db.execute(
                 select(Supplier)
-                .where(Supplier.is_active.is_(True))
+                .where(Supplier.is_active == True)
                 .order_by(Supplier.rating.desc())
                 .limit(1)
             )
@@ -309,7 +309,7 @@ async def compare_suppliers(db: AsyncSession, material_id: str, quantity: float)
     if not comparisons:
         suppliers_result = await db.execute(
             select(Supplier)
-            .where(Supplier.is_active.is_(True))
+            .where(Supplier.is_active == True)
             .order_by(Supplier.rating.desc())
         )
         suppliers = list(suppliers_result.scalars().all())
