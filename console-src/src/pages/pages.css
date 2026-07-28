@@ -1,0 +1,1060 @@
+/**
+ * 业务页面样式 — ProjectsPage / SettingsPage / BudgetPage
+ */
+
+/* ════════════════════════════════════════════
+   通用 PageShell — 页面外壳（标题栏 + 内容区）
+   ════════════════════════════════════════════ */
+.wb-page-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-deep);
+}
+
+.wb-page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: rgba(18, 18, 29, 0.85);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.wb-page-header__back {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wb-page-header__back:hover {
+  border-color: var(--border-active);
+  color: var(--text-primary);
+}
+
+.wb-page-header__title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.wb-page-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.wb-page-body--narrow {
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 加载/错误/空状态 */
+.wb-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+.wb-state__icon {
+  font-size: 40px;
+  opacity: 0.5;
+}
+.wb-state--error {
+  color: var(--danger);
+}
+
+/* ════════════════════════════════════════════
+   ProjectsPage
+   ════════════════════════════════════════════ */
+.wb-project-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.wb-project-card:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+}
+.wb-project-card__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.wb-project-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.wb-project-card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-create-form {
+  background: var(--surface1);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.wb-create-form__title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.wb-create-form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ════════════════════════════════════════════
+   SettingsPage
+   ════════════════════════════════════════════ */
+.wb-settings-section {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.wb-settings-section__title {
+  padding: 12px 16px 6px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.wb-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  font-size: var(--font-size-md);
+}
+.wb-settings-row:first-of-type {
+  border-top: none;
+}
+.wb-settings-row__label {
+  color: var(--text-primary);
+}
+.wb-settings-row__value {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+.wb-settings-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.wb-settings-profile__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface3);
+  border: 1.5px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.wb-settings-profile__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wb-settings-profile__name {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-settings-profile__phone {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.wb-settings-profile__role {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-glow);
+  color: var(--accent);
+  font-size: var(--font-size-xs);
+}
+
+.wb-theme-options {
+  display: flex;
+  gap: 8px;
+}
+.wb-theme-option {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+}
+.wb-theme-option--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.wb-logout-btn {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  font-family: inherit;
+  margin-top: 8px;
+}
+.wb-logout-btn:hover {
+  background: rgba(201, 74, 74, 0.1);
+}
+
+/* ════════════════════════════════════════════
+   BudgetPage
+   ════════════════════════════════════════════ */
+.wb-budget-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.wb-budget-stat {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.wb-budget-stat__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.wb-budget-stat__value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.wb-budget-stat--spent .wb-budget-stat__value {
+  color: var(--warning);
+}
+.wb-budget-stat--remaining .wb-budget-stat__value {
+  color: var(--success);
+}
+
+.wb-budget-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.wb-budget-item__name {
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+}
+.wb-budget-item__cat {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.wb-budget-item__amount {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-budget-item__spent {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: 2px;
+}
+
+.wb-project-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.wb-project-picker select {
+  flex: 1;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-family: inherit;
+  outline: none;
+}
+.wb-project-picker select:focus {
+  border-color: var(--accent);
+}
+
+/* ════════════════════════════════════════════
+   ConstructionPage — 施工任务
+   ════════════════════════════════════════════ */
+.wb-task-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.wb-task-filter__chip {
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  font-family: inherit;
+}
+.wb-task-filter__chip--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+}
+
+.wb-ctask-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-left: 3px solid var(--text-muted);
+}
+.wb-ctask-card--pending { border-left-color: var(--text-muted); }
+.wb-ctask-card--in_progress { border-left-color: var(--info); }
+.wb-ctask-card--ready { border-left-color: var(--warning); }
+.wb-ctask-card--paused { border-left-color: var(--warning); }
+.wb-ctask-card--done,
+.wb-ctask-card--completed { border-left-color: var(--success); }
+.wb-ctask-card--blocked,
+.wb-ctask-card--cancelled { border-left-color: var(--danger); }
+
+.wb-ctask-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.wb-ctask-card__title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-ctask-card__status {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+.wb-ctask-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+.wb-ctask-card__progress {
+  margin-top: 8px;
+}
+
+/* ════════════════════════════════════════════
+   ProcurementPage — 采购订单
+   ════════════════════════════════════════════ */
+.wb-order-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.wb-order-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.wb-order-card__id {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.wb-order-card__amount {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.wb-order-card__lines {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.wb-order-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 3px 0;
+}
+.wb-order-card__logistics {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--surface2);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* ════════════════════════════════════════════
+   SettlementPage — 结算单
+   ════════════════════════════════════════════ */
+.wb-settlement-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wb-settlement-alert {
+  padding: 10px 14px;
+  background: rgba(201, 74, 74, 0.12);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+  margin-bottom: 16px;
+}
+.wb-settlement-alert--review {
+  background: rgba(201, 122, 59, 0.12);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.wb-sline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.wb-sline--anomaly {
+  border-color: var(--danger);
+  background: rgba(201, 74, 74, 0.06);
+}
+.wb-sline__name {
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.wb-sline__cat {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.wb-sline__anomaly {
+  font-size: var(--font-size-xs);
+  color: var(--danger);
+  margin-top: 4px;
+}
+.wb-sline__amounts {
+  text-align: right;
+  flex-shrink: 0;
+}
+.wb-sline__actual {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-sline__contract {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ════════════════════════════════════════════
+   TasksPage — 任务协调
+   ════════════════════════════════════════════ */
+.wb-taskitem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+.wb-taskitem__priority {
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.wb-taskitem__priority--high { background: var(--danger); }
+.wb-taskitem__priority--medium { background: var(--warning); }
+.wb-taskitem__priority--low { background: var(--success); }
+
+.wb-taskitem__body {
+  flex: 1;
+  min-width: 0;
+}
+.wb-taskitem__title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.wb-taskitem__desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.wb-taskitem__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* ════════════════════════════════════════════
+   通用状态徽章 — 各页面共享
+   ════════════════════════════════════════════ */
+.wb-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.wb-status-chip--muted { color: var(--text-muted); background: rgba(107, 105, 120, 0.15); }
+.wb-status-chip--info { color: var(--info); background: rgba(90, 126, 201, 0.15); }
+.wb-status-chip--success { color: var(--success); background: rgba(74, 158, 110, 0.15); }
+.wb-status-chip--warning { color: var(--warning); background: rgba(201, 122, 59, 0.15); }
+.wb-status-chip--danger { color: var(--danger); background: rgba(201, 74, 74, 0.15); }
+.wb-status-chip--accent { color: var(--accent); background: var(--accent-glow); }
+
+/* 通用进度条（BudgetPage 已使用，保持向后兼容） */
+.wb-progress-bar {
+  height: 6px;
+  background: var(--surface3);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.wb-progress-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s ease;
+}
+
+/* 通用列表计数标题 */
+.wb-section-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 16px 0 10px;
+}
+
+/* ════════════════════════════════════════════
+   MaterialsPage — 物料管理
+   ════════════════════════════════════════════ */
+.wb-material-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.wb-material-card__img {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-input);
+  background: var(--surface3);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.wb-material-card__img-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-input);
+  background: var(--surface3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.wb-material-card__body {
+  flex: 1;
+  min-width: 0;
+}
+.wb-material-card__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-material-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.wb-material-card__price {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ════════════════════════════════════════════
+   ChangeOrdersPage — 变更管理
+   ════════════════════════════════════════════ */
+.wb-co-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-left: 3px solid var(--text-muted);
+}
+.wb-co-card--pending { border-left-color: var(--text-muted); }
+.wb-co-card--reviewing { border-left-color: var(--info); }
+.wb-co-card--approved { border-left-color: var(--success); }
+.wb-co-card--rejected { border-left-color: var(--danger); }
+.wb-co-card--cancelled { border-left-color: var(--text-muted); }
+.wb-co-card--completed { border-left-color: var(--success); }
+
+.wb-co-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.wb-co-card__title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-co-card__desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.wb-co-card__impact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.wb-co-card__impact--cost { color: var(--warning); }
+.wb-co-card__impact--schedule { color: var(--info); }
+.wb-co-items {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.wb-co-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 3px 0;
+}
+
+/* ════════════════════════════════════════════
+   CrewsPage — 工程队
+   ════════════════════════════════════════════ */
+.wb-crew-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.wb-crew-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.wb-crew-card__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-crew-card__rating {
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.wb-crew-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.wb-crew-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+.wb-crew-tag {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface3);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+.wb-crew-match-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+.wb-crew-match-score--high { color: var(--success); background: rgba(74, 158, 110, 0.15); }
+.wb-crew-match-score--mid { color: var(--warning); background: rgba(201, 122, 59, 0.15); }
+.wb-crew-match-score--low { color: var(--text-muted); background: rgba(107, 105, 120, 0.15); }
+
+/* ════════════════════════════════════════════
+   SmartHomePage — 智能家居方案
+   ════════════════════════════════════════════ */
+.wb-smart-card {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.wb-smart-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.wb-smart-card__room {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-smart-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.wb-smart-card__price {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ════════════════════════════════════════════
+   ScenePage — 场景自动化
+   ════════════════════════════════════════════ */
+.wb-scene-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+}
+.wb-scene-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--surface3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.wb-scene-card__body {
+  flex: 1;
+  min-width: 0;
+}
+.wb-scene-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wb-scene-card__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-scene-card__trigger {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.wb-scene-card__actions {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ════════════════════════════════════════════
+   批次 7 — KitchenPage / BathroomPage / DoorWindowPage
+   DoorWindowPage 复用 wb-smart-card / wb-status-chip，无新增样式
+   ════════════════════════════════════════════ */
+
+/* KitchenPage — 关键点位（水电燃气排烟） */
+.wb-kitchen-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.wb-kitchen-point {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: var(--radius-input);
+  background: var(--surface2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+/* BathroomPage — 防水/排水规格行 */
+.wb-bath-spec {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+.wb-bath-spec__item {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* BathroomPage — 通风合规校验盒 */
+.wb-vent-box {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+}
+.wb-vent-box__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.wb-vent-box__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-vent-box__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+.wb-vent-box__hint {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* ════════════════════════════════════════════
+   TakeoffPage — 工程量计算
+   ════════════════════════════════════════════ */
+.wb-takeoff-reply {
+  padding: 12px 14px;
+  background: linear-gradient(135deg, var(--surface1), var(--surface2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+}
+.wb-takeoff-reply__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.wb-takeoff-reply__text {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.wb-takeoff-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+@media (min-width: 768px) {
+  .wb-takeoff-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+.wb-takeoff-stat {
+  padding: 12px 10px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.wb-takeoff-stat__value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.wb-takeoff-stat__value span {
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.wb-takeoff-stat__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* ════════════════════════════════════════════
+   定制家具详情（批次 11）
+   ════════════════════════════════════════════ */
+.wb-furniture-card__head {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+.wb-furniture-detail {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.wb-furniture-detail__spec {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+.wb-furniture-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--font-size-sm);
+}
+.wb-furniture-line:last-child {
+  border-bottom: none;
+}
+.wb-furniture-line__name {
+  flex: 1;
+  color: var(--text-primary);
+  text-align: left;
+}
+.wb-furniture-line__spec {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-family: monospace;
+}
+.wb-furniture-line__price {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 质检/家具问题徽章复用 wb-status-badge（见批次 5 样式） */
+

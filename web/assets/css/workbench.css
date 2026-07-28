@@ -11,7 +11,7 @@
   --border-active: #2a2a45;
   --text-primary: #e8e6e1;
   --text-secondary: #8a8894;
-  --text-muted: #5a5866;
+  --text-muted: #6b6978;
   --accent: #c9973b;
   --accent-bright: #e0aa4a;
   --accent-glow: rgba(201, 151, 59, 0.15);
@@ -25,6 +25,7 @@
   --card: #12121d;
 
   --radius-sm: 10px;
+  --radius-md: 12px;  /* v1.2.7: 对齐 Flutter SuokeDesignTokens.radius=12.0 (suoke_theme.dart:84) */
   --radius: 16px;
   --radius-lg: 24px;
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);

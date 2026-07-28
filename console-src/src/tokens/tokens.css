@@ -1,0 +1,99 @@
+/**
+ * 索克家居设计令牌 CSS 变量 — 与 tokens.ts 一一对应
+ * 与修补后的 web/assets/css/workbench.css :root 对齐
+ * 在 main.tsx 顶部导入，供所有组件使用 var(--xxx)
+ */
+:root {
+  /* Surface hierarchy */
+  --bg-deep: #08080f;
+  --surface0: #08080f;
+  --surface1: #12121d;
+  --surface2: #1a1a2a;
+  --surface3: #222238;
+  --bg-card: #12121d;
+  --bg-card-hover: #1a1a2a;
+  --border: #1e1e32;
+  --border-active: #2a2a45;
+
+  /* Text */
+  --text-primary: #e8e6e1;
+  --text-secondary: #8a8894;
+  --text-muted: #6b6978;
+
+  /* Brand */
+  --accent: #c9973b;
+  --accent-bright: #e0aa4a;
+  --accent-glow: rgba(201, 151, 59, 0.15);
+
+  /* Status */
+  --success: #4a9e6e;
+  --warning: #c97a3b;
+  --danger: #c94a4a;
+  --info: #5a7ec9;
+  --purple: #9b6ac9;
+  --teal: #4ac9a3;
+
+  /* 气泡/输入 */
+  --bubble-user: #2a2218;
+  --bubble-agent: #1a1a2a;
+  --input-bg: #0d0d18;
+
+  /* 圆角 */
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 20px;
+  --radius-input: 8px;
+
+  /* 间距 */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 16px;
+
+  /* Agent 颜色 */
+  --agent-master: #c9973b;
+  --agent-design: #5a7ec9;
+  --agent-budget: #4a9e6e;
+  --agent-procurement: #c97a3b;
+  --agent-construction: #c94a4a;
+  --agent-quality: #4ac9a3;
+  --agent-settlement: #9b6ac9;
+  --agent-support: #6a9bc9;
+
+  /* 阴影（对齐 workbench.css:31-32）*/
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}

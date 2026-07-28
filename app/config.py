@@ -421,6 +421,11 @@ class Settings(BaseSettings):
     # 关闭时返回占位结果（confidence=0, mode="feature_disabled"）
     sketch_to_3d_vision_enabled: bool = True
 
+    # ── Web 控制台 v2（React+Vite，对齐移动端 UI/UX）──
+    # 启用后 Nginx /console/* 入口对外可见；前端经 /api/config/feature-flags 读取
+    # 关闭时回退旧静态页（workbench.html 等 18 页保留作回滚资产）
+    console_v2_enabled: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

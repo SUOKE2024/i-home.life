@@ -10,7 +10,7 @@ const AppConfig = {
   appVersion: '1.2.6',
 
   /** 前端资源版本标记（用于 CSS/JS 缓存刷新） */
-  resourceVersion: 'v=20260728a',
+  resourceVersion: 'v=20260728b',
 
   /** Service Worker 缓存版本 */
   cacheVersion: 'suoke-v20260726a',

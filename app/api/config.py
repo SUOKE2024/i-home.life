@@ -48,6 +48,7 @@ async def get_feature_flags(current_user: User = Depends(get_current_user)):
         "health_os_enabled": settings.health_os_enabled,
         "push_enabled": settings.push_enabled,
         "a2ui_enabled": settings.a2ui_enabled,
+        "console_v2_enabled": settings.console_v2_enabled,
         "knowledge_base_enabled": settings.knowledge_base_enabled,
         "service_role": settings.service_role or None,
     }

@@ -55,6 +55,7 @@ build/
 .DS_Store
 
 # TRAE IDE
+.trae/
 .trae-html-share-packages/
 Thumbs.db
 .superpowers/
