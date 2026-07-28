@@ -195,9 +195,10 @@ app = FastAPI(
     lifespan=lifespan,
     # 将 docs/openapi 路径置于 /api/ 前缀下
     # docs_url 设为 None，手动注册以使用本地 Swagger CSS（避免 jsdelivr CDN 不可达）
+    # openapi_url 设为 None，下方自定义路由返回预序列化 bytes（避免每请求重序列化 490 路由）
     docs_url=None,
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    openapi_url=None,
 )
 
 # CORS: 生产环境从 .env 读取白名单; DEBUG 模式下列出常用本地开发端口
@@ -415,6 +416,47 @@ async def custom_swagger_ui_html():
         openapi_url="/api/openapi.json",
         title=settings.app_name + " - Swagger UI",
         swagger_css_url="/assets/css/swagger-ui.css",
+    )
+
+
+# ── OpenAPI schema 预序列化 + 预压缩缓存（性能优化）──
+# 问题：FastAPI 默认每请求 json.dumps() 序列化 490 路由 schema dict（753KB），
+#   再经 GZipMiddleware 压缩——并发时 GIL 争用致 p99 806ms（concurrency=10）。
+# 优化：首次请求时一次性完成 序列化 + gzip 压缩，缓存两份 bytes；
+#   后续请求按 Accept-Encoding 直接返回预压缩 bytes，零 CPU 开销。
+#   GZipMiddleware 检测到响应已含 Content-Encoding: gzip 会跳过重复压缩。
+_openapi_json_bytes: bytes | None = None
+_openapi_gzip_bytes: bytes | None = None
+
+
+@app.get("/api/openapi.json", include_in_schema=False)
+async def cached_openapi_json(request: Request):
+    """返回预序列化/预压缩的 OpenAPI JSON，避免每请求重序列化 490 路由 + 重压缩。"""
+    global _openapi_json_bytes, _openapi_gzip_bytes
+    if _openapi_json_bytes is None:
+        import gzip
+        import json
+
+        schema = app.openapi()  # FastAPI 内部 dict 缓存
+        _openapi_json_bytes = json.dumps(schema, ensure_ascii=False).encode("utf-8")
+        _openapi_gzip_bytes = gzip.compress(_openapi_json_bytes)
+
+    from fastapi.responses import Response
+
+    accept_encoding = request.headers.get("accept-encoding", "")
+    if "gzip" in accept_encoding:
+        return Response(
+            content=_openapi_gzip_bytes,
+            media_type="application/json",
+            headers={
+                "Content-Encoding": "gzip",
+                "Cache-Control": "public, max-age=3600",
+            },
+        )
+    return Response(
+        content=_openapi_json_bytes,
+        media_type="application/json",
+        headers={"Cache-Control": "public, max-age=3600"},
     )
 
 # ── 全局异常处理 ──
