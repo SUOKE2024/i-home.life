@@ -454,6 +454,6 @@ class TestFeatureFlags:
         assert hasattr(s, "tts_enabled")
 
     def test_app_version_bumped(self):
-        """app_version 已升至 1.2.5（v1.2.4 → v1.2.5 全链路评估修复版本）"""
+        """app_version 已升至 1.2.6（v1.2.5 → v1.2.6 评估落地修复版本）"""
         from app.config import get_settings
-        assert get_settings().app_version == "1.2.5"
+        assert get_settings().app_version == "1.2.6"

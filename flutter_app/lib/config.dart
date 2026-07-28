@@ -24,11 +24,10 @@ class AppConfig {
   ///   `flutter build --dart-define=WS_BASE_URL=wss://ws.example.com`
   static const String wsBaseUrl = String.fromEnvironment(
     'WS_BASE_URL',
-    defaultValue: '',
   );
 
   static const String appName = 'i-home.life';
-  static const String appVersion = '1.2.5';
+  static const String appVersion = '1.2.6';
   static const Duration requestTimeout = Duration(seconds: 15);
 
   /// 调试模式开关。
@@ -38,6 +37,5 @@ class AppConfig {
   /// ⚠️ 生产构建严禁设置 DEBUG_MODE=true。
   static const bool debugMode = bool.fromEnvironment(
     'DEBUG_MODE',
-    defaultValue: false,
   );
 }

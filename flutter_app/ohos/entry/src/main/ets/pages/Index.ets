@@ -1,31 +1,32 @@
-@Entry
+import { FlutterPage } from '@ohos/flutter_ohos';
+import common from '@ohos.app.ability.common';
+
+let storage = LocalStorage.getShared();
+
+const EVENT_BACK_PRESS = 'EVENT_BACK_PRESS';
+
+/**
+ * 索克家居主页面 — 全屏承载 Flutter 引擎视图。
+ *
+ * FlutterPage 渲染 flutter_app/lib/main.dart 的完整业务 UI；
+ * 返回键事件经 eventHub 转发给 Flutter 侧处理路由栈。
+ */
+@Entry(storage)
 @Component
 struct Index {
-  @State message: string = '索克家居 i-home.life';
+  private context = getContext(this) as common.UIAbilityContext;
+  @LocalStorageLink('viewId') viewId: string = '';
 
   build() {
-    Row() {
-      Column() {
-        Text(this.message)
-          .fontSize(24)
-          .fontWeight(FontWeight.Bold)
-          .margin({ top: 20 })
-        Text('HUAWEI MatePad Pro')
-          .fontSize(16)
-          .fontColor('#8A8894')
-          .margin({ top: 8 })
-        Text('Flutter-OH 3.35.7-ohos-0.0.3')
-          .fontSize(12)
-          .fontColor('#5A5862')
-          .margin({ top: 4 })
-        Text('OpenHarmony API 23+ · HarmonyOS NEXT')
-          .fontSize(10)
-          .fontColor('#3A3842')
-          .margin({ top: 2 })
-      }
-      .width('100%')
+    Column() {
+      FlutterPage({ viewId: this.viewId })
     }
+    .width('100%')
     .height('100%')
-    .backgroundColor('#12121D')
+  }
+
+  onBackPress(): boolean {
+    this.context.eventHub.emit(EVENT_BACK_PRESS);
+    return true;
   }
 }

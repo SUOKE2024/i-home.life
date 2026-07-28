@@ -1,38 +1,42 @@
-import UIAbility from '@ohos.app.ability.UIAbility';
-import Want from '@ohos.app.ability.Want';
-import window from '@ohos.window';
-import AbilityConstant from '@ohos.app.ability.AbilityConstant';
-import BusinessError from '@ohos.base';
+import { FlutterAbility, FlutterEngine } from '@ohos/flutter_ohos';
+import { GeneratedPluginRegistrant } from '../plugins/GeneratedPluginRegistrant';
+import { AbilityConstant, Want } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
-export default class EntryAbility extends UIAbility {
+/**
+ * 索克家居 i-home.life — HarmonyOS 入口 Ability
+ *
+ * 继承 FlutterAbility 托管 Flutter 引擎，Index.ets 通过 FlutterPage
+ * 全屏承载 flutter_app 业务模块（与 Android/iOS 同一套 Dart 代码）。
+ *
+ * 构建前置（一次性）：在 flutter_app/ 下使用 Flutter-OH 工具链执行
+ *   flutter build hap
+ * 该命令会向本工程注入 flutter_ohos har 并重生成
+ * plugins/GeneratedPluginRegistrant.ets（见该文件头部注释）。
+ */
+export default class EntryAbility extends FlutterAbility {
+  configureFlutterEngine(flutterEngine: FlutterEngine): void {
+    super.configureFlutterEngine(flutterEngine);
+    GeneratedPluginRegistrant.registerWith(flutterEngine);
+  }
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    console.info('[ihome] EntryAbility onCreate');
+    hilog.info(0x0000, 'ihome', 'EntryAbility onCreate');
+    return super.onCreate(want, launchParam);
   }
 
   onDestroy(): void {
-    console.info('[ihome] EntryAbility onDestroy');
-  }
-
-  onWindowStageCreate(windowStage: window.WindowStage): void {
-    console.info('[ihome] EntryAbility onWindowStageCreate');
-    windowStage.loadContent('pages/Index', (err: BusinessError.BusinessError, data: void) => {
-      if (err.code) {
-        console.error('[ihome] Failed to load content: ' + JSON.stringify(err));
-        return;
-      }
-      console.info('[ihome] Content loaded successfully');
-    });
-  }
-
-  onWindowStageDestroy(): void {
-    console.info('[ihome] EntryAbility onWindowStageDestroy');
+    hilog.info(0x0000, 'ihome', 'EntryAbility onDestroy');
+    return super.onDestroy();
   }
 
   onForeground(): void {
-    console.info('[ihome] EntryAbility onForeground');
+    hilog.info(0x0000, 'ihome', 'EntryAbility onForeground');
+    super.onForeground();
   }
 
   onBackground(): void {
-    console.info('[ihome] EntryAbility onBackground');
+    hilog.info(0x0000, 'ihome', 'EntryAbility onBackground');
+    super.onBackground();
   }
 }

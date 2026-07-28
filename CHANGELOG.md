@@ -2,6 +2,36 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.2.6] - 2026-07-28
+
+### 系统检查评估落地修复
+基于 2026-07-28 系统检查评估报告（后端 1409 passed / 版本全链路一致）的遗留项修复：
+
+#### P2 鸿蒙去占位化（Flutter-OH 真集成）
+- `EntryAbility.ets` 改继承 `FlutterAbility` + `GeneratedPluginRegistrant.registerWith`
+- `Index.ets` 改 `FlutterPage` 全屏承载 flutter_app 业务 UI（eventHub 返回键转发）
+- 新增 `ets/plugins/GeneratedPluginRegistrant.ets` 占位（`flutter build hap` 自动重生成）
+- `scripts/ohos-ready.sh` 更新首次构建流程；DevEco 实机构建验证待执行
+
+#### P2 Flutter 测试补强
+- 新增 `test/widgets/voice_task_panel_test.dart` 5 个组件用例；Flutter 全量 54 passed / 0 failed，analyze 无 error
+
+#### P3 Web 缓存版本统一
+- 25 处资源引用 `v=20260727a/b` + 3 处残留 `v=20260726f` → `v=20260728a` 统一
+- `sw.js` CACHE_VERSION 6 → 7
+
+#### 冗余清理
+- 删除 reports/ 9 个已知失真基线产物（429 限流污染的 api-bench / perf-baseline / perf-comparison-v1.1.27）
+- 清理全部 `__pycache__` / `.pytest_cache` / `.DS_Store`
+
+#### 版本一致性
+- 12 处全链路 1.2.6：config.py / .env / .env.example / .env.production.example / CI ×3 / deploy-production.sh / pubspec 1.2.6+23 / config.dart / settings_page / app-config.js / version.json / 测试断言
+
+#### 仍遗留
+- 鸿蒙签名私钥 `ihome_app.p12` 仍在 git 历史（需先在华为 AGC 轮换发布证书，再 git filter-repo 清理 + force push，破坏性操作需显式授权）
+- ecosystem_bridge 各生态桥接为 stub（需 API key/依赖库，端点已 501/诚实标注）
+- Flutter 页面测试覆盖 8/46
+
 ## [1.2.5] - 2026-07-26
 
 ### 全链路进度评估修复

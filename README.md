@@ -2,10 +2,21 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.2.5 · 全链路进度评估修复：版本号一致性 + 37 个 API 测试补齐 + Web 404 页面 + 冗余清理（2026-07-26）
+> v1.2.6 · 评估报告落地修复：鸿蒙接入 Flutter-OH 引擎 + 语音面板组件测试 + Web 缓存版本统一 + 冗余清理（2026-07-28）
 > 核心能力：19 页面 Web 控制台 + Flutter 46 页面 + 58 API 测试全覆盖 + 22 Agent 全链路 + 12 Flutter 数据模型 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + 564+ API + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-07-28 · v1.2.6 系统检查评估落地修复
+
+基于 2026-07-28 系统检查评估报告（后端 1409 passed / 版本全链路一致）的遗留项修复：
+
+- **P2 鸿蒙去占位化（Flutter-OH 真集成）**: [EntryAbility.ets](flutter_app/ohos/entry/src/main/ets/entryability/EntryAbility.ets) 改继承 `FlutterAbility` + `GeneratedPluginRegistrant.registerWith`；[Index.ets](flutter_app/ohos/entry/src/main/ets/pages/Index.ets) 改 `FlutterPage` 全屏承载 flutter_app 业务 UI（含 eventHub 返回键转发）；新增 `ets/plugins/GeneratedPluginRegistrant.ets` 占位（Flutter-OH `flutter build hap` 时自动重生成）；[ohos-ready.sh](scripts/ohos-ready.sh) 更新首次构建流程。集成模式对标官方 flutter_flutter 模板（oh-3.35.7-dev），DevEco 实机构建验证待执行
+- **P2 Flutter 测试补强**: 新增 [voice_task_panel_test.dart](flutter_app/test/widgets/voice_task_panel_test.dart) 5 个组件用例（渲染空态 / 503 flag 诚实提示 / 任务列表状态标签 / 启动回复 / 失败原因），Flutter 全量 54 passed / 0 failed，analyze 无 error
+- **P3 Web 缓存版本统一**: 22 个 HTML/JS 资源引用 `v=20260727a/b` → `v=20260728a` 统一（含 index.html/flutter_bootstrap.js 残留 20260726f），[sw.js](web/sw.js) `CACHE_VERSION` 6 → 7
+- **冗余清理**: 删除 reports/ 9 个已知失真基线产物（429 限流污染的 api-bench/perf-baseline/perf-comparison-v1.1.27，防误用）+ 全部 `__pycache__` / `.pytest_cache` / `.DS_Store`
+- **版本一致性**: config.py / .env / .env.example / CI ×3 / pubspec 1.2.6+23 / Flutter config.dart / settings_page 全链路 1.2.6
+- **仍遗留**: ① 鸿蒙签名私钥 `ihome_app.p12` 仍在 git 历史（需先在华为 AGC 轮换发布证书，再 git filter-repo 清理 + force push，破坏性操作需显式授权）② ecosystem_bridge 各生态桥接为 stub（需 API key/依赖库，端点已 501/诚实标注）③ Flutter 页面测试覆盖 8/46
 
 ### 2026-07-26 · v1.2.5 全链路进度评估修复
 
