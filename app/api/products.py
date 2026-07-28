@@ -25,10 +25,22 @@ from app.ws import ws_manager
 router = APIRouter(prefix="/products", tags=["产品/服务管理"])
 
 
+def _safe_json(value: str | None) -> list | dict | None:
+    """防御性 JSON 解析：DB 中 images/tags/specs 可能存有非 JSON 脏数据，
+    直接 json.loads 会让整个列表接口 500（一行坏数据拖垮全表）。
+    解析失败时回退 None，保证列表可用。"""
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
 def _product_to_response(p: Product) -> ProductResponse:
-    images = json.loads(p.images) if p.images else None
-    tags = json.loads(p.tags) if p.tags else None
-    specs = json.loads(p.specs) if p.specs else None
+    images = _safe_json(p.images)
+    tags = _safe_json(p.tags)
+    specs = _safe_json(p.specs)
     return ProductResponse(
         id=p.id,
         user_id=p.user_id,
