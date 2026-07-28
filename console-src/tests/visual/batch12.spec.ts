@@ -43,7 +43,7 @@ const MOCK_CAD_RESULT = {
   circles: [{ x: 5, y: 5, r: 3 }],
   arcs: [{ x: 0, y: 0, r: 5, start_angle: 0, end_angle: 90 }],
   texts: [{ x: 1, y: 1, text: '客厅', height: 2.5 }],
-  bounds: { min_x: 0, min_y: 0, max_x: 10, max_y: 10 },
+  bounds: { min_x: 0, min_y: 0, max_x: 10, max_y: 10, width: 10, height: 10 },
   converted_from_dwg: false,
 };
 

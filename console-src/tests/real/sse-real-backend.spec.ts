@@ -19,8 +19,10 @@ import { test, expect } from '@playwright/test';
  * （app/api/agents.py:1155-1170 v1.1.29 先发 thinking_step），NOT meta 在前。
  */
 
-const TEST_PHONE = '13800000002';
-const TEST_PASSWORD = 'E2EVerify123';
+// 测试用户：默认生产（13800000002），本地后端用 E2E_LOCAL_PHONE/E2E_LOCAL_PASSWORD 覆盖
+// 本地后端需先注册：13900007788 / E2ELocal123
+const TEST_PHONE = process.env.E2E_LOCAL_PHONE ?? '13800000002';
+const TEST_PASSWORD = process.env.E2E_LOCAL_PASSWORD ?? 'E2EVerify123';
 
 /** 登录拿 PASETO token，注入 localStorage（跨测试复用） */
 async function loginAndInject(page: import('@playwright/test').Page) {

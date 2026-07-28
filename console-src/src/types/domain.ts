@@ -894,7 +894,7 @@ export interface CADImportResult {
   circles: Array<{ x: number; y: number; r: number }>;
   arcs: Array<{ x: number; y: number; r: number; start_angle: number; end_angle: number }>;
   texts: Array<{ x: number; y: number; text: string; height: number }>;
-  bounds: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
+  bounds: { min_x: number; min_y: number; max_x: number; max_y: number; width: number; height: number } | null;
   converted_from_dwg: boolean;
 }
 

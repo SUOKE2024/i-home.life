@@ -165,6 +165,12 @@ export default function CADPage() {
                       <span className="wb-project-card__meta-item"> minY: {result.bounds.min_y.toFixed(2)}</span>
                       <span className="wb-project-card__meta-item"> maxX: {result.bounds.max_x.toFixed(2)}</span>
                       <span className="wb-project-card__meta-item"> maxY: {result.bounds.max_y.toFixed(2)}</span>
+                      {typeof result.bounds.width === 'number' && (
+                        <span className="wb-project-card__meta-item"> ↔ 宽: {result.bounds.width.toFixed(2)}</span>
+                      )}
+                      {typeof result.bounds.height === 'number' && (
+                        <span className="wb-project-card__meta-item"> ↕ 高: {result.bounds.height.toFixed(2)}</span>
+                      )}
                     </div>
                   </div>
                 </>
