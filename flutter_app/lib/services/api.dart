@@ -1303,6 +1303,17 @@ class ApiClient {
         'project_id': ?projectId,
       });
 
+  /// F28 智能布局动线分析（设计 Agent）
+  ///
+  /// 调用 POST /agents/design/circulation，传入房间布局列表
+  /// `[{name, type, x, y, w, h}]`，返回访客/家务/居住三条动线的
+  /// 评分、冲突检测与优化建议。纯算法端点（无 LLM），确定性输出。
+  Future<Result<dynamic>> analyzeCirculation(
+          List<Map<String, dynamic>> rooms) =>
+      post('/agents/design/circulation', {
+        'rooms': rooms,
+      });
+
   /// 预算 Agent 专用端点
   Future<Result<dynamic>> agentBudgetChat(String message, {String? projectId}) =>
       post('/agents/budget', {
