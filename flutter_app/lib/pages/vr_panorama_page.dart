@@ -835,7 +835,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.touch_app, size: 64, color: SuokeDesignTokens.textSub(context)),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text('请先在「全景列表」中选择一个全景',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ],

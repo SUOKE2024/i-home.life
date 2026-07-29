@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
@@ -229,7 +230,7 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
     });
     if (result.isSuccess) {
       widget.toast('已创建');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('创建失败: ${result.error}');
     }
@@ -423,7 +424,7 @@ class _EscrowTabState extends State<_EscrowTab>
     });
     if (result.isSuccess) {
       widget.toast('已创建');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('创建失败: ${result.error}');
     }
@@ -433,7 +434,7 @@ class _EscrowTabState extends State<_EscrowTab>
     final result = await widget.api.procConfirmEscrow(id);
     if (result.isSuccess) {
       widget.toast('已确认');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('确认失败: ${result.error}');
     }
@@ -627,7 +628,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
     });
     if (result.isSuccess) {
       widget.toast('已创建');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('创建失败: ${result.error}');
     }
@@ -642,7 +643,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
     }
     final data = result.data;
     final tracks = data is Map ? data['tracks'] : null;
-    showDialog(
+    unawaited(showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF12121D),
@@ -685,7 +686,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
           ),
         ],
       ),
-    );
+    ));
   }
 
   Future<String?> _showInputDialog(String title, String label) {
@@ -879,7 +880,7 @@ class _SampleTabState extends State<_SampleTab>
     });
     if (result.isSuccess) {
       widget.toast('已创建');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('创建失败: ${result.error}');
     }
@@ -889,7 +890,7 @@ class _SampleTabState extends State<_SampleTab>
     final result = await widget.api.procApproveSample(id);
     if (result.isSuccess) {
       widget.toast('已批准');
-      _load();
+      unawaited(_load());
     } else {
       widget.toast('操作失败: ${result.error}');
     }

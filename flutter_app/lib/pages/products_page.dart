@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
@@ -123,13 +124,13 @@ class _ProductsPageState extends State<ProductsPage>
   // ── 产品详情 ──
 
   Future<void> _showDetail(String productId) async {
-    showDialog(
+    unawaited(showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
         child: CircularProgressIndicator(color: SuokeDesignTokens.accent),
       ),
-    );
+    ));
     final result = await _api.productGet(productId);
     if (mounted) Navigator.pop(context); // 关闭 loading
     if (result.isSuccess) {

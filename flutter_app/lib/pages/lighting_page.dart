@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/api.dart';
@@ -95,7 +96,7 @@ class _LightingPageState extends State<LightingPage>
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -112,7 +113,7 @@ class _LightingPageState extends State<LightingPage>
           _fixtures = [];
         });
       }
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -126,8 +127,8 @@ class _LightingPageState extends State<LightingPage>
     });
     if (result.isSuccess) {
       _showSuccess('AI 灯具设计完成');
-      _loadFixtures(schemeId);
-      _loadSchemes();
+      unawaited(_loadFixtures(schemeId));
+      unawaited(_loadSchemes());
     } else {
       _showError('AI 设计失败：${result.error}');
     }
@@ -163,7 +164,7 @@ class _LightingPageState extends State<LightingPage>
     });
     if (result.isSuccess) {
       _showSuccess('灯具已添加');
-      _loadFixtures(_selectedSchemeId!);
+      unawaited(_loadFixtures(_selectedSchemeId!));
     } else {
       _showError('添加失败：${result.error}');
     }
@@ -174,7 +175,7 @@ class _LightingPageState extends State<LightingPage>
     if (result.isSuccess) {
       _showSuccess('灯具已删除');
       if (_selectedSchemeId != null) {
-        _loadFixtures(_selectedSchemeId!);
+        unawaited(_loadFixtures(_selectedSchemeId!));
       }
     } else {
       _showError('删除失败：${result.error}');

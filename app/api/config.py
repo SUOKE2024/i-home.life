@@ -1,8 +1,13 @@
-"""配置查询 API — 暴露 feature flags 给前端，支持按需加载长线技术决策模块"""
-from fastapi import APIRouter, Depends
+"""配置查询 API — 暴露 feature flags 给前端，支持按需加载长线技术决策模块
 
-from app.auth import get_current_user
-from app.models.user import User
+注：/config/feature-flags 为公开端点（无认证），因为：
+1. feature flags 是全局开关非用户数据，无敏感性
+2. Flutter main() 在登录前调用（feature_flags_service.dart→main.dart:27）
+3. Web 控制台 PlaceholderHome 在登录前调用（api-client.ts:92）
+4. 若加认证，登录前的 401 会触发全局 401 回调强制登出，破坏登录流程
+"""
+from fastapi import APIRouter
+
 from app.config import get_settings
 
 router = APIRouter(prefix="/config", tags=["配置"])
@@ -10,11 +15,10 @@ settings = get_settings()
 
 
 @router.get("/feature-flags")
-async def get_feature_flags(current_user: User = Depends(get_current_user)):
+async def get_feature_flags():
     """返回前端可用的 feature flags，用于按需加载 Filament/OpenCascade.js 等
 
-    v1.1.12 新增：mcp_enabled / ai_render_enabled / voice_emotion_routing_enabled
-    / qwen_audio_model_variant
+    公开端点：Flutter 应用启动时（登录前）需先拉取特性标志决定按需加载策略。
     """
     return {
         "filament_enabled": settings.filament_enabled,

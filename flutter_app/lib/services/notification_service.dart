@@ -175,6 +175,7 @@ class NotificationService {
   /// TODO: 实际环境通过平台通道获取 FCM/HMS/PushKit token
   /// 当前使用平台标识作为占位 token，确保后端可记录设备
   Future<void> _getDeviceToken() async {
+    // ignore: prefer_const_declarations  AppPlatform.isIOS 是运行时检查，不可用 const
     final platform = AppPlatform.isIOS ? 'ios' : 'android';
     _deviceToken = '${platform}_device_${DateTime.now().millisecondsSinceEpoch}';
     debugPrint('[NotificationService] 设备 Token: $_deviceToken');
@@ -191,6 +192,7 @@ class NotificationService {
 
     try {
       final api = ApiClient();
+      // ignore: prefer_const_declarations  AppPlatform.isIOS 是运行时检查，不可用 const
       final platform = AppPlatform.isIOS ? 'ios' : 'android';
       final result = await api.post('/notifications/register-device', {
         'user_id': userId,

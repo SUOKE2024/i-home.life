@@ -77,7 +77,7 @@ class _AIChatPageState extends State<AIChatPage> {
       _currentSessionId = prefs.getString(_sessionKey);
       // 若有已保存会话，加载历史消息
       if (_currentSessionId != null) {
-        _loadSessionMessages();
+        unawaited(_loadSessionMessages());
       }
     } catch (_) {
       // SharedPreferences 不可用，忽略
@@ -316,7 +316,7 @@ class _AIChatPageState extends State<AIChatPage> {
     _currentProcessingAgent = targetAgent;
 
     try {
-      _sseSub?.cancel();
+      unawaited(_sseSub?.cancel());
       final stream = _sse.streamChat(
         text,
         agentType: backendAgent,
@@ -607,7 +607,7 @@ class _AIChatPageState extends State<AIChatPage> {
               agent: 'master',
             ));
           });
-          _connectWebSocket();
+          unawaited(_connectWebSocket());
         }
       }
     } else if (mounted) {
@@ -1181,7 +1181,7 @@ class _AIChatPageState extends State<AIChatPage> {
         agent: 'master',
       ));
     });
-    _connectWebSocket();
+    unawaited(_connectWebSocket());
   }
 
   String _fmtDate(DateTime? dt) {
@@ -1412,31 +1412,6 @@ class _AIChatPageState extends State<AIChatPage> {
           '• 检查网络连接后重试',
       agent: 'master',
     ));
-  }
-
-  /// 旧版思考中指示器（保留作为 fallback）
-  Widget _buildThinkingIndicatorLegacy() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      color: isDark ? SuokeDesignTokens.cardBgSemi : Colors.white.withValues(alpha: 0.95),
-      child: const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(SuokeDesignTokens.accent),
-            ),
-          ),
-          SizedBox(width: 8),
-          Text('思考中…',
-              style: TextStyle(fontSize: SuokeDesignTokens.fontSizeSm, color: SuokeDesignTokens.textSecondary)),
-        ],
-      ),
-    );
   }
 
   // ── emoji 选择器 ──
@@ -1705,11 +1680,11 @@ class _AIChatPageState extends State<AIChatPage> {
     ));
     // 跳转到 AR 扫描页面
     if (mounted) {
-      Navigator.of(context).push(
+      unawaited(Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ARScanPage(projectId: _currentProjectId ?? ''),
         ),
-      );
+      ));
     }
   }
 

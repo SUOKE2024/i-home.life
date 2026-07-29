@@ -42,6 +42,7 @@ class _StylusAdapterState extends State<StylusAdapter> {
   double get strokeWidth => 1.0 + _currentPressure * 8.0 + _currentTilt * 3.0;
   bool get isHovering => _isHovering && _enableHover;
   int get toolIndex => _toolIndex;
+  // ignore: unused_element  保留供未来平台差异逻辑使用
   StylusPlatform get _platform => _detectPlatform();
 
   bool get _enablePressure => widget.enablePressure;
@@ -167,6 +168,7 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
   double _pressure = 0;
   double _tilt = 0;
   final List<Map<String, dynamic>> _strokes = [];
+  // ignore: unused_field  保留供未来笔迹平滑插值使用
   Offset? _lastPoint;
 
   @override

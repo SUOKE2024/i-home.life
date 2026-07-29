@@ -535,7 +535,7 @@ class _PointsPageState extends State<PointsPage>
           const SizedBox(height: 8),
           if (_transactions.isEmpty)
             Padding(
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
               child: Center(
                 child: Text('暂无流水记录', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
               ),

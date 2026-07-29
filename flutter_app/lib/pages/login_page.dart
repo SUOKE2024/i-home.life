@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
@@ -157,10 +158,10 @@ class _LoginPageState extends State<LoginPage> {
           });
         }
         if (mounted) {
-          Navigator.pushReplacement(
+          unawaited(Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomePage()),
-          );
+          ));
         }
       } else {
         if (mounted) {
@@ -243,10 +244,10 @@ class _LoginPageState extends State<LoginPage> {
       final meResult = await api.get('/auth/me');
       if (meResult.isSuccess) {
         if (mounted) {
-          Navigator.pushReplacement(
+          unawaited(Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const HomePage()),
-          );
+          ));
         }
       } else {
         // token 已失效，清除并提示重新登录
@@ -298,10 +299,10 @@ class _LoginPageState extends State<LoginPage> {
         final meResult = await api.get('/auth/me');
         if (meResult.isSuccess) {
           if (mounted) {
-            Navigator.pushReplacement(
+            unawaited(Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const HomePage()),
-            );
+            ));
           }
           return;
         } else {

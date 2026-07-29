@@ -64,7 +64,7 @@ export class ApiClient {
         if (this.onUnauthorized) {
           this.onUnauthorized();
         } else {
-          window.location.href = '/login.html';
+          window.location.href = '/login.html?redirect=/console/';
         }
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
@@ -125,7 +125,7 @@ export class ApiClient {
       if (res.status === 401) {
         this.clearToken();
         if (this.onUnauthorized) this.onUnauthorized();
-        else window.location.href = '/login.html';
+        else window.location.href = '/login.html?redirect=/console/';
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       const data = res.ok ? await res.json().catch(() => undefined) : undefined;
@@ -166,7 +166,7 @@ export class ApiClient {
       if (res.status === 401) {
         this.clearToken();
         if (this.onUnauthorized) this.onUnauthorized();
-        else window.location.href = '/login.html';
+        else window.location.href = '/login.html?redirect=/console/';
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       if (!res.ok) {
@@ -241,7 +241,8 @@ export class ApiClient {
       if (this.onUnauthorized) {
         this.onUnauthorized();
       } else {
-        window.location.href = '/login.html';
+        // v1.2.7: 带 redirect 参数，登录后回到 /console/（而非旧 workbench.html）
+        window.location.href = '/login.html?redirect=/console/';
       }
       throw new Error('认证过期，请重新登录');
     }

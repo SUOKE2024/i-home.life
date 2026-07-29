@@ -272,8 +272,8 @@ class _FloorPlanCanvasState extends State<FloorPlanCanvas>
     final ty = (viewportH - roomHPx * fitScale) / 2;
 
     final targetMatrix = Matrix4.identity()
-      ..translate(tx, ty)
-      ..scale(fitScale);
+      ..translateByDouble(tx, ty, 0.0, 1.0)
+      ..scaleByDouble(fitScale, fitScale, fitScale, 1.0);
 
     _animateToMatrix(targetMatrix);
   }
@@ -311,7 +311,7 @@ class _FloorPlanCanvasState extends State<FloorPlanCanvas>
     final newScale = (currentScale + delta).clamp(0.3, 5.0);
     final ratio = newScale / currentScale;
 
-    matrix.scale(ratio);
+    matrix.scaleByDouble(ratio, ratio, ratio, 1.0);
     _transformCtrl.value = matrix;
     setState(() {});
   }

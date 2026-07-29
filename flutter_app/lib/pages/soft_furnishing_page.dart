@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
@@ -104,7 +105,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('方案创建成功')),
         );
-        _loadAll();
+        unawaited(_loadAll());
       }
     } else {
       if (mounted) {
@@ -121,7 +122,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('单品添加成功')),
         );
-        _loadAll();
+        unawaited(_loadAll());
       }
     } else {
       if (mounted) {
@@ -138,7 +139,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('收纳添加成功')),
         );
-        _loadAll();
+        unawaited(_loadAll());
       }
     } else {
       if (mounted) {
@@ -155,7 +156,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('方案已删除')),
         );
-        _loadAll();
+        unawaited(_loadAll());
       }
     } else {
       if (mounted) {

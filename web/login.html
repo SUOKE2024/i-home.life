@@ -221,7 +221,11 @@
     loginBtn.textContent = '登录中…';
     try {
       await ApiClient.login(phone, password);
-      window.location.href = `workbench.html?role=${encodeURIComponent(role)}`;
+      // v1.2.7: 支持 redirect 参数，登录后回到来源页（如 /console/）
+      // 默认回新控制台 /console/（旧 workbench.html 仅保留兼容）
+      const redirect = params.get('redirect');
+      const target = redirect || '/console/';
+      window.location.href = target;
     } catch (e) {
       const msg = (e.body && (e.body.detail || (Array.isArray(e.body.detail) ? e.body.detail[0]?.msg : e.body.detail))) || '登录失败，请检查手机号和密码';
       showError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -318,8 +322,9 @@
 
     try {
       await ApiClient.register(phone, password, name, roleVal, subRole);
-      // 注册成功，跳转工作台
-      window.location.href = `workbench.html?role=${encodeURIComponent(roleVal)}`;
+      // 注册成功，跳转控制台（v1.2.7: 对齐新 /console/）
+      const redirect = params.get('redirect');
+      window.location.href = redirect || '/console/';
     } catch (err) {
       const msg = (err.body && err.body.detail) || '注册失败';
       showRegError(typeof msg === 'string' ? msg : JSON.stringify(msg));
@@ -478,9 +483,9 @@
       // 5. 提交验证，ApiClient 内部会保存 PASETO token
       await ApiClient.webauthnLoginComplete(credJSON);
 
-      // 6. 登录成功，跳转工作台
-      const role = params.get('role') || 'owner';
-      window.location.href = `workbench.html?role=${encodeURIComponent(role)}`;
+      // 6. 登录成功，跳转控制台（v1.2.7: 对齐新 /console/）
+      const redirect = params.get('redirect');
+      window.location.href = redirect || '/console/';
     } catch (err) {
       resetBtn();
       const msg = (err && err.name === 'NotAllowedError')

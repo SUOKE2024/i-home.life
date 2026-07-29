@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
@@ -102,7 +103,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -121,7 +122,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           _ceilings = [];
         });
       }
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -131,7 +132,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     final result = await _api.hardDecoGetBudget(schemeId);
     if (result.isSuccess && mounted) {
       final data = result.data as Map<String, dynamic>? ?? {};
-      showDialog(
+      unawaited(showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('预算概览'),
@@ -150,7 +151,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
           ],
         ),
-      );
+      ));
     } else {
       _showError('预算加载失败：${result.error}');
     }
@@ -200,7 +201,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     });
     if (result.isSuccess) {
       _showSuccess('地面已添加');
-      _loadDetails(_selectedSchemeId!);
+      unawaited(_loadDetails(_selectedSchemeId!));
     } else {
       _showError('添加失败：${result.error}');
     }
@@ -215,7 +216,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
     });
     if (result.isSuccess) {
       _showSuccess('墙面已添加');
-      _loadDetails(_selectedSchemeId!);
+      unawaited(_loadDetails(_selectedSchemeId!));
     } else {
       _showError('添加失败：${result.error}');
     }

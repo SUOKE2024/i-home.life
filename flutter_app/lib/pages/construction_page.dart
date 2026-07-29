@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/api.dart';
@@ -20,6 +21,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   List<Construction> _tasks = [];
   Map<String, dynamic>? _plan;
   bool _loading = false;
+  // ignore: unused_field  保留供未来方案加载状态展示
   bool _planLoading = false;
   String? _error;
   final double _totalArea = 0;
@@ -429,7 +431,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
       final data = result.data;
       if (mounted) {
         final checklist = (data['checklist'] as List?) ?? [];
-        showDialog(
+        unawaited(showDialog(
           context: context,
           builder: (_) => AlertDialog(
             title: Text('${data['reply']}'),
@@ -450,7 +452,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
             ),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭'))],
           ),
-        );
+        ));
       }
     } else {
       if (mounted) {

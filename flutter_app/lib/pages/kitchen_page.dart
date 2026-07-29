@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
@@ -90,7 +91,7 @@ class _KitchenPageState extends State<KitchenPage>
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
-      _loadDesigns();
+      unawaited(_loadDesigns());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -107,7 +108,7 @@ class _KitchenPageState extends State<KitchenPage>
           _components = [];
         });
       }
-      _loadDesigns();
+      unawaited(_loadDesigns());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -120,7 +121,7 @@ class _KitchenPageState extends State<KitchenPage>
       final count = (data is Map) ? (data['total'] as int?) ?? 0 : 0;
       _showSuccess('已自动生成 $count 个组件');
       if (_selectedDesignId == designId) {
-        _loadComponents(designId);
+        unawaited(_loadComponents(designId));
       }
     } else {
       _showError('自动布局失败：${result.error}');
@@ -170,7 +171,7 @@ class _KitchenPageState extends State<KitchenPage>
     });
     if (result.isSuccess) {
       _showSuccess('组件已添加');
-      _loadComponents(_selectedDesignId!);
+      unawaited(_loadComponents(_selectedDesignId!));
     } else {
       _showError('添加失败：${result.error}');
     }
@@ -181,7 +182,7 @@ class _KitchenPageState extends State<KitchenPage>
     if (result.isSuccess) {
       _showSuccess('组件已删除');
       if (_selectedDesignId != null) {
-        _loadComponents(_selectedDesignId!);
+        unawaited(_loadComponents(_selectedDesignId!));
       }
     } else {
       _showError('删除失败：${result.error}');

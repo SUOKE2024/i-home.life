@@ -100,7 +100,7 @@ class OfflineCacheService {
 
   /// 检查当前是否联网
   ///
-  /// connectivity_plus 6.x 的 checkConnectivity 返回 List<ConnectivityResult>，
+  /// connectivity_plus 6.x 的 checkConnectivity 返回 `List<ConnectivityResult>`，
   /// 只要存在任意非 none 结果即视为在线。
   Future<bool> isConnected() async {
     final results = await Connectivity().checkConnectivity();

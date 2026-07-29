@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -89,7 +90,7 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
   Future<void> _simulateScene(String sceneId) async {
     final result = await _api.post('/scene-automation/scenes/$sceneId/simulate', {});
     if (result.isSuccess && mounted) {
-      showDialog(
+      unawaited(showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('场景模拟'),
@@ -98,7 +99,7 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
           ],
         ),
-      );
+      ));
     }
   }
 

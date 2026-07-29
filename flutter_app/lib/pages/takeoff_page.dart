@@ -531,9 +531,9 @@ class _TakeoffPageState extends State<TakeoffPage> with SingleTickerProviderStat
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.calculate, size: 64, color: SuokeDesignTokens.textSub(context)),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text('暂无工程量数据', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 16)),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text('请输入参数后点击「自动计算」', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
         ],
       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
@@ -133,7 +134,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -151,7 +152,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           _scenes = [];
         });
       }
-      _loadSchemes();
+      unawaited(_loadSchemes());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -166,7 +167,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           : 0;
       _showSuccess('已推荐 $count 个设备');
       if (_selectedSchemeId == schemeId) {
-        _loadDevices(schemeId);
+        unawaited(_loadDevices(schemeId));
       }
     } else {
       _showError('推荐失败：${result.error}');
@@ -224,7 +225,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     });
     if (result.isSuccess) {
       _showSuccess('设备已添加');
-      _loadDevices(_selectedSchemeId!);
+      unawaited(_loadDevices(_selectedSchemeId!));
     } else {
       _showError('添加失败：${result.error}');
     }
@@ -258,7 +259,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     });
     if (result.isSuccess) {
       _showSuccess('场景已创建');
-      _loadScenes();
+      unawaited(_loadScenes());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -268,7 +269,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     final result = await _api.sceneDeleteScene(sceneId);
     if (result.isSuccess) {
       _showSuccess('场景已删除');
-      _loadScenes();
+      unawaited(_loadScenes());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -321,7 +322,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     if (result.isSuccess) {
       _showSuccess('场景已保存');
       setState(() => _parsedScene = null);
-      _loadScenes();
+      unawaited(_loadScenes());
     } else {
       _showError('保存失败：${result.error}');
     }

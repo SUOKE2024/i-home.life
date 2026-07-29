@@ -108,7 +108,7 @@ class DrawingElement {
         'name': name,
         'layer': layer,
         'is_wall': isWall,
-        'color': color.value,
+        'color': color.toARGB32(),
       };
 
   factory DrawingElement.fromJson(Map<String, dynamic> json) {

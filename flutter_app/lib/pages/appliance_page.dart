@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
@@ -153,7 +154,7 @@ class _AppliancePageState extends State<AppliancePage>
             const SnackBar(content: Text('点位已添加')),
           );
         }
-        _loadPoints();
+        unawaited(_loadPoints());
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -235,7 +236,7 @@ class _AppliancePageState extends State<AppliancePage>
             const SnackBar(content: Text('电器已添加')),
           );
         }
-        _loadAppliances();
+        unawaited(_loadAppliances());
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

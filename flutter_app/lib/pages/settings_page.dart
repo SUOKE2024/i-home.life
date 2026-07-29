@@ -204,29 +204,31 @@ class _SettingsPageState extends State<SettingsPage> {
     return _sectionCard(
       title: '主题设置',
       children: [
+        // ignore: deprecated_member_use 以下 RadioListTile 的 groupValue/onChanged
+        // 在 RadioGroup 祖先模式启用前仍用旧 API（Flutter 3.41 仍可用）
         RadioListTile<ThemeMode>(
           title: Text('跟随系统', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
           subtitle: Text('自动切换深色/浅色模式', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           value: ThemeMode.system,
-          groupValue: currentMode,
+          groupValue: currentMode, // ignore: deprecated_member_use
           activeColor: SuokeDesignTokens.accent,
-          onChanged: (v) => themeState.setMode(v!),
+          onChanged: (v) => themeState.setMode(v!), // ignore: deprecated_member_use
         ),
         RadioListTile<ThemeMode>(
           title: Text('浅色模式', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
           subtitle: Text('始终使用浅色主题', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           value: ThemeMode.light,
-          groupValue: currentMode,
+          groupValue: currentMode, // ignore: deprecated_member_use
           activeColor: SuokeDesignTokens.accent,
-          onChanged: (v) => themeState.setMode(v!),
+          onChanged: (v) => themeState.setMode(v!), // ignore: deprecated_member_use
         ),
         RadioListTile<ThemeMode>(
           title: Text('深色模式', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 14)),
           subtitle: Text('始终使用深色主题', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           value: ThemeMode.dark,
-          groupValue: currentMode,
+          groupValue: currentMode, // ignore: deprecated_member_use
           activeColor: SuokeDesignTokens.accent,
-          onChanged: (v) => themeState.setMode(v!),
+          onChanged: (v) => themeState.setMode(v!), // ignore: deprecated_member_use
         ),
       ],
     );

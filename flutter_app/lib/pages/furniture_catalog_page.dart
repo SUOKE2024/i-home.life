@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
@@ -96,13 +97,13 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
   // ── 推荐商品 ──
 
   Future<void> _showRecommendations(String itemId, String itemName) async {
-    showDialog(
+    unawaited(showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
         child: CircularProgressIndicator(color: SuokeDesignTokens.accent),
       ),
-    );
+    ));
     final result = await _api.furnitureRecommend();
     if (mounted) Navigator.pop(context); // 关闭 loading
     if (result.isSuccess) {
@@ -267,7 +268,7 @@ class _FurnitureCatalogPageState extends State<FurnitureCatalogPage>
             const SnackBar(content: Text('商品已创建')),
           );
         }
-        _loadItems();
+        unawaited(_loadItems());
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

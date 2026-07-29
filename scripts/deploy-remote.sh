@@ -58,6 +58,21 @@ case "$cmd" in
       --exclude='.DS_Store' \
       "$PROJECT_DIR/web/" "$REMOTE_HOST:$WEB_DEPLOY_DIR/"
 
+    # 重建 canvaskit 版本化符号链接（rsync --delete 会删除服务器上不在源目录的文件，
+    # 但 Flutter web 的 flutter_bootstrap.js 引用版本化目录 canvaskit-vXXX/）
+    ssh "$REMOTE_HOST" "bash -s" << 'REMOTE_CANVASKIT'
+set -e
+WEB_DIR=/opt/ihome/web
+cd "$WEB_DIR"
+VER_DIR=$(grep -oE 'canvaskit-v[0-9a-f]+' flutter_bootstrap.js | head -1 || true)
+if [ -n "$VER_DIR" ] && [ ! -e "$VER_DIR" ]; then
+  ln -sfn canvaskit "$VER_DIR"
+  echo "    ✅ 已重建 canvaskit 符号链接: $VER_DIR -> canvaskit"
+elif [ -n "$VER_DIR" ] && [ -L "$VER_DIR" ]; then
+  echo "    ℹ️  canvaskit 符号链接已存在: $VER_DIR"
+fi
+REMOTE_CANVASKIT
+
     echo ""
     echo -e "${GREEN}🔄 [3/3] 远程安装依赖 & 重启服务${NC}"
     ssh "$REMOTE_HOST" "bash -s" << 'REMOTE_SCRIPT'
@@ -144,6 +159,25 @@ REMOTE_SCRIPT
     rsync -avz --delete \
       --exclude='.DS_Store' \
       "$PROJECT_DIR/web/" "$REMOTE_HOST:$WEB_DEPLOY_DIR/"
+
+    # 重建 canvaskit 版本化符号链接（rsync --delete 会删除服务器上不在源目录的文件，
+    # 但 Flutter web 的 flutter_bootstrap.js 引用版本化目录 canvaskit-vXXX/）
+    # 本地 web/canvaskit-vXXX 已是符号链接，rsync -a (-l) 会保留；此处为防御性双保险。
+    ssh "$REMOTE_HOST" "bash -s" << 'REMOTE_CANVASKIT'
+set -e
+WEB_DIR=/opt/ihome/web
+cd "$WEB_DIR"
+# 从 flutter_bootstrap.js 提取 canvaskit 版本目录名
+VER_DIR=$(grep -oE 'canvaskit-v[0-9a-f]+' flutter_bootstrap.js | head -1 || true)
+if [ -n "$VER_DIR" ] && [ ! -e "$VER_DIR" ]; then
+  ln -sfn canvaskit "$VER_DIR"
+  echo "    ✅ 已重建 canvaskit 符号链接: $VER_DIR -> canvaskit"
+elif [ -n "$VER_DIR" ] && [ -L "$VER_DIR" ]; then
+  echo "    ℹ️  canvaskit 符号链接已存在: $VER_DIR"
+elif [ -z "$VER_DIR" ]; then
+  echo "    ⚠️  flutter_bootstrap.js 未找到 canvaskit-vXXX 版本目录引用"
+fi
+REMOTE_CANVASKIT
 
     ssh "$REMOTE_HOST" "nginx -t && nginx -s reload && echo '✅ Nginx 已重载'"
     ;;

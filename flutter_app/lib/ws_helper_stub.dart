@@ -1,5 +1,7 @@
 /// Web 平台 WebSocket wrapper。
 /// dart:io WebSocket 在 Web 不可用，用 dart:html 替代。
+// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+// TODO(web-migration): 迁移到 package:web + dart:js_interop（独立任务）
 library;
 import 'dart:async';
 import 'dart:html' as html;

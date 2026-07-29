@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
@@ -87,7 +88,7 @@ class _KitchenBathMepPageState extends State<KitchenBathMepPage> with SingleTick
     final circuitResult = await _api.get('/mep-kb/plans/$planId/circuits');
     final epResult = await _api.get('/mep-kb/plans/$planId/equipotential');
     if (mounted) {
-      showDialog(
+      unawaited(showDialog(
         context: context,
         builder: (_) => AlertDialog(
           title: const Text('合规检查'),
@@ -108,7 +109,7 @@ class _KitchenBathMepPageState extends State<KitchenBathMepPage> with SingleTick
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('关闭')),
           ],
         ),
-      );
+      ));
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -113,7 +114,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
         _areaCtrl.clear();
         _locationResults = [];
         if (mounted) setState(() => _showForm = false);
-        _load();
+        unawaited(_load());
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +162,9 @@ class _ProjectsPageState extends State<ProjectsPage> {
         return;
       }
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       // 反向地理编码获取附近地址
       await _reverseGeocode(position.latitude, position.longitude);
@@ -358,7 +361,6 @@ class _ProjectsPageState extends State<ProjectsPage> {
         onRetry: _load,
       );
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = SuokeDesignTokens.text(context);
     final textSub = SuokeDesignTokens.textSub(context);
     return RefreshIndicator(
@@ -405,7 +407,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                       ),
                     ),
                   );
-                  if (deleted == true) _load();
+                  if (deleted == true) unawaited(_load());
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(

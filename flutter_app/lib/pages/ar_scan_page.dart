@@ -148,6 +148,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   _TrackingQuality _trackingQuality = _TrackingQuality.searching;
   _EnvCondition _envCondition = _EnvCondition.normal;
   String _trackingHint = '';
+  // ignore: unused_field  保留供未来扫描取消逻辑
   bool _scanCancelled = false;
   double _scanProgress = 0.0;
   int _scanPointsDetected = 0;
@@ -163,6 +164,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   // ── 复核流程状态 ──
   final Set<String> _reviewConfirmedItems = {}; // 已确认的检测项 ID
+  // ignore: unused_field  保留供未来复核全选状态
   bool _reviewAllConfirmed = false;
   final _reviewNoteCtrl = TextEditingController();
 
@@ -630,7 +632,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       });
     }
     // 重新加载门窗列表
-    _loadDoorWindows();
+    unawaited(_loadDoorWindows());
   }
 
   Future<void> _fallbackPhotoScan() async {
@@ -766,10 +768,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     }
     // 自动加载数据
     if (step == _ScanStep.doorWindow && _doorWindows.isEmpty) {
-      _loadDoorWindows();
+      unawaited(_loadDoorWindows());
     }
     if (step == _ScanStep.mep && _mepPlanId != null && _mepPoints.isEmpty) {
-      _loadMepPoints();
+      unawaited(_loadMepPoints());
     }
   }
 
@@ -2990,7 +2992,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                     if (id != null) {
                       await _api.doorWinDeleteSpec(id);
                       _showSnack('已删除');
-                      _loadDoorWindows();
+                      unawaited(_loadDoorWindows());
                     }
                   },
                   child: const Icon(Icons.delete_outline, size: 16, color: _danger),
@@ -3145,7 +3147,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       _dwPosCtrl.clear();
       _dwSelectedType = 'door';
       _showSnack('门窗已添加');
-      _loadDoorWindows();
+      unawaited(_loadDoorWindows());
     } else if (mounted) {
       _showSnack('添加失败: ${result.error}');
     }
@@ -3363,7 +3365,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     final result = await _api.mepAutoGenerate(_mepPlanId!);
     if (result.isSuccess && mounted) {
       _showSnack('已根据房间类型自动生成水电点位');
-      _loadMepPoints();
+      unawaited(_loadMepPoints());
     } else if (mounted) {
       _showSnack('自动生成失败: ${result.error}');
     }
@@ -3404,7 +3406,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       _mepTypeCtrl.clear();
       _mepLabelCtrl.clear();
       _showSnack('点位已添加');
-      _loadMepPoints();
+      unawaited(_loadMepPoints());
     } else if (mounted) {
       _showSnack('添加失败: ${result.error}');
     }

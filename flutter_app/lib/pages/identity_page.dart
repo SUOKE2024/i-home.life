@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
@@ -129,7 +130,7 @@ class _IdentityPageState extends State<IdentityPage>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('认证申请已提交，请等待审核')),
         );
-        _loadStatus();
+        unawaited(_loadStatus());
         _tabController.animateTo(0);
       }
     } else {

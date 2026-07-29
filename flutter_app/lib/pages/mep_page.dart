@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
@@ -122,7 +123,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
-      _loadPlans();
+      unawaited(_loadPlans());
     } else {
       _showError('创建失败：${result.error}');
     }
@@ -140,7 +141,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           _circuits = [];
         });
       }
-      _loadPlans();
+      unawaited(_loadPlans());
     } else {
       _showError('删除失败：${result.error}');
     }
@@ -172,7 +173,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     });
     if (result.isSuccess) {
       _showSuccess('点位已添加');
-      _loadPoints();
+      unawaited(_loadPoints());
     } else {
       _showError('添加失败：${result.error}');
     }
@@ -192,7 +193,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
     });
     if (result.isSuccess) {
       _showSuccess('回路已添加');
-      _loadCircuits();
+      unawaited(_loadCircuits());
     } else {
       _showError('添加失败：${result.error}');
     }

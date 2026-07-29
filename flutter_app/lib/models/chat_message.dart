@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names
+// 枚举值有意使用 snake_case 以对齐后端 API 消息类型字符串（如 task_card / procurement_order）
 import 'package:flutter/material.dart';
 
 /// Agent 自主权级别（对齐 2026 行业标准 Autonomy Slider 模式）

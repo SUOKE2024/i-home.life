@@ -74,7 +74,9 @@ class _CADPageState extends State<CADPage> {
       final dy = (wp.dy - _drawing!.y1).abs();
       if (dx > dy * 3) {
         wp = Offset(wp.dx, _drawing!.y1);
-      } else if (dy > dx * 3) wp = Offset(_drawing!.x1, wp.dy);
+      } else if (dy > dx * 3) {
+        wp = Offset(_drawing!.x1, wp.dy);
+      }
     }
     if (_tool == 'rect') {
       _drawing = DrawingElement.rect(wp.dx, wp.dy, 0, 0, color: _colors[_elements.length % _colors.length]);
@@ -114,7 +116,9 @@ class _CADPageState extends State<CADPage> {
       final dy = (wp.dy - _drawing!.y1).abs();
       if (dx > dy * 2) {
         wp = Offset(wp.dx, _drawing!.y1);
-      } else if (dy > dx * 2) wp = Offset(_drawing!.x1, wp.dy);
+      } else if (dy > dx * 2) {
+        wp = Offset(_drawing!.x1, wp.dy);
+      }
     }
     if (_drawing != null && _drawing!.type == 'rect') {
       _drawing!.w = math.max(0.3, (wp.dx - _drawing!.x).abs());
@@ -254,8 +258,9 @@ class _CADPageState extends State<CADPage> {
                       icon: Icon(layer['visible'] ? Icons.visibility : Icons.visibility_off, color: SuokeDesignTokens.textSub(context), size: 20),
                       onPressed: () => setModalState(() => _layers[idx]['visible'] = !_layers[idx]['visible']),
                     ),
-                    Radio<int>(value: idx, groupValue: _activeLayerIdx, activeColor: SuokeDesignTokens.accent,
-                      onChanged: (v) => setModalState(() => _activeLayerIdx = v as int)),
+                    Radio<int>(value: idx, groupValue: _activeLayerIdx, // ignore: deprecated_member_use
+                      activeColor: SuokeDesignTokens.accent,
+                      onChanged: (v) => setModalState(() => _activeLayerIdx = v as int)), // ignore: deprecated_member_use
                   ]),
                 );
               }),
@@ -303,24 +308,23 @@ class _CADPageState extends State<CADPage> {
     for (final el in _elements) { buf.writeln(el.toDxf()); }
     buf.writeln('  0\nENDSEC\n  0\nEOF');
     await Clipboard.setData(ClipboardData(text: buf.toString()));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('DXF 已复制到剪贴板（可在 AutoCAD / LibreCAD 中粘贴）')),
-      );
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('DXF 已复制到剪贴板（可在 AutoCAD / LibreCAD 中粘贴）')),
+    );
   }
 
   Future<String?> _pickProjectId() async {
     final result = await ApiClient().getList('/projects');
     final projects = result.isSuccess ? result.data as List? : null;
     if (projects == null || projects.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('没有可用项目，请先创建项目')));
-      }
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('没有可用项目，请先创建项目')));
       return null;
     }
     if (projects.length == 1) return projects.first['id'] as String;
     String? selected = projects.first['id'] as String;
+    if (!mounted) return null;
     return showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -335,9 +339,9 @@ class _CADPageState extends State<CADPage> {
                 final p = projects[i];
                 return RadioListTile<String>(
                   value: p['id'] as String,
-                  groupValue: selected,
+                  groupValue: selected, // ignore: deprecated_member_use
                   title: Text(p['name']?.toString() ?? '未命名项目'),
-                  onChanged: (v) => setState(() => selected = v),
+                  onChanged: (v) => setState(() => selected = v), // ignore: deprecated_member_use
                 );
               },
             ),
@@ -362,6 +366,7 @@ class _CADPageState extends State<CADPage> {
     final nameController = TextEditingController(
       text: '方案 ${DateTime.now().toIso8601String().substring(0, 16)}',
     );
+    if (!mounted) return;
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -403,12 +408,11 @@ class _CADPageState extends State<CADPage> {
       'room_count': roomCount,
     });
 
-    if (context.mounted) {
-      if (result.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('方案已保存')));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: ${result.error}')));
-      }
+    if (!mounted) return;
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('方案已保存')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('保存失败: ${result.error}')));
     }
   }
 
@@ -419,12 +423,12 @@ class _CADPageState extends State<CADPage> {
     final plansResult = await ApiClient().getList('/floorplans/project/$projectId');
     final plans = plansResult.isSuccess ? plansResult.data as List? : null;
     if (plans == null || plans.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该项目没有保存的方案')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该项目没有保存的方案')));
       return;
     }
 
+    if (!mounted) return;
     final planId = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -454,9 +458,8 @@ class _CADPageState extends State<CADPage> {
 
     final planResult = await ApiClient().get('/floorplans/$planId');
     if (!planResult.isSuccess) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败: ${planResult.error}')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载失败: ${planResult.error}')));
       return;
     }
     final plan = planResult.data as Map<String, dynamic>;
@@ -472,9 +475,8 @@ class _CADPageState extends State<CADPage> {
         ..addAll(elementsList.map((e) => DrawingElement.fromJson(e as Map<String, dynamic>)));
     });
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已加载 ${_elements.length} 个元素')));
-    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已加载 ${_elements.length} 个元素')));
   }
 
   @override

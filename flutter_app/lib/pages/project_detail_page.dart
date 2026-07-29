@@ -210,7 +210,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   child: _project == null
                       ? ListView(
                           children: [
-                            SizedBox(height: 120),
+                            const SizedBox(height: 120),
                             Center(
                               child: Text('项目不存在或已被删除',
                                   style: TextStyle(color: SuokeDesignTokens.textSub(context))),
@@ -380,7 +380,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     ),
                     if (rooms.isEmpty)
                       Padding(
-                        padding: EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.only(top: 10),
                         child: Text('暂无房间',
                             style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                       )
@@ -537,7 +537,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     fontSize: 14,
                     fontWeight: FontWeight.w600)),
             subtitle: Padding(
-              padding: EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 4),
               child: Text('F18 / F21 / F23 / F31 / F32',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
             ),
@@ -584,7 +584,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                     fontSize: 14,
                     fontWeight: FontWeight.w600)),
             subtitle: Padding(
-              padding: EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.only(top: 4),
               child: Text('F33 / F34',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
             ),

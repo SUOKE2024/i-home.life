@@ -17,6 +17,7 @@ enum SseEventType {
   /// 错误（网络/服务端返回 >= 400）
   error,
   /// Agent 思考步骤（显示 Agent 正在执行的具体操作）
+  // ignore: constant_identifier_names  对齐后端 SSE 事件类型字符串
   thinking_step,
 }
 
@@ -110,7 +111,7 @@ class SseService {
         }
         if (response.statusCode == 401) {
           // 触发全局 401 处理
-          _api.clearToken();
+          unawaited(_api.clearToken());
           final cb = _api.onUnauthorized;
           if (cb != null) cb();
         }

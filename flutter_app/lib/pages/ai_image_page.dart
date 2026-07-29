@@ -285,7 +285,7 @@ class _AIImagePageState extends State<AIImagePage>
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('任务已创建')));
       }
-      _loadJobs();
+      unawaited(_loadJobs());
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -303,7 +303,7 @@ class _AIImagePageState extends State<AIImagePage>
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('已触发生成')));
       }
-      _loadJobs();
+      unawaited(_loadJobs());
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -321,7 +321,7 @@ class _AIImagePageState extends State<AIImagePage>
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('已删除')));
       }
-      _loadJobs();
+      unawaited(_loadJobs());
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -343,7 +343,7 @@ class _AIImagePageState extends State<AIImagePage>
     }
     final job = result.data;
     if (!mounted) return;
-    showDialog<void>(
+    unawaited(showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: SuokeDesignTokens.card(context),
@@ -404,7 +404,7 @@ class _AIImagePageState extends State<AIImagePage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   // ── 下载（打开图片） ──

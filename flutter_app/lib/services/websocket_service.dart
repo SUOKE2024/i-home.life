@@ -26,6 +26,7 @@ class WebSocketService {
   WsSocket? _ws;
   String? _token;
   String? _projectId;
+  // ignore: unused_field  保留供未来用户级 WebSocket 隔离
   String? _currentUserId;
 
   int _reconnectAttempts = 0;

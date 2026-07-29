@@ -268,7 +268,7 @@ class _StructuralPageState extends State<StructuralPage>
           _sectionTitle('梁'),
           if (_beams.isEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text('暂无梁', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
           else
@@ -295,7 +295,7 @@ class _StructuralPageState extends State<StructuralPage>
           _sectionTitle('柱'),
           if (_columns.isEmpty)
             Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text('暂无柱', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             )
           else
