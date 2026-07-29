@@ -63,6 +63,12 @@ from app.models.device_token import DeviceToken
 from app.models.permission import Permission, RolePermission
 from app.models.audit_log import AuditLog
 
+# A1/A2 智能家居能耗 + 健康监测（model 文件已存在且 service 引用，但此前未在 __init__ 注册，
+# 致 Base.metadata 不含这些表、alembic autogenerate 检测不到、check_schema_drift 误报为多余表。
+# 补注册后 create_all 与 autogenerate 均能正确管理这些表）
+from app.models.energy_monitor import EnergyMonitor, EnergySavingTip
+from app.models.health_monitor import HealthMonitor, AirQualityRecord
+
 __all__ = [
     "User",
     "Project",
@@ -176,4 +182,9 @@ __all__ = [
     "AgentSession",
     "AgentMessage",
     "AuditLog",
+    # A1/A2 智能家居能耗 + 健康监测
+    "EnergyMonitor",
+    "EnergySavingTip",
+    "HealthMonitor",
+    "AirQualityRecord",
 ]

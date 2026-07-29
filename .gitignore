@@ -23,6 +23,10 @@ htmlcov/
 .env.production
 .env.*.local
 
+# Test artifacts
+test-results/
+.playwright/
+
 # Flutter
 .dart_tool/
 .packages

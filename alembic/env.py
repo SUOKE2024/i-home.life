@@ -27,6 +27,7 @@ from app.models import vr_panorama, ai_image, kitchen_bath_mep, hard_decoration,
 from app.models import furniture_catalog, smart_home, scene_automation, procurement_enhanced  # noqa: F401
 from app.models import appliance, structural  # noqa: F401
 from app.models import a2a_task  # noqa: F401 — v1.2.4 A2A 任务持久化
+from app.models import energy_monitor, health_monitor  # noqa: F401 — A1/A2 能耗+健康监测（补注册）
 
 config = context.config
 

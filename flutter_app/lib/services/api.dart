@@ -73,6 +73,22 @@ class ApiClient {
     while (true) {
       try {
         return await request().timeout(AppConfig.requestTimeout);
+      } on TimeoutException {
+        if (_retryCount >= _maxRetries) {
+          throw ApiException('请求超时', isNetwork: true);
+        }
+        _retryCount++;
+        await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
+      } on http.ClientException catch (e) {
+        // 连接被拒绝不重试（后端未启动或端口未开放）
+        if (e.message.contains('Connection refused')) {
+          throw ApiException('无法连接到服务器', isNetwork: true, cause: e);
+        }
+        if (_retryCount >= _maxRetries) {
+          throw ApiException('网络错误: ${e.message}', isNetwork: true, cause: e);
+        }
+        _retryCount++;
+        await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
       } catch (e) {
         final msg = e.toString();
         // 连接被拒绝不重试（后端未启动或端口未开放）
@@ -81,18 +97,6 @@ class ApiClient {
         }
         if (_retryCount >= _maxRetries) {
           throw ApiException('网络连接失败', isNetwork: true, cause: e);
-        }
-        _retryCount++;
-        await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
-      } on TimeoutException {
-        if (_retryCount >= _maxRetries) {
-          throw ApiException('请求超时', isNetwork: true);
-        }
-        _retryCount++;
-        await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
-      } on http.ClientException catch (e) {
-        if (_retryCount >= _maxRetries) {
-          throw ApiException('网络错误: ${e.message}', isNetwork: true, cause: e);
         }
         _retryCount++;
         await Future.delayed(_retryBaseDelay * (1 << (_retryCount - 1)));
@@ -1603,7 +1607,7 @@ class ApiClient {
       get('/admin/users/$userId');
 
   Future<Result<dynamic>> toggleAdminUserStatus(String userId, bool isActive) =>
-      patch('/admin/users/$userId/status', {'is_active': isActive});
+      put('/admin/users/$userId/status', {'is_active': isActive});
 
   // ── 查询参数辅助 ──
   String _queryParams(Map<String, String> params) {
@@ -1632,79 +1636,6 @@ class ApiClient {
     }
     return Result.success(data);
   }
-
-  // ════════════════════════════════════════════════════════════════
-  // v1.2.4 补全: AI 渲染 / 草图转3D / 施工图 / 能耗 / 健康监测 / 语音增强
-  // ════════════════════════════════════════════════════════════════
-
-  /// AI 渲染 - 生成效果图
-  Future<Result<dynamic>> aiRenderGenerate(Map<String, dynamic> body) =>
-      post('/api/ai-render/generate', body);
-
-  /// AI 渲染 - 照片重布置
-  Future<Result<dynamic>> aiRenderRestage(Map<String, dynamic> body) =>
-      post('/api/ai-render/restage', body);
-
-  /// AI 渲染 - 3D 场景
-  Future<Result<dynamic>> aiRender3d(String projectId, Map<String, dynamic> body) =>
-      post('/api/ai-render/3d/$projectId', body);
-
-  /// 草图转 3D - 分析上传的手绘草图
-  Future<Result<dynamic>> sketchTo3dAnalyze(String filePath, {String? description}) =>
-      uploadFile('/api/sketch-to-3d/analyze', filePath: filePath);
-
-  /// 草图转 3D - 生成 3D 布局
-  Future<Result<dynamic>> sketchTo3dGenerate(String filePath, {String? description, String style = 'modern'}) =>
-      uploadFile('/api/sketch-to-3d/generate-3d', filePath: filePath);
-
-  /// 草图转 3D - 支持的格式
-  Future<Result<dynamic>> sketchTo3dFormats() =>
-      get('/api/sketch-to-3d/supported-formats');
-
-  /// 施工图 - 生成平立剖面图
-  Future<Result<dynamic>> constructionDrawingGenerate(String projectId, Map<String, dynamic> body) =>
-      post('/api/construction-drawing/generate/$projectId', body);
-
-  /// 施工图 - 获取项目施工图列表
-  Future<Result<dynamic>> constructionDrawingList(String projectId) =>
-      get('/api/construction-drawing/$projectId');
-
-  /// 施工图 - 获取单张施工图
-  Future<Result<dynamic>> constructionDrawingGet(String drawingId) =>
-      get('/api/construction-drawing/drawing/$drawingId');
-
-  /// 能耗监测 - 记录能耗
-  Future<Result<dynamic>> energyRecord(String projectId, Map<String, dynamic> body) =>
-      post('/api/energy/records/$projectId', body);
-
-  /// 能耗监测 - 获取能耗报告
-  Future<Result<dynamic>> energyReport(String projectId, {String? period}) {
-    String path = '/api/energy/report/$projectId';
-    if (period != null) path += '?period=$period';
-    return get(path);
-  }
-
-  /// 能耗监测 - 节能建议
-  Future<Result<dynamic>> energyTips(String projectId) =>
-      get('/api/energy/tips/$projectId');
-
-  /// 健康监测 - 创建监测记录
-  Future<Result<dynamic>> healthMonitorCreate(Map<String, dynamic> body) =>
-      post('/api/health-monitor/', body);
-
-  /// 健康监测 - 获取项目健康状态
-  Future<Result<dynamic>> healthMonitorStatus(String projectId) =>
-      get('/api/health-monitor/$projectId');
-
-  /// 健康监测 - 空气质量记录
-  Future<Result<dynamic>> healthMonitorAirQuality(String projectId) =>
-      get('/api/health-monitor/$projectId/air-quality');
-
-  /// 语音增强版 - LLM 语义路由处理
-  Future<Result<dynamic>> voiceProcessEnhanced(Map<String, dynamic> body) =>
-      post('/api/voice/process-enhanced', body);
-
-  // ════════════════════════════════════════════════════════════════
 
   Future<void> _onUnauthorized() async {
     await clearToken();

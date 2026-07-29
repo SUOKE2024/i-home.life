@@ -85,7 +85,7 @@ class _CrewPageState extends State<CrewPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> _updateMatchStatus(String matchId, String status) async {
-    final result = await _api.patch('/crews/matches/$matchId/status', {'status': status});
+    final result = await _api.updateCrewMatchStatus(matchId, status);
     if (result.isSuccess) {
       await _loadData();
     } else {

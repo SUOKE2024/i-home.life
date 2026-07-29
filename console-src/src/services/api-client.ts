@@ -317,13 +317,8 @@ export class ApiClient {
     return this.request<T>('/api/auth/me');
   }
 
-  /** 退出登录（POST /api/auth/logout，清理本地 token） */
+  /** 退出登录（PASETO 无状态，本地清理 token 即可，对齐 Flutter settings_page._logout） */
   async logout(): Promise<void> {
-    try {
-      await this.request('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // 后端 logout 失败也清本地
-    }
     this.clearToken();
   }
 
