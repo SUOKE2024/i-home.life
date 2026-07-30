@@ -2,6 +2,33 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.2.8] - 2026-07-30
+
+### 悬浮窗常驻语音交互 + 讨论式方案交互
+借鉴 Qwen-Audio-3.0-Realtime "能聊天更能办事" 范式，落地两个 Flutter 前端能力。
+通过 brainstorming 5 轮交互确认设计：融合面板(B) + 全屏方案对比页(B) + 通用方案页 + LLM 生成多方案 + WS FunctionCall 工具。
+
+#### 新增 — 后端
+- `app/services/design_proposal_service.py`：LLM 生成 2-3 套方案 + 增量修订 + fallback 降级
+- `agent_tool_registry.py`：注册 `generate_design_proposals` / `update_design_proposal` 2 个 FunctionCall 工具，受 `design_proposal_llm_enabled` 门控
+- `api/agents.py`：新增 `POST /design/proposals` + `POST /design/proposals/{id}/revise` REST 端点（降级路径）
+- `api/voice_realtime.py`：工具执行成功后推送 `proposal_generated` / `proposal_updated` 事件给前端
+- `config.py` + `api/config.py`：新增 `voice_floating_widget_enabled` / `design_proposal_llm_enabled` 2 个 feature flag
+
+#### 新增 — Flutter
+- `widgets/voice_overlay.dart`：`VoiceOverlayController` + 悬浮 FAB（OverlayEntry 注入，不阻塞当前页）
+- `widgets/voice_fusion_panel.dart`：融合面板（上半语音对话区 + 下半 VoiceTaskPanel）
+- `widgets/voice_conversation_area.dart`：波纹动画 + 实时转写
+- `pages/design_proposal_page.dart`：全屏 2-3 栏方案对比 + 底部常驻语音条
+- `widgets/voice_proposal_bar.dart`：底部语音条，VoiceSessionScope 共享 WS 会话
+- `services/voice_session_scope.dart`：InheritedWidget 跨页面共享 VoiceRealtimeService
+- `services/voice_realtime_service.dart`：新增 `onProposalGenerated` / `onProposalUpdated` 回调
+- `main.dart`：AuthGate 登录成功后注入悬浮窗（受 flag 门控）
+
+#### 测试
+- `tests/test_design_proposal.py`：15 用例（service 单元 + 工具执行 + flag 门控 + REST 端点）
+- 全量回归零回归，Flutter analyze 零 issue
+
 ## [1.2.7] - 2026-07-30
 
 ### Qwen-Audio-3.0-Realtime 借鉴落地

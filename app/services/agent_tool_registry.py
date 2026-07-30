@@ -591,6 +591,59 @@ async def _tool_cancel_agent_task(
     return {"cancelled": task.status == "cancelled", "task": task.to_dict()}
 
 
+# ── 讨论式方案交互工具（design_proposal_llm_enabled 门控）──
+#
+# v1.2.8 借鉴 Qwen-Audio-3.0-Realtime "能聊天更能办事" 范式：
+# Realtime 模式 LLM 自主调用 generate_design_proposals 生成多方案，
+# 用户语音"方案B加中岛"时自主调用 update_design_proposal 增量修订。
+# 方案数据存 design_proposal_service 内存（按 session_id 索引）。
+
+async def _tool_generate_design_proposals(
+    requirement: str,
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """生成 2-3 套设计方案（讨论式交互入口）
+
+    当用户说「帮我设计厨房/客厅/卫生间」时调用。返回多套差异化方案供用户对比选择。
+    """
+    from app.services.design_proposal_service import generate_proposals
+
+    # session_id 用 user_id 派生（语音 WS 会话与此对齐）
+    session_id = f"proposal_{_user_id}" if _user_id else ""
+    result = await generate_proposals(requirement, session_id)
+    return {
+        "generated": True,
+        "proposals": [p.model_dump() for p in result.proposals],
+        "session_id": session_id,
+        "message": f"已生成 {len(result.proposals)} 套方案，用户可语音选择或调整（如「方案B加中岛」）",
+    }
+
+
+async def _tool_update_design_proposal(
+    proposal_id: str,
+    change: str,
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """修订指定设计方案（讨论式交互调整）
+
+    当用户说「方案B加中岛/方案A改成开放式」时调用。
+    """
+    from app.services.design_proposal_service import revise_proposal
+
+    session_id = f"proposal_{_user_id}" if _user_id else ""
+    revised = await revise_proposal(proposal_id, change, session_id)
+    if revised is None:
+        return {
+            "updated": False,
+            "error": f"未找到方案 {proposal_id}，请先调用 generate_design_proposals 生成方案",
+        }
+    return {
+        "updated": True,
+        "proposal": revised.model_dump(),
+        "message": f"方案 {proposal_id} 已更新：{change}",
+    }
+
+
 # ── 工具注册表 ──
 
 BUILTIN_TOOLS: list[AgentTool] = [
@@ -675,6 +728,26 @@ BUILTIN_TOOLS: list[AgentTool] = [
         handler=_tool_cancel_agent_task,
         category="orchestration",
     ),
+    # ── 讨论式方案交互（design_proposal_llm_enabled 门控）──
+    AgentTool(
+        name="generate_design_proposals",
+        description="生成 2-3 套差异化设计方案供用户对比。当用户说「帮我设计厨房/客厅/卫生间」时调用。返回多套方案的布局/面积/预算/亮点。",
+        parameters={
+            "requirement": {"type": "string", "description": "用户的设计需求原文（如「帮我设计一个现代风格的厨房」）"},
+        },
+        handler=_tool_generate_design_proposals,
+        category="design_proposal",
+    ),
+    AgentTool(
+        name="update_design_proposal",
+        description="修订指定设计方案。当用户对已有方案提出调整（如「方案B加中岛」「方案A改成开放式」）时调用，仅修改指定方案，其余不变。",
+        parameters={
+            "proposal_id": {"type": "string", "description": "要修订的方案ID：A/B/C"},
+            "change": {"type": "string", "description": "用户的调整指令原文（如「加中岛」）"},
+        },
+        handler=_tool_update_design_proposal,
+        category="design_proposal",
+    ),
 ]
 
 
@@ -702,12 +775,16 @@ class ToolRegistry:
         return self._tools.get(name)
 
     def _visible_tools(self) -> list[AgentTool]:
-        """flag 感知工具列表：voice_agent_orchestration_enabled=False 时
-        隐藏 orchestration 类别工具，避免 MCP manifest / Qwen Realtime
-        广告不可执行的工具（诚实降级）。执行路径由 handler 二次门控。"""
+        """flag 感知工具列表：
+        - voice_agent_orchestration_enabled=False 时隐藏 orchestration 类别
+        - design_proposal_llm_enabled=False 时隐藏 design_proposal 类别
+        避免 MCP manifest / Qwen Realtime 广告不可执行的工具（诚实降级）。
+        执行路径由 handler 二次门控。"""
         tools = list(self._tools.values())
         if not settings.voice_agent_orchestration_enabled:
             tools = [t for t in tools if t.category != "orchestration"]
+        if not settings.design_proposal_llm_enabled:
+            tools = [t for t in tools if t.category != "design_proposal"]
         return tools
 
     def list_tools(self, category: str | None = None) -> list[AgentTool]:

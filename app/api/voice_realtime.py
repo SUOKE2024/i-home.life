@@ -538,6 +538,22 @@ async def _qwen_events_to_client(  # noqa: C901
                         "result": result,
                     })
                     await session.send_function_call_output(call_id, result)
+
+                    # v1.2.8 讨论式方案交互：向前端推送方案事件
+                    # generate_design_proposals → proposal_generated
+                    # update_design_proposal → proposal_updated
+                    if func_name == "generate_design_proposals" and result.get("generated"):
+                        await websocket.send_json({
+                            "type": "proposal_generated",
+                            "proposals": result.get("proposals", []),
+                            "session_id": result.get("session_id", ""),
+                        })
+                    elif func_name == "update_design_proposal" and result.get("updated"):
+                        await websocket.send_json({
+                            "type": "proposal_updated",
+                            "proposal_id": result.get("proposal", {}).get("proposal_id", ""),
+                            "proposal": result.get("proposal", {}),
+                        })
                 except Exception as e:
                     logger.error(f"tool_execute_error: {func_name}: {e}")
                     await session.send_function_call_output(

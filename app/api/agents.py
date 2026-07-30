@@ -1302,6 +1302,65 @@ async def analyze_circulation(
         await agent.close()
 
 
+# ── v1.2.8 讨论式方案交互端点 ──
+# 借鉴 Qwen-Audio-3.0-Realtime "能聊天更能办事"：LLM 生成多方案 + 语音调整修订
+# 主路径走 WS FunctionCall 工具；此 REST 端点为降级/非语音输入路径
+
+
+class DesignProposalRequest(BaseModel):
+    requirement: str = Field(..., description="用户设计需求原文")
+    session_id: str = Field("", description="语音会话ID（可选，供跨轮修订）")
+
+
+class DesignProposalReviseRequest(BaseModel):
+    change: str = Field(..., description="用户调整指令原文（如「加中岛」）")
+    session_id: str = Field("", description="语音会话ID")
+
+
+@router.post("/design/proposals")
+async def generate_design_proposals(
+    data: DesignProposalRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """生成 2-3 套差异化设计方案（讨论式交互入口）
+
+    主路径：WS FunctionCall 工具 generate_design_proposals
+    降级路径：此 REST 端点（WS 不可用 / 非语音输入时）
+    """
+    from app.services.design_proposal_service import generate_proposals
+
+    session_id = data.session_id or f"proposal_{current_user.id}"
+    result = await generate_proposals(data.requirement, session_id)
+    return {
+        "proposals": [p.model_dump() for p in result.proposals],
+        "session_id": result.session_id,
+        "source": result.proposals[0].source if result.proposals else "unknown",
+    }
+
+
+@router.post("/design/proposals/{proposal_id}/revise")
+async def revise_design_proposal(
+    proposal_id: str,
+    data: DesignProposalReviseRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """修订指定设计方案（讨论式交互调整）
+
+    主路径：WS FunctionCall 工具 update_design_proposal
+    降级路径：此 REST 端点
+    """
+    from app.services.design_proposal_service import revise_proposal
+
+    session_id = data.session_id or f"proposal_{current_user.id}"
+    revised = await revise_proposal(proposal_id, data.change, session_id)
+    if revised is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"未找到方案 {proposal_id}，请先调用 /design/proposals 生成方案",
+        )
+    return {"proposal": revised.model_dump(), "proposal_id": proposal_id}
+
+
 @router.post("/budget", response_model=BudgetAnalysisResponse)
 async def analyze_budget(
     data: AgentMessage,

@@ -130,7 +130,7 @@
 │   │   ├── settlements.py            # 结算管理
 │   │   ├── floorplans.py             # 户型方案存储
 │   │   ├── voice.py                  # 语音处理（基础文本路径）
-│   │   ├── voice_realtime.py         # 实时语音 WebSocket（Qwen-Audio-3.0-Realtime 双工 + FunctionCall + 场景画像）
+│   │   ├── voice_realtime.py         # 实时语音 WebSocket（Qwen-Audio-3.0-Realtime 双工 + FunctionCall + 场景画像 + 讨论式方案事件推送）
 │   │   ├── voice_orchestrate.py      # 语音智能体编排（多意图并行 / 后台任务控制）
 │   │   ├── files.py                  # 文件上传/下载
 │   │   ├── agents.py                 # AI Agent 路由 (mock + LLM 双模式, 9 Agent)
@@ -153,6 +153,8 @@
 │   ├── models/                       # 72 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
 │   ├── services/                     # 业务逻辑层
+│   │   ├── voice_realtime_service.py # Qwen-Audio-3.0-Realtime WS 会话封装（场景画像 + FunctionCall + 讨论式方案事件）
+│   │   ├── design_proposal_service.py # 讨论式方案交互（LLM 生成多方案 + 增量修订 + fallback，v1.2.8）
 │   │   ├── webauthn_service.py       # FIDO2/WebAuthn/Passkey 服务 (feature flag + 原子挑战消费, v1.1.28)
 │   │   ├── identity_service.py       # 实名认证 (阿里云/腾讯云身份证核验)
 │   │   └── user_service.py           # 用户注册/登录
@@ -162,7 +164,8 @@
 │
 ├── flutter_app/                      # 跨平台 App (iOS/iPadOS/Android/HarmonyOS)
 │   ├── lib/
-│   │   ├── pages/                    # cad_page / dashboard / projects / ai_chat / materials
+│   │   ├── pages/                    # cad_page / dashboard / projects / ai_chat / materials / design_proposal_page（v1.2.8）
+│   │   ├── widgets/                  # voice_overlay / voice_fusion_panel / voice_proposal_bar（v1.2.8 悬浮窗+讨论式）
 │   │   └── services/api.dart         # HTTP 客户端
 │   ├── ohos/                         # HarmonyOS 平台配置
 │   │   ├── hvigor/hvigor-config.json5  # 指向 DevEco Studio 本地 hvigor

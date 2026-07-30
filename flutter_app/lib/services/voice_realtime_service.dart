@@ -59,6 +59,14 @@ class VoiceRealtimeService {
   // ── 情绪趋势回调 ──
   void Function(Map<String, dynamic> data)? onEmotionTrend;
 
+  // v1.2.8 讨论式方案交互回调
+  /// 方案生成完成：proposals 列表 + session_id
+  void Function(List<Map<String, dynamic>> proposals, String sessionId)?
+      onProposalGenerated;
+  /// 方案修订完成：proposal_id + 修订后的方案
+  void Function(String proposalId, Map<String, dynamic> proposal)?
+      onProposalUpdated;
+
   // ── 连接状态 ──
   VoiceConnectionStatus _status = VoiceConnectionStatus.disconnected;
   VoiceConnectionStatus get status => _status;
@@ -288,6 +296,22 @@ class VoiceRealtimeService {
           final name = msg['name'] as String? ?? '';
           final result = msg['result'] as Map<String, dynamic>? ?? {};
           onToolCall?.call(name, result);
+          break;
+
+        // v1.2.8 讨论式方案交互事件
+        case 'proposal_generated':
+          final proposals = (msg['proposals'] as List<dynamic>? ?? [])
+              .map((e) => e as Map<String, dynamic>)
+              .toList();
+          final sid = msg['session_id'] as String? ?? '';
+          onProposalGenerated?.call(proposals, sid);
+          break;
+
+        case 'proposal_updated':
+          final pid = msg['proposal_id'] as String? ?? '';
+          final proposal =
+              msg['proposal'] as Map<String, dynamic>? ?? <String, dynamic>{};
+          onProposalUpdated?.call(pid, proposal);
           break;
 
         // ── 响应完成 ──

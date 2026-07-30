@@ -12,6 +12,7 @@ import 'services/performance_service.dart';
 import 'services/project_context.dart';
 import 'pages/home_page.dart';
 import 'pages/login_page.dart';
+import 'widgets/voice_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -168,6 +169,21 @@ class _AuthGateState extends State<AuthGate> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    return _loggedIn ? const HomePage() : const LoginPage();
+    if (!_loggedIn) return const LoginPage();
+
+    // v1.2.8 登录成功：注入悬浮窗常驻语音交互
+    // 受 voice_floating_widget_enabled feature flag 控制（后端 /config/feature-flags）
+    // flag 关闭时不注入，保持原有体验
+    return Builder(
+      builder: (context) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final enabled = FeatureFlagsService()
+              .isEnabled('voice_floating_widget_enabled');
+          if (!enabled || VoiceOverlayController().isShown) return;
+          VoiceOverlayController().show(context);
+        });
+        return const HomePage();
+      },
+    );
   }
 }

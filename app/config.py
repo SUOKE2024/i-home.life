@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.2.7"
+    app_version: str = "1.2.8"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -175,6 +175,10 @@ class Settings(BaseSettings):
     # - 连接词切分多意图并行编排（"同时/另外/再帮我"）
     # - 语音任务生命周期控制（"任务进度"/"取消任务"）
     voice_agent_orchestration_enabled: bool = False
+    # v1.2.8 讨论式方案交互：LLM 生成多方案 + 语音调整修订
+    design_proposal_llm_enabled: bool = False
+    # 悬浮窗常驻语音交互（Flutter 前端 flag，后端仅暴露）
+    voice_floating_widget_enabled: bool = False
 
     # ── Qwen-Audio-3.0-Realtime 模型变体 ──
     # 默认 flash（速度优先），可切换 plus（推理更强 + 情感感知 + 副语言）

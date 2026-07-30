@@ -40,6 +40,9 @@ async def get_feature_flags():
         "voice_agent_orchestration_enabled": settings.voice_agent_orchestration_enabled,
         "voice_scenario": settings.voice_scenario,
         "voice_duplex_mode": settings.voice_duplex_mode,
+        # v1.2.8 悬浮窗常驻语音 + 讨论式方案交互
+        "voice_floating_widget_enabled": settings.voice_floating_widget_enabled,
+        "design_proposal_llm_enabled": settings.design_proposal_llm_enabled,
         # v1.1.28 借鉴索克生活 feature flags
         "eval_enabled": settings.eval_enabled,
         "model_spec_enabled": settings.model_spec_enabled,
