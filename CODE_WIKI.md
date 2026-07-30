@@ -129,7 +129,9 @@
 │   │   ├── construction.py           # 施工 + 日志 + 质检
 │   │   ├── settlements.py            # 结算管理
 │   │   ├── floorplans.py             # 户型方案存储
-│   │   ├── voice.py                  # 语音处理
+│   │   ├── voice.py                  # 语音处理（基础文本路径）
+│   │   ├── voice_realtime.py         # 实时语音 WebSocket（Qwen-Audio-3.0-Realtime 双工 + FunctionCall + 场景画像）
+│   │   ├── voice_orchestrate.py      # 语音智能体编排（多意图并行 / 后台任务控制）
 │   │   ├── files.py                  # 文件上传/下载
 │   │   ├── agents.py                 # AI Agent 路由 (mock + LLM 双模式, 9 Agent)
 │   │   ├── payments.py               # 支付管理

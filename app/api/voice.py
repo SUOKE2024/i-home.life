@@ -279,76 +279,9 @@ async def process_voice(
     return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions)
 
 
-@router.post("/process-enhanced", response_model=VoiceResponse)
-async def process_voice_enhanced(
-    data: VoiceMessage,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """语音处理增强版（LLM 语义路由）。
-
-    优先使用 LLM 进行语义意图分类（deepseek → glm → qwen fallback），
-    LLM 不可用时自动降级到关键词匹配。
-    受 settings.voice_llm_routing_enabled feature flag 控制。
-    """
-    # 校验项目归属
-    if data.project_id:
-        result = await db.execute(select(Project).where(Project.id == data.project_id))
-        project = result.scalar_one_or_none()
-        if not project:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
-        if current_user.role != "admin" and project.owner_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
-
-    text = data.text
-
-    # LLM 语义路由（带自动降级到关键词匹配）
-    intent = await _route_intent(text)
-
-    # 情绪检测
-    emotion = _detect_emotion(text)
-
-    reply, actions = _handle_intent(text, intent)
-    return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions, emotion=emotion)
-
-
 # ════════════════════════════════════════════════════════════════
 # 辅助函数：测量 + 房间提取
 # ════════════════════════════════════════════════════════════════
-
-
-def _detect_emotion(text: str) -> dict | None:
-    """简单情绪检测 — 基于关键词的情绪分类。
-
-    当 voice_emotion_detection feature flag 关闭时返回 None。
-    生产环境可替换为 LLM 情绪分析。
-    """
-    if not settings.voice_emotion_detection:
-        return None
-
-    text_lower = text.lower()
-    emotion_keywords = {
-        "anxious": ["着急", "焦虑", "担心", "延期", "超支", "怎么办", "害怕", "紧张", "不安"],
-        "angry": ["生气", "太慢", "投诉", "差劲", "坑", "骗", "火大", "怒"],
-        "sad": ["失望", "难过", "伤心", "后悔", "无奈", "心累"],
-        "tired": ["累了", "烦", "麻烦", "头疼", "不想", "崩溃"],
-        "excited": ["期待", "兴奋", "太好", "完美", "超赞", "喜欢", "开心"],
-        "happy": ["满意", "不错", "很好", "感谢", "谢谢", "棒"],
-    }
-
-    scores: dict[str, int] = {}
-    for label, keywords in emotion_keywords.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
-        if score > 0:
-            scores[label] = score
-
-    if not scores:
-        return None
-
-    # 返回得分最高的情绪
-    top_label = max(scores, key=scores.get)
-    confidence = min(0.3 + scores[top_label] * 0.2, 0.9)
-    return {"label": top_label, "confidence": round(confidence, 2), "source": "keyword"}
 
 
 def _build_measurement_guide(text: str) -> str:

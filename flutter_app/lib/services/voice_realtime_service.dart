@@ -34,6 +34,10 @@ class VoiceRealtimeService {
   String? _projectId;
   String? _sessionId;
   String _mode = 'mock';
+  // v1.2.7 场景画像：default | site | support | elderly
+  // 决定后端 model/turn_detection/audio_prompt/idle_timeout 覆盖
+  String _scenario = 'default';
+  String get scenario => _scenario;
 
   bool _intentionalClose = false;
   Timer? _heartbeatTimer;
@@ -88,6 +92,10 @@ class VoiceRealtimeService {
     if (_projectId != null && _projectId!.isNotEmpty) {
       queryParams['project_id'] = _projectId!;
     }
+    // v1.2.7 场景画像透传：让后端按场景选 model/turn_detection/audio_prompt
+    if (_scenario.isNotEmpty && _scenario != 'default') {
+      queryParams['scenario'] = _scenario;
+    }
     final query = Uri(queryParameters: queryParams).query;
 
     return Uri.parse('$wsBase/api/voice/realtime?$query');
@@ -96,12 +104,20 @@ class VoiceRealtimeService {
   // ── 连接管理 ──
 
   /// 建立语音 WebSocket 连接
+  ///
+  /// [scenario] 场景画像（v1.2.7）：
+  ///   - default: 全局 settings 主导
+  ///   - site: 工地现场（flash + smart_turn 抗噪 + 声纹锁定）
+  ///   - support: 客服共情（plus + 主动关怀）
+  ///   - elderly: 养老陪伴（plus + 主动问候）
   Future<void> connect({
     required String token,
     String? projectId,
+    String scenario = 'default',
   }) async {
     _token = token;
     _projectId = projectId;
+    _scenario = scenario;
 
     _setStatus(VoiceConnectionStatus.connecting);
     _intentionalClose = false;

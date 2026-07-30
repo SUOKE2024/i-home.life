@@ -36,6 +36,10 @@ async def get_feature_flags():
         "qwen_audio_model_variant": "plus" if settings.qwen_audio_model.endswith("-plus") else "flash",
         # v1.1.21 暴露
         "voice_audio_prompt_enabled": settings.voice_audio_prompt_enabled,
+        # v1.2.7 借鉴 Qwen-Audio-3.0-Realtime：语音编排 + 场景画像
+        "voice_agent_orchestration_enabled": settings.voice_agent_orchestration_enabled,
+        "voice_scenario": settings.voice_scenario,
+        "voice_duplex_mode": settings.voice_duplex_mode,
         # v1.1.28 借鉴索克生活 feature flags
         "eval_enabled": settings.eval_enabled,
         "model_spec_enabled": settings.model_spec_enabled,

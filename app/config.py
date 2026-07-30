@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.2.6"
+    app_version: str = "1.2.7"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -108,7 +108,10 @@ class Settings(BaseSettings):
     # ── Qwen-Audio-3.0-Realtime (阿里云百炼) ──
     qwen_audio_api_key: str = ""          # DashScope API Key
     qwen_audio_model: str = "qwen-audio-3.0-realtime-flash"  # flash | plus
-    qwen_audio_ws_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"  # 百炼 WebSocket
+    # 百炼 Realtime WebSocket。官方推荐业务空间专属域名以获更好性能稳定性：
+    #   wss://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime
+    # model 查询参数由 VoiceRealtimeSession._build_ws_url 自动注入，无需在此拼接。
+    qwen_audio_ws_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
     qwen_audio_voice: str = "cherry"      # 默认音色: cherry / zhidan / longxiaochun 等
 
     # ── 语音服务 ──
@@ -122,6 +125,17 @@ class Settings(BaseSettings):
     voice_vad_silence_ms: int = 800                    # VAD 静音检测毫秒
     voice_audio_prompt_enabled: bool = False           # 是否启用说话人增强（声纹锁定，针对多人场景）
     voice_max_recording_seconds: int = 300             # 单次最大录音时长（秒）
+    # v1.2.7 借鉴 Qwen-Audio-3.0-Realtime：音频格式契约（对齐百炼官方）
+    # 输入 16kHz/16bit/单声道 PCM，输出 24kHz/16bit/单声道 PCM
+    voice_input_audio_format: str = "pcm"
+    voice_output_audio_format: str = "pcm"
+    # 主动关怀：用户静默超过阈值（毫秒）后模型主动发起追问。
+    # Qwen3.5-Omni-Realtime server_vad 模式生效；Audio-Realtime 可能忽略。0=关闭。
+    voice_idle_timeout_ms: int = 0
+    # 场景画像：default | site | support | elderly
+    # site=工地(flash+smart_turn+声纹锁定)，support=客服共情(plus+主动关怀)，
+    # elderly=养老陪伴(plus+主动问候)。详见 SCENARIO_PROFILES。
+    voice_scenario: str = "default"
     # v1.2.1 P1-9：语音会话内存 TTL。VoiceSessionManager._sessions 原无过期机制，
     # 长运行下 WebSocket 会话对象常驻内存导致泄漏。设 TTL 后超时未活跃的会话自动淘汰。
     voice_session_ttl_seconds: int = 3600              # 语音会话空闲超时（秒），默认 1 小时

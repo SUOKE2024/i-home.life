@@ -2,6 +2,55 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.2.7] - 2026-07-30
+
+### Qwen-Audio-3.0-Realtime 借鉴落地
+基于阿里 2026-07-15 发布的 Qwen-Audio-3.0-Realtime（智商/Agent/共情/双工四线升级）评估报告，
+对既有实时语音架构进行协议对齐、能力激活与场景化路由落地。
+
+#### P0 协议对齐（Realtime 模式可用性根因修复）
+- **WS URL 注入 model 查询参数**：`VoiceRealtimeSession._build_ws_url` 幂等拼接
+  `?model=<model_name>`。官方要求 model 由 URL 查询参数指定，原代码直连
+  `qwen_audio_ws_url` 未拼参数，即使配了 API Key 也无法正确路由目标模型。
+- **切换业务空间专属域名**：`.env.production` 改用
+  `wss://llm-vo2uxx9vxe95dek9.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime`
+  （官方推荐，性能/稳定性更优）。
+- **session.update 补音频格式契约**：新增 `input_audio_format`/`output_audio_format`
+  （pcm 16kHz 输入 / pcm 24kHz 输出），对齐百炼官方 schema。
+
+#### P1 场景化模型路由（借鉴四主线能力）
+- **场景画像 `SCENARIO_PROFILES`**：default / site / support / elderly 四场景，
+  覆盖 model / turn_detection / audio_prompt / idle_timeout 四维度：
+  - `site`（工地现场）：flash + smart_turn 抗噪打断 + 声纹锁定聚焦主对话人
+  - `support`（客服共情）：plus 强推理+共情 + 静默 15s 主动关怀追问
+  - `elderly`（养老陪伴）：plus 共情 + 静默 20s 主动问候
+- **WebSocket 端点读取 `scenario` 查询参数**，Flutter 客户端 `connect(scenario:)` 透传。
+- **`voice_agent_orchestration_enabled` 灰度开启**（.env.production）：Realtime 模式
+  LLM 自主调用 `launch_agent_task` 后台执行多任务，落地"能聊天更能办事"范式。
+
+#### P2 主动关怀与共情
+- `voice_idle_timeout_ms` 配置：用户静默超阈值后模型主动发起追问
+  （Omni-Realtime server_vad 生效；Audio-Realtime 可能忽略，不报错）。
+- `instructions` 选择依据 `session.model`（场景覆盖后）动态切换 PLUS 增强指令
+  （EmoSync 情感感知 + 副语言）。
+
+#### 配置与暴露
+- 新增 `voice_input_audio_format` / `voice_output_audio_format` /
+  `voice_idle_timeout_ms` / `voice_scenario` 四个配置项。
+- `/config/feature-flags` 暴露 `voice_agent_orchestration_enabled` /
+  `voice_scenario` / `voice_duplex_mode`，供前端按需加载。
+- `.env.example` 文档化全部新字段与业务空间域名迁移说明。
+
+#### 测试验证
+- 新增 `TestWsUrlBuilder`（4 用例）/ `TestScenarioProfiles`（7 用例）/
+  `TestFeatureFlagsExposure`（1 用例）共 12 个回归测试。
+- 语音全套 76 passed（test_voice_agent_enhanced + test_voice_realtime）。
+
+#### 版本一致性
+- 全链路 1.2.7：config.py / .env / .env.example / .env.production /
+  pubspec 1.2.7+24 / config.dart / deploy-production.sh / ci.yml ×3 /
+  web/version.json / 测试断言。
+
 ## [1.2.6] - 2026-07-28
 
 ### 系统检查评估落地修复

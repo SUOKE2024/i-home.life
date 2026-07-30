@@ -843,3 +843,138 @@ class TestSessionLifecycle:
             assert ctx[-1]["content"] == "msg_24"
         finally:
             await session.close()
+
+
+# ── v1.2.7 Qwen-Audio-3.0-Realtime 借鉴落地测试 ──
+
+
+class TestWsUrlBuilder:
+    """WebSocket URL model 查询参数注入测试（P0 修复回归）"""
+
+    def test_build_url_appends_model_query(self):
+        """无查询参数的 URL 应追加 ?model="""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        url = VoiceRealtimeSession._build_ws_url(
+            "wss://llm-abc.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime",
+            "qwen-audio-3.0-realtime-plus",
+        )
+        assert "model=qwen-audio-3.0-realtime-plus" in url
+        assert url.count("?") == 1
+
+    def test_build_url_appends_with_existing_query(self):
+        """已有查询参数的 URL 应追加 &model="""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        url = VoiceRealtimeSession._build_ws_url(
+            "wss://host/api-ws/v1/realtime?foo=bar",
+            "qwen-audio-3.0-realtime-flash",
+        )
+        assert url.endswith("?foo=bar&model=qwen-audio-3.0-realtime-flash")
+        assert url.count("?") == 1
+        assert url.count("&") == 1
+
+    def test_build_url_idempotent_when_model_present(self):
+        """URL 已含 model= 时不应重复注入"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        original = "wss://host/api-ws/v1/realtime?model=qwen-audio-3.0-realtime-plus"
+        url = VoiceRealtimeSession._build_ws_url(original, "qwen-audio-3.0-realtime-flash")
+        assert url == original  # 尊重调用方显式指定
+        assert url.count("model=") == 1
+
+    def test_build_url_empty_base(self):
+        """空 URL 原样返回"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        assert VoiceRealtimeSession._build_ws_url("", "any") == ""
+
+
+class TestScenarioProfiles:
+    """场景画像（site/support/elderly）覆盖测试"""
+
+    def test_site_scenario_uses_flash_and_smart_turn(self):
+        """site 场景应选 flash 模型 + smart_turn 抗噪打断 + 声纹锁定"""
+        from app.services.voice_realtime_service import SCENARIO_PROFILES
+
+        profile = SCENARIO_PROFILES["site"]
+        assert profile["model"] == "qwen-audio-3.0-realtime-flash"
+        assert profile["turn_detection"] == "smart_turn"
+        assert profile["audio_prompt"] is True
+
+    def test_support_scenario_uses_plus_and_idle_timeout(self):
+        """support 场景应选 plus 模型 + 主动关怀 idle_timeout"""
+        from app.services.voice_realtime_service import SCENARIO_PROFILES
+
+        profile = SCENARIO_PROFILES["support"]
+        assert profile["model"] == "qwen-audio-3.0-realtime-plus"
+        assert profile["idle_timeout_ms"] == 15000
+        assert profile["audio_prompt"] is False
+
+    def test_elderly_scenario_has_longer_idle_timeout(self):
+        """elderly 场景主动问候间隔应长于 support"""
+        from app.services.voice_realtime_service import SCENARIO_PROFILES
+
+        assert SCENARIO_PROFILES["elderly"]["idle_timeout_ms"] > \
+            SCENARIO_PROFILES["support"]["idle_timeout_ms"]
+
+    def test_default_scenario_empty_overrides(self):
+        """default 场景不覆盖任何维度，由全局 settings 主导"""
+        from app.services.voice_realtime_service import SCENARIO_PROFILES
+
+        assert SCENARIO_PROFILES["default"] == {}
+
+    @pytest.mark.asyncio
+    async def test_session_scenario_overrides_model(self):
+        """VoiceRealtimeSession 构造时应读取场景画像覆盖 model"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="scenario_001", scenario="support")
+        try:
+            assert session.scenario == "support"
+            assert session.model == "qwen-audio-3.0-realtime-plus"
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_session_unknown_scenario_falls_back(self):
+        """未知场景应回退到全局 settings（不报错）"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(user_id="scenario_002", scenario="unknown_xx")
+        try:
+            assert session.scenario == "unknown_xx"
+            assert session.model  # 仍有值（来自全局 settings）
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_session_explicit_model_overrides_scenario(self):
+        """显式传入 model 优先级最高，覆盖场景画像"""
+        from app.services.voice_realtime_service import VoiceRealtimeSession
+
+        session = VoiceRealtimeSession(
+            user_id="scenario_003", scenario="site",
+            model="qwen-audio-3.0-realtime-plus",
+        )
+        try:
+            # site 场景默认 flash，但显式 plus 应胜出
+            assert session.model == "qwen-audio-3.0-realtime-plus"
+        finally:
+            await session.close()
+
+
+class TestFeatureFlagsExposure:
+    """feature-flags 端点暴露新增字段测试"""
+
+    @pytest.mark.asyncio
+    async def test_feature_flags_expose_voice_orchestration_and_scenario(self, client):
+        """/config/feature-flags 应暴露 voice_agent_orchestration_enabled 与 voice_scenario"""
+        resp = await client.get("/api/config/feature-flags")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "voice_agent_orchestration_enabled" in data
+        assert isinstance(data["voice_agent_orchestration_enabled"], bool)
+        assert "voice_scenario" in data
+        assert data["voice_scenario"] in ("default", "site", "support", "elderly")
+        assert "voice_duplex_mode" in data

@@ -46,6 +46,39 @@ EMOTION_LABELS = {
 }
 
 
+# ── 场景画像（v1.2.7 借鉴 Qwen-Audio-3.0-Realtime 四主线能力）──
+# 每个场景覆盖 model / turn_detection / audio_prompt / idle_timeout 四个维度，
+# 在 VoiceRealtimeSession 构造时读取，init_realtime_session 中生效。
+# 借鉴阿里发布范式：site=嘈杂工地（双工+声纹锁定），support=客服共情（plus+主动关怀）。
+# 与 settings 的关系：场景画像优先级 > 全局 settings，便于按场景精细化路由；
+# 显式传入参数（model=...）优先级最高，便于单次会话临时覆盖。
+SCENARIO_PROFILES: dict[str, dict[str, Any]] = {
+    # 默认：全局 settings 主导，不覆盖
+    "default": {},
+    # 工地现场：flash 控成本 + smart_turn 抗噪打断 + 声纹锁定聚焦主对话人
+    "site": {
+        "model": "qwen-audio-3.0-realtime-flash",
+        "turn_detection": "smart_turn",
+        "audio_prompt": True,
+        "idle_timeout_ms": 0,
+    },
+    # 客服/共情陪伴：plus 强推理+共情 + 主动关怀（静默 15s 追问）
+    "support": {
+        "model": "qwen-audio-3.0-realtime-plus",
+        "turn_detection": "server_vad",
+        "audio_prompt": False,
+        "idle_timeout_ms": 15000,
+    },
+    # 养老陪伴：plus 共情 + 主动关怀（静默 20s 主动问候）
+    "elderly": {
+        "model": "qwen-audio-3.0-realtime-plus",
+        "turn_detection": "server_vad",
+        "audio_prompt": False,
+        "idle_timeout_ms": 20000,
+    },
+}
+
+
 class VoiceRealtimeSession:
     """Qwen-Audio-3.0-Realtime 实时语音会话"""
 
@@ -55,15 +88,21 @@ class VoiceRealtimeSession:
         project_id: str | None = None,
         model: str | None = None,
         voice: str | None = None,
+        scenario: str | None = None,
     ):
         self.user_id = user_id
         self.project_id = project_id
-        self.model = model or settings.qwen_audio_model
+        # 场景画像：覆盖 model / turn_detection / audio_prompt / idle_timeout
+        # 借鉴 Qwen-Audio-3.0-Realtime 四主线：site=双工+声纹锁定，support=共情+主动关怀
+        self.scenario = scenario or settings.voice_scenario
+        overrides = SCENARIO_PROFILES.get(self.scenario, {})
+        self.model = model or overrides.get("model") or settings.qwen_audio_model
         self.voice = voice or settings.qwen_audio_voice
         self._ws: Any | None = None
         self._session_id: str | None = None
         self._emotion_history: list[dict] = []
         self._conversation_context: list[dict] = []
+        self._scenario_overrides = overrides
 
     # ── 会话管理 ──
 
@@ -94,19 +133,26 @@ class VoiceRealtimeSession:
 
         try:
             # 使用 websockets 库建立百炼 Realtime WebSocket 连接
-            # 协议: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
+            # 协议: wss://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime?model=<model_name>
+            # 官方文档要求 model 通过 URL 查询参数指定（非 session.update），
+            # v1.2.7 修复：原直接连 qwen_audio_ws_url 未拼 ?model=，即使配了 API Key
+            # 也无法正确路由到目标模型，握手后行为不确定。现统一注入 model 查询参数。
             headers = {
                 "Authorization": f"Bearer {settings.qwen_audio_api_key}",
                 "X-DashScope-DataInspection": "enable",
             }
+            ws_url = self._build_ws_url(settings.qwen_audio_ws_url, self.model)
             self._ws = await websockets.connect(
-                settings.qwen_audio_ws_url,
+                ws_url,
                 additional_headers=headers,
                 open_timeout=30,
                 max_size=2 ** 20,  # 1MB 音频帧
             )
             self._session_id = f"qwen_audio_{self.user_id}_{id(self)}"
-            logger.info(f"voice_realtime: 会话已创建 session={self._session_id}")
+            logger.info(
+                f"voice_realtime: 会话已创建 session={self._session_id} "
+                f"model={self.model} url={ws_url}"
+            )
             return {"mode": "realtime", "session_id": self._session_id}
         except Exception as e:
             logger.error(f"voice_realtime: 连接失败 {e}，降级为 fallback 模式")
@@ -155,8 +201,11 @@ class VoiceRealtimeSession:
         #   server_vad: 声学 VAD（默认，适合安静环境）
         #   smart_turn: 声学+语义智能检测（过滤"嗯""啊"，适合嘈杂工地）
         #   none: push-to-talk 手动控制
+        # 场景画像优先：site 场景强制 smart_turn，support/elderly 场景强制 server_vad
         if turn_detection is None:
-            td_type = settings.voice_turn_detection
+            td_type = self._scenario_overrides.get(
+                "turn_detection", settings.voice_turn_detection
+            )
             if td_type in ("smart_turn", "server_vad"):
                 turn_detection = {
                     "type": td_type,
@@ -175,6 +224,10 @@ class VoiceRealtimeSession:
         session_cfg: dict[str, Any] = {
             "modalities": modalities or ["text", "audio"],
             "voice": self.voice,
+            # v1.2.7: 显式声明音频格式，对齐百炼官方契约
+            # 输入 16kHz/16bit/单声道 PCM，输出 24kHz/16bit/单声道 PCM
+            "input_audio_format": settings.voice_input_audio_format,
+            "output_audio_format": settings.voice_output_audio_format,
         }
         if turn_detection is not None:
             session_cfg["turn_detection"] = turn_detection
@@ -184,12 +237,24 @@ class VoiceRealtimeSession:
             session_cfg["instructions"] = instructions
 
         # 说话人增强：传入目标用户预录音频样本，锁定声纹，屏蔽旁人 + 背景噪声
-        # 适用于工地现场（多人嘈杂）场景
-        if settings.voice_audio_prompt_enabled:
+        # 适用于工地现场（多人嘈杂）场景。场景画像优先于全局 settings。
+        audio_prompt_on = self._scenario_overrides.get(
+            "audio_prompt", settings.voice_audio_prompt_enabled
+        )
+        if audio_prompt_on:
             session_cfg["audio_prompt"] = {
                 "enabled": True,
                 "mode": "speaker_focus",
             }
+
+        # 主动关怀：用户静默超过阈值后模型主动发起追问（养老陪伴/客服场景）
+        # 注意：idle_timeout_ms 在 Qwen3.5-Omni-Realtime 系列的 server_vad 模式下生效；
+        # Qwen-Audio-3.0-Realtime 可能忽略此字段（不报错）。场景画像优先，设 0 关闭。
+        idle_ms = self._scenario_overrides.get(
+            "idle_timeout_ms", settings.voice_idle_timeout_ms
+        )
+        if idle_ms and idle_ms > 0:
+            session_cfg["idle_timeout_ms"] = idle_ms
 
         await self._send_raw_json({
             "type": "session.update",
@@ -197,10 +262,12 @@ class VoiceRealtimeSession:
         })
         logger.info(
             "voice_realtime: session.update sent "
+            f"scenario={self.scenario} "
             f"modalities={session_cfg['modalities']} "
             f"turn_detection={turn_detection.get('type') if turn_detection else 'manual'} "
             f"tools={len(tools) if tools else 0} "
-            f"audio_prompt={settings.voice_audio_prompt_enabled}"
+            f"audio_prompt={audio_prompt_on} "
+            f"idle_timeout={idle_ms}"
         )
 
     async def send_input_audio_buffer_append(self, audio_b64: str) -> None:
@@ -290,6 +357,20 @@ class VoiceRealtimeSession:
             await self._ws.send(json.dumps(msg, ensure_ascii=False))
         except Exception as e:
             logger.error(f"voice_realtime: send_raw_json 失败: {e}")
+
+    @staticmethod
+    def _build_ws_url(base_url: str, model: str) -> str:
+        """拼接 Realtime WebSocket URL，确保携带 model 查询参数。
+
+        官方文档要求 ``wss://.../api-ws/v1/realtime?model=<model_name>``，
+        model 由 URL 查询参数指定。本方法幂等：若 URL 已含 model= 则不重复注入。
+        """
+        if not base_url:
+            return base_url
+        if "model=" in base_url:
+            return base_url  # 调用方已显式指定，尊重其选择
+        sep = "&" if "?" in base_url else "?"
+        return f"{base_url}{sep}model={model}"
 
     @property
     def is_realtime(self) -> bool:
@@ -602,15 +683,21 @@ class VoiceSessionManager:
                 session._ws = None
 
     def create_session(
-        self, user_id: str, project_id: str | None = None
+        self, user_id: str, project_id: str | None = None,
+        scenario: str | None = None,
     ) -> VoiceRealtimeSession:
-        """创建或获取语音会话（刷新活跃时间）"""
+        """创建或获取语音会话（刷新活跃时间）
+
+        Args:
+            scenario: 场景画像 key（default/site/support/elderly），
+                      决定 model/turn_detection/audio_prompt/idle_timeout 覆盖。
+        """
         self._evict_expired()
-        session_key = f"{user_id}:{project_id or 'default'}"
+        session_key = f"{user_id}:{project_id or 'default'}:{scenario or 'default'}"
         entry = self._sessions.get(session_key)
         if entry is None:
             session = VoiceRealtimeSession(
-                user_id=user_id, project_id=project_id
+                user_id=user_id, project_id=project_id, scenario=scenario,
             )
         else:
             session = entry[0]
@@ -618,9 +705,12 @@ class VoiceSessionManager:
         self._sessions[session_key] = (session, time.monotonic())
         return session
 
-    def get_session(self, user_id: str, project_id: str | None = None) -> VoiceRealtimeSession | None:
+    def get_session(
+        self, user_id: str, project_id: str | None = None,
+        scenario: str | None = None,
+    ) -> VoiceRealtimeSession | None:
         self._evict_expired()
-        session_key = f"{user_id}:{project_id or 'default'}"
+        session_key = f"{user_id}:{project_id or 'default'}:{scenario or 'default'}"
         entry = self._sessions.get(session_key)
         if entry is None:
             return None
@@ -629,8 +719,11 @@ class VoiceSessionManager:
         self._sessions[session_key] = (session, time.monotonic())
         return session
 
-    async def close_session(self, user_id: str, project_id: str | None = None):
-        session_key = f"{user_id}:{project_id or 'default'}"
+    async def close_session(
+        self, user_id: str, project_id: str | None = None,
+        scenario: str | None = None,
+    ):
+        session_key = f"{user_id}:{project_id or 'default'}:{scenario or 'default'}"
         entry = self._sessions.pop(session_key, None)
         if entry:
             session, _ = entry

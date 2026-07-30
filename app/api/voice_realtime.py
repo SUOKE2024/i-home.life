@@ -763,6 +763,9 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     user_id = payload.get("sub")
     user_role = payload.get("role", "homeowner")
     project_id = websocket.query_params.get("project_id")
+    # 场景画像：default/site/support/elderly，决定 model/turn_detection/audio_prompt
+    # 借鉴 Qwen-Audio-3.0-Realtime 场景化能力（工地双工 / 客服共情 / 养老陪伴）
+    scenario = websocket.query_params.get("scenario")
 
     if not user_id:
         await websocket.close(code=4001, reason="令牌格式无效")
@@ -783,7 +786,7 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     await websocket.accept()
 
     # 创建并连接会话
-    session = voice_session_manager.create_session(user_id, project_id)
+    session = voice_session_manager.create_session(user_id, project_id, scenario)
     conn_result = await session.connect()
     is_realtime = conn_result.get("mode") == "realtime"
 
@@ -793,9 +796,11 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
     # ── Realtime 模式：初始化会话 + 启动后台事件转发 ──
     qwen_task: asyncio.Task | None = None
     if is_realtime:
+        # v1.2.7: 依据 session.model（场景画像覆盖后）选择 instructions，
+        # plus 模型启用 EmoSync 情感感知 + 副语言指令
         instructions = (
             VOICE_SYSTEM_INSTRUCTIONS_PLUS
-            if settings.qwen_audio_model.endswith("-plus")
+            if session.model.endswith("-plus")
             else VOICE_SYSTEM_INSTRUCTIONS
         )
         # 语音编排：flag 开启时追加调度指令，让模型自主调用编排工具
@@ -815,6 +820,8 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
             "type": "connected",
             "session_id": session._session_id,
             "mode": conn_result.get("mode", "mock"),
+            "scenario": session.scenario,
+            "model": session.model,
             "emotion_enabled": settings.voice_emotion_detection,
             "duplex_enabled": settings.voice_duplex_mode,
             "tool_call_enabled": settings.agent_function_call_enabled,
