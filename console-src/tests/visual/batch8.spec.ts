@@ -111,7 +111,7 @@ test.describe('TakeoffPage 工程量计算', () => {
       });
     });
     // 拦截语音任务（WorkbenchPage/SuokeLayout 可能请求）
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -263,7 +263,7 @@ test.describe('StructuralPage 土建结构', () => {
     await page.route('**/api/projects', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -338,7 +338,7 @@ test.describe('AppliancePage 家电管理', () => {
     await page.route('**/api/appliances/categories', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_APP_CATEGORIES) });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });

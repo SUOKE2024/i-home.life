@@ -56,6 +56,7 @@ from app.api import a2a as a2a_api
 from app.api import energy
 from app.api import health as health_api
 from app.api import sensor_snapshot
+from app.api import analytics
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -391,6 +392,7 @@ api_router.include_router(points.router)               # /api/points/*
 api_router.include_router(notifications.router)       # /api/notifications/*
 api_router.include_router(admin.router)             # /api/admin/*
 api_router.include_router(config_api.router)        # /api/config/*
+api_router.include_router(analytics.router)        # /api/analytics/* (前端埋点采集，公开)
 api_router.include_router(harness_api.router)        # /api/harness/*
 api_router.include_router(sketch_to_3d.router)    # /api/sketch-to-3d/* (v1.2.0)
 api_router.include_router(cad_import.router)       # /api/cad-import/*

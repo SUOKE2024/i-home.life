@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import AuthGate from './components/AuthGate';
 import WorkbenchPage from './pages/WorkbenchPage';
 import PlaceholderHome from './pages/PlaceholderHome';
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -58,8 +59,9 @@ const PLACEHOLDER_ROUTES: Array<{
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<WorkbenchPage />} />
+    <AuthGate>
+      <Routes>
+        <Route path="/" element={<WorkbenchPage />} />
       <Route path="/tokens" element={<PlaceholderHome />} />
       {/* 批次 4 真实页面 */}
       <Route path="/projects" element={<ProjectsPage />} />
@@ -115,6 +117,7 @@ export default function App() {
         />
       ))}
       <Route path="*" element={<WorkbenchPage />} />
-    </Routes>
+      </Routes>
+    </AuthGate>
   );
 }

@@ -140,7 +140,7 @@ test.describe('CustomFurniturePage 定制家具', () => {
         body: JSON.stringify(MOCK_PROJECTS),
       });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -343,7 +343,7 @@ test.describe('QualityPage 质检', () => {
     await page.route('**/api/projects', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
     // QualityPage mount 时同时调 getQualityIssues（项目+阶段维度），未 mock 会 401 重定向
@@ -451,7 +451,7 @@ test.describe('AIRenderPage AI 渲染', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch11');
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });

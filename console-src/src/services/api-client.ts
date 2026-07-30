@@ -290,9 +290,13 @@ export class ApiClient {
     });
   }
 
-  /** 查询语音任务列表（GET /api/voice/tasks） */
+  /** 查询语音任务列表（GET /api/voice/orchestrate/tasks）
+   *  v1.2.7 修正：tasks 端点定义在 voice_orchestrate.py（prefix=/voice/orchestrate），
+   *  非 voice.py。旧路径 /api/voice/tasks 返回 404。
+   *  端点受 feature flag 门控，未启用时返回 503（业务层处理降级）。
+   */
   async listVoiceTasks(): Promise<ApiResult<unknown[]>> {
-    return this.request<unknown[]>('/api/voice/tasks');
+    return this.request<unknown[]>('/api/voice/orchestrate/tasks');
   }
 
   // ──────────────────────────────────────────────────────────────────

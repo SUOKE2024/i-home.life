@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
  * mock 策略：
  *   - localStorage 预设 paseto_token（模拟登录态）
  *   - 拦截 /api/agents/chat/stream SSE 返回固定流（格式对齐后端 agents.py:1255：data:{json}，json.event 标识类型）
- *   - 拦截 /api/voice/tasks 返回空列表
+ *   - 拦截 /api/voice/orchestrate/tasks 返回空列表
  */
 
 // SSE mock 格式对齐后端真实输出：仅 data: 行，event 类型在 JSON 的 event 字段（非标准 SSE event: 行）
@@ -39,7 +39,7 @@ test.describe('工作台 WorkbenchPage', () => {
       });
     });
     // 拦截语音任务接口
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });

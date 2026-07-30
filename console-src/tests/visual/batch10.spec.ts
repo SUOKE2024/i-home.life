@@ -50,7 +50,7 @@ test.describe('MepPage 水电暖通', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch10');
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -111,7 +111,7 @@ test.describe('VRPanoramaPage VR 全景', () => {
     await page.route('**/api/projects', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });

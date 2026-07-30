@@ -51,7 +51,7 @@ test.describe('ProductsPage 产品管理', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch9');
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -113,7 +113,7 @@ test.describe('FurniturePage 家具品类', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch9');
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
@@ -182,7 +182,7 @@ test.describe('HardDecorationPage 硬装设计', () => {
     await page.route('**/api/projects', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });
-    await page.route('**/api/voice/tasks', async (route) => {
+    await page.route('**/api/voice/orchestrate/tasks', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
   });
