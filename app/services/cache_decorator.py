@@ -90,6 +90,8 @@ def cached(
     ttl: int = 300,
     key_prefix: str = "",
     key_builder: Callable[[tuple, dict], str] | None = None,
+    user_isolation: bool = False,
+    public: bool = False,
 ):
     """装饰 async 函数，自动缓存返回值。
 
@@ -98,6 +100,9 @@ def cached(
         key_prefix: key 前缀（如 "mat:categories"），用于 invalidate_pattern 批量失效
         key_builder: 自定义 key 生成函数，签名 (args, kwargs) -> str
                      跨用户端点必须用 key_builder 含 user_id
+        user_isolation: v1.3.0 用户隔离模式。True 时强制 key 经 build_isolated_key 构造，
+                       要求 key_builder 返回值可解析出 user_id（或显式 public=True）
+        public: v1.3.0 公共数据标记。True 时 key 用 public: 前缀，无需 user_id
 
     Returns:
         装饰后的函数，附带:
@@ -106,6 +111,7 @@ def cached(
 
     Feature flag:
         settings.cache_decorators_enabled = False 时直透，不缓存
+        settings.cache_user_isolation_strict = True 时 user_isolation 模式强制 user_id
     """
     def decorator(fn):
         prefix = key_prefix or fn.__qualname__
@@ -118,7 +124,18 @@ def cached(
 
             # 生成 key
             base_key = key_builder(args, kwargs) if key_builder else _default_key(fn, args, kwargs)
-            key = f"{prefix}:{base_key}" if key_prefix else base_key
+
+            # v1.3.0 用户隔离模式：经 build_isolated_key 构造隔离 key
+            if user_isolation:
+                from app.services.cache_service import build_isolated_key
+                # 从 kwargs 提取 user_id / project_id
+                uid = kwargs.get("user_id")
+                pid = kwargs.get("project_id")
+                # strict 模式下 build_isolated_key 会校验 user_id
+                isolated_base = build_isolated_key(base_key, user_id=uid, project_id=pid, public=public)
+                key = f"{prefix}:{isolated_base}" if key_prefix else isolated_base
+            else:
+                key = f"{prefix}:{base_key}" if key_prefix else base_key
 
             # 查缓存
             cached_val = await cache.get(key)

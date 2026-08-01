@@ -117,7 +117,7 @@ class QAInspectorAgent(BaseAgent):
 
 验收标准依据：
 - GB 50210-2018 建筑装饰装修工程质量验收标准
-- GB 50327-2017 住宅装饰装修工程施工规范
+- GB 50327-2001 住宅装饰装修工程施工规范
 - GB 50300-2013 建筑工程施工质量验收统一标准
 
 缺陷类别：
@@ -278,6 +278,10 @@ class QAInspectorAgent(BaseAgent):
             "overall_verdict_text": overall_verdict_text,
             "all_issues": all_issues,
             "rectification_suggestions": rectification_suggestions,
+            # 诚实降级标注：当前为规则引擎 mock（hash 模拟），非真实视觉/实测数据
+            "source": "mock",
+            "engine": "mock_rule_engine",
+            "is_placeholder": True,
             "reply": (
                 f"验收报告已生成：{project_name}，"
                 f"共 {len(section_results)} 个分项，{total_items} 个检查点，"
@@ -390,6 +394,10 @@ class QAInspectorAgent(BaseAgent):
                 f"尺寸偏差项「{d['dimension']}」：测量值 {d['measured_value']}，标准 {d['standard']}"
                 for d in failed_deviations
             ],
+            # 诚实降级标注：mock CV 比对，非真实图像识别
+            "source": "mock",
+            "engine": "mock_cv_engine",
+            "is_placeholder": True,
             "reply": (
                 f"设计图纸比对完成：{phase} 阶段，"
                 f"共 {total_checks} 项检查，一致 {matched} 项，"
@@ -491,6 +499,10 @@ class QAInspectorAgent(BaseAgent):
                 f"「{d['category_name']}」缺陷（{d['location']}）：{d['rectification']}"
                 for d in detected_defects
             ],
+            # 诚实降级标注：mock CV 检测，非真实图像识别
+            "source": "mock",
+            "engine": "mock_cv_engine",
+            "is_placeholder": True,
             "reply": (
                 f"工艺缺陷识别完成：{phase} 阶段，"
                 f"共检测 {checked_items} 项，检出缺陷 {len(detected_defects)} 项"

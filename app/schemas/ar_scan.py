@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class ScanSessionCreate(BaseModel):
     project_id: str
     survey_id: str | None = None
+    floorplan_id: str | None = None
     name: str = Field(default="AR 扫描", max_length=200)
     scanner: str | None = None
     device_model: str | None = None
@@ -25,6 +26,7 @@ class ScanSessionUpdate(BaseModel):
     scan_method: str | None = None
     floor_count: int | None = None
     room_count: int | None = None
+    floorplan_id: str | None = None
     total_area: float | None = None
     wall_height: float | None = None
     scan_duration_sec: int | None = None
@@ -41,6 +43,7 @@ class ScanSessionResponse(BaseModel):
     id: str
     project_id: str
     survey_id: str | None
+    floorplan_id: str | None
     name: str
     scanner: str | None
     device_model: str | None

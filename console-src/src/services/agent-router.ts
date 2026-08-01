@@ -54,7 +54,9 @@ const AGENT_INFO: Record<string, AgentInfo> = {
   mep:                    { key: 'mep',                    name: '水电暖通',   emoji: '🔧', color: tokens.agentConstruction },
   appliance:              { key: 'appliance',              name: '家电',       emoji: '📺', color: tokens.agentProcurement },
   furniture_catalog:      { key: 'furniture_catalog',      name: '家具',       emoji: '🪑', color: tokens.agentProcurement },
+  furniture:              { key: 'furniture_catalog',      name: '家具',       emoji: '🪑', color: tokens.agentProcurement },
   door_window_waterproof: { key: 'door_window_waterproof', name: '门窗防水',   emoji: '🚪', color: tokens.agentConstruction },
+  door_window:            { key: 'door_window_waterproof', name: '门窗防水',   emoji: '🚪', color: tokens.agentConstruction },
   files:                  { key: 'files',                  name: '文件',       emoji: '📁', color: tokens.agentMaster },
   products:               { key: 'products',               name: '产品',       emoji: '🏷️', color: tokens.agentProcurement },
   identity:               { key: 'identity',               name: '身份认证',   emoji: '🆔', color: tokens.agentMaster },
@@ -84,9 +86,16 @@ const BACKEND_TO_AGENT: Record<string, string> = {
   construction: 'construction',
   contractor: 'construction',
   quality: 'quality',
+  qa_inspector: 'quality',
   settlement: 'settlement',
   support: 'support',
+  concierge: 'support',
   admin: 'admin',
+  // 后端业务命名 → 前端展示命名（对齐 agent-router.js + Flutter）
+  furniture: 'furniture_catalog',
+  furniture_catalog: 'furniture_catalog',
+  door_window: 'door_window_waterproof',
+  door_window_waterproof: 'door_window_waterproof',
 };
 
 /** 后端 agent_type → 前端 key */
@@ -103,10 +112,12 @@ export function agentToBackend(agent: string): string {
     budget: 'budget',
     procurement: 'procurement',
     construction: 'construction',
-    quality: 'quality',
+    quality: 'qa_inspector',
     settlement: 'settlement',
-    support: 'support',
+    support: 'concierge',
     admin: 'admin',
+    furniture_catalog: 'furniture',
+    door_window_waterproof: 'door_window',
   };
   return map[agent] ?? agent;
 }

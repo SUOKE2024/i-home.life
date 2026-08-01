@@ -2,10 +2,29 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.2.6 · 评估报告落地修复：鸿蒙接入 Flutter-OH 引擎 + 语音面板组件测试 + Web 缓存版本统一 + 冗余清理（2026-07-28）
-> 核心能力：19 页面 Web 控制台 + Flutter 46 页面 + 58 API 测试全覆盖 + 22 Agent 全链路 + 12 Flutter 数据模型 + L4 偏好学习 + MCP 协议 + AI 渲染 + 语音情绪路由 + 564+ API + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.3.0 · MCP 2026-07-28 规范完整对齐 + 缓存用户隔离硬约束 + AI 渲染接入契约固化 + H-IFC 湖北地方标准（2026-07-31）
+> 核心能力：35 页面 React Web 控制台 + Flutter 46 页面 + 22 Agent 全链路 + 80+ Service + 50 ORM 模型 + 74 路由 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-07-31 · v1.3.0 MCP 2026-07-28 规范完整对齐
+
+v1.3.0 是平台协议化与工程治理版本，完整对齐 MCP 2026-07-28 规范 8 项核心特性，强化缓存安全隔离，固化 AI 渲染接入契约，扩展 H-IFC 湖北地方标准。
+
+- **P1 MCP 2026-07-28 规范完整对齐（8 项）**: stateless 核心 + server/discover RPC + header-based routing + cacheable list results（ETag/304）+ MRTR 多轮往返 + RFC 9207 authorization + extensions framework（Tasks）+ .well-known Server Card。新增 [app/mcp/mrtr.py](app/mcp/mrtr.py) + [app/mcp/extensions/tasks.py](app/mcp/extensions/tasks.py)，21 个测试全通过
+- **P2 缓存用户隔离硬约束**: `cache_user_isolation_strict` flag（默认 True）强制私有数据缓存 key 含 user_id，[cache_service.py](app/services/cache_service.py) 新增 `build_isolated_key` + isolated get/set/delete，16 个测试覆盖跨用户隔离
+- **P3 AI 渲染接入契约固化**: `ai_render_backend_type`（controlnet/sdxl_turbo/mock）+ `ai_render_contract_strict` 4 级降级链（L0 ControlNet → L1 mock → L2 占位 → L3 error），24 个测试覆盖契约 schema
+- **P4 H-IFC 扩展 + 施工图 MEP**: `ifc_h_ifc_extension_enabled` 湖北地方标准（DMS 坐标/视点/漫游）+ `construction_drawing_mep_enabled` + 国标 GB 50500-2024/GB 50854-2024，16 个测试覆盖
+
+### 2026-07-31 · v1.2.9 全模块全链路复评修复
+
+基于全模块全量全链路复评报告（主代理亲自 Read 源码核验，纠正子代理 87-100% 误判率）的系统修复：
+
+- **P0 版本号一致性同步**: 1.2.9 发布时 11 处版本号未同步（散布 1.2.6/1.2.7/1.2.8/1.2.9），已全部统一——config.py / .env / .env.example / .env.production / pubspec.yaml 1.2.9+26 / config.dart / settings_page.dart / version.json / sw.js CACHE_VERSION 9→10 / web 24 资源 v=20260731a / deploy-production.sh / ci.yml 4 处 / console-src package.json
+- **P2 测试覆盖补齐**: 新增 [test_analytics.py](tests/test_analytics.py) 7 用例（此前 analytics 是唯一无 test_*.py 的 API 模块），全量 1491 passed / 0 failed
+- **深度安全审计**: 6 个含 NotImplementedError 的 service 全部为抽象基类/诚实降级（零真 stub）；62 个 API 模块认证/越权审计全部通过（6 种认证模式）；缓存 key user_id 隔离合规
+- **代码质量审计**: bare except 20 处全部为降级处理；SQL text() 拼接为硬编码 DDL 无注入面；schema drift 检查通过
+- **清理**: 718 个残留测试 DB + 525 个 .pyc + 18 个 __pycache__ 目录
 
 ### 2026-07-28 · v1.2.6 系统检查评估落地修复
 

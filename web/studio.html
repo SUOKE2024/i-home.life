@@ -179,7 +179,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
       <button class="tb" id="btn-style-switch" style="width:100%;margin-bottom:4px" title="AI 风格变换">🎨 风格变换</button>
       <button class="tb" id="btn-ai-image" style="width:100%" title="AI 生成效果图">🖼️ AI 出图</button>
     </div>
-    
+
     <!-- 方案历史 -->
     <div class="sc" id="design-history-panel">
       <h3>方案历史 <span style="float:right;font-size:0.55rem;color:var(--muted)" id="history-count">0</span></h3>
@@ -2226,7 +2226,7 @@ function renderWithFilament(){
       list.innerHTML = '<div style="padding:8px;text-align:center;color:var(--muted)">暂无历史方案</div>';
       return;
     }
-    list.innerHTML = designHistory.map(h => 
+    list.innerHTML = designHistory.map(h =>
       '<div style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text);font-size:0.6rem">' +
       '<span style="color:var(--accent)">' + h.name + '</span> ' +
       '<span style="color:var(--muted)">' + h.style + '</span> ' +
@@ -2251,7 +2251,7 @@ function renderWithFilament(){
       wallHeight: wallHeight,
     };
     addDesignHistory('方案对比', '多方案', '基准方案已保存：' + rects.length + '个房间，' + baseline.totalArea.toFixed(1) + '㎡');
-    
+
     // 显示对比结果面板
     var compareHtml = '<div style="padding:8px;color:var(--accent);font-weight:600;border-bottom:1px solid var(--border)">📊 方案对比基准</div>';
     compareHtml += '<div style="padding:4px 8px;font-size:0.6rem;color:var(--text)">';
@@ -2264,7 +2264,7 @@ function renderWithFilament(){
       compareHtml += r.name + '(' + (r.roomType || 'unknown') + ') ' + r.w.toFixed(1) + '×' + r.h.toFixed(1) + 'm | ';
     });
     compareHtml += '</div>';
-    
+
     var list = document.getElementById('history-list');
     if (list) {
       var item = document.createElement('div');
@@ -2272,7 +2272,7 @@ function renderWithFilament(){
       item.style.borderBottom = '1px solid var(--accent)';
       list.insertBefore(item, list.firstChild);
     }
-    
+
     var toast = document.getElementById('toast') || createToast();
     toast.innerHTML = '📊 方案基准已保存<br><small>' + baseline.roomCount + '个房间 · ' + baseline.totalArea.toFixed(1) + '㎡</small>';
     toast.classList.add('show');
@@ -2291,7 +2291,7 @@ function renderWithFilament(){
     ];
     var idx = Math.floor(Math.random() * styles.length);
     var style = styles[idx];
-    
+
     // 应用新材质到 3D 场景
     if (!useFilament && typeof scene !== 'undefined') {
       var wallMatColor = style.wall;
@@ -2303,9 +2303,9 @@ function renderWithFilament(){
         if (f.material && f.material.color) f.material.color.setHex(floorMatColor);
       });
     }
-    
+
     addDesignHistory('风格变换', style.name, style.desc);
-    
+
     var toast = document.getElementById('toast') || createToast();
     toast.innerHTML = '🎨 风格：' + style.name + '<br><small>' + style.desc + '</small>';
     toast.classList.add('show');
@@ -2319,19 +2319,19 @@ function renderWithFilament(){
       alert('⚠️ 当前方案无房间，请先绘制后再生成效果图');
       return;
     }
-    
+
     var roomTypes = rects.map(function(r) { return r.roomType || 'living_room'; });
     var primaryRoom = roomTypes[0];
     var roomTypeNames = { living_room: '客厅', bedroom: '卧室', kitchen: '厨房', bathroom: '卫生间', study: '书房', dining_room: '餐厅' };
     var roomName = roomTypeNames[primaryRoom] || '房间';
     var area = rects[0].w * rects[0].h;
-    
+
     addDesignHistory('AI 出图', roomName + '效果图', '面积: ' + area.toFixed(1) + '㎡');
-    
+
     var toast = document.getElementById('toast') || createToast();
     toast.innerHTML = '🖼️ 正在生成 ' + roomName + ' 效果图…<br><small>预计 5-10 秒</small>';
     toast.classList.add('show');
-    
+
     // 调用 AI Image API
     var token = localStorage.getItem('paseto_token');
     if (token) {
@@ -2339,7 +2339,7 @@ function renderWithFilament(){
       var projectId = params.get('project_id') || '';
       var styleHints = { '现代简约': 'modern minimalist', '轻奢风': 'luxury light', '北欧风': 'scandinavian', '日式侘寂': 'japanese wabi-sabi', '工业风': 'industrial loft', '新中式': 'modern chinese' };
       var styleDesc = styleHints[document.getElementById('btn-style-switch')?.textContent] || 'modern minimalist';
-      
+
       fetch(API + '/api/ai-image/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -2464,6 +2464,6 @@ Object.assign(window, {
   startVoice, execAI, generate3DFrom2D, toggleLayer,
 });
 </script>
-<script defer src="assets/js/perf-optimizer.js?v=20260728b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260801a"></script>
 </body>
 </html>

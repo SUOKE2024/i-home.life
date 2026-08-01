@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.2.8"
+    app_version: str = "1.3.1"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -157,6 +157,13 @@ class Settings(BaseSettings):
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具
     # 兼容 MCP 2026-07-28 stateless 核心，支持 Nginx round-robin 负载均衡
     mcp_enabled: bool = True
+    # v1.3.0 MCP 2026-07-28 完整对齐子开关（受 mcp_enabled 总开关约束）：
+    # server/discover RPC + .well-known Server Card
+    mcp_discover_enabled: bool = True
+    # Multi Round-Trip Requests（sampling/elicitation 轮询式双向通信）
+    mcp_mrtr_enabled: bool = True
+    # Tasks 扩展（tasks/create, tasks/update, tasks/get, tasks/list, tasks/cancel）
+    mcp_tasks_extension_enabled: bool = True
 
     # ── AI 渲染（v1.1.12 新增，PRD §7.x）──
     # 启用后 /api/ai-render/* 端点可用，支持 2D 效果图 / 3D 场景 / 照片重布置
@@ -176,7 +183,8 @@ class Settings(BaseSettings):
     # - 语音任务生命周期控制（"任务进度"/"取消任务"）
     voice_agent_orchestration_enabled: bool = False
     # v1.2.8 讨论式方案交互：LLM 生成多方案 + 语音调整修订
-    design_proposal_llm_enabled: bool = False
+    # v1.3.x 默认开启（console 已接通 /design/proposals + revise UI；LLM 不可用时自动降级确定性单方案）
+    design_proposal_llm_enabled: bool = True
     # 悬浮窗常驻语音交互（Flutter 前端 flag，后端仅暴露）
     voice_floating_widget_enabled: bool = False
 
@@ -247,6 +255,11 @@ class Settings(BaseSettings):
     cache_decorators_enabled: bool = True
     pref_hint_cache_ttl: int = 300           # Agent preference hint 缓存 TTL（秒）
     hot_endpoint_cache_ttl: int = 300        # 热点端点缓存 TTL（秒）
+    # v1.3.0 缓存用户隔离硬约束开关：
+    # True（默认）= build_isolated_key/get_isolated/set_isolated 私有数据未传 user_id 时 raise
+    #   强制执行项目硬约束"所有缓存 key 必须含 user_id 或为公共数据"
+    # False = 回退到 u:anon: 前缀（仅开发环境调试用，紧急回滚用）
+    cache_user_isolation_strict: bool = True
 
     # ── OpenTelemetry 分布式追踪（v1.2.2 F4）──
     # 补齐 logs/metrics/traces 可观测三支柱：启用后通过 OTLP 导出 HTTP 请求/DB 查询
@@ -416,14 +429,24 @@ class Settings(BaseSettings):
     # 启用后 ai_render_service 走真实渲染后端；关闭或后端不可用时诚实降级到 mock（不再伪造参数）
     real_ai_render_enabled: bool = False  # 默认关闭，需配置渲染后端 URL
     ai_render_backend_url: str = ""  # 渲染后端地址（如 http://localhost:7860 或第三方 API）
+    # v1.3.0 P3: AI 渲染接入契约固化（ControlNet + Depth Anything V2 + SDXL-Turbo）
+    # 后端类型：controlnet（几何锁定，对标 2026 行业强制）/ sdxl_turbo（15s 快速预览，95% 空间准确度）/ mock
+    ai_render_backend_type: str = "controlnet"
+    # 契约严格模式：True 时客户端 require_real=True 且后端不可用 → 503 诚实报错（不走占位图）
+    ai_render_contract_strict: bool = True
 
     # ── S4: IFC 真实坐标 + Pset 属性集 + 门窗洞口扣减 ──
     # 启用后 ifc_export 用 floorplan 真实坐标放置构件，附加 Pset_WallCommon 等
     ifc_real_placement_enabled: bool = True
+    # v1.3.0 P4: H-IFC 扩展（湖北 BIM 应用导则：视点/漫游/地理位置数据字段）
+    # 启用后 IfcSite 附加 RefLatitude/RefLongitude + Pset_HIFCExtension，默认关闭灰度
+    ifc_h_ifc_extension_enabled: bool = False
 
     # ── S5: 施工图自动生成（模型即图纸，floorplan 变 → 图纸重生成）──
     # 启用后 /api/construction-drawing/* 端点可用，生成 SVG 平/立/剖面图
     construction_drawing_enabled: bool = True
+    # v1.3.0 P4: 施工图 MEP 图示占位（给排水/电气管线走向标注）
+    construction_drawing_mep_enabled: bool = False
 
     # ── S6: 2D CAD 参数化升级（画线即建墙，写入 floorplan.data）──
     # 启用后 cad_page DrawingElement 升级为 BIM 构件（带厚度/材质/层高）
@@ -443,6 +466,10 @@ class Settings(BaseSettings):
     # 启用后 Nginx /console/* 入口对外可见；前端经 /api/config/feature-flags 读取
     # 关闭时回退旧静态页（workbench.html 等 18 页保留作回滚资产）
     console_v2_enabled: bool = False
+
+    # v1.2.9 Workbench 上下文自适应建议（GenUI-lite：按时段/角色重排快捷输入）
+    # 关闭时回退静态 SUGGESTIONS 常量
+    workbench_adaptive_suggestions_enabled: bool = False
 
 
 @lru_cache

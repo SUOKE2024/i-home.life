@@ -63,6 +63,8 @@ function renderCardContent(
       return <BudgetCard p={p} />;
     case 'payment':
       return <PaymentCard p={p} />;
+    case 'ar_scan_trigger':
+      return <ARScanTriggerCard p={p} />;
     default:
       return (
         <div className="wb-msg__fallback">
@@ -226,6 +228,30 @@ function PaymentCard({ p }: { p: Record<string, any> }) {
           </div>
         );
       })}
+    </>
+  );
+}
+
+/** AR 空间测量卡片 — ar_scan_trigger (对齐 app/api/agents.py ar_measurement 的 card_payload) */
+function ARScanTriggerCard({ p }: { p: Record<string, any> }) {
+  const features: string[] = p.supported_features ?? [];
+  const sensorType: string = p.sensor_type ?? 'LiDAR';
+  return (
+    <>
+      <div className="wb-msg__card-title">📏 {p.title ?? 'AR 空间测量'}</div>
+      {p.prompt && <div className="wb-msg__card-row"><span>{p.prompt}</span></div>}
+      <div className="wb-msg__card-row">
+        <span>推荐方案</span>
+        <strong>{sensorType}</strong>
+      </div>
+      {features.map((f, i) => (
+        <div className="wb-msg__card-row" key={i}>
+          <span>· {f}</span>
+        </div>
+      ))}
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+        请在移动端 App 中使用 AR 空间测量（扫描结果将自动同步到项目）
+      </div>
     </>
   );
 }

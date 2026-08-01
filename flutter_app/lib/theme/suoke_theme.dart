@@ -136,6 +136,20 @@ class SuokeDesignTokens {
     };
   }
 
+  // ── 动效语言（2026 基线，对齐 Web tokens.ts MotionTokens）──
+  // 时长：fast=微反馈 / base=标准 / slow=强调与大位移；均 <300ms 以维持响应感
+  static const Duration durationFast = Duration(milliseconds: 120);
+  static const Duration durationBase = Duration(milliseconds: 200);
+  static const Duration durationSlow = Duration(milliseconds: 320);
+
+  // 缓动：对齐 Material 3 motion tokens
+  /// 通用（standard）
+  static const Curve easeStandard = Curves.easeInOutCubic;
+  /// 入场/放大（emphasized decelerate）
+  static const Curve easeEmphasized = Curves.decelerate;
+  /// 退场（decelerated leave）
+  static const Curve easeDecelerated = Curves.easeOutCubic;
+
   // ── 浅色主题令牌 ──
 
   static const Color lightBg = Color(0xFFF8F7F4);

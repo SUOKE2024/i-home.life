@@ -659,3 +659,92 @@ async def test_parse_usdz_extension_mismatch():
     assert "parse_warnings" in result
     warnings = " ".join(result["parse_warnings"])
     assert ("不一致" in warnings or "降级" in warnings)
+
+
+# ── F1.8 修复验证: 客户端真实上报的设备能力 (v1.2.x) ──
+
+def test_ar_device_capability_lidar_without_arkit_version():
+    """iOS 原生插件已探测到 LiDAR 硬件但未上报 arkit_version —
+    不应把用户选择的 LiDAR 静默降级为 photogrammetry (回归: 前后端能力判定不一致)"""
+    from app.services.ar_scan_service import detect_device_capability
+
+    result = detect_device_capability({
+        "platform": "ios",
+        "device_model": "iPhone 15 Pro",
+        "has_lidar": True,          # 客户端原生插件真实探测值
+        "has_gyroscope": True,
+        "has_accelerometer": True,
+        "supports_photogrammetry": True,
+        # 注意: 无 arkit_version
+    })
+    assert result["recommended_method"] == "lidar"
+    assert result["lidar_supported"] is True
+    assert "lidar" in result["available_methods"]
+    assert result["fallback_chain"][0] == "lidar"
+
+
+def test_ar_device_capability_ios_visual_slam_sensor_fallback():
+    """iOS 无 LiDAR、无 arkit_version,但 IMU 传感器可用 → 推荐 visual_slam"""
+    from app.services.ar_scan_service import detect_device_capability
+
+    result = detect_device_capability({
+        "platform": "ios",
+        "device_model": "iPhone 11",
+        "has_lidar": False,
+        "has_gyroscope": True,
+        "has_accelerometer": True,
+        "supports_photogrammetry": True,
+    })
+    assert result["recommended_method"] == "visual_slam"
+    assert "visual_slam" in result["available_methods"]
+    assert "lidar" not in result["available_methods"]
+
+
+def test_ar_device_capability_android_visual_slam_sensor_fallback():
+    """Android 无 ARCore 版本号,但 IMU 传感器可用 → 推荐 visual_slam"""
+    from app.services.ar_scan_service import detect_device_capability
+
+    result = detect_device_capability({
+        "platform": "android",
+        "device_model": "Pixel 8",
+        "has_lidar": False,
+        "has_gyroscope": True,
+        "has_accelerometer": True,
+        "supports_photogrammetry": True,
+    })
+    assert result["recommended_method"] == "visual_slam"
+    assert "visual_slam" in result["available_methods"]
+
+
+@pytest.mark.asyncio
+async def test_ar_session_floorplan_id_persisted(client: AsyncClient):
+    """创建会话时上报 floorplan_id — 应持久化并在响应中返回 (回归: 前端选择户型被静默丢弃)"""
+    token, headers = await _register_and_login(client, "13900008095")
+    project_id = await _create_project(client, headers, "户型关联测试")
+
+    # 先创建一个户型方案
+    fp_resp = await client.post("/api/floorplans", json={
+        "project_id": project_id,
+        "name": "三室两厅",
+        "room_count": 5,
+        "total_area": 120.0,
+    }, headers=headers)
+    assert fp_resp.status_code == 201
+    floorplan_id = fp_resp.json()["id"]
+
+    resp = await client.post("/api/surveys/ar/sessions", json={
+        "project_id": project_id,
+        "name": "带户型关联的扫描",
+        "platform": "ios",
+        "requested_method": "lidar",
+        "floorplan_id": floorplan_id,
+        "device_capability": {"platform": "ios", "has_lidar": True, "arkit_version": "7.0"},
+    }, headers=headers)
+    assert resp.status_code == 201
+    session = resp.json()
+    assert session["floorplan_id"] == floorplan_id
+
+    # 详情接口同样返回 floorplan_id
+    detail = await client.get(f"/api/surveys/ar/sessions/{session['id']}", headers=headers)
+    assert detail.status_code == 200
+    assert detail.json()["floorplan_id"] == floorplan_id

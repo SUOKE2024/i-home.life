@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import type { ChatMessage } from '../../types/chat';
 import MessageBubble from './MessageBubble';
 import MessageCard from './MessageCard';
+import A2UICard from './A2UICard';
 
 export interface MessageListProps {
   messages: ChatMessage[];
@@ -38,13 +39,23 @@ export default function MessageList({ messages, onFeedback, onCardAction }: Mess
 
   return (
     <div className="wb-message-list" ref={containerRef} data-testid="wb-message-list">
-      {decorated.map((m) =>
-        m.cardType && m.cardType !== 'text' ? (
-          <MessageCard key={m.id} message={m} onAction={onCardAction} />
-        ) : (
-          <MessageBubble key={m.id} message={m} onFeedback={onFeedback} />
-        ),
-      )}
+      {decorated.map((m) => (
+        <div key={m.id} className="wb-msg-block">
+          {m.cardType && m.cardType !== 'text' ? (
+            <MessageCard message={m} onAction={onCardAction} />
+          ) : (
+            <MessageBubble message={m} onFeedback={onFeedback} />
+          )}
+          {/* A2UI 结构化卡片（v1.3.1 接入，对齐 Flutter a2ui_renderer.dart） */}
+          {m.a2uiCards && m.a2uiCards.length > 0 && (
+            <div className="wb-msg__a2ui">
+              {m.a2uiCards.map((card, i) => (
+                <A2UICard key={i} card={card as Record<string, any>} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
       <div ref={bottomRef} />
     </div>
   );

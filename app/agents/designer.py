@@ -133,11 +133,12 @@ class DesignerAgent(BaseAgent):
 
         layouts = self.DEFAULT_LAYOUTS[area]
         plans = []
-        for plan_name, rooms in layouts.items():
+        for idx, (plan_name, rooms) in enumerate(layouts.items(), start=1):
             total_area = sum(r["w"] * r["h"] for r in rooms)
+            display_name = f"方案{'ABC'[idx - 1]}"
             plans.append({
-                "name": plan_name,
-                "brief": f"{plan_name}: {len(rooms)}个房间，总面积{total_area:.1f}㎡",
+                "name": display_name,
+                "brief": f"{display_name}：{len(rooms)}个房间，总面积{total_area:.1f}㎡",
                 "rooms": rooms,
                 "total_area": round(total_area, 1),
             })
@@ -149,11 +150,12 @@ class DesignerAgent(BaseAgent):
             "墙面：净味乳胶漆 + 局部艺术漆",
         ]
 
+        recommendation = plans[1]["name"] if len(plans) > 1 else plans[0]["name"]
         return {
             "plans": plans,
-            "recommendation": plans[1]["name"] if len(plans) > 1 else plans[0]["name"],
+            "recommendation": recommendation,
             "materials": materials,
-            "reply": f"已为您生成{len(plans)}套{area}㎡户型设计方案，推荐方案B，南北通透，采光更佳。",
+            "reply": f"已为您生成{len(plans)}套{area}㎡户型设计方案，推荐{recommendation}，南北通透，采光更佳。",
         }
 
     # ── F28 智能布局动线分析 ──
@@ -194,12 +196,16 @@ class DesignerAgent(BaseAgent):
         if not rooms:
             return {"error": "未提供房间布局数据"}
 
-        # 构建房间索引（按 type）
+        # 构建房间索引（按 type 与 name）
         room_by_type: dict[str, dict] = {}
+        room_by_name: dict[str, dict] = {}
         for r in rooms:
             t = r.get("type", r.get("room_type", ""))
             if t:
                 room_by_type.setdefault(t, r)
+            n = r.get("name", "")
+            if n:
+                room_by_name.setdefault(n, r)
 
         def _center(r: dict) -> tuple[float, float]:
             return (r["x"] + r["w"] / 2, r["y"] + r["h"] / 2)
@@ -236,15 +242,34 @@ class DesignerAgent(BaseAgent):
             return crossed
 
         def _segment_rect_intersect(x1: float, y1: float, x2: float, y2: float, rect: dict) -> bool:
-            """判断线段 (x1,y1)-(x2,y2) 是否与矩形相交（简化算法）"""
+            """判断线段 (x1,y1)-(x2,y2) 是否与轴对齐矩形相交（Liang-Barsky 裁剪算法）。
+
+            相比原先"包围盒相交即命中"的桩实现，此算法精确判定线段与矩形
+            是否真实相交，避免大量穿越误报。
+            """
             rx1, ry1 = rect["x"], rect["y"]
             rx2, ry2 = rect["x"] + rect["w"], rect["y"] + rect["h"]
-            # 线段包围盒与矩形相交检测
-            if max(x1, x2) < rx1 or min(x1, x2) > rx2:
-                return False
-            if max(y1, y2) < ry1 or min(y1, y2) > ry2:
-                return False
-            # 进一步：检测线段是否完全在矩形外（保守起见返回 True）
+            dx = x2 - x1
+            dy = y2 - y1
+            p = (-dx, dx, -dy, dy)
+            q = (x1 - rx1, rx2 - x1, y1 - ry1, ry2 - y1)
+            u1, u2 = 0.0, 1.0
+            for pi, qi in zip(p, q):
+                if pi == 0:
+                    if qi < 0:
+                        return False  # 线段与边界平行且在外侧
+                else:
+                    t = qi / pi
+                    if pi < 0:
+                        if t > u2:
+                            return False
+                        if t > u1:
+                            u1 = t
+                    else:
+                        if t < u1:
+                            return False
+                        if t < u2:
+                            u2 = t
             return True
 
         # 分析三条动线
@@ -292,10 +317,10 @@ class DesignerAgent(BaseAgent):
             if crossed_rooms:
                 penalty = 15 * len(crossed_rooms)
                 score -= penalty
-                # 是否穿越卧室（严重）
+                # 是否穿越卧室（严重）— crossed_rooms 存的是房间名称，按 name 回查类型
                 crossed_bedroom = any(
-                    room_by_type.get(t, {}).get("type") == "bedroom"
-                    for t in crossed_rooms
+                    room_by_name.get(n, {}).get("type") == "bedroom"
+                    for n in crossed_rooms
                 )
                 severity = "critical" if crossed_bedroom else "warning"
                 issues.append({
@@ -413,7 +438,7 @@ class DesignerAgent(BaseAgent):
             name_match = re.search(r"(客厅|卧室|厨房|卫生间|书房|阳台|餐厅|走廊)", message)
             dir_match = re.search(r"(左|右|上|下|东|西|南|北)", message)
             dist_match = re.search(r"(\d+(?:\.\d+)?)\s*[米m]", message)
-            dist = float(dist_match.group(1))
+            dist = float(dist_match.group(1)) if dist_match else 1.0
             dir_name = dir_match.group(1) if dir_match else None
             dx = dist * (1 if dir_name == "右" else -1 if dir_name == "左" else 0)
             dy = dist * (1 if dir_name == "下" else -1 if dir_name == "上" else 0)

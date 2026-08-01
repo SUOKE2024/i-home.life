@@ -48,6 +48,8 @@ class AIImageJobResponse(BaseModel):
     progress_percent: float
     error_message: str | None
     render_duration_sec: int
+    # 渲染后端标注：mock（诚实降级占位）/ real — 对齐 ai_render 的 render_backend 约定
+    render_backend: str = "mock"
     created_at: datetime
     completed_at: datetime | None
 

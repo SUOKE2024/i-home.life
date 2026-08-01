@@ -84,6 +84,22 @@ async def get_design(
     return CustomFurnitureDesignResponse.model_validate(design)
 
 
+@router.patch("/designs/{design_id}", response_model=CustomFurnitureDesignResponse)
+async def update_design(
+    design_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    design = await _verify_design_owner(db, design_id, current_user)
+    updated = await svc.update_design(db, design_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设计不存在")
+    resp = CustomFurnitureDesignResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(design.project_id, "furniture.design.updated", resp.model_dump())
+    return resp
+
+
 @router.delete("/designs/{design_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_design(
     design_id: str,

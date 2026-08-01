@@ -1426,4 +1426,64 @@
   }
 }
 
-
+/* ════════════════════════════════════════════
+   Bento 统计概览（2026 趋势：模块化非对称卡片）
+   ════════════════════════════════════════════ */
+.wb-bento {
+  display: grid;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+.wb-bento__cell {
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--spacing-lg);
+  transition: background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+.wb-bento__cell--hero {
+  background: linear-gradient(135deg, var(--surface2), var(--surface1));
+  border-color: var(--border-active);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+.wb-bento__cell:hover {
+  background: var(--surface2);
+  border-color: var(--border-active);
+}
+.wb-bento__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.wb-bento__value {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.wb-bento__value--accent {
+  color: var(--accent);
+}
+.wb-bento__hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-align: right;
+}
+.wb-bento__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+@media (max-width: 480px) {
+  .wb-bento__stats {
+    grid-template-columns: 1fr;
+  }
+  .wb-bento__value {
+    font-size: 24px;
+  }
+}

@@ -23,13 +23,13 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; media-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self';">
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" href="assets/css/workbench.css?v=20260728b" as="style">
-<link rel="preload" href="assets/js/api-client.js?v=20260728b" as="script">
-<link rel="preload" href="assets/js/im-client.js?v=20260728b" as="script">
-<link rel="preload" href="assets/js/agent-router.js?v=20260728b" as="script">
-<link rel="preload" href="assets/js/message-renderers.js?v=20260728b" as="script">
+<link rel="preload" href="assets/css/workbench.css?v=20260801a" as="style">
+<link rel="preload" href="assets/js/api-client.js?v=20260801a" as="script">
+<link rel="preload" href="assets/js/im-client.js?v=20260801a" as="script">
+<link rel="preload" href="assets/js/agent-router.js?v=20260801a" as="script">
+<link rel="preload" href="assets/js/message-renderers.js?v=20260801a" as="script">
 <link rel="icon" type="image/png" href="assets/images/icons/desktop/suoke-favicon-32.png">
-<link rel="stylesheet" href="assets/css/workbench.css?v=20260728b">
+<link rel="stylesheet" href="assets/css/workbench.css?v=20260801a">
 <link rel="manifest" href="manifest.json">
 <title>工作台 · 索克家居</title>
 <!-- v1.2.1 性能优化: 预连接第三方 CDN -->
@@ -448,11 +448,11 @@
 </div>
 
 <script>window.API_BASE_URL = window.location.origin;</script>
-<script src="assets/js/api-client.js?v=20260728b"></script>
-<script src="assets/js/im-client.js?v=20260728b"></script>
-<script src="assets/js/agent-router.js?v=20260728b"></script>
-<script src="assets/js/message-renderers.js?v=20260728b"></script>
-<script defer src="assets/js/perf-optimizer.js?v=20260728b"></script>
+<script src="assets/js/api-client.js?v=20260801a"></script>
+<script src="assets/js/im-client.js?v=20260801a"></script>
+<script src="assets/js/agent-router.js?v=20260801a"></script>
+<script src="assets/js/message-renderers.js?v=20260801a"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260801a"></script>
 <script>
 (function() {
   // ============ 初始化 ============
@@ -489,7 +489,7 @@
   const createDialogClose = document.getElementById('create-project-close');
   const createProjectForm = document.getElementById('create-project-form');
   const avatarImg = document.getElementById('chat-avatar-img');
-                  
+
   const AVATAR_BASE = 'assets/images/avatars/hand-drawn-profiles/';
   const AVATAR_COUNT = 6;
 
@@ -574,12 +574,15 @@
     mep: 'mep',
     appliance: 'appliance',
     furniture: 'furniture',
+    furniture_catalog: 'furniture',   // agent-router.js 前端 key 别名
     door_window: 'door_window',
+    door_window_waterproof: 'door_window',  // agent-router.js 前端 key 别名
     files: 'files',
     products: 'products',
     identity: 'identity',
     notifications: 'notifications',
     ifc_export: 'ifc_export',
+    voice: 'voice',
   };
   // 后端 agent_type → 前端 agent key（接收流式回复用，与 AGENT_KEY_TO_TYPE 互为逆映射）
   const TYPE_TO_AGENT_KEY = {
@@ -610,13 +613,14 @@
     bathroom: 'bathroom',
     mep: 'mep',
     appliance: 'appliance',
-    furniture: 'furniture',
-    door_window: 'door_window',
+    furniture: 'furniture_catalog',
+    door_window: 'door_window_waterproof',
     files: 'files',
     products: 'products',
     identity: 'identity',
     notifications: 'notifications',
     ifc_export: 'ifc_export',
+    voice: 'voice',
   };
   // 滚动监听器是否已绑定（防止 loadProjectMessages 重复调用时多次绑定）
   let _scrollListenerBound = false;
@@ -1178,6 +1182,22 @@
       _handleIncomingIM(data);
     });
 
+    // v1.3.1: 总控任务卡片实时下发（task_claim / orchestrator_task）
+    IMClient.on('task.card', (data) => {
+      if (!data || !data.card_type) return;
+      const cardType = data.card_type;
+      const payload = data.payload || {};
+      renderMessage({
+        type: cardType,
+        agent: 'master',
+        timestamp: new Date().toISOString(),
+        payload,
+      });
+      if (document.hidden) {
+        _showNotificationToast('总控任务', payload.title || '任务更新');
+      }
+    });
+
     IMClient.connect(token, projectId, currentUser?.id || '').catch(() => {
       // 连接失败不阻塞，后续会自动重连
     });
@@ -1347,6 +1367,33 @@
       }
       // 没有特定 ID 的按钮不拦截
       return;
+    }
+  });
+
+  // ============ 任务申领候选人「选择」按钮（业主分配） ============
+  listEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.candidate-select-btn');
+    if (!btn || btn.disabled) return;
+    const taskId = btn.dataset.taskId;
+    const userId = btn.dataset.candidateId;
+    if (!taskId || !userId) return;
+    btn.disabled = true;
+    btn.textContent = '处理中…';
+    try {
+      await ApiClient.assignTask({ task_id: taskId, user_id: userId });
+      btn.textContent = '✓ 已分配';
+      renderMessage({
+        type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+        content: '已选择候选人，任务已进入执行阶段。',
+      });
+    } catch (err) {
+      btn.textContent = '✗ 失败';
+      btn.disabled = false;
+      const msg = err?.body?.detail?.message || err?.body?.detail || '分配失败';
+      renderMessage({
+        type: 'text', agent: 'master', timestamp: new Date().toISOString(),
+        content: `任务分配失败：${typeof msg === 'string' ? msg : JSON.stringify(msg)}`,
+      });
     }
   });
 
@@ -2494,7 +2541,7 @@
     await loadProjectMessages();
   }
 
-    
+
   // ============ 创建项目对话框 ============
   function openCreateDialog() {
     closeProjectPicker();
@@ -3376,7 +3423,7 @@
   init();
 })();
 </script>
-<script defer src="assets/js/analytics.js?v=20260728b"></script>
+<script defer src="assets/js/analytics.js?v=20260801a"></script>
 <script>
 if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {

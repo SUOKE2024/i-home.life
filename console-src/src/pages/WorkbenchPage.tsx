@@ -24,7 +24,7 @@
  *   error → 错误恢复
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../components/workbench/workbench.css';
 import '../components/layout/layout.css';
@@ -37,6 +37,7 @@ import TypingIndicator from '../components/workbench/TypingIndicator';
 import VoiceTaskPanel from '../components/workbench/VoiceTaskPanel';
 import EmptyState from '../components/EmptyState';
 import { apiClient } from '../services/api-client';
+import { reorderSuggestions, greetingFor, type SuggestionSeed } from '../services/adaptive-suggestions';
 import {
   route,
   backendToAgent,
@@ -53,7 +54,7 @@ import {
 const SESSION_KEY = 'agent_session_id';
 
 // 空状态快捷输入（对齐 ai_chat_page.dart:1756-1762）
-const SUGGESTIONS = [
+const SUGGESTIONS: SuggestionSeed[] = [
   { emoji: '💰', text: '查看预算情况', agent: 'budget' },
   { emoji: '📐', text: '我的设计方案', agent: 'design' },
   { emoji: '🔨', text: '施工进度如何', agent: 'construction' },
@@ -72,10 +73,69 @@ export default function WorkbenchPage() {
   const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [currentProcessingAgent, setCurrentProcessingAgent] = useState('master');
 
+  // ── 上下文自适应建议（GenUI-lite，受 workbench_adaptive_suggestions_enabled 灰度）──
+  const [suggestions, setSuggestions] = useState(SUGGESTIONS);
+  const [greeting, setGreeting] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiClient.getFeatureFlags().then((flags) => {
+      if (!alive || !flags) return;
+      if (flags.workbench_adaptive_suggestions_enabled) {
+        setSuggestions(reorderSuggestions(SUGGESTIONS));
+        setGreeting(greetingFor());
+      }
+    }).catch(() => {
+      // flag 读取失败回退静态建议，不阻断工作台
+    });
+    return () => { alive = false; };
+  }, []);
+
   // refs 避免闭包陷阱
   const sessionIdRef = useRef<string | null>(localStorage.getItem(SESSION_KEY));
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
+  const toastTimerRef = useRef<number | null>(null);
+
+  /** 轻量 toast 提示（对齐 Flutter SnackBar，如语音模式开关） */
+  const showToast = useCallback((text: string) => {
+    setToast(text);
+    if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2000);
+  }, []);
+
+  // 卸载时清理 toast timer，避免组件销毁后 setState
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  /** v1.3.1 对齐 Flutter _loadSessionMessages：挂载时恢复历史消息（此前刷新后消息丢失） */
+  useEffect(() => {
+    const sid = sessionIdRef.current;
+    if (!sid) return;
+    let alive = true;
+    apiClient.getAgentSession(sid).then((result) => {
+      if (!alive || !result.isSuccess || !result.data) return;
+      const msgs = (result.data as { messages?: Array<Record<string, unknown>> }).messages ?? [];
+      if (msgs.length === 0) return;
+      const restored: ChatMessage[] = msgs.map((m) => {
+        const role = String(m.role ?? '');
+        const content = String(m.content ?? '');
+        if (role === 'user') {
+          return userTextMessage(content);
+        }
+        const backendType = String(m.agent_type ?? '');
+        return agentTextMessage(content, backendType ? backendToAgent(backendType) : 'master');
+      });
+      setMessages(restored);
+    }).catch(() => {
+      // 历史不可达则保持空状态，不阻断工作台
+    });
+    return () => { alive = false; };
+  }, []);
 
   /** 更新最后一条 agent 文本消息（对齐 ai_chat_page.dart:221-232） */
   const updateLastAgentMessage = useCallback(
@@ -147,6 +207,8 @@ export default function WorkbenchPage() {
       let cardMessageType: string | null = null;
       let cardPayload: Record<string, unknown> | undefined;
       const steps: string[] = [];
+      // v1.3.1: 标记流是否以 done/error 正常收尾（防服务端静默断开时 isLoading 永不复位）
+      let streamCompleted = false;
 
       try {
         const stream = apiClient.streamChat(text, {
@@ -195,12 +257,24 @@ export default function WorkbenchPage() {
               break;
             }
             case 'done': {
+              streamCompleted = true;
               if (event.content) {
                 updateLastAgentMessage(event.content, currentAgent);
                 fullContent = event.content;
               }
               if (cardMessageType && fullContent) {
                 replaceLastAgentWithCard(cardMessageType, fullContent, currentAgent, cardPayload);
+              }
+              // A2UI 结构化卡片（v1.3.1：设计/预算等 JSON 输出 → 卡片渲染）
+              if (event.a2uiCards && event.a2uiCards.length > 0) {
+                setMessages((prev) => {
+                  const next = [...prev];
+                  const last = next[next.length - 1];
+                  if (last) {
+                    next[next.length - 1] = { ...last, a2uiCards: event.a2uiCards };
+                  }
+                  return next;
+                });
               }
               // 挂载思考步骤到最后一条消息
               if (steps.length > 0) {
@@ -217,23 +291,28 @@ export default function WorkbenchPage() {
                   return next;
                 });
               }
-              setIsLoading(false);
               break;
             }
             case 'error': {
+              streamCompleted = true;
               updateLastAgentMessage(
                 `抱歉，AI 服务暂时不可用: ${event.content ?? '未知错误'}`,
                 currentAgent,
               );
-              setIsLoading(false);
               break;
             }
           }
+        }
+
+        // v1.3.1: 流被服务端静默断开（未收到 done/error）→ 兜底提示，避免输入栏永久禁用
+        if (!streamCompleted) {
+          updateLastAgentMessage('抱歉，连接意外中断，请重试。', currentAgent);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const truncated = msg.length > 80 ? `${msg.slice(0, 80)}...` : msg;
         updateLastAgentMessage(`抱歉，AI 服务暂时不可用: ${truncated}`, 'master');
+      } finally {
         setIsLoading(false);
       }
     },
@@ -241,7 +320,110 @@ export default function WorkbenchPage() {
   );
 
   const toggleVoiceMode = useCallback(() => {
-    setIsVoiceMode((v) => !v);
+    setIsVoiceMode((v) => {
+      const next = !v;
+      // 对齐 Flutter _toggleVoiceMode SnackBar：语音模式开关即时反馈
+      showToast(next ? '语音模式已开启 — 说出问题，AI Agent 实时回复' : '已退出语音模式');
+      return next;
+    });
+  }, [showToast]);
+
+  /**
+   * 反馈接线（v1.3.1）：👍/👎 → POST /api/agents/feedback（L4 自适应学习）。
+   * user_message 取该 agent 消息之前最近一条用户消息；成功后将反馈状态写回消息。
+   */
+  const handleFeedback = useCallback(
+    async (msgId: string, feedback: 'like' | 'dislike') => {
+      const msgs = messagesRef.current;
+      const idx = msgs.findIndex((m) => m.id === msgId);
+      if (idx < 0) return;
+      const agentMsg = msgs[idx];
+      let userMessage = '';
+      for (let i = idx - 1; i >= 0; i--) {
+        if (msgs[i].role === 'user') {
+          userMessage = msgs[i].content ?? '';
+          break;
+        }
+      }
+      if (!userMessage || !(agentMsg.content ?? '').trim()) return;
+
+      const result = await apiClient.submitAgentFeedback({
+        agent_name: agentToBackend(agentMsg.agent ?? 'master'),
+        feedback_type: feedback,
+        user_message: userMessage,
+        agent_reply: agentMsg.content ?? '',
+        session_id: sessionIdRef.current,
+      });
+      if (result.isSuccess) {
+        // 回写反馈状态，按钮切换为"已反馈"（不重刷消息流）
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msgId ? { ...m, feedback } : m)),
+        );
+      }
+    },
+    [],
+  );
+
+  /** 卡片动作接线（v1.3.1）：bom-export 等 → 跳转对应业务页 */
+  const handleCardAction = useCallback(
+    (action: string, _payload?: unknown) => {
+      if (action === 'bom-export') {
+        navigate('/procurement');
+        return;
+      }
+      // 未知动作静默忽略，不阻断会话
+    },
+    [navigate],
+  );
+
+  /**
+   * 附件接线（v1.3.1）：选择文件 → 项目感知上传（POST /files/upload）。
+   * 诚实降级：仅当用户有且仅有一个项目时自动关联上传；否则给出明确指引，
+   * 不假装上传成功（对齐 CLAUDE.md「禁止用硬编码假数据伪装真实能力」）。
+   */
+  const handleAttachFile = useCallback(async (file: File) => {
+    const size =
+      file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+
+    // 先插入用户"附件"消息（本地展示）
+    const attachMsg = userTextMessage(`📎 ${file.name}（${size}）`);
+    setMessages((prev) => [...prev, attachMsg]);
+
+    // 解析项目上下文（唯一项目才自动关联，多项目/无项目时给出指引）
+    const projects = await apiClient.listProjects<import('../types/domain').Project[]>();
+    const list = projects.isSuccess && Array.isArray(projects.data) ? projects.data : [];
+    const project = list.length === 1 ? list[0] : null;
+
+    if (!project) {
+      const hint =
+        list.length > 1
+          ? '检测到多个项目，请进入对应项目页后上传附件。'
+          : '当前还没有项目，请先创建项目后上传附件。';
+      setMessages((prev) => [
+        ...prev,
+        agentTextMessage(`附件上传需关联项目。${hint}`, 'master'),
+      ]);
+      return;
+    }
+
+    const result = await apiClient.uploadFile<{ id?: string; filename?: string }>(
+      '/files/upload',
+      file,
+      { project_id: project.id, category: 'other' },
+    );
+    if (result.isSuccess) {
+      setMessages((prev) => [
+        ...prev,
+        agentTextMessage(`已上传到项目「${project.name}」📂`, 'master'),
+      ]);
+    } else {
+      setMessages((prev) => [
+        ...prev,
+        agentTextMessage(`附件上传失败：${result.error ?? '未知错误'}`, 'master'),
+      ]);
+    }
   }, []);
 
   const isEmpty = messages.length === 0;
@@ -269,10 +451,10 @@ export default function WorkbenchPage() {
 
       {isEmpty ? (
         <EmptyState
-          title="索克家居"
+          title={greeting ? `${greeting}，索克家居` : '索克家居'}
           subtitle="AI 智能装修助手"
           hints={['8 位核心 Agent + 专项 Agent', '7×24 全天候在线']}
-          suggestions={SUGGESTIONS.map((s) => ({
+          suggestions={suggestions.map((s) => ({
             emoji: s.emoji,
             text: s.text,
             onClick: () => send(s.text),
@@ -281,7 +463,11 @@ export default function WorkbenchPage() {
           testId="wb-empty"
         />
       ) : (
-        <MessageList messages={messages} />
+        <MessageList
+          messages={messages}
+          onFeedback={handleFeedback}
+          onCardAction={handleCardAction}
+        />
       )}
 
       {isLoading && (
@@ -290,12 +476,7 @@ export default function WorkbenchPage() {
 
       <ChatInputBar
         onSend={send}
-        onAttach={() => {
-          /* 批次 4 接入附件 */
-        }}
-        onEmoji={() => {
-          /* 批次 4 接入 emoji picker */
-        }}
+        onAttachFile={handleAttachFile}
         onVoice={toggleVoiceMode}
         onVoiceTasks={() => setVoicePanelOpen(true)}
         disabled={isLoading}
@@ -306,6 +487,11 @@ export default function WorkbenchPage() {
         open={voicePanelOpen}
         onClose={() => setVoicePanelOpen(false)}
       />
+      {toast && (
+        <div className="wb-toast" role="status" aria-live="polite" data-testid="wb-toast">
+          {toast}
+        </div>
+      )}
       </div>
     </SuokeLayout>
   );

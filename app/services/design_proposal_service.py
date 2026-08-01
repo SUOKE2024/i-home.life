@@ -23,8 +23,8 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-# LLM fallback chain 顺序（对齐 voice.py 的 _VOICE_LLM_FALLBACK_CHAIN）
-_PROPOSAL_LLM_CHAIN = ["deepseek", "glm", "qwen"]
+# LLM fallback chain 顺序（对齐 CLAUDE.md 规范：deepseek → qwen → glm → doubao）
+_PROPOSAL_LLM_CHAIN = ["deepseek", "qwen", "glm", "doubao"]
 
 # 方案生成 system prompt
 _PROPOSAL_GEN_SYSTEM = """你是装修设计专家。根据用户需求生成 2-3 套差异化设计方案。

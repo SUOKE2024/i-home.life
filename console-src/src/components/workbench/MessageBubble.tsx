@@ -46,22 +46,33 @@ export default function MessageBubble({ message, onFeedback }: MessageBubbleProp
       <div className="wb-msg__bubble">{message.content}</div>
       {!isUser && message.agent && onFeedback && (
         <div className="wb-msg__feedback">
-          <button
-            className="wb-feedback-btn"
-            onClick={() => onFeedback(message.id, 'like')}
-            aria-label="有帮助"
-            type="button"
-          >
-            👍
-          </button>
-          <button
-            className="wb-feedback-btn"
-            onClick={() => onFeedback(message.id, 'dislike')}
-            aria-label="没帮助"
-            type="button"
-          >
-            👎
-          </button>
+          {message.feedback ? (
+            <span
+              className="wb-feedback-btn wb-feedback-btn--sent"
+              data-testid={`wb-feedback-sent--${message.feedback}`}
+            >
+              {message.feedback === 'like' ? '👍 已反馈' : '👎 已反馈'}
+            </span>
+          ) : (
+            <>
+              <button
+                className="wb-feedback-btn"
+                onClick={() => onFeedback(message.id, 'like')}
+                aria-label="有帮助"
+                type="button"
+              >
+                👍
+              </button>
+              <button
+                className="wb-feedback-btn"
+                onClick={() => onFeedback(message.id, 'dislike')}
+                aria-label="没帮助"
+                type="button"
+              >
+                👎
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -23,11 +23,32 @@ import './pages.css';
 import { SuokeLayout } from '../components/layout';
 import { useAsync } from '../hooks/useAsync';
 import { apiClient } from '../services/api-client';
-import type { SketchAnalysisResult, Sketch3DResponse } from '../types/domain';
+import type { SketchAnalysisResult, Sketch3DResponse, SketchSupportedFormats } from '../types/domain';
 
 type Mode = 'analyze' | 'generate';
 
 const STYLES = ['modern', 'minimal', 'chinese', 'european', 'industrial'] as const;
+
+// 后端降级模式 → 前端诚实提示（对齐 sketch_to_3d.py raw_layout.mode）
+const SKETCH_DEGRADE_MSG: Record<string, string> = {
+  feature_disabled: '服务端视觉识别未开启，草图分析暂不可用（已返回占位结果）',
+  no_vision_model: '服务端未配置视觉模型，草图分析暂不可用',
+  vision_call_failed: '视觉模型调用失败，草图分析暂不可用',
+  parse_error: '视觉模型响应解析失败，草图分析暂不可用',
+};
+
+const EMPTY_FORMATS: SketchSupportedFormats = {
+  image_formats: [],
+  max_file_size_mb: 10,
+  recommended_resolution: '',
+  tips: [],
+};
+
+/** 识别后端降级占位结果（200 + confidence=0 + raw_layout.mode 非 vision_analyzed） */
+function degradeModeOf(rawLayout: Record<string, unknown> | undefined): string | null {
+  const mode = (rawLayout as { mode?: string } | undefined)?.mode;
+  return mode && mode !== 'vision_analyzed' ? mode : null;
+}
 
 export default function Sketch3DPage() {
   const navigate = useNavigate();
@@ -42,10 +63,13 @@ export default function Sketch3DPage() {
   const [error, setError] = useState<string | null>(null);
 
   // 支持格式（GET，公共端点无需 token）
-  const { data: formats } = useAsync<string[]>(async () => {
-    const r = await apiClient.getSketchSupportedFormats<string[]>();
-    return r.isSuccess && r.data ? r.data : [];
+  const { data: formats } = useAsync<SketchSupportedFormats>(async () => {
+    const r = await apiClient.getSketchSupportedFormats<SketchSupportedFormats>();
+    return r.isSuccess && r.data ? r.data : EMPTY_FORMATS;
   }, []);
+  const formatNames = formats?.image_formats?.length
+    ? formats.image_formats.join(' / ')
+    : 'PNG / JPG';
 
   useEffect(() => {
     // 切换模式时清空结果，避免串显
@@ -71,13 +95,30 @@ export default function Sketch3DPage() {
     if (mode === 'analyze') {
       const r = await apiClient.analyzeSketch<SketchAnalysisResult>(selectedFile, description);
       setSubmitting(false);
-      if (r.isSuccess && r.data) setAnalysis(r.data);
-      else setError(r.status === 501 ? '服务端视觉模型未配置，草图分析不可用' : (r.error ?? `分析失败（HTTP ${r.status}）`));
+      if (r.isSuccess && r.data) {
+        // 后端可能返回 200 + 降级占位（feature_disabled/no_vision_model 等）→ 诚实提示而非空成功
+        const degradeMode = degradeModeOf(r.data.raw_layout);
+        if (degradeMode) {
+          setError(SKETCH_DEGRADE_MSG[degradeMode] ?? `草图分析暂不可用（${degradeMode}）`);
+        } else {
+          setAnalysis(r.data);
+        }
+      } else {
+        setError(r.status === 501 ? '服务端视觉模型未配置，草图分析不可用' : (r.error ?? `分析失败（HTTP ${r.status}）`));
+      }
     } else {
       const r = await apiClient.generate3dFromSketch<Sketch3DResponse>(selectedFile, description, style);
       setSubmitting(false);
-      if (r.isSuccess && r.data) setGenerated(r.data);
-      else setError(r.status === 501 ? '服务端视觉模型未配置，3D 生成不可用' : (r.error ?? `生成失败（HTTP ${r.status}）`));
+      if (r.isSuccess && r.data) {
+        const degradeMode = degradeModeOf(r.data.analysis?.raw_layout);
+        if (degradeMode) {
+          setError(SKETCH_DEGRADE_MSG[degradeMode] ?? `3D 生成暂不可用（${degradeMode}）`);
+        } else {
+          setGenerated(r.data);
+        }
+      } else {
+        setError(r.status === 501 ? '服务端视觉模型未配置，3D 生成不可用' : (r.error ?? `生成失败（HTTP ${r.status}）`));
+      }
     }
   };
 
@@ -100,10 +141,10 @@ export default function Sketch3DPage() {
 
           {/* 文件选择 */}
           <div className="wb-upload-zone" data-testid="wb-sketch-upload-zone">
-            <input ref={fileInputRef} type="file" accept={formats?.length ? formats.join(',') : 'image/png,image/jpeg,image/jpg'} onChange={handleFileChange} style={{ display: 'none' }} data-testid="wb-sketch-file-input" />
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/jpg" onChange={handleFileChange} style={{ display: 'none' }} data-testid="wb-sketch-file-input" />
             <button type="button" className="wb-upload-zone__pick" onClick={() => fileInputRef.current?.click()} data-testid="wb-sketch-pick-btn">🖼 选择草图图片</button>
             <div className="wb-upload-zone__hint" data-testid="wb-sketch-file-name">
-              {selectedFile ? `已选择：${selectedFile.name}（${(selectedFile.size / 1024).toFixed(1)} KB）` : `支持 ${formats?.length ? formats.join(' / ') : 'PNG / JPG'}`}
+              {selectedFile ? `已选择：${selectedFile.name}（${(selectedFile.size / 1024).toFixed(1)} KB）` : `支持 ${formatNames}`}
             </div>
           </div>
 

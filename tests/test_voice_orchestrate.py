@@ -79,8 +79,11 @@ def test_parse_task_command():
 
 
 @pytest.mark.asyncio
-async def test_orchestrate_flag_disabled(client: AsyncClient):
+async def test_orchestrate_flag_disabled(client: AsyncClient, monkeypatch):
     """feature flag 关闭时返回 503（默认生产安全）"""
+    monkeypatch.setattr(
+        voice_orchestrate.settings, "voice_agent_orchestration_enabled", False
+    )
     headers = await _auth_headers(client, "13950050001")
     resp = await client.post(
         "/api/voice/orchestrate", json={"text": "帮我设计客厅"}, headers=headers,
@@ -378,9 +381,12 @@ async def test_tool_launch_agent_task(orch_tool_enabled):
 
 
 @pytest.mark.asyncio
-async def test_tool_launch_flag_disabled():
+async def test_tool_launch_flag_disabled(monkeypatch):
     """flag 关闭时工具返回未启用错误"""
     from app.services.agent_tool_registry import tool_registry
+    monkeypatch.setattr(
+        "app.services.agent_tool_registry.settings.voice_agent_orchestration_enabled", False
+    )
 
     result = await tool_registry.execute(
         "launch_agent_task",

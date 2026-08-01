@@ -1127,8 +1127,6 @@ class ApiClient {
       get('/surveys/ar/points/$sessionId');
   Future<Result<dynamic>> arDeviceCheck() =>
       get('/surveys/device-check');
-  Future<Result<dynamic>> arUploadModel(String sessionId, {required String filePath}) =>
-      uploadFile('/surveys/ar/sessions/$sessionId/upload-model', filePath: filePath);
 
   // ── 位置服务 ──
 

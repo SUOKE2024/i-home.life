@@ -194,8 +194,10 @@ AGENT_TYPE_TO_INTENT: dict[str, str] = {
     "procurement": "procurement",
     "construction": "construction",
     "qa_inspector": "qa_inspector",
+    "quality": "qa_inspector",   # 前端展示 key 别名（对齐 Flutter/workbench）
     "settlement": "settlement",
     "concierge": "concierge",
+    "support": "concierge",      # 前端展示 key 别名（对齐 Flutter/workbench）
     "content_publisher": "content_publish",
     "admin": "admin",
     # v1.1.21 新增
@@ -761,12 +763,12 @@ async def chat_with_agent(  # noqa: C901
             return await _finalize("hard_decoration", reply, suggestions_map["hard_decoration"])
 
         elif intent in ("takeoff",):
-            reply = (
-                "工程量计算模块支持材料清单生成和用量估算。\n\n"
-                "功能包括：自动计算材料用量、生成辅料清单、工程量统计。\n"
-                "请告诉我您需要计算哪些项目的工程量。"
-            )
-            return await _finalize("takeoff", reply, suggestions_map["takeoff"])
+            takeoff_agent = TakeoffAgent()
+            try:
+                reply = await takeoff_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("takeoff", reply, suggestions_map["takeoff"])
+            finally:
+                await takeoff_agent.close()
 
         elif intent in ("points",):
             reply = (
@@ -834,44 +836,55 @@ async def chat_with_agent(  # noqa: C901
                 await door_window_agent.close()
 
         elif intent in ("files",):
-            reply = (
-                "文件管理模块支持项目文件的上传、分类和共享。\n\n"
-                "功能包括：图纸上传、文档管理、文件夹组织、文件分享。\n"
-                "请告诉我您需要上传什么文件，或者查看哪些文件。"
-            )
-            return await _finalize("files", reply, suggestions_map["files"])
+            files_agent = FilesAgent()
+            try:
+                reply = await files_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("files", reply, suggestions_map["files"])
+            finally:
+                await files_agent.close()
 
         elif intent in ("products",):
-            reply = (
-                "产品管理模块支持家居产品的浏览、搜索和管理。\n\n"
-                "功能包括：产品分类浏览、产品搜索、产品详情查看、产品对比。\n"
-                "请告诉我您想查找什么类型的产品。"
-            )
-            return await _finalize("products", reply, suggestions_map["products"])
+            products_agent = ProductsAgent()
+            try:
+                reply = await products_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("products", reply, suggestions_map["products"])
+            finally:
+                await products_agent.close()
 
         elif intent in ("identity",):
-            reply = (
-                "身份认证模块支持实名认证和个人信息管理。\n\n"
-                "功能包括：实名认证、身份信息更新、认证状态查询。\n"
-                "请告诉我您需要进行什么身份认证操作。"
-            )
-            return await _finalize("identity", reply, suggestions_map["identity"])
+            identity_agent = IdentityAgent()
+            try:
+                reply = await identity_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("identity", reply, suggestions_map["identity"])
+            finally:
+                await identity_agent.close()
 
         elif intent in ("notifications",):
-            reply = (
-                "通知中心支持系统消息、项目动态和提醒的查看与管理。\n\n"
-                "功能包括：查看通知列表、标记已读、消息设置、推送偏好。\n"
-                "请告诉我您想查看什么通知，或者调整通知设置。"
-            )
-            return await _finalize("notifications", reply, suggestions_map["notifications"])
+            notifications_agent = NotificationsAgent()
+            try:
+                reply = await notifications_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("notifications", reply, suggestions_map["notifications"])
+            finally:
+                await notifications_agent.close()
 
         elif intent in ("ifc_export",):
+            ifc_export_agent = IfcExportAgent()
+            try:
+                reply = await ifc_export_agent.think(data.message, f"用户: {current_user.name}")
+                return await _finalize("ifc_export", reply, suggestions_map["ifc_export"])
+            finally:
+                await ifc_export_agent.close()
+
+        elif intent in ("voice",):
             reply = (
-                "IFC 导出模块支持将 BIM 模型导出为 IFC 标准格式。\n\n"
-                "功能包括：IFC 2x3/4 格式导出、BIM 数据查看、导出选项设置、模型校验。\n"
-                "请告诉我您想导出哪个项目的 IFC 数据。"
+                "语音对话已就绪，您可以直接说出装修需求（如「帮我设计客厅，同时算一下预算」）。\n\n"
+                "使用方式：\n"
+                "1. 点击输入框旁的话筒按钮进入语音模式\n"
+                "2. 按住说话，松手后自动识别\n"
+                "3. 识别结果将交给对应的 AI Agent 处理并回复\n\n"
+                "支持实时对话、多意图并行调度（「同时/另外/再帮我」）与任务进度查询（「任务进度」）。"
             )
-            return await _finalize("ifc_export", reply, suggestions_map["ifc_export"])
+            return await _finalize("voice", reply, ["打开语音输入", "测试语音对话", "查看语音任务"])
 
         else:
             # Unknown intent — fallback to orchestrator general reply
@@ -992,25 +1005,38 @@ async def chat_stream(  # noqa: C901
             finally:
                 await des_agent.close()
         elif intent in ("budget",):
-            stream_agent = BudgetAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
+            # 与 /chat 对齐：FunctionCall 工具调用（get_budget）后流式推送最终回复
+            bud_agent = BudgetAgent()
+            try:
+                _tool_result = await bud_agent.think_with_tools(data.message, user_ctx)
+                reply = _tool_result["final_reply"]
+            finally:
+                await bud_agent.close()
         elif intent in ("procurement",):
-            stream_agent = ProcurementAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
+            proc_agent = ProcurementAgent()
+            try:
+                _tool_result = await proc_agent.think_with_tools(data.message, user_ctx)
+                reply = _tool_result["final_reply"]
+            finally:
+                await proc_agent.close()
         elif intent in ("construction",):
-            stream_agent = ConstructionAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
+            cons_agent = ConstructionAgent()
+            try:
+                _tool_result = await cons_agent.think_with_tools(data.message, user_ctx)
+                reply = _tool_result["final_reply"]
+            finally:
+                await cons_agent.close()
         elif intent in ("settlement",):
             stream_agent = SettlementAgent()
             stream_msg = data.message
             stream_ctx = user_ctx
         elif intent in ("qa_inspector",):
-            stream_agent = QAInspectorAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
+            qa_agent = QAInspectorAgent()
+            try:
+                _tool_result = await qa_agent.think_with_tools(data.message, user_ctx)
+                reply = _tool_result["final_reply"]
+            finally:
+                await qa_agent.close()
         elif intent in ("concierge",):
             conc_agent = ConciergeAgent()
             try:
@@ -1071,7 +1097,9 @@ async def chat_stream(  # noqa: C901
         elif intent in ("hard_decoration",):
             reply = "硬装设计模块支持吊顶、墙面装饰、地面铺装等硬装方案设计。"
         elif intent in ("takeoff",):
-            reply = "工程量计算模块支持材料清单生成和用量估算。请告诉我您需要计算哪些项目的工程量。"
+            stream_agent = TakeoffAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("points",):
             reply = "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
         elif intent in ("cad_import",):
@@ -1101,15 +1129,30 @@ async def chat_stream(  # noqa: C901
             stream_msg = data.message
             stream_ctx = user_ctx
         elif intent in ("files",):
-            reply = "文件管理模块支持合同、图纸、证件等文件的上传下载和分类管理。"
+            stream_agent = FilesAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("products",):
-            reply = "产品管理模块支持供应商产品上架、定价和库存管理。"
+            stream_agent = ProductsAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("identity",):
-            reply = "身份认证模块支持实名认证提交和认证状态查询。"
+            stream_agent = IdentityAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("notifications",):
-            reply = "通知模块支持消息推送提醒和设备注册管理。"
+            stream_agent = NotificationsAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
         elif intent in ("ifc_export",):
-            reply = "BIM 导出模块支持 IFC 格式的建筑结构模型导出。"
+            stream_agent = IfcExportAgent()
+            stream_msg = data.message
+            stream_ctx = user_ctx
+        elif intent in ("voice",):
+            reply = (
+                "语音对话已就绪，您可以直接说出装修需求。点击输入框旁的话筒按钮进入语音模式，"
+                "支持实时对话、多意图并行调度与任务进度查询（「任务进度」）。"
+            )
         else:
             reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
 
@@ -1150,6 +1193,7 @@ async def chat_stream(  # noqa: C901
                 "identity": "identity",
                 "notifications": "notifications",
                 "ifc_export": "ifc_export",
+                "voice": "voice",
             }
 
             # ── v1.1.29: 发送思考步骤事件 ──
@@ -1200,6 +1244,17 @@ async def chat_stream(  # noqa: C901
                     async for chunk in stream_agent.think_stream(stream_msg, stream_ctx):
                         accumulated_text += chunk
                         yield f"data: {json.dumps({'event': 'token', 'content': chunk})}\n\n"
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - 流中断也必须向前端送达 error 事件
+                    # v1.3.1: 流式 Agent 异常 → 诚实送达 error 事件而非静默断开。
+                    # 若无 error/done，前端 for-await 会在流关闭时自然结束且 isLoading
+                    # 永不复位（输入栏禁用 + typing 常驻），故此处必须显式报错。
+                    logger.warning(
+                        "chat_stream_agent_error: intent=%s error=%s", intent, exc,
+                    )
+                    error_msg = (str(exc)[:120]) or "Agent 生成回复时发生异常"
+                    yield f"data: {json.dumps({'event': 'error', 'content': f'Agent 生成回复失败: {error_msg}', 'agent_type': agent_type_meta})}\n\n"
                 finally:
                     await stream_agent.close()
             else:
@@ -1278,10 +1333,22 @@ async def request_design(
 
         layouts = await agent.generate_layouts(msg)
 
+        # 空间规划：逐套方案摘要 + 生成说明（brief 已含方案名）
+        plan_summary = "；".join(p["brief"] for p in layouts["plans"])
+        space_planning = f"{plan_summary}\n\n{layouts['reply']}"
+
+        # 风格建议：推荐方案（generate_layouts 已输出可读方案名，如"方案B"）
+        style_suggestion = f"推荐方案：{layouts['recommendation']}"
+
+        # 动线分析：对推荐方案房间运行真实动线分析（确定性算法）
+        rec_plan = layouts["plans"][1] if len(layouts["plans"]) > 1 else layouts["plans"][0]
+        circulation = agent.analyze_circulation(rec_plan["rooms"])
+        circulation_analysis = circulation.get("reply", "未提供动线分析")
+
         return DesignPlanResponse(
-            space_planning=layouts["reply"],
-            style_suggestion=layouts["recommendation"],
-            circulation_analysis=" | ".join(layouts["materials"][:2]),
+            space_planning=space_planning,
+            style_suggestion=style_suggestion,
+            circulation_analysis=circulation_analysis,
             material_plan="\n".join(layouts["materials"]),
             full_reply=json.dumps(layouts, ensure_ascii=False, indent=2),
         )

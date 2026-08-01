@@ -304,6 +304,18 @@ async def list_door_windows(db: AsyncSession, project_id: str) -> list[DoorWindo
     return list(result.scalars().all())
 
 
+async def update_door_window(db: AsyncSession, spec_id: str, data: dict) -> DoorWindowSpec | None:
+    spec = await get_door_window(db, spec_id)
+    if not spec:
+        return None
+    for key, value in data.items():
+        if hasattr(spec, key) and value is not None:
+            setattr(spec, key, value)
+    await db.commit()
+    await db.refresh(spec)
+    return spec
+
+
 async def delete_door_window(db: AsyncSession, spec_id: str) -> bool:
     spec = await get_door_window(db, spec_id)
     if not spec:
@@ -335,6 +347,18 @@ async def list_waterproofs(db: AsyncSession, project_id: str) -> list[Waterproof
         .order_by(WaterproofPlan.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def update_waterproof(db: AsyncSession, plan_id: str, data: dict) -> WaterproofPlan | None:
+    plan = await get_waterproof(db, plan_id)
+    if not plan:
+        return None
+    for key, value in data.items():
+        if hasattr(plan, key) and value is not None:
+            setattr(plan, key, value)
+    await db.commit()
+    await db.refresh(plan)
+    return plan
 
 
 async def delete_waterproof(db: AsyncSession, plan_id: str) -> bool:

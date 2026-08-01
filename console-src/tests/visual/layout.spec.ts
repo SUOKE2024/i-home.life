@@ -20,6 +20,14 @@ test.describe('SuokeLayout 响应式', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch3');
     });
+    // AuthGate 会校验 token 有效性（getCurrentUser → /api/auth/me），未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
+    });
     await page.route('**/api/agents/chat', async (route) => {
       await route.fulfill({
         status: 200,

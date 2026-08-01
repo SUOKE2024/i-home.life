@@ -26,6 +26,22 @@ const MOCK_PROJECTS = [
   },
 ];
 
+// AuthGate 校验 token（getCurrentUser → /api/auth/me），未 mock 则重定向 login.html
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('paseto_token', 'test-batch'));
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    });
+  });
+});
+
 // ── 施工任务（对齐 app/schemas/construction.py:TaskResponse）──
 const MOCK_CONSTRUCTION_TASKS = [
   {

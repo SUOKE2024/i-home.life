@@ -17,16 +17,18 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import '../platform_info.dart';
-import '../theme/suoke_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
+import '../platform_info.dart';
 import '../services/api.dart';
 import '../services/sensor_service.dart';
+import '../theme/suoke_theme.dart';
 import 'ar_scan/ar_scan_coaching.dart';
 import 'ar_scan/ar_scan_shared_widgets.dart' show EnvCondition;
+import 'ar_scan/ar_scan_components.dart';
 
 // ── AR 平台通道（iOS ARKit / Android ARCore / 鸿蒙 AR Engine）──
 const _arChannel = MethodChannel('com.ihome.life/ar_scan');
@@ -37,6 +39,12 @@ const _warning = SuokeDesignTokens.warning;
 const _danger = SuokeDesignTokens.danger;
 
 // ── 房间类型预设 ──
+// v1.2.9 G7：以下辅助类已抽至 ar_scan/ar_scan_components.dart，
+// 通过 typedef 别名保持主文件引用零改动，降低拆分回归风险。
+typedef _GridPainter = ArGridPainter;
+typedef _CoachingTip = ArCoachingTip;
+typedef _ReviewItem = ArReviewItem;
+
 class RoomPreset {
   final String name;
   final IconData icon;
@@ -154,6 +162,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   int _scanPointsDetected = 0;
   int _scanWallsDetected = 0;
 
+  // ── 原生扫描结果等待 (v1.2.x P0-1: iOS RoomPlan 结果经事件通道交付) ──
+  bool _supportsRoomPlan = false;
+  Completer<Map<String, dynamic>>? _scanCompleter;
+
   // ── 单位切换 cm/m ──
   bool _useCentimeters = false;
 
@@ -205,25 +217,49 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     _detectRealCapabilities();
     _loadFloorplans();
     _setupArListeners();
+    _restoreCoachingFlag();
+  }
+
+  /// v1.2.x P2-7: 首次使用引导覆盖层只弹一次 (SharedPreferences 持久化)
+  static const _coachingSeenKey = 'ar_scan_coaching_seen_v1';
+  Future<void> _restoreCoachingFlag() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seen = prefs.getBool(_coachingSeenKey) ?? false;
+      if (mounted && seen) setState(() => _showCoachingOverlay = false);
+    } catch (_) {
+      // 存储不可用时保留默认行为 (首次展示)
+    }
+  }
+
+  Future<void> _dismissCoachingOverlay() async {
+    setState(() => _showCoachingOverlay = false);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_coachingSeenKey, true);
+    } catch (_) {}
   }
 
   void _setupArListeners() {
     _arChannel.setMethodCallHandler((call) async {
       if (!mounted) return;
+      // 注意: Dart 3 switch 语句允许隐式 fall-through, 每个 case 必须以 break 结束
       switch (call.method) {
         case 'onScanProgress':
           final args = call.arguments as Map?;
           if (args != null) {
             setState(() {
-              _scanProgress = (args['progress'] as num?)?.toDouble() ?? _scanProgress;
-              _scanPointsDetected = args['points_count'] as int? ?? _scanPointsDetected;
-              _scanWallsDetected = args['walls_detected'] as int? ?? _scanWallsDetected;
-              if (_isIOS) {
-                _roomCount = args['room_count'] as int? ?? 0;
-                _wallFeatures = (args['door_count'] as int? ?? 0) + (args['window_count'] as int? ?? 0);
-              }
+              // iOS RoomPlan 事件字段: door_count/window_count/wall_count/object_count
+              _scanPointsDetected =
+                  (args['object_count'] as num?)?.toInt() ?? _scanPointsDetected;
+              _scanWallsDetected =
+                  (args['wall_count'] as num?)?.toInt() ?? _scanWallsDetected;
+              _wallFeatures = ((args['door_count'] as num?)?.toInt() ?? 0) +
+                  ((args['window_count'] as num?)?.toInt() ?? 0);
+              _roomCount = (args['room_count'] as num?)?.toInt() ?? _roomCount;
             });
           }
+          break;
         case 'onTrackingQuality':
           final args = call.arguments as Map?;
           if (args != null && mounted) {
@@ -238,6 +274,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               _hapticLight();
             }
           }
+          break;
         case 'onEnvironmentalCondition':
           final args = call.arguments as Map?;
           if (args != null && mounted) {
@@ -249,6 +286,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             });
             _hapticWarning();
           }
+          break;
         case 'onScanInstruction':
           final args = call.arguments as Map?;
           if (args != null) {
@@ -273,13 +311,37 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               _showSnack(hint);
             }
           }
+          break;
+        case 'onScanCompleted':
+          // iOS RoomPlan 真实扫描结果 (v1.2.x P0-1: 不再把 startScan 即时返回当最终结果)
+          final args = call.arguments as Map?;
+          final completer = _scanCompleter;
+          _scanCompleter = null;
+          if (completer != null && !completer.isCompleted) {
+            completer.complete(Map<String, dynamic>.from(args ?? const {}));
+          }
+          break;
         case 'onScanError':
           final msg = call.arguments as String? ?? '扫描出错';
-          setState(() {
-            _errorMessage = msg;
-            _scanState = _ScanState.failed;
-          });
+          final completer = _scanCompleter;
+          _scanCompleter = null;
+          if (completer != null && !completer.isCompleted) {
+            // 正在等待扫描结果: 交由 _startScan 处理失败状态
+            completer.completeError(PlatformException(code: 'SCAN_ERROR', message: msg));
+          } else {
+            setState(() {
+              _errorMessage = msg;
+              _scanState = _ScanState.failed;
+            });
+          }
+          break;
         case 'onScanCancelled':
+          final cancelCompleter = _scanCompleter;
+          _scanCompleter = null;
+          if (cancelCompleter != null && !cancelCompleter.isCompleted) {
+            cancelCompleter.completeError(
+                PlatformException(code: 'SCAN_CANCELLED', message: '扫描已取消'));
+          }
           setState(() {
             _scanState = _ScanState.ready;
             _scanCancelled = true;
@@ -288,6 +350,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             _scanWallsDetected = 0;
             _trackingQuality = _TrackingQuality.searching;
           });
+          break;
         case 'onScanStarted':
           setState(() {
             _scanCancelled = false;
@@ -295,6 +358,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             _scanPointsDetected = 0;
             _scanWallsDetected = 0;
           });
+          break;
         case 'onScanPaused':
         case 'onScanResumed':
           break;
@@ -330,6 +394,18 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // v1.2.x P1-4: 离开页面必须取消原生扫描, 避免 RoomPlan 会话泄漏并向下游投递
+    final completer = _scanCompleter;
+    _scanCompleter = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(
+          PlatformException(code: 'SCAN_CANCELLED', message: '页面已退出'));
+    }
+    try {
+      // v1.2.x: cancelScan 的 MissingPluginException 是异步 Future 错误,
+      // 用 then(onError:) 消费避免成为未处理异常
+      unawaited(_arChannel.invokeMethod('cancelScan').then((_) {}, onError: (_) {}));
+    } catch (_) {}
     _pulseCtrl.dispose();
     _radarCtrl.dispose();
     _slideCtrl.dispose();
@@ -387,15 +463,21 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     }
     _detectionProgress = 35;
 
-    // LiDAR 探测（iOS 设备通过屏幕特征 + 系统版本推断）
+    // LiDAR / RoomPlan 探测 (iOS 原生插件真实检测)
     if (_isIOS) {
       try {
-        final lidarInfo = await _arChannel.invokeMethod<Map>('detectLidar');
-        _hasLidarProbed = lidarInfo?['available'] == true;
+        final capInfo = await _arChannel.invokeMethod<Map>('detectCapability');
+        _hasLidarProbed = capInfo?['has_lidar'] == true;
+        _supportsRoomPlan = capInfo?['supports_roomplan'] == true;
+        final capOs = capInfo?['os_version']?.toString() ?? '';
+        if (capOs.isNotEmpty) _osVersion = capOs;
+        final capModel = capInfo?['device_model']?.toString() ?? '';
+        if (capModel.isNotEmpty && capModel != 'iPhone') _deviceModel = capModel;
       } catch (_) {
         // 无法探测则根据已知支持 LiDAR 的设备推断
         // iPhone 12 Pro/13 Pro/14 Pro/15 Pro/16 Pro, iPad Pro 2020+
         _hasLidarProbed = false;
+        _supportsRoomPlan = false;
       }
     }
     _detectionProgress = 50;
@@ -452,6 +534,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   // ═══════════════════════════════════════════════
 
   Future<void> _loadFloorplans() async {
+    // v1.2.x P1-2: 无项目上下文时跳过户型加载, 避免空 projectId 请求
+    if (widget.projectId.isEmpty) return;
     setState(() => _loadingFloorplans = true);
     try {
       final result = await _api.getFloorplans(widget.projectId);
@@ -499,8 +583,16 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       _trackingQuality = _TrackingQuality.searching;
       _errorMessage = '';
     });
+    // 中止等待中的原生扫描结果 (v1.2.x P0-1)
+    final completer = _scanCompleter;
+    _scanCompleter = null;
+    if (completer != null && !completer.isCompleted) {
+      completer.completeError(
+          PlatformException(code: 'SCAN_CANCELLED', message: '扫描已取消'));
+    }
     try {
-      _arChannel.invokeMethod('cancelScan');
+      // v1.2.x: 消费异步 Future 错误 (MissingPluginException 在无插件的平台/测试环境)
+      unawaited(_arChannel.invokeMethod('cancelScan').then((_) {}, onError: (_) {}));
     } catch (_) {}
   }
 
@@ -514,6 +606,15 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       _scanWallsDetected = 0;
     });
 
+    // v1.2.x P1-2: 无项目上下文时给出明确错误, 不再带着空 projectId 静默失败
+    if (widget.projectId.isEmpty) {
+      setState(() {
+        _errorMessage = '缺少项目上下文: 请先从项目详情进入 AR 空间测量';
+        _scanState = _ScanState.failed;
+      });
+      return;
+    }
+
     // 创建扫描会话
     final presets = _roomPresets[_selectedRoomIndex];
     _sessionName = '${presets.name} ${DateTime.now().toString().substring(0, 16)}';
@@ -524,8 +625,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       'platform': _isIOS ? 'ios' : AppPlatform.isAndroid ? 'android' : 'unknown',
       'requested_method': _scanMethod,
       'device_capability': {
+        'platform': _isIOS ? 'ios' : AppPlatform.isAndroid ? 'android' : 'unknown',
         'device_model': _deviceModel,
         'has_lidar': _hasLidarProbed,
+        'supports_roomplan': _supportsRoomPlan,
         'has_gyroscope': _hasGyro,
         'has_accelerometer': _hasAccel,
         'has_magnetometer': _hasMagnet,
@@ -548,17 +651,32 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
       return;
     }
 
-    final session = createResult.data as Map<String, dynamic>;
-    _sessionId = session['id'] as String?;
-    if (_sessionId == null) return;
+    // v1.2.x P0-2: 响应缺少会话 ID 时给出明确失败, 不再静默卡死在"扫描中"
+    final session = createResult.data as Map<String, dynamic>?;
+    final sessionId = session?['id'] as String?;
+    if (sessionId == null || sessionId.isEmpty) {
+      setState(() {
+        _errorMessage = '创建扫描会话失败: 服务端响应缺少会话 ID';
+        _scanState = _ScanState.failed;
+      });
+      return;
+    }
+    _sessionId = sessionId;
 
-    // 启动扫描
-    await _api.post('/surveys/ar/sessions/$_sessionId/start', {});
+    // v1.2.x P1-5: 检查 /start 结果, 避免状态机错位后 process 400
+    final startResult = await _api.post('/surveys/ar/sessions/$sessionId/start', {});
+    if (!startResult.isSuccess) {
+      setState(() {
+        _errorMessage = '启动扫描失败: ${startResult.error}';
+        _scanState = _ScanState.failed;
+      });
+      return;
+    }
 
     // 引导原生 AR 扫描
     try {
       final scanResult = await _arChannel.invokeMethod<Map>('startScan', {
-        'session_id': _sessionId,
+        'session_id': sessionId,
         'method': _scanMethod,
         'room_length': _roomLength,
         'room_width': _roomWidth,
@@ -567,15 +685,39 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
       setState(() => _scanState = _ScanState.uploading);
       _hapticLight();
-      final modelPath = scanResult?['model_path'] as String?;
-      final modelFormat = scanResult?['model_format'] as String? ?? 'usdz';
-      final pointsCount = scanResult?['points_count'] as int? ?? 0;
-      final durationSec = scanResult?['duration_sec'] as int? ?? 0;
+
+      // v1.2.x P0-1 修复: startScan 仅返回 {status: "scanning"} 即时确认,
+      // 真实扫描结果由原生端经 onScanCompleted 事件通道交付。
+      Map<String, dynamic> scanData;
+      if (scanResult != null &&
+          (scanResult['model_path'] != null || scanResult['status'] == 'completed')) {
+        // 兼容: 某些实现直接返回最终结果
+        scanData = Map<String, dynamic>.from(scanResult);
+      } else {
+        final completer = Completer<Map<String, dynamic>>();
+        _scanCompleter = completer;
+        try {
+          scanData = await completer.future.timeout(const Duration(minutes: 15));
+        } on TimeoutException {
+          setState(() {
+            _errorMessage = '扫描超时, 请重试';
+            _scanState = _ScanState.failed;
+          });
+          return;
+        } finally {
+          _scanCompleter = null;
+        }
+      }
+
+      final modelPath = scanData['model_path'] as String?;
+      final modelFormat = scanData['model_format'] as String? ?? 'usdz';
+      final pointsCount = (scanData['points_count'] as num?)?.toInt() ?? 0;
+      final durationSec = (scanData['duration_sec'] as num?)?.toInt() ?? 0;
 
       // RoomPlan 自动检测的门窗 → 同步写入后端
-      final doors = scanResult?['doors'] as List<dynamic>? ?? [];
-      final windows = scanResult?['windows'] as List<dynamic>? ?? [];
-      final totalArea = (scanResult?['total_area_sqm'] as num?)?.toDouble();
+      final doors = scanData['doors'] as List<dynamic>? ?? [];
+      final windows = scanData['windows'] as List<dynamic>? ?? [];
+      final totalArea = (scanData['total_area_sqm'] as num?)?.toDouble();
 
       await _uploadAndProcess(modelPath, modelFormat, pointsCount, durationSec);
 
@@ -591,6 +733,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     } on MissingPluginException {
       await _fallbackPhotoScan();
     } on PlatformException catch (e) {
+      if (e.code == 'SCAN_CANCELLED') {
+        // 用户取消: _cancelScan / onScanCancelled 已重置状态
+        return;
+      }
       if (AppConfig.debugMode) {
         await _uploadAndProcess(null, 'usdz', 50000, 120);
       } else if (e.code == 'UNSUPPORTED') {
@@ -655,44 +801,68 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   Future<void> _uploadAndProcess(
     String? modelPath, String modelFormat, int pointsCount, int durationSec,
   ) async {
-    String? modelUrl;
-    if (modelPath != null) {
-      final uploadResult = await _api.uploadFile(
-        '/files/upload',
-        filePath: modelPath,
-        projectId: widget.projectId,
-      );
-      if (uploadResult.isSuccess) {
-        modelUrl = uploadResult.data?['url'] as String?;
+    final sessionId = _sessionId;
+    if (sessionId == null || sessionId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = '处理失败: 缺少扫描会话 ID';
+          _scanState = _ScanState.failed;
+        });
       }
+      return;
     }
 
-    setState(() => _scanState = _ScanState.processing);
-    final result = await _api.post('/surveys/ar/sessions/$_sessionId/process', {
-      'model_url': modelUrl,
-      'model_format': modelFormat,
-      'scan_points_count': pointsCount,
-      'scan_duration_sec': durationSec,
-    });
-
-    if (result.isSuccess) {
-      final data = result.data as Map<String, dynamic>? ?? {};
-      setState(() {
-        _scanState = _ScanState.completed;
-        _roomCount = data['room_count'] as int? ?? 1;
-        _totalArea = (data['total_area'] as num?)?.toDouble() ?? (_roomLength * _roomWidth);
-        _wallFeatures = data['wall_features_added'] as int? ?? 0;
-        final accuracy = data['accuracy_report'] as Map<String, dynamic>?;
-        if (accuracy != null) {
-          _accuracyLevel = accuracy['accuracy_level'] as String? ?? 'medium';
-          _rmsErrorCm = (accuracy['rms_error_cm'] as num?)?.toDouble();
+    try {
+      String? modelUrl;
+      if (modelPath != null) {
+        final uploadResult = await _api.uploadFile(
+          '/files/upload',
+          filePath: modelPath,
+          projectId: widget.projectId,
+        );
+        if (uploadResult.isSuccess) {
+          modelUrl = uploadResult.data?['url'] as String?;
         }
+      }
+
+      if (!mounted) return;
+      setState(() => _scanState = _ScanState.processing);
+      final result = await _api.post('/surveys/ar/sessions/$sessionId/process', {
+        'model_url': modelUrl,
+        'model_format': modelFormat,
+        'scan_points_count': pointsCount,
+        'scan_duration_sec': durationSec,
       });
-      _hapticSuccess();
-      _goToStep(_ScanStep.review);
-    } else {
+
+      if (!mounted) return;
+      if (result.isSuccess) {
+        final data = result.data as Map<String, dynamic>? ?? {};
+        setState(() {
+          _scanState = _ScanState.completed;
+          _roomCount = data['room_count'] as int? ?? 1;
+          _totalArea = (data['total_area'] as num?)?.toDouble() ?? (_roomLength * _roomWidth);
+          _wallFeatures = data['wall_features_added'] as int? ?? 0;
+          final accuracy = data['accuracy_report'] as Map<String, dynamic>?;
+          if (accuracy != null) {
+            _accuracyLevel = accuracy['accuracy_level'] as String? ?? 'medium';
+            _rmsErrorCm = (accuracy['rms_error_cm'] as num?)?.toDouble();
+          } else {
+            _accuracyLevel = 'medium';
+          }
+        });
+        _hapticSuccess();
+        _goToStep(_ScanStep.review);
+      } else {
+        setState(() {
+          _errorMessage = '处理失败: ${result.error}';
+          _scanState = _ScanState.failed;
+        });
+      }
+    } on Exception catch (e) {
+      // v1.2.x P1-3: 上传/处理链路异常防护, 避免未捕获异步异常崩溃
+      if (!mounted) return;
       setState(() {
-        _errorMessage = '处理失败: ${result.error}';
+        _errorMessage = '处理失败: $e';
         _scanState = _ScanState.failed;
       });
     }
@@ -725,8 +895,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         _calibrationPoints.add({
           'id': point['id'],
           'label': label, 'ar_value': arValue, 'reference_value': refValue,
-          'deviation': point['deviation'],
-          'deviation_percent': point['deviation_percent'],
+          // v1.2.x P2-9: 防御空值, 避免后端调整字段后强转崩溃
+          'deviation': (point['deviation'] as num?)?.toDouble() ?? 0.0,
+          'deviation_percent': (point['deviation_percent'] as num?)?.toDouble() ?? 0.0,
         });
         _rmsErrorCm = (point['rms_error_cm'] as num?)?.toDouble() ?? _rmsErrorCm;
       });
@@ -799,7 +970,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
     'high' => '高精度 (±1cm)',
     'medium' => '中等精度 (±3cm)',
     'low' => '低精度 (±5cm+)',
-    _ => level.toUpperCase(),
+    // v1.2.x P2-10: 空/未知等级不再渲染空白徽章
+    _ => '精度待定',
   };
 
   Color _accuracyColor(String level) => switch (level) {
@@ -847,7 +1019,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           body,
           CoachingOverlay(
             scanMethod: _scanMethod,
-            onDismiss: () => setState(() => _showCoachingOverlay = false),
+            onDismiss: _dismissCoachingOverlay,
           ),
         ],
       );
@@ -1459,6 +1631,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               _roomWidth = p.defaultArea / _roomLength;
               _roomHeight = p.defaultHeight;
             });
+            // v1.2.x P2-4: 切换房间预设后同步刷新尺寸输入框, 避免显示旧值
+            _dimLengthCtrl.text = _formatDim(_roomLength);
+            _dimWidthCtrl.text = _formatDim(_roomWidth);
+            _dimHeightCtrl.text = _formatDim(_roomHeight);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -1488,6 +1664,8 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   Widget _buildDimensionInput(RoomPreset preset) {
     final rawArea = _roomLength * _roomWidth;
     final areaUnit = _useCentimeters ? 'cm²' : '㎡';
+    // v1.2.x P2-5: cm 模式按真实单位换算面积 (1㎡ = 10000cm²)
+    final areaDisplay = _useCentimeters ? rawArea * 10000 : rawArea;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1503,7 +1681,13 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
             Semantics(
               label: '切换厘米/米单位',
               child: GestureDetector(
-                onTap: () => setState(() => _useCentimeters = !_useCentimeters),
+                onTap: () {
+                  setState(() => _useCentimeters = !_useCentimeters);
+                  // v1.2.x P2-5: 切换单位后同步刷新输入框显示值
+                  _dimLengthCtrl.text = _formatDim(_roomLength);
+                  _dimWidthCtrl.text = _formatDim(_roomWidth);
+                  _dimHeightCtrl.text = _formatDim(_roomHeight);
+                },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -1538,7 +1722,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text('面积: ${rawArea.toStringAsFixed(1)} $areaUnit',
+              Text('面积: ${areaDisplay.toStringAsFixed(_useCentimeters ? 0 : 1)} $areaUnit',
                   style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 12, fontWeight: FontWeight.w500)),
               const Spacer(),
               GestureDetector(
@@ -1563,6 +1747,14 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  /// v1.2.x P2-5: 按当前单位格式化尺寸显示 (内部统一存米)
+  String _formatDim(double meters) {
+    if (_useCentimeters) {
+      return (meters * 100).toStringAsFixed(0);
+    }
+    return meters.toStringAsFixed(1);
   }
 
   Widget _dimField(String label, double value, Function(double) onChanged) {
@@ -1601,7 +1793,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
               controller: ctrl,
               onChanged: (v) {
                 final parsed = double.tryParse(v);
-                if (parsed != null) onChanged(parsed);
+                if (parsed != null) {
+                  // v1.2.x P2-5: cm 模式下用户输入的是厘米, 内部统一存米
+                  onChanged(_useCentimeters ? parsed / 100 : parsed);
+                }
               },
             ),
           ),
@@ -2562,9 +2757,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 Expanded(flex: 2, child: Text('${p['label']}', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12))),
                 Expanded(child: Text('AR:${p['ar_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
                 Expanded(child: Text('尺:${p['reference_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
-                Text('${(p['deviation'] as num).toStringAsFixed(3)}m',
+                Text('${(p['deviation'] as num?)?.toDouble() ?? 0.0} m',
                     style: TextStyle(
-                      color: (p['deviation'] as num).abs() < 0.03 ? _success : _danger,
+                      color: ((p['deviation'] as num?)?.toDouble() ?? 0.0).abs() < 0.03 ? _success : _danger,
                       fontSize: 11, fontWeight: FontWeight.bold,
                     )),
               ]),
@@ -2764,9 +2959,9 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
                 Expanded(flex: 2, child: Text('${p['label']}', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12))),
                 Expanded(child: Text('AR:${p['ar_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
                 Expanded(child: Text('尺:${p['reference_value']}m', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11))),
-                Text('${(p['deviation'] as num).toStringAsFixed(3)}m',
+                Text('${(p['deviation'] as num?)?.toDouble() ?? 0.0} m',
                     style: TextStyle(
-                      color: (p['deviation'] as num).abs() < 0.03 ? _success : _danger,
+                      color: ((p['deviation'] as num?)?.toDouble() ?? 0.0).abs() < 0.03 ? _success : _danger,
                       fontSize: 11, fontWeight: FontWeight.bold,
                     )),
               ]),
@@ -3429,94 +3624,7 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
   };
 }
 
-// ═══════════════════════════════════════════════
-// 复核项数据模型
-// ═══════════════════════════════════════════════
-
-class _ReviewItem {
-  final String id;
-  final String label;
-  final String value;
-  final String confidence; // 'high', 'medium', 'low'
-  final String? hint;
-
-  const _ReviewItem({
-    required this.id,
-    required this.label,
-    required this.value,
-    required this.confidence,
-    this.hint,
-  });
-
-  Color get confidenceColor => switch (confidence) {
-    'high' => _success,
-    'medium' => _warning,
-    'low' => _danger,
-    _ => SuokeDesignTokens.success,
-  };
-
-  String get confidenceLabel => switch (confidence) {
-    'high' => '高置信',
-    'medium' => '中置信',
-    'low' => '低置信',
-    _ => confidence.toUpperCase(),
-  };
-}
-
-// ═══════════════════════════════════════════════
-// 首次引导提示组件
-// ═══════════════════════════════════════════════
-
-class _CoachingTip extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _CoachingTip({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 14, color: SuokeDesignTokens.accent),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(text,
-                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12, height: 1.3)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════
-// 自定义 Painter: 网格背景
-// ═══════════════════════════════════════════════
-
-class _GridPainter extends CustomPainter {
-  final double opacity;
-  _GridPainter({this.opacity = 0.05});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: opacity)
-      ..strokeWidth = 0.5;
-
-    const gridSize = 20.0;
-    for (double x = 0; x < size.width; x += gridSize) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += gridSize) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GridPainter old) => old.opacity != opacity;
-}
+// （_ReviewItem / _CoachingTip / _GridPainter 已抽至 ar_scan_components.dart，v1.2.9 G7）
 
 // ═══════════════════════════════════════════════
 // 自定义 Painter: AR 追踪十字准线 (reticle)

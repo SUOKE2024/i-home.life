@@ -102,3 +102,48 @@ async def test_cross_user_task_access(auth_headers: dict, client: AsyncClient):
         headers=other_headers,
     )
     assert resp.status_code in (403, 404)
+
+
+# ── 智能体诚实降级标注（P1-5）──
+
+
+def test_analyze_inspection_images_mock_annotation():
+    """施工图像质检必须携带 mock 标注，禁止伪装真实 CV 能力"""
+    from app.agents.construction import ConstructionAgent
+
+    agent = ConstructionAgent()
+    result = agent.analyze_inspection_images(
+        {
+            "phase": "masonry",
+            "images": [{"url": "http://example.com/1.jpg", "type": "tile_surface"}],
+            "design_reference": "http://example.com/design.pdf",
+            "expected_dimensions": {"tile_gap": "2mm", "flatness": "≤3mm"},
+        }
+    )
+    assert result["source"] == "mock"
+    assert result["engine"] == "mock_cv_engine"
+    assert result["is_placeholder"] is True
+    assert result["total_checks"] > 0
+
+
+def test_detect_quality_issues_mock_annotation():
+    """施工质量问题检测必须携带 mock 标注"""
+    from app.agents.construction import detect_quality_issues
+
+    result = detect_quality_issues(
+        project_id="P001",
+        phase="masonry",
+        inspection_results=[
+            {
+                "check_item": "瓷砖空鼓率",
+                "standard": "单砖空鼓 < 5%",
+                "ai_result": "fail",
+                "confidence": 0.9,
+                "issues": ["瓷砖空鼓超标"],
+            }
+        ],
+    )
+    assert result["source"] == "mock"
+    assert result["engine"] == "mock_rule_engine"
+    assert result["is_placeholder"] is True
+    assert len(result["detected_issues"]) >= 1

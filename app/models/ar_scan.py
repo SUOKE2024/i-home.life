@@ -26,6 +26,8 @@ class ScanSession(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id"), nullable=False, index=True)
     survey_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("surveys.id"), nullable=True, index=True)
+    # 关联的户型方案 (可选) — 用户在房间设置步骤选择的户型,用于与户型数据联动
+    floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="AR 扫描")
     scanner: Mapped[str | None] = mapped_column(String(100), nullable=True)              # 扫描人
     # 设备型号: iPhone 15 Pro / MatePad Pro 13.2 等

@@ -4,8 +4,8 @@
  * 结构：Scaffold > AppBar(设置) > ListView[个人资料/主题/通知/其他(退出)]
  * API：GET /api/auth/me（用户信息）、POST /api/auth/logout（退出）
  *
- * 主题：localStorage 'settings_theme_mode'（light/dark/system）
- *      批次 4 仅切换 CSS data-theme，完整亮色主题批次 6
+ * 主题：light/dark/system 三态，system 由 matchMedia 解析；持久化 'settings_theme_mode'。
+ *      主题逻辑复用 services/theme.ts（main.tsx 启动时也调用 initTheme 避免 FOUC）。
  */
 
 import { useNavigate } from 'react-router-dom';
@@ -13,10 +13,10 @@ import './pages.css';
 import { SuokeLayout } from '../components/layout';
 import { useAsync } from '../hooks/useAsync';
 import { apiClient } from '../services/api-client';
+import { applyTheme, readStoredMode, type ThemeMode } from '../services/theme';
 import type { User } from '../types/domain';
 import { useState, useEffect } from 'react';
 
-const THEME_KEY = 'settings_theme_mode';
 const ROLE_LABELS: Record<string, string> = {
   homeowner: '业主',
   owner: '业主',
@@ -26,8 +26,6 @@ const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
 };
 
-type ThemeMode = 'light' | 'dark' | 'system';
-
 export default function SettingsPage() {
   const navigate = useNavigate();
   const [theme, setTheme] = useState<ThemeMode>('system');
@@ -36,8 +34,15 @@ export default function SettingsPage() {
   const [notifyQuality, setNotifyQuality] = useState(true);
 
   useEffect(() => {
-    const saved = (localStorage.getItem(THEME_KEY) as ThemeMode) ?? 'system';
-    setTheme(saved);
+    // 初始化：读取持久化主题（main.tsx 已应用，此处仅同步 state）
+    setTheme(readStoredMode());
+    // system 模式下，跟随 OS 主题变化实时更新 data-theme
+    const mql = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => {
+      if (readStoredMode() === 'system') applyTheme('system');
+    };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   const { data: user, loading, error } = useAsync<User>(async () => {
@@ -48,8 +53,7 @@ export default function SettingsPage() {
 
   function changeTheme(mode: ThemeMode) {
     setTheme(mode);
-    localStorage.setItem(THEME_KEY, mode);
-    document.documentElement.setAttribute('data-theme', mode);
+    applyTheme(mode);
   }
 
   async function handleLogout() {

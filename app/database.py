@@ -37,7 +37,8 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
-_SCHEMA_MIGRATION_VERSION = 3  # A5/A6: added procurement_orders delivery columns + risk_predictions table
+# v1.2.x: 新增 ar_scan_sessions.floorplan_id (AR 测量会话关联户型方案)
+_SCHEMA_MIGRATION_VERSION = 5  # A5/A6: procurement_orders delivery columns + risk_predictions; + ar_scan_sessions.floorplan_id; v5: ai_image_jobs.render_backend
 
 
 class Base(DeclarativeBase):
@@ -508,6 +509,22 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
 
+        # ── F1 AR 空间测量：ar_scan_sessions.floorplan_id 关联户型方案 ──
+        ar_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "ar_scan_sessions")
+        )
+        if ar_cols is not None and "floorplan_id" not in ar_cols:
+            await conn.execute(text(
+                "ALTER TABLE ar_scan_sessions ADD COLUMN floorplan_id VARCHAR(36)"
+            ))
+            await conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_ar_scan_sessions_floorplan_id "
+                "ON ar_scan_sessions(floorplan_id)"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE ar_scan_sessions ADD COLUMN floorplan_id"
+            )
+
         # ── A5 采购交付透明度：procurement_orders 新增物流字段 ──
         po_cols = await conn.run_sync(
             lambda sync_conn: _get_table_columns(sync_conn, "procurement_orders")
@@ -686,6 +703,18 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 "CREATE INDEX ix_predicted_scenes_status ON predicted_scenes(status)"
             ))
             logging.getLogger("ihome").info("migration: CREATE TABLE predicted_scenes")
+
+        # ── P1-7 ai_image_jobs.render_backend：AI 图生图诚实降级标注列 ──
+        _ai_image_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "ai_image_jobs")
+        )
+        if _ai_image_cols is not None and "render_backend" not in _ai_image_cols:
+            await conn.execute(text(
+                "ALTER TABLE ai_image_jobs ADD COLUMN render_backend VARCHAR(20) NOT NULL DEFAULT 'mock'"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE ai_image_jobs ADD COLUMN render_backend"
+            )
 
         # ── 标记本次迁移版本，下次启动可跳过 ──
         # v1.1.12 生产修复：根据 _has_schema_migrations 标志决定是否创建表，

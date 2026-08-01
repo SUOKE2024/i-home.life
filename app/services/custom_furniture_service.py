@@ -65,6 +65,18 @@ async def list_designs_by_project(db: AsyncSession, project_id: str) -> list[Cus
     return list(result.scalars().all())
 
 
+async def update_design(db: AsyncSession, design_id: str, data: dict) -> CustomFurnitureDesign | None:
+    design = await get_design(db, design_id)
+    if not design:
+        return None
+    for key, value in data.items():
+        if hasattr(design, key) and value is not None:
+            setattr(design, key, value)
+    await db.commit()
+    await db.refresh(design)
+    return design
+
+
 async def delete_design(db: AsyncSession, design_id: str) -> bool:
     design = await get_design(db, design_id)
     if not design:

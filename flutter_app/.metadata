@@ -5,7 +5,7 @@
 
 version:
   revision: bb71e5d14c1a0dd99cb88c613deb64c4ffded0b8
-  channel: 3.7.12-ohos-1.0.4
+  channel: 3.35.7-ohos-0.0.3
 
 project_type: app
 

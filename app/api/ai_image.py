@@ -115,6 +115,7 @@ async def get_job_status(
         "progress_percent": job.progress_percent,
         "output_image_url": job.output_image_url,
         "error_message": job.error_message,
+        "render_backend": job.render_backend,
         "cost_yuan": ai_image_service.compute_cost(job),
     }
 

@@ -417,7 +417,10 @@ class _TasksPageState extends State<TasksPage>
       backgroundColor: SuokeDesignTokens.bgDeep,
       appBar: AppBar(
         backgroundColor: SuokeDesignTokens.bgDeep,
-        title: const Text('任务管理', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+        title: Semantics(
+          header: true,
+          child: const Text('任务管理', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+        ),
         iconTheme: const IconThemeData(color: SuokeDesignTokens.textPrimary),
         bottom: TabBar(
           controller: _tabController,
@@ -434,6 +437,7 @@ class _TasksPageState extends State<TasksPage>
         backgroundColor: SuokeDesignTokens.accent,
         foregroundColor: SuokeDesignTokens.bgDeep,
         onPressed: _showCreateDialog,
+        tooltip: '新建任务',
         child: const Icon(Icons.add),
       ),
       body: TabBarView(
@@ -550,7 +554,9 @@ class _TasksPageState extends State<TasksPage>
     final pColor = _priorityColor(priority);
     final pLabel = _priorityLabel(priority);
 
-    return Container(
+    return Semantics(
+      label: '任务 $title，优先级 $pLabel，负责人 $assignee，截止 ${_formatDeadline(deadline)}',
+      child: Container(
       width: 260,
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -654,6 +660,7 @@ class _TasksPageState extends State<TasksPage>
             ],
           ),
         ],
+      ),
       ),
     );
   }
@@ -840,7 +847,9 @@ class _TasksPageState extends State<TasksPage>
     final pColor = _priorityColor(priority);
     final pLabel = _priorityLabel(priority);
 
-    return Container(
+    return Semantics(
+      label: '任务 $title，优先级 $pLabel，负责人 $assignee，截止 ${_formatDeadline(deadline)}',
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -974,6 +983,7 @@ class _TasksPageState extends State<TasksPage>
             ],
           ),
         ],
+      ),
       ),
     );
   }

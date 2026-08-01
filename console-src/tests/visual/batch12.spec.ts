@@ -52,6 +52,14 @@ test.describe('CADPage CAD 导入', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'mock-token-cad');
     });
+    // AuthGate 校验 token（/api/auth/me），未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
+    });
     await page.route('**/api/projects**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });
@@ -132,8 +140,20 @@ test.describe('Sketch3DPage 草图转 3D', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'mock-token-sketch');
     });
+    // AuthGate 校验 token（/api/auth/me），未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
+    });
     await page.route('**/api/sketch-to-3d/supported-formats', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['image/png', 'image/jpeg']) });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ image_formats: ['PNG', 'JPG', 'JPEG'], max_file_size_mb: 10, recommended_resolution: '1024x768 以上', tips: [] }),
+      });
     });
   });
 
@@ -142,7 +162,7 @@ test.describe('Sketch3DPage 草图转 3D', () => {
     await expect(page.getByTestId('wb-sketch-page')).toBeVisible();
     await expect(page.getByTestId('wb-sketch-tabs')).toBeVisible();
     await expect(page.getByTestId('wb-sketch-tab--analyze')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.getByTestId('wb-sketch-file-name')).toContainText('image/png');
+    await expect(page.getByTestId('wb-sketch-file-name')).toContainText('PNG');
   });
 
   test('分析模式 → 上传草图 → 展示检测结果统计', async ({ page }) => {
@@ -203,6 +223,14 @@ test.describe('IFCExportPage BIM 导出', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'mock-token-ifc');
+    });
+    // AuthGate 校验 token（/api/auth/me），未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
     });
     await page.route('**/api/projects**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });

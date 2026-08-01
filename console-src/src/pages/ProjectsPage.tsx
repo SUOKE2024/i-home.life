@@ -68,6 +68,17 @@ export default function ProjectsPage() {
     [],
   );
 
+  // Bento 概览统计（2026 趋势：模块化非对称卡片，离散数值单元）
+  const counts = projects?.reduce(
+    (acc, p) => {
+      acc.total += 1;
+      acc[p.status] = (acc[p.status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+  const showBento = !loading && !error && projects && projects.length > 0;
+
   async function handleCreate() {
     if (!form.name.trim()) return;
     setCreating(true);
@@ -109,6 +120,34 @@ export default function ProjectsPage() {
         </div>
 
         <div className="wb-page-body wb-page-body--narrow">
+          {showBento && counts && (
+            <section className="wb-bento" aria-label="项目概览" data-testid="wb-projects-bento">
+              <div className="wb-bento__cell wb-bento__cell--hero">
+                <div>
+                  <div className="wb-bento__label">项目总数</div>
+                  <div className="wb-bento__value wb-bento__value--accent">{counts.total ?? 0}</div>
+                </div>
+                <div className="wb-bento__hint">
+                  {STATUS_LABELS.construction && `施工中 ${counts.construction ?? 0}`}
+                </div>
+              </div>
+              <div className="wb-bento__stats">
+                <div className="wb-bento__cell">
+                  <div className="wb-bento__label">设计中</div>
+                  <div className="wb-bento__value">{counts.design ?? 0}</div>
+                </div>
+                <div className="wb-bento__cell">
+                  <div className="wb-bento__label">施工中</div>
+                  <div className="wb-bento__value">{counts.construction ?? 0}</div>
+                </div>
+                <div className="wb-bento__cell">
+                  <div className="wb-bento__label">已完工</div>
+                  <div className="wb-bento__value">{counts.completed ?? 0}</div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {showCreate && (
             <div className="wb-create-form" data-testid="wb-create-form">
               <div className="wb-create-form__title">创建新项目</div>

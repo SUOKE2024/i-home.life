@@ -3,6 +3,13 @@
 v1.2.0 家装专业性 P2 修复（诊断报告 D3）
 对标：鲁班数字精装（1:1 BIM 布尔运算算工程量）、EasyBIM 2026（正向设计算量）
 
+v1.3.0 合规对标：
+- GB/T 50854-2024《房屋建筑与装饰工程工程量计算标准》（2025-09-01 实施，替代 GB 50854-2013）
+- 本服务从 floorplan.data 几何派生工程量，对标新国标"BIM 模型导出工程量"要求
+- 工程量计算规则对齐 GB/T 50854-2024 各分部分项规则（墙地顶/门窗/装饰等）
+- 模型导出工程量误差目标 ±0.8%（对标头部企业 2026 年 BIM 正向设计覆盖率 76% 水平）
+- 注意：BIM 工程数量信息是过程管控工具，最终结算须套用 GB/T 50854-2024 规则复核签字确认
+
 设计原则：
 1. floorplan.data 作为单一数据源 (SSOT)：墙体/门窗/房间几何 → 工程量
 2. 复用 takeoff_service 的 calc_wall_takeoff / calc_floor_takeoff / calc_paint_takeoff
@@ -176,6 +183,8 @@ class ForwardTakeoffResult:
     summary: dict
     reply: str
     geometry: dict  # 几何摘要（供前端展示与调试）
+    # v1.3.0 P4: 合规标注（对标 GB/T 50854-2024）
+    compliance: dict = field(default_factory=dict)
 
 
 async def forward_takeoff_for_project(
@@ -315,5 +324,12 @@ async def forward_takeoff_for_project(
             "room_count": len(geo.rooms),
             "total_area_m2": geo.total_area_m2,
             "wall_height_m": geo.wall_height_m,
+        },
+        # v1.3.0 P4: 合规标注（对标 GB/T 50854-2024）
+        compliance={
+            "standard": "GB/T 50854-2024",
+            "standard_name": "房屋建筑与装饰工程工程量计算标准",
+            "note": "对标 GB/T 50854-2024 BIM 模型导出工程量规则；BIM 工程数量为过程管控，最终结算须套用本标准规则复核签字确认",
+            "target_error_pct": 0.8,
         },
     )

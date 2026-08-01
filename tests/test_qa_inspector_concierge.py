@@ -69,6 +69,10 @@ def test_qa_acceptance_report_basic():
     assert "overall_verdict" in report
     assert "reply" in report
     assert "合格率" in report["reply"]
+    # 诚实降级标注（P1-4：mock 引擎必须显式标注，禁止伪装真实能力）
+    assert report["source"] == "mock"
+    assert report["engine"] == "mock_rule_engine"
+    assert report["is_placeholder"] is True
 
 
 def test_qa_acceptance_report_all_phases():
@@ -141,6 +145,10 @@ def test_qa_compare_with_design():
     assert "verdict" in result
     assert result["verdict"] in ("consistent", "minor_deviation", "major_deviation")
     assert "reply" in result
+    # 诚实降级标注（P1-4）
+    assert result["source"] == "mock"
+    assert result["engine"] == "mock_cv_engine"
+    assert result["is_placeholder"] is True
 
 
 def test_qa_detect_defects():
@@ -167,6 +175,10 @@ def test_qa_detect_defects():
     assert "verdict" in result
     assert result["verdict"] in ("pass", "fail", "conditional_pass", "minor_issues")
     assert "reply" in result
+    # 诚实降级标注（P1-4）
+    assert result["source"] == "mock"
+    assert result["engine"] == "mock_cv_engine"
+    assert result["is_placeholder"] is True
 
 
 def test_qa_detect_defects_no_defects():
@@ -193,6 +205,20 @@ def test_qa_detect_intent():
     assert QAInspectorAgent.detect_qa_intent("质检检查") == "inspection"
     assert QAInspectorAgent.detect_qa_intent("需要返工整改") == "rectification"
     assert QAInspectorAgent.detect_qa_intent("你好") == "general"
+
+
+def test_acceptance_checklist_phase_aliases():
+    """P2-8：前端阶段命名别名归一化（water_electricity→mep、acceptance→completion）"""
+    from app.standards.acceptance_checklists import get_checklist
+
+    mep = get_checklist("water_electricity")
+    assert len(mep) > 0
+    assert mep == get_checklist("mep")
+    completion = get_checklist("acceptance")
+    assert len(completion) > 0
+    assert completion == get_checklist("completion")
+    # 未知阶段回退空列表，不抛异常
+    assert get_checklist("unknown_phase_xyz") == []
 
 
 def test_qa_module_functions():
@@ -401,6 +427,9 @@ async def test_api_qa_acceptance_report(client: AsyncClient):
     assert data["project_id"] == "P001"
     assert len(data["sections"]) == 2
     assert "overall_verdict" in data
+    # 诚实降级标注透传（P1-4）
+    assert data["source"] == "mock"
+    assert data["is_placeholder"] is True
 
 
 @pytest.mark.asyncio
@@ -422,6 +451,9 @@ async def test_api_qa_compare_design(client: AsyncClient):
     data = resp.json()
     assert data["phase"] == "masonry"
     assert "consistency_rate" in data
+    # 诚实降级标注透传（P1-4）
+    assert data["source"] == "mock"
+    assert data["is_placeholder"] is True
 
 
 @pytest.mark.asyncio
@@ -442,6 +474,9 @@ async def test_api_qa_defects(client: AsyncClient):
     data = resp.json()
     assert data["defect_count"] >= 0
     assert "verdict" in data
+    # 诚实降级标注透传（P1-4）
+    assert data["source"] == "mock"
+    assert data["is_placeholder"] is True
 
 
 @pytest.mark.asyncio

@@ -76,6 +76,26 @@ async def recommend_door_window(
     return svc.recommend_door_window(data.spec_type, data.room_type, data.opening_direction)
 
 
+@router.patch("/door-windows/{spec_id}", response_model=DoorWindowSpecResponse)
+async def update_door_window(
+    spec_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新门窗选型"""
+    spec = await svc.get_door_window(db, spec_id)
+    if not spec:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="门窗选型不存在")
+    await verify_project_access(project_id=spec.project_id, current_user=current_user, db=db)
+    updated = await svc.update_door_window(db, spec_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="门窗选型不存在")
+    resp = DoorWindowSpecResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(spec.project_id, "dw_waterproof.door_window_updated", resp.model_dump())
+    return resp
+
+
 @router.delete("/door-windows/{spec_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_door_window(
     spec_id: str,
@@ -170,6 +190,26 @@ async def validate_waterproof(
     await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
     result = svc.validate_waterproof_spec(plan)
     return {"plan_id": plan_id, **result}
+
+
+@router.patch("/waterproof/{plan_id}", response_model=WaterproofPlanResponse)
+async def update_waterproof(
+    plan_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新防水方案"""
+    plan = await svc.get_waterproof(db, plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="防水方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
+    updated = await svc.update_waterproof(db, plan_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="防水方案不存在")
+    resp = WaterproofPlanResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(plan.project_id, "dw_waterproof.waterproof_updated", resp.model_dump())
+    return resp
 
 
 @router.delete("/waterproof/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)

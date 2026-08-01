@@ -44,3 +44,6 @@ class IdentityStatusResponse(BaseModel):
     status: str  # pending / approved / rejected / not_submitted
     role: str | None = None
     submitted_at: datetime | None = None
+    # v1.3.x P2-9：认证历史展示字段
+    review_note: str | None = None
+    verified_at: datetime | None = None

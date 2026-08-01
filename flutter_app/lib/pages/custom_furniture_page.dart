@@ -70,7 +70,7 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
       _loading = true;
       _error = null;
     });
-    final result = await _api.getList('/custom-furniture/designs/${widget.projectId}');
+    final result = await _api.getList('/custom-furniture/designs/project/${widget.projectId}');
     if (result.isSuccess) {
       _designs = result.data;
     } else {

@@ -5,14 +5,24 @@
 - 调用结果 : {content: [{type: "text", text: "..."}], isError: bool}
 - 响应封装 : JSON-RPC 2.0 {jsonrpc: "2.0", id, result|error}
 
+v1.3.0 完整对齐 MCP 2026-07-28 规范：
+- stateless 核心（无 initialize/initialized 握手，无 Mcp-Session-Id）
+- server/discover RPC（替代旧 manifest 端点，标准化能力发现）
+- cacheable list results（list_tools 响应携带 cache_hint + etag + 确定性排序）
+- extensions framework + Tasks 扩展
+- Server Card（.well-known 标准化元数据）
+
 复用 app/services/agent_tool_registry.py 的 tool_registry 单例，
 将项目内 Agent 工具统一暴露为 MCP 协议兼容接口。
 """
 
+import hashlib
 import json
 import logging
+import time
 from typing import Any
 
+from app.config import get_settings
 from app.services.agent_tool_registry import tool_registry
 
 logger = logging.getLogger(__name__)
@@ -25,39 +35,137 @@ class MCPServer:
     1. 将 tool_registry 中的 AgentTool 转换为 MCP 协议格式（list_tools）
     2. 调用工具并包装结果为 MCP content 格式（call_tool）
     3. 生成 JSON-RPC 2.0 兼容响应（to_mcp_response）
-    4. 暴露服务器元信息（get_manifest）
+    4. 暴露服务器元信息（get_manifest / discover / get_server_card）
+    5. v1.3.0: list_tools 支持 cache_hint + etag（cacheable list results）
+    6. v1.3.0: extensions 注册 + Tasks 扩展
     """
 
     # ── 服务器元信息常量 ──
     SERVER_NAME = "i-home.life MCP Server"
-    SERVER_VERSION = "1.0.0"
+    SERVER_VERSION = "1.3.1"
     # MCP 2026-07-28 stateless 核心
     PROTOCOL_VERSION = "2026-07-28"
+    # v1.3.0: list 结果缓存 TTL（秒），客户端可据此缓存工具目录
+    LIST_CACHE_TTL = 300
 
     def __init__(self):
         self._registry = tool_registry
+        # v1.3.0: 扩展注册表（延迟初始化，避免循环导入）
+        self._extensions: dict[str, Any] = {}
+        self._extensions_loaded = False
 
-    # ── 元信息 ──
+    # ── 扩展注册（v1.3.0）──
+
+    def _load_extensions(self) -> None:
+        """延迟加载扩展（避免启动时循环导入）。"""
+        if self._extensions_loaded:
+            return
+        self._extensions_loaded = True
+        settings = get_settings()
+        # Tasks 扩展
+        if settings.mcp_tasks_extension_enabled:
+            try:
+                from app.mcp.extensions.tasks import TasksExtension
+                self._extensions["tasks"] = TasksExtension()
+                logger.info("mcp_extension_loaded: extension=tasks")
+            except Exception as e:
+                logger.warning("mcp_extension_load_failed: extension=tasks error=%s", e)
+
+    def list_extensions(self) -> list[dict]:
+        """返回已注册扩展的元信息。"""
+        self._load_extensions()
+        return [
+            {"name": name, "version": getattr(ext, "VERSION", "1.0.0")}
+            for name, ext in self._extensions.items()
+        ]
+
+    def get_extension(self, name: str) -> Any | None:
+        """获取指定扩展实例。"""
+        self._load_extensions()
+        return self._extensions.get(name)
+
+    # ── 元信息 / 发现 ──
 
     def get_manifest(self) -> dict:
-        """返回服务器元信息（name/version/tools count/protocol_version）"""
+        """返回服务器元信息（向后兼容，v1.3.0 标注 deprecated，推荐用 discover）"""
         return {
             "name": self.SERVER_NAME,
             "version": self.SERVER_VERSION,
             "protocol_version": self.PROTOCOL_VERSION,
             "tools_count": self._registry.tool_count,
             "capabilities": {
-                # 仅声明 tools 能力，不启用 listChanged 增量推送
                 "tools": {"listChanged": False},
                 "resources": {},
                 "prompts": {},
             },
+            "deprecated": "v1.3.0 起推荐使用 POST /api/mcp with server/discover",
         }
 
-    # ── 工具列表 ──
+    def discover(self) -> dict:
+        """v1.3.0 server/discover RPC —— 标准化能力发现（替代旧 manifest）
+
+        返回服务器能力清单，客户端据此决定是否发起后续请求。
+        每个请求自描述，discover 可选（任何请求可落在任意实例上）。
+        """
+        self._load_extensions()
+        return {
+            "protocol_version": self.PROTOCOL_VERSION,
+            "server": {
+                "name": self.SERVER_NAME,
+                "version": self.SERVER_VERSION,
+            },
+            "capabilities": {
+                "tools": {"listChanged": False, "cacheable": True},
+                "resources": {"listChanged": False, "cacheable": True},
+                "prompts": {"listChanged": False, "cacheable": True},
+                # v1.3.0: 声明支持的扩展
+                "extensions": {name: {} for name in self._extensions},
+            },
+            "extensions": self.list_extensions(),
+            # v1.3.0: 授权信息（RFC 9207 issuer）
+            "authorization": {
+                "issuer": "i-home.life",
+                "schemes": ["bearer"],
+                "cimd_supported": True,  # Client Issuer Metadata Document
+            },
+        }
+
+    def get_server_card(self) -> dict:
+        """v1.3.0 Server Card —— .well-known 标准化元数据
+
+        供注册中心/浏览器/爬虫发现 MCP 服务器，无需活跃连接。
+        对标 MCP 2026 Roadmap 的 MCP Server Cards。
+        """
+        return {
+            "mcp_version": self.PROTOCOL_VERSION,
+            "server": {
+                "name": self.SERVER_NAME,
+                "version": self.SERVER_VERSION,
+                "description": "索克家居 AI 智能装修平台 Agent 工具 MCP 服务器",
+            },
+            "transport": {
+                "type": "streamable_http",
+                "endpoint": "/api/mcp",
+                "stateless": True,  # v1.3.0: stateless 核心，支持 round-robin 负载均衡
+            },
+            "capabilities": {
+                "tools": True,
+                "resources": False,  # 暂未实现 resources 原语
+                "prompts": False,    # 暂未实现 prompts 原语
+                "extensions": [e["name"] for e in self.list_extensions()],
+            },
+            "authorization": {
+                "scheme": "bearer",
+                "issuer": "i-home.life",
+                "cimd_endpoint": "/api/mcp/cimd",
+            },
+            "discovered_at": int(time.time()),
+        }
+
+    # ── 工具列表（cacheable）──
 
     def list_tools(self) -> list[dict]:
-        """返回 MCP 协议格式的工具列表
+        """返回 MCP 协议格式的工具列表（确定性排序，按 name 字典序）
 
         MCP 工具字段：
         - name        : 工具唯一标识
@@ -76,12 +184,31 @@ class MCPServer:
                     "properties": properties,
                     "required": list(properties.keys()),
                 },
-                # MCP annotations 用于附加工具元信息（不影响协议兼容性）
                 "annotations": {
                     "category": tool.category,
                 },
             })
+        # v1.3.0: 确定性排序（按 name 字典序），保证 cacheable list 稳定
+        tools.sort(key=lambda t: t["name"])
         return tools
+
+    def list_tools_with_cache(self) -> dict:
+        """v1.3.0 cacheable list results —— 返回工具列表 + cache_hint + etag
+
+        客户端可基于 etag 走 If-None-Match → 304，减少重复传输。
+        """
+        tools = self.list_tools()
+        # 基于工具内容计算 etag（内容不变则 etag 不变）
+        tools_json = json.dumps(tools, sort_keys=True, ensure_ascii=False)
+        etag = hashlib.md5(tools_json.encode("utf-8")).hexdigest()[:16]
+        return {
+            "tools": tools,
+            "cache_hint": {
+                "ttl": self.LIST_CACHE_TTL,
+                "etag": etag,
+                "sortable": True,  # 确定性排序
+            },
+        }
 
     # ── 工具调用 ──
 
@@ -105,7 +232,6 @@ class MCPServer:
 
         try:
             result = await tool.execute(**arguments)
-            # 将 dict 结果序列化为文本，符合 MCP content[].text 字段类型约束
             text = json.dumps(result, ensure_ascii=False, default=str)
             return {
                 "content": [{"type": "text", "text": text}],
@@ -162,6 +288,45 @@ class MCPServer:
         if data is not None:
             err["data"] = data
         return err
+
+    # ── v1.3.0 JSON-RPC 方法分发 ──
+
+    async def dispatch_method(self, method: str, params: dict | None = None) -> tuple[dict | None, dict | None]:
+        """分发 JSON-RPC 方法（server/discover / tools/list / tools/call 等）
+
+        Returns:
+            (result, error) —— 成功时 result 非 None，失败时 error 非 None
+        """
+        params = params or {}
+
+        if method == "server/discover":
+            return self.discover(), None
+
+        if method == "tools/list":
+            return self.list_tools_with_cache(), None
+
+        if method == "tools/call":
+            name = params.get("name")
+            arguments = params.get("arguments", {})
+            if not name:
+                return None, self.make_error(-32602, "缺少参数: name")
+            result = await self.call_tool(name, arguments)
+            return result, None
+
+        if method == "resources/list":
+            return {"resources": []}, None  # 暂未实现 resources 原语
+
+        if method == "prompts/list":
+            return {"prompts": []}, None  # 暂未实现 prompts 原语
+
+        # v1.3.0: Tasks 扩展方法分发
+        if method.startswith("tasks/"):
+            tasks_ext = self.get_extension("tasks")
+            if tasks_ext is None:
+                return None, self.make_error(-32601, f"Tasks 扩展未启用: {method}")
+            return await tasks_ext.dispatch(method, params)
+
+        return None, self.make_error(-32601, f"方法不存在: {method}")
 
 
 # 模块级单例，路由层直接复用

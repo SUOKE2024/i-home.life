@@ -186,6 +186,10 @@ class ConstructionAgent(BaseAgent):
                 f"整改「{item['check_item']}」：当前不满足 {item['standard']}"
                 for item in failed_items
             ],
+            # 诚实降级标注：mock AI 检测（hash 模拟），非真实 CV 模型输出
+            "source": "mock",
+            "engine": "mock_cv_engine",
+            "is_placeholder": True,
             "reply": f"AI 质检完成：{phase} 阶段，{passed}/{total} 项合格（{pass_rate}%），结论：{verdict_text}",
         }
 
@@ -843,6 +847,10 @@ def detect_quality_issues(
         "severity_count": severity_count,
         "summary": summary,
         "suggested_order": suggested_order,
+        # 诚实降级标注：基于规则/checklist 的模拟检测，非真实视觉 AI 输出
+        "source": "mock",
+        "engine": "mock_rule_engine",
+        "is_placeholder": True,
     }
 
 

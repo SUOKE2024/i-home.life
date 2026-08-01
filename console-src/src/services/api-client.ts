@@ -313,6 +313,33 @@ export class ApiClient {
     return this.request<unknown[]>('/api/agents/sessions');
   }
 
+  /**
+   * 提交 Agent 回复反馈（POST /api/agents/feedback，对齐 app/api/agents.py:1879）。
+   * L4 自适应学习：like 会被 BaseAgent.think() 作为 few-shot 注入同 agent 后续 prompt。
+   */
+  async submitAgentFeedback(payload: {
+    agent_name: string;
+    feedback_type: 'like' | 'dislike';
+    user_message: string;
+    agent_reply: string;
+    session_id?: string | null;
+    rating?: number;
+    comment?: string;
+  }): Promise<ApiResult> {
+    return this.request('/api/agents/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_name: payload.agent_name,
+        feedback_type: payload.feedback_type,
+        user_message: payload.user_message,
+        agent_reply: payload.agent_reply,
+        session_id: payload.session_id ?? null,
+        rating: payload.rating ?? null,
+        comment: payload.comment ?? '',
+      }),
+    });
+  }
+
   // ──────────────────────────────────────────────────────────────────
   //  业务域 API — 批次 4 接入（对齐 app/api/*.py）
   // ──────────────────────────────────────────────────────────────────
@@ -331,6 +358,16 @@ export class ApiClient {
   async listProjects<T = import('../types/domain').Project[]>(
   ): Promise<ApiResult<T>> {
     return this.request<T>('/api/projects');
+  }
+
+  /** 仪表盘概览（GET /api/dashboard/overview）— v1.2.9 Bento Dashboard 跨项目聚合 */
+  async getDashboardOverview(): Promise<
+    ApiResult<{
+      projects: { total: number; draft: number; in_progress: number; completed: number };
+      budget: { total_estimated: number; total_actual: number; utilization: number };
+    }>
+  > {
+    return this.request('/api/dashboard/overview');
   }
 
   /** 创建项目（POST /api/projects） */
@@ -654,7 +691,7 @@ export class ApiClient {
   }
 
   /** 草图转 3D 支持格式（GET /api/sketch-to-3d/supported-formats） */
-  async getSketchSupportedFormats<T = string[]>(
+  async getSketchSupportedFormats<T = import('../types/domain').SketchSupportedFormats>(
   ): Promise<ApiResult<T>> {
     return this.request<T>('/api/sketch-to-3d/supported-formats');
   }
@@ -715,6 +752,40 @@ export class ApiClient {
     return this.request<T>('/api/agents/design/circulation', {
       method: 'POST',
       body: JSON.stringify({ rooms }),
+    });
+  }
+
+  /**
+   * 生成 2-3 套设计方案（讨论式方案交互，POST /api/agents/design/proposals）。
+   * LLM 主路径；LLM 不可用时后端降级为确定性单方案（source=fallback）。
+   * 对齐 app/api/agents.py:1320 generate_design_proposals。
+   */
+  async generateDesignProposals<T = import('../types/domain').DesignProposalResult>(
+    requirement: string,
+    sessionId?: string,
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { requirement };
+    if (sessionId) body.session_id = sessionId;
+    return this.request<T>('/api/agents/design/proposals', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * 修订指定设计方案（讨论式方案交互，POST /api/agents/design/proposals/{id}/revise）。
+   * 对齐 app/api/agents.py:1341 revise_design_proposal。
+   */
+  async reviseDesignProposal<T = import('../types/domain').DesignProposalReviseResult>(
+    proposalId: string,
+    change: string,
+    sessionId?: string,
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { change };
+    if (sessionId) body.session_id = sessionId;
+    return this.request<T>(`/api/agents/design/proposals/${encodeURIComponent(proposalId)}/revise`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
   }
 }

@@ -74,6 +74,43 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.6);
+
+  /* 动效语言（对齐 tokens.ts + suoke_theme.dart MotionTokens） */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerated: cubic-bezier(0, 0, 0, 1);
+}
+
+/* ── 浅色主题（对齐 Flutter SuokeTheme.light() / suoke_theme.dart:153-158）──
+   SettingsPage 切换 data-theme='light' 时生效；system 模式由 JS 解析为 light/dark。
+   品牌/状态色不变（跨主题一致），仅覆盖 surface/text/边框/阴影。 */
+[data-theme='light'] {
+  --bg-deep: #f8f7f4;
+  --surface0: #f8f7f4;
+  --surface1: #ffffff;
+  --surface2: #f0eee8;
+  --surface3: #e8e5de;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0eee8;
+  --border: #e8e5de;
+  --border-active: #d4d0c8;
+
+  --text-primary: #1a1814;
+  --text-secondary: #6b6760;
+  --text-muted: #9e9a94;
+
+  --bubble-user: #f5efe0;
+  --bubble-agent: #f0eee8;
+  --input-bg: #f2f1ec;
+
+  --accent-glow: rgba(201, 151, 59, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.10);
 }
 
 *, *::before, *::after {
@@ -96,4 +133,96 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent-bright);
   outline-offset: 2px;
+}
+
+/* ── ErrorBoundary 降级卡（全局，2026 健壮性基线） ── */
+.wb-error-boundary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--spacing-xl);
+  background: var(--bg-deep);
+}
+.wb-error-boundary__inner {
+  max-width: 480px;
+  width: 100%;
+  padding: var(--spacing-xl);
+  background: var(--surface1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.wb-error-boundary__icon {
+  font-size: 40px;
+  margin-bottom: var(--spacing-md);
+}
+.wb-error-boundary__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+}
+.wb-error-boundary__desc {
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--spacing-lg);
+}
+.wb-error-boundary__detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.wb-error-boundary__actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.wb-error-boundary__btn {
+  padding: 10px 20px;
+  border-radius: var(--radius-input);
+  border: 1px solid var(--border-active);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px; /* WCAG 2.2 触摸目标 */
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.wb-error-boundary__btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-deep);
+}
+.wb-error-boundary__btn:hover {
+  background: var(--surface2);
+}
+.wb-error-boundary__btn--primary:hover {
+  background: var(--accent-bright);
+}
+
+/* ── 动效无障碍兜底（2026 基线）：前庭敏感用户降级 ──
+   用户系统开启"减少动态效果"时，所有过渡/动画/滚动行为就近零，
+   仅保留透明度过渡以维持状态反馈可感知。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

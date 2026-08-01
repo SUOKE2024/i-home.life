@@ -53,14 +53,15 @@ const MOCK_USER = {
 const MOCK_BUDGET = {
   id: 'budget-1',
   project_id: 'proj-1',
-  total_amount: 250000,
-  spent_amount: 120000,
-  items: [
-    { id: 'bi-1', line_name: '水电改造', category: '基础工程', amount: 35000, spent_amount: 35000 },
-    { id: 'bi-2', line_name: '瓦工贴砖', category: '泥瓦工程', amount: 45000, spent_amount: 40000 },
-    { id: 'bi-3', line_name: '木工定制', category: '木工工程', amount: 80000, spent_amount: 45000 },
-    { id: 'bi-4', line_name: '油漆涂刷', category: '油漆工程', amount: 30000, spent_amount: 0 },
-    { id: 'bi-5', line_name: '主材采购', category: '材料', amount: 60000, spent_amount: 0 },
+  total_estimated: 250000,
+  total_actual: 120000,
+  status: 'in_progress',
+  lines: [
+    { id: 'bi-1', budget_id: 'budget-1', category: '基础工程', name: '水电改造', estimated_amount: 35000, actual_amount: 35000, unit: '项', quantity: 1, unit_price: 35000 },
+    { id: 'bi-2', budget_id: 'budget-1', category: '泥瓦工程', name: '瓦工贴砖', estimated_amount: 45000, actual_amount: 40000, unit: '㎡', quantity: 80, unit_price: 562.5 },
+    { id: 'bi-3', budget_id: 'budget-1', category: '木工工程', name: '木工定制', estimated_amount: 80000, actual_amount: 45000, unit: '项', quantity: 1, unit_price: 80000 },
+    { id: 'bi-4', budget_id: 'budget-1', category: '油漆工程', name: '油漆涂刷', estimated_amount: 30000, actual_amount: 0, unit: '㎡', quantity: 120, unit_price: 250 },
+    { id: 'bi-5', budget_id: 'budget-1', category: '材料', name: '主材采购', estimated_amount: 60000, actual_amount: 0, unit: '批', quantity: 1, unit_price: 60000 },
   ],
   created_at: '2026-06-16T10:00:00Z',
   updated_at: '2026-07-20T14:30:00Z',
@@ -69,6 +70,10 @@ const MOCK_BUDGET = {
 test.describe('ProjectsPage', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('paseto_token', 'test-batch4'));
+    // AuthGate 会校验 token 有效性（getCurrentUser → /api/auth/me），未 mock 则 404 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_USER) });
+    });
     await page.route('**/api/projects', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
@@ -137,6 +142,10 @@ test.describe('SettingsPage', () => {
 test.describe('BudgetPage', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('paseto_token', 'test-batch4'));
+    // AuthGate 会校验 token 有效性（getCurrentUser → /api/auth/me），未 mock 则 404 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_USER) });
+    });
     await page.route('**/api/projects', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
     });

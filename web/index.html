@@ -2,27 +2,107 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="索克家居 · i-home.life — AI驱动的全链路智能家居建造平台">
-  <meta name="theme-color" content="#0175C2">
-  <meta property="og:title" content="索克家居 · i-home.life">
-  <meta property="og:description" content="9 AI 智能体 7×24 自治运营，覆盖设计→预算→采购→施工→质检→结算全流程">
-  <title>索克家居 · i-home.life</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- ── SEO / 社交分享（2026 基线：结构化数据 + 完整 OG/Twitter） ── -->
+  <title>索克家居 · i-home.life — AI 驱动的全链路智能家居建造平台</title>
+  <meta name="description" content="索克家居 i-home.life：9 位 AI 智能体 7×24 自治运营，覆盖设计→预算→采购→施工→质检→结算全流程。AR 量房、3D 方案、VR 全景，让装修省心省钱。">
+  <meta name="keywords" content="索克家居,智能家居,装修,AI装修,全链路装修,AR量房,3D设计,VR全景,施工管理,质检,预算">
+  <meta name="author" content="索克家居">
+  <link rel="canonical" href="https://i-home.life/">
+  <meta name="robots" content="index,follow">
+
+  <!-- 品牌色对齐设计令牌（取代 Flutter 默认 #0175C2） -->
+  <meta name="theme-color" content="#08080f">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="索克家居">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:url" content="https://i-home.life/">
+  <meta property="og:title" content="索克家居 · i-home.life — AI 驱动的全链路智能家居建造平台">
+  <meta property="og:description" content="9 位 AI 智能体 7×24 自治运营，覆盖设计→预算→采购→施工→质检→结算全流程。AR 量房、3D 方案、VR 全景。">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="索克家居 · i-home.life">
+  <meta name="twitter:description" content="AI 驱动的全链路智能家居建造平台 · 9 智能体 7×24 自治运营">
+
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- 结构化数据：帮助搜索引擎理解产品 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "索克家居",
+    "alternateName": "i-home.life",
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "智能家居建造",
+    "operatingSystem": "Web, iOS, Android, HarmonyOS",
+    "description": "AI 驱动的全链路智能家居建造平台，9 位 AI 智能体覆盖设计→预算→采购→施工→质检→结算全流程。",
+    "url": "https://i-home.life/",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" }
+  }
+  </script>
+
+  <!-- ── 首屏加载态（Flutter 启动期间的品牌首屏，对齐设计令牌） ── -->
   <style>
-    body { margin: 0; padding: 0; background: #08080f; }
-    .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #888; font-family: system-ui, sans-serif; }
-    .spinner { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #0175C2; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+    :root { --suoke-bg: #08080f; --suoke-accent: #c9973b; --suoke-accent-bright: #e0aa4a; --suoke-text: #e8e6e1; --suoke-text-sub: #8a8894; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: var(--suoke-bg);
+      color: var(--suoke-text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .loading {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; min-height: 100dvh; padding: 32px; text-align: center;
+    }
+    .brand-mark {
+      font-size: 36px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--suoke-accent), var(--suoke-accent-bright));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      margin-bottom: 8px;
+    }
+    .brand-tag { color: var(--suoke-text-sub); font-size: 13px; margin-bottom: 32px; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(201, 151, 59, 0.2);
+      border-top-color: var(--suoke-accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px;
+    }
+    .loading-text { color: var(--suoke-text-sub); font-size: 13px; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 前庭敏感用户：降级动效（2026 a11y 基线） */
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation-duration: 2s; }
+    }
   </style>
 </head>
 <body>
   <div class="loading" id="loading">
-    <div class="spinner"></div>
-    <div>索克家居正在加载…</div>
+    <div class="brand-mark">i-home.life</div>
+    <div class="brand-tag">索克家居 · AI 智能装修平台</div>
+    <div class="spinner" aria-label="正在加载" role="status"></div>
+    <div class="loading-text">正在加载…</div>
   </div>
-  <script src="flutter.js?v=20260728b" defer></script>
-  <script src="flutter_bootstrap.js?v=20260728b" defer></script>
+  <noscript>
+    <div class="loading">
+      <div class="brand-mark">i-home.life</div>
+      <div class="brand-tag">索克家居 · AI 智能装修平台</div>
+      <p style="color: var(--suoke-text-sub); margin-top: 16px;">本应用需要启用 JavaScript 才能运行，请在浏览器设置中开启。</p>
+    </div>
+  </noscript>
+  <script src="flutter.js?v=20260801a" defer></script>
+  <script src="flutter_bootstrap.js?v=20260801a" defer></script>
 </body>
 </html>

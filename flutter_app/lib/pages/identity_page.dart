@@ -514,6 +514,8 @@ class _IdentityPageState extends State<IdentityPage>
 
     final role = _status?['role'] as String?;
     final submittedAt = _status?['submitted_at'] as String?;
+    final reviewNote = _status?['review_note'] as String?;
+    final verifiedAt = _status?['verified_at'] as String?;
 
     IconData histIcon;
     Color histColor;
@@ -546,6 +548,28 @@ class _IdentityPageState extends State<IdentityPage>
             trailing: Text(_roleLabel(role)),
           ),
         ),
+        if ((reviewNote ?? '').isNotEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('审核意见', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 6),
+                  Text(reviewNote!),
+                ],
+              ),
+            ),
+          ),
+        if ((verifiedAt ?? '').isNotEmpty)
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.verified, color: Colors.green),
+              title: const Text('认证通过'),
+              subtitle: Text('通过时间：${_formatDateTime(verifiedAt!)}'),
+            ),
+          ),
       ],
     );
   }

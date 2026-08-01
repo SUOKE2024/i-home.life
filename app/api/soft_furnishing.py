@@ -66,6 +66,26 @@ async def get_scheme(
     return SoftFurnishingSchemeResponse.model_validate(scheme)
 
 
+@router.patch("/schemes/{scheme_id}", response_model=SoftFurnishingSchemeResponse)
+async def update_scheme(
+    scheme_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新软装方案"""
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    updated = await svc.update_scheme(db, scheme_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    resp = SoftFurnishingSchemeResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(scheme.project_id, "soft.scheme.updated", resp.model_dump())
+    return resp
+
+
 @router.delete("/schemes/{scheme_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scheme(
     scheme_id: str,

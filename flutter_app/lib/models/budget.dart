@@ -49,7 +49,7 @@ enum BudgetStatus {
   }
 }
 
-/// 预算行项目
+/// 预算行项目（对齐 app/schemas/budget.py:BudgetLineResponse）
 @immutable
 class BudgetLine {
   final String id;
@@ -57,6 +57,7 @@ class BudgetLine {
   final String category;
   final String? lineName;
   final double amount;
+  final double actualAmount;
   final double? unitPrice;
   final double? quantity;
   final String? unit;
@@ -68,6 +69,7 @@ class BudgetLine {
     required this.category,
     this.lineName,
     required this.amount,
+    this.actualAmount = 0,
     this.unitPrice,
     this.quantity,
     this.unit,
@@ -79,8 +81,9 @@ class BudgetLine {
       id: json['id']?.toString() ?? '',
       budgetId: json['budget_id']?.toString() ?? '',
       category: json['category']?.toString() ?? '',
-      lineName: json['line_name']?.toString(),
-      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      lineName: json['name']?.toString(),
+      amount: (json['estimated_amount'] as num?)?.toDouble() ?? 0,
+      actualAmount: (json['actual_amount'] as num?)?.toDouble() ?? 0,
       unitPrice: (json['unit_price'] as num?)?.toDouble(),
       quantity: (json['quantity'] as num?)?.toDouble(),
       unit: json['unit']?.toString(),
@@ -93,8 +96,9 @@ class BudgetLine {
       'id': id,
       'budget_id': budgetId,
       'category': category,
-      'line_name': lineName,
-      'amount': amount,
+      'name': lineName,
+      'estimated_amount': amount,
+      'actual_amount': actualAmount,
       'unit_price': unitPrice,
       'quantity': quantity,
       'unit': unit,
@@ -108,6 +112,7 @@ class BudgetLine {
     String? category,
     String? lineName,
     double? amount,
+    double? actualAmount,
     double? unitPrice,
     double? quantity,
     String? unit,
@@ -119,6 +124,7 @@ class BudgetLine {
       category: category ?? this.category,
       lineName: lineName ?? this.lineName,
       amount: amount ?? this.amount,
+      actualAmount: actualAmount ?? this.actualAmount,
       unitPrice: unitPrice ?? this.unitPrice,
       quantity: quantity ?? this.quantity,
       unit: unit ?? this.unit,
@@ -154,8 +160,8 @@ class Budget {
       projectId: json['project_id']?.toString() ?? '',
       totalEstimated: (json['total_estimated'] as num?)?.toDouble() ?? 0,
       status: BudgetStatus.fromString(json['status']?.toString()),
-      items: json['items'] is List
-          ? (json['items'] as List)
+      items: json['lines'] is List
+          ? (json['lines'] as List)
               .map((e) =>
                   BudgetLine.fromJson(e as Map<String, dynamic>))
               .toList()
@@ -175,7 +181,7 @@ class Budget {
       'project_id': projectId,
       'total_estimated': totalEstimated,
       'status': status.value,
-      'items': items.map((e) => e.toJson()).toList(),
+      'lines': items.map((e) => e.toJson()).toList(),
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };

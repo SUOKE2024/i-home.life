@@ -10,6 +10,7 @@ from app.schemas.bathroom import (
     BathroomDesignResponse,
     BathroomFixtureCreate,
     BathroomFixtureResponse,
+    BathroomDesignUpdate,
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access
@@ -196,6 +197,26 @@ async def delete_fixture(
     deleted = await bathroom_service.delete_fixture(db, fixture_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫浴设备不存在")
+
+
+@router.patch("/designs/{design_id}", response_model=BathroomDesignResponse)
+async def update_design(
+    design_id: str,
+    data: BathroomDesignUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新卫生间设计"""
+    design = await bathroom_service.get_design(db, design_id)
+    if not design:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
+    updated = await bathroom_service.update_design(db, design_id, data.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="卫生间设计不存在")
+    resp = BathroomDesignResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(design.project_id, "bathroom.design_updated", resp.model_dump())
+    return resp
 
 
 @router.delete("/designs/{design_id}", status_code=status.HTTP_204_NO_CONTENT)

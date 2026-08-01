@@ -139,9 +139,56 @@ def test_modification_move_room():
     assert a["dx"] == 1.5
 
 
+def test_modification_move_room_without_distance():
+    """「移动」指令未带距离时不应崩溃（P2 修复：dist_match=None 时默认 1.0）"""
+    actions = DesignerAgent.detect_modification_intent("把厨房往左挪")
+    assert len(actions) == 1
+    a = actions[0]
+    assert a["action"] == "move_room"
+    assert a["name"] == "厨房"
+    assert a["dx"] == -1.0  # 左 = 默认距离 1.0 的负向
+
+
 def test_modification_no_action():
     actions = DesignerAgent.detect_modification_intent("今天天气真好")
     assert len(actions) == 0
+
+
+# === 动线分析 critical 判定回归（P1-2：穿越卧室应判 critical）===
+# 布局：入口玄关在左，卧室在中间，动线从玄关到卧室到卫生间需穿越卧室
+CROSS_BEDROOM_ROOMS = [
+    {"name": "玄关", "type": "entryway", "x": 0, "y": 0, "w": 2, "h": 2},
+    {"name": "主卧", "type": "bedroom", "x": 2, "y": 0, "w": 3, "h": 3},
+    {"name": "卫生间", "type": "bathroom", "x": 5, "y": 0, "w": 2, "h": 2},
+]
+
+
+def test_circulation_crosses_bedroom_is_critical():
+    """穿越卧室的动线必须判定 critical（此前按 type 查名称恒 False）"""
+    agent = DesignerAgent()
+    result = agent.analyze_circulation(CROSS_BEDROOM_ROOMS)
+    assert "error" not in result
+    cross_issues = [i for i in result["issues"] if i["type"] == "cross_room"]
+    assert cross_issues, "应检测到穿越房间问题"
+    assert any(i["severity"] == "critical" for i in cross_issues), (
+        "穿越卧室应判 critical，实际 severity: %s"
+        % [i["severity"] for i in cross_issues]
+    )
+    assert result["critical_count"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_generate_layouts_readable_plan_names():
+    """generate_layouts 方案名应可读（方案A/B/C），recommendation 不再输出英文 key"""
+    agent = DesignerAgent()
+    try:
+        result = await agent.generate_layouts("126㎡ 三室两厅")
+    finally:
+        await agent.close()
+    names = [p["name"] for p in result["plans"]]
+    assert names == ["方案A", "方案B", "方案C"]
+    assert result["recommendation"] == "方案B"
+    assert not result["recommendation"].startswith("plan_")
 
 
 # === /agents/chat 路由集成测试(mock 模式) ===
@@ -252,6 +299,92 @@ async def test_chat_explicit_agent_type_designer(client: AsyncClient, force_mock
 
 
 @pytest.mark.asyncio
+async def test_chat_explicit_quality_alias_routes_to_qa_inspector(
+    client: AsyncClient, force_mock_mode,
+):
+    """前端展示 key quality 应显式路由到 qa_inspector（对齐 Flutter/workbench 别名）"""
+    token = await _register(client, "13900005032")
+    resp = await client.post(
+        "/api/agents/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "你好", "agent_type": "quality"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_type"] == "qa_inspector", (
+        f"显式 agent_type=quality 应路由到 qa_inspector，实际: {resp.json()['agent_type']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chat_explicit_support_alias_routes_to_concierge(
+    client: AsyncClient, force_mock_mode,
+):
+    """前端展示 key support 应显式路由到 concierge（对齐 Flutter/workbench 别名）"""
+    token = await _register(client, "13900005033")
+    resp = await client.post(
+        "/api/agents/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "你好", "agent_type": "support"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_type"] == "concierge", (
+        f"显式 agent_type=support 应路由到 concierge，实际: {resp.json()['agent_type']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chat_explicit_furniture_catalog_routes_to_furniture(
+    client: AsyncClient, force_mock_mode,
+):
+    """前端展示 key furniture_catalog 应显式路由到 furniture Agent"""
+    token = await _register(client, "13900005034")
+    resp = await client.post(
+        "/api/agents/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "你好", "agent_type": "furniture_catalog"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_type"] == "furniture", (
+        f"显式 agent_type=furniture_catalog 应路由到 furniture，实际: {resp.json()['agent_type']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chat_explicit_door_window_waterproof_routes_to_door_window(
+    client: AsyncClient, force_mock_mode,
+):
+    """前端展示 key door_window_waterproof 应显式路由到 door_window Agent"""
+    token = await _register(client, "13900005035")
+    resp = await client.post(
+        "/api/agents/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "你好", "agent_type": "door_window_waterproof"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["agent_type"] == "door_window", (
+        f"显式 agent_type=door_window_waterproof 应路由到 door_window，"
+        f"实际: {resp.json()['agent_type']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_chat_explicit_voice_intent(client: AsyncClient, force_mock_mode):
+    """显式 agent_type=voice 应返回语音引导回复（而非通用兜底）"""
+    token = await _register(client, "13900005036")
+    resp = await client.post(
+        "/api/agents/chat",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "我想用语音对话", "agent_type": "voice"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["agent_type"] == "voice"
+    assert "语音" in data["reply"], (
+        f"voice 分支应返回语音引导回复，实际: {data['reply'][:80]}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_chat_requires_auth(client: AsyncClient):
     resp = await client.post(
         "/api/agents/chat",
@@ -298,6 +431,34 @@ async def test_design_160_area(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert "160" in resp.json()["space_planning"] or "160" in resp.json()["full_reply"]
+
+
+@pytest.mark.asyncio
+async def test_design_response_4_field_semantics(client: AsyncClient):
+    """/design 4 字段语义回归（P1-1）：
+    - space_planning 含方案摘要（方案A...）
+    - style_suggestion 为可读推荐（不再输出英文 key plan_b）
+    - circulation_analysis 为真实动线分析文本（含"动线"或评分）
+    - material_plan 为材料建议
+    """
+    token = await _register(client, "13900005019")
+    resp = await client.post(
+        "/api/agents/design",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"message": "三室两厅"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # style_suggestion：可读推荐方案
+    assert "方案" in data["style_suggestion"]
+    assert "plan_" not in data["style_suggestion"]
+    # space_planning：含方案摘要（brief 形式）
+    assert "方案A" in data["space_planning"]
+    # circulation_analysis：真实动线分析（含房间数或评分）
+    assert ("动线" in data["circulation_analysis"]) or ("房间" in data["circulation_analysis"])
+    assert len(data["circulation_analysis"]) > 5
+    # material_plan：材料建议
+    assert "砖" in data["material_plan"] or "地板" in data["material_plan"] or "漆" in data["material_plan"]
 
 
 # === mock 模式健壮性 ===

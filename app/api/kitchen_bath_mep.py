@@ -230,6 +230,26 @@ async def delete_point(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="点位不存在")
 
 
+@router.patch("/plans/{plan_id}", response_model=KitchenBathMEPPlanResponse)
+async def update_plan(
+    plan_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新厨卫水电方案"""
+    plan = await svc.get_plan(db, plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
+    updated = await svc.update_plan(db, plan_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    resp = KitchenBathMEPPlanResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(plan.project_id, "mep_kb.plan_updated", resp.model_dump())
+    return resp
+
+
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_plan(
     plan_id: str,

@@ -61,5 +61,7 @@ async def get_feature_flags():
         "a2ui_enabled": settings.a2ui_enabled,
         "console_v2_enabled": settings.console_v2_enabled,
         "knowledge_base_enabled": settings.knowledge_base_enabled,
+        # v1.2.9 Workbench 上下文自适应建议（GenUI-lite）
+        "workbench_adaptive_suggestions_enabled": settings.workbench_adaptive_suggestions_enabled,
         "service_role": settings.service_role or None,
     }

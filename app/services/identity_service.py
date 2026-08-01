@@ -172,17 +172,22 @@ async def submit_verification(
 
 
 async def get_verification_status(db: AsyncSession, user_id: str) -> dict:
-    """获取认证状态"""
+    """获取认证状态（含审核备注/通过时间，供认证历史展示）"""
     stmt = select(IdentityVerification).where(IdentityVerification.user_id == user_id)
     result = await db.execute(stmt)
     verification = result.scalar_one_or_none()
     if not verification:
-        return {"is_verified": False, "status": "not_submitted", "role": None, "submitted_at": None}
+        return {
+            "is_verified": False, "status": "not_submitted", "role": None,
+            "submitted_at": None, "review_note": None, "verified_at": None,
+        }
     return {
         "is_verified": verification.status == "approved",
         "status": verification.status,
         "role": verification.role,
         "submitted_at": verification.created_at.isoformat() if verification.created_at else None,
+        "review_note": verification.review_note,
+        "verified_at": verification.verified_at.isoformat() if verification.verified_at else None,
     }
 
 

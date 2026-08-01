@@ -137,11 +137,19 @@ async def _create_design_data(db_session, project_id: str):
 @pytest.mark.asyncio
 async def test_export_structural_ifc(client: AsyncClient, db_session, auth_headers):
     """测试 structural IFC 导出（有结构数据）"""
-    user, project = await _create_test_user_and_project(db_session)
-    await _create_structural_data(db_session, project.id)
+    # 通过 API 创建项目（归属于 auth_headers 用户）
+    resp = await client.post(
+        "/api/projects",
+        json={"name": "IFC结构测试项目", "total_area": 100.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    project_id = resp.json()["id"]
+
+    await _create_structural_data(db_session, project_id)
 
     resp = await client.post(
-        f"/api/bim/export/structural/{project.id}",
+        f"/api/bim/export/structural/{project_id}",
         headers=auth_headers,
         json={},
     )
@@ -163,10 +171,17 @@ async def test_export_structural_ifc_empty_data(
     client: AsyncClient, db_session, auth_headers
 ):
     """测试空结构数据导出"""
-    user, project = await _create_test_user_and_project(db_session)
+    # 通过 API 创建项目（归属于 auth_headers 用户）
+    resp = await client.post(
+        "/api/projects",
+        json={"name": "IFC空结构测试项目", "total_area": 100.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    project_id = resp.json()["id"]
 
     resp = await client.post(
-        f"/api/bim/export/structural/{project.id}",
+        f"/api/bim/export/structural/{project_id}",
         headers=auth_headers,
         json={},
     )
@@ -183,8 +198,16 @@ async def test_export_structural_ifc_empty_data(
 @pytest.mark.asyncio
 async def test_export_design_ifc(client: AsyncClient, db_session, auth_headers):
     """测试 design IFC 导出（有设计方案）"""
-    user, project = await _create_test_user_and_project(db_session)
-    plan = await _create_design_data(db_session, project.id)
+    # 通过 API 创建项目（归属于 auth_headers 用户）
+    resp = await client.post(
+        "/api/projects",
+        json={"name": "IFC设计测试项目", "total_area": 100.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    project_id = resp.json()["id"]
+
+    plan = await _create_design_data(db_session, project_id)
 
     resp = await client.post(
         f"/api/bim/export/design/{plan.id}",

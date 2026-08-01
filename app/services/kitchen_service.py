@@ -456,6 +456,18 @@ async def delete_design(db: AsyncSession, design_id: str) -> bool:
     return True
 
 
+async def update_design(db: AsyncSession, design_id: str, data: dict) -> KitchenDesign | None:
+    design = await get_design(db, design_id)
+    if not design:
+        return None
+    for key, value in data.items():
+        if value is not None:
+            setattr(design, key, value)
+    await db.commit()
+    await db.refresh(design)
+    return design
+
+
 # ── 厨房组件 CRUD ──
 
 async def add_component(db: AsyncSession, data: dict) -> KitchenComponent:

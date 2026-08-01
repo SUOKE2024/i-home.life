@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.kitchen import (
     KitchenDesignCreate,
     KitchenDesignResponse,
+    KitchenDesignUpdate,
     KitchenComponentCreate,
     KitchenComponentResponse,
 )
@@ -182,6 +183,26 @@ async def delete_component(
     deleted = await kitchen_service.delete_component(db, component_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房组件不存在")
+
+
+@router.patch("/designs/{design_id}", response_model=KitchenDesignResponse)
+async def update_design(
+    design_id: str,
+    data: KitchenDesignUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新厨房设计"""
+    design = await kitchen_service.get_design(db, design_id)
+    if not design:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    await verify_project_access(project_id=design.project_id, current_user=current_user, db=db)
+    updated = await kitchen_service.update_design(db, design_id, data.model_dump(exclude_none=True))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨房设计不存在")
+    resp = KitchenDesignResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(design.project_id, "kitchen.design_updated", resp.model_dump())
+    return resp
 
 
 @router.delete("/designs/{design_id}", status_code=status.HTTP_204_NO_CONTENT)

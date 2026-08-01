@@ -21,9 +21,12 @@ import type {
   DesignPlanResult,
   CirculationRoom,
   CirculationAnalysisResult,
+  DesignProposalSpec,
+  DesignProposalResult,
+  DesignProposalReviseResult,
 } from '../types/domain';
 
-type View = 'plan' | 'circulation';
+type View = 'plan' | 'circulation' | 'proposals';
 
 // 房间类型选项（对齐后端 CIRCULATION_TYPES.preferred_path 用到的 type）
 const ROOM_TYPES: Array<{ value: string; label: string }> = [
@@ -92,6 +95,17 @@ export default function DesignPage() {
   const [circError, setCircError] = useState<string | null>(null);
   const [circResult, setCircResult] = useState<CirculationAnalysisResult | null>(null);
 
+  // ── 讨论式方案交互状态（POST /design/proposals + revise）──
+  const [proposalReq, setProposalReq] = useState('');
+  const [proposals, setProposals] = useState<DesignProposalSpec[] | null>(null);
+  const [proposalSessionId, setProposalSessionId] = useState('');
+  const [proposalSource, setProposalSource] = useState('');
+  const [proposalLoading, setProposalLoading] = useState(false);
+  const [proposalError, setProposalError] = useState<string | null>(null);
+  const [reviseId, setReviseId] = useState('');
+  const [reviseChange, setReviseChange] = useState('');
+  const [revising, setRevising] = useState(false);
+
   async function handleGeneratePlan() {
     if (!message.trim()) {
       setPlanError('请输入设计需求');
@@ -155,6 +169,66 @@ export default function DesignPage() {
     }
   }
 
+  async function handleGenerateProposals() {
+    if (!proposalReq.trim()) {
+      setProposalError('请输入设计需求');
+      return;
+    }
+    setProposalLoading(true);
+    setProposalError(null);
+    setProposals(null);
+    setProposalSource('');
+    try {
+      const r = await apiClient.generateDesignProposals<DesignProposalResult>(proposalReq.trim());
+      if (!r.isSuccess || !r.data) {
+        setProposalError(r.error ?? '生成失败');
+        return;
+      }
+      setProposals(r.data.proposals);
+      setProposalSessionId(r.data.session_id);
+      setProposalSource(r.data.source);
+      setReviseChange('');
+      if (r.data.proposals.length > 0) setReviseId(r.data.proposals[0].proposal_id);
+    } catch (err) {
+      setProposalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProposalLoading(false);
+    }
+  }
+
+  async function handleReviseProposal() {
+    if (!reviseId) {
+      setProposalError('请先选择一个方案');
+      return;
+    }
+    if (!reviseChange.trim()) {
+      setProposalError('请输入修改指令');
+      return;
+    }
+    setRevising(true);
+    setProposalError(null);
+    try {
+      const r = await apiClient.reviseDesignProposal<DesignProposalReviseResult>(
+        reviseId,
+        reviseChange.trim(),
+        proposalSessionId || undefined,
+      );
+      if (!r.isSuccess || !r.data) {
+        setProposalError(r.error ?? '修订失败');
+        return;
+      }
+      const revised = r.data.proposal;
+      setProposals((prev) =>
+        (prev ?? []).map((p) => (p.proposal_id === revised.proposal_id ? revised : p)),
+      );
+      setReviseChange('');
+    } catch (err) {
+      setProposalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRevising(false);
+    }
+  }
+
   return (
     <SuokeLayout>
       <div className="wb-page-shell" data-testid="wb-design-page">
@@ -192,6 +266,16 @@ export default function DesignPage() {
               data-testid="wb-design-view--circulation"
             >
               🚶 动线分析
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'proposals'}
+              className={`wb-task-filter__chip ${view === 'proposals' ? 'wb-task-filter__chip--active' : ''}`}
+              onClick={() => setView('proposals')}
+              data-testid="wb-design-view--proposals"
+            >
+              🗣 方案交互
             </button>
           </div>
 
@@ -482,6 +566,135 @@ export default function DesignPage() {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── 视图 3：讨论式方案交互 ── */}
+          {view === 'proposals' && (
+            <div data-testid="wb-design-proposals-content">
+              <div className="wb-field">
+                <label className="wb-field__label" htmlFor="wb-design-proposal-req">
+                  设计需求 <span style={{ color: 'var(--danger)' }}>*</span>
+                </label>
+                <textarea
+                  id="wb-design-proposal-req"
+                  className="wb-textarea"
+                  rows={3}
+                  placeholder="例：帮我设计一个开放式厨房，U 型布局，预算 3 万"
+                  value={proposalReq}
+                  onChange={(e) => setProposalReq(e.target.value)}
+                  data-testid="wb-design-proposal-req"
+                />
+              </div>
+              <button
+                type="button"
+                className="wb-theme-option wb-theme-option--active"
+                onClick={handleGenerateProposals}
+                disabled={proposalLoading}
+                data-testid="wb-design-proposal-generate-btn"
+              >
+                {proposalLoading ? '生成中…' : '生成方案'}
+              </button>
+
+              {proposalError && (
+                <div className="wb-state wb-state--error" data-testid="wb-design-proposal-error">
+                  <div className="wb-state__icon">⚠</div>
+                  <div>{proposalError}</div>
+                </div>
+              )}
+
+              {proposalSource === 'fallback' && !proposalError && (
+                <div className="wb-state" data-testid="wb-design-proposal-fallback">
+                  <div className="wb-state__icon">ℹ</div>
+                  <div>LLM 暂不可用，已降级为确定性单方案（source=fallback）</div>
+                </div>
+              )}
+
+              {proposals && !proposalError && (
+                <div style={{ marginTop: 12 }} data-testid="wb-design-proposals-result">
+                  <div className="wb-section-label">方案列表（{proposals.length}）</div>
+                  {proposals.map((p) => (
+                    <div
+                      className="wb-project-card"
+                      key={p.proposal_id}
+                      data-testid={`wb-design-proposal-card--${p.proposal_id}`}
+                      style={{ borderLeft: `4px solid ${reviseId === p.proposal_id ? 'var(--primary)' : 'transparent'}` }}
+                    >
+                      <div className="wb-project-card__title">
+                        方案{p.proposal_id} · {p.title}
+                        {reviseId === p.proposal_id && (
+                          <span
+                            style={{
+                              marginLeft: 6,
+                              padding: '1px 8px',
+                              borderRadius: 10,
+                              fontSize: 11,
+                              background: 'var(--primary)',
+                              color: '#fff',
+                            }}
+                          >
+                            已选中
+                          </span>
+                        )}
+                      </div>
+                      <div className="wb-design-card__body">
+                        <div className="wb-design-circ-meta">
+                          {p.layout_type} · {p.area_sqm}㎡ · 预算 ¥{p.budget_cny.toLocaleString()}
+                        </div>
+                        {p.highlights.length > 0 && (
+                          <div className="wb-design-suggestions">
+                            {p.highlights.map((h, hi) => (
+                              <div key={hi}>✨ {h}</div>
+                            ))}
+                          </div>
+                        )}
+                        {p.rationale && <div className="wb-design-card__body">{p.rationale}</div>}
+                        {p.change_log.length > 0 && (
+                          <div className="wb-design-info">
+                            📝 修订记录：{p.change_log.join('；')}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="wb-theme-option"
+                          onClick={() => setReviseId(p.proposal_id)}
+                          data-testid={`wb-design-proposal-select--${p.proposal_id}`}
+                        >
+                          选择该方案进行修改
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 修订表单 */}
+                  <div className="wb-section-label" style={{ marginTop: 12 }}>
+                    修订方案{reviseId ? `（${reviseId}）` : ''}
+                  </div>
+                  <div className="wb-field">
+                    <label className="wb-field__label" htmlFor="wb-design-revise-change">
+                      修改指令
+                    </label>
+                    <input
+                      id="wb-design-revise-change"
+                      className="wb-input"
+                      type="text"
+                      placeholder="例：方案B加中岛，预算提高到 2.8 万"
+                      value={reviseChange}
+                      onChange={(e) => setReviseChange(e.target.value)}
+                      data-testid="wb-design-revise-change"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="wb-theme-option wb-theme-option--active"
+                    onClick={handleReviseProposal}
+                    disabled={revising || !reviseId}
+                    data-testid="wb-design-revise-btn"
+                  >
+                    {revising ? '修订中…' : '应用修改'}
+                  </button>
                 </div>
               )}
             </div>

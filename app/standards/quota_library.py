@@ -8,6 +8,12 @@ BOMItem.unit_price（采购价）汇总预算，缺乏行业定额基准，无�
 按经济型/舒适型/品质型/豪华型四档分级。仅作预算基准，实际采购价仍由
 BOMItem.unit_price 记录，两者差异反映成本控制情况。
 
+合规声明（v1.3.0）：本定额库对标 GB/T 50500-2024《建设工程工程量清单计价标准》
+（2025-09-01 实施，替代 GB 50500-2013）的"市场化定价、去定额依赖"改革方向，
+采用市场均价 + 企业消耗量定额模式，符合新国标"清单计量、市场询价、自主报价、
+竞争定价"要求。配套计量规范为 GB/T 50854-2024《房屋建筑与装饰工程工程量计算标准》。
+BIM 数字化造价要求由 ifc_export_service + quantity_takeoff_service 联合满足。
+
 受 ``settings.quota_library_enabled`` 控制：
 - True：generate_budget_from_bom 用 BOM量 × 定额单价
 - False：回退到直接用 BOMItem.total_price（原行为）

@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select, desc
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -172,10 +173,10 @@ async def decompose_project(
         if prev_task_id:
             task.dependencies = json.dumps([prev_task_id])
         db.add(task)
+        await db.flush()  # 立即 flush 生成 task.id，供下一任务建立依赖链
         tasks.append(task)
         prev_task_id = task.id
 
-    await db.flush()
     return tasks
 
 
@@ -220,18 +221,18 @@ async def rank_candidates(
         rating = 0.0
         completed_projects = 0
 
-        if task.claim_role == "designer":
-            worker_stmt = select(ServiceWorker).where(ServiceWorker.phone == user.phone) if user else None
-            if worker_stmt:
+        if user:
+            # 根据任务角色查询对应的经验/评分数据
+            if task.claim_role == "designer":
+                worker_stmt = select(ServiceWorker).where(ServiceWorker.phone == user.phone)
                 worker_result = await db.execute(worker_stmt)
                 worker = worker_result.scalar_one_or_none()
                 if worker:
                     experience = worker.years_of_experience
                     rating = worker.rating
                     completed_projects = worker.completed_projects
-        elif task.claim_role == "contractor":
-            crew_stmt = select(ConstructionCrew).where(ConstructionCrew.phone == user.phone) if user else None
-            if crew_stmt:
+            elif task.claim_role == "contractor":
+                crew_stmt = select(ConstructionCrew).where(ConstructionCrew.phone == user.phone)
                 crew_result = await db.execute(crew_stmt)
                 crew = crew_result.scalar_one_or_none()
                 if crew:
@@ -281,7 +282,9 @@ async def assign_task(
     user_id: str,
 ) -> OrchestratorTask | None:
     """将任务分配给指定用户"""
-    stmt = select(OrchestratorTask).where(OrchestratorTask.id == task_id)
+    stmt = select(OrchestratorTask).options(
+        selectinload(OrchestratorTask.assigned_user)
+    ).where(OrchestratorTask.id == task_id)
     result = await db.execute(stmt)
     task = result.scalar_one_or_none()
     if not task:
@@ -321,7 +324,9 @@ async def complete_task(
     result: dict | None = None,
 ) -> OrchestratorTask | None:
     """完成任务"""
-    stmt = select(OrchestratorTask).where(OrchestratorTask.id == task_id)
+    stmt = select(OrchestratorTask).options(
+        selectinload(OrchestratorTask.assigned_user)
+    ).where(OrchestratorTask.id == task_id)
     result_obj = await db.execute(stmt)
     task = result_obj.scalar_one_or_none()
     if not task:

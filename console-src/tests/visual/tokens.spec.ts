@@ -16,12 +16,29 @@ test.describe('设计令牌渲染', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'mock-token-tokens');
+      // 固定暗色主题：F5 起 initTheme() 在 system 模式下随 OS 偏好解析，
+      // Playwright headless 默认 light 会导致 /tokens 渲染为浅色令牌，断言漂移。
+      // 令牌 baseline 与断言基于暗色，故强制 dark。
+      localStorage.setItem('settings_theme_mode', 'dark');
     });
     await page.route('**/api/config/feature-flags', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ console_v2_enabled: true }),
+      });
+    });
+    // mock /api/auth/me：AuthGate 会校验 token 有效性，未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'mock-user',
+          name: '测试用户',
+          email: 'test@suoke',
+          role: 'homeowner',
+        }),
       });
     });
   });

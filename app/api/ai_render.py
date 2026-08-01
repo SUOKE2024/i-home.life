@@ -17,16 +17,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
+from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.rbac import verify_project_access
 from app.services.ai_render_service import (
     SUPPORTED_RESTAGE_MODES,
     SUPPORTED_STYLES,
+    RENDER_CONTRACT,
+    RenderUnavailableError,
     ai_render_service,
 )
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 router = APIRouter(prefix="/ai-render", tags=["AI 渲染"])
 
 
@@ -38,6 +42,8 @@ class Render2DRequest(BaseModel):
     layout_json: dict = Field(..., description="布局 JSON（含 rooms / walls 等）")
     style: str = Field("modern", description="装修风格")
     project_id: str | None = Field(None, description="项目 ID（可选，用于归属校验）")
+    # v1.3.0 P3: require_real=True 时，后端不可用且 contract_strict=True → 503 诚实报错
+    require_real: bool = Field(False, description="强制真实渲染（后端不可用时返回 503 而非降级）")
 
 
 class Render3DRequest(BaseModel):
@@ -45,6 +51,7 @@ class Render3DRequest(BaseModel):
     floorplan: dict = Field(..., description="户型数据")
     style: str = Field("modern", description="装修风格")
     project_id: str | None = Field(None, description="项目 ID（可选）")
+    require_real: bool = Field(False, description="强制真实渲染（后端不可用时返回 503 而非降级）")
 
 
 class RestageRequest(BaseModel):
@@ -74,12 +81,26 @@ async def render_2d(
     if body.project_id:
         await verify_project_access(body.project_id, current_user, db)
 
-    return await ai_render_service.render_2d(
-        layout_json=body.layout_json,
-        style=body.style,
-        user_id=current_user.id,
-        db=db,
-    )
+    if not settings.ai_render_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 渲染未启用",
+        )
+
+    try:
+        return await ai_render_service.render_2d(
+            layout_json=body.layout_json,
+            style=body.style,
+            user_id=current_user.id,
+            db=db,
+            require_real=body.require_real,
+        )
+    except RenderUnavailableError as e:
+        # v1.3.0 P3 L3: 严格模式 + require_real，后端不可用 → 503 诚实报错
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"真实渲染后端不可用: {e.reason}",
+        )
 
 
 @router.post("/3d")
@@ -95,12 +116,25 @@ async def render_3d(
     if body.project_id:
         await verify_project_access(body.project_id, current_user, db)
 
-    return await ai_render_service.render_3d(
-        floorplan=body.floorplan,
-        style=body.style,
-        user_id=current_user.id,
-        db=db,
-    )
+    if not settings.ai_render_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 渲染未启用",
+        )
+
+    try:
+        return await ai_render_service.render_3d(
+            floorplan=body.floorplan,
+            style=body.style,
+            user_id=current_user.id,
+            db=db,
+            require_real=body.require_real,
+        )
+    except RenderUnavailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"真实渲染后端不可用: {e.reason}",
+        )
 
 
 @router.post("/restage")
@@ -125,6 +159,12 @@ async def restage_photo(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"无效的 mode: {mode}，支持: {', '.join(SUPPORTED_RESTAGE_MODES)}",
+        )
+
+    if not settings.ai_render_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 渲染未启用",
         )
 
     # 可选项目归属校验
@@ -162,5 +202,7 @@ async def get_capabilities(
         "styles": SUPPORTED_STYLES,
         "restage_modes": SUPPORTED_RESTAGE_MODES,
         "render_types": ["2d", "3d", "restage"],
+        # v1.3.0 P3: AI 渲染接入契约（ControlNet + Depth Anything V2 + SDXL-Turbo）
+        "render_contract": RENDER_CONTRACT,
         "note": "style 字段允许自由文本，列表仅为推荐项；mode 字段必须取自 restage_modes",
     }

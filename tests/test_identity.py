@@ -75,6 +75,11 @@ async def test_get_verification_status(client: AsyncClient, auth_headers: dict):
     data = resp.json()
     assert "is_verified" in data
     assert "status" in data
+    # P2-9：认证历史字段（未提交时为 None）
+    assert "review_note" in data
+    assert "verified_at" in data
+    assert data["review_note"] is None
+    assert data["verified_at"] is None
 
 
 @pytest.mark.asyncio

@@ -171,3 +171,46 @@ async def test_chat_stream_project_ownership_denied(auth_headers: dict, client: 
         headers=headers_b,
     )
     assert resp.status_code == 403, f"越权访问应被拒: {resp.status_code}"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_agent_error_emits_error_event(
+    auth_headers: dict, client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+):
+    """v1.3.1 修复：流式 Agent 中途异常 → 诚实送达 error 事件而非静默断开。
+
+    回归背景：此前真流式分支（app/api/agents.py think_stream）无 except，
+    异常会穿透生成器导致 SSE 无 done/error 直接断开；前端 for-await 自然结束
+    时 isLoading 永不复位（输入栏禁用 + typing 常驻）。本测试锁住
+    "异常仍要送达 error 事件 + 流以 done 收尾" 的契约。
+    """
+    from app.api import agents as agents_api
+
+    async def boom(self, message, user_ctx):  # noqa: ANN001
+        yield "橱柜建议"
+        raise RuntimeError("模拟 LLM 超时")
+
+    monkeypatch.setattr(agents_api.KitchenAgent, "think_stream", boom)
+
+    # "厨房橱柜布局黄金三角" 仅命中 kitchen 关键词（fallback_classify 规则，
+    # 避免 design 关键词并列导致路由到 DesignerAgent 假流式分支）
+    resp = await client.post(
+        "/api/agents/chat/stream",
+        json={"message": "厨房橱柜布局黄金三角", "agent_type": "orchestrator"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, f"SSE 请求失败: {resp.status_code} {resp.text[:200]}"
+
+    events = _parse_sse(resp.text)
+    types = [e.get("event") for e in events]
+    assert "error" in types, f"应送达 error 事件: {types}"
+
+    error_event = next(e for e in events if e.get("event") == "error")
+    assert "生成回复失败" in error_event.get("content", ""), error_event
+    assert error_event.get("agent_type") == "kitchen", error_event
+
+    # 流仍以 done 收尾且 session_id 一致（会话持久化不受异常影响）
+    done = events[-1]
+    assert done.get("event") == "done", f"末事件应为 done: {types}"
+    meta = next(e for e in events if e.get("event") == "meta")
+    assert done.get("session_id") == meta["session_id"], "done 与 meta 的 session_id 不一致"

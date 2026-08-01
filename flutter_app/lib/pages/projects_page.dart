@@ -339,10 +339,14 @@ class _ProjectsPageState extends State<ProjectsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的项目', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Semantics(
+          header: true,
+          child: const Text('我的项目', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
         actions: [
           IconButton(
             icon: Icon(_showForm ? Icons.close : Icons.add),
+            tooltip: _showForm ? '取消创建项目' : '新建项目',
             onPressed: () => setState(() => _showForm = !_showForm),
           ),
         ],
@@ -396,8 +400,11 @@ class _ProjectsPageState extends State<ProjectsPage> {
               ),
             )
           else
-            ..._projects.map((p) => Card(
-              child: InkWell(
+            ..._projects.map((p) => Semantics(
+              button: true,
+              label: '项目 ${p.name}，状态 ${_statusText(p.status.value)}，${p.address ?? '未填写地址'}，${_fmtArea(p.totalArea)}平方米，双击查看详情',
+              child: Card(
+                child: InkWell(
                 onTap: () async {
                   final deleted = await Navigator.push<bool>(
                     context,
@@ -443,6 +450,7 @@ class _ProjectsPageState extends State<ProjectsPage> {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
             )),
@@ -657,21 +665,29 @@ class _ProjectsPageState extends State<ProjectsPage> {
                   ),
                   const SizedBox(width: 10),
                   // 自动定位按钮
-                  GestureDetector(
-                    onTap: _locating ? null : _autoLocate,
-                    child: Container(
-                      width: 44, height: 44,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: accent),
-                        color: accent.withValues(alpha: 0.1),
+                  Semantics(
+                    button: true,
+                    label: _locating ? '正在定位' : '自动定位到当前位置',
+                    child: GestureDetector(
+                      onTap: _locating ? null : _autoLocate,
+                      child: Container(
+                        width: 44, height: 44,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: accent),
+                          color: accent.withValues(alpha: 0.1),
+                        ),
+                        child: _locating
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: accent,
+                                  semanticsLabel: '正在定位',
+                                ),
+                              )
+                            : const Icon(Icons.my_location, color: accent, size: 22),
                       ),
-                      child: _locating
-                          ? const SizedBox(
-                              width: 20, height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: accent),
-                            )
-                          : const Icon(Icons.my_location, color: accent, size: 22),
                     ),
                   ),
                 ],
@@ -800,7 +816,11 @@ class _ProjectsPageState extends State<ProjectsPage> {
             child: _submitting
                 ? const SizedBox(
                     width: 22, height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.black,
+                      semanticsLabel: '正在创建项目',
+                    ),
                   )
                 : const Text('创建项目'),
           ),

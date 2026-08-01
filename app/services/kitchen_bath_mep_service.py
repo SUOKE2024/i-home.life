@@ -300,6 +300,18 @@ async def list_plans(db: AsyncSession, project_id: str) -> list[KitchenBathMEPPl
     return list(result.scalars().all())
 
 
+async def update_plan(db: AsyncSession, plan_id: str, data: dict) -> KitchenBathMEPPlan | None:
+    plan = await get_plan(db, plan_id)
+    if not plan:
+        return None
+    for key, value in data.items():
+        if hasattr(plan, key) and value is not None:
+            setattr(plan, key, value)
+    await db.commit()
+    await db.refresh(plan)
+    return plan
+
+
 async def delete_plan(db: AsyncSession, plan_id: str) -> bool:
     plan = await get_plan(db, plan_id)
     if not plan:

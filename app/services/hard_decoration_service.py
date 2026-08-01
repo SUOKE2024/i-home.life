@@ -276,6 +276,18 @@ async def list_schemes(db: AsyncSession, project_id: str) -> list[HardDecoration
     return list(result.scalars().all())
 
 
+async def update_scheme(db: AsyncSession, scheme_id: str, data: dict) -> HardDecorationScheme | None:
+    scheme = await get_scheme(db, scheme_id)
+    if not scheme:
+        return None
+    for key, value in data.items():
+        if hasattr(scheme, key) and value is not None:
+            setattr(scheme, key, value)
+    await db.commit()
+    await db.refresh(scheme)
+    return scheme
+
+
 async def delete_scheme(db: AsyncSession, scheme_id: str) -> bool:
     scheme = await get_scheme(db, scheme_id)
     if not scheme:

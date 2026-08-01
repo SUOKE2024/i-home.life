@@ -44,6 +44,8 @@ class FloorPlanListItem(BaseModel):
     total_area: float
     room_count: int
     wall_height: float
+    is_active: bool
+    created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}

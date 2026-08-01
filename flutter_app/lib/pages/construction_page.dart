@@ -78,7 +78,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Future<void> _updateTaskStatus(String taskId, String status) async {
-    final result = await _api.patch('/construction/tasks/$taskId/status', {'status': status});
+    // 后端 PATCH /construction/tasks/{id}/status 的 status_val 是 query 参数（见 app/api/construction.py:update_task_status）
+    final result = await _api.patch(
+      '/construction/tasks/$taskId/status?status_val=${Uri.encodeQueryComponent(status)}',
+      {},
+    );
     if (result.isSuccess) {
       await _loadTasks();
     } else {

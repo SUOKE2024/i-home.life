@@ -21,6 +21,15 @@ class TaskClaimRequest(BaseModel):
     task_id: str
 
 
+class TaskDecomposeRequest(BaseModel):
+    """总控 Agent 项目分解请求 — 按项目类型生成标准任务序列"""
+    project_id: str
+    project_type: str = Field(
+        default="full_renovation",
+        description="full_renovation / hard_decoration / soft_furnishing / curtain（未知类型回退全屋整装流）",
+    )
+
+
 class TaskAssignRequest(BaseModel):
     task_id: str
     user_id: str

@@ -141,14 +141,15 @@ async def process_job(db: AsyncSession, job_id: str) -> AIImageJob | None:
 
     # 2. mock 调用 SD/ControlNet API
     # 实际: POST https://api.stability.ai/v2beta/stable-image/generate/sd3
-    # mock: 生成 placeholder URL
+    # mock: 生成 placeholder URL，并标注 render_backend=mock 诚实降级（禁止伪装真实能力）
     render_id = uuid.uuid4().hex[:12]
-    output_url = f"https://cdn.i-home.life/ai/{render_id}_output.png"
+    output_url = f"https://cdn.i-home.life/ai/__mock__/{render_id}_output.png"
 
     # 模拟 progress 流转
     job.progress_percent = 100.0
     job.output_image_url = output_url
     job.status = "completed"
+    job.render_backend = "mock"
     job.render_duration_sec = int(job.num_inference_steps * 0.5)  # mock: 每 step 0.5s
     job.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()

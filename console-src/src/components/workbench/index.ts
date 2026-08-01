@@ -10,3 +10,5 @@ export { default as ChatInputBar } from './ChatInputBar';
 export { default as AgentSelector } from './AgentSelector';
 export { default as VoiceTaskPanel } from './VoiceTaskPanel';
 export { default as TypingIndicator } from './TypingIndicator';
+export { default as EmojiPicker } from './EmojiPicker';
+export { default as A2UICard } from './A2UICard';

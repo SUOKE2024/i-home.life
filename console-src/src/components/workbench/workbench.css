@@ -52,7 +52,7 @@
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  transition: background 0.15s;
+  transition: background var(--duration-fast) var(--ease-standard);
 }
 .wb-header__icon-btn:hover {
   background: var(--surface2);
@@ -105,7 +105,7 @@
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-standard);
 }
 .wb-agent-chip:hover {
   border-color: var(--border-active);
@@ -138,7 +138,7 @@
   display: flex;
   flex-direction: column;
   max-width: 85%;
-  animation: wb-msg-in 0.2s ease-out;
+  animation: wb-msg-in var(--duration-base) var(--ease-emphasized);
 }
 @keyframes wb-msg-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -226,7 +226,7 @@
   height: 100%;
   background: var(--accent);
   border-radius: 2px;
-  transition: width 0.3s;
+  transition: width var(--duration-slow) var(--ease-standard);
 }
 
 /* 反馈按钮（Agent 消息底部） */
@@ -244,11 +244,33 @@
   font-size: 12px;
   cursor: pointer;
   color: var(--text-muted);
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-standard);
 }
 .wb-feedback-btn:hover {
   border-color: var(--border-active);
   color: var(--text-secondary);
+}
+.wb-feedback-btn--sent {
+  cursor: default;
+  color: var(--success);
+  border-color: var(--success);
+}
+
+/* ════════════════════════════════════════════
+   A2UI 卡片容器（样式见下方 a2ui-* 区块，对齐 a2ui-renderer.js）
+   ════════════════════════════════════════════ */
+.wb-msg-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 85%;
+}
+.wb-msg__a2ui {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* ════════════════════════════════════════════
@@ -284,6 +306,7 @@
    ChatInputBar — 对齐 ai_chat_page.dart:1464-1570
    ════════════════════════════════════════════ */
 .wb-input-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -306,7 +329,7 @@
   justify-content: center;
   font-size: 18px;
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: all var(--duration-fast) var(--ease-standard);
 }
 .wb-input-btn:hover {
   border-color: var(--border-active);
@@ -353,11 +376,85 @@
   justify-content: center;
   font-size: 16px;
   flex-shrink: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 .wb-input-send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ════════════════════════════════════════════
+   EmojiPicker — 对齐 flutter emoji_picker.dart
+   ════════════════════════════════════════════ */
+.wb-emoji {
+  position: absolute;
+  left: 12px;
+  bottom: 62px;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 920;
+  padding: 10px;
+}
+.wb-emoji__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.wb-emoji__tab {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--surface1);
+  border-radius: var(--radius);
+  padding: 4px 0;
+  font-size: 16px;
+  cursor: pointer;
+}
+.wb-emoji__tab--active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.wb-emoji__grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.wb-emoji__cell {
+  border: none;
+  background: none;
+  font-size: 18px;
+  padding: 4px 0;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.wb-emoji__cell:hover {
+  background: var(--surface3);
+}
+.wb-emoji__empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 16px 0;
+}
+.wb-emoji__close {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  background: none;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  padding: 4px 0;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 /* ════════════════════════════════════════════
@@ -530,7 +627,7 @@
   cursor: pointer;
   margin-bottom: 10px;
   font-family: inherit;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard);
 }
 .wb-empty__suggestion:hover {
   border-color: var(--accent);
@@ -550,4 +647,455 @@
   flex: 1;
   height: 1px;
   background: var(--border);
+}
+
+/* ════════════════════════════════════════════
+   A2UI 卡片 — Agent-to-UI 协议（对齐 a2ui-cards.css + tokens.css）
+   由 A2UICard.tsx 渲染，补齐 Web 控制台 A2UI 缺口
+   ════════════════════════════════════════════ */
+.a2ui-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: wb-msg-in var(--duration-base) var(--ease-emphasized);
+}
+
+.a2ui-card-inner {
+  padding: 12px;
+}
+
+.a2ui-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.a2ui-accent-bar {
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.a2ui-accent-design .a2ui-accent-bar { background: var(--agent-design); }
+.a2ui-accent-budget .a2ui-accent-bar { background: var(--agent-budget); }
+.a2ui-accent-construction .a2ui-accent-bar { background: var(--agent-construction); }
+.a2ui-accent-procurement .a2ui-accent-bar { background: var(--agent-procurement); }
+.a2ui-accent-quality .a2ui-accent-bar { background: var(--agent-quality); }
+.a2ui-accent-settlement .a2ui-accent-bar { background: var(--agent-settlement); }
+.a2ui-accent-master .a2ui-accent-bar { background: var(--agent-master); }
+
+.a2ui-card-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.a2ui-card-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.a2ui-card-subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.a2ui-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.a2ui-tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.a2ui-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  border: 1px solid var(--border-active);
+  color: var(--text-secondary);
+}
+
+.a2ui-tag-design { color: var(--agent-design); border-color: var(--agent-design); }
+.a2ui-tag-construction { color: var(--agent-construction); border-color: var(--agent-construction); }
+.a2ui-tag-cert { color: var(--success); border-color: var(--success); }
+
+.a2ui-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 6px 0 4px;
+}
+
+/* 设计房间网格 */
+.a2ui-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 6px;
+}
+
+.a2ui-room-tile {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.a2ui-room-name { font-size: var(--font-size-sm); color: var(--text-primary); }
+.a2ui-room-area { font-size: var(--font-size-sm); font-weight: 600; color: var(--agent-design); }
+.a2ui-room-orientation { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+/* 预算 */
+.a2ui-summary-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
+.a2ui-summary-total { font-weight: 600; color: var(--text-primary); }
+.a2ui-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+.a2ui-budget-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: var(--font-size-sm);
+}
+
+.a2ui-budget-name { flex: 1; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.a2ui-budget-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); }
+.a2ui-budget-qty { color: var(--text-muted); font-size: var(--font-size-xs); flex-shrink: 0; }
+.a2ui-budget-amount { font-weight: 600; color: var(--text-primary); flex-shrink: 0; }
+.a2ui-more-hint { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.a2ui-payment-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  padding: 3px 0;
+  color: var(--text-secondary);
+}
+
+.a2ui-stage-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border-active);
+  flex-shrink: 0;
+}
+
+.a2ui-stage-dot-paid { background: var(--success); }
+.a2ui-stage-name { flex: 1; }
+.a2ui-stage-ratio, .a2ui-stage-amount { flex-shrink: 0; color: var(--text-primary); }
+.a2ui-stage-status { font-size: var(--font-size-xs); color: var(--text-muted); flex-shrink: 0; }
+
+.a2ui-warranty-info {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* 施工进度 */
+.a2ui-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.a2ui-progress-pct { color: var(--agent-construction); font-weight: 600; }
+
+.a2ui-progress-bar {
+  height: 6px;
+  background: var(--surface3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.a2ui-progress-fill {
+  height: 100%;
+  background: var(--agent-construction);
+  border-radius: 3px;
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+
+.a2ui-crew-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.a2ui-milestone {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.a2ui-milestone-date { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.a2ui-phase-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  padding: 3px 0;
+  color: var(--text-secondary);
+}
+
+.a2ui-phase-name { flex: 1; }
+.a2ui-phase-pct { flex-shrink: 0; color: var(--text-primary); }
+.a2ui-phase-status { font-size: var(--font-size-xs); color: var(--text-muted); flex-shrink: 0; }
+
+/* 采购订单 */
+.a2ui-supplier-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.a2ui-order-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: var(--font-size-sm);
+}
+
+.a2ui-order-item-name { color: var(--text-primary); }
+.a2ui-order-item-specs { font-size: var(--font-size-xs); color: var(--text-muted); }
+.a2ui-order-item-qty { color: var(--text-secondary); flex-shrink: 0; }
+
+.a2ui-order-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.a2ui-order-total-label, .a2ui-order-date-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.a2ui-order-total-amount { font-weight: 700; color: var(--agent-procurement); }
+.a2ui-order-date-value { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+/* 质检报告 */
+.a2ui-qa-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.a2ui-qa-passed { background: rgba(74, 158, 110, 0.12); }
+.a2ui-qa-failed { background: rgba(201, 74, 74, 0.12); }
+.a2ui-qa-result-text { flex: 1; }
+.a2ui-qa-result-title { font-weight: 600; color: var(--text-primary); }
+.a2ui-qa-result-stats { font-size: var(--font-size-xs); color: var(--text-muted); }
+.a2ui-qa-pct { font-weight: 700; }
+
+.a2ui-qa-deadline {
+  margin-top: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--danger);
+}
+
+.a2ui-checkpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  padding: 3px 0;
+}
+
+.a2ui-checkpoint-name { color: var(--text-primary); }
+.a2ui-checkpoint-detail { font-size: var(--font-size-xs); color: var(--text-muted); }
+.a2ui-checkpoint-status { font-size: var(--font-size-xs); color: var(--text-muted); flex-shrink: 0; }
+
+/* 结算汇总 */
+.a2ui-money-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.a2ui-money-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  text-align: center;
+}
+
+.a2ui-money-label { font-size: var(--font-size-xs); color: var(--text-muted); }
+.a2ui-money-value { font-size: var(--font-size-md); font-weight: 700; color: var(--text-primary); }
+.a2ui-money-total .a2ui-money-value { color: var(--text-primary); }
+.a2ui-money-paid .a2ui-money-value { color: var(--success); }
+.a2ui-money-balance .a2ui-money-value { color: var(--warning); }
+
+.a2ui-next-payment {
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-glow);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.a2ui-next-pay-date, .a2ui-next-pay-condition { font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.a2ui-payment-history-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  padding: 3px 0;
+  color: var(--text-secondary);
+}
+
+.a2ui-payment-amount { margin-left: auto; color: var(--text-primary); font-weight: 600; }
+.a2ui-payment-status { font-size: var(--font-size-xs); color: var(--text-muted); flex-shrink: 0; }
+
+/* 材料详情 */
+.a2ui-material-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.a2ui-material-price { font-size: var(--font-size-lg); font-weight: 700; color: var(--agent-master); }
+.a2ui-material-unit { font-size: var(--font-size-sm); color: var(--text-muted); }
+.a2ui-material-stock { margin-left: auto; font-size: var(--font-size-xs); color: var(--text-muted); }
+
+.a2ui-material-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  padding: 2px 0;
+}
+
+.a2ui-material-info-label { color: var(--text-muted); }
+.a2ui-material-info-value { color: var(--text-secondary); }
+.a2ui-material-desc { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+/* 系统告警 */
+.a2ui-alert {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.a2ui-alert-info { border-color: var(--info); }
+.a2ui-alert-warning { border-color: var(--warning); }
+.a2ui-alert-error, .a2ui-alert-critical { border-color: var(--danger); }
+
+.a2ui-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.a2ui-alert-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.a2ui-alert-info .a2ui-alert-badge { background: rgba(90, 126, 201, 0.2); color: var(--info); }
+.a2ui-alert-warning .a2ui-alert-badge { background: rgba(201, 122, 59, 0.2); color: var(--warning); }
+.a2ui-alert-error .a2ui-alert-badge, .a2ui-alert-critical .a2ui-alert-badge {
+  background: rgba(201, 74, 74, 0.2); color: var(--danger);
+}
+
+.a2ui-alert-source { font-size: var(--font-size-xs); color: var(--text-muted); }
+.a2ui-alert-title { font-size: var(--font-size-md); font-weight: 600; color: var(--text-primary); }
+.a2ui-alert-message { font-size: var(--font-size-sm); color: var(--text-secondary); }
+
+.a2ui-alert-actions { display: flex; gap: 6px; margin-top: 4px; }
+.a2ui-alert-btn-warning { color: var(--warning); border-color: var(--warning); }
+.a2ui-alert-btn-error, .a2ui-alert-btn-critical { color: var(--danger); border-color: var(--danger); }
+
+/* 卡片操作按钮 */
+.a2ui-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.a2ui-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-active);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-standard);
+}
+
+.a2ui-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-deep);
+  font-weight: 600;
+}
+
+.a2ui-btn-primary:hover { background: var(--accent-bright); }
+.a2ui-btn-outline:hover { border-color: var(--border-active); color: var(--text-primary); }
+
+.a2ui-unknown-json {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--input-bg);
+  border-radius: var(--radius-input);
+  padding: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 轻量 toast（语音模式 / 附件 / emoji 提示） */
+.wb-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface2);
+  border: 1px solid var(--border-active);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  box-shadow: var(--shadow);
+  animation: wb-msg-in var(--duration-base) var(--ease-emphasized);
 }

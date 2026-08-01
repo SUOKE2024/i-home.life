@@ -45,8 +45,8 @@ export default function BudgetPage() {
     [selectedProjectId],
   );
 
-  const totalAmount = budget?.total_amount ?? 0;
-  const spentAmount = budget?.spent_amount ?? 0;
+  const totalAmount = budget?.total_estimated ?? 0;
+  const spentAmount = budget?.total_actual ?? 0;
   const remaining = totalAmount - spentAmount;
   const spentPercent = totalAmount > 0 ? Math.round((spentAmount / totalAmount) * 100) : 0;
 
@@ -142,19 +142,19 @@ export default function BudgetPage() {
 
               {/* 分项明细 */}
               <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', margin: '16px 0 10px' }}>
-                分项明细（{budget.items?.length ?? 0} 项）
+                分项明细（{budget.lines?.length ?? 0} 项）
               </div>
-              {budget.items && budget.items.length > 0 ? (
-                budget.items.map((item, i) => (
+              {budget.lines && budget.lines.length > 0 ? (
+                budget.lines.map((item, i) => (
                   <div className="wb-budget-item" key={item.id ?? i} data-testid={`wb-budget-item--${i}`}>
                     <div>
-                      <div className="wb-budget-item__name">{item.line_name}</div>
+                      <div className="wb-budget-item__name">{item.name}</div>
                       {item.category && <div className="wb-budget-item__cat">{item.category}</div>}
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div className="wb-budget-item__amount">¥{(item.amount ?? 0).toLocaleString()}</div>
-                      {item.spent_amount != null && (
-                        <div className="wb-budget-item__spent">已花 ¥{item.spent_amount.toLocaleString()}</div>
+                      <div className="wb-budget-item__amount">¥{(item.estimated_amount ?? 0).toLocaleString()}</div>
+                      {item.actual_amount != null && item.actual_amount > 0 && (
+                        <div className="wb-budget-item__spent">已花 ¥{item.actual_amount.toLocaleString()}</div>
                       )}
                     </div>
                   </div>

@@ -21,11 +21,28 @@
     # 检查是否存在
     exists = await cache.exists("key")
 
+    # v1.3.0 用户隔离缓存（推荐，防跨用户数据泄露）
+    from app.services.cache_service import build_isolated_key
+    key = build_isolated_key("budget:summary", user_id=42, project_id=7)
+    await cache.set(key, value, ttl=300)
+    # 或便捷方法：
+    await cache.set_isolated("budget:summary", value, user_id=42, project_id=7, ttl=300)
+    value = await cache.get_isolated("budget:summary", user_id=42, project_id=7)
+    # 公共数据（如 feature-flags）显式标注：
+    await cache.set_isolated("feature-flags", value, public=True, ttl=60)
+
 特性:
     - 自动 JSON 序列化/反序列化（非 str/bytes 值）
     - TTL 支持（精确到秒）
     - Redis 不可用时自动降级到内存模式
     - 连接池复用，避免 TCP 频繁创建
+    - v1.3.0: 用户隔离 key 构造（build_isolated_key）+ strict 模式强制 user_id
+
+缓存安全硬约束（v1.3.0 强制执行）:
+    所有缓存 key 必须含 user_id 或为公共数据（public=True）。
+    cache_user_isolation_strict=True 时，isolated 方法未传 user_id 且非 public 将 raise。
+    这是项目硬约束："所有缓存 key 必须含 user_id 或为公共数据，
+    缓存读取前必须执行项目归属校验"。
 """
 
 from __future__ import annotations
@@ -38,6 +55,50 @@ from typing import Any, Optional
 import structlog
 
 logger = structlog.get_logger("ihome.cache")
+
+
+def build_isolated_key(
+    base_key: str,
+    user_id: int | None = None,
+    project_id: int | None = None,
+    public: bool = False,
+) -> str:
+    """构造用户隔离的缓存 key（v1.3.0 硬约束）。
+
+    强制所有缓存 key 含 user_id 或为公共数据，防跨用户数据泄露。
+
+    Args:
+        base_key: 业务 key（如 "budget:summary"）
+        user_id: 用户 ID（私有数据必填）
+        project_id: 项目 ID（可选，进一步隔离）
+        public: 是否为公共数据（True 时无需 user_id）
+
+    Returns:
+        隔离 key：
+        - 公共数据: ``public:{base_key}``
+        - 私有数据: ``u:{user_id}:p:{project_id}:{base_key}``（project_id 可选）
+
+    Raises:
+        ValueError: strict 模式下私有数据未传 user_id
+    """
+    if public:
+        return f"public:{base_key}"
+
+    # 私有数据必须含 user_id
+    if user_id is None:
+        from app.config import get_settings
+        if get_settings().cache_user_isolation_strict:
+            raise ValueError(
+                f"缓存硬约束违规：私有数据 key '{base_key}' 必须含 user_id。"
+                f"公共数据请显式传 public=True；紧急回滚设 CACHE_USER_ISOLATION_STRICT=false。"
+            )
+        # 非 strict 模式回退（仅开发环境，记录警告）
+        logger.warning("cache_isolation_violation_fallback", base_key=base_key)
+        return f"u:anon:{base_key}"
+
+    if project_id is not None:
+        return f"u:{user_id}:p:{project_id}:{base_key}"
+    return f"u:{user_id}:{base_key}"
 
 # ── 内存降级模式最大条目数 ──
 _MAX_MEMORY_ENTRIES = 10_000
@@ -281,6 +342,77 @@ class CacheService:
             self._redis_client = None
             self._init_attempted = False
             logger.info("cache_service.redis_closed")
+
+    # ── v1.3.0 用户隔离便捷方法（推荐所有新代码使用）──
+
+    async def get_isolated(
+        self,
+        base_key: str,
+        user_id: int | None = None,
+        project_id: int | None = None,
+        public: bool = False,
+    ) -> Optional[Any]:
+        """读取用户隔离缓存（v1.3.0 硬约束便捷方法）。
+
+        自动构造隔离 key 并读取。strict 模式下私有数据未传 user_id 将 raise。
+
+        Args:
+            base_key: 业务 key（如 "budget:summary"）
+            user_id: 用户 ID（私有数据必填）
+            project_id: 项目 ID（可选）
+            public: 是否为公共数据
+
+        Returns:
+            缓存值，不存在返回 None
+        """
+        key = build_isolated_key(base_key, user_id, project_id, public)
+        return await self.get(key)
+
+    async def set_isolated(
+        self,
+        base_key: str,
+        value: Any,
+        user_id: int | None = None,
+        project_id: int | None = None,
+        public: bool = False,
+        ttl: int = 300,
+    ) -> None:
+        """写入用户隔离缓存（v1.3.0 硬约束便捷方法）。
+
+        自动构造隔离 key 并写入。strict 模式下私有数据未传 user_id 将 raise。
+
+        Args:
+            base_key: 业务 key
+            value: 缓存值
+            user_id: 用户 ID（私有数据必填）
+            project_id: 项目 ID（可选）
+            public: 是否为公共数据
+            ttl: 过期时间（秒）
+        """
+        key = build_isolated_key(base_key, user_id, project_id, public)
+        await self.set(key, value, ttl=ttl)
+
+    async def delete_isolated(
+        self,
+        base_key: str,
+        user_id: int | None = None,
+        project_id: int | None = None,
+        public: bool = False,
+    ) -> None:
+        """删除用户隔离缓存（v1.3.0 硬约束便捷方法）。"""
+        key = build_isolated_key(base_key, user_id, project_id, public)
+        await self.delete(key)
+
+    async def invalidate_user_keys(self, user_id: int) -> int:
+        """失效某用户的所有缓存 key（如用户登出/权限变更时）。
+
+        Args:
+            user_id: 用户 ID
+
+        Returns:
+            删除的键数量
+        """
+        return await self.delete_pattern(f"u:{user_id}:*")
 
 
 # 全局单例

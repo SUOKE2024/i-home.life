@@ -4,7 +4,7 @@
 - 服务器：Linux (Ubuntu 20.04+ / CentOS 8+)
 - Python 3.11+
 - Nginx 1.20+
-- PostgreSQL 15+（或 SQLite 用于测试）
+- PostgreSQL 11.15+（生产推荐 15+；阿里云 PolarDB-PG 兼容；或 SQLite 用于测试）
 
 ## 部署步骤
 
@@ -29,8 +29,9 @@ cp .env.example .env.production
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
 ```
+
+> 生产环境无需安装 `requirements-dev.txt`（仅测试/开发用）。
 
 ### 4. 部署前检查
 ```bash
@@ -42,18 +43,13 @@ bash scripts/deploy-check.sh
 bash scripts/deploy-production.sh
 ```
 
-### 6. 仅 Web 部署（更新前端）
-```bash
-bash scripts/quick-deploy-web.sh
-```
-
-### 7. 验证部署
+### 6. 验证部署
 ```bash
 bash scripts/e2e-pages.sh http://localhost:8766
 curl http://localhost:8081/api/health
 ```
 
-### 8. 管理命令
+### 7. 管理命令
 ```bash
 # 查看服务状态
 launchctl list | grep ihome    # macOS

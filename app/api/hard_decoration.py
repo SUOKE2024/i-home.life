@@ -239,6 +239,26 @@ async def list_ceilings(
     return [CeilingDesignResponse.model_validate(c) for c in ceilings]
 
 
+@router.patch("/schemes/{scheme_id}", response_model=HardDecorationSchemeResponse)
+async def update_scheme(
+    scheme_id: str,
+    data: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """更新硬装方案"""
+    scheme = await svc.get_scheme(db, scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+    updated = await svc.update_scheme(db, scheme_id, data)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="硬装方案不存在")
+    resp = HardDecorationSchemeResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(scheme.project_id, "hard_decoration.scheme_updated", resp.model_dump())
+    return resp
+
+
 @router.delete("/schemes/{scheme_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scheme(
     scheme_id: str,

@@ -83,6 +83,8 @@ export interface ChatMessage {
   thinkingSteps?: string[];
   /** Agent 置信度（0-1） */
   confidence?: number;
+  /** 已提交的反馈（like/dislike，v1.3.1 反馈链路接线） */
+  feedback?: 'like' | 'dislike';
   /** A2UI 卡片（v1.2.3，批次 4 接入） */
   a2uiCards?: unknown[];
 }

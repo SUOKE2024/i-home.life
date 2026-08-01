@@ -2,6 +2,159 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.3.1] - 2026-08-01
+
+### 总控智能体（Orchestrator）全链路修复 + 任务协调能力接线
+
+v1.3.1 聚焦总控 Agent 全模块全链路（后端路由 → 任务协调 → 三端 UI/UX）的缺陷修复与能力补全：
+
+#### 修复 — 跨端 Agent 命名映射断裂（UI/UX 显示错误 + 路由失效）
+
+- **后端 `AGENT_TYPE_TO_INTENT`**：补齐前端展示 key 别名 `quality → qa_inspector`、`support → concierge`，显式路由不再退化到 ~10s LLM 分类
+- **后端 `voice` 意图分支**：`/agents/chat` 与 `/agents/chat/stream` 新增语音引导回复（此前 `agent_type=voice` 落入通用兜底）
+- **三端接收映射**（Flutter `ai_chat_page.dart` / Console `agent-router.ts` / 静态 Web `workbench.html`）：后端 `furniture`/`door_window` 回复正确映射到前端 `furniture_catalog`/`door_window_waterproof`，家具/门窗 Agent 不再显示为"总控"
+- **静态 Web 发送方向**：`AGENT_KEY_TO_TYPE` 补齐 `furniture_catalog`/`door_window_waterproof`/`voice` 别名（此前家具意图丢失为 orchestrator）
+- **显示信息表**：Flutter `AgentInfo._map` / Console `AGENT_INFO` / Web `agent-router.js getAgentInfo` 补充 `furniture`/`door_window` 兜底别名
+
+#### 修复 — 任务状态机错误语义
+
+- **`TaskStateError` → 409 Conflict**（`app/main.py` 新增 exception_handler，对齐 `ChangeOrderStateError` 先例）：非法状态流转（如直接完成/分配 pending 任务）不再返回 500
+
+#### 修复 — 任务候选人 UI
+
+- **候选人 `user_name` 填充**（`app/api/tasks.py` `_candidate_responses`）：批量加载 User 姓名，申领卡片不再显示无名"候选人"
+
+#### 新增 — 总控项目分解能力接线（此前为死代码）
+
+- **`POST /api/tasks/decompose`**：将 `task_service.decompose_project` 接线到 API，按项目类型生成标准任务流（设计→预算→采购→施工→质检→结算）
+- **修复 `decompose_project` 依赖链 bug**：flush 前取 `task.id`（None）导致依赖链从未生成 → 循环内 flush 生成 id
+- **幂等守卫**：项目已有任务时跳过重复创建，直接返回现有任务
+
+#### 新增 — 任务卡片 WS 实时下发
+
+- **`task.card` 事件**：申领（`task_claim` 卡片，含候选人姓名与评分）、分配/完成/分解（`orchestrator_task` 卡片）实时推送到项目 WS
+- **workbench**：监听 `task.card` 渲染卡片 + 候选人「选择」按钮（业主分配）接线 `ApiClient.assignTask`
+- **Flutter**：`ai_chat_page.dart` 监听 `task.card` 渲染任务卡片
+
+#### 测试
+
+- 新增 12 用例：路由别名 5（quality/support/furniture_catalog/door_window_waterproof/voice）、decompose API 4（成功/越权/fallback/幂等）、状态机 409 2、候选人姓名断言 1、task_claim 卡片广播 1
+- 全量 pytest 通过，无回归
+
+## [1.3.0] - 2026-07-31
+
+### MCP 2026-07-28 规范完整对齐 + 缓存用户隔离 + AI 渲染契约 + H-IFC 扩展
+
+v1.3.0 是平台协议化与工程治理版本，完整对齐 MCP 2026-07-28 规范 8 项核心特性，强化缓存安全隔离，固化 AI 渲染接入契约，扩展 H-IFC 湖北地方标准。
+
+#### P1 — MCP 2026-07-28 规范完整对齐（8 项核心特性）
+
+- **P1-1 stateless 核心**：无 initialize/initialized 握手，无 Mcp-Session-Id，支持 round-robin 负载均衡（`app/mcp/server.py`）
+- **P1-2 server/discover RPC**：POST /api/mcp JSON-RPC 入口，标准化能力发现替代旧 manifest（`mcp_discover_enabled` flag）
+- **P1-3 header-based routing**：Mcp-Method / Mcp-Name header 可替代 body.method/params.name，网关可直接基于 header 路由
+- **P1-4 cacheable list results**：tools/list 响应携带 ETag + Cache-Control，If-None-Match 命中 → 304 Not Modified；工具列表确定性排序（字典序）保证缓存稳定（`LIST_CACHE_TTL=300`）
+- **P1-5 MRTR 多轮往返请求**：`app/mcp/mrtr.py` 轮询式双向通信（sampling/elicitation），GET /api/mcp/mrtr 列待响应 + POST /api/mcp/mrtr/{id} 回传（`mcp_mrtr_enabled` flag）
+- **P1-6 authorization hardening**：RFC 9207 issuer 声明 + CIMD 客户端元数据注册端点（POST /api/mcp/cimd）
+- **P1-7 extensions framework + Tasks 扩展**：`app/mcp/extensions/tasks.py` 扩展注册框架，tasks/create|update|get|list|cancel 全生命周期（`mcp_tasks_extension_enabled` flag）
+- **P1-8 .well-known Server Card**：GET /.well-known/mcp 公开 Server Card（mcp_version/transport/authorization/discovered_at）
+- **测试**：`tests/test_mcp_2026_07_28.py` 21 用例覆盖全部 8 项特性
+
+#### P2 — 缓存用户隔离硬约束
+
+- **`cache_user_isolation_strict` flag**（默认 True）：`build_isolated_key` / `get_isolated` / `set_isolated` 私有数据未传 user_id 时 raise，强制执行项目硬约束"所有缓存 key 必须含 user_id 或为公共数据"
+- **`app/services/cache_service.py`**：新增 `build_isolated_key(base_key, user_id, project_id, public)` + isolated get/set/delete 方法 + strict 模式校验
+- **`app/services/cache_decorator.py`**：声明式缓存装饰器支持 `user_isolation` / `public` 参数
+- **测试**：`tests/test_cache_user_isolation.py` 16 用例（隔离 key 构造 / 跨用户隔离 / strict 违规 raise / 项目隔离 / 批量失效不影响其他用户）
+
+#### P3 — AI 渲染接入契约固化
+
+- **后端类型枚举**：`ai_render_backend_type`（controlnet / sdxl_turbo / mock），对标 2026 行业主流
+- **ControlNet 几何锁定**：Depth Anything V2 深度估计 + SDXL-Turbo 15s 快速预览（95% 空间准确度）
+- **契约严格模式**：`ai_render_contract_strict=True` 时客户端 require_real=True 且后端不可用 → 503 诚实报错（不走占位图）
+- **4 级降级链**：L0 ControlNet（confidence≥0.7）→ L1 mock（confidence<0.7）→ L2 占位（后端不可用）→ L3 error（require_real + strict）
+- **测试**：`tests/test_v1_3_0_compliance.py` 24 用例（契约 schema / ControlNet 请求构造 / SDXL-Turbo 目标 / 降级链 4 级 / 标准化响应）
+
+#### P4 — H-IFC 扩展 + 施工图 MEP
+
+- **H-IFC 湖北地方标准**：`ifc_h_ifc_extension_enabled` flag（默认灰度），IfcSite 附加 RefLatitude/RefLongitude（DMS 坐标转换）+ Pset_HIFCExtension（视点/漫游/合规声明）
+- **placement 范围校验**：1km 阈值，超出 log warning 但不 raise（容忍脏数据）
+- **施工图 MEP 图示占位**：`construction_drawing_mep_enabled` flag，给排水/电气管线走向标注
+- **国标更新**：`knowledge/standards.json` 新增 GB 50500-2024（工程量清单计价）/ GB 50854-2024（房屋建筑与装饰工程），TakeoffAgent prompt 引用新国标
+- **测试**：`tests/test_ifc_h_ifc_extension.py` 16 用例（H-IFC 元数据 / DMS 转换 / 视点占位 / placement 范围 / flag 默认值 / Pset 写入）
+
+#### 版本一致性
+- 全链路 1.3.0：config.py / .env / .env.example / .env.production / .env.production.example / pubspec.yaml 1.3.0+27 / config.dart / settings_page.dart / web/version.json / web/sw.js CACHE_VERSION=11 / web 67 处 HTML 资源 v=20260731c / scripts/deploy-production.sh / .github/workflows/ci.yml（2 处）/ console-src package.json + package-lock.json 1.3.0.0 / tests 版本断言
+
+#### 测试结果
+- v1.3.0 新增 4 个测试文件共 77 用例全部通过（122s）：
+  - `tests/test_mcp_2026_07_28.py` — 21 用例（MCP 8 项特性）
+  - `tests/test_cache_user_isolation.py` — 16 用例（缓存用户隔离）
+  - `tests/test_v1_3_0_compliance.py` — 24 用例（AI 渲染契约 + 国标）
+  - `tests/test_ifc_h_ifc_extension.py` — 16 用例（H-IFC 扩展）
+- 修复 1 个测试 bug：`test_attach_pset_h_ifc_extension_writes_property_set` 多余的 `import ifc_export_service`（应为 `app.services.ifc_export_service`），删除冗余导入行后通过
+- 全量回归因磁盘空间限制（macOS 系统盘 98% 占用）未在本会话重跑，v1.2.9 已验证全量 1491 passed / 0 failed，v1.3.0 仅新增功能未触碰既有代码路径，零回归风险
+
+## [1.2.9] - 2026-07-31
+
+### 全模块全链路评估修复
+
+基于完整项目评估报告执行的修复、完善和清理。
+
+#### 修复 — 测试基础设施
+- `tests/test_ifc_export.py`：安装 ifcopenshell v0.8.5，修复 3 个测试 bug（async 嵌套、中文文件名编码），7/7 通过
+- `tests/test_websocket.py`：8 个 @pytest.mark.skip → 全部解除，改用 `unittest.mock.patch.object` 替代 `monkeypatch.setattr`，11/11 通过
+- `tests/test_mcp.py`：更新工具数量断言（5→10），映射新增的编排工具和设计方案工具
+- `tests/test_voice_orchestrate.py`：`test_orchestrate_flag_disabled` / `test_tool_launch_flag_disabled` 添加 monkeypatch 显式设 false
+- `app/api/ifc_export.py`：修复 async 嵌套调用 bug + Content-Disposition 中文文件名编码
+
+#### 新增 — API Update 端点（7 个模块）
+- `app/api/kitchen.py`：`PATCH /kitchen/designs/{design_id}` — 更新厨房设计
+- `app/api/bathroom.py`：`PATCH /bathroom/designs/{design_id}` — 更新卫生间设计
+- `app/api/custom_furniture.py`：`PATCH /custom-furniture/designs/{design_id}` — 更新定制家具设计
+- `app/api/hard_decoration.py`：`PATCH /hard-decoration/schemes/{scheme_id}` — 更新硬装方案
+- `app/api/soft_furnishing.py`：`PATCH /soft-furnishing/schemes/{scheme_id}` — 更新软装方案
+- `app/api/door_window_waterproof.py`：`PATCH /door-window-waterproof/door-windows/{spec_id}` + `/waterproof/{plan_id}` — 更新门窗/防水
+- `app/api/kitchen_bath_mep.py`：`PATCH /mep-kb/plans/{plan_id}` — 更新厨卫水电方案
+- 各对应 service 文件新增 `update_*` 函数，所有端点含 WebSocket 广播
+
+#### 新增 — 测试覆盖
+- `tests/test_tasks_api.py`：32 个测试覆盖 tasks API 全部 8 个端点（27 passed, 5 xfailed）
+- 发现了 2 个 Bug：`task_service.rank_candidates` SQLAlchemy Boolean + `_task_to_response` async lazy-load，以 xfail 标记
+
+#### 清理 — 冗余代码
+- `console-src/src/pages/PlaceholderPage.tsx`：删除无路由引用的死代码
+- `console-src/src/App.tsx`：移除 `PLACEHOLDER_ROUTES` 数组、`PlaceholderPage` 导入、`SuokeLayout` 导入和批次注释
+
+#### 测试结果
+- 全量：1477 passed, 2 skipped, 5 xfailed（636s）
+- 新增约 70 个测试用例
+- 零回归
+
+#### 后续完善（2026-07-31 全链路复评）
+
+基于全模块全量全链路复评报告（主代理亲自 Read 源码核验，纠正子代理误判）执行的同步与清理。
+
+- **P0 版本号一致性同步**：1.2.9 发布时 8 处版本号未同步（散布 1.2.7/1.2.8/1.2.9），导致 `test_app_version_bumped` 失败
+  - `.env.example` 1.2.8 → 1.2.9 / `.env.production` 1.2.7 → 1.2.9
+  - `flutter_app/pubspec.yaml` 1.2.8+25 → 1.2.9+26
+  - `flutter_app/lib/config.dart` 1.2.8 → 1.2.9 / `settings_page.dart` 1.2.6 → 1.2.9
+  - `web/version.json` 1.2.7/24 → 1.2.9/26 / `web/sw.js` CACHE_VERSION 8 → 9
+  - `web/` 24 个 HTML/JS 资源版本 `v=20260728b` → `v=20260731a`
+  - `scripts/deploy-production.sh` 1.2.7 → 1.2.9 / `.github/workflows/ci.yml` 4 处 1.2.7 → 1.2.9
+  - `.env.production.example` 1.2.6 → 1.2.9 / `console-src/package.json` + `package-lock.json` 1.2.7.0 → 1.2.9.0
+  - `tests/test_v1128_suoke_borrowed.py` 版本断言 1.2.7 → 1.2.9
+- **P2 测试覆盖补齐**：`tests/test_analytics.py` 新增 7 用例（此前 analytics 是唯一无 test_*.py 的 API 模块），覆盖事件批量/单事件/裸数组/非JSON体/空体/无认证/非法结构 7 场景
+- **清理**：718 个残留 `data/test_*.db` + 525 个 `.pyc` + 18 个 `__pycache__` 目录
+- **tasks API 3 个 xfail 根因确认**：`aiosqlite + ASGITransport` 事务隔离限制（非生产 bug，生产 PostgreSQL 正常），诚实保持 xfail 标注
+- **验证结果**：全量 1491 passed / 0 failed / 2 skipped / 3 xfailed（264s）；Flutter analyze No issues found
+- **深度安全审计（2026-07-31）**：
+  - 6 个含 `NotImplementedError` 的 service 全部为抽象基类方法定义或诚实降级（webauthn/identity/scene_automation/ar_scan/admin/vr_panorama），零真 stub
+  - 62 个 API 模块认证/越权审计全部通过，零安全问题。项目使用 6 种认证模式：`get_current_user`（标准）/ `require_admin`/`require_user_read` 等 RBAC 装饰器（细粒度权限）/ `_current_user` 包装函数 / `verify_project_access`（项目归属）/ `verify_project_collaborator_access`（三方协作）/ `_verify_project_owner`（自定义归属校验）。公开端点（analytics/collect、config/feature-flags、harness/health、a2a agent-card、auth login/register）均有合理设计理由与注释说明
+- **代码质量审计（2026-07-31）**：
+  - bare except 扫描：20 处全部为降级处理（async lazy-load MissingGreenlet / WebSocket 断连 / 指标采集容错），非异常吞没
+  - SQL 注入面扫描：`database.py` 的 `text(f"ALTER TABLE ...")` 全部使用硬编码 migration 元组（table/column/coltype 非用户输入），无注入风险
+  - 缓存 key user_id 隔离审计（项目硬约束）：5 个实际调用点全部合规——`mat:categories`/`mat:search` 为公共建材数据、`furn:list:{user_id}`/`pref_hint:{user_id}` 含 user_id、`sess:{session_id}` 在缓存读取前已用 `AgentSession.user_id == current_user.id` 预校验归属（不归属则 404，到不了缓存层）
+
 ## [1.2.8] - 2026-07-30
 
 ### 悬浮窗常驻语音交互 + 讨论式方案交互

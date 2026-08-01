@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.models.floorplan import FloorPlan
 from app.services.quantity_takeoff_service import parse_floorplan_geometry
 
@@ -53,6 +54,8 @@ class DrawingResult:
     elevation_svgs: list[dict]  # [{wall_name, svg}]
     drawing_version: str  # 图纸版本（基于 floorplan.updated_at）
     element_count: int
+    # v1.3.0 P4: MEP 水电图叠加（给排水/电气管线走向标注，占位）
+    mep_overlay_svg: str = ""
 
 
 def _fmt(x: float) -> str:
@@ -339,6 +342,140 @@ def _empty_svg(title: str, msg: str) -> str:
     )
 
 
+# v1.3.0 P4: MEP 水电图样式常量
+MEP_WATER_COLOR = "#3498DB"     # 给排水（蓝）
+MEP_DRAIN_COLOR = "#1ABC9C"     # 排水（青绿）
+MEP_ELECTRIC_COLOR = "#F1C40F"  # 电气（黄）
+MEP_GAS_COLOR = "#E74C3C"       # 燃气（红）
+
+
+def generate_mep_overlay_svg(
+    data: str | dict | None,
+    wall_height: float = 2.8,
+    plan_name: str = "水电平面图",
+) -> str:
+    """v1.3.0 P4: 生成 MEP 水电图叠加 SVG（给排水/电气管线走向标注占位）
+
+    对标鲁班数字精装/酷家乐"模型即图纸"——水电图从 floorplan 几何派生。
+    当前为占位实现：基于房间中心标注给排水点（厨/卫）+ 电气走向（全室）。
+    真实接入时从 mep 模型派生管线坐标。
+
+    图示规则：
+    - 给水点（蓝实心圆）：厨房/卫生间水源点位
+    - 排水走向（青绿虚线）：厨/卫地漏走向
+    - 电气走向（黄虚线）：全室照明/插座回路示意
+    - 燃气点（红圆）：厨房燃气点位
+    """
+    if isinstance(data, str):
+        try:
+            d = json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            d = {}
+    elif isinstance(data, dict):
+        d = data
+    else:
+        d = {}
+
+    walls = d.get("walls", []) or []
+    rooms = d.get("rooms", []) or []
+    if not walls:
+        return _empty_svg(plan_name, "暂无墙体数据")
+
+    min_x, min_y, max_x, max_y = _compute_bbox(walls)
+    pad = 500.0
+    vb_x, vb_y = min_x - pad, min_y - pad
+    vb_w = (max_x - min_x) + pad * 2
+    vb_h = (max_y - min_y) + pad * 2
+
+    svg_parts: list[str] = [
+        f'<svg xmlns="{SVG_NS}" viewBox="{vb_x:.0f} {vb_y:.0f} {vb_w:.0f} {vb_h:.0f}" '
+        f'font-family="sans-serif" font-size="180">',
+        f'<rect x="{vb_x:.0f}" y="{vb_y:.0f}" width="{vb_w:.0f}" height="{vb_h:.0f}" fill="#FFFFFF"/>',
+        f'<text x="{min_x:.0f}" y="{(min_y - pad + 300):.0f}" '
+        f'font-size="280" font-weight="bold" fill="{TEXT_COLOR}">{_escape(plan_name)}</text>',
+        f'<text x="{min_x:.0f}" y="{(min_y - pad + 560):.0f}" font-size="180" fill="{DIM_COLOR}">'
+        f'MEP 叠加图 · 给排水/电气/燃气 · 占位示意</text>',
+        # 图例
+        f'<g transform="translate({(max_x - 2000):.0f},{(min_y - pad + 300):.0f})" font-size="160">',
+        f'<circle cx="0" cy="0" r="80" fill="{MEP_WATER_COLOR}"/><text x="120" y="50" fill="{DIM_COLOR}">给水</text>'
+        f'<line x1="600" y1="0" x2="900" y2="0" stroke="{MEP_DRAIN_COLOR}" stroke-width="40" stroke-dasharray="80,60"/>'
+        f'<text x="960" y="50" fill="{DIM_COLOR}">排水</text>'
+        f'<line x1="1400" y1="0" x2="1700" y2="0" stroke="{MEP_ELECTRIC_COLOR}" stroke-width="40" stroke-dasharray="120,60"/>'
+        f'<text x="1760" y="50" fill="{DIM_COLOR}">电气</text>'
+        f'<circle cx="2300" cy="0" r="80" fill="{MEP_GAS_COLOR}"/><text x="2420" y="50" fill="{DIM_COLOR}">燃气</text>'
+        f'</g>',
+    ]
+
+    # 墙体轮廓（淡色衬底）
+    for w in walls:
+        if not isinstance(w, dict):
+            continue
+        start = w.get("start", {}) or {}
+        end = w.get("end", {}) or {}
+        x1, y1 = float(start.get("x", 0) or 0), float(start.get("y", 0) or 0)
+        x2, y2 = float(end.get("x", 0) or 0), float(end.get("y", 0) or 0)
+        svg_parts.append(
+            f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" '
+            f'stroke="#BDC3C7" stroke-width="120" stroke-linecap="butt"/>'
+        )
+
+    import re as _re
+    for r in rooms:
+        if not isinstance(r, dict):
+            continue
+        center = r.get("center") or r.get("centroid")
+        if not center:
+            continue
+        cx, cy = float(center.get("x", 0) or 0), float(center.get("y", 0) or 0)
+        rname = str(r.get("name", r.get("type", "房间")))
+        # 厨/卫/浴室 → 给排水点 + 排水走向
+        is_wet = bool(_re.search(r"(厨|卫|浴|厕|洗衣)", rname))
+        if is_wet:
+            # 给水点（蓝实心圆）
+            svg_parts.append(
+                f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="100" fill="{MEP_WATER_COLOR}" opacity="0.85"/>'
+            )
+            svg_parts.append(
+                f'<text x="{cx:.0f}" y="{(cy - 140):.0f}" font-size="140" fill="{MEP_WATER_COLOR}" '
+                f'text-anchor="middle">给水</text>'
+            )
+            # 排水走向（青绿虚线，向房间中心汇聚）
+            svg_parts.append(
+                f'<line x1="{(cx - 400):.0f}" y1="{(cy + 300):.0f}" x2="{cx:.0f}" y2="{cy:.0f}" '
+                f'stroke="{MEP_DRAIN_COLOR}" stroke-width="40" stroke-dasharray="80,60"/>'
+            )
+            svg_parts.append(
+                f'<line x1="{(cx + 400):.0f}" y1="{(cy + 300):.0f}" x2="{cx:.0f}" y2="{cy:.0f}" '
+                f'stroke="{MEP_DRAIN_COLOR}" stroke-width="40" stroke-dasharray="80,60"/>'
+            )
+            # 燃气点（仅厨房）
+            if "厨" in rname:
+                svg_parts.append(
+                    f'<circle cx="{(cx + 250):.0f}" cy="{(cy - 250):.0f}" r="90" fill="{MEP_GAS_COLOR}" opacity="0.85"/>'
+                )
+                svg_parts.append(
+                    f'<text x="{(cx + 250):.0f}" y="{(cy - 380):.0f}" font-size="130" fill="{MEP_GAS_COLOR}" '
+                    f'text-anchor="middle">燃气</text>'
+                )
+        # 全室电气走向（黄虚线，沿房间中心横纵示意）
+        svg_parts.append(
+            f'<line x1="{(cx - 500):.0f}" y1="{cy:.0f}" x2="{(cx + 500):.0f}" y2="{cy:.0f}" '
+            f'stroke="{MEP_ELECTRIC_COLOR}" stroke-width="30" stroke-dasharray="120,60" opacity="0.7"/>'
+        )
+        svg_parts.append(
+            f'<line x1="{cx:.0f}" y1="{(cy - 400):.0f}" x2="{cx:.0f}" y2="{(cy + 400):.0f}" '
+            f'stroke="{MEP_ELECTRIC_COLOR}" stroke-width="30" stroke-dasharray="120,60" opacity="0.7"/>'
+        )
+        # 房间名标注
+        svg_parts.append(
+            f'<text x="{cx:.0f}" y="{(cy + 200):.0f}" fill="{TEXT_COLOR}" font-size="160" '
+            f'text-anchor="middle">{_escape(rname)}</text>'
+        )
+
+    svg_parts.append('</svg>')
+    return "\n".join(svg_parts)
+
+
 def _escape(s: str) -> str:
     """XML 转义"""
     return (s.replace("&", "&amp;").replace("<", "&lt;")
@@ -381,6 +518,17 @@ async def generate_drawings_for_project(
     # 解析几何统计元素数
     geo = parse_floorplan_geometry(plan.data, plan.wall_height or 2.8)
 
+    # v1.3.0 P4: MEP 水电图叠加（给排水/电气管线走向标注占位）
+    mep_svg = ""
+    if get_settings().construction_drawing_mep_enabled:
+        try:
+            mep_svg = generate_mep_overlay_svg(
+                plan.data, plan.wall_height or 2.8, f"{plan.name}-水电平面图"
+            )
+        except Exception as e:
+            logger.warning("mep_overlay_generation_failed: %s", e)
+            mep_svg = ""
+
     return DrawingResult(
         floorplan_id=plan.id,
         floorplan_name=plan.name,
@@ -391,4 +539,5 @@ async def generate_drawings_for_project(
         }],
         drawing_version=f"{plan.updated_at.strftime('%Y%m%d%H%M%S') if plan.updated_at else 'v1'}-{int(time.time()*1000)}",
         element_count=len(geo.walls) + geo.door_count + geo.window_count,
+        mep_overlay_svg=mep_svg,
     )

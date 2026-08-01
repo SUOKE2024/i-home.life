@@ -73,38 +73,58 @@ def detect_device_capability(capability: dict) -> dict:  # noqa: C901
     ar_engine_version = capability.get("ar_engine_version")
     supports_roomplan = bool(capability.get("supports_roomplan"))
     supports_photogrammetry = capability.get("supports_photogrammetry", True)
+    # v1.2.x: 客户端真实探测的 IMU 信号（原生插件 supportsSceneReconstruction /
+    # sensors_plus），当版本号缺失时作为视觉 SLAM 能力判定的辅助依据。
+    has_gyroscope = bool(capability.get("has_gyroscope"))
+    has_accelerometer = bool(capability.get("has_accelerometer"))
 
     available = []
     degradation_path = []
 
     # 1. LiDAR (iOS 14+ + LiDAR 硬件 + ARKit 6+ + RoomPlan)
     lidar_supported = False
-    if platform == "ios" and has_lidar and arkit_version:
-        try:
-            major = int(arkit_version.split(".")[0])
-            if major >= 6:
-                lidar_supported = True
-                available.append("lidar")
-        except (ValueError, IndexError):
-            pass
+    if platform == "ios" and has_lidar:
+        if arkit_version:
+            try:
+                major = int(arkit_version.split(".")[0])
+                if major >= 6:
+                    lidar_supported = True
+                    available.append("lidar")
+            except (ValueError, IndexError):
+                pass
+        else:
+            # v1.2.x 修复: 客户端原生插件已通过 ARKit
+            # supportsSceneReconstruction(.mesh) 真实探测到 LiDAR 硬件,
+            # 版本号缺失不应把用户选择的 LiDAR 静默降级为 photogrammetry。
+            # 若系统版本过低导致 RoomPlan 不可用,运行时 startScan 会返回
+            # UNSUPPORTED,由客户端按降级链继续处理。
+            lidar_supported = True
+            available.append("lidar")
 
     # 2. Visual SLAM (iOS ARKit 4+ / Android ARCore 1.20+ / HarmonyOS AR Engine)
-    if platform == "ios" and arkit_version:
-        try:
-            major = int(arkit_version.split(".")[0])
-            if major >= 4:
-                available.append("visual_slam")
-        except (ValueError, IndexError):
-            pass
-    elif platform == "android" and arcore_version:
-        try:
-            parts = arcore_version.split(".")
-            if len(parts) >= 2:
-                major, minor = int(parts[0]), int(parts[1])
-                if (major, minor) >= (1, 20):
+    if platform == "ios":
+        if arkit_version:
+            try:
+                major = int(arkit_version.split(".")[0])
+                if major >= 4:
                     available.append("visual_slam")
-        except (ValueError, IndexError):
-            pass
+            except (ValueError, IndexError):
+                pass
+        elif has_gyroscope and has_accelerometer:
+            # 版本号缺失但有 IMU 传感器证据 → 具备视觉 SLAM 基础能力
+            available.append("visual_slam")
+    elif platform == "android":
+        if arcore_version:
+            try:
+                parts = arcore_version.split(".")
+                if len(parts) >= 2:
+                    major, minor = int(parts[0]), int(parts[1])
+                    if (major, minor) >= (1, 20):
+                        available.append("visual_slam")
+            except (ValueError, IndexError):
+                pass
+        elif has_gyroscope and has_accelerometer:
+            available.append("visual_slam")
     elif platform == "harmonyos" and ar_engine_version:
         available.append("visual_slam")
 
@@ -1024,6 +1044,7 @@ async def create_session(db: AsyncSession, data: dict) -> ScanSession:
     session = ScanSession(
         project_id=data["project_id"],
         survey_id=data.get("survey_id"),
+        floorplan_id=data.get("floorplan_id"),
         name=data.get("name", "AR 扫描"),
         scanner=data.get("scanner"),
         device_model=capability.get("device_model") if capability else None,
@@ -1066,7 +1087,7 @@ async def list_sessions(
 async def update_session(db: AsyncSession, session: ScanSession, data: dict) -> ScanSession:
     for field in (
         "name", "scanner", "scan_method", "floor_count", "room_count",
-        "total_area", "wall_height", "scan_duration_sec", "scan_points_count",
+        "floorplan_id", "total_area", "wall_height", "scan_duration_sec", "scan_points_count",
         "model_url", "model_format", "raw_data_url", "status", "notes",
         "accuracy_rms_error", "accuracy_level", "started_at", "completed_at",
     ):

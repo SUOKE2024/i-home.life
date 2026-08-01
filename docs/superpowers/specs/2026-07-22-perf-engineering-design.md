@@ -217,7 +217,7 @@ def _after(conn, cursor, statement, parameters, context, executemany):
 def cached(ttl: int = 300, key_prefix: str = "",
            key_builder: Callable | None = None):
     """装饰 async 函数，自动缓存返回值。
-    
+
     命中率统计通过 cache.incr('cache:hits') / cache.incr('cache:misses')。
     """
     def decorator(fn):
@@ -638,4 +638,3 @@ cache_hit_rate = Gauge("cache_hit_rate", "Cache hit rate", ["key_prefix"])
 ### 13.4 发布就绪结论
 
 v1.1.27 性能工程 7 天计划 **全部完成**：后端 4 项 L2 修补 + L1 索引 + L3 框架 + Flutter F1-F7 + CI 3 job + 基线对比。全量测试绿（914 后端 / 50 Flutter），静态分析 0 error。所有改动配套 feature flag 可回滚（规格 §8）。**v1.1.27 发布就绪。**
-

@@ -30,6 +30,14 @@ test.describe('工作台 WorkbenchPage', () => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'test-paseto-token-batch2');
     });
+    // AuthGate 会校验 token 有效性（getCurrentUser → /api/auth/me），未 mock 则 404 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
+    });
     // 拦截 SSE 聊天接口（对齐前端 streamChat 调用路径 /api/agents/chat/stream）
     await page.route('**/api/agents/chat/stream', async (route) => {
       await route.fulfill({
@@ -92,5 +100,59 @@ test.describe('工作台 WorkbenchPage', () => {
 
     // 截图（含消息）
     await expect(page).toHaveScreenshot('workbench-with-messages.png');
+  });
+
+  test('done 事件携带 a2ui_cards → A2UI 卡片渲染（v1.3.1 链路）', async ({ page }) => {
+    // 覆盖默认 SSE mock：done 事件携带 design_plan A2UI 卡片（对齐 a2ui_schema.py）
+    await page.route('**/api/agents/chat/stream', async (route) => {
+      const body = [
+        'data: {"event":"meta","agent_type":"designer","session_id":"test-a2ui-session"}',
+        'data: {"event":"token","content":"这是设计方案。"}',
+        'data: {"event":"done","session_id":"test-a2ui-session","a2ui_cards":['
+          + '{"type":"design_plan","version":"1.1.0","id":"c1","timestamp":"2026-01-01T00:00:00Z","data":'
+          + '{"project_name":"朝阳丽景 3-1201","floor_layout":"三室两厅两卫","total_area":128.5,"style":"现代简约",'
+          + '"rooms":[{"name":"客厅","area":28.5,"orientation":"南"},{"name":"主卧","area":18,"orientation":"南"}]}}]}',
+      ].join('\n\n') + '\n\n';
+      await route.fulfill({ status: 200, contentType: 'text/event-stream', body });
+    });
+
+    await page.goto('/');
+    await page.getByTestId('wb-input-field').fill('帮我设计客厅');
+    await page.getByTestId('wb-input-send').click();
+
+    // A2UI 卡片渲染（testid: a2ui-card--design_plan）
+    await expect(page.getByTestId('a2ui-card--design_plan')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('朝阳丽景 3-1201')).toBeVisible();
+    await expect(page.getByTestId('a2ui-card--design_plan').getByText('客厅')).toBeVisible();
+  });
+
+  test('👍 反馈 → POST /api/agents/feedback + 按钮切为已反馈（v1.3.1 链路）', async ({ page }) => {
+    let feedbackBody: unknown = null;
+    await page.route('**/api/agents/feedback', async (route) => {
+      feedbackBody = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'recorded', feedback_id: 'f1', agent_learning_enabled: true }),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByTestId('wb-input-field').fill('帮我看看预算');
+    await page.getByTestId('wb-input-send').click();
+    await expect(page.getByText('你好，我是总控 Agent，随时为你服务。')).toBeVisible({ timeout: 5000 });
+
+    // 点击 👍
+    await page.getByRole('button', { name: '有帮助' }).click();
+    await expect(page.getByTestId('wb-feedback-sent--like')).toBeVisible({ timeout: 5000 });
+
+    // 请求体字段对齐后端 AgentFeedbackRequest（agent_name/feedback_type/user_message/agent_reply）
+    // 默认 SSE mock 的 meta 事件 agent_type="master"（后端 meta 权威覆盖路由 agent）
+    expect(feedbackBody).toMatchObject({
+      agent_name: 'master',
+      feedback_type: 'like',
+      user_message: '帮我看看预算',
+      agent_reply: '你好，我是总控 Agent，随时为你服务。',
+    });
   });
 });

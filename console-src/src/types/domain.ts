@@ -63,22 +63,30 @@ export interface ProjectCreateInput {
   source?: 'manual' | 'ar_measure';
 }
 
-// ── 预算（对齐 app/schemas/budget.py）──
+// ── 预算（对齐 app/schemas/budget.py:BudgetResponse）──
+// 端点：GET /api/budgets/project/{id}
 export interface BudgetItem {
-  id?: string;
-  line_name: string;
-  category?: string;
-  amount: number;
-  spent_amount?: number;
-  note?: string;
+  id: string;
+  budget_id: string;
+  category: string;
+  name: string;
+  estimated_amount: number;
+  actual_amount: number;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  note?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Budget {
   id: string;
   project_id: string;
-  total_amount: number;
-  spent_amount?: number;
-  items: BudgetItem[];
+  total_estimated: number;
+  total_actual: number;
+  status: string;
+  lines: BudgetItem[];
   created_at?: string;
   updated_at?: string;
 }
@@ -923,6 +931,14 @@ export interface Sketch3DResponse {
   suggestions: string[];
 }
 
+/** GET /api/sketch-to-3d/supported-formats 返回结构（对齐 sketch_to_3d.py:supported_formats） */
+export interface SketchSupportedFormats {
+  image_formats: string[];
+  max_file_size_mb: number;
+  recommended_resolution: string;
+  tips: string[];
+}
+
 // ── IFC/BIM 导出（对齐 app/schemas/ifc_export.py）──
 // 端点：POST /api/bim/export/structural/{projectId} + POST /api/bim/export/design/{planId}
 // 返回 FileResponse（application/x-ifc 二进制下载）
@@ -936,11 +952,36 @@ export interface IFCExportRequest {
 // 后端调用 DesignerAgent.generate_layouts（纯算法、确定性，无 LLM）
 export interface DesignPlanResult {
   agent_type: string; // "designer"
-  space_planning: string; // 空间规划（layouts.reply）
-  style_suggestion: string; // 风格建议（layouts.recommendation）
-  circulation_analysis: string; // 动线分析摘要（materials 前 2 项拼接）
+  space_planning: string; // 空间规划（方案摘要 + 生成说明）
+  style_suggestion: string; // 风格建议（推荐方案）
+  circulation_analysis: string; // 动线分析（对推荐方案房间的真实动线分析摘要）
   material_plan: string; // 材料方案（materials 逐行）
   full_reply: string; // 完整 JSON（layouts 序列化）
+}
+
+// ── 讨论式方案交互（对齐 app/services/design_proposal_service.py）──
+// 端点：POST /api/agents/design/proposals + POST /api/agents/design/proposals/{id}/revise
+export interface DesignProposalSpec {
+  proposal_id: string; // A/B/C
+  title: string; // 紧凑型/标准型/豪华型
+  layout_type: string; // L型/U型/岛型
+  area_sqm: number;
+  budget_cny: number;
+  highlights: string[];
+  rationale: string;
+  change_log: string[];
+  source: string; // llm | fallback
+}
+
+export interface DesignProposalResult {
+  proposals: DesignProposalSpec[];
+  session_id: string;
+  source: string;
+}
+
+export interface DesignProposalReviseResult {
+  proposal: DesignProposalSpec;
+  proposal_id: string;
 }
 
 // ── 动线分析（对齐 app/agents/designer.py:analyze_circulation 返回）──

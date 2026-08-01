@@ -48,6 +48,8 @@ class AIImageJob(Base):
     progress_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     render_duration_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 渲染后端标注：mock（未接入真实 SD/ControlNet 时的诚实降级标识）/ real
+    render_backend: Mapped[str] = mapped_column(String(20), nullable=False, default="mock")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

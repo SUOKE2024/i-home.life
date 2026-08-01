@@ -127,6 +127,50 @@ const MOCK_CIRCULATION_RESULT = {
   reply: '动线分析：8 个房间，综合评分 76.7（良好），共 4 个问题（1 严重 / 1 警告）。',
 };
 
+const MOCK_DESIGN_PROPOSALS = {
+  proposals: [
+    {
+      proposal_id: 'A',
+      title: '紧凑型',
+      layout_type: 'L型',
+      area_sqm: 5.2,
+      budget_cny: 18000,
+      highlights: ['动线紧凑', '储物充足'],
+      rationale: '适合小户型，最大化利用空间',
+      change_log: [],
+      source: 'llm',
+    },
+    {
+      proposal_id: 'B',
+      title: '标准型',
+      layout_type: 'U型',
+      area_sqm: 6.8,
+      budget_cny: 24000,
+      highlights: ['操作台面大', '动线流畅'],
+      rationale: '平衡空间与功能',
+      change_log: ['加中岛（测试修订）'],
+      source: 'llm',
+    },
+  ],
+  session_id: 'proposal_test_session',
+  source: 'llm',
+};
+
+const MOCK_DESIGN_PROPOSAL_REVISE = {
+  proposal: {
+    proposal_id: 'B',
+    title: '标准型',
+    layout_type: 'U型+中岛',
+    area_sqm: 7.2,
+    budget_cny: 28000,
+    highlights: ['操作台面大', '动线流畅', '增加中岛'],
+    rationale: '在标准型基础上增加中岛，扩展备餐与社交功能',
+    change_log: ['加中岛（测试修订）'],
+    source: 'llm',
+  },
+  proposal_id: 'B',
+};
+
 // ════════════════════════════════════════════
 // DesignPage 设计页
 // ════════════════════════════════════════════
@@ -135,6 +179,14 @@ test.describe('DesignPage 设计页', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('paseto_token', 'mock-token-design');
+    });
+    // AuthGate 会校验 token 有效性（getCurrentUser → /api/auth/me），未 mock 则 401 重定向 login.html
+    await page.route('**/api/auth/me', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        id: 'user-1', phone: '13800138000', name: '张业主', role: 'homeowner',
+        sub_role: null, avatar_url: null, is_active: true, is_verified: true,
+        created_at: '2026-01-01T00:00:00Z',
+      }) });
     });
     await page.route('**/api/projects**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_PROJECTS) });
@@ -269,5 +321,48 @@ test.describe('DesignPage 设计页', () => {
     await page.getByTestId('wb-design-room-del--0').click();
     await expect(page.getByTestId('wb-design-room--1')).not.toBeVisible();
     await expect(page.getByTestId('wb-design-room--0')).toBeVisible();
+  });
+
+  test('方案交互：生成方案 → 修订方案B → 卡片原地刷新', async ({ page }) => {
+    await page.route('**/api/agents/design/proposals', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      expect(body.requirement).toContain('开放式厨房');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_DESIGN_PROPOSALS) });
+    });
+    await page.route('**/api/agents/design/proposals/B/revise', async (route) => {
+      expect(route.request().method()).toBe('POST');
+      const body = JSON.parse(route.request().postData() ?? '{}');
+      expect(body.change).toContain('加中岛');
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MOCK_DESIGN_PROPOSAL_REVISE) });
+    });
+    await page.goto('./design');
+    // 切到方案交互视图
+    await page.getByTestId('wb-design-view--proposals').click();
+    await expect(page.getByTestId('wb-design-proposals-content')).toBeVisible();
+    // 生成方案
+    await page.getByTestId('wb-design-proposal-req').fill('帮我设计一个开放式厨房，U 型布局');
+    await page.getByTestId('wb-design-proposal-generate-btn').click();
+    await expect(page.getByTestId('wb-design-proposals-result')).toBeVisible();
+    await expect(page.getByTestId('wb-design-proposal-card--A')).toContainText('紧凑型');
+    await expect(page.getByTestId('wb-design-proposal-card--B')).toContainText('U型');
+    // 默认选中方案 A；选择方案 B 修订
+    await page.getByTestId('wb-design-proposal-select--B').click();
+    await expect(page.getByTestId('wb-design-proposal-card--B')).toContainText('已选中');
+    // 修订
+    await page.getByTestId('wb-design-revise-change').fill('方案B加中岛');
+    await page.getByTestId('wb-design-revise-btn').click();
+    // 修订后卡片原地刷新：预算 28000 + U型+中岛
+    await expect(page.getByTestId('wb-design-proposal-card--B')).toContainText('U型+中岛');
+    await expect(page.getByTestId('wb-design-proposal-card--B')).toContainText('28,000');
+    await expect(page.getByTestId('wb-design-proposal-card--B')).toContainText('加中岛（测试修订）');
+  });
+
+  test('方案交互：空需求校验拦截', async ({ page }) => {
+    await page.goto('./design');
+    await page.getByTestId('wb-design-view--proposals').click();
+    await page.getByTestId('wb-design-proposal-generate-btn').click();
+    await expect(page.getByTestId('wb-design-proposal-error')).toBeVisible();
+    await expect(page.getByTestId('wb-design-proposal-error')).toContainText('请输入设计需求');
   });
 });

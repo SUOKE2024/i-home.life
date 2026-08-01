@@ -83,6 +83,16 @@ export const tokens = {
   agentQuality: '#4AC9A3',
   agentSettlement: '#9B6AC9',
   agentSupport: '#6A9BC9',
+
+  // ── 动效语言（2026 基线：对齐 suoke_theme.dart MotionTokens；<300ms 目的性微交互）──
+  // 时长（毫秒）：fast=微反馈 / base=标准 / slow=强调与大位移
+  durationFast: 120,
+  durationBase: 200,
+  durationSlow: 320,
+  // 缓动：对齐 Material 3 motion tokens
+  easeStandard: 'cubic-bezier(0.4, 0, 0.2, 1)', // 通用
+  easeEmphasized: 'cubic-bezier(0.2, 0, 0, 1)', // 入场/放大（减速进入）
+  easeDecelerated: 'cubic-bezier(0, 0, 0, 1)', // 退场（减速离开）
 } as const;
 
 export type Tokens = typeof tokens;

@@ -152,4 +152,6 @@ async def project_forward_takeoff(
         "summary": result.summary,
         "reply": result.reply,
         "geometry": result.geometry,
+        # v1.3.0 P4: 合规标注（对标 GB/T 50854-2024）
+        "compliance": result.compliance,
     }

@@ -36,7 +36,10 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     title: '主入口',
-    items: [{ label: '工作台', path: '/', emoji: '🏠' }],
+    items: [
+      { label: '工作台', path: '/', emoji: '🏠' },
+      { label: '仪表盘', path: '/dashboard', emoji: '📊' },
+    ],
   },
   {
     title: '项目',

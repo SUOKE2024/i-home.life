@@ -138,4 +138,6 @@ async def get_all_drawings(
         "elevation_svgs": drawings.elevation_svgs,
         "drawing_version": drawings.drawing_version,
         "element_count": drawings.element_count,
+        # v1.3.0 P4: MEP 水电图叠加（construction_drawing_mep_enabled 关闭时为空串）
+        "mep_overlay_svg": drawings.mep_overlay_svg,
     }

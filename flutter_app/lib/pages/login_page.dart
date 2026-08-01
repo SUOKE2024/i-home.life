@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -124,6 +125,12 @@ class _LoginPageState extends State<LoginPage> {
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _submitting = true);
+    // 无障碍：提交状态播报（v3.35+ sendAnnouncement，多窗口安全）
+    unawaited(SemanticsService.sendAnnouncement(
+      View.of(context),
+      _isRegister ? '正在注册…' : '正在登录…',
+      TextDirection.ltr,
+    ));
 
     try {
       final api = ApiClient();
@@ -270,6 +277,8 @@ class _LoginPageState extends State<LoginPage> {
 
   void _showError(String msg) {
     if (!mounted) return;
+    // 无障碍：错误信息主动播报，避免 SnackBar 被 TalkBack/VoiceOver 漏读
+    unawaited(SemanticsService.sendAnnouncement(View.of(context), msg, TextDirection.ltr));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
@@ -338,13 +347,16 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'i-home.life',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: SuokeDesignTokens.accent,
-                    letterSpacing: 2,
+                Semantics(
+                  header: true,
+                  child: const Text(
+                    'i-home.life',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: SuokeDesignTokens.accent,
+                      letterSpacing: 2,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -429,7 +441,10 @@ class _LoginPageState extends State<LoginPage> {
                     child: _submitting
                         ? const SizedBox(
                             width: 20, height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              semanticsLabel: '正在提交，请稍候',
+                            ),
                           )
                         : Text(_isRegister ? '注册' : '登录'),
                   ),
@@ -471,7 +486,10 @@ class _LoginPageState extends State<LoginPage> {
                           ? const SizedBox(
                               width: 16,
                               height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                semanticsLabel: 'Passkey 验证中',
+                              ),
                             )
                           : const Icon(Icons.fingerprint),
                       label: Text(_passkeyLoading ? '验证中…' : '使用 Passkey 登录'),
@@ -497,8 +515,10 @@ class _LoginPageState extends State<LoginPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    semanticsLabel: '生物识别验证中',
+                                  ),
                               )
                             : const Icon(Icons.face,
                                 size: 28),

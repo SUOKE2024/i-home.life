@@ -30,28 +30,28 @@ ACCEPTANCE_CHECKLISTS: dict[str, list[dict]] = {
             "item": "电路绝缘测试",
             "standard": "绝缘电阻 ≥ 0.5MΩ",
             "method": "insulation_test",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "电气",
         },
         {
             "item": "线管布局",
             "standard": "横平竖直，无三管交叉",
             "method": "visual_check",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "电气",
         },
         {
             "item": "强弱电间距",
             "standard": "≥ 500mm",
             "method": "distance_check",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "电气",
         },
         {
             "item": "开关插座位置",
             "standard": "符合图纸偏差 ≤ 5mm",
             "method": "dimension_check",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "电气",
         },
     ],
@@ -187,14 +187,14 @@ ACCEPTANCE_CHECKLISTS: dict[str, list[dict]] = {
             "item": "灯具安装牢固度",
             "standard": "承重 ≥ 灯具重量 4 倍",
             "method": "load_test",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "安装",
         },
         {
             "item": "插座接线",
             "standard": "左零右火上地线",
             "method": "wiring_check",
-            "regulation": "GB 50303-2016",
+            "regulation": "GB 50303-2015",
             "category": "安装",
         },
         {
@@ -270,11 +270,20 @@ QUALITY_CHECKLISTS: dict[str, list[dict]] = {
 }
 
 
+# 前端阶段命名别名 → 标准库阶段码（P2-8：QualityPage 默认 water_electricity/acceptance 命中空清单）
+_PHASE_ALIASES: dict[str, str] = {
+    "water_electricity": "mep",  # 前端「水电」→ 标准库「机电」
+    "acceptance": "completion",  # 前端「竣工」→ 标准库「完工」
+}
+
+
 def get_checklist(phase: str) -> list[dict]:
     """获取指定阶段的验收清单（从标准库）
 
     优先匹配 ACCEPTANCE_CHECKLISTS（6 阶段），回退到 legacy QUALITY_CHECKLISTS。
+    前端阶段命名经 _PHASE_ALIASES 归一化（water_electricity→mep、acceptance→completion）。
     """
+    phase = _PHASE_ALIASES.get(phase, phase)
     if phase in ACCEPTANCE_CHECKLISTS:
         return ACCEPTANCE_CHECKLISTS[phase]
     return QUALITY_CHECKLISTS.get(phase, [])

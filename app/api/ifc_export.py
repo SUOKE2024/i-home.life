@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bim/export", tags=["BIM IFC 导出"])
 
 
+def _safe_filename(base_name: str) -> str:
+    """生成不含中文的 IFC 文件名，避免 Content-Disposition 编码问题"""
+    # 移除中文字符，保留字母数字和下划线
+    safe = "".join(c for c in base_name if c.isascii() and (c.isalnum() or c == "_"))
+    if not safe:
+        safe = "export"
+    return safe
+
+
 @router.post(
     "/structural/{project_id}",
     summary="导出结构数据为 IFC",
@@ -49,9 +58,8 @@ async def export_structural_ifc(
         )
 
     try:
-        filepath = await asyncio.to_thread(
-            export_structural_to_ifc, project_id, db
-        )
+        # export_structural_to_ifc 是 async 函数，直接 await
+        filepath = await export_structural_to_ifc(project_id, db)
     except IFCExportError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,7 +67,8 @@ async def export_structural_ifc(
         )
 
     file_size = os.path.getsize(filepath)
-    filename = f"{project.name.replace(' ', '_')}_structural.ifc"
+    safe_name = _safe_filename(project.name)
+    filename = f"{safe_name}_structural.ifc"
 
     # 清理临时文件（响应后删除）
     async def cleanup():
@@ -129,7 +138,8 @@ async def export_design_ifc(
         )
 
     file_size = os.path.getsize(filepath)
-    filename = f"{plan.name.replace(' ', '_')}_design.ifc"
+    safe_name = _safe_filename(plan.name)
+    filename = f"{safe_name}_design.ifc"
 
     async def cleanup():
         try:

@@ -21,6 +21,7 @@ from app.observability.tracing import instrument_fastapi, setup_tracing
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.cache_control import cache_control_middleware
 from app.services.change_order_service import ChangeOrderStateError
+from app.services.task_service import TaskStateError
 from app.middleware.slow_query import register_slow_query_logging, set_current_endpoint
 from app.metrics import (
     http_request_duration_seconds,
@@ -408,6 +409,8 @@ api_router.include_router(energy.router)           # /api/energy/* (A1 能耗监
 api_router.include_router(sensor_snapshot.router)   # /api/sensors/* (传感器快照 v1.2.3)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
+# v1.3.0: MCP Server Card 公开端点（GET /.well-known/mcp，无 /api 前缀）
+app.include_router(mcp_api.public_router)
 app.include_router(api_router)
 
 # ── 自定义 Swagger UI（使用本地 CSS 替代 jsdelivr CDN） ──
@@ -481,6 +484,20 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(ChangeOrderStateError)
 async def change_order_state_error_handler(request: Request, exc: ChangeOrderStateError):
     """变更单非法状态流转 → 409 Conflict（而非 500）"""
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": True,
+            "detail": str(exc),
+            "status_code": 409,
+            "path": request.url.path,
+        },
+    )
+
+
+@app.exception_handler(TaskStateError)
+async def task_state_error_handler(request: Request, exc: TaskStateError):
+    """任务状态机非法流转（申领/分配/完成/取消越权）→ 409 Conflict（而非 500）"""
     return JSONResponse(
         status_code=409,
         content={
@@ -718,5 +735,3 @@ async def websocket_endpoint(websocket: WebSocket, project_id: str):  # noqa: C9
         logger.error(f"WebSocket 异常断开: project={project_id}, user={user_id}, error={e}")
     finally:
         ws_manager.disconnect(websocket)
-
-

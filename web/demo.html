@@ -2547,17 +2547,30 @@ async function arSaveToBackend() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ 保存中...'; }
 
   try {
-    // 从 URL 获取 project_id（如果有）
+    // 从 URL 获取 project_id（如果有）；否则自动选择当前用户的第一个项目
     var params = new URLSearchParams(window.location.search);
-    var projectId = params.get('project_id') || 'demo-project';
+    var projectId = params.get('project_id');
+    if (!projectId) {
+      var projResp = await fetch('/api/projects', {
+        headers: { 'Authorization': 'Bearer ' + token },
+      });
+      var projData = await projResp.json();
+      if (Array.isArray(projData) && projData.length > 0) {
+        projectId = projData[0].id;
+      }
+    }
+    if (!projectId) {
+      throw new Error('未找到可用项目, 请先在控制台创建项目后重试');
+    }
 
-    // 收集传感器能力数据
+    // 收集传感器能力数据 (v1.2.x: platform 统一为 web, 保证后端能力判定正确)
     var deviceCapability = {
-      platform: navigator.platform || 'unknown',
+      platform: 'web',
       user_agent: navigator.userAgent ? navigator.userAgent.substring(0, 200) : '',
       has_lidar: arHasLidar,
       has_depth_sensor: !!arXrSession,
       has_gyroscope: arHasOrientation,
+      has_accelerometer: arHasMotion,
       arkit_version: arHasLidar ? '6.0+' : 'N/A',
       arcore_version: /Android/.test(navigator.userAgent) ? '1.20+' : 'N/A',
       ar_engine_version: 'N/A',
@@ -2582,17 +2595,14 @@ async function arSaveToBackend() {
     var capData = await capResp.json();
     var scanMethod = capData.recommended_method || 'manual';
 
-    // Step 2: 创建 AR 扫描会话
+    // Step 2: 创建 AR 扫描会话 (v1.2.x: 字段名与后端 ScanSessionCreate 对齐)
     var sessionResp = await fetch('/api/surveys/ar/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({
         project_id: projectId,
-        scan_method: scanMethod,
+        requested_method: scanMethod,
         device_capability: deviceCapability,
-        total_area: 0,
-        room_count: 1,
-        scan_points_count: arPoints.length * 500,
         wall_height: 2.8,
       }),
     });
@@ -2633,11 +2643,17 @@ async function arSaveToBackend() {
     });
     var accData = await accResp.json();
 
-    // Step 6: 标记处理完成
+    // Step 6: 标记完成 (v1.2.x: 状态机完整性, 不再停留在 processing;
+    // Web 无模型文件, 以真实测量点位作为数据, 不伪造房间/面积)
     await fetch('/api/surveys/ar/sessions/' + arApiSessionId, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ status: 'processing' }),
+      body: JSON.stringify({
+        status: 'completed',
+        room_count: 1,
+        scan_points_count: arPoints.length,
+        notes: 'Web AR 测量: ' + arPoints.length + ' 个点位 / ' + arLines.length + ' 条线段 (无模型文件)',
+      }),
     });
 
     alert('✅ 测量数据已保存到云端！\n\n' +
@@ -2692,7 +2708,7 @@ function arExportSensorReport() {
 })();
 </script>
 
-<script defer src="assets/js/perf-optimizer.js?v=20260728b"></script>
+<script defer src="assets/js/perf-optimizer.js?v=20260801a"></script>
 
 </body>
 </html>

@@ -180,8 +180,31 @@ class _AIChatPageState extends State<AIChatPage> {
 
     try {
       await _ws.connect(pasetoToken: token, projectId: pid);
-      _wsUnsubscribe = _ws.on('chat.message', _handleIncomingIM);
+      final unsubIM = _ws.on('chat.message', _handleIncomingIM);
+      final unsubTaskCard = _ws.on('task.card', _handleTaskCard);
+      _wsUnsubscribe = () {
+        unsubIM();
+        unsubTaskCard();
+      };
     } catch (_) {}
+  }
+
+  /// v1.3.1: 总控任务卡片实时下发（task_claim / orchestrator_task）
+  void _handleTaskCard(dynamic data) {
+    if (data is! Map<String, dynamic>) return;
+    final cardType = data['card_type']?.toString() ?? '';
+    final type = ChatMessage.fromString(cardType);
+    if (type == ChatMessageType.text) return; // 未识别的卡片类型跳过
+    final payload = data['payload'] is Map<String, dynamic>
+        ? data['payload'] as Map<String, dynamic>
+        : null;
+    _addMessage(ChatMessage(
+      type: type,
+      agent: 'master',
+      content: payload?['title']?.toString() ?? '任务更新',
+      payload: payload,
+      timestamp: DateTime.now(),
+    ));
   }
 
   void _handleIncomingIM(dynamic data) {
@@ -627,7 +650,9 @@ class _AIChatPageState extends State<AIChatPage> {
       'kitchen': 'kitchen', 'bathroom': 'bathroom',
       'mep': 'mep', 'appliance': 'appliance',
       'furniture_catalog': 'furniture_catalog',
+      'furniture': 'furniture_catalog',
       'door_window_waterproof': 'door_window_waterproof',
+      'door_window': 'door_window_waterproof',
       'lighting': 'lighting', 'structural': 'structural',
       'smart_home': 'smart_home', 'custom_furniture': 'custom_furniture',
       'soft_furnishing': 'soft_furnishing', 'hard_decoration': 'hard_decoration',
@@ -653,7 +678,9 @@ class _AIChatPageState extends State<AIChatPage> {
       'kitchen': 'kitchen', 'bathroom': 'bathroom',
       'mep': 'mep', 'appliance': 'appliance',
       'furniture_catalog': 'furniture_catalog',
+      'furniture': 'furniture_catalog',
       'door_window_waterproof': 'door_window_waterproof',
+      'door_window': 'door_window_waterproof',
       'lighting': 'lighting', 'structural': 'structural',
       'smart_home': 'smart_home', 'custom_furniture': 'custom_furniture',
       'soft_furnishing': 'soft_furnishing', 'hard_decoration': 'hard_decoration',
@@ -909,7 +936,10 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 用户头像：点击打开设置，长按从相册更换
   Widget _buildAvatar() {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      label: '用户头像，双击进入设置，长按更换头像',
+      child: GestureDetector(
       onTap: () {
         Navigator.push(
           context,
@@ -944,6 +974,7 @@ class _AIChatPageState extends State<AIChatPage> {
                     )
                   : _buildAvatarFallback(),
         ),
+      ),
       ),
     );
   }
@@ -1669,6 +1700,15 @@ class _AIChatPageState extends State<AIChatPage> {
 
   /// 触发 AR 空间扫描
   Future<void> _triggerARScan(Map<String, dynamic> payload) async {
+    // v1.2.x P1-2: 无项目上下文时给出明确引导, 不再带着空 projectId 进入后失败
+    final projectId = _currentProjectId ?? '';
+    if (projectId.isEmpty) {
+      _addMessage(ChatMessage.system(
+        text: '请先在上方选择项目, 再使用 AR 空间测量\n'
+            '（AR 扫描结果需要关联到具体项目）',
+      ));
+      return;
+    }
     _addMessage(ChatMessage.agentText(
       text: '正在跳转到 AR 扫描页面…\n\n'
           '支持功能：\n'
@@ -1682,7 +1722,7 @@ class _AIChatPageState extends State<AIChatPage> {
     if (mounted) {
       unawaited(Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => ARScanPage(projectId: _currentProjectId ?? ''),
+          builder: (_) => ARScanPage(projectId: projectId),
         ),
       ));
     }
@@ -1816,5 +1856,3 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 }
-
-

@@ -8,6 +8,7 @@ import 'construction_page.dart';
 import 'settlement_page.dart';
 import 'design_deepening_page.dart';
 import 'procurement_enhanced_page.dart';
+import 'ar_scan_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final String projectId;
@@ -628,6 +629,19 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         const SizedBox(height: 12),
         Row(
           children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ARScanPage(projectId: widget.projectId),
+                  ),
+                ),
+                icon: const Icon(Icons.straighten, size: 18),
+                label: const Text('AR 空间测量'),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.push(
