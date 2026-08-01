@@ -152,21 +152,79 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P3 索克家居能力全景（全流程闭环）
+// P3 竞品能力覆盖矩阵（借鉴 PRD §2.2）
+// ════════════════════════════════════════════════════════
+{
+  const s = pptx.addSlide();
+  s.background = { color: C.white };
+  addHeader(s, "Competitive Matrix", "竞品能力覆盖矩阵：全链路一体化是核心差异");
+  addFooter(s, 3);
+
+  const dims = [
+    ["能力维度", "酷家乐", "住小帮", "Shapr3D", "Procore", "Planner5D", "MagicPlan", "索克家居"],
+    ["AR/LiDAR 空间测量", "✕", "✕", "✕", "✕", "✕", "△", "✓"],
+    ["3D 设计建模", "✓", "✕", "✓", "✕", "✓", "△", "✓"],
+    ["照片级效果图渲染", "✓", "✕", "△", "✕", "✓", "✕", "✓"],
+    ["CAD 精确绘图（平立剖）", "△", "✕", "✓", "✕", "△", "△", "✓"],
+    ["AI 设计生成与建议", "△", "✕", "✕", "✕", "△", "✕", "✓"],
+    ["智能预算与 BOM", "✕", "✕", "✕", "△", "✕", "✕", "✓"],
+    ["供应链/采购管理", "✕", "△", "✕", "△", "✕", "✕", "✓"],
+    ["施工过程管理", "✕", "✕", "✕", "✓", "✕", "✕", "✓"],
+    ["进度实时监控", "✕", "✕", "✕", "✓", "✕", "✕", "✓"],
+    ["结算/验收闭环", "✕", "✕", "✕", "△", "✕", "✕", "✓"],
+    ["AI Agent 自治运营", "✕", "✕", "✕", "✕", "✕", "✕", "✓"],
+    ["多端协同（平板+手机）", "△", "△", "✕", "△", "✓", "△", "✓"],
+  ];
+  const rows = dims.map((row, ri) =>
+    row.map((cell, ci) => {
+      const isSoke = ci === 7;
+      const isDim = ci === 0;
+      const isHeader = ri === 0;
+      const textColor = isHeader ? C.white : isDim ? C.dark : isSoke ? C.primary600 : C.gray;
+      const fillColor = isHeader ? C.dark : isSoke ? C.primary50 : ri % 2 === 0 ? C.light : C.white;
+      const fontSize = isHeader ? 10 : isDim ? 8.5 : 9;
+      return {
+        text: cell,
+        options: {
+          color: textColor,
+          bold: isDim || isSoke || isHeader,
+          fontSize,
+          fontFace: FONT,
+          align: "center",
+          valign: "mid",
+          fill: { color: fillColor },
+        },
+      };
+    })
+  );
+  s.addTable(rows, {
+    x: MARGIN, y: 1.55, w: 12.1,
+    colW: [2.9, 1.17, 1.17, 1.17, 1.17, 1.25, 1.35, 1.92],
+    rowH: [0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34, 0.34],
+    border: { type: "solid", color: "E0E0E6", pt: 0.5 },
+  });
+
+  s.addText("竞品多为单点能力（设计 or 管理 or 测量），索克家居实现测量→设计→预算→采购→施工→结算全链路一体化 + AI Agent 自治运营（✓=完全具备 △=部分 ✕=缺失）", {
+    x: MARGIN, y: 6.55, w: 12.1, h: 0.35, fontSize: 10.5, color: C.gray, fontFace: FONT, align: "center",
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// P4 索克家居能力全景（全流程闭环）
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Capability Map", "索克家居能力全景：真实全流程自动化闭环");
-  addFooter(s, 3);
+  addFooter(s, 4);
 
   const stages = [
     { t: "多模态输入", d: "AR 量房 / 手绘草图 / CAD / 拍照 / 语音 / 文本", c: C.primary },
     { t: "总控编排", d: "Orchestrator 37 意图 + AgentTeams Manager-Workers", c: C.dark },
     { t: "设计域", d: "方案 + 11 类分空间设计器 + 施工图 + BIM/IFC + 渲染 + VR", c: C.primary600 },
     { t: "预算算量", d: "正向算量 / 分项报价 / 智能家居方案与布线", c: C.info },
-    { t: "采购", d: "物料比价 / 担保支付 / 物流 / 拍照上架", c: C.info },
-    { t: "施工", d: "任务池 / 工程队匹配 / 三方 IM / 变更审批", c: C.success },
+    { t: "采购·供应链", d: "供应商入驻审核 / 物料比价 / 担保支付 / 拍照上架", c: C.info },
+    { t: "施工·服务商", d: "工程队/技术人员入驻 / 任务池 / 三方 IM / 变更审批", c: C.success },
     { t: "质检结算", d: "验收报告 / 图纸比对 / 里程碑结算 / 支付", c: C.warning },
     { t: "智能运营", d: "能耗 / 健康 / 场景自动化 / 预测性维护", c: C.error },
   ];
@@ -224,17 +282,17 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P5 总控编排：Orchestrator × AgentTeams
+// P6 总控编排：Orchestrator × AgentTeams + 审批节点 + 自主权分级
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Orchestration", "总控编排：i-home.life 总控 × AgentTeams 协同的映射");
-  addFooter(s, 5);
+  addFooter(s, 6);
 
   // 左：i-home.life
-  addCard(s, MARGIN, 1.6, 5.6, 2.6, C.primary50);
-  s.addText("i-home.life 总控层（真实）", { x: MARGIN + 0.2, y: 1.72, w: 5.2, h: 0.35, fontSize: 14, color: C.primary600, fontFace: FONT, bold: true });
+  addCard(s, MARGIN, 1.6, 5.6, 1.9, C.primary50);
+  s.addText("i-home.life 总控层（真实）", { x: MARGIN + 0.2, y: 1.68, w: 5.2, h: 0.3, fontSize: 13.5, color: C.primary600, fontFace: FONT, bold: true });
   const lh = [
     "OrchestratorAgent：37 类意图 LLM 分类 + 规则降级",
     "AgentRuntime/Harness：生命周期·追踪·降级策略",
@@ -242,12 +300,12 @@ function addAccentBar(slide, x, y, w, color) {
     "SSE 流式：thinking_step 展示 Agent 决策过程",
   ];
   lh.forEach((t, i) => {
-    s.addText("•  " + t, { x: MARGIN + 0.2, y: 2.12 + i * 0.42, w: 5.2, h: 0.36, fontSize: 10.5, color: C.ink, fontFace: FONT });
+    s.addText("•  " + t, { x: MARGIN + 0.2, y: 2.02 + i * 0.34, w: 5.2, h: 0.3, fontSize: 10, color: C.ink, fontFace: FONT });
   });
 
   // 右：AgentTeams
-  addCard(s, 7.13, 1.6, 5.6, 2.6, C.light);
-  s.addText("AgentTeams 协同层（开源编排）", { x: 7.33, y: 1.72, w: 5.2, h: 0.35, fontSize: 14, color: C.dark, fontFace: FONT, bold: true });
+  addCard(s, 7.13, 1.6, 5.6, 1.9, C.light);
+  s.addText("AgentTeams 协同层（开源编排）", { x: 7.33, y: 1.68, w: 5.2, h: 0.3, fontSize: 13.5, color: C.dark, fontFace: FONT, bold: true });
   const rh = [
     "Manager-Workers：任务拆解 → 路由 → 并行执行",
     "Matrix 透明房间：人可随时介入/纠正/回放",
@@ -255,40 +313,57 @@ function addAccentBar(slide, x, y, w, color) {
     "Worker 经 ihome-mcp Skill 调 i-home.life MCP",
   ];
   rh.forEach((t, i) => {
-    s.addText("•  " + t, { x: 7.33, y: 2.12 + i * 0.42, w: 5.2, h: 0.36, fontSize: 10.5, color: C.ink, fontFace: FONT });
+    s.addText("•  " + t, { x: 7.33, y: 2.02 + i * 0.34, w: 5.2, h: 0.3, fontSize: 10, color: C.ink, fontFace: FONT });
   });
 
-  // 中：映射四要素
-  s.addText("赛题要求映射到框架能力", { x: MARGIN, y: 4.45, w: 6, h: 0.35, fontSize: 13, color: C.dark, fontFace: FONT, bold: true });
+  // 赛题映射四要素
+  s.addText("赛题要求映射到框架能力", { x: MARGIN, y: 3.62, w: 6, h: 0.3, fontSize: 12.5, color: C.dark, fontFace: FONT, bold: true });
   const maps = [
-    { t: "角色编排", d: "23 Agent ↔ 8 Worker/Leader 映射表" },
-    { t: "任务拆解", d: "37 意图分类 + Manager 子任务路由" },
-    { t: "上下文传递", d: "Matrix 房间 + MinIO + 会话持久化" },
-    { t: "协同执行/状态", d: "Harness Trace + 房间进度汇报" },
+    { t: "角色编排", d: "23 Agent ↔ 8 Worker 映射" },
+    { t: "任务拆解", d: "37 意图 + Manager 路由" },
+    { t: "上下文传递", d: "Matrix + MinIO + 会话" },
+    { t: "协同执行/状态", d: "Harness Trace + 汇报" },
   ];
   maps.forEach((m, i) => {
     const x = MARGIN + i * 3.1;
-    addCard(s, x, 4.85, 2.9, 1.45, C.light);
-    addAccentBar(s, x, 4.85, 0.25, C.primary);
-    s.addText(m.t, { x: x + 0.15, y: 4.98, w: 2.6, h: 0.32, fontSize: 12, color: C.dark, fontFace: FONT, bold: true });
-    s.addText(m.d, { x: x + 0.15, y: 5.33, w: 2.62, h: 0.85, fontSize: 9.5, color: C.gray, fontFace: FONT });
+    addCard(s, x, 3.95, 2.9, 0.85, C.light);
+    addAccentBar(s, x, 3.95, 0.25, C.primary);
+    s.addText(m.t, { x: x + 0.15, y: 4.02, w: 2.6, h: 0.28, fontSize: 11.5, color: C.dark, fontFace: FONT, bold: true });
+    s.addText(m.d, { x: x + 0.15, y: 4.32, w: 2.62, h: 0.42, fontSize: 9, color: C.gray, fontFace: FONT });
   });
 
-  // 底部示例
-  addCard(s, MARGIN, 6.45, 12.1, 0.55, C.dark);
-  s.addText("任务示例：\"请为 120 平三居制定完整装修方案\" → Manager 拆解 → 设计/预算/采购/施工/质检 Worker 经 MCP 并行取数 → 汇总全案", {
-    x: MARGIN + 0.25, y: 6.53, w: 11.6, h: 0.4, fontSize: 11.5, color: C.white, fontFace: FONT,
+  // 人类审批节点 H1-H5（借鉴 PRD §5）
+  s.addText("人类审批节点（高风险动作人工确认 · 赛题\"审批/审计\"硬要求）", { x: MARGIN, y: 4.92, w: 8, h: 0.3, fontSize: 12.5, color: C.dark, fontFace: FONT, bold: true });
+  const approvals = ["H1 方案确认", "H2 预算批准", "H3 下单确认", "H4 验收确认", "H5 结算确认"];
+  approvals.forEach((ap, i) => {
+    const x = MARGIN + i * 2.5;
+    addCard(s, x, 5.25, 2.3, 0.5, C.warning50);
+    s.addText(ap, { x, y: 5.32, w: 2.3, h: 0.36, fontSize: 11.5, color: C.warning, fontFace: FONT, bold: true, align: "center" });
+  });
+
+  // Agent 自主权分级 L1-L4（借鉴 PRD §4.4）
+  s.addText("Agent 自主权分级（工程成熟度）", { x: MARGIN, y: 5.88, w: 6, h: 0.3, fontSize: 12.5, color: C.dark, fontFace: FONT, bold: true });
+  const levels = [
+    { t: "L1 建议", d: "Agent 建议，人类决策" },
+    { t: "L2 执行+确认", d: "自动执行，人工审批" },
+    { t: "L3 自主执行", d: "完全自主，仅通知结果" },
+    { t: "L4 自适应", d: "从历史项目持续优化" },
+  ];
+  levels.forEach((lv, i) => {
+    const x = MARGIN + i * 3.1;
+    addCard(s, x, 6.2, 2.9, 0.55, C.info50);
+    s.addText(lv.t + "  " + lv.d, { x: x + 0.12, y: 6.27, w: 2.7, h: 0.4, fontSize: 9.5, color: C.info, fontFace: FONT, bold: true });
   });
 }
 
 // ════════════════════════════════════════════════════════
-// P6 设计域：从方案到交付物
+// P7 设计域：从方案到交付物
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Design Domain", "设计域：从空间理解到交付物一键生成");
-  addFooter(s, 6);
+  addFooter(s, 7);
 
   // 左：方案能力
   addCard(s, MARGIN, 1.6, 5.4, 4.9, C.light);
@@ -332,13 +407,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P7 Skill 工程化
+// P8 Skill 工程化
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Skill Engineering", "Skill 工程化：ihome-mcp 能力抽象层");
-  addFooter(s, 7);
+  addFooter(s, 8);
 
   s.addText("ihome-mcp（核心 Skill，5+ Worker 复用）", {
     x: MARGIN, y: 1.6, w: 6, h: 0.4, fontSize: 16, color: C.dark, fontFace: FONT, bold: true,
@@ -386,13 +461,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P8 MCP 2026-07-28 规范 8 项
+// P9 MCP 2026-07-28 规范 8 项
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "MCP Integration", "MCP 工具连接层：2026-07-28 规范 8 项全实现");
-  addFooter(s, 8);
+  addFooter(s, 9);
 
   const specs = [
     { t: "stateless", d: "无会话握手，请求自描述可横向扩展" },
@@ -420,13 +495,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P9 可观测与评估
+// P10 可观测与评估
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Observability & Eval", "可观测三支柱 + 领域评估体系");
-  addFooter(s, 9);
+  addFooter(s, 10);
 
   const pillars = [
     { t: "Trace 链路", d: "OTel 追踪 + AgentHarness 执行轨迹（状态/Token/工具调用链/降级信息）", c: C.primary },
@@ -463,13 +538,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P10 安全与审计
+// P11 安全与审计
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Security & Audit", "安全边界：可运行、可验证、可审计");
-  addFooter(s, 10);
+  addFooter(s, 11);
 
   const secs = [
     { t: "PASETO v4.local 鉴权", d: "非 JWT；密钥 ≥32 字节硬校验；Worker 仅持消费令牌，真实凭证由 Higress 网关托管", c: C.primary },
@@ -493,13 +568,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P11 运行验证与 Demo
+// P12 运行验证与 Demo
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Running Demo", "运行验证：线上部署已实测打通");
-  addFooter(s, 11);
+  addFooter(s, 12);
 
   addCard(s, MARGIN, 1.6, 5.9, 2.35, C.dark);
   s.addText("部署环境（已在线）", { x: MARGIN + 0.25, y: 1.78, w: 5.4, h: 0.4, fontSize: 14.5, color: C.white, fontFace: FONT, bold: true });
@@ -538,13 +613,13 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P12 开放/开源计划
+// P13 开放/开源计划
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Open Source", "开放/开源计划：可复用、可验证、可迁移");
-  addFooter(s, 12);
+  addFooter(s, 13);
 
   const items = [
     { t: "AgentTeams Worker 模板", d: "SOUL.md + Agent Identity 清单，任何垂直行业可复制建团", c: C.primary },
@@ -573,37 +648,52 @@ function addAccentBar(slide, x, y, w, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P13 落地计划与风险
+// P14 落地计划与风险（含复赛 Demo 验收目标）
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Roadmap & Risks", "落地计划与风险应对");
-  addFooter(s, 13);
+  addFooter(s, 14);
 
   const phases = [
-    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路、能力全景梳理 ✅ 已完成", c: C.success },
-    { v: "V1.5 复赛", t: "完整闭环 Demo", d: "Element Web 全流程演示、评估数据集、Trace 看板、真实项目数据", c: C.primary },
-    { v: "V2 决赛", t: "真实项目试点", d: "接入真实家装项目、LLM-as-Judge 评测、开源工程化、行业复制", c: C.warning },
+    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成", c: C.success },
+    { v: "V1.5 复赛", t: "完整闭环 Demo", d: "三场景可演示 + 评估数据集 + Trace 看板", c: C.primary },
+    { v: "V2 决赛", t: "真实项目试点", d: "真实项目接入、LLM-as-Judge 评测、开源工程化", c: C.warning },
   ];
   phases.forEach((ph, i) => {
     const x = MARGIN + i * 4.18;
-    addCard(s, x, 1.65, 3.9, 3.3, C.light);
-    s.addShape(pptx.ShapeType.roundRect, { x, y: 1.65, w: 3.9, h: 0.62, fill: { color: ph.c }, rectRadius: 0 });
-    s.addText(ph.v, { x, y: 1.75, w: 3.9, h: 0.4, fontSize: 16, color: C.white, fontFace: FONT, bold: true, align: "center" });
-    s.addText(ph.t, { x: x + 0.2, y: 2.5, w: 3.5, h: 0.4, fontSize: 14, color: C.dark, fontFace: FONT, bold: true });
-    s.addText(ph.d, { x: x + 0.2, y: 2.95, w: 3.55, h: 1.8, fontSize: 10.5, color: C.gray, fontFace: FONT });
+    addCard(s, x, 1.6, 3.9, 1.75, C.light);
+    s.addShape(pptx.ShapeType.roundRect, { x, y: 1.6, w: 3.9, h: 0.55, fill: { color: ph.c }, rectRadius: 0 });
+    s.addText(ph.v, { x, y: 1.68, w: 3.9, h: 0.36, fontSize: 15, color: C.white, fontFace: FONT, bold: true, align: "center" });
+    s.addText(ph.t, { x: x + 0.2, y: 2.25, w: 3.5, h: 0.35, fontSize: 13.5, color: C.dark, fontFace: FONT, bold: true });
+    s.addText(ph.d, { x: x + 0.2, y: 2.62, w: 3.55, h: 0.7, fontSize: 10, color: C.gray, fontFace: FONT });
   });
 
-  s.addText("风险与应对", { x: MARGIN, y: 5.25, w: 6, h: 0.4, fontSize: 14.5, color: C.dark, fontFace: FONT, bold: true });
+  // 复赛 Demo 验收目标（借鉴 PRD §11A）
+  s.addText("复赛 Demo 验收目标（借鉴 PRD Demo 规格）", { x: MARGIN, y: 3.5, w: 8, h: 0.3, fontSize: 13, color: C.dark, fontFace: FONT, bold: true });
+  const demos = [
+    { t: "AI 语音改设计", d: "\"拆墙做开放式加中岛\" → 3D 更新 + 面积/预算联动（≤5s）", c: C.primary },
+    { t: "采购 AI 比价", d: "BOM → 多供应商比价报告 → 一键下单", c: C.info },
+    { t: "施工日报质检", d: "现场照片上传 → AI 比对图纸 → 偏差标注整改", c: C.success },
+  ];
+  demos.forEach((dm, i) => {
+    const x = MARGIN + i * 4.18;
+    addCard(s, x, 3.85, 3.9, 1.5, C.light);
+    addAccentBar(s, x, 3.85, 0.25, dm.c);
+    s.addText(dm.t, { x: x + 0.2, y: 3.98, w: 3.5, h: 0.32, fontSize: 12.5, color: C.dark, fontFace: FONT, bold: true });
+    s.addText(dm.d, { x: x + 0.2, y: 4.33, w: 3.55, h: 0.9, fontSize: 9.5, color: C.gray, fontFace: FONT });
+  });
+
+  s.addText("风险与应对", { x: MARGIN, y: 5.55, w: 6, h: 0.3, fontSize: 13, color: C.dark, fontFace: FONT, bold: true });
   const risks = [
     "部分能力为诚实标注的 mock（质检缺陷 CV/VR 渲染/AI 渲染 L1/L2）→ 如实披露，作为工程边界而非隐藏",
     "AgentTeams 版本演进（v1.2.0 刚发布）→ 抽象 MCP 契约层，编排层可替换",
     "LLM 成本与不可用 → 多供应商 fallback 链（deepseek→qwen→glm→doubao）",
   ];
   risks.forEach((rk, i) => {
-    addCard(s, MARGIN, 5.7 + i * 0.46, 12.1, 0.38, C.warning50);
-    s.addText("•  " + rk, { x: MARGIN + 0.2, y: 5.74 + i * 0.46, w: 11.7, h: 0.3, fontSize: 10, color: C.ink, fontFace: FONT });
+    addCard(s, MARGIN, 5.88 + i * 0.38, 12.1, 0.32, C.warning50);
+    s.addText("•  " + rk, { x: MARGIN + 0.2, y: 5.91 + i * 0.38, w: 11.7, h: 0.28, fontSize: 9.5, color: C.ink, fontFace: FONT });
   });
 }
 
