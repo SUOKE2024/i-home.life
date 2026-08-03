@@ -38,6 +38,14 @@ PROVIDER_REGISTRY = {
         "model": lambda: settings.doubao_model,
         "chat_path": "/chat/completions",
     },
+    # v1.4.x 新增：施工边缘盒子本地推理端点（Ollama/LocalAI 等 OpenAI 兼容）
+    # 无 API key 时自动跳过（不产生 mock），由 _resolve_chain 后续供应商接管
+    "local": {
+        "api_base": lambda: settings.local_llm_api_base,
+        "api_key": lambda: settings.local_llm_api_key,
+        "model": lambda: settings.local_llm_model,
+        "chat_path": "/chat/completions",
+    },
 }
 
 # v1.1.28 多 LLM fallback chain（借鉴索克生活 llm_fallback_chains）
@@ -68,6 +76,11 @@ class BaseAgent:
     system_prompt: str = ""
     provider: str = "deepseek"  # "deepseek" | "glm"
     tools: list[dict] = []       # FunctionCall 工具 schema 列表
+
+    # v1.4.x 意图成本路由（借鉴 EY token strategy）：
+    # "standard"=默认档（主供应商）；"economy"=低成本档（qwen/glm 优先，
+    # 受 settings.cost_tiered_routing_enabled 控制，原主供应商保留兜底）。
+    cost_tier: str = "standard"
 
     def __init__(self):
         self._clients: dict[str, httpx.AsyncClient] = {}
@@ -122,10 +135,8 @@ class BaseAgent:
             token 消耗，给 content 输出留出空间。
         """
         # v1.1.28: 构建本次调用的供应商链（主供应商 + fallback chain）
-        primary = self.provider
-        chain = [primary]
-        if settings.llm_fallback_enabled:
-            chain += [p for p in DEFAULT_FALLBACK_CHAIN if p != primary and p in PROVIDER_REGISTRY]
+        # v1.4.x: 意图成本路由 — economy 档优先低成本供应商
+        chain = self._resolve_chain()
 
         last_error = None
         for provider in chain:
@@ -147,6 +158,36 @@ class BaseAgent:
                     )
         raise last_error
 
+    def _resolve_chain(self) -> list[str]:
+        """按 cost_tier 解析本次 LLM 调用的供应商链（v1.4.x 意图成本路由）。
+
+        standard（默认）：主供应商 + DEFAULT_FALLBACK_CHAIN，行为与 v1.1.28 一致。
+        economy + cost_tiered_routing_enabled：低成本供应商优先，
+            原主供应商保留在链尾兜底，保证 economy 档不可用时仍能完成解析。
+        """
+        primary = self.provider
+        chain = [primary]
+        if settings.llm_fallback_enabled:
+            if self.cost_tier == "economy" and settings.cost_tiered_routing_enabled:
+                economy = [p for p in settings.economy_provider_list if p in PROVIDER_REGISTRY]
+                chain = [p for p in economy if p != primary] or [primary]
+                if primary not in chain:
+                    chain.append(primary)
+            # 其余 DEFAULT_FALLBACK_CHAIN 供应商补足
+            chain += [p for p in DEFAULT_FALLBACK_CHAIN if p not in chain and p in PROVIDER_REGISTRY]
+        return chain
+
+    @staticmethod
+    def _record_tier_usage(tier: str, agent: str, provider: str, status: str) -> None:
+        """best-effort 记录成本档位用量指标（llm_tier_usage_total）。"""
+        try:
+            from app.metrics import llm_tier_usage_total
+            llm_tier_usage_total.labels(
+                tier=tier, agent=agent, provider=provider, status=status,
+            ).inc()
+        except Exception:
+            pass
+
     async def _chat_single_provider(
         self,
         provider: str,
@@ -159,10 +200,16 @@ class BaseAgent:
 
         # 无 API Key 时返回 mock 响应，避免空 Authorization header 或 401 错误
         if not cfg["api_key"]():
+            if provider == "local":
+                # v1.4.x: local 端点未配置（未设 LOCAL_LLM_API_KEY）视为不可用，
+                # 抛出后由 _chat 继续 fallback 到链内下一个供应商，
+                # 避免边缘盒子缺席时静默返回 mock。
+                raise ConnectionError("local LLM endpoint not configured (LOCAL_LLM_API_KEY unset)")
             logger.warning(
                 "%s._chat: API key 为空，返回 mock 响应 (provider=%s)",
                 self.agent_name, provider,
             )
+            self._record_tier_usage(self.cost_tier, self.agent_name, provider, "mock")
             return f"[mock] {self.agent_name} 响应：API key 未配置"
 
         client = await self._get_client(provider)
@@ -229,7 +276,9 @@ class BaseAgent:
                             "name": func.get("name", ""),
                             "arguments": args,
                         })
+                    self._record_tier_usage(self.cost_tier, self.agent_name, provider, "success")
                     return result
+                self._record_tier_usage(self.cost_tier, self.agent_name, provider, "success")
                 return content
             except Exception as e:
                 last_error = e
@@ -447,9 +496,11 @@ class BaseAgent:
             for tc in tool_calls:
                 # v1.1.31 FP-1: 注入隐式上下文 _db / _project_id，让工具 handler
                 # 查真实 DB（受 settings.tool_real_data_enabled 控制）
+                # v1.4.0: 透传 _agent_id / _model_source 供审计可还原（借鉴 YC QM）
                 exec_result = await tool_registry.execute(
                     tc["name"], tc["arguments"],
                     _db=db, _project_id=project_id,
+                    _agent_id=self.agent_name, _model_source=self.provider,
                 )
                 tool_calls_history.append({
                     "tool": tc["name"],

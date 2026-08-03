@@ -17,6 +17,10 @@ class ConstructionCrewCreate(BaseModel):
     daily_rate: int = Field(default=800, ge=0)
     status: str = Field(default="available")
     introduction: str | None = None
+    # F36 入驻审核材料
+    license_no: str | None = None
+    license_type: str | None = None
+    insurance_no: str | None = None
 
 
 class ConstructionCrewResponse(BaseModel):
@@ -34,6 +38,13 @@ class ConstructionCrewResponse(BaseModel):
     daily_rate: int
     status: str
     introduction: str | None = None
+    # F36 入驻审核状态机
+    review_status: str = "pending"
+    review_note: str | None = None
+    reviewed_at: datetime | None = None
+    license_no: str | None = None
+    license_type: str | None = None
+    insurance_no: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -24,11 +24,11 @@ Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + React Web 控�
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 22 Agent / 80+ Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。50 ORM 模型 + 74 路由已够复杂。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 1491 passed 不得回退。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 1821 passed 不得回退。
 
 ## 质量门禁（不得绕过）
 
-- `pytest`（全量必须通过，`tests/` 目录，`pytest.ini` 配置 `-n auto`）
+- `pytest`（全量必须通过，`tests/` 目录，`pytest.ini` 串行执行，xdist 未启用以保异步测试稳定性）
 - `pre-commit run --all-files`（flake8 max-line-length=120, max-complexity=15；含 `detect-private-key`）
 - `mypy`（`mypy.ini`，改后端代码必跑）
 - 新增 API 必须补 `tests/test_*.py`（v1.2.5 教训：曾 37 个 API 模块零测试）

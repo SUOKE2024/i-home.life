@@ -3,13 +3,13 @@
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.predictive_maintenance import RiskPrediction
 from app.models.construction import ConstructionTask, Inspection
-from app.models.budget import Budget, BudgetLine
-from app.models.material import Material, BOMItem
+from app.models.budget import Budget
+from app.models.material import BOMItem
 
 logger = logging.getLogger("ihome")
 
@@ -300,7 +300,14 @@ async def get_dashboard(project_id: str, db: AsyncSession, project_name: str | N
 
     # 按 risk_type 分组统计
     risk_breakdown = {}
-    for risk_type in ["schedule_delay", "cost_overrun", "material_shortage", "quality_risk", "labor_shortage", "weather_impact"]:
+    for risk_type in [
+        "schedule_delay",
+        "cost_overrun",
+        "material_shortage",
+        "quality_risk",
+        "labor_shortage",
+        "weather_impact",
+    ]:
         type_risks = [r for r in all_risks if r.risk_type == risk_type and r.status == "active"]
         if type_risks:
             risk_breakdown[risk_type] = {

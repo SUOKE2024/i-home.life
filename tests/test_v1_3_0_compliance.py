@@ -14,8 +14,6 @@
 import json
 import os
 
-import pytest
-
 from app.agents.takeoff_agent import TakeoffAgent
 from app.config import get_settings
 from app.services.ai_render_service import (
@@ -33,15 +31,15 @@ from app.services.ai_render_service import (
 # === 版本号一致性 ===
 
 
-def test_app_version_is_1_3_1():
-    """app_version == 1.3.1"""
-    assert get_settings().app_version == "1.3.1"
+def test_app_version_is_1_8_0():
+    """app_version == 1.8.0"""
+    assert get_settings().app_version == "1.8.0"
 
 
-def test_mcp_server_version_is_1_3_1():
-    """MCP SERVER_VERSION == 1.3.1"""
+def test_mcp_server_version_is_1_8_0():
+    """MCP SERVER_VERSION == 1.8.0"""
     from app.mcp.server import mcp_server
-    assert mcp_server.SERVER_VERSION == "1.3.1"
+    assert mcp_server.SERVER_VERSION == "1.8.0"
 
 
 # === 新增 feature flag 默认值 ===
@@ -109,7 +107,7 @@ def test_no_national_standard_year_typos():
 
 def test_takeoff_agent_prompt_includes_gb_50854_2024():
     """TakeoffAgent system_prompt 注入 GB/T 50854-2024 工程量计算规则"""
-    prompt = TakeoffAgent.agent_name  # 确认类可访问
+    prompt = TakeoffAgent.agent_name  # noqa: F841 确认类可访问
     agent = TakeoffAgent.__new__(TakeoffAgent)  # 不走 __init__（需依赖）
     system_prompt = TakeoffAgent.system_prompt.fget(agent)
     assert "GB/T 50854-2024" in system_prompt

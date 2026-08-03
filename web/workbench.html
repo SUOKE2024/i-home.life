@@ -101,7 +101,7 @@
 }
 .session-item-title {
   font-size: 14px;
-  color: #e0ddf5;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,20 +147,20 @@
   flex: 1;
   position: relative;
   height: 4px;
-  background: #1e1e32;
+  background: var(--border);
   border-radius: 2px;
   overflow: visible;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #c9973b, #e0b860);
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
   border-radius: 2px;
   transition: width .5s ease;
 }
 .progress-label {
   font-size: 13px;
   font-weight: 600;
-  color: #c9973b;
+  color: var(--accent);
   min-width: 36px;
   text-align: right;
 }
@@ -181,22 +181,22 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #1e1e32;
-  border: 2px solid #3a3850;
+  background: var(--border);
+  border: 2px solid var(--border-active);
   transition: all .4s ease;
   flex-shrink: 0;
 }
 .stage-dot.completed {
-  background: #c9973b;
-  border-color: #c9973b;
-  box-shadow: 0 0 6px rgba(201,151,59,.4);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
 }
 .stage-dot.active {
   width: 14px;
   height: 14px;
-  background: #e0b860;
-  border-color: #e0b860;
-  box-shadow: 0 0 10px rgba(224,184,96,.6), 0 0 0 3px rgba(201,151,59,.25);
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 10px var(--accent-glow), 0 0 0 3px var(--accent-glow);
 }
 .stage-dot-label {
   position: absolute;
@@ -210,7 +210,7 @@
 }
 .stage-dot.completed .stage-dot-label,
 .stage-dot.active .stage-dot-label {
-  color: #c9973b;
+  color: var(--accent);
   font-weight: 600;
 }
 </style>
@@ -400,21 +400,21 @@
 
   <!-- 语音任务面板（语音智能体编排，voice_agent_orchestration_enabled 时可用） -->
   <style>
-    #voice-task-panel{position:fixed;right:16px;bottom:76px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:var(--card-bg,#1e1e24);border:1px solid var(--border,#333);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:900;font-size:.85rem}
-    #voice-task-panel .vtp-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border,#333);font-weight:600}
+    #voice-task-panel{position:fixed;right:16px;bottom:76px;width:340px;max-height:60vh;display:flex;flex-direction:column;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.35);z-index:900;font-size:.85rem}
+    #voice-task-panel .vtp-header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600}
     #voice-task-panel .vtp-header button{background:none;border:none;color:inherit;font-size:1.1rem;cursor:pointer}
-    #voice-task-panel .vtp-launch{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border,#333)}
-    #voice-task-panel .vtp-launch input{flex:1;padding:6px 10px;border:1px solid var(--border,#333);border-radius:8px;background:var(--input-bg,#14141a);color:inherit;font-family:inherit}
-    #voice-task-panel .vtp-launch button{padding:6px 14px;border:none;border-radius:8px;background:var(--accent,#c9a961);color:#111;cursor:pointer;font-weight:600}
-    #voice-task-panel .vtp-note{margin:8px 14px;padding:8px 10px;border-radius:8px;background:rgba(201,169,97,.12);color:var(--accent,#c9a961);white-space:pre-wrap}
+    #voice-task-panel .vtp-launch{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+    #voice-task-panel .vtp-launch input{flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-deep);color:inherit;font-family:inherit}
+    #voice-task-panel .vtp-launch button{padding:6px 14px;border:none;border-radius:8px;background:var(--accent);color:#111;cursor:pointer;font-weight:600}
+    #voice-task-panel .vtp-note{margin:8px 14px;padding:8px 10px;border-radius:8px;background:var(--accent-glow);color:var(--accent);white-space:pre-wrap}
     #voice-task-panel .vtp-list{list-style:none;margin:0;padding:8px 14px;overflow-y:auto}
-    #voice-task-panel .vtp-item{padding:8px 0;border-bottom:1px dashed var(--border,#2c2c34)}
+    #voice-task-panel .vtp-item{padding:8px 0;border-bottom:1px dashed var(--border)}
     #voice-task-panel .vtp-item:last-child{border-bottom:none}
     #voice-task-panel .vtp-item-head{display:flex;align-items:center;gap:8px}
     #voice-task-panel .vtp-badge{padding:1px 8px;border-radius:999px;font-size:.72rem;color:#fff}
-    #voice-task-panel .vtp-cmd{color:var(--text-dim,#999);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    #voice-task-panel .vtp-cancel{margin-left:auto;padding:2px 10px;border:1px solid var(--danger,#c53030);border-radius:6px;background:none;color:var(--danger,#c53030);cursor:pointer;font-size:.72rem}
-    #voice-task-panel .vtp-empty{padding:16px 0;text-align:center;color:var(--text-dim,#999)}
+    #voice-task-panel .vtp-cmd{color:var(--text-secondary);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    #voice-task-panel .vtp-cancel{margin-left:auto;padding:2px 10px;border:1px solid var(--danger);border-radius:6px;background:none;color:var(--danger);cursor:pointer;font-size:.72rem}
+    #voice-task-panel .vtp-empty{padding:16px 0;text-align:center;color:var(--text-secondary)}
   </style>
   <div id="voice-task-panel" role="dialog" aria-label="语音任务面板" hidden>
     <div class="vtp-header">
@@ -2147,10 +2147,10 @@
   let vtpPollTimer = null;
 
   const VTP_STATUS = {
-    running:   ['进行中', '#b7791f'],
-    done:      ['已完成', '#2f855a'],
-    failed:    ['失败',   '#c53030'],
-    cancelled: ['已取消', '#718096'],
+    running:   ['进行中', 'var(--warning)'],
+    done:      ['已完成', 'var(--success)'],
+    failed:    ['失败',   'var(--danger)'],
+    cancelled: ['已取消', 'var(--text-muted)'],
   };
   const VTP_INTENT = {
     design: '设计方案', budget: '预算分析', procurement: '物料采购',
@@ -2184,7 +2184,7 @@
       return;
     }
     vtpList.innerHTML = tasks.slice().reverse().map(t => {
-      const st = VTP_STATUS[t.status] || [t.status, '#718096'];
+      const st = VTP_STATUS[t.status] || [t.status, 'var(--text-muted)'];
       const label = VTP_INTENT[t.intent] || t.intent;
       const cancelBtn = t.status === 'running'
         ? `<button class="vtp-cancel" data-seq="${t.seq}">取消</button>` : '';

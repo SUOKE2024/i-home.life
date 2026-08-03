@@ -21,10 +21,10 @@ from app.services.project_service import (
 from app.ws import ws_manager
 
 import asyncio  # v1.2.1: 并行查询优化
+import structlog
 
 router = APIRouter(prefix="/projects", tags=["项目管理"])
 
-import structlog
 _ws_logger = structlog.get_logger("ws")
 
 

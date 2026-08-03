@@ -73,6 +73,20 @@ llm_request_duration_seconds = Histogram(
     buckets=(0.5, 1, 2.5, 5, 10, 30, 60, 120, 180),
 )
 
+# ── 意图成本路由指标（v1.4.x 新增，借鉴 EY token strategy）──
+# 观测各成本档位（economy/standard）的 LLM 调用量与实际供应商，
+# 支持"每意图解析成本"监控：tier 命中率 + provider 分布。
+llm_tier_usage_total = Counter(
+    "llm_tier_usage_total",
+    "LLM calls by cost tier and provider",
+    ["tier", "agent", "provider", "status"],
+)
+intent_cost_tier_total = Counter(
+    "intent_cost_tier_total",
+    "Agent intent resolutions by cost tier",
+    ["intent", "tier"],
+)
+
 # ── WebSocket 指标 （v1.1.26 新增）──
 ws_connections = Gauge(
     "ws_connections",

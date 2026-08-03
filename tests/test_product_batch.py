@@ -67,7 +67,13 @@ async def test_upload_unauthorized(client: AsyncClient):
     """未认证用户不能批量上传"""
     resp = await client.post(
         "/api/products/batch/upload",
-        files={"file": ("products.xlsx", _make_minimal_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        files={
+            "file": (
+                "products.xlsx",
+                _make_minimal_xlsx(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
     )
     assert resp.status_code == 401
 
@@ -95,7 +101,13 @@ async def test_upload_non_supplier(client: AsyncClient):
     headers = await _auth_headers(client, "13900035002")
     resp = await client.post(
         "/api/products/batch/upload",
-        files={"file": ("products.xlsx", _make_minimal_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        files={
+            "file": (
+                "products.xlsx",
+                _make_minimal_xlsx(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
         headers=headers,
     )
     assert resp.status_code == 403
@@ -122,7 +134,13 @@ async def test_upload_valid_xlsx(client: AsyncClient):
 
     resp = await client.post(
         "/api/products/batch/upload",
-        files={"file": ("products.xlsx", _make_minimal_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        files={
+            "file": (
+                "products.xlsx",
+                _make_minimal_xlsx(),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
         data={"ai_assisted": "false"},
         headers=headers,
     )
@@ -146,7 +164,13 @@ async def test_upload_empty_xlsx(client: AsyncClient):
     try:
         resp = await client.post(
             "/api/products/batch/upload",
-            files={"file": ("empty.xlsx", _make_invalid_xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={
+                "file": (
+                    "empty.xlsx",
+                    _make_invalid_xlsx(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
             headers=headers,
         )
         assert resp.status_code in (400, 422)

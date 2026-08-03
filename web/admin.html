@@ -23,18 +23,18 @@
 :root {
   --bg-deep: #08080f;
   --bg-panel: #12121d;
-  --bg-card: #1a1a2a;
+  --bg-card: #12121d;
   --border: #1e1e32;
   --border-active: #2a2a45;
   --text: #e8e6e1;
   --text-secondary: #8a8894;
-  --text-muted: #5a5866;
+  --text-muted: #6b6978;
   --accent: #c9973b;
   --accent-bright: #e0aa4a;
   --accent-glow: rgba(201,151,59,0.15);
-  --danger: #e05555;
+  --danger: #c94a4a;
   --success: #4a9e6e;
-  --warning: #d4a040;
+  --warning: #c97a3b;
   --radius: 10px;
   --radius-lg: 14px;
   --shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -64,10 +64,10 @@ a{color:var(--accent-bright);text-decoration:none}
 #topbar .user button:hover{border-color:var(--accent);color:var(--accent)}
 #topbar .to-home{font-size:0.7rem;padding:6px 12px;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;background:0;font-family:inherit;transition:all 0.15s}
 #topbar .to-home:hover{border-color:var(--accent);color:var(--accent)}
-#main-content{padding:20px;flex:1;overflow-y:auto}
+#main-content{padding:20px;flex:1;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch}
 
 /* ===== Cards & Tables ===== */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow);overflow-x:auto}
 .card h3{font-size:0.9rem;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:8px}
 .card h3 .badge{font-size:0.6rem;padding:2px 8px;border-radius:10px;background:var(--accent-glow);color:var(--accent-bright);font-weight:500}
 
@@ -148,7 +148,7 @@ td .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.65rem
   .sb-nav a.active{border-left:none;border-bottom-color:var(--accent)}
   .sb-ft{display:none}
   #main{margin-left:0}
-  #content{padding:12px}
+  #main-content{padding:12px}
   .stats-grid{grid-template-columns:repeat(2,1fr)}
   table{font-size:0.68rem}
   th,td{padding:8px 6px}
@@ -162,6 +162,9 @@ td .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.65rem
 :focus-visible{outline:2px solid var(--accent-bright);outline-offset:2px;border-radius:4px}
 /* screen-reader-only utility */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* skip-link（无障碍）：聚焦前离屏隐藏，聚焦后可见 */
+.skip-link{position:absolute;left:-9999px;top:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#08080f;font-size:13px;font-weight:600;text-decoration:none;border-radius:0 0 6px 0}
+.skip-link:focus{left:0}
 </style>
 </head>
 <body>

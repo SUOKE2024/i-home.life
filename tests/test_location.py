@@ -107,6 +107,47 @@ async def test_geocode_empty_address(client: AsyncClient):
     assert resp.status_code == 200
 
 
+# ── 周边 POI 搜索（真实 LBS）──
+
+
+@pytest.mark.asyncio
+async def test_around_unauthorized(client: AsyncClient):
+    """未认证用户不能周边搜索"""
+    resp = await client.get("/api/location/around?location=116.481028,39.989643")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_around_places(client: AsyncClient):
+    """周边 POI 搜索（未配置 key 时诚实降级为 demo 空结果，不伪造数据）"""
+    headers = await _auth_headers(client, "13900033007")
+    resp = await client.get(
+        "/api/location/around",
+        params={"location": "116.481028,39.989643", "keywords": "建材市场", "radius": 3000},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "pois" in data
+    assert "count" in data
+    assert "source" in data  # real / demo 标注（诚实降级）
+    if data["count"] > 0:
+        assert "name" in data["pois"][0]
+        assert "distance" in data["pois"][0]
+
+
+@pytest.mark.asyncio
+async def test_around_invalid_radius(client: AsyncClient):
+    """非法半径参数应被校验拒绝"""
+    headers = await _auth_headers(client, "13900033008")
+    resp = await client.get(
+        "/api/location/around",
+        params={"location": "116.481028,39.989643", "radius": 10},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
 # ── 地址智能提示 ──
 
 

@@ -82,26 +82,27 @@ class _ProcurementEnhancedPageState extends State<ProcurementEnhancedPage>
 }
 
 /// 通用空状态
-Widget _procEmptyState(String text, {IconData icon = Icons.inbox_outlined}) {
+Widget _procEmptyState(BuildContext context, String text,
+    {IconData icon = Icons.inbox_outlined}) {
   return Center(
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: 56, color: const Color(0xFF5A5866)),
+        Icon(icon, size: 56, color: SuokeDesignTokens.textSub(context)),
         const SizedBox(height: 12),
-        Text(text, style: const TextStyle(color: Color(0xFF8A8894))),
+        Text(text, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
       ],
     ),
   );
 }
 
-Widget _procSectionCard({required List<Widget> children}) {
+Widget _procSectionCard(BuildContext context, {required List<Widget> children}) {
   return Card(
-    color: const Color(0xFF12121D),
+    color: SuokeDesignTokens.card(context),
     margin: const EdgeInsets.only(bottom: 10),
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
-      side: const BorderSide(color: Color(0xFF1E1E32)),
+      side: BorderSide(color: SuokeDesignTokens.borderClr(context)),
     ),
     child: Padding(
       padding: const EdgeInsets.all(14),
@@ -113,7 +114,7 @@ Widget _procSectionCard({required List<Widget> children}) {
   );
 }
 
-Widget _procKv(String k, String v) {
+Widget _procKv(BuildContext context, String k, String v) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 2),
     child: Row(
@@ -123,13 +124,13 @@ Widget _procKv(String k, String v) {
           width: 80,
           child: Text(
             k,
-            style: const TextStyle(color: Color(0xFF8A8894), fontSize: 12),
+            style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
           ),
         ),
         Expanded(
           child: Text(
             v,
-            style: const TextStyle(color: Color(0xFFE8E6E1), fontSize: 13),
+            style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
           ),
         ),
       ],
@@ -151,7 +152,7 @@ Color _statusColor(String? status) {
       return const Color(0xFF4A9E6E);
     case 'rejected':
     case 'failed':
-      return const Color(0xFFD9534F);
+      return SuokeDesignTokens.danger;
     default:
       return const Color(0xFF8A8894);
   }
@@ -241,16 +242,16 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: Text(title, style: const TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(ctx),
+        title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(ctx))),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: const TextStyle(color: Color(0xFF8A8894)),
+            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
           ),
-          style: const TextStyle(color: Color(0xFFE8E6E1)),
+          style: TextStyle(color: SuokeDesignTokens.text(ctx)),
         ),
         actions: [
           TextButton(
@@ -281,6 +282,7 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
                 children: [
                   const SizedBox(height: 120),
                   _procEmptyState(
+                    context,
                     '暂无比价记录，点击右下角新建',
                     icon: Icons.compare_arrows_outlined,
                   ),
@@ -301,14 +303,15 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
                   final lowest = item['lowest_price'];
                   final highest = item['highest_price'];
                   return _procSectionCard(
+                    ctx,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               (item['material_name'] ?? '比价').toString(),
-                              style: const TextStyle(
-                                color: Color(0xFFE8E6E1),
+                              style: TextStyle(
+                                color: SuokeDesignTokens.text(ctx),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
@@ -336,12 +339,13 @@ class _PriceComparisonTabState extends State<_PriceComparisonTab>
                         ],
                       ),
                       const SizedBox(height: 8),
-                      _procKv('ID', (item['id'] ?? '-').toString()),
-                      if (lowest != null) _procKv('最低价', '¥$lowest'),
-                      if (highest != null) _procKv('最高价', '¥$highest'),
-                      _procKv('报价数', '${offers.length}'),
+                      _procKv(ctx, 'ID', (item['id'] ?? '-').toString()),
+                      if (lowest != null) _procKv(ctx, '最低价', '¥$lowest'),
+                      if (highest != null) _procKv(ctx, '最高价', '¥$highest'),
+                      _procKv(ctx, '报价数', '${offers.length}'),
                       if (item['recommended_supplier'] != null)
                         _procKv(
+                          ctx,
                           '推荐供应商',
                           item['recommended_supplier'].toString(),
                         ),
@@ -445,17 +449,17 @@ class _EscrowTabState extends State<_EscrowTab>
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: Text(title, style: const TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(ctx),
+        title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(ctx))),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: const TextStyle(color: Color(0xFF8A8894)),
+            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
           ),
-          style: const TextStyle(color: Color(0xFFE8E6E1)),
+          style: TextStyle(color: SuokeDesignTokens.text(ctx)),
         ),
         actions: [
           TextButton(
@@ -486,6 +490,7 @@ class _EscrowTabState extends State<_EscrowTab>
                 children: [
                   const SizedBox(height: 120),
                   _procEmptyState(
+                    context,
                     '暂无托管支付，点击右下角新建',
                     icon: Icons.account_balance_outlined,
                   ),
@@ -502,14 +507,15 @@ class _EscrowTabState extends State<_EscrowTab>
                   final status = item['status']?.toString();
                   final amount = item['amount'];
                   return _procSectionCard(
+                    ctx,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               (item['payee'] ?? '托管支付').toString(),
-                              style: const TextStyle(
-                                color: Color(0xFFE8E6E1),
+                              style: TextStyle(
+                                color: SuokeDesignTokens.text(ctx),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
@@ -537,14 +543,14 @@ class _EscrowTabState extends State<_EscrowTab>
                         ],
                       ),
                       const SizedBox(height: 8),
-                      _procKv('ID', (item['id'] ?? '-').toString()),
-                      if (amount != null) _procKv('金额', '¥$amount'),
+                      _procKv(ctx, 'ID', (item['id'] ?? '-').toString()),
+                      if (amount != null) _procKv(ctx, '金额', '¥$amount'),
                       if (item['currency'] != null)
-                        _procKv('币种', item['currency'].toString()),
+                        _procKv(ctx, '币种', item['currency'].toString()),
                       if (item['escrow_no'] != null)
-                        _procKv('托管号', item['escrow_no'].toString()),
+                        _procKv(ctx, '托管号', item['escrow_no'].toString()),
                       if (item['created_at'] != null)
-                        _procKv('创建时间', item['created_at'].toString()),
+                        _procKv(ctx, '创建时间', item['created_at'].toString()),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -645,9 +651,9 @@ class _LogisticsTabState extends State<_LogisticsTab>
     final tracks = data is Map ? data['tracks'] : null;
     unawaited(showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: const Text('物流跟踪', style: TextStyle(color: Color(0xFFE8E6E1))),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: SuokeDesignTokens.card(ctx),
+        title: Text('物流跟踪', style: TextStyle(color: SuokeDesignTokens.text(ctx))),
         content: SizedBox(
           width: double.maxFinite,
           child: (tracks is List && tracks.isNotEmpty)
@@ -665,18 +671,18 @@ class _LogisticsTabState extends State<_LogisticsTab>
                       ),
                       title: Text(
                         (t['event'] ?? '').toString(),
-                        style: const TextStyle(color: Color(0xFFE8E6E1)),
+                        style: TextStyle(color: SuokeDesignTokens.text(ctx)),
                       ),
                       subtitle: Text(
                         (t['time'] ?? '').toString(),
-                        style: const TextStyle(color: Color(0xFF8A8894)),
+                        style: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                       ),
                     );
                   },
                 )
-              : const Text(
+              : Text(
                   '暂无轨迹',
-                  style: TextStyle(color: Color(0xFF8A8894)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                 ),
         ),
         actions: [
@@ -694,16 +700,16 @@ class _LogisticsTabState extends State<_LogisticsTab>
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: Text(title, style: const TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(ctx),
+        title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(ctx))),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: const TextStyle(color: Color(0xFF8A8894)),
+            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
           ),
-          style: const TextStyle(color: Color(0xFFE8E6E1)),
+          style: TextStyle(color: SuokeDesignTokens.text(ctx)),
         ),
         actions: [
           TextButton(
@@ -734,6 +740,7 @@ class _LogisticsTabState extends State<_LogisticsTab>
                 children: [
                   const SizedBox(height: 120),
                   _procEmptyState(
+                    context,
                     '暂无物流记录，点击右下角新建',
                     icon: Icons.local_shipping_outlined,
                   ),
@@ -749,14 +756,15 @@ class _LogisticsTabState extends State<_LogisticsTab>
                   final item = Map<String, dynamic>.from(_items[i] as Map);
                   final status = item['status']?.toString();
                   return _procSectionCard(
+                    ctx,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               (item['tracking_no'] ?? '物流').toString(),
-                              style: const TextStyle(
-                                color: Color(0xFFE8E6E1),
+                              style: TextStyle(
+                                color: SuokeDesignTokens.text(ctx),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
@@ -784,15 +792,15 @@ class _LogisticsTabState extends State<_LogisticsTab>
                         ],
                       ),
                       const SizedBox(height: 8),
-                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      _procKv(ctx, 'ID', (item['id'] ?? '-').toString()),
                       if (item['carrier'] != null)
-                        _procKv('承运商', item['carrier'].toString()),
+                        _procKv(ctx, '承运商', item['carrier'].toString()),
                       if (item['origin'] != null)
-                        _procKv('起点', item['origin'].toString()),
+                        _procKv(ctx, '起点', item['origin'].toString()),
                       if (item['destination'] != null)
-                        _procKv('终点', item['destination'].toString()),
+                        _procKv(ctx, '终点', item['destination'].toString()),
                       if (item['eta'] != null)
-                        _procKv('预计送达', item['eta'].toString()),
+                        _procKv(ctx, '预计送达', item['eta'].toString()),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
@@ -901,16 +909,16 @@ class _SampleTabState extends State<_SampleTab>
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF12121D),
-        title: Text(title, style: const TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(ctx),
+        title: Text(title, style: TextStyle(color: SuokeDesignTokens.text(ctx))),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           decoration: InputDecoration(
             labelText: label,
-            labelStyle: const TextStyle(color: Color(0xFF8A8894)),
+            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
           ),
-          style: const TextStyle(color: Color(0xFFE8E6E1)),
+          style: TextStyle(color: SuokeDesignTokens.text(ctx)),
         ),
         actions: [
           TextButton(
@@ -941,6 +949,7 @@ class _SampleTabState extends State<_SampleTab>
                 children: [
                   const SizedBox(height: 120),
                   _procEmptyState(
+                    context,
                     '暂无样品申请，点击右下角新建',
                     icon: Icons.inventory_2_outlined,
                   ),
@@ -956,14 +965,15 @@ class _SampleTabState extends State<_SampleTab>
                   final item = Map<String, dynamic>.from(_items[i] as Map);
                   final status = item['status']?.toString();
                   return _procSectionCard(
+                    ctx,
                     children: [
                       Row(
                         children: [
                           Expanded(
                             child: Text(
                               (item['material_name'] ?? '样品申请').toString(),
-                              style: const TextStyle(
-                                color: Color(0xFFE8E6E1),
+                              style: TextStyle(
+                                color: SuokeDesignTokens.text(ctx),
                                 fontWeight: FontWeight.w600,
                                 fontSize: 15,
                               ),
@@ -991,15 +1001,15 @@ class _SampleTabState extends State<_SampleTab>
                         ],
                       ),
                       const SizedBox(height: 8),
-                      _procKv('ID', (item['id'] ?? '-').toString()),
+                      _procKv(ctx, 'ID', (item['id'] ?? '-').toString()),
                       if (item['supplier'] != null)
-                        _procKv('供应商', item['supplier'].toString()),
+                        _procKv(ctx, '供应商', item['supplier'].toString()),
                       if (item['quantity'] != null)
-                        _procKv('数量', item['quantity'].toString()),
+                        _procKv(ctx, '数量', item['quantity'].toString()),
                       if (item['remark'] != null)
-                        _procKv('备注', item['remark'].toString()),
+                        _procKv(ctx, '备注', item['remark'].toString()),
                       if (item['created_at'] != null)
-                        _procKv('创建时间', item['created_at'].toString()),
+                        _procKv(ctx, '创建时间', item['created_at'].toString()),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [

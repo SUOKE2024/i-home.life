@@ -14,6 +14,7 @@ class AdminAgent(BaseAgent):
     """
 
     agent_name = "admin"
+    cost_tier = "economy"  # 平台统计/管理低价值意图：优先低成本供应商
     system_prompt = """你是索克家居平台的管理 Agent（⚙️）。你可以执行以下管理操作：
 
 1. **用户管理** — 列出用户、修改用户角色、启用/禁用用户

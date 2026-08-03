@@ -20,9 +20,9 @@
 .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
 .card-title { font-size:15px; font-weight:700; color:var(--accent); }
 .btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
-.btn-primary { background:var(--accent); color:#000; }
+.btn-primary { background:var(--accent); color:var(--on-accent); }
 .btn-outline { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-.btn-danger { background:transparent; color:#E57373; border:1px solid #E57373; }
+.btn-danger { background:transparent; color:var(--danger); border:1px solid var(--danger); }
 .btn-sm { padding:4px 10px; font-size:11px; }
 /* Crew/Worker cards */
 .cw-card { display:flex; gap:14px; padding:14px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; align-items:center; }
@@ -31,8 +31,8 @@
 .cw-name { font-size:14px; font-weight:600; color:var(--text-primary); }
 .cw-detail { font-size:11px; color:var(--text-secondary); margin-top:2px; display:flex; gap:8px; flex-wrap:wrap; }
 .cw-status { font-size:11px; padding:2px 8px; border-radius:6px; font-weight:600; white-space:nowrap; }
-.cw-status.active { background:rgba(76,175,80,.15); color:#4CAF50; }
-.cw-status.inactive { background:rgba(239,83,80,.15); color:#E57373; }
+.cw-status.active { background:rgba(74,158,110,.15); color:var(--success); }
+.cw-status.inactive { background:rgba(201,74,74,.15); color:var(--danger); }
 .cw-actions { display:flex; gap:6px; flex-shrink:0; }
 /* Match result */
 .match-card { padding:12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; }

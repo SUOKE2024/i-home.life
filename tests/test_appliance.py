@@ -21,8 +21,6 @@
 - POST /api/appliances/cabinet-match
 - GET  /api/appliances/projects/{id}/embedding-plan
 """
-import uuid
-
 import pytest
 from httpx import AsyncClient
 

@@ -285,7 +285,7 @@ class _CADPageState extends State<CADPage> {
               setState(() => _elements.clear());
               Navigator.pop(ctx);
             },
-            child: const Text('确认清空', style: TextStyle(color: Colors.red)),
+            child: const Text('确认清空', style: TextStyle(color: SuokeDesignTokens.danger)),
           ),
         ],
       ),

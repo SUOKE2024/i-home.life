@@ -25,10 +25,10 @@
 .order-reason { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
 .order-meta { display:flex; gap:16px; font-size:11px; color:var(--text-secondary); flex-wrap:wrap; }
 .order-status { font-size:11px; padding:3px 10px; border-radius:6px; font-weight:600; }
-.status-pending { background:rgba(255,183,77,.15); color:#FFB74D; }
-.status-approved { background:rgba(76,175,80,.15); color:#4CAF50; }
-.status-cancelled { background:rgba(239,83,80,.15); color:#E57373; }
-.status-draft { background:rgba(158,158,158,.15); color:#9E9E9E; }
+.status-pending { background:rgba(201,122,59,.15); color:var(--warning); }
+.status-approved { background:rgba(74,158,110,.15); color:var(--success); }
+.status-cancelled { background:rgba(201,74,74,.15); color:var(--danger); }
+.status-draft { background:rgba(107,105,120,.15); color:var(--text-muted); }
 /* Detail */
 .co-detail { margin-top:8px; }
 .detail-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
@@ -36,10 +36,10 @@
 .detail-value { color:var(--text-primary); font-weight:600; }
 /* Actions */
 .btn { padding:8px 16px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; }
-.btn-primary { background:var(--accent); color:#000; }
+.btn-primary { background:var(--accent); color:var(--on-accent); }
 .btn-outline { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-.btn-success { background:rgba(76,175,80,.15); color:#4CAF50; border:1px solid #4CAF50; }
-.btn-danger { background:rgba(239,83,80,.15); color:#E57373; border:1px solid #E57373; }
+.btn-success { background:rgba(74,158,110,.15); color:var(--success); border:1px solid var(--success); }
+.btn-danger { background:rgba(201,74,74,.15); color:var(--danger); border:1px solid var(--danger); }
 .btn-sm { padding:4px 10px; font-size:11px; }
 .btn-group { display:flex; gap:8px; margin-top:12px; }
 /* Form */
@@ -180,7 +180,7 @@
       </div>
       <div style="margin-top:12px;">
         <div class="detail-row"><span class="detail-label">变更原因</span><span class="detail-value">${esc(order.reason || order.description || '—')}</span></div>
-        ${order.impact_cost != null ? `<div class="detail-row"><span class="detail-label">成本影响</span><span class="detail-value" style="color:#FFB74D;">+¥${esc(String(order.impact_cost))}</span></div>` : ''}
+        ${order.impact_cost != null ? `<div class="detail-row"><span class="detail-label">成本影响</span><span class="detail-value" style="color:var(--warning);">+¥${esc(String(order.impact_cost))}</span></div>` : ''}
         ${order.impact_days != null ? `<div class="detail-row"><span class="detail-label">工期影响</span><span class="detail-value">+${esc(String(order.impact_days))} 天</span></div>` : ''}
         ${order.detail ? `<div class="detail-row"><span class="detail-label">详细说明</span><span class="detail-value">${esc(order.detail)}</span></div>` : ''}
         <div class="detail-row"><span class="detail-label">创建时间</span><span class="detail-value">${esc(order.created_at || '—')}</span></div>

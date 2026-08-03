@@ -23,9 +23,7 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -209,7 +207,9 @@ def write_report(results: list[dict], api_info: dict, out_json: Path, out_md: Pa
         "",
         "| AC | 标准 | 判定 |",
         "|----|------|------|",
-        "| AC-8 | FPS ≥ 30 | " + ("✅ PASS" if any(r["avgFps"] >= 30 for r in results if r["avgFps"] > 0) else "⏳ 需真机验证") + " |",
+        "| AC-8 | FPS ≥ 30 | "
+        + ("✅ PASS" if any(r["avgFps"] >= 30 for r in results if r["avgFps"] > 0) else "⏳ 需真机验证")
+        + " |",
         "",
         "## 真机验证步骤",
         "",
@@ -234,9 +234,9 @@ def main():
     ap.add_argument("--headless", action="store_true", help="尝试 headless 浏览器测试")
     args = ap.parse_args()
 
-    print(f"╔══════════════════════════════════════════════╗")
-    print(f"║  i-home.life FPS 基准测试                     ║")
-    print(f"╠══════════════════════════════════════════════╣")
+    print("╔══════════════════════════════════════════════╗")
+    print("║  i-home.life FPS 基准测试                     ║")
+    print("╠══════════════════════════════════════════════╣")
 
     api_info = probe_api(args.api)
     print(f"  API: {api_info['health']} | 端点: {api_info['endpoints']} | 物料: {api_info['materials']}")
@@ -269,10 +269,10 @@ def main():
     out_md = REPORTS_DIR / f"fps-bench-{ts}.md"
     write_report(results, api_info, out_json, out_md)
 
-    print(f"")
+    print("")
     print(f"  ✅ JSON: {out_json}")
     print(f"  ✅ Markdown: {out_md}")
-    print(f"╚══════════════════════════════════════════════╝")
+    print("╚══════════════════════════════════════════════╝")
 
 
 if __name__ == "__main__":

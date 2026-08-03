@@ -1,69 +1,45 @@
-"""高德地图定位服务 — 地址智能补全 + IP定位 + 附近楼盘搜索"""
-import httpx
-import structlog
-from fastapi import APIRouter, Depends
+"""高德地图定位服务 — 地址智能补全 + IP定位 + 附近楼盘/POI 搜索
 
-from app.config import get_settings
+真实 POI 数据链路统一走 app/services/amap_service（配置 amap_api_key 后
+返回 source="real" 的真实数据；未配置时诚实降级为 demo 空结果）。
+"""
+import structlog
+from fastapi import APIRouter, Depends, Query
+
 from app.auth import get_current_user
 from app.models.user import User
+from app.services import amap_service
 
 router = APIRouter(prefix="/location", tags=["位置服务"])
-settings = get_settings()
 _log = structlog.get_logger("location")
 
 
-def _build_url(path: str, **params) -> str:
-    base = "https://restapi.amap.com/v3"
-    qs = "&".join(f"{k}={v}" for k, v in params.items() if v)
-    key = settings.amap_api_key or "demo"  # demo key: 仅返回模拟数据
-    return f"{base}{path}?key={key}&{qs}" if qs else f"{base}{path}?key={key}"
-
-
-async def _amap_get(path: str, **params) -> dict:
-    url = _build_url(path, **params)
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-        if data.get("status") != "1":
-            return {"error": data.get("info", "请求失败"), "count": "0", "pois": []}
-        return data
-
-
 @router.get("/search")
-async def search_places(keywords: str, city: str = "", limit: int = 10, current_user: User = Depends(get_current_user)):
+async def search_places(keywords: str, city: str = "", limit: int = Query(10, ge=1, le=50),
+                        current_user: User = Depends(get_current_user)):
     """搜索附近楼盘/小区 — 高德 POI 搜索"""
-    try:
-        data = await _amap_get(
-            "/place/text", keywords=keywords, city=city,
-            types="120300|120302|120303", offset=str(limit),
-        )
-    except Exception:
-        _log.warning("amap_search_failed", keywords=keywords, city=city, exc_info=True)
-        return {"pois": [], "hint": "高德 API 不可用或未配置 KEY"}
+    return await amap_service.search_poi_text(keywords=keywords, city=city, limit=limit)
 
-    pois = data.get("pois", [])
-    return {
-        "count": len(pois),
-        "pois": [
-            {
-                "name": p.get("name"),
-                "address": p.get("address"),
-                "location": p.get("location"),  # "lng,lat"
-                "city": p.get("cityname"),
-                "district": p.get("adname"),
-                "type": p.get("type"),
-            }
-            for p in pois[:limit]
-        ],
-    }
+
+@router.get("/around")
+async def search_around(
+    location: str = Query(..., description="中心点经纬度，格式 lng,lat（如 116.481028,39.989643）"),
+    keywords: str = Query("", description="搜索关键词（如 建材市场/五金/家电卖场）"),
+    radius: int = Query(3000, ge=100, le=50000, description="搜索半径（米）"),
+    limit: int = Query(10, ge=1, le=25),
+    current_user: User = Depends(get_current_user),
+):
+    """周边 POI 搜索（真实 LBS）— 以经纬度为中心检索周边建材/小区等 POI"""
+    return await amap_service.search_nearby_poi(
+        location=location, keywords=keywords, radius=radius, limit=limit,
+    )
 
 
 @router.get("/geocode")
 async def geocode(address: str, city: str = "", current_user: User = Depends(get_current_user)):
     """地址 → 经纬度 + 结构化地址"""
     try:
-        data = await _amap_get("/geocode/geo", address=address, city=city)
+        data = await amap_service.amap_get("/geocode/geo", address=address, city=city)
     except Exception:
         _log.warning("amap_geocode_failed", address=address, city=city, exc_info=True)
         return {"error": "高德 API 不可用或未配置 KEY"}
@@ -73,7 +49,6 @@ async def geocode(address: str, city: str = "", current_user: User = Depends(get
         return {"error": "未找到匹配地址", "count": 0}
 
     g = geos[0]
-    lng, lat = g.get("location", ",").split(",") if g.get("location") else ("", "")
     return {
         "count": len(geos),
         "result": {
@@ -88,27 +63,20 @@ async def geocode(address: str, city: str = "", current_user: User = Depends(get
 
 
 @router.get("/autocomplete")
-async def autocomplete(keywords: str, city: str = "北京", limit: int = 8, current_user: User = Depends(get_current_user)):
+async def autocomplete(
+    keywords: str, city: str = "北京", limit: int = 8,
+    current_user: User = Depends(get_current_user),
+):
     """地址输入智能提示 — 合并 POI 搜索 + 地理编码"""
     result = {"pois": [], "locations": []}
 
     # POI 搜索（楼盘/小区）
-    try:
-        poi_data = await _amap_get(
-            "/place/text", keywords=keywords, city=city,
-            types="120300|120302|120303|120000", offset=str(limit),
-        )
-        for p in poi_data.get("pois", [])[:limit]:
-            result["pois"].append({
-                "name": p.get("name"), "address": p.get("address"),
-                "location": p.get("location"), "type": "poi",
-            })
-    except Exception:
-        _log.debug("amap_autocomplete_poi_failed", keywords=keywords, exc_info=True)
+    poi_data = await amap_service.search_poi_text(keywords=keywords, city=city, limit=limit)
+    result["pois"] = poi_data.get("pois", [])
 
     # IP 定位(仅首次，用于确定当前城市)
     try:
-        ip_data = await _amap_get("/ip")
+        ip_data = await amap_service.amap_get("/ip")
         result["current_city"] = ip_data.get("city", "")
         result["current_location"] = {
             "province": ip_data.get("province", ""),

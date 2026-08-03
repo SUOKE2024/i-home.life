@@ -3,6 +3,7 @@ import '../services/api.dart';
 import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../theme/suoke_theme.dart';
 
 class BudgetPage extends StatefulWidget {
   final String projectId;
@@ -275,12 +276,12 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
                         Text(plan['tier_name'],
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         Text('¥${(plan['total_estimated'] as num?)?.toDouble().toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 20, color: Colors.blue)),
+                            style: const TextStyle(fontSize: 20, color: SuokeDesignTokens.info)),
                       ],
                     ),
                     const SizedBox(height: 8),
                     Text('价格区间：¥${(plan['total_range'] as List?)?[0]} ~ ¥${(plan['total_range'] as List?)?[1]}',
-                        style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                     const SizedBox(height: 12),
                     ...(plan['breakdown'] as Map<String, dynamic>?)?.entries.map((e) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 2),
@@ -301,7 +302,7 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
         if (differences != null) ...[
           const SizedBox(height: 16),
           Card(
-            color: Colors.orange.shade50,
+            color: SuokeDesignTokens.warning.withValues(alpha: 0.08),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

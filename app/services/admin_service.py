@@ -117,7 +117,7 @@ async def get_platform_stats(db: AsyncSession) -> dict:
 
     # 总用户数
     total_users_result = await db.execute(
-        select(func.count(User.id)).where(User.is_active == True)
+        select(func.count(User.id)).where(User.is_active.is_(True))
     )
     total_users = total_users_result.scalar() or 0
 
@@ -136,22 +136,22 @@ async def get_platform_stats(db: AsyncSession) -> dict:
     # 待验证用户
     pending_verifications_result = await db.execute(
         select(func.count(User.id)).where(
-            User.is_active == True,
-            User.is_verified == False,
+            User.is_active.is_(True),
+            User.is_verified.is_(False),
         )
     )
     pending_verifications = pending_verifications_result.scalar() or 0
 
     # 总物料数
     total_materials_result = await db.execute(
-        select(func.count(Material.id)).where(Material.is_active == True)
+        select(func.count(Material.id)).where(Material.is_active.is_(True))
     )
     total_materials = total_materials_result.scalar() or 0
 
     # 供应商数
     total_suppliers_result = await db.execute(
         select(func.count(User.id)).where(
-            User.is_active == True,
+            User.is_active.is_(True),
             User.role == "supplier",
         )
     )

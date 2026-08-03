@@ -325,7 +325,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认拒绝', style: TextStyle(color: Colors.red)),
+            child: const Text('确认拒绝', style: TextStyle(color: SuokeDesignTokens.danger)),
           ),
         ],
       ),
@@ -736,8 +736,8 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
               Expanded(
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    side: const BorderSide(color: Colors.red),
+                    foregroundColor: SuokeDesignTokens.danger,
+                    side: const BorderSide(color: SuokeDesignTokens.danger),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => _rejectOrder(order['id']),
@@ -869,15 +869,15 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
     switch (status) {
       case 'pending':
       case 'submitted':
-        return ('待审批', const Color(0xFFE8A33B));
+        return ('待审批', SuokeDesignTokens.warning);
       case 'reviewed':
-        return ('已评审', const Color(0xFF4A90D9));
+        return ('已评审', SuokeDesignTokens.info);
       case 'approved':
-        return ('已通过', const Color(0xFF4CAF50));
+        return ('已通过', SuokeDesignTokens.success);
       case 'rejected':
-        return ('已拒绝', const Color(0xFFE53935));
+        return ('已拒绝', SuokeDesignTokens.danger);
       case 'cancelled':
-        return ('已取消', const Color(0xFF5A5866));
+        return ('已取消', SuokeDesignTokens.textSub(context));
       default:
         return (status, SuokeDesignTokens.textSub(context));
     }
@@ -886,9 +886,9 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
   Color _typeColor(String type) {
     switch (type) {
       case '增项':
-        return const Color(0xFF4CAF50);
+        return SuokeDesignTokens.success;
       case '减项':
-        return const Color(0xFFE53935);
+        return SuokeDesignTokens.danger;
       default:
         return SuokeDesignTokens.accent;
     }
@@ -897,9 +897,9 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
   Color _actionColor(String action) {
     switch (action) {
       case 'add':
-        return const Color(0xFF4CAF50);
+        return SuokeDesignTokens.success;
       case 'remove':
-        return const Color(0xFFE53935);
+        return SuokeDesignTokens.danger;
       default:
         return SuokeDesignTokens.accent;
     }

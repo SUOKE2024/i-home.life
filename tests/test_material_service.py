@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     User, Project, Budget,
     MaterialCategory, Material,
-    Supplier, Quotation,
+    Supplier,
 )
 from app.services.material_service import recommend_materials
 

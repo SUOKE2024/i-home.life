@@ -3,7 +3,8 @@
 
 import asyncio
 
-async def main():
+
+async def main():  # noqa: C901
     from app.api.agents import MOCK_MODE
     from app.config import get_settings
 

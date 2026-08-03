@@ -18,7 +18,6 @@ from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.services import audit_log_service
 from app.services.audit_log_service import log_audit_event
-from app.services.user_service import _hash_password
 
 
 # ═══════════════════════════════════════════

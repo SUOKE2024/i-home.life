@@ -251,6 +251,7 @@ async def send_task(
         trace = harness.start_trace(
             request.agent_name, request.message,
             user_id=current_user.id, project_id=request.project_id or "",
+            scope="project" if request.project_id else "personal",
         )
         result = await harness.run(
             agent=agent,

@@ -11,8 +11,6 @@ MCP 2026-07-28 规范引入正式的扩展框架，Tasks 作为首个正式扩�
 2. 在 MCPServer._load_extensions() 中注册（受 feature flag 控制）
 """
 
-from typing import Any
-
 
 class Extension:
     """MCP 扩展基类。

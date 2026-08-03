@@ -12,6 +12,7 @@ class Project(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     total_area: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
@@ -26,6 +27,14 @@ class Project(Base):
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     # manual / ar_measure
     scan_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+    # 创建项目时收集的信息（户型/定位/联系方式，均为可选项）
+    house_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 公寓 / 别墅 / 平层 / 复式/LOFT / 商铺 / 办公楼 / 自定义（ai_chat 端）或户型描述字符串
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict, deque
+from typing import Awaitable, Callable
 
 import structlog
 from fastapi import Request
@@ -93,7 +94,7 @@ def _get_client_ip(request: Request) -> str:
     return client.host if client else "unknown"
 
 
-async def rate_limit_middleware(request: Request, call_next) -> Response:
+async def rate_limit_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """API 速率限制中间件主入口。
 
     受 Settings.rate_limit_enabled 控制；关闭时直接放行。

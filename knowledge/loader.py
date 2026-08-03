@@ -73,7 +73,7 @@ class KnowledgeLoader:
 
         try:
             with open(filepath, "r", encoding="utf-8") as f:
-                entries = json.load(f)
+                entries: list[dict[str, Any]] = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.error("加载知识文件失败 %s: %s", filepath, e)
             self._cache[domain] = []
@@ -166,6 +166,10 @@ class KnowledgeLoader:
 
         仅在 settings.vector_db_url 配置时有效，否则返回空列表。
 
+        v1.1.31 FP-3 对齐修复：原用 [0.0]*128 占位向量（伪 RAG，语义检索失效），
+        现通过 embedding_service.embed_query 获取真实 query 向量后再检索。
+        embedding 禁用/失败时返回空列表，由 search() 降级到关键词匹配。
+
         Args:
             query: 查询文本
             domains: 限定搜索的知识域列表
@@ -180,13 +184,22 @@ class KnowledgeLoader:
         try:
             import httpx
 
+            from app.services.embedding_service import embed_query
+
+            query_vector = await embed_query(query)
+            if query_vector is None:
+                # 真实 embedding 未启用或失败：不再用 [0.0]*128 假向量（伪 RAG），
+                # 直接返回空列表，由 search() 走关键词降级
+                logger.debug("vector_search: 无真实 embedding，降级到关键词匹配")
+                return []
+
             domain_filter = domains or list(_DOMAIN_FILE_MAP.keys())
 
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     f"{settings.vector_db_url}/collections/{settings.vector_db_collection}/points/search",
                     json={
-                        "vector": [0.0] * 128,  # placeholder — 生产环境用真实 embedding
+                        "vector": query_vector,
                         "limit": max_results,
                         "with_payload": True,
                         "filter": {

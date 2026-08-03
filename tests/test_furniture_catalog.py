@@ -7,7 +7,6 @@
 - PUT  /api/furniture-catalog/{id}
 - DELETE /api/furniture-catalog/{id}
 """
-import uuid
 import pytest
 from httpx import AsyncClient
 

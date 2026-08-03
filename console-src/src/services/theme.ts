@@ -25,9 +25,13 @@ export function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
   return mode;
 }
 
-/** 写 data-theme 属性（仅 light/dark，已解析） */
+/** 写 data-theme 属性（仅 light/dark，已解析），并同步浏览器顶栏颜色 */
 export function applyResolvedTheme(resolved: 'light' | 'dark'): void {
   document.documentElement.setAttribute('data-theme', resolved);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', resolved === 'light' ? '#f8f7f4' : '#08080f');
+  }
 }
 
 /** 应用某个 mode：持久化 + 解析 + 写属性 */

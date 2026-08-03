@@ -572,7 +572,10 @@ async def test_parse_usdz_glb_real_file(tmp_path):
 
     # 手动构造最小 GLB 二进制 (header + empty JSON chunk + empty BIN chunk)
     # GLB header: magic (0x46546C67 = "glTF"), version (2), total length
-    json_content = b'{"asset":{"version":"2.0"},"meshes":[{"name":"room_main_wall_1","primitives":[]}],"nodes":[{"mesh":0,"name":"room_main"}]}'
+    json_content = (
+        b'{"asset":{"version":"2.0"},"meshes":[{"name":"room_main_wall_1",'
+        b'"primitives":[]}],"nodes":[{"mesh":0,"name":"room_main"}]}'
+    )
     # pad JSON chunk to 4-byte alignment
     json_padded = json_content + b' ' * ((4 - len(json_content) % 4) % 4)
     json_chunk_len = len(json_padded)

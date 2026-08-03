@@ -236,7 +236,7 @@ async def webauthn_register_begin(
     result = await db.execute(
         select(WACModel.credential_id).where(
             WACModel.user_id == user.id,
-            WACModel.is_active == True,
+            WACModel.is_active.is_(True),
         )
     )
     exclude_creds = [
@@ -375,7 +375,7 @@ async def webauthn_login_begin(
         result = await db.execute(
             select(WACModel).join(User).where(
                 User.phone == phone,
-                WACModel.is_active == True,
+                WACModel.is_active.is_(True),
             )
         )
         for cred in result.scalars().all():
@@ -431,7 +431,7 @@ async def webauthn_login_complete(
     result = await db.execute(
         select(WACModel).where(
             WACModel.credential_id == cred_id,
-            WACModel.is_active == True,
+            WACModel.is_active.is_(True),
         )
     )
     credential = result.scalar_one_or_none()

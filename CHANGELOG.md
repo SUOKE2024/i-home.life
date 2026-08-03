@@ -2,6 +2,147 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.7.0] - 2026-08-03
+
+### 需求-实现验证遗留项 Wave 2（F45 LLM / F10 预算 8 类 / F13 模板 AI / F36 入驻审核 / F39 Agent 评估 / F28 通道检查 / F4 剖面图+导出 / React 5 页面）
+
+基于《需求-实现验证报告》§十一 遗留项继续执行，全部为可行且不依赖外部 key 的高价值缺口；外部依赖项（F46 米家真实 key、F35 电子签、F24 AR、F19/F26 3D 资产）保持诚实 stub。
+
+#### AI 决策升级
+
+- **F45 方案前置决策 LLM 升级** `app/services/solution_first_service.py`：新增 `SolutionFirstAgent`（继承 BaseAgent 走 deepseek→qwen→glm→doubao fallback 链），LLM 可用时生成 3 套布局+预算区间（`source="llm"`）；失败/无 key/解析失败诚实回退原规则（`source="rule_based"` + source_note 注明降级）
+- **F10 预算 8 类拆分 + 三费 + 价格来源** `app/agents/budget.py`：BUDGET_RATIOS 5 类 → 8 类（土建/硬装/软装/厨卫/家具/灯具/电器/智能家居），每项补 `material_cost/labor_cost/management_cost`（60/30/10 估算，cost_split_note 标注）+ `price_source`；响应补 `breakdown`（8 类）+ `legacy_5cat`（向后兼容）
+- **F13 预算模板 AI 自动填充** `app/agents/budget.py` + `app/api/budgets.py`：`apply_template` LLM 优先生成个性化预算行（`filling_source="llm"`），失败回退线性缩放（`filling_source="rule"`）
+
+#### 施工与协作
+
+- **F36 工程队入驻审核** `app/models/construction_crew.py` + `app/services/crew_service.py` + `app/api/crews.py` + `app/schemas/construction_crew.py`：新增 `review_status`（pending→approved/rejected，rejected 可重提）状态机 + 执照/保险/资质材料校验（缺失 400 列明）+ `POST /crews/{id}/submit` + `POST /crews/{id}/review`（仅 admin，非 admin 403）；**未审核工程队不参与匹配**（match 仅取 approved）
+- **F39 变更管理 Agent 自动评估** `app/api/change_orders.py` + `app/services/change_order_service.py`：review 未传人工评估时自动调设计 Agent（动线评分可行性）+ 预算 Agent（费用影响），`assessment_source="agent"`；Agent 失败降级 `"unavailable"` + 状态机不推进（不伪造结论）
+- **F28 通道宽度检查** `app/agents/designer.py`：`analyze_circulation` 新增 `channel_checks`（主要通道≥0.9m/家具间通行≥0.6m；有家具深度精确计算 `estimated=false`，仅尺寸估算 `estimated=true`，缺数据 `warning` 不伪造）
+
+#### 图纸能力
+
+- **F4 剖面图 + 导出** `app/services/construction_drawing_service.py` + `app/api/construction_drawing.py`：新增 `GET /{project_id}/section`（剖切面参数 x/line_index，墙体剖面填充/楼板/门窗洞口/标高标注）+ `GET /{project_id}/{drawing_type}/export?format=dxf|pdf`（手写 DXF 无外部依赖；PDF 依赖缺失诚实 501）
+
+#### React 控制台页面补齐（§七 缺口 8）
+
+- 新增 5 页面：`BudgetComparePage`（F11 三档对比）/`BudgetTemplatesPage`（F13 模板应用）/`KitchenBathMepPage`（F18 点位/回路/等电位/燃气）/`WorkersPage`（F35 列表/匹配/状态流转）/`IMChatPage`（F40 聊天室+Agent 群成员标注）
+- 配套：App.tsx 路由 5 条 + SideNav 菜单分组 + api-client.ts 14 个方法 + domain.ts 类型
+
+#### 工程治理
+
+- 版本号全链路 1.6.0 → 1.7.0；README 核心能力更新（React 控制台 35 → 40 页面）
+- 新增测试：F4 14 / F45 3 / F10 4 / F13 2 / F36 7 / F39 3 / F28 3（合计 ~36）
+
+## [1.6.0] - 2026-08-03
+
+### 需求-实现验证 v1.5.0 复核修复落地（F1-F47 全量复核 → P0 红线修复 + 深度缺口补齐）
+
+基于《需求-实现验证报告（v1.5.0 复核）》(docs/superpowers/specs/2026-08-03-requirements-verification.md) 执行系统修复：1 处 🔴 红线 + 名实差距标注 + F41-F47 深度缺口 + 核心业务缺口。
+
+#### 🔴 红线修复
+
+- **F47 伪向量 RAG 修复** `knowledge/loader.py`：`vector_search` 原用 `[0.0]*128` 占位向量（v1.1.31 FP-3 同类问题的漏网修复），现经 `embedding_service.embed_query` 取真实 query 向量后检索，embedding 禁用/失败时返回空列表降级关键词匹配，不再返回"看似语义检索"的伪结果
+
+#### 名实差距响应体级诚实标注
+
+- **budget/settlement Agent**：预算/结算生成响应补 `engine="rule_based"` + `source_note`（明确规则引擎生成、未调用 LLM）
+- **procurement**：物流轨迹补 `data_source="mock"` + 轨迹项 `source="mock"`；AI 比价模拟市场报价补 `source="mock"`；模板推荐供应商补 `source="mock_template"`
+
+#### F41-F47 深度缺口补齐
+
+- **F41 适老改造** `app/services/elderly_adaptation_service.py`：新增 `check_escape_route()` 逃生通道专项检查（入户门净宽≥800mm/逃生通道净宽≥900mm/高差≤15mm/逃生窗净宽≥600mm/禁止封闭走廊，对标 HC-006），集成进 `check-accessibility` 响应
+- **F44 环保材料标签** `app/services/material_service.py`：BOM 生成与 AI 选材链路接入环保等级强制提示（`eco_grade` + `eco_notice`，无认证材料诚实标注 `unverified` + HC-003 提示）
+- **F47 知识库补全**：新增 `knowledge/eco_ratings.json` / `safety.json` / `design_rules.json` / `cost_reference.json`（含 GB18580-2025/HENF、消防逃生、GB 50763 无障碍、造价行情等真实内容），知识库由 4 域 82 条 → 8 域 114 条
+
+#### 核心业务缺口
+
+- **F38 质检真实 CV** `app/agents/qa_inspector.py` + `app/config.py`（新增 `real_cv_quality_enabled` flag，默认 False）：flag 开启后调用多模态视觉 LLM（DeepSeek→GLM→Qwen 优先级）做缺陷识别/图纸比对，输出结构化缺陷列表；失败自动降级 mock 并诚实标注（`cv_mode` / note）
+- **F40 Agent 进 IM 群** `app/models/chat.py` + `app/services/chat_service.py` + `app/api/chat.py`：聊天室支持 Agent 群成员（`agent_members`），业主/工长发消息自动触发 Agent 回复（真实 harness/规则/降级占位三档，标注写入 `auto_reply_meta`）；Agent 系统用户惰性创建（`agent:<name>`）保证 PG 外键有效
+- **F12 采购→预算自动扣减** `app/services/budget_service.py` + `app/services/procurement_service.py`：新增 `deduct_budget_for_purchase` / `get_linked_purchases`，订单创建自动扣减预算科目（失败仅记日志不阻塞采购）；新增 `GET /budgets/{project_id}/linked-purchases`
+- **F7 BOM 版本管理** `app/models/material.py` + `app/api/materials.py`：BOMItem 新增 `version` 列；新增 `/bom/{project_id}/versions`、`POST /bom/{project_id}/version`（快照）、`/bom/{project_id}/diff`（新增/删除/价格变化差异标注）
+- **F6 BOM 几何算量** `app/services/material_service.py`：`generate_bom_for_project` 优先用 `quantity_takeoff_service` 几何派生量（有 active floorplan 时），失败回退经验法，每项标注 `quantity_source=geometric_takeoff/empirical` + `fallback_note`（诚实标注数据来源）
+
+#### 工程治理
+
+- 轻量 schema 迁移 v7：`chat_rooms.agent_members` / `chat_messages.auto_reply_meta` / `bom_items.version|quantity_source|fallback_note`
+- 新增测试：F41 逃生通道 2 / F44 环保强制提示 4 / F38 真实 CV 3 / F40 Agent 入群 5 / F12 联动 3 / F7 版本差异 3 / F6 几何算量 2 / 标注断言 6（本轮合计新增 ~30 用例）
+- 版本号全链路 1.5.0 → 1.6.0（后端 5 + Flutter 3 + Web/控制台 2 + CI 3 + 部署 1 + MCP SERVER_VERSION + 3 测试断言）
+
+## [1.5.0] - 2026-08-03
+
+### PRD v3.1 F41-F47 需求补充落地（2026-08-03 行业调研 → 需求-实现验证 → 后端落地）
+
+基于《行业与竞品调研报告》(docs/superpowers/specs/2026-08-03-industry-competitor-research.md) 将 PRD v3.1 新增的 F41-F47 全部落地（后端 + React Web 控制台 7 页面 + Flutter 7 页面）。所有新端点配套 feature flag 可回滚。
+
+#### Added — 存量焕新（F41/F42）
+
+- **F41 适老改造** `app/api/elderly_adaptation.py` + `app/services/elderly_adaptation_service.py`：适老方案生成（扶手/防滑/适老设备点位，失能护理扩展）、全屋无障碍动线检查（门宽≥800mm/通道≥900mm/高差≤15mm，对标 GB 50763-2012）、合规评分（pass/warning/fail）
+- **F42 局部焕新** `app/api/partial_renovation.py` + `app/services/partial_renovation_service.py`：5 种 scope 模板（厨卫焕新/卫浴焕新/墙面刷新/单空间/全屋）、短周期排期 + 三档预算包 + 局部施工干扰最小化方案
+
+#### Added — 信任与合规（F43/F44）
+
+- **F43 资金托管深化** `app/api/escrow_trustee.py` + `app/services/escrow_trustee_service.py`：银行存管/第三方监管账户、节点验收业主+承包方双向确认后放款（联动父 EscrowPayment 状态机）、托管利息归属业主
+- **F44 环保材料标签** `app/api/eco_materials.py` + `app/services/eco_material_service.py`：材料 SKU ENF/E0/E1 环保等级 + 绿色认证，合规校验（对标 HC-003 硬约束）、环保同级/更优替代推荐
+
+#### Added — AI 决策（F45/F46/F47）
+
+- **F45 方案前置决策** `app/api/solution_first.py` + `app/services/solution_first_service.py`：上传户型 → 3 套布局方案（经典分区/开放融合/高效收纳）+ 三档预算区间（行业行情参考，诚实标注 rule_based）
+- **F46 生态桥接优先级** `app/api/ecosystem.py` + `app/services/ecosystem_bridge_status.py`：4 个生态（米家/鸿蒙/HomeKit/涂鸦）注册表 + 状态报告（未配置 key 诚实标注 requires_api_key，不伪装能力）
+- **F47 AI 装修问答** `app/api/ai_qa.py` + `app/services/ai_qa_search_service.py`：知识库检索（向量优先/关键词降级）+ 引用来源，未命中诚实降级不编造
+
+#### 工程治理
+
+- 新增 7 个 feature flag（elderly_adaptation_enabled / partial_renovation_enabled / escrow_trustee_enabled / eco_material_label_enabled / solution_first_enabled / ecosystem_bridge_priority_enabled / ai_qa_search_enabled）
+- 新增 4 个 ORM 模型（ElderlyAdaptationScheme / PartialRenovationPlan / EscrowTrusteeAccount / MaterialEcoCert）
+- 新增 57 个测试（tests/test_elderly_adaptation / test_partial_renovation / test_escrow_trustee / test_eco_materials / test_solution_first / test_ecosystem_bridge / test_ai_qa_search）
+- 版本号全链路 1.4.0 → 1.5.0（后端 5 + Flutter 3 + Web/控制台 2 + CI/部署 2 + MCP SERVER_VERSION + 3 测试断言）
+
+## [1.4.0] - 2026-08-02
+
+### YC QM / OWLFY / LocalAI 借鉴落地 — Scope 治理贯穿 + AI 决策审计可还原
+
+v1.4.0 把三篇行业文章的借鉴点落地为代码。经代码库探查发现 scope 记忆层、local provider、
+cost_tier 路由、AGENT_ACTION 审计均已在 v1.4.x 实现，本次工作是**补齐差距 + 文档化 + 测试**，
+所有改动均为 additive API 增强（新增可选参数/字段，默认值向后兼容）。
+
+借鉴来源：YC QM 多人 Agent Harness（Scope 治理 + 可还原）、OWLFY 端侧零 TOKEN、
+LocalAI OpenAI 兼容本地推理、2026 下半年五大拐点（端侧+小模型爆发）。
+
+#### Added — Scope 治理贯穿 cache / trace / audit 层
+
+- **cache_service.build_isolated_key** 新增 `scope: str | None = None` 参数（借鉴 YC QM 四级作用域），
+  scope 非空时 key 插入 `s:{scope}:` 段；scope=None 维持 v1.3.0 格式（向后兼容）。
+  `get_isolated` / `set_isolated` / `delete_isolated` 三方法同步加 scope 透传。
+- **AgentTrace** 新增 `scope: str = ""` 字段（`app/agents/harness.py`），`start_trace()` 加 scope 参数，
+  `to_dict()` 输出含 scope 键，使 Agent 执行轨迹可按作用域追溯。
+- **tool_registry.execute()** 新增 4 个隐式上下文参数 `_agent_id` / `_model_source` / `_scope` / `_trace_id`
+  （借鉴 YC QM"可还原"治理），审计 details 扩展为 7 字段，使 AI 决策可还原到具体 Agent / 模型 / 作用域 / 轨迹。
+  `_agent_id` / `_model_source` 非空时透传给 handler；`_scope` / `_trace_id` 仅入审计 details。
+- **base.py** think_with_tools 透传 `_agent_id=self.agent_name` + `_model_source=self.provider`。
+- **voice_realtime.py** 工具调用透传 `_agent_id=f"voice:{func_name}"`。
+
+#### Docs — 文档与配置补齐
+
+- **CLAUDE.md** 测试基线 1491 → 1640（与 `scripts/test_baseline.json` 一致）。
+- **.env.example** 补 `CACHE_USER_ISOLATION_STRICT` + `AI_RENDER_CONTRACT_STRICT` 安全约束硬开关
+  （LOCAL_LLM_* / COST_TIERED_* / ECONOMY_* 端云协同配置已于 v1.4.x 文档化）。
+- **.claude/guides/mcp-agent.md** 新增"v1.4.0 借鉴落地"小节，记录 QM Scope 在 memory/cache/trace/audit
+  四层的贯穿位置、OWLFY 端侧零 TOKEN 配置方式、AI 决策审计 7 字段 schema。
+- 质量门禁段补 `test_agent_trace_scope.py` + `test_tool_audit_fields.py`。
+
+#### Tests — 新增 12 用例（基线 1607 → 1640）
+
+- `tests/test_cache_user_isolation.py`：+6 用例（scope=personal/team/no_project/backward_compat/public/roundtrip）
+- `tests/test_agent_trace_scope.py`（新建）：+3 用例（trace 默认 scope / start_trace 传 scope / to_dict 含 scope）
+- `tests/test_tool_audit_fields.py`（新建）：+3 用例（agent_id / model_source / 默认空 schema 稳定性）
+
+#### 版本号全链路同步
+
+12 处版本号 1.3.1 → 1.4.0（后端 5 + Flutter 3 + Web/控制台 2 + CI/部署 2，含 ci.yml 3 个 APP_VERSION），
++ MCP SERVER_VERSION + 3 个测试文件硬编码版本断言（test_v1_3_0_compliance / test_mcp_2026_07_28 / test_v1128_suoke_borrowed，
+version-bump.md 清单遗漏，本次补登）。`scripts/test_baseline.json` 同步更新（1607 → 1640）。
+
 ## [1.3.1] - 2026-08-01
 
 ### 总控智能体（Orchestrator）全链路修复 + 任务协调能力接线

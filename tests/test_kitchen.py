@@ -303,7 +303,7 @@ async def test_delete_kitchen_design(client: AsyncClient, auth_headers: dict):
 async def test_kitchen_design_not_found(client: AsyncClient, auth_headers: dict):
     """查询不存在的厨房设计返回 404"""
     resp = await client.get(
-        f"/api/kitchen/designs/non-existent-id",
+        "/api/kitchen/designs/non-existent-id",
         headers=auth_headers,
     )
     assert resp.status_code == 404

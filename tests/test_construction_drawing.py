@@ -152,3 +152,140 @@ async def test_foreign_project_blocked(client: AsyncClient):
         headers=headers_b,
     )
     assert resp.status_code == 403
+
+
+# ── 剖面图 ──
+
+
+@pytest.mark.asyncio
+async def test_section_drawing(client: AsyncClient):
+    """有 floorplan 时生成剖面图 SVG（含剖切标记）"""
+    headers = await _auth_headers(client, "13900031008")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/section",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["drawing_type"] == "section"
+    assert "svg" in data
+    assert len(data["svg"]) > 0
+    assert "剖面" in data["svg"]
+    assert "剖切面" in data["svg"]  # 剖面标记
+
+
+@pytest.mark.asyncio
+async def test_section_drawing_with_plane_x(client: AsyncClient):
+    """剖切面参数 section_plane={"x": ...} 生效"""
+    headers = await _auth_headers(client, "13900031009")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/section",
+        params={"section_plane": json.dumps({"x": 2500.0})},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert "剖切面" in resp.json()["svg"]
+
+
+@pytest.mark.asyncio
+async def test_section_drawing_invalid_plane(client: AsyncClient):
+    """非法剖切面参数返回 422"""
+    headers = await _auth_headers(client, "13900031010")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/section",
+        params={"section_plane": "not-json"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+# ── 导出：DXF / PDF ──
+
+
+@pytest.mark.asyncio
+async def test_export_dxf(client: AsyncClient):
+    """DXF 导出：返回 DXF 文本（含头与实体）+ 诚实标注（format/engine）"""
+    headers = await _auth_headers(client, "13900031011")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/floor-plan/export",
+        params={"format": "dxf"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/dxf")
+    # 诚实标注：导出格式与转换引擎
+    assert resp.headers.get("x-drawing-format") == "dxf"
+    assert resp.headers.get("x-drawing-engine") == "svg_to_dxf"
+    body = resp.text
+    assert "SECTION" in body
+    assert "ENTITIES" in body
+    assert "EOF" in body
+    assert "LINE" in body
+    assert "LWPOLYLINE" in body
+
+
+@pytest.mark.asyncio
+async def test_export_pdf(client: AsyncClient):
+    """PDF 导出：依赖缺失 → 501 诚实标注；依赖存在 → 有效 PDF"""
+    from app.services.construction_drawing_service import is_pdf_export_available
+
+    headers = await _auth_headers(client, "13900031012")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/section/export",
+        params={"format": "pdf"},
+        headers=headers,
+    )
+    if is_pdf_export_available():
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("application/pdf")
+        assert resp.headers.get("x-drawing-format") == "pdf"
+        assert resp.headers.get("x-drawing-engine") == "svg_to_pdf"
+        assert resp.content[:5] == b"%PDF-"
+    else:
+        assert resp.status_code == 501
+        assert "依赖" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_export_invalid_format(client: AsyncClient):
+    """不支持的导出格式返回 422"""
+    headers = await _auth_headers(client, "13900031013")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/floor-plan/export",
+        params={"format": "png"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_export_invalid_drawing_type(client: AsyncClient):
+    """不支持的图纸类型返回 422"""
+    headers = await _auth_headers(client, "13900031014")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/bogus/export",
+        params={"format": "dxf"},
+        headers=headers,
+    )
+    assert resp.status_code == 422

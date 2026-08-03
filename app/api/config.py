@@ -64,4 +64,12 @@ async def get_feature_flags():
         # v1.2.9 Workbench 上下文自适应建议（GenUI-lite）
         "workbench_adaptive_suggestions_enabled": settings.workbench_adaptive_suggestions_enabled,
         "service_role": settings.service_role or None,
+        # v1.5.0 PRD v3.1 F41-F47 需求补充落地
+        "elderly_adaptation_enabled": settings.elderly_adaptation_enabled,
+        "partial_renovation_enabled": settings.partial_renovation_enabled,
+        "escrow_trustee_enabled": settings.escrow_trustee_enabled,
+        "eco_material_label_enabled": settings.eco_material_label_enabled,
+        "solution_first_enabled": settings.solution_first_enabled,
+        "ecosystem_bridge_priority_enabled": settings.ecosystem_bridge_priority_enabled,
+        "ai_qa_search_enabled": settings.ai_qa_search_enabled,
     }

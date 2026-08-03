@@ -134,7 +134,7 @@ def mask_dict(data: dict[str, Any]) -> dict[str, Any]:
     if not settings.pii_masking_enabled or not data:
         return data
     try:
-        result = {}
+        result: dict[str, Any] = {}
         for k, v in data.items():
             if isinstance(v, str):
                 # 对已知 PII 字段名做专用脱敏
@@ -162,7 +162,7 @@ def mask_list(data: list[Any]) -> list[Any]:
     if not settings.pii_masking_enabled or not data:
         return data
     try:
-        result = []
+        result: list[Any] = []
         for item in data:
             if isinstance(item, str):
                 result.append(mask_text(item))

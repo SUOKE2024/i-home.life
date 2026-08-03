@@ -10,6 +10,7 @@
 // 底部语音条复用悬浮窗的 WS 会话（VoiceSessionScope），不重连
 import 'package:flutter/material.dart';
 
+import '../theme/suoke_theme.dart';
 import '../widgets/voice_proposal_bar.dart';
 
 class DesignProposalPage extends StatefulWidget {
@@ -121,10 +122,10 @@ class _ProposalCard extends StatelessWidget {
         margin: const EdgeInsets.only(right: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: SuokeDesignTokens.card(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? const Color(0xFF007AFF) : Colors.grey.shade300,
+            color: isSelected ? SuokeDesignTokens.info : SuokeDesignTokens.borderClr(context),
             width: isSelected ? 2 : 1,
           ),
           boxShadow: [
@@ -146,12 +147,12 @@ class _ProposalCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: isSelected ? const Color(0xFF007AFF) : Colors.black87,
+                    color: isSelected ? SuokeDesignTokens.info : SuokeDesignTokens.text(context),
                   ),
                 ),
                 if (hasChanges) ...[
                   const SizedBox(width: 4),
-                  const Icon(Icons.edit, size: 12, color: Color(0xFF007AFF)),
+                  const Icon(Icons.edit, size: 12, color: SuokeDesignTokens.info),
                 ],
               ],
             ),
@@ -160,11 +161,11 @@ class _ProposalCard extends StatelessWidget {
             Container(
               height: 80,
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F0FE),
+                color: SuokeDesignTokens.info.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Center(
-                child: Icon(Icons.architecture, size: 32, color: Color(0xFF007AFF)),
+                child: Icon(Icons.architecture, size: 32, color: SuokeDesignTokens.info),
               ),
             ),
             const SizedBox(height: 8),
@@ -176,9 +177,9 @@ class _ProposalCard extends StatelessWidget {
             const SizedBox(height: 8),
             // 亮点
             if (highlights.isNotEmpty) ...[
-              const Text(
+              Text(
                 '亮点',
-                style: TextStyle(fontSize: 11, color: Colors.grey),
+                style: TextStyle(fontSize: 11, color: SuokeDesignTokens.textSub(context)),
               ),
               const SizedBox(height: 4),
               Wrap(
@@ -189,12 +190,12 @@ class _ProposalCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF0F8FF),
+                            color: SuokeDesignTokens.info.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(h,
                               style: const TextStyle(
-                                  fontSize: 10, color: Color(0xFF007AFF))),
+                                  fontSize: 10, color: SuokeDesignTokens.info)),
                         ))
                     .toList(),
               ),
@@ -208,12 +209,12 @@ class _ProposalCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('• ',
-                            style:
-                                TextStyle(fontSize: 10, color: Colors.orange)),
+                            style: TextStyle(
+                                fontSize: 10, color: SuokeDesignTokens.warning)),
                         Expanded(
                           child: Text(c,
-                              style: const TextStyle(
-                                  fontSize: 10, color: Colors.grey)),
+                              style: TextStyle(
+                                  fontSize: 10, color: SuokeDesignTokens.textSub(context))),
                         ),
                       ],
                     ),
@@ -238,9 +239,9 @@ class _MetricRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 11, color: SuokeDesignTokens.textSub(context))),
           Text(value,
-              style: const TextStyle(fontSize: 11, color: Colors.black87)),
+              style: TextStyle(fontSize: 11, color: SuokeDesignTokens.text(context))),
         ],
       ),
     );

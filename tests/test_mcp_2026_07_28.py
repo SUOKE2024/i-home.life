@@ -74,7 +74,7 @@ async def test_stateless_no_session_handshake(client: AsyncClient):
 def test_stateless_protocol_version_constant():
     """协议版本常量为 2026-07-28"""
     assert mcp_server.PROTOCOL_VERSION == "2026-07-28"
-    assert mcp_server.SERVER_VERSION == "1.3.1"
+    assert mcp_server.SERVER_VERSION == "1.8.0"
 
 
 # === P1-2 server/discover RPC ===
@@ -143,7 +143,10 @@ async def test_header_based_routing_mcp_name_for_tools_call(client: AsyncClient)
     token = await _register(client, "13900007105")
     resp = await client.post(
         "/api/mcp",
-        json={"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"arguments": {"area": 100, "style": "modern"}}},
+        json={
+            "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+            "params": {"arguments": {"area": 100, "style": "modern"}},
+        },
         headers={**_headers(token), "Mcp-Name": "get_budget"},
     )
     assert resp.status_code == 200, resp.text

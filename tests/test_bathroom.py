@@ -333,7 +333,7 @@ async def test_delete_bathroom_design(client: AsyncClient, auth_headers: dict):
 async def test_bathroom_design_not_found(client: AsyncClient, auth_headers: dict):
     """查询不存在的卫生间设计返回 404"""
     resp = await client.get(
-        f"/api/bathroom/designs/non-existent-id",
+        "/api/bathroom/designs/non-existent-id",
         headers=auth_headers,
     )
     assert resp.status_code == 404

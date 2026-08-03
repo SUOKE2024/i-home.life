@@ -151,7 +151,7 @@ _SEMANTIC_CHECK_SYSTEM_PROMPT = """你是装修方案合规审核员。判断给
 """
 
 
-async def check_output_with_semantic(
+async def check_output_with_semantic(  # noqa: C901
     agent_name: str, output_text: str, agent=None,
 ) -> dict[str, Any]:
     """HC 校验：关键词预筛 + LLM 语义兜底

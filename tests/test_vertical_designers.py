@@ -657,3 +657,54 @@ async def test_bathroom_ventilation(client: AsyncClient):
     assert result["mechanical_ventilation"]["compliant"] is True
     # 综合评级
     assert result["rating"] == "good"
+
+
+# ── F28 通道净宽检查 ──
+
+
+def _circulation_channel_check(rooms):
+    from app.agents.designer import DesignerAgent
+
+    return DesignerAgent().analyze_circulation(rooms)
+
+
+def test_circulation_channel_width_check_pass():
+    """有尺寸数据：主要通道净宽达标 → pass（无家具数据按估算并标注 estimated）"""
+    result = _circulation_channel_check([
+        {"name": "客厅", "type": "living_room", "x": 0, "y": 0, "w": 3.0, "h": 4.5},
+    ])
+    assert "error" not in result
+    assert result["channel_width_check"]["checked"] == 1
+    assert result["channel_width_check"]["pass"] == 1
+    check = result["channel_checks"][0]
+    assert check["room"] == "客厅"
+    assert check["status"] == "pass"
+    assert check["channel_width"] >= check["requirement"]
+    assert check["estimated"] is True  # 无家具数据 → 估算值
+    assert check["suggestion"]
+
+
+def test_circulation_channel_width_check_fail():
+    """有尺寸数据：主要通道净宽不足 → fail"""
+    result = _circulation_channel_check([
+        {"name": "客厅", "type": "living_room", "x": 0, "y": 0, "w": 1.5, "h": 4.5},
+    ])
+    check = result["channel_checks"][0]
+    assert check["status"] == "fail"
+    assert check["channel_width"] < check["requirement"]
+    assert check["suggestion"]
+
+
+def test_circulation_channel_width_check_missing_data_warning():
+    """无足够数据（缺尺寸）→ warning + note，不伪造通道宽度数值"""
+    result = _circulation_channel_check([
+        {"name": "客厅", "type": "living_room", "x": 0, "y": 0, "w": 3.0, "h": 4.5},
+        {"name": "储藏间", "type": "other"},  # 缺 w/h
+    ])
+    storage = next(c for c in result["channel_checks"] if c["room"] == "储藏间")
+    assert storage["status"] == "warning"
+    assert storage["channel_width"] is None
+    assert storage["estimated"] is True
+    assert storage["note"]
+    # 缺尺寸房间不参与动线几何计算，分析不崩溃
+    assert result["rooms_count"] == 2

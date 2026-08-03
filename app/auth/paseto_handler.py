@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from typing import cast
 
 import paseto
 from paseto.keys.symmetric_key import SymmetricKey
@@ -59,7 +60,7 @@ def create_token(user_id: str, role: str) -> str:
         "exp": exp.isoformat(),
     }
     key = _get_key()
-    return paseto.create(key=key, purpose="local", claims=payload)
+    return cast(str, paseto.create(key=key, purpose="local", claims=payload))
 
 
 def verify_token(token: str) -> dict:
@@ -72,7 +73,7 @@ def verify_token(token: str) -> dict:
     try:
         key = _get_key()
         result = paseto.parse(key=key, purpose="local", token=token)
-        payload = result["message"]
+        payload: dict = result["message"]
 
         # 检查过期
         exp_str = payload.get("exp")

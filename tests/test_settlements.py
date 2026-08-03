@@ -304,6 +304,9 @@ async def test_generate_milestone_settlement(client: AsyncClient):
     assert data["base_payable"] == 40000.0
     # total_payable = 40000 + 10000 - 5000 - 80000 = -35000 → max(0) = 0
     assert data["total_payable"] == 0.0
+    # 诚实标注：里程碑结算由规则引擎生成，未调用 LLM
+    assert data["engine"] == "rule_based"
+    assert "规则引擎" in data["source_note"]
 
 
 @pytest.mark.asyncio
@@ -616,6 +619,9 @@ async def test_auto_settlement_no_anomaly(client: AsyncClient):
     assert "reconciliation" in data
     assert data["review_required"] is False
     assert data["anomalies"]["total_anomalies"] == 0
+    # 诚实标注：自动结算由规则引擎生成，未调用 LLM
+    assert data["engine"] == "rule_based"
+    assert "规则引擎" in data["source_note"]
 
 
 @pytest.mark.asyncio
@@ -660,6 +666,9 @@ def test_agent_milestone_settlement_unit():
     # total = 40000 + 10000 - 5000 - 20000 = 25000
     assert result["total_payable"] == 25000.0
     assert "reply" in result
+    # 诚实标注：规则引擎生成
+    assert result["engine"] == "rule_based"
+    assert "规则引擎" in result["source_note"]
 
 
 def test_agent_anomaly_detection_unit():

@@ -349,7 +349,7 @@ async def get_task_pool(
 ) -> list[OrchestratorTask]:
     """获取可申领的任务池"""
     conditions = [
-        OrchestratorTask.claimable == True,
+        OrchestratorTask.claimable.is_(True),
         OrchestratorTask.status == status,
     ]
     if claim_role:

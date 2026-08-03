@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Float, CheckConstraint
+from sqlalchemy import String, DateTime, ForeignKey, func, Float, Integer, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -58,6 +58,13 @@ class BOMItem(Base):
     total_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    # F7 BOM 版本管理：version 为 BOM 快照版本号（工作集 = 最新版本）
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1", index=True)
+    # F6 几何算量接入：BOM 项数据来源标注（geometric_takeoff / empirical），诚实标注
+    quantity_source: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="empirical", server_default="empirical"
+    )
+    fallback_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

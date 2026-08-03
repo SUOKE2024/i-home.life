@@ -31,6 +31,7 @@ from app.models.smart_home import SmartHomeScheme, SmartDevice
 from app.models.matter_device import MatterDevice
 from app.models.agent_feedback import AgentFeedback
 from app.models.agent_session import AgentSession, AgentMessage
+from app.models.agent_memory import AgentMemory
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
 from app.models.scene_behavior import SceneBehaviorLog, PredictedScene
 from app.models.procurement_enhanced import (
@@ -58,6 +59,7 @@ from app.models.points import (
 )
 from app.models.orchestrator_task import OrchestratorTask, TaskCandidate
 from app.models.a2a_task import A2ATask
+from app.models.delivery_order import DeliveryOrder
 from app.models.webauthn_credential import WebAuthnCredential
 from app.models.device_token import DeviceToken
 from app.models.permission import Permission, RolePermission
@@ -68,6 +70,12 @@ from app.models.audit_log import AuditLog
 # 补注册后 create_all 与 autogenerate 均能正确管理这些表）
 from app.models.energy_monitor import EnergyMonitor, EnergySavingTip
 from app.models.health_monitor import HealthMonitor, AirQualityRecord
+
+# v1.5.0 需求补充落地（PRD v3.1 F41-F47）— 存量焕新 + 信任合规
+from app.models.elderly_adaptation import ElderlyAdaptationScheme
+from app.models.partial_renovation import PartialRenovationPlan
+from app.models.escrow_trustee import EscrowTrusteeAccount
+from app.models.eco_material import MaterialEcoCert
 
 __all__ = [
     "User",
@@ -174,6 +182,7 @@ __all__ = [
     "OrchestratorTask",
     "TaskCandidate",
     "A2ATask",
+    "DeliveryOrder",
     "WebAuthnCredential",
     "DeviceToken",
     "Permission",
@@ -181,10 +190,16 @@ __all__ = [
     "AgentFeedback",
     "AgentSession",
     "AgentMessage",
+    "AgentMemory",
     "AuditLog",
     # A1/A2 智能家居能耗 + 健康监测
     "EnergyMonitor",
     "EnergySavingTip",
     "HealthMonitor",
     "AirQualityRecord",
+    # v1.5.0 需求补充落地（PRD v3.1 F41-F47）
+    "ElderlyAdaptationScheme",
+    "PartialRenovationPlan",
+    "EscrowTrusteeAccount",
+    "MaterialEcoCert",
 ]

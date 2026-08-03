@@ -460,8 +460,8 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _createDesign),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadDesigns),
+          IconButton(icon: const Icon(Icons.add), onPressed: _createDesign, tooltip: '新建设计'),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadDesigns, tooltip: '刷新'),
         ],
       ),
       body: _loading

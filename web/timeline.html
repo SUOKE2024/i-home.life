@@ -112,10 +112,10 @@
 
 /* ── 项目信息卡片 ── */
 .tl-project-card {
-  background: linear-gradient(135deg, #1a1814, #2d2a24);
+  background: linear-gradient(135deg, var(--bg-panel), var(--bg-card-hover, var(--bg-card)));
   border-radius: var(--radius);
   padding: 18px 20px;
-  border: 1px solid rgba(201,151,59,0.15);
+  border: 1px solid var(--border);
 }
 .tl-project-row {
   display: flex;
@@ -328,7 +328,7 @@
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: var(--bg-deep);
+  color: var(--on-accent);
   font-size: 11px;
   font-weight: 600;
   text-decoration: none;
@@ -399,7 +399,7 @@
 }
 .tl-btn-primary {
   background: var(--accent);
-  color: var(--bg-deep);
+  color: var(--on-accent);
 }
 .tl-btn-primary:hover { background: var(--accent-bright); }
 .tl-btn-secondary {
@@ -500,7 +500,7 @@
   top: -100px;
   left: 12px;
   background: var(--accent);
-  color: var(--bg-deep);
+  color: var(--on-accent);
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;

@@ -19,9 +19,9 @@ class _TasksPageState extends State<TasksPage>
   final ApiClient _api = ApiClient();
 
   // 优先级颜色
-  static const Color _priorityHigh = Color(0xFFE53935);
+  static const Color _priorityHigh = SuokeDesignTokens.danger;
   static const Color _priorityMid = SuokeDesignTokens.accent;
-  static const Color _priorityLow = Color(0xFF43A047);
+  static const Color _priorityLow = SuokeDesignTokens.success;
 
   List<Task> _tasks = [];
   bool _loading = false;
@@ -134,7 +134,7 @@ class _TasksPageState extends State<TasksPage>
         return SuokeDesignTokens.textSecondary;
       case 'claimed':
       case 'in_progress':
-        return const Color(0xFF2196F3);
+        return SuokeDesignTokens.info;
       case 'completed':
         return _priorityLow;
       default:
@@ -474,7 +474,7 @@ class _TasksPageState extends State<TasksPage>
           children: [
             _buildKanbanColumn('待办', todoTasks, SuokeDesignTokens.textSecondary),
             const SizedBox(width: 12),
-            _buildKanbanColumn('进行中', doingTasks, const Color(0xFF2196F3)),
+            _buildKanbanColumn('进行中', doingTasks, SuokeDesignTokens.info),
             const SizedBox(width: 12),
             _buildKanbanColumn('已完成', doneTasks, _priorityLow),
           ],

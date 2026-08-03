@@ -76,7 +76,7 @@ async def get_rules(
     db: AsyncSession = Depends(get_db),
 ):
     """获取积分规则列表"""
-    stmt = select(PointsRule).where(PointsRule.is_active == True)
+    stmt = select(PointsRule).where(PointsRule.is_active.is_(True))
     result = await db.execute(stmt)
     rules = result.scalars().all()
     return [PointsRuleResponse.model_validate(r) for r in rules]
@@ -113,7 +113,7 @@ async def get_mall_items(
     db: AsyncSession = Depends(get_db),
 ):
     """获取积分商城商品列表"""
-    conditions = [PointsMallItem.is_active == True]
+    conditions = [PointsMallItem.is_active.is_(True)]
     if category:
         conditions.append(PointsMallItem.category == category)
 

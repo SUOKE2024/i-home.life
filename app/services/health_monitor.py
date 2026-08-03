@@ -19,7 +19,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -227,7 +227,6 @@ class HealthMonitor:
         try:
             from sqlalchemy import select
             from app.models.project import Project
-            from app.models.progress_alert import ProgressAlert, MilestoneTracker
 
             async with self._db_factory() as db:
                 # 查询所有活跃项目

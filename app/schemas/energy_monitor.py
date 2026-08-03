@@ -45,7 +45,9 @@ class EnergyMonitorResponse(BaseModel):
 
 class EnergySavingTipCreate(BaseModel):
     scheme_id: str
-    tip_type: str = Field(description="建议类型: bill_optimization/device_replacement/schedule_optimization/standby_reduction")
+    tip_type: str = Field(
+        description="建议类型: bill_optimization/device_replacement/schedule_optimization/standby_reduction"
+    )
     device_type: str | None = None
     device_name: str | None = None
     current_consumption: float | None = None

@@ -799,10 +799,27 @@ sup a:hover { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+/* skip-link（无障碍）：聚焦前离屏隐藏，聚焦后可见 */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9999;
+  padding: 8px 16px;
+  background: var(--gold);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 0 0 6px 0;
+}
+.skip-link:focus {
+  left: 0;
+}
 </style>
 </head>
 <body>
-<a href="#main" class="skip-link" style="position:absolute;left:-9999px;top:0;z-index:9999;padding:8px 16px;background:var(--accent);color:#fff;font-size:13px;font-weight:600;text-decoration:none;border-radius:0 0 6px 0">跳过导航，直达内容</a>
+<a href="#intro" class="skip-link">跳过导航，直达内容</a>
 
 <!-- ═══ HEADER ═══ -->
 <div class="hero">

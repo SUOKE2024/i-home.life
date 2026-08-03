@@ -620,7 +620,7 @@ export default function DesignPage() {
                       className="wb-project-card"
                       key={p.proposal_id}
                       data-testid={`wb-design-proposal-card--${p.proposal_id}`}
-                      style={{ borderLeft: `4px solid ${reviseId === p.proposal_id ? 'var(--primary)' : 'transparent'}` }}
+                      style={{ borderLeft: `4px solid ${reviseId === p.proposal_id ? 'var(--accent)' : 'transparent'}` }}
                     >
                       <div className="wb-project-card__title">
                         方案{p.proposal_id} · {p.title}
@@ -631,8 +631,8 @@ export default function DesignPage() {
                               padding: '1px 8px',
                               borderRadius: 10,
                               fontSize: 11,
-                              background: 'var(--primary)',
-                              color: '#fff',
+                              background: 'var(--accent)',
+                              color: 'var(--on-accent)',
                             }}
                           >
                             已选中

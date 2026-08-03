@@ -71,7 +71,7 @@ export default function AppliancePage() {
               <button className="wb-theme-option wb-theme-option--active" onClick={reload}>重试</button>
             </div>
           )}
-          {!loading && !error && (appliances?.length ?? 0) === 0 && (selectedCategory === 'all') && (
+          {!loading && !error && (appliances?.length ?? 0) === 0 && (
             <div className="wb-state" data-testid="wb-appliance-empty">
               <div className="wb-state__icon">🔌</div><div>暂无家电数据</div>
             </div>

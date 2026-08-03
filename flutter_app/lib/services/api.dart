@@ -1607,6 +1607,60 @@ class ApiClient {
   Future<Result<dynamic>> toggleAdminUserStatus(String userId, bool isActive) =>
       put('/admin/users/$userId/status', {'is_active': isActive});
 
+  // ── F41-F47 v1.5.0 新增功能 ──
+
+  // F41 适老改造
+  Future<Result<dynamic>> elderlyListSchemes(String projectId) =>
+      get('/elderly-adaptation/schemes/project/$projectId');
+  Future<Result<dynamic>> elderlyCreateScheme(Map<String, dynamic> body) =>
+      post('/elderly-adaptation/schemes', body);
+  Future<Result<dynamic>> elderlyValidateScheme(String schemeId) =>
+      post('/elderly-adaptation/schemes/$schemeId/validate', {});
+
+  // F42 局部焕新
+  Future<Result<dynamic>> partialListTemplates() =>
+      get('/partial-renovation/templates');
+  Future<Result<dynamic>> partialCreatePlan(Map<String, dynamic> body) =>
+      post('/partial-renovation/plans', body);
+  Future<Result<dynamic>> partialListPlans(String projectId) =>
+      get('/partial-renovation/plans/project/$projectId');
+
+  // F43 资金托管
+  Future<Result<dynamic>> trusteeListAccounts(String projectId) =>
+      get('/escrow/project/$projectId/trustee-accounts');
+  Future<Result<dynamic>> trusteeCreateAccount(Map<String, dynamic> body) =>
+      post('/escrow/trustee-accounts', body);
+  Future<Result<dynamic>> trusteeAcceptance(String accountId, String role) =>
+      post('/escrow/trustee-accounts/$accountId/acceptance', {'role': role});
+  Future<Result<dynamic>> trusteeRelease(String accountId) =>
+      post('/escrow/trustee-accounts/$accountId/release', {});
+  Future<Result<dynamic>> trusteeInterest(String accountId) =>
+      get('/escrow/trustee-accounts/$accountId/interest');
+
+  // F44 环保材料
+  Future<Result<dynamic>> ecoListMaterials({String? grade}) =>
+      get('/eco-materials/materials${grade != null ? '?grade=$grade' : ''}');
+  Future<Result<dynamic>> ecoAssignCert(Map<String, dynamic> body) =>
+      post('/eco-materials/certs', body);
+  Future<Result<dynamic>> ecoValidate(List<String> materialIds) =>
+      post('/eco-materials/validate', {'material_ids': materialIds});
+
+  // F45 方案前置决策
+  Future<Result<dynamic>> solutionFirstGenerate(String projectId) =>
+      post('/solution-first/generate', {'project_id': projectId});
+
+  // F46 生态桥接
+  Future<Result<dynamic>> ecosystemStatus() =>
+      get('/ecosystem/status');
+  Future<Result<dynamic>> ecosystemBridges() =>
+      get('/ecosystem/bridges');
+
+  // F47 AI 装修问答
+  Future<Result<dynamic>> aiQaSearch(String query) =>
+      post('/ai-qa/search', {'query': query});
+  Future<Result<dynamic>> aiQaFaq() =>
+      get('/ai-qa/faq');
+
   // ── 查询参数辅助 ──
   String _queryParams(Map<String, String> params) {
     if (params.isEmpty) return '';

@@ -271,7 +271,15 @@ def validate_waterproof(design: BathroomDesign) -> dict:
         # ── 旧行为回滚（waterproof_strict_check=False，紧急回滚用）──
         checks.append({"item": "其他墙面防水 ≥ 0.3m", "value": 0.3, "unit": "m", "passed": True, "standard": "≥ 0.3m (翻边高度)"})
         checks.append({"item": "地面全防水", "value": "全做", "passed": True, "standard": "地面满做防水涂层"})
-        checks.append({"item": "防水层厚度 ≥ 1.5mm", "value": 1.5, "unit": "mm", "passed": True, "standard": "≥ 1.5mm (聚氨酯防水涂料)"})
+        checks.append(
+            {
+                "item": "防水层厚度 ≥ 1.5mm",
+                "value": 1.5,
+                "unit": "mm",
+                "passed": True,
+                "standard": "≥ 1.5mm (聚氨酯防水涂料)",
+            }
+        )
         checks.append({"item": "闭水试验 ≥ 48h", "value": 48, "unit": "h", "passed": True, "standard": "≥ 48h 蓄水试验无渗漏"})
 
     return {
@@ -313,7 +321,11 @@ def analyze_ventilation(design: BathroomDesign) -> dict:
     required_airflow = 80.0  # 标准阈值（m³/h），暴露给前端便于展示合规边界
     airflow = design.mechanical_vent_airflow if design.mechanical_vent_airflow is not None else required_airflow
     # 换气次数 ≥ 5次/h
-    air_change_rate = airflow / (floor_area * design.ceiling_height) if (floor_area * design.ceiling_height) > 0 else 0.0
+    air_change_rate = (
+        airflow / (floor_area * design.ceiling_height)
+        if (floor_area * design.ceiling_height) > 0
+        else 0.0
+    )
     mechanical_compliant = airflow >= required_airflow
 
     # 综合判定

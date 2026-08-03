@@ -1,9 +1,27 @@
-"""质检 Agent — 照片比对、缺陷识别、验收报告生成"""
+"""质检 Agent — 照片比对、缺陷识别、验收报告生成
 
-from app.agents.base import BaseAgent
+F38: detect_defects / compare_with_design 支持真实 CV（多模态视觉 LLM），
+受 settings.real_cv_quality_enabled 控制；默认关闭时保持 hash mock 路径，
+响应体携带 cv_mode="mock" + note 诚实标注（禁止伪装真实视觉能力）。
+"""
+
+import base64
+import json
+import logging
+
+import httpx
+
+from app.agents.base import BaseAgent, PROVIDER_REGISTRY
+from app.config import get_settings
 from app.services.agent_tool_registry import tool_registry
 
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
 _QA_TOOL_SCHEMAS = tool_registry.get_openai_schemas_for_category("qa")
+
+# F38: 真实 CV 视觉模型供应商优先级（对齐 sketch_to_3d，复用 LLM fallback 供应商）
+_CV_VISION_PROVIDER_PRIORITY = ("deepseek", "glm", "qwen")
 
 
 # 各阶段验收项目（分项验收清单）
@@ -102,6 +120,135 @@ DEFECT_KEYWORD_MAP = {
     "缝隙": ["缝隙", "缝不均", "对角线"],
     "安装": ["安装", "松动", "歪斜", "不牢固"],
 }
+
+
+# ── F38 真实 CV 视觉模型辅助（模块级，便于单测 monkeypatch）──
+
+
+def _fetch_image_bytes(url: str) -> tuple[bytes, str]:
+    """获取图片内容，返回 (bytes, mime_type)。支持 data: URL 与 http(s) URL。"""
+    if url.startswith("data:"):
+        header, _, b64data = url.partition(",")
+        mime = header[5:].split(";")[0] or "image/png"
+        return base64.b64decode(b64data), mime
+    if url.startswith(("http://", "https://")):
+        resp = httpx.get(url, timeout=30.0, follow_redirects=True)
+        resp.raise_for_status()
+        mime = resp.headers.get("content-type", "image/jpeg")
+        return resp.content, mime
+    raise ValueError(f"不支持的图片 URL: {url}")
+
+
+def _call_vision_llm(prompt: str, image_bytes: bytes, mime_type: str) -> str:
+    """调用多模态视觉模型（DeepSeek → GLM → Qwen 优先），返回原始文本。
+
+    未配置任何视觉模型 API key 时抛出 RuntimeError（调用方诚实降级到 mock）。
+    """
+    provider = api_key = api_base = model = None
+    for name in _CV_VISION_PROVIDER_PRIORITY:
+        cfg = PROVIDER_REGISTRY[name]
+        if cfg["api_key"]():
+            provider = name
+            api_key = cfg["api_key"]()
+            api_base = cfg["api_base"]()
+            model = cfg["model"]()
+            break
+    if not api_key:
+        raise RuntimeError("未配置视觉模型 API key（deepseek/glm/qwen）")
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    response = httpx.post(
+        f"{api_base}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
+                        },
+                    ],
+                }
+            ],
+            "max_tokens": 2000,
+            "temperature": 0.1,
+        },
+        timeout=60.0,
+    )
+    response.raise_for_status()
+    data = response.json()
+    logger.debug("qa_inspector vision_llm: provider=%s model=%s", provider, model)
+    return data["choices"][0]["message"]["content"] or ""
+
+
+def _parse_vision_json(content: str) -> dict:
+    """解析视觉模型返回的 JSON，处理 markdown 代码块包裹。"""
+    text = content.strip()
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return json.loads(text.strip())
+
+
+def _build_defect_vision_prompt(location: str, img_type: str, check_categories: list[str]) -> str:
+    """构建缺陷识别视觉 prompt。"""
+    cat_names = "、".join(
+        next((c["name"] for c in DEFECT_CATEGORIES if c["code"] == code), code)
+        for code in check_categories
+    )
+    loc_part = f"照片位置：{location}；照片类型：{img_type}。" if (location or img_type) else ""
+    return f"""你是索克家居（i-home.life）AI 质检视觉模型。请仔细分析这张施工现场照片，检测以下类别的工艺缺陷：{cat_names}。
+
+{loc_part}
+请以 JSON 格式返回检测结果，仅返回 JSON：
+```json
+{{
+  "defects": [
+    {{
+      "category": "缺陷类别代码（hollow/crack/leak/color_diff/flatness/gap/installation/other）",
+      "description": "缺陷描述（简要中文）",
+      "confidence": 0.0-1.0,
+      "location_hint": "照片中的大致位置描述",
+      "suggestion": "整改建议（中文）"
+    }}
+  ]
+}}
+```
+注意：未检出缺陷时返回 {{"defects": []}}。只返回 JSON，不要包含其他文字。"""
+
+
+def _build_compare_vision_prompt(img: dict, specs: dict, expected_dims: dict) -> str:
+    """构建照片与设计图纸比对视觉 prompt。"""
+    loc = img.get("location", "")
+    spec_lines = "\n".join(f"- {k}: {v}" for k, v in (specs or {}).items()) or "- 无"
+    dim_lines = "\n".join(f"- {k}: {v}" for k, v in (expected_dims or {}).items()) or "- 无"
+    return f"""你是索克家居（i-home.life）AI 质检视觉模型。请将这张施工现场照片与设计图纸规格进行比对（位置：{loc}）。
+
+设计规格：
+{spec_lines}
+
+尺寸公差要求：
+{dim_lines}
+
+请以 JSON 格式返回比对结果，仅返回 JSON：
+```json
+{{
+  "image_analysis": {{"matches_design": true, "confidence": 0.0-1.0, "notes": "简要说明"}},
+  "spec_comparisons": [
+    {{"spec_item": "规格项名称", "design_value": "设计值", "actual_value": "照片实测值/描述", "consistent": true}}
+  ],
+  "dimension_deviations": [
+    {{"dimension": "尺寸项", "standard": "标准", "measured_value": 0.0, "deviation": 0.0, "pass": true}}
+  ]
+}}
+```
+只返回 JSON，不要包含其他文字。"""
 
 
 class QAInspectorAgent(BaseAgent):
@@ -293,6 +440,9 @@ class QAInspectorAgent(BaseAgent):
     def compare_with_design(self, inspection_data: dict) -> dict:
         """照片与设计图纸比对
 
+        F38: settings.real_cv_quality_enabled=True 且视觉模型可用时走真实 CV
+        （多模态视觉 LLM）；否则保持 hash mock 路径并带 cv_mode="mock" 诚实标注。
+
         inspection_data 结构：
         {
             "project_id": "P001",
@@ -304,6 +454,18 @@ class QAInspectorAgent(BaseAgent):
             "expected_dimensions": {"tile_gap": "2mm", "flatness": "≤3mm", "wall_straightness": "≤2mm"}
         }
         """
+        if settings.real_cv_quality_enabled:
+            try:
+                return self._compare_with_design_real_cv(inspection_data)
+            except Exception as e:
+                logger.error("compare_with_design real_cv 失败，降级 mock: %s", e)
+                result = self._compare_with_design_mock(inspection_data)
+                result["note"] = f"真实 CV 调用失败，已降级为 mock 模拟: {e}"
+                return result
+        return self._compare_with_design_mock(inspection_data)
+
+    def _compare_with_design_mock(self, inspection_data: dict) -> dict:
+        """照片与设计图纸比对（hash mock CV，非真实图像识别）"""
         project_id = inspection_data.get("project_id", "")
         phase = inspection_data.get("phase", "")
         images = inspection_data.get("images", [])
@@ -364,17 +526,7 @@ class QAInspectorAgent(BaseAgent):
 
         total_checks = len(comparisons) + len(image_analyses)
         consistency_rate = round(matched / max(total_checks, 1) * 100, 2)
-
-        if consistency_rate >= 90:
-            verdict = "consistent"
-            verdict_text = "与设计一致"
-        elif consistency_rate >= 75:
-            verdict = "minor_deviation"
-            verdict_text = "轻微偏差（建议调整）"
-        else:
-            verdict = "major_deviation"
-            verdict_text = "重大偏差（需返工）"
-
+        verdict, verdict_text = self._judge_design_consistency(consistency_rate)
         failed_deviations = [d for d in deviations if not d["pass"]]
 
         return {
@@ -398,6 +550,8 @@ class QAInspectorAgent(BaseAgent):
             "source": "mock",
             "engine": "mock_cv_engine",
             "is_placeholder": True,
+            "cv_mode": "mock",
+            "note": "真实 CV 需配置视觉模型 API",
             "reply": (
                 f"设计图纸比对完成：{phase} 阶段，"
                 f"共 {total_checks} 项检查，一致 {matched} 项，"
@@ -405,8 +559,133 @@ class QAInspectorAgent(BaseAgent):
             ),
         }
 
+    def _compare_with_design_real_cv(self, inspection_data: dict) -> dict:
+        """照片与设计图纸比对（真实 CV：多模态视觉 LLM 逐张分析照片）"""
+        project_id = inspection_data.get("project_id", "")
+        phase = inspection_data.get("phase", "")
+        images = inspection_data.get("images", [])
+        design_ref = inspection_data.get("design_reference", {}) or {}
+        expected_dims = inspection_data.get("expected_dimensions", {}) or {}
+        specs = design_ref.get("specs", {}) if isinstance(design_ref, dict) else {}
+
+        comparisons = []
+        deviations = []
+        image_analyses = []
+        matched = 0
+
+        for img in images:
+            prompt = _build_compare_vision_prompt(img, specs, expected_dims)
+            image_bytes, mime = _fetch_image_bytes(img.get("url", ""))
+            raw = _call_vision_llm(prompt, image_bytes, mime)
+            parsed = _parse_vision_json(raw)
+
+            for sc in parsed.get("spec_comparisons", []):
+                if not isinstance(sc, dict):
+                    continue
+                item = str(sc.get("spec_item", "")).strip()
+                if not item:
+                    continue
+                consistent = bool(sc.get("consistent", True))
+                comparisons.append({
+                    "spec_item": item,
+                    "design_value": str(sc.get("design_value", specs.get(item, ""))),
+                    "actual_value": str(sc.get("actual_value", "")),
+                    "consistent": consistent,
+                })
+                if consistent:
+                    matched += 1
+
+            for dd in parsed.get("dimension_deviations", []):
+                if not isinstance(dd, dict):
+                    continue
+                dim = str(dd.get("dimension", "")).strip()
+                if not dim:
+                    continue
+                try:
+                    measured = float(dd.get("measured_value", 0.0))
+                    dev = float(dd.get("deviation", 0.0))
+                except (TypeError, ValueError):
+                    measured = 0.0
+                    dev = 0.0
+                deviations.append({
+                    "dimension": dim,
+                    "standard": str(dd.get("standard", expected_dims.get(dim, ""))),
+                    "measured_value": measured,
+                    "deviation": dev,
+                    "pass": bool(dd.get("pass", True)),
+                })
+                if dd.get("pass", True):
+                    matched += 1
+
+            ia = parsed.get("image_analysis")
+            ia = ia if isinstance(ia, dict) else {}
+            is_match = bool(ia.get("matches_design", True))
+            try:
+                confidence = float(ia.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            image_analyses.append({
+                "url": img.get("url", ""),
+                "type": img.get("type", ""),
+                "location": img.get("location", ""),
+                "captured_at": img.get("captured_at", ""),
+                "matches_design": is_match,
+                "confidence": round(min(max(confidence, 0.0), 1.0), 2),
+                "notes": str(ia.get("notes", "与设计图纸一致" if is_match else "与设计图纸存在偏差，需复核")),
+            })
+            if is_match:
+                matched += 1
+
+        total_checks = len(comparisons) + len(image_analyses)
+        consistency_rate = round(matched / max(total_checks, 1) * 100, 2)
+        verdict, verdict_text = self._judge_design_consistency(consistency_rate)
+        failed_deviations = [d for d in deviations if not d["pass"]]
+
+        return {
+            "project_id": project_id,
+            "phase": phase,
+            "image_count": len(images),
+            "spec_comparisons": comparisons,
+            "dimension_deviations": deviations,
+            "image_analyses": image_analyses,
+            "matched_count": matched,
+            "total_checks": total_checks,
+            "consistency_rate": consistency_rate,
+            "verdict": verdict,
+            "verdict_text": verdict_text,
+            "failed_deviations": failed_deviations,
+            "repair_suggestions": [
+                f"尺寸偏差项「{d['dimension']}」：测量值 {d['measured_value']}，标准 {d['standard']}"
+                for d in failed_deviations
+            ],
+            # 真实 CV 标注：多模态视觉 LLM 输出
+            "source": "vision_llm",
+            "engine": "vision_llm",
+            "is_placeholder": False,
+            "cv_mode": "real_vision_llm",
+            "note": f"由多模态视觉模型比对 {len(images)} 张照片与设计图纸生成",
+            "reply": (
+                f"设计图纸比对完成：{phase} 阶段，"
+                f"共 {total_checks} 项检查，一致 {matched} 项，"
+                f"一致率 {consistency_rate}%，结论：{verdict_text}"
+            ),
+        }
+
+    @staticmethod
+    def _judge_design_consistency(consistency_rate: float) -> tuple[str, str]:
+        """按一致率判定比对结论（mock 与真实 CV 共用）"""
+        if consistency_rate >= 90:
+            return "consistent", "与设计一致"
+        if consistency_rate >= 75:
+            return "minor_deviation", "轻微偏差（建议调整）"
+        return "major_deviation", "重大偏差（需返工）"
+
     def detect_defects(self, image_data: dict) -> dict:
-        """工艺缺陷识别（mock CV 检测）
+        """工艺缺陷识别
+
+        F38: settings.real_cv_quality_enabled=True 且视觉模型可用时走真实 CV
+        （多模态视觉 LLM，输出结构化缺陷列表：类型/位置/置信度/建议）；
+        否则保持 hash mock 路径并带 cv_mode="mock" 诚实标注。
 
         image_data 结构：
         {
@@ -418,6 +697,18 @@ class QAInspectorAgent(BaseAgent):
             "check_categories": ["hollow", "crack", "flatness"]
         }
         """
+        if settings.real_cv_quality_enabled:
+            try:
+                return self._detect_defects_real_cv(image_data)
+            except Exception as e:
+                logger.error("detect_defects real_cv 失败，降级 mock: %s", e)
+                result = self._detect_defects_mock(image_data)
+                result["note"] = f"真实 CV 调用失败，已降级为 mock 模拟: {e}"
+                return result
+        return self._detect_defects_mock(image_data)
+
+    def _detect_defects_mock(self, image_data: dict) -> dict:
+        """工艺缺陷识别（hash mock CV，非真实图像识别）"""
         project_id = image_data.get("project_id", "")
         phase = image_data.get("phase", "")
         images = image_data.get("images", [])
@@ -459,6 +750,95 @@ class QAInspectorAgent(BaseAgent):
                         "rectification": cat_def["rectification"],
                     })
 
+        return self._finalize_defect_result(
+            project_id=project_id,
+            phase=phase,
+            image_count=len(images),
+            checked_items=checked_items,
+            detected_defects=detected_defects,
+            source="mock",
+            engine="mock_cv_engine",
+            cv_mode="mock",
+            is_placeholder=True,
+            note="真实 CV 需配置视觉模型 API",
+        )
+
+    def _detect_defects_real_cv(self, image_data: dict) -> dict:
+        """工艺缺陷识别（真实 CV：多模态视觉 LLM 逐张分析照片）"""
+        project_id = image_data.get("project_id", "")
+        phase = image_data.get("phase", "")
+        images = image_data.get("images", [])
+        check_categories = image_data.get("check_categories", [c["code"] for c in DEFECT_CATEGORIES])
+        check_categories = [c for c in check_categories if any(d["code"] == c for d in DEFECT_CATEGORIES)]
+
+        detected_defects = []
+        for img in images:
+            prompt = _build_defect_vision_prompt(img.get("location", ""), img.get("type", ""), check_categories)
+            image_bytes, mime = _fetch_image_bytes(img.get("url", ""))
+            raw = _call_vision_llm(prompt, image_bytes, mime)
+            parsed = _parse_vision_json(raw)
+            for d in parsed.get("defects", []):
+                defect = self._normalize_defect(img, d)
+                if defect:
+                    detected_defects.append(defect)
+
+        checked_items = len(images) * len(check_categories)
+        return self._finalize_defect_result(
+            project_id=project_id,
+            phase=phase,
+            image_count=len(images),
+            checked_items=checked_items,
+            detected_defects=detected_defects,
+            source="vision_llm",
+            engine="vision_llm",
+            cv_mode="real_vision_llm",
+            is_placeholder=False,
+            note=f"由多模态视觉模型分析 {len(images)} 张现场照片生成",
+        )
+
+    @staticmethod
+    def _normalize_defect(img: dict, d: dict) -> dict | None:
+        """将视觉模型输出的缺陷条目归一化为标准缺陷结构（类型/位置/置信度/建议）"""
+        if not isinstance(d, dict):
+            return None
+        category = str(d.get("category", "")).strip()
+        cat_def = next(
+            (c for c in DEFECT_CATEGORIES if c["code"] == category or c["name"] == category),
+            None,
+        ) or DEFECT_CATEGORIES[-1]
+        try:
+            confidence = float(d.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        location = str(d.get("location_hint") or img.get("location") or "").strip()
+        return {
+            "image_url": img.get("url", ""),
+            "image_type": img.get("type", ""),
+            "location": location,
+            "category": cat_def["code"],
+            "category_name": cat_def["name"],
+            "severity": cat_def["severity"],
+            "description": str(d.get("description") or cat_def["description"]),
+            "confidence": round(min(max(confidence, 0.0), 1.0), 2),
+            "bbox": d.get("bbox") if isinstance(d.get("bbox"), dict) else None,
+            "rectification": str(d.get("suggestion") or cat_def["rectification"]),
+        }
+
+    def _finalize_defect_result(
+        self,
+        *,
+        project_id: str,
+        phase: str,
+        image_count: int,
+        checked_items: int,
+        detected_defects: list[dict],
+        source: str,
+        engine: str,
+        cv_mode: str,
+        is_placeholder: bool,
+        note: str,
+    ) -> dict:
+        """构建缺陷识别结果（统计/结论/标注，mock 与真实 CV 共用）"""
         # 缺陷统计
         severity_count = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         for defect in detected_defects:
@@ -487,7 +867,7 @@ class QAInspectorAgent(BaseAgent):
         return {
             "project_id": project_id,
             "phase": phase,
-            "image_count": len(images),
+            "image_count": image_count,
             "checked_items": checked_items,
             "detected_defects": detected_defects,
             "defect_count": len(detected_defects),
@@ -499,10 +879,12 @@ class QAInspectorAgent(BaseAgent):
                 f"「{d['category_name']}」缺陷（{d['location']}）：{d['rectification']}"
                 for d in detected_defects
             ],
-            # 诚实降级标注：mock CV 检测，非真实图像识别
-            "source": "mock",
-            "engine": "mock_cv_engine",
-            "is_placeholder": True,
+            # 诚实标注：source/engine/is_placeholder/cv_mode 明示数据来源
+            "source": source,
+            "engine": engine,
+            "is_placeholder": is_placeholder,
+            "cv_mode": cv_mode,
+            "note": note,
             "reply": (
                 f"工艺缺陷识别完成：{phase} 阶段，"
                 f"共检测 {checked_items} 项，检出缺陷 {len(detected_defects)} 项"

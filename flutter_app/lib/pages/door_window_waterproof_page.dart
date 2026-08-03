@@ -378,7 +378,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
             child: Text('取消', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: SuokeDesignTokens.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('删除'),
           ),

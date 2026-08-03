@@ -145,9 +145,6 @@ async def test_construction_drawing_endpoint_unauth(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_takeoff_project_no_floorplan(client: AsyncClient):
     """P2: 项目无 floorplan 时返回 404 + 提示"""
-    from app.models.user import User
-    from app.models.project import Project
-    import uuid
 
     # 直接用 db_session 建项目（避免注册流程）
     token = await _register(client, "13900007804")

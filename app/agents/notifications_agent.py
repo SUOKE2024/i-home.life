@@ -4,6 +4,7 @@ from app.agents.base import BaseAgent
 
 class NotificationsAgent(BaseAgent):
     agent_name = "notifications"
+    cost_tier = "economy"  # 通知低价值意图：优先低成本供应商
 
     @property
     def system_prompt(self) -> str:

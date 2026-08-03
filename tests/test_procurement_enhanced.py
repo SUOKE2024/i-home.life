@@ -196,6 +196,46 @@ async def test_ai_match_suppliers(client: AsyncClient):
     assert top["score"] > 0
     assert data["recommended_supplier_id"] == top["supplier_id"]
     assert data["reason"]
+    # 诚实标注：每个候选报价都带 source=mock
+    for sup in data["matched_suppliers"]:
+        assert sup.get("source") == "mock"
+
+
+@pytest.mark.asyncio
+async def test_ai_match_suppliers_quote_source_note(client: AsyncClient, db_session):
+    """服务层：ai_match_suppliers 顶层响应带 quote_source_note 诚实标注"""
+    from app.models.material import MaterialCategory, Material, BOMItem
+    from app.models.procurement import Supplier
+    from app.services.procurement_enhanced_service import ai_match_suppliers
+
+    token, headers = await _register_and_login(client, "13900009060")
+    project_id = await _create_project(client, headers, "服务层标注测试")
+
+    cat = MaterialCategory(name="服务层标注分类", code="svc_annotate")
+    db_session.add(cat)
+    await db_session.commit()
+    await db_session.refresh(cat)
+
+    material = Material(category_id=cat.id, name="服务层标注物料", sku="PE-SVC-001", unit="㎡", unit_price=200.0)
+    db_session.add(material)
+    await db_session.commit()
+    await db_session.refresh(material)
+
+    supplier = Supplier(name="服务层标注供应商", category="svc_annotate", rating=4.5, is_active=True)
+    db_session.add(supplier)
+    await db_session.commit()
+    await db_session.refresh(supplier)
+
+    bom_item = BOMItem(project_id=project_id, material_id=material.id, quantity=10.0, unit_price=200.0)
+    db_session.add(bom_item)
+    await db_session.commit()
+    await db_session.refresh(bom_item)
+
+    result = await ai_match_suppliers(db_session, bom_item, location="上海")
+    assert result["quote_source_note"] == "模拟市场报价（真实供应商询价需配置采购 API）"
+    assert result["matched_suppliers"]
+    for quote in result["matched_suppliers"]:
+        assert quote.get("source") == "mock"
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,15 @@ class ConstructionCrew(Base):
     # 业务范围（JSON 数组：["mep","masonry","carpentry","painting","installation"]）
     specialties: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # F36 入驻审核材料（提交审核时必填）
+    license_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 营业执照号
+    license_type: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 执照类型
+    insurance_no: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 保险单号
+    # 入驻审核状态：pending（待审核）/ approved（通过）/ rejected（驳回，可重新提交）
+    review_status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # 审核备注
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # 评分（0-5）
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=4.0)
     completed_projects: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

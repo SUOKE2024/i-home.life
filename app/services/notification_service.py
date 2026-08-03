@@ -75,7 +75,7 @@ async def get_user_tokens(
         select(DeviceToken)
         .where(
             DeviceToken.user_id == user_id,
-            DeviceToken.is_active == True,
+            DeviceToken.is_active.is_(True),
         )
     )
     return list(result.scalars().all())

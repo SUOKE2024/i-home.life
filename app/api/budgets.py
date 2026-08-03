@@ -61,6 +61,25 @@ async def get_project_budget(
     return BudgetResponse.model_validate(budget)
 
 
+@router.get(
+    "/{project_id}/linked-purchases",
+    summary="采购订单与预算科目联动记录",
+    description="F12：返回该预算下已联动（下单自动扣减）的采购订单清单，含订单金额、状态、供应商与对应预算科目。",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+    },
+)
+async def get_linked_purchases(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    return await budget_service.get_linked_purchases(db, project_id)
+
+
 @router.post(
     "",
     response_model=BudgetResponse,
@@ -250,4 +269,4 @@ async def apply_budget_template(
     current_user: User = Depends(get_current_user),
 ):
     agent = BudgetAgent()
-    return agent.apply_template(data.template_code, data.area)
+    return await agent.apply_template(data.template_code, data.area)

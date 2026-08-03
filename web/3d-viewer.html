@@ -25,20 +25,20 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
-:root{--bg:#1a1a2e;--panel:#16213e;--accent:#c9973b;--text:#e0e0e0;--muted:#888;--border:#2a2a4a}
+:root{--bg:#12121d;--panel:#1a1a2a;--accent:#c9973b;--text:#e8e6e1;--muted:#6b6978;--border:#1e1e32}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
 #app{display:flex;height:100vh}
-#sidebar{width:260px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;border-right:1px solid #2a2a4a}
-.sidebar-header{padding:18px;border-bottom:1px solid #2a2a4a}
+#sidebar{width:260px;background:var(--panel);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border)}
+.sidebar-header{padding:18px;border-bottom:1px solid var(--border)}
 .sidebar-header h1{font-size:1.2rem;color:var(--accent)}
-.sidebar-header .sub{font-size:0.65rem;color:#888;letter-spacing:0.1em}
-.control-section{padding:14px 16px;border-bottom:1px solid #2a2a4a}
-.control-section h3{font-size:0.65rem;color:#888;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px}
+.sidebar-header .sub{font-size:0.65rem;color:var(--muted);letter-spacing:0.1em}
+.control-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.control-section h3{font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px}
 .control-section label{display:block;font-size:0.7rem;color:#aaa;margin-bottom:4px}
 .control-section input[type=range]{width:100%;margin-bottom:8px;accent-color:var(--accent)}
 .preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.preset-btn{padding:10px 6px;border:1px solid #2a2a4a;border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.65rem;text-align:center;font-family:inherit;transition:all 0.15s}
+.preset-btn{padding:10px 6px;border:1px solid var(--border);border-radius:6px;background:transparent;color:#ccc;cursor:pointer;font-size:0.65rem;text-align:center;font-family:inherit;transition:all 0.15s}
 .preset-btn:hover{border-color:var(--accent);background:rgba(201,151,59,0.1)}
 .preset-btn.active{border-color:var(--accent);background:rgba(201,151,59,0.2);color:var(--accent)}
 #main-content{flex:1}

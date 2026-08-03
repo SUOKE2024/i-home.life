@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,6 +72,29 @@ class AgentMessage(BaseModel):
         default_factory=list, max_length=20,
         description="最近 N 轮对话历史，每项含 role/content/agent_type",
     )
+    # v1.8.x LBS 闭环：客户端实时 GPS 经纬度（格式 "lng,lat"），
+    # 注入空间感知（逆地理编码城市落库长期记忆 + 周边真实 POI）
+    location: str | None = Field(
+        default=None,
+        description="实时位置经纬度 \"lng,lat\"（如 116.481028,39.989643），由客户端 GPS 提供",
+    )
+
+    @field_validator("location")
+    @classmethod
+    def _validate_location(cls, v: str | None) -> str | None:
+        """校验并归一化 location 格式（lng,lat，经纬度合法范围）"""
+        if v is None:
+            return v
+        parts = v.split(",")
+        if len(parts) != 2:
+            raise ValueError('location 格式应为 "lng,lat"')
+        try:
+            lng, lat = float(parts[0]), float(parts[1])
+        except ValueError:
+            raise ValueError("location 经纬度必须为数字")
+        if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+            raise ValueError("location 经纬度超出合法范围")
+        return f"{lng:.6f},{lat:.6f}"
 
 
 class DesignRequest(BaseModel):
@@ -400,8 +423,27 @@ async def chat_with_agent(  # noqa: C901
         db, session, "user", data.message,
     )
 
+    # 跨会话长期记忆：自动提取（城市/偏好句式）
+    if settings.agent_memory_extract_enabled:
+        try:
+            from app.services.agent_memory_service import extract_and_store_memories
+            # v1.4.x：chat 在项目上下文时，记忆提取归属 project scope（借鉴 YC QM）
+            mem_scope = "project" if data.project_id else "personal"
+            await extract_and_store_memories(
+                db, current_user.id, data.message, source="chat",
+                scope=mem_scope, project_id=data.project_id,
+            )
+        except Exception:
+            import structlog
+            structlog.get_logger("agent").debug("memory_extract_failed", exc_info=True)
+
     # 响应包装器：持久化 assistant 消息并附加 session_id
-    async def _finalize(agent_type_str: str, reply_text: str, suggestions_list: list[str] | None = None, raw_output: str | None = None):
+    async def _finalize(
+        agent_type_str: str,
+        reply_text: str,
+        suggestions_list: list[str] | None = None,
+        raw_output: str | None = None,
+    ):
         await agent_session_service.persist_message(
             db, session, "assistant", reply_text, agent_type=agent_type_str,
         )
@@ -423,6 +465,14 @@ async def chat_with_agent(  # noqa: C901
         else:
             classification = await agent.classify_intent(data.message)
             intent = classification.get("intent", "general")
+
+        # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
+        try:
+            from app.metrics import intent_cost_tier_total
+            tier = "economy" if intent in settings.economy_intent_list else "standard"
+            intent_cost_tier_total.labels(intent=intent, tier=tier).inc()
+        except Exception:
+            pass
 
         # L4 自适应学习：注入用户历史正向反馈作为 few-shot 示例提示
         if settings.agent_learning_enabled:
@@ -451,6 +501,20 @@ async def chat_with_agent(  # noqa: C901
             )
             if preference_hint:
                 user_ctx = f"{preference_hint}\n{user_ctx}"
+
+        # 时间/空间感知 + 长期记忆注入（跨会话智能）
+        try:
+            from app.services.agent_context_service import build_agent_context
+            # v1.4.x：chat 在项目上下文时，注入 project scope 记忆（借鉴 YC QM）
+            # v1.8.x：location（GPS）注入空间感知 + 周边真实 POI（LBS 闭环）
+            agent_ctx = await build_agent_context(
+                db, current_user.id, project_id=data.project_id, location=data.location,
+            )
+            if agent_ctx:
+                user_ctx = f"{agent_ctx}\n{user_ctx}"
+        except Exception:
+            import structlog
+            structlog.get_logger("agent").debug("agent_context_build_failed", exc_info=True)
 
         # Route to specialized agent based on intent
         suggestions_map = {
@@ -955,6 +1019,34 @@ async def chat_stream(  # noqa: C901
         db, stream_session, "user", data.message,
     )
 
+    # 跨会话长期记忆：自动提取（城市/偏好句式）
+    if settings.agent_memory_extract_enabled:
+        try:
+            from app.services.agent_memory_service import extract_and_store_memories
+            # v1.4.x：stream chat 在项目上下文时，记忆提取归属 project scope（借鉴 YC QM）
+            mem_scope = "project" if data.project_id else "personal"
+            await extract_and_store_memories(
+                db, current_user.id, data.message, source="chat",
+                scope=mem_scope, project_id=data.project_id,
+            )
+        except Exception:
+            import structlog
+            structlog.get_logger("agent").debug("memory_extract_failed_stream", exc_info=True)
+
+    # 时间/空间感知 + 长期记忆注入（跨会话智能）
+    try:
+        from app.services.agent_context_service import build_agent_context
+        # v1.4.x：stream 端点项目上下文时注入 project scope 记忆（借鉴 YC QM）
+        # v1.8.x：location（GPS）注入空间感知 + 周边真实 POI（LBS 闭环）
+        agent_ctx = await build_agent_context(
+            db, current_user.id, project_id=data.project_id, location=data.location,
+        )
+        if agent_ctx:
+            user_ctx = f"{agent_ctx}\n{user_ctx}"
+    except Exception:
+        import structlog
+        structlog.get_logger("agent").debug("agent_context_build_failed_stream", exc_info=True)
+
     # Hybrid routing
     agent = OrchestratorAgent()
     classification = None  # v1.1.29: always defined for closure safety
@@ -966,6 +1058,14 @@ async def chat_stream(  # noqa: C901
         else:
             classification = await agent.classify_intent(data.message)
             intent = classification.get("intent", "general")
+
+        # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
+        try:
+            from app.metrics import intent_cost_tier_total
+            tier = "economy" if intent in settings.economy_intent_list else "standard"
+            intent_cost_tier_total.labels(intent=intent, tier=tier).inc()
+        except Exception:
+            pass
 
         # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送
         stream_agent = None
@@ -1199,18 +1299,38 @@ async def chat_stream(  # noqa: C901
             # ── v1.1.29: 发送思考步骤事件 ──
             # Step 1: 意图分类/路由完成
             if explicit_intent:
-                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'直接路由至 {intent} Agent', 'agent_type': 'orchestrator'})}\n\n"
+                payload = {
+                    'event': 'thinking_step',
+                    'content': f'直接路由至 {intent} Agent',
+                    'agent_type': 'orchestrator',
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
             elif classification:
                 reason = classification.get("reasoning", f"路由至 {intent}")
-                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'分析用户意图：{reason[:120]}', 'agent_type': 'orchestrator'})}\n\n"
+                payload = {
+                    'event': 'thinking_step',
+                    'content': f'分析用户意图：{reason[:120]}',
+                    'agent_type': 'orchestrator',
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
                 await asyncio.sleep(0.05)
 
             # Step 2: Agent 调度
             agent_name = _intent_to_agent_type.get(intent, intent)
             if stream_agent is not None:
-                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'调度 {agent_name} Agent 生成回复', 'agent_type': agent_name})}\n\n"
+                payload = {
+                    'event': 'thinking_step',
+                    'content': f'调度 {agent_name} Agent 生成回复',
+                    'agent_type': agent_name,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
             else:
-                yield f"data: {json.dumps({'event': 'thinking_step', 'content': f'{agent_name} Agent 准备回复', 'agent_type': agent_name})}\n\n"
+                payload = {
+                    'event': 'thinking_step',
+                    'content': f'{agent_name} Agent 准备回复',
+                    'agent_type': agent_name,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
             await asyncio.sleep(0.05)
             agent_type_meta = _intent_to_agent_type.get(intent, intent)
             # v1.1.26: ar_measurement 返回 ar_scan_trigger 卡片类型
@@ -1254,7 +1374,12 @@ async def chat_stream(  # noqa: C901
                         "chat_stream_agent_error: intent=%s error=%s", intent, exc,
                     )
                     error_msg = (str(exc)[:120]) or "Agent 生成回复时发生异常"
-                    yield f"data: {json.dumps({'event': 'error', 'content': f'Agent 生成回复失败: {error_msg}', 'agent_type': agent_type_meta})}\n\n"
+                    payload = {
+                        'event': 'error',
+                        'content': f'Agent 生成回复失败: {error_msg}',
+                        'agent_type': agent_type_meta,
+                    }
+                    yield f"data: {json.dumps(payload)}\n\n"
                 finally:
                     await stream_agent.close()
             else:

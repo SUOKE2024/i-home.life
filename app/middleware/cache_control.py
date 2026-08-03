@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Awaitable, Callable
 
 from fastapi import Request, Response
 
@@ -45,7 +45,7 @@ _CACHEABLE_PREFIXES: frozenset[str] = frozenset({
 })
 
 
-async def cache_control_middleware(request: Request, call_next: Callable) -> Response:
+async def cache_control_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """API 响应缓存控制中间件。
 
     为幂等 GET 请求设置适度的 Cache-Control，减少不必要的重复请求。

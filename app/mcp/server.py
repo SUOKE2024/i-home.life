@@ -20,7 +20,7 @@ import hashlib
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 from app.config import get_settings
 from app.services.agent_tool_registry import tool_registry
@@ -42,7 +42,7 @@ class MCPServer:
 
     # ── 服务器元信息常量 ──
     SERVER_NAME = "i-home.life MCP Server"
-    SERVER_VERSION = "1.3.1"
+    SERVER_VERSION = "1.8.0"
     # MCP 2026-07-28 stateless 核心
     PROTOCOL_VERSION = "2026-07-28"
     # v1.3.0: list 结果缓存 TTL（秒），客户端可据此缓存工具目录
@@ -324,7 +324,8 @@ class MCPServer:
             tasks_ext = self.get_extension("tasks")
             if tasks_ext is None:
                 return None, self.make_error(-32601, f"Tasks 扩展未启用: {method}")
-            return await tasks_ext.dispatch(method, params)
+            result = await tasks_ext.dispatch(method, params)
+            return cast(tuple[dict | None, dict | None], result)
 
         return None, self.make_error(-32601, f"方法不存在: {method}")
 

@@ -19,7 +19,6 @@ from app.schemas.material import (
     BOMItemCreate,
     BOMItemResponse,
     BOMSummaryResponse,
-    BOMGenerateResponse,
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access
@@ -139,13 +138,18 @@ async def add_bom_item(
     return resp
 
 
-@router.post("/bom/generate/{project_id}", response_model=BOMGenerateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/bom/generate/{project_id}", status_code=status.HTTP_201_CREATED)
 async def generate_bom(
     project_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """F6 BOM 自动生成 — 基于项目房间面积/类型按标准用量生成"""
+    """F6 BOM 自动生成 — 几何算量优先，回退面积×标准用量经验法
+
+    数据来源诚实标注：每个 BOM 项带 quantity_source
+    （geometric_takeoff / empirical）；几何算量失败/无 floorplan 时
+    回退经验法并附 fallback_note。
+    """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
     if not project:
@@ -169,14 +173,25 @@ async def generate_bom(
         )
 
     total_price = round(sum(item.total_price for item in items), 2)
-    resp = BOMGenerateResponse(
-        project_id=project_id,
-        generated_count=len(items),
-        total_price=total_price,
-        items=[BOMItemResponse.model_validate(item) for item in items],
-    )
+    # 数据来源标注（F6）：几何算量优先，其余经验法
+    any_geometric = any(item.quantity_source == "geometric_takeoff" for item in items)
+    fallback_note = next((i.fallback_note for i in items if i.fallback_note), None)
+    items_payload = []
+    for item in items:
+        payload = BOMItemResponse.model_validate(item).model_dump()
+        payload["quantity_source"] = item.quantity_source
+        payload["fallback_note"] = item.fallback_note
+        items_payload.append(payload)
+    resp = {
+        "project_id": project_id,
+        "generated_count": len(items),
+        "total_price": total_price,
+        "quantity_source": "geometric_takeoff" if any_geometric else "empirical",
+        "fallback_note": fallback_note,
+        "items": items_payload,
+    }
     await ws_manager.broadcast_to_project(
-        project_id, "bom.generated", resp.model_dump()
+        project_id, "bom.generated", resp
     )
     return resp
 
@@ -217,6 +232,64 @@ async def get_bom_summary(
             detail="该项目暂无 BOM 数据",
         )
     return BOMSummaryResponse(**summary)
+
+
+@router.get("/bom/{project_id}/versions")
+async def get_bom_versions(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """F7 BOM 版本列表：各版本条目数、总价与当前工作集版本"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    return await material_service.get_bom_versions(db, project_id)
+
+
+@router.post("/bom/{project_id}/version")
+async def snapshot_bom_version(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """F7 手动打版本快照：将当前 BOM 工作集复制为新版本（version+1）"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    try:
+        return await material_service.snapshot_bom_version(db, project_id)
+    except ValueError as e:
+        if str(e) == "PROJECT_HAS_NO_BOM":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="该项目暂无 BOM 数据，无法打版本快照",
+            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/bom/{project_id}/diff")
+async def diff_bom_versions(
+    project_id: str,
+    from_version: int = Query(..., alias="from", description="对比起始版本"),
+    to_version: int = Query(..., alias="to", description="对比目标版本"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """F7 BOM 版本差异标注：新增 / 删除 / 数量与价格变化项"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    return await material_service.diff_bom_versions(db, project_id, from_version, to_version)
 
 
 @router.get("/bom/{project_id}/export")

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.3.1"
+    app_version: str = "1.6.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -200,6 +200,14 @@ class Settings(BaseSettings):
     agent_learning_enabled: bool = True
     agent_learning_max_examples: int = 3  # 单次注入的最大 few-shot 示例数
 
+    # ── Agent 长期记忆 + 时间/空间感知（跨会话智能）──
+    # 启用后 chat 端点注入用户长期记忆（agent_memories 表）与当前时间/位置上下文
+    agent_memory_enabled: bool = True           # 长期记忆读写与注入总开关
+    agent_memory_max_items: int = 10            # 单次注入的最大记忆条目数
+    agent_memory_extract_enabled: bool = True   # 对话自动提取记忆
+    agent_time_awareness_enabled: bool = True   # 时间感知：注入北京时间上下文
+    agent_location_awareness_enabled: bool = True  # 空间感知：注入用户城市上下文
+
     # ── 3D 渲染引擎（PRD §7.1）──
     # 启用后前端按需加载 Filament WASM，可与 Three.js 切换
     filament_enabled: bool = True
@@ -308,6 +316,25 @@ class Settings(BaseSettings):
     # 启用后 _chat 失败按 chain 降级：deepseek → qwen → glm → doubao
     llm_fallback_enabled: bool = True
 
+    # ── 意图成本路由（借鉴端侧/本地模型分层 + EY token strategy）──
+    # 启用后 cost_tier="economy" 的 Agent 优先走低成本供应商，
+    # 将低价值意图（客服/通知/积分/文件/身份/通用）的解析成本压低。
+    cost_tiered_routing_enabled: bool = False
+    # 低成本供应商（逗号分隔，按优先级排列，须在 PROVIDER_REGISTRY 中）
+    economy_providers: str = "qwen,glm"
+    # 经济档意图（低价值任务，优先使用低成本档位）
+    economy_intents: str = "concierge,notifications,points,files,identity,general,support"
+
+    @property
+    def economy_provider_list(self) -> list[str]:
+        """解析 economy_providers 为列表。"""
+        return [p.strip() for p in self.economy_providers.split(",") if p.strip()]
+
+    @property
+    def economy_intent_list(self) -> list[str]:
+        """解析 economy_intents 为列表。"""
+        return [i.strip() for i in self.economy_intents.split(",") if i.strip()]
+
     # Qwen (阿里云百炼 / DashScope) — fallback chain 第二档
     qwen_api_key: str = ""
     qwen_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -317,6 +344,19 @@ class Settings(BaseSettings):
     doubao_api_key: str = ""
     doubao_api_base: str = "https://ark.cn-beijing.volces.com/api/v3"
     doubao_model: str = "doubao-seed-1-6-250615"
+
+    # ── 施工边缘盒子本地推理端点（v1.4.x，借鉴 OWLFY 端侧零 TOKEN）──
+    # 可选：在工地/内网边缘盒子上跑 Ollama/LocalAI 等 OpenAI 兼容端点。
+    # 将 economy_providers 配为 "local,qwen,glm" 即可让低成本档优先走本地，
+    # 数据不出现场、token 成本归零。未配置 key 时自动跳过（不 mock）。
+    local_llm_api_key: str = ""            # 本地端点可留空（多数本地服务无鉴权）
+    local_llm_api_base: str = "http://localhost:11434/v1"
+    local_llm_model: str = "qwen2.5:7b"
+
+    # ── B2B 装企交付（v1.4.x，借鉴"卖结果不卖功能"交付式产品）──
+    # POST /api/b2b/delivery：输入户型/面积/风格/预算 → 整包返回
+    # 设计方案 + 报价 + 施工计划（纯编排、只读、不落库）
+    b2b_delivery_enabled: bool = True
 
     # ── DSPy prompt 优化（借鉴 dspy_optimization_service）──
     # 启用后 DesignerAgent/BudgetAgent prompt 经 ChainOfThought 优化
@@ -448,6 +488,32 @@ class Settings(BaseSettings):
     # v1.3.0 P4: 施工图 MEP 图示占位（给排水/电气管线走向标注）
     construction_drawing_mep_enabled: bool = False
 
+    # ════════════════════════════════════════════════════════════════
+    # v1.5.0 需求补充落地（PRD v3.1 F41-F47, 2026-08-03 行业调研）
+    # 存量焕新（适老/局部焕新）+ 信任合规（资金托管/环保标签）+ AI 决策（方案前置/生态桥接/问答搜索）
+    # ════════════════════════════════════════════════════════════════
+
+    # ── F41 适老改造（适老卫浴/无障碍动线/适老智能设备）──
+    elderly_adaptation_enabled: bool = True
+
+    # ── F42 局部焕新模式（厨卫焕新/墙面刷新/单空间短周期改造）──
+    partial_renovation_enabled: bool = True
+
+    # ── F43 资金托管深化（escrow 对接银行存管/第三方监管，节点验收双向确认放款）──
+    escrow_trustee_enabled: bool = True
+
+    # ── F44 环保材料库标签（材料 SKU 增加 ENF/E0 环保等级与绿色认证筛选）──
+    eco_material_label_enabled: bool = True
+
+    # ── F45 方案前置决策（上传户型 → AI 先出 3 套方案 + 预算区间）──
+    solution_first_enabled: bool = True
+
+    # ── F46 生态桥接优先级（优先落地 1-2 个主流生态真实联动，其余 stub 诚实标注）──
+    ecosystem_bridge_priority_enabled: bool = True
+
+    # ── F47 AI 装修问答/案例搜索（AgenticRAG + 案例库，带引用来源）──
+    ai_qa_search_enabled: bool = True
+
     # ── S6: 2D CAD 参数化升级（画线即建墙，写入 floorplan.data）──
     # 启用后 cad_page DrawingElement 升级为 BIM 构件（带厚度/材质/层高）
     parametric_cad_enabled: bool = True
@@ -461,6 +527,13 @@ class Settings(BaseSettings):
     # 启用后 /api/sketch-to-3d/analyze 使用多模态视觉模型（DeepSeek/GLM/Qwen）分析手绘草图
     # 关闭时返回占位结果（confidence=0, mode="feature_disabled"）
     sketch_to_3d_vision_enabled: bool = True
+
+    # ── F38 质检缺陷识别真实 CV（多模态视觉 LLM）──
+    # 启用后 QAInspectorAgent.detect_defects / compare_with_design 调用
+    # 多模态视觉模型（DeepSeek/GLM/Qwen 优先，复用 LLM fallback 供应商）分析现场照片，
+    # 输出结构化缺陷列表（类型/位置/置信度/建议）。
+    # 默认 False：保持 hash mock 路径，响应体携带 cv_mode="mock" + note 诚实标注。
+    real_cv_quality_enabled: bool = False
 
     # ── Web 控制台 v2（React+Vite，对齐移动端 UI/UX）──
     # 启用后 Nginx /console/* 入口对外可见；前端经 /api/config/feature-flags 读取

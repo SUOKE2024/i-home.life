@@ -11,7 +11,6 @@ from typing import Any
 
 from app.services.a2ui_schema import (
     AlertSeverity,
-    AlertCardData,
     BudgetBreakdownData,
     CardType,
     ConstructionProgressData,
@@ -21,7 +20,6 @@ from app.services.a2ui_schema import (
     QAReportData,
     QACheckpointResult,
     SettlementSummaryData,
-    make_alert_card,
     make_card,
 )
 
@@ -54,6 +52,41 @@ def _safe_list(value: Any) -> list[dict[str, Any]]:
 # 专用转换器
 # ═══════════════════════════════════════════
 
+def _design_rooms_from_plans(agent_output: dict[str, Any]) -> tuple[list[dict[str, Any]], float, str]:
+    """从 DesignerAgent 的 {plans, recommendation, materials, reply} 输出派生卡片数据。
+
+    返回 (rooms, total_area, floor_layout)，取推荐方案（recommendation 匹配 plans[].name，
+    未命中则取首个方案）。房间统一为 A2UI schema 结构：
+    {"name": "客厅", "area": 28.5, "orientation": "南", "type": "living_room"}
+    """
+    plans = agent_output.get("plans")
+    if not isinstance(plans, list) or not plans:
+        return [], 0.0, ""
+
+    rec_name = _safe_str(agent_output.get("recommendation"))
+    rec = next((p for p in plans if isinstance(p, dict) and p.get("name") == rec_name), None)
+    if rec is None:
+        rec = plans[0] if isinstance(plans[0], dict) else None
+    if not isinstance(rec, dict):
+        return [], 0.0, ""
+
+    plan_rooms = rec.get("rooms")
+    rooms: list[dict[str, Any]] = []
+    if isinstance(plan_rooms, list):
+        for r in plan_rooms:
+            if not isinstance(r, dict):
+                continue
+            rooms.append({
+                "name": _safe_str(r.get("name") or r.get("type")),
+                "area": round(_safe_float(r.get("w")) * _safe_float(r.get("h")), 1),
+                "type": _safe_str(r.get("type")),
+                "orientation": _safe_str(r.get("orientation")),
+            })
+    total_area = _safe_float(rec.get("total_area"))
+    floor_layout = _safe_str(rec.get("brief"))
+    return rooms, total_area, floor_layout
+
+
 def design_to_card(agent_output: dict[str, Any]) -> dict[str, Any]:
     """将 DesignerAgent 输出转换为 design_plan 卡片
 
@@ -67,17 +100,31 @@ def design_to_card(agent_output: dict[str, Any]) -> dict[str, Any]:
         "preview_3d_url": "https://...",
         ...
     }
+
+    兼容 DesignerAgent LLM 输出 {plans, recommendation, materials, reply}（P1 修复）：
+    plans 存在且无顶层 rooms 时，从推荐方案派生 rooms/total_area/floor_layout，
+    避免 design_plan 卡片数据恒为空。
     """
+    rooms = _safe_list(agent_output.get("rooms"))
+    total_area = _safe_float(agent_output.get("total_area"))
+    floor_layout = _safe_str(agent_output.get("floor_layout"))
+
+    if not rooms and agent_output.get("plans"):
+        plan_rooms, plan_area, plan_floor = _design_rooms_from_plans(agent_output)
+        rooms = plan_rooms
+        total_area = plan_area or total_area
+        floor_layout = plan_floor or floor_layout
+
     data = DesignPlanData(
         project_name=_safe_str(agent_output.get("project_name")),
-        floor_layout=_safe_str(agent_output.get("floor_layout")),
-        total_area=_safe_float(agent_output.get("total_area")),
-        rooms=_safe_list(agent_output.get("rooms")),
+        floor_layout=floor_layout,
+        total_area=total_area,
+        rooms=rooms,
         style=_safe_str(agent_output.get("style")),
         preview_3d_url=_safe_str(agent_output.get("preview_3d_url")),
         preview_image_url=_safe_str(agent_output.get("preview_image_url")),
         estimated_timeline=_safe_str(agent_output.get("estimated_timeline")),
-        notes=_safe_str(agent_output.get("notes")),
+        notes=_safe_str(agent_output.get("notes") or agent_output.get("reply")),
     )
     return data.to_card()
 
@@ -123,8 +170,14 @@ def construction_to_card(agent_output: dict[str, Any]) -> dict[str, Any]:
         overall_progress=_safe_float(agent_output.get("overall_progress")),
         phases=_safe_list(agent_output.get("phases")),
         crew_info=agent_output.get("crew_info") if isinstance(agent_output.get("crew_info"), dict) else {},
-        next_milestone=agent_output.get("next_milestone") if isinstance(agent_output.get("next_milestone"), dict) else {},
-        updated_at=_safe_str(agent_output.get("updated_at", datetime.now(timezone.utc).isoformat())),
+        next_milestone=(
+            agent_output.get("next_milestone")
+            if isinstance(agent_output.get("next_milestone"), dict)
+            else {}
+        ),
+        updated_at=_safe_str(
+            agent_output.get("updated_at", datetime.now(timezone.utc).isoformat())
+        ),
     )
     return data.to_card()
 

@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.scene_behavior import SceneBehaviorLog, PredictedScene
@@ -359,8 +359,8 @@ def _transition_scene_name(device_id: str, target_state: str) -> str:
     if device_id in ("sensor", "motion"):
         return "人体感应模式（预测）"
     if target_state in ("on", "true", "open"):
-        return f"自动开启模式（预测）"
-    return f"智能联动模式（预测）"
+        return "自动开启模式（预测）"
+    return "智能联动模式（预测）"
 
 
 # ── 生成预测（批量） ──

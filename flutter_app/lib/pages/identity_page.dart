@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
+import '../theme/suoke_theme.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 
@@ -219,10 +220,10 @@ class _IdentityPageState extends State<IdentityPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.verified_user, size: 64, color: Colors.grey),
+            Icon(Icons.verified_user, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('您尚未完成身份认证',
-                style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text('您尚未完成身份认证',
+                style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => _tabController.animateTo(1),
@@ -271,19 +272,19 @@ class _IdentityPageState extends State<IdentityPage>
     IconData icon;
     switch (status) {
       case 'pending':
-        color = Colors.blue;
+        color = SuokeDesignTokens.info;
         icon = Icons.hourglass_top;
         break;
       case 'approved':
-        color = Colors.green;
+        color = SuokeDesignTokens.success;
         icon = Icons.check_circle;
         break;
       case 'rejected':
-        color = Colors.red;
+        color = SuokeDesignTokens.danger;
         icon = Icons.cancel;
         break;
       default:
-        color = Colors.grey;
+        color = SuokeDesignTokens.textSub(context);
         icon = Icons.person_outline;
     }
 
@@ -311,18 +312,18 @@ class _IdentityPageState extends State<IdentityPage>
             ),
             if (status == 'rejected') ...[
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '您的认证申请未通过审核，请联系管理员或重新提交',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
               ),
             ],
             if (status == 'approved') ...[
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '您已完成身份认证',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 13),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13),
               ),
             ],
           ],
@@ -360,7 +361,7 @@ class _IdentityPageState extends State<IdentityPage>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(label, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           Text(value),
         ],
       ),
@@ -372,16 +373,17 @@ class _IdentityPageState extends State<IdentityPage>
   Widget _buildSubmitTab() {
     final status = _status?['status'] as String?;
     if (status == 'pending') {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.hourglass_top, size: 64, color: Colors.blue),
-            SizedBox(height: 16),
-            Text('您的认证申请正在审核中', style: TextStyle(color: Colors.grey)),
-            SizedBox(height: 8),
+            const Icon(Icons.hourglass_top, size: 64, color: SuokeDesignTokens.info),
+            const SizedBox(height: 16),
+            Text('您的认证申请正在审核中',
+                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            const SizedBox(height: 8),
             Text('审核完成后可在此重新提交',
-                style: TextStyle(color: Colors.grey, fontSize: 12)),
+                style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
           ],
         ),
       );
@@ -482,12 +484,14 @@ class _IdentityPageState extends State<IdentityPage>
             Expanded(
               child: Text(
                 path != null ? path.split('/').last : '点击上传图片',
-                style:
-                    TextStyle(color: path != null ? null : Colors.grey),
+                style: TextStyle(
+                    color: path != null ? null : SuokeDesignTokens.textSub(context)),
               ),
             ),
             Icon(Icons.upload_file,
-                color: path != null ? Colors.green : Colors.grey),
+                color: path != null
+                    ? SuokeDesignTokens.success
+                    : SuokeDesignTokens.textSub(context)),
           ],
         ),
       ),
@@ -500,13 +504,13 @@ class _IdentityPageState extends State<IdentityPage>
     final status = _status?['status'] as String? ?? 'not_submitted';
 
     if (status == 'not_submitted' || _status == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('暂无认证记录', style: TextStyle(color: Colors.grey)),
+            Icon(Icons.history, size: 64, color: SuokeDesignTokens.textSub(context)),
+            const SizedBox(height: 16),
+            Text('暂无认证记录', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
           ],
         ),
       );
@@ -522,19 +526,19 @@ class _IdentityPageState extends State<IdentityPage>
     switch (status) {
       case 'approved':
         histIcon = Icons.check_circle;
-        histColor = Colors.green;
+        histColor = SuokeDesignTokens.success;
         break;
       case 'rejected':
         histIcon = Icons.cancel;
-        histColor = Colors.red;
+        histColor = SuokeDesignTokens.danger;
         break;
       case 'pending':
         histIcon = Icons.hourglass_top;
-        histColor = Colors.blue;
+        histColor = SuokeDesignTokens.info;
         break;
       default:
         histIcon = Icons.person_outline;
-        histColor = Colors.grey;
+        histColor = SuokeDesignTokens.textSub(context);
     }
 
     return ListView(
@@ -555,7 +559,9 @@ class _IdentityPageState extends State<IdentityPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('审核意见', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  Text('审核意见',
+                      style:
+                          TextStyle(fontSize: 13, color: SuokeDesignTokens.textSub(context))),
                   const SizedBox(height: 6),
                   Text(reviewNote!),
                 ],
@@ -565,7 +571,7 @@ class _IdentityPageState extends State<IdentityPage>
         if ((verifiedAt ?? '').isNotEmpty)
           Card(
             child: ListTile(
-              leading: const Icon(Icons.verified, color: Colors.green),
+              leading: const Icon(Icons.verified, color: SuokeDesignTokens.success),
               title: const Text('认证通过'),
               subtitle: Text('通过时间：${_formatDateTime(verifiedAt!)}'),
             ),

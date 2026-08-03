@@ -191,6 +191,59 @@ async def test_generate_layouts_readable_plan_names():
     assert not result["recommendation"].startswith("plan_")
 
 
+# === P2 回归：动线分析穿越误报 ===
+# 两居室预设（对齐 DesignPage PRESET_ROOMS）：访客动线 玄关→客厅→餐厅→主卫
+PRESET_ROOMS = [
+    {"name": "玄关", "type": "entryway", "x": 0, "y": 4, "w": 1.5, "h": 2},
+    {"name": "客厅", "type": "living_room", "x": 1.5, "y": 3, "w": 5, "h": 4},
+    {"name": "餐厅", "type": "dining_room", "x": 1.5, "y": 1, "w": 3, "h": 2},
+    {"name": "厨房", "type": "kitchen", "x": 0, "y": 1, "w": 1.5, "h": 3},
+    {"name": "主卧", "type": "bedroom", "x": 6.5, "y": 4, "w": 4, "h": 3},
+    {"name": "次卧", "type": "bedroom", "x": 6.5, "y": 1, "w": 3.5, "h": 3},
+    {"name": "主卫", "type": "bathroom", "x": 9, "y": 4, "w": 1.5, "h": 2},
+    {"name": "阳台", "type": "balcony", "x": 4.5, "y": 0, "w": 5.5, "h": 1},
+]
+
+
+def test_circulation_path_rooms_not_flagged_crossed():
+    """多房间动线的中间房间不应被误报为'穿越'（P2 回归）
+
+    修复前仅排除线段两端点，访客动线的客厅/餐厅/主卫等路径房间会被计入
+    crossed_rooms，导致动线评分失真与前端"穿越房间"警示误导。
+    """
+    agent = DesignerAgent()
+    result = agent.analyze_circulation([dict(r) for r in PRESET_ROOMS])
+    assert "error" not in result
+    for circ in result["circulations"]:
+        path_names = {p["name"] for p in circ["path"]}
+        crossed = circ["crossed_rooms"]
+        # 路径房间不计入穿越
+        assert not (set(crossed) & path_names), (
+            f"{circ['name']} crossed_rooms {crossed} 包含路径房间 {path_names}"
+        )
+        # 无重复房间
+        assert len(crossed) == len(set(crossed)), f"{circ['name']} crossed_rooms 存在重复"
+    # 访客动线应真实检测到穿越卧室（餐厅→主卫 穿主卧/次卧），而非空转
+    visitor = next(c for c in result["circulations"] if c["type"] == "visitor")
+    assert visitor["crossed_rooms"], "访客动线应检测到真实穿越房间"
+
+
+# === P3a 回归：一室/50㎡ 专用布局 ===
+
+
+@pytest.mark.asyncio
+async def test_generate_layouts_studio_area_50():
+    """一室/50㎡ 命中专用 50 布局（P3a 回归：此前落回 126㎡）"""
+    agent = DesignerAgent()
+    try:
+        result = await agent.generate_layouts("50㎡ 一室一厅 现代简约")
+    finally:
+        await agent.close()
+    assert len(result["plans"]) == 3
+    # 一居室预设每套 4-5 个房间（126 预设为 6-7 个），可区分命中面积档
+    assert all(4 <= len(p["rooms"]) <= 5 for p in result["plans"])
+
+
 # === /agents/chat 路由集成测试(mock 模式) ===
 
 

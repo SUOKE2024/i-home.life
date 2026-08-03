@@ -4,6 +4,7 @@ from app.agents.base import BaseAgent
 
 class FilesAgent(BaseAgent):
     agent_name = "files"
+    cost_tier = "economy"  # 文件管理低价值意图：优先低成本供应商
 
     @property
     def system_prompt(self) -> str:

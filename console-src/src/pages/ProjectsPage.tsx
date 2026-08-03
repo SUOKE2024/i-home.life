@@ -1,7 +1,7 @@
 /**
  * ProjectsPage — 对齐 flutter_app/lib/pages/projects_page.dart
  *
- * 结构：Scaffold > AppBar(标题+新建) > ListView[项目卡片] | 创建表单
+ * 结构：Scaffold > AppBar(标题+新建) > ListView[项目卡片] | 创建卡片（类型图标选择器）
  * API：GET /api/projects（列表）、POST /api/projects（创建）
  */
 
@@ -30,6 +30,21 @@ const PROJECT_TYPE_LABELS: Record<string, string> = {
   installation: '设备安装',
 };
 
+const PROJECT_TYPE_ICONS: Record<string, string> = {
+  full_renovation: '🏡',
+  hard_decoration: '🧱',
+  soft_furnishing: '🛋️',
+  curtain: '🪟',
+  kitchen: '🍳',
+  bathroom: '🛁',
+  electrical: '💡',
+  carpentry: '🪚',
+  painting: '🎨',
+  plumbing: '🔧',
+  masonry: '🧰',
+  installation: '⚙️',
+};
+
 const STATUS_LABELS: Record<string, string> = {
   planning: '规划中',
   design: '设计中',
@@ -52,6 +67,7 @@ export default function ProjectsPage() {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [form, setForm] = useState<ProjectCreateInput>({
     name: '',
     address: '',
@@ -75,13 +91,14 @@ export default function ProjectsPage() {
       acc[p.status] = (acc[p.status] ?? 0) + 1;
       return acc;
     },
-    {} as Record<string, number>,
+    { total: 0 } as Record<string, number>,
   );
   const showBento = !loading && !error && projects && projects.length > 0;
 
   async function handleCreate() {
     if (!form.name.trim()) return;
     setCreating(true);
+    setSubmitError('');
     const r = await apiClient.createProject<Project>({
       ...form,
       name: form.name.trim(),
@@ -93,7 +110,7 @@ export default function ProjectsPage() {
       setForm({ name: '', address: '', total_area: undefined, project_type: 'full_renovation' });
       reload();
     } else {
-      alert(`创建失败：${r.error ?? '未知错误'}`);
+      setSubmitError(r.error ?? '创建失败，请稍后重试');
     }
   }
 
@@ -150,59 +167,106 @@ export default function ProjectsPage() {
 
           {showCreate && (
             <div className="wb-create-form" data-testid="wb-create-form">
-              <div className="wb-create-form__title">创建新项目</div>
-              <div style={{ marginBottom: 10 }}>
-                <SuokeInput
-                  placeholder="项目名称（如：三居室整装）"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  data-testid="wb-create-name"
-                />
+              <div className="wb-create-form__head">
+                <span className="wb-create-form__badge" aria-hidden="true">
+                  ✦
+                </span>
+                <div>
+                  <div className="wb-create-form__title">创建新项目</div>
+                  <div className="wb-create-form__subtitle">选择装修类型，匹配专属 AI 工作流</div>
+                </div>
               </div>
-              <div style={{ marginBottom: 10 }}>
-                <SuokeInput
-                  placeholder="地址（可选）"
-                  value={form.address ?? ''}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <SuokeInput
-                  type="number"
-                  placeholder="面积㎡（可选）"
-                  value={form.total_area ?? ''}
-                  onChange={(e) =>
-                    setForm({ ...form, total_area: e.target.value ? Number(e.target.value) : undefined })
-                  }
-                  style={{ flex: 1 }}
-                />
-                <select
-                  value={form.project_type}
-                  onChange={(e) => setForm({ ...form, project_type: e.target.value as ProjectType })}
-                  style={{
-                    flex: 1,
-                    height: 40,
-                    padding: '0 12px',
-                    background: 'var(--input-bg)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-input)',
-                    color: 'var(--text-primary)',
-                    fontSize: 'var(--font-size-md)',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  {Object.entries(PROJECT_TYPE_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="wb-create-form__actions">
-                <SuokeButton onClick={handleCreate} disabled={creating || !form.name.trim()} testId="wb-create-submit">
-                  {creating ? '创建中…' : '创建项目'}
-                </SuokeButton>
-              </div>
+
+              <form
+                className="wb-create-form__body"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleCreate();
+                }}
+              >
+                <div className="wb-create-form__field">
+                  <label className="wb-create-form__label" htmlFor="wb-create-name">
+                    项目名称 <span className="wb-create-form__required">*</span>
+                  </label>
+                  <SuokeInput
+                    id="wb-create-name"
+                    placeholder="例如：三居室整装"
+                    value={form.name}
+                    autoFocus
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    data-testid="wb-create-name"
+                  />
+                  <div className="wb-create-form__hint">给空间起个名字，方便后续管理与查找</div>
+                </div>
+
+                <div className="wb-create-form__field">
+                  <label className="wb-create-form__label">装修类型</label>
+                  <div className="wb-create-type-grid" aria-label="装修类型">
+                    {Object.entries(PROJECT_TYPE_LABELS).map(([k, label], idx) => (
+                      <button
+                        type="button"
+                        key={k}
+                        aria-pressed={form.project_type === k}
+                        className={`wb-create-type${form.project_type === k ? ' wb-create-type--active' : ''}`}
+                        style={{ animationDelay: `${idx * 24}ms` }}
+                        onClick={() => setForm({ ...form, project_type: k as ProjectType })}
+                      >
+                        <span className="wb-create-type__icon" aria-hidden="true">
+                          {PROJECT_TYPE_ICONS[k]}
+                        </span>
+                        <span className="wb-create-type__label">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="wb-create-form__row">
+                  <div className="wb-create-form__field wb-create-form__field--grow">
+                    <label className="wb-create-form__label" htmlFor="wb-create-address">
+                      所在地址
+                    </label>
+                    <SuokeInput
+                      id="wb-create-address"
+                      placeholder="小区 / 楼盘名称（可选）"
+                      value={form.address ?? ''}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    />
+                  </div>
+                  <div className="wb-create-form__field wb-create-form__field--area">
+                    <label className="wb-create-form__label" htmlFor="wb-create-area">
+                      面积（㎡）
+                    </label>
+                    <SuokeInput
+                      id="wb-create-area"
+                      type="number"
+                      min={1}
+                      placeholder="0"
+                      value={form.total_area ?? ''}
+                      onChange={(e) =>
+                        setForm({ ...form, total_area: e.target.value ? Number(e.target.value) : undefined })
+                      }
+                    />
+                  </div>
+                </div>
+
+                {submitError && (
+                  <div className="wb-create-form__error" role="alert">
+                    ⚠ {submitError}
+                  </div>
+                )}
+
+                <div className="wb-create-form__actions">
+                  <SuokeButton
+                    type="submit"
+                    size="lg"
+                    fullWidth
+                    disabled={creating || !form.name.trim()}
+                    testId="wb-create-submit"
+                  >
+                    {creating ? '创建中…' : `创建「${PROJECT_TYPE_LABELS[form.project_type ?? 'full_renovation']}」项目`}
+                  </SuokeButton>
+                </div>
+              </form>
             </div>
           )}
 
@@ -224,10 +288,13 @@ export default function ProjectsPage() {
           )}
 
           {!loading && !error && projects && projects.length === 0 && (
-            <div className="wb-state" data-testid="wb-projects-empty">
-              <div className="wb-state__icon">📋</div>
-              <div>暂无项目</div>
-              <div style={{ fontSize: 'var(--font-size-sm)' }}>点击右上角"新建"创建第一个项目</div>
+            <div className="wb-state wb-state--empty" data-testid="wb-projects-empty">
+              <div className="wb-state__icon">🏡</div>
+              <div className="wb-state__title">还没有项目</div>
+              <div className="wb-state__desc">从第一个装修项目开始，AI 助手将全程陪跑</div>
+              <SuokeButton onClick={() => setShowCreate(true)} testId="wb-projects-empty-create">
+                ＋ 创建第一个项目
+              </SuokeButton>
             </div>
           )}
 
@@ -239,6 +306,7 @@ export default function ProjectsPage() {
                   interactive
                   testId={`wb-project-card--${p.id}`}
                   style={{ marginBottom: 12 }}
+                  onClick={() => navigate(`/projects/${p.id}`)}
                 >
                   <div className="wb-project-card__title">{p.name}</div>
                   <div className="wb-project-card__meta">

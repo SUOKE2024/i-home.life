@@ -331,7 +331,7 @@ def main():
         print("  预注册 bench 用户...")
         try:
             auth_token = setup_bench_user(url)
-            print(f"  ✓ 鉴权 token 已获取（用于 GET 鉴权端点）")
+            print("  ✓ 鉴权 token 已获取（用于 GET 鉴权端点）")
             if needs_login:
                 setup_login_user(url)
                 print(f"  ✓ login 压测用户已注册（{_LOGIN_PHONE}）")

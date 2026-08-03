@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../theme/suoke_theme.dart';
 
 /// 工程队匹配页面 (F36)
 class CrewPage extends StatefulWidget {
@@ -112,7 +113,7 @@ class _CrewPageState extends State<CrewPage> with SingleTickerProviderStateMixin
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData, tooltip: '刷新'),
         ],
       ),
       body: _loading
@@ -229,7 +230,7 @@ class _CrewPageState extends State<CrewPage> with SingleTickerProviderStateMixin
                           const SizedBox(width: 4),
                           TextButton(
                             onPressed: () => _updateMatchStatus(match['id'], 'rejected'),
-                            child: const Text('拒绝', style: TextStyle(color: Colors.red)),
+                            child: const Text('拒绝', style: TextStyle(color: SuokeDesignTokens.danger)),
                           ),
                         ],
                       ),

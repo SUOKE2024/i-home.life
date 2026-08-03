@@ -384,7 +384,7 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage>
         ),
       ),
       body: Container(
-        color: SuokeDesignTokens.bgDeep,
+        color: SuokeDesignTokens.bg(context),
         child: TabBarView(
           controller: _tabController,
           children: [

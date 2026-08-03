@@ -1,6 +1,7 @@
 """工程队服务 — F36 档案 CRUD + 智能匹配"""
 
 import json
+from datetime import datetime, timezone
 
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,26 @@ class CrewMatchStateError(Exception):
             f"匹配状态「{current_status}」不支持操作「{action}」，"
             f"允许的目标状态: {sorted(allowed) or '无（终态）'}"
         )
+
+
+# ── 入驻审核状态机（F36）──
+# pending（新入驻/提交审核）→ approved（通过）| rejected（驳回）
+# rejected → pending（重新提交审核）
+# approved → 终态
+CREW_REVIEW_SUBMITTABLE = {"pending", "rejected"}
+REVIEW_REQUIRED_FIELDS: dict[str, str] = {
+    "license_no": "营业执照号(license_no)",
+    "license_type": "执照类型(license_type)",
+    "insurance_no": "保险单号(insurance_no)",
+}
+
+
+class CrewReviewError(Exception):
+    """工程队入驻审核流程错误（缺材料 / 非法状态迁移）"""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
 
 
 def _assert_match_transition(match: CrewMatch, action: str, target: str) -> None:
@@ -68,7 +89,69 @@ async def create_crew(db: AsyncSession, data: dict) -> ConstructionCrew:
     specialties = data.pop("specialties", [])
     data["specialties"] = json.dumps(specialties, ensure_ascii=False)
     crew = ConstructionCrew(**data)
+    # F36：新入驻工程队一律先进入待审核（pending），审核通过前不可被匹配
+    crew.review_status = "pending"
     db.add(crew)
+    await db.commit()
+    await db.refresh(crew)
+    return crew
+
+
+async def submit_crew_review(
+    db: AsyncSession,
+    crew_id: str,
+    materials: dict | None = None,
+) -> ConstructionCrew | None:
+    """提交入驻审核：补齐/校验执照与保险材料，进入 pending 待管理员审核。
+
+    - 缺必填材料（license_no/license_type/insurance_no）抛 CrewReviewError
+    - rejected → 重新提交回 pending；approved 为终态不可再提交
+    """
+    crew = await get_crew(db, crew_id)
+    if not crew:
+        return None
+    if crew.review_status == "approved":
+        raise CrewReviewError("工程队已审核通过，无需重复提交审核")
+
+    for field, value in (materials or {}).items():
+        if value is not None:
+            setattr(crew, field, value)
+
+    missing = [
+        label for field, label in REVIEW_REQUIRED_FIELDS.items()
+        if not (getattr(crew, field) or "").strip()
+    ]
+    if missing:
+        raise CrewReviewError("缺少必填审核材料: " + "、".join(missing))
+
+    if crew.review_status == "rejected":
+        # 驳回后重新提交，进入新一轮审核
+        crew.review_status = "pending"
+        crew.reviewed_at = None
+    await db.commit()
+    await db.refresh(crew)
+    return crew
+
+
+async def review_crew(
+    db: AsyncSession,
+    crew_id: str,
+    action: str,
+    note: str | None = None,
+) -> ConstructionCrew | None:
+    """管理员审核入驻：approve → approved；reject → rejected（仅 pending 可审核）"""
+    crew = await get_crew(db, crew_id)
+    if not crew:
+        return None
+    if crew.review_status != "pending":
+        raise CrewReviewError(
+            f"工程队当前状态「{crew.review_status}」不可审核，仅 pending 待审核状态可操作"
+        )
+    if action not in ("approve", "reject"):
+        raise CrewReviewError(f"非法审核操作「{action}」，仅支持 approve / reject")
+    crew.review_status = "approved" if action == "approve" else "rejected"
+    crew.review_note = note
+    crew.reviewed_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(crew)
     return crew
@@ -189,8 +272,12 @@ async def match_crews(
     """为项目匹配工程队"""
     required_specialties = required_specialties or []
 
-    # 候选筛选：状态非 offline + 地域过滤
-    stmt = select(ConstructionCrew).where(ConstructionCrew.status != "offline")
+    # 候选筛选：仅审核通过（approved）且状态非 offline 的工程队 + 地域过滤
+    # F36：审核通过前工程队不得出现在匹配结果中
+    stmt = select(ConstructionCrew).where(
+        ConstructionCrew.review_status == "approved",
+        ConstructionCrew.status != "offline",
+    )
     if city:
         stmt = stmt.where(
             or_(ConstructionCrew.city == city, ConstructionCrew.city.is_(None))

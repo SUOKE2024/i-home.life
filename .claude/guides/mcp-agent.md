@@ -199,6 +199,92 @@ return {"confidence": 0.95, "data": hardcoded_fake_data}  # 禁止
 ```bash
 pytest tests/test_agents.py tests/test_agents_llm.py tests/test_a2a.py
 pytest tests/test_cache_user_isolation.py  # 缓存隔离
+pytest tests/test_agent_trace_scope.py     # AgentTrace scope
+pytest tests/test_tool_audit_fields.py     # 工具审计字段
+pytest tests/test_agent_skill.py           # Skill 资产化（v1.8.0）
+pytest tests/test_agent_posture.py         # 三档安全 posture（v1.8.0）
 ```
 
 新增 Agent 必须补测试（参考 `tests/test_agents.py` 模式）。
+
+## v1.4.0 借鉴落地（YC QM / OWLFY / LocalAI）
+
+本节记录 v1.4.0 对三篇行业文章的借鉴落地，所有改动均为 additive API 增强，向后兼容。
+
+### YC QM Scope 治理（4 级作用域贯穿）
+
+YC QM 提出 personal / project / team / org 四级作用域，索克在 v1.4.x 已实现 memory 层，v1.4.0 贯穿到 cache / trace / audit 层：
+
+| 层 | 文件 | scope 体现 |
+|----|------|-----------|
+| Memory | `app/services/agent_memory_service.py:33-37` `SCOPE_PERSONAL/PROJECT/TEAM/ORG` | 已实现（v1.4.x），唯一约束含 scope/project_id |
+| Cache | `app/services/cache_service.py:60` `build_isolated_key(..., scope=None)` | v1.4.0 新增 scope 参数，key 格式 `u:{uid}:p:{pid}:s:{scope}:{base}` |
+| Trace | `app/agents/harness.py:118` `AgentTrace.scope` | v1.4.0 新增字段，`start_trace(..., scope="")` 透传 |
+| Audit | `app/services/agent_tool_registry.py:846` `execute(..., _scope="", _trace_id="")` | v1.4.0 新增 4 个隐式上下文参数，details 扩展 |
+
+scope 常量统一从 `agent_memory_service` import，不重复定义。cache 的 scope 参数默认 None，维持 v1.3.0 key 格式（向后兼容）。
+
+### OWLFY 端侧零 TOKEN + LocalAI OpenAI 兼容
+
+端云协同已在 v1.4.x 实现，配置见 `.env.example` 的"施工边缘盒子本地推理端点"段：
+
+- `local` provider（`app/agents/base.py:42-48`）：Ollama/LocalAI OpenAI 兼容端点
+- 无 `LOCAL_LLM_API_KEY` 时视为不可用，fallback 到 qwen/glm（**不 mock**，符合诚实降级）
+- `ECONOMY_PROVIDERS=local,qwen,glm` 后 economy 档优先本地推理，数据不出现场、token 成本归零
+- 意图成本路由（`cost_tier` standard/economy）受 `COST_TIERED_ROUTING_ENABLED` 控制
+
+### AI 决策审计可还原（QM"可还原"治理）
+
+`tool_registry.execute()` 的审计 details 扩展为 7 字段：
+
+```python
+details = {
+    "tool": name, "project_id": _project_id, "category": tool.category,
+    "agent_id": _agent_id,       # v1.4.0: 哪个 Agent
+    "model_source": _model_source,  # v1.4.0: 用什么模型
+    "scope": _scope,             # v1.4.0: 什么作用域
+    "trace_id": _trace_id,       # v1.4.0: 对应哪条 trace
+}
+```
+
+使审计能回答 QM 的核心追问："哪个 Agent、用什么模型、在什么 scope 下、对应哪条 trace 做了工具调用"。`base.py` think_with_tools 透传 `_agent_id=self.agent_name` + `_model_source=self.provider`；voice 路径透传 `_agent_id=f"voice:{func_name}"`。
+
+## v1.8.0 借鉴落地（YC QM 完整版：Scope API 贯通 + Skill 资产化 + 三档 posture）
+
+v1.4.x 完成了 QM 借鉴第一层（scope 到 memory/cache/trace/audit 的 model+service+test），v1.8.0 贯通 API 层并落地两个 P0 能力。所有改动 additive，向后兼容。
+
+### Scope API 贯通（P0-①，完善半成品）
+
+v1.4.x 的 scope 在 service 层齐备但 API 层 4 个调用点未传 scope，`AgentTrace.scope` 从未被赋值。v1.8.0 补齐：
+
+| 调用点 | 文件 | 改动 |
+|--------|------|------|
+| 记忆 CRUD | `app/api/agent_memory.py` | `MemoryCreateRequest` 加 `scope`/`project_id`，list 支持 scope 过滤 |
+| 上下文注入 | `app/services/agent_context_service.py` | `build_memory_context` 按 scope/project_id 查记忆 |
+| chat 提取 | `app/api/agents.py` | chat 请求体加 `project_id`，有则按 project scope 提取记忆 |
+| A2A trace | `app/api/a2a.py:254` | `start_trace(..., scope="project" if project_id else "personal")` |
+
+### Skill 资产化（P0-②，完整版）
+
+借鉴 QM "scope-owned + 可授权共享 + admin 门控提升 + 版本回退 + skill_pack 导入"。
+
+- **模型** [app/models/agent_skill.py](file:///Users/netsong/Developer/i-home.life/app/models/agent_skill.py) `AgentSkill`：owner_scope(personal/project/team/org) + version + status(draft/active/archived) + share_scope(none/grant/org) + share_grants(JSON) + parent_version_id(回退链)
+- **服务** [app/services/agent_skill_service.py](file:///Users/netsong/Developer/i-home.life/app/services/agent_skill_service.py)：CRUD / update(version+1, 旧版 archived) / rollback(复制历史 version 创建新版) / share(grant_to 授权) / promote_to_org(仅 admin) / import_skill_pack(httpx GET raw URL, 字段白名单, 失败 422) / instantiate(`type()` 动态建 BaseAgent 子类)
+- **API** [app/api/agent_skills.py](file:///Users/netsong/Developer/i-home.life/app/api/agent_skills.py) 前缀 `/agents/skills`：10 个端点，`agent_skill_enabled` 控制，personal scope 强制 owner_id=当前用户
+- **测试** `tests/test_agent_skill.py` 13 例：CRUD / scope 隔离 / 授权共享 / admin 提升 / 版本回退 / git 导入 / instantiate
+
+### 三档安全 posture（P0-③，完整版）
+
+借鉴 QM "strict 每个工具调用暂停等人批准 / auto PII screening / dangerous 全放行"。FC 无状态环境调整为"拒绝-重新触发"模式。
+
+| posture | 行为 | 配置 |
+|---------|------|------|
+| `strict` | 高危工具拒绝执行 → 创建 `AgentApproval`(pending) → 返回 `needs_approval` | `agent_strict_high_risk_tools`（逗号分隔，空=全部需批准） |
+| `auto`（默认） | 正常执行，外部数据过 PII masking | — |
+| `dangerous` | 全放行 | 仅 `execute_approved` 内部传 `_posture="dangerous"` 绕过二次批准 |
+
+- **模型** [app/models/agent_approval.py](file:///Users/netsong/Developer/i-home.life/app/models/agent_approval.py) `AgentApproval`：approval_id(`apr_`+12hex) + state(pending/approved/rejected/expired) + arguments(JSON) + expires_at(24h TTL)
+- **拦截点** [app/services/agent_tool_registry.py:880](file:///Users/netsong/Developer/i-home.life/app/services/agent_tool_registry.py) `execute(..., _posture="")`：strict + 命中高危 → 创建 approval → 返回 `{"error":"needs_approval","approval_id":...}`
+- **服务** [app/services/agent_approval_service.py](file:///Users/netsong/Developer/i-home.life/app/services/agent_approval_service.py)：create / approve / reject / execute_approved(校验 approved+未过期→execute 传 dangerous) / expire_outdated
+- **API** [app/api/agent_approvals.py](file:///Users/netsong/Developer/i-home.life/app/api/agent_approvals.py) 前缀 `/agents/approvals`：list pending / get / approve / reject / execute
+- **测试** `tests/test_agent_posture.py` 14 例：strict 拦截(高危清单空/匹配) / strict 放行(非高危) / auto / dangerous / approve+execute / reject+execute / 状态机 / 过期 / API 全流程 / 非 owner 404

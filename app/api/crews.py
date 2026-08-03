@@ -1,8 +1,10 @@
 """工程队路由 — F36 档案 + 智能匹配"""
 
 import json
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,11 +19,26 @@ from app.schemas.construction_crew import (
     CrewMatchResponse,
 )
 from app.auth import get_current_user
-from app.rbac import verify_project_access
+from app.rbac import require_admin, verify_project_access
 from app.services import crew_service
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/crews", tags=["工程队匹配"])
+
+
+class _CrewSubmitRequest(BaseModel):
+    """提交入驻审核时补充的材料字段（可选，未提供的沿用已有值）"""
+
+    license_no: str | None = None
+    license_type: str | None = None
+    insurance_no: str | None = None
+
+
+class _CrewReviewRequest(BaseModel):
+    """管理员入驻审核动作"""
+
+    action: Literal["approve", "reject"]
+    note: str | None = None
 
 
 def _crew_to_response(crew: ConstructionCrew) -> ConstructionCrewResponse:
@@ -107,6 +124,50 @@ async def get_crew(
     db: AsyncSession = Depends(get_db),
 ):
     crew = await crew_service.get_crew(db, crew_id)
+    if not crew:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    return _crew_to_response(crew)
+
+
+@router.post("/{crew_id}/submit", response_model=ConstructionCrewResponse)
+async def submit_crew_review(
+    crew_id: str,
+    data: _CrewSubmitRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """工程队提交入驻审核（F36）：补齐执照/保险材料，进入 pending 待管理员审核。
+
+    缺必填材料（license_no/license_type/insurance_no）返回 400 并说明缺什么。
+    """
+    try:
+        crew = await crew_service.submit_crew_review(
+            db, crew_id, materials=data.model_dump() if data else None
+        )
+    except crew_service.CrewReviewError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
+    if not crew:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    return _crew_to_response(crew)
+
+
+@router.post("/{crew_id}/review", response_model=ConstructionCrewResponse)
+async def review_crew(
+    crew_id: str,
+    data: _CrewReviewRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员审核工程队入驻（F36）：action=approve 通过 / action=reject 驳回。
+
+    仅 admin 可调用；非 admin 返回 403。
+    """
+    try:
+        crew = await crew_service.review_crew(
+            db, crew_id, action=data.action, note=data.note
+        )
+    except crew_service.CrewReviewError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
     if not crew:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
     return _crew_to_response(crew)

@@ -79,6 +79,28 @@ class DesignerAgent(BaseAgent):
                 {"name": "卫生间", "type": "bathroom", "x": 4.0, "y": 9.0, "w": 3.0, "h": 2.0},
             ],
         },
+        "50": {
+            "plan_a": [
+                {"name": "客厅+卧室", "type": "living_room", "x": 0.5, "y": 0.5, "w": 4.0, "h": 4.5},
+                {"name": "厨房", "type": "kitchen", "x": 0.5, "y": 5.5, "w": 2.0, "h": 2.0},
+                {"name": "卫生间", "type": "bathroom", "x": 3.0, "y": 5.5, "w": 1.5, "h": 2.0},
+                {"name": "阳台", "type": "balcony", "x": 5.0, "y": 0.5, "w": 1.5, "h": 3.5},
+            ],
+            "plan_b": [
+                {"name": "客厅", "type": "living_room", "x": 0.5, "y": 0.5, "w": 3.5, "h": 3.5},
+                {"name": "卧室", "type": "bedroom", "x": 4.5, "y": 0.5, "w": 2.5, "h": 3.5},
+                {"name": "厨房+餐厅", "type": "kitchen", "x": 0.5, "y": 4.5, "w": 3.0, "h": 2.0},
+                {"name": "卫生间", "type": "bathroom", "x": 4.0, "y": 4.5, "w": 1.8, "h": 2.0},
+                {"name": "阳台", "type": "balcony", "x": 6.0, "y": 0.5, "w": 1.2, "h": 3.5},
+            ],
+            "plan_c": [
+                {"name": "卧室", "type": "bedroom", "x": 0.5, "y": 0.5, "w": 2.5, "h": 3.0},
+                {"name": "客厅", "type": "living_room", "x": 3.5, "y": 0.5, "w": 4.0, "h": 3.0},
+                {"name": "厨房", "type": "kitchen", "x": 0.5, "y": 4.0, "w": 2.0, "h": 2.0},
+                {"name": "卫生间", "type": "bathroom", "x": 3.0, "y": 4.0, "w": 2.0, "h": 2.0},
+                {"name": "阳台", "type": "balcony", "x": 5.5, "y": 4.0, "w": 2.0, "h": 1.5},
+            ],
+        },
         "160": {
             "plan_a": [
                 {"name": "客厅", "type": "living_room", "x": 0.5, "y": 0.5, "w": 6.0, "h": 5.0},
@@ -163,7 +185,7 @@ class DesignerAgent(BaseAgent):
     CIRCULATION_TYPES = {
         "visitor": {
             "name": "访客动线",
-            "description": "玄关 → 客厅 → 餐厅 → 客卫",
+            "description": "玄关 → 客厅 → 餐厅 → 卫生间",
             "preferred_path": ["entryway", "living_room", "dining_room", "bathroom"],
         },
         "housework": {
@@ -184,6 +206,16 @@ class DesignerAgent(BaseAgent):
         "cross_room_penalty": True,  # 穿越其他房间扣分
         "through_bedroom_penalty": True,  # 穿越卧室严重扣分
     }
+
+    # F28 通道净宽检查规则（PRD：≥600mm 家具间通行、≥900mm 主要通道）
+    CHANNEL_RULES = {
+        "furniture_pass_width": 0.6,  # 家具间通行最小净宽（米）
+        "main_pass_width": 0.9,  # 主要通道最小净宽（米）
+        "default_furniture_depth": 0.6,  # 无家具数据时估算用的单侧家具深度（米）
+        "warning_ratio": 0.6,  # 净宽低于要求 60% 判定 fail，其余未达标判 warning
+    }
+    # 按房间类型区分检查标准：通行关键房间走主要通道标准，其余走家具间通行标准
+    MAIN_PASS_TYPES = frozenset({"living_room", "dining_room", "hallway", "study", "kitchen"})
 
     def analyze_circulation(self, rooms: list[dict]) -> dict:  # noqa: C901
         """F28 智能布局动线分析
@@ -210,6 +242,10 @@ class DesignerAgent(BaseAgent):
         def _center(r: dict) -> tuple[float, float]:
             return (r["x"] + r["w"] / 2, r["y"] + r["h"] / 2)
 
+        def _has_geometry(r: dict) -> bool:
+            """房间是否携带完整几何数据（x/y/w/h），缺数据房间不参与动线几何计算"""
+            return all(r.get(k) is not None for k in ("x", "y", "w", "h"))
+
         def _distance(a: dict, b: dict) -> float:
             ax, ay = _center(a)
             bx, by = _center(b)
@@ -224,21 +260,32 @@ class DesignerAgent(BaseAgent):
             )
 
         def _path_crosses_rooms(path_rooms: list[dict], all_rooms: list[dict]) -> list[str]:
-            """检测路径是否穿越未列出的房间（简化：检测线段是否与房间矩形相交）"""
+            """检测路径是否穿越未列入路径的房间（简化：检测线段是否与房间矩形相交）。
+
+            P2 修复：路径内房间是动线的必经之地，不计为"穿越"——
+            此前仅排除当前线段两端点，导致中间路径房间（如访客动线的客厅）被误报，
+            并重复计入同一房间。按 id 判等 + 按名称去重。
+            """
             crossed = []
             if len(path_rooms) < 2:
                 return crossed
+            path_ids = {id(r) for r in path_rooms}
             for i in range(len(path_rooms) - 1):
                 a, b = path_rooms[i], path_rooms[i + 1]
                 ax, ay = _center(a)
                 bx, by = _center(b)
                 for r in all_rooms:
-                    if r in (a, b):
+                    if id(r) in path_ids:
+                        continue
+                    # 缺几何数据的房间无法判定相交，跳过（不参与穿越检测）
+                    if not _has_geometry(r):
                         continue
                     rtype = r.get("type", r.get("room_type", ""))
                     # 简化：仅检测中心点是否在线段附近 + 矩形是否与线段包围盒相交
                     if _segment_rect_intersect(ax, ay, bx, by, r):
-                        crossed.append(r.get("name", rtype))
+                        name = r.get("name", rtype)
+                        if name not in crossed:
+                            crossed.append(name)
             return crossed
 
         def _segment_rect_intersect(x1: float, y1: float, x2: float, y2: float, rect: dict) -> bool:
@@ -280,8 +327,11 @@ class DesignerAgent(BaseAgent):
 
         for circ_code, circ_def in self.CIRCULATION_TYPES.items():
             preferred = circ_def["preferred_path"]
-            # 找到路径上实际存在的房间
-            path_rooms = [room_by_type[t] for t in preferred if t in room_by_type]
+            # 找到路径上实际存在的房间（缺几何数据的房间不参与动线几何计算）
+            path_rooms = [
+                room_by_type[t] for t in preferred
+                if t in room_by_type and _has_geometry(room_by_type[t])
+            ]
             missing_types = [t for t in preferred if t not in room_by_type]
 
             # 计算路径总长度
@@ -354,7 +404,13 @@ class DesignerAgent(BaseAgent):
             analyses.append({
                 "type": circ_code,
                 "name": circ_def["name"],
-                "description": circ_def["description"],
+                # 描述与实际路径房间名保持一致，避免模板与用户房间命名冲突
+                "description": (
+                    " → ".join(
+                        r.get("name", r.get("type", "")) for r in path_rooms
+                    )
+                    if path_rooms else circ_def["description"]
+                ),
                 "path": [
                     {"name": r.get("name", r.get("type")), "type": r.get("type", r.get("room_type"))}
                     for r in path_rooms
@@ -387,6 +443,12 @@ class DesignerAgent(BaseAgent):
         critical_count = sum(1 for i in all_issues if i.get("severity") == "critical")
         warning_count = sum(1 for i in all_issues if i.get("severity") == "warning")
 
+        # F28 通道净宽检查（新增独立字段，不影响既有评分与问题统计）
+        channel_checks = self._channel_width_checks(rooms)
+        channel_pass = sum(1 for c in channel_checks if c["status"] == "pass")
+        channel_warning = sum(1 for c in channel_checks if c["status"] == "warning")
+        channel_fail = sum(1 for c in channel_checks if c["status"] == "fail")
+
         return {
             "rooms_count": len(rooms),
             "circulations": analyses,
@@ -398,6 +460,17 @@ class DesignerAgent(BaseAgent):
             "warning_count": warning_count,
             "issues": all_issues,
             "suggestions": all_suggestions,
+            "channel_checks": channel_checks,
+            "channel_width_check": {
+                "checked": len(channel_checks),
+                "pass": channel_pass,
+                "warning": channel_warning,
+                "fail": channel_fail,
+                "rules": {
+                    "furniture_pass_width_m": self.CHANNEL_RULES["furniture_pass_width"],
+                    "main_pass_width_m": self.CHANNEL_RULES["main_pass_width"],
+                },
+            },
             "reply": (
                 f"动线分析：{len(rooms)} 个房间，综合评分 {avg_score}（{rating_text}），"
                 f"访客/家务/居住三条动线，发现 {len(all_issues)} 项问题"
@@ -405,6 +478,95 @@ class DesignerAgent(BaseAgent):
                 if all_issues else f"动线分析：{len(rooms)} 个房间，综合评分 {avg_score}（{rating_text}），三条动线均合理"
             ),
         }
+
+    def _channel_width_checks(self, rooms: list[dict]) -> list[dict]:
+        """F28 通道净宽检查（PRD：≥600mm 家具间通行、≥900mm 主要通道）。
+
+        估算规则（诚实标注 estimated）：
+        - 房间含家具布局数据（furniture 且带 depth）→ 按短边减两侧家具深度精确计算；
+        - 仅有宽高 → 按短边减双侧默认家具深度估算（estimated=true）；
+        - 缺宽高（无足够数据）→ 返回 warning + note，不伪造数值。
+        """
+        checks = []
+        default_depth = self.CHANNEL_RULES["default_furniture_depth"]
+        warning_ratio = self.CHANNEL_RULES["warning_ratio"]
+
+        def _is_main_pass(rtype: str) -> bool:
+            return rtype in self.MAIN_PASS_TYPES
+
+        def _furniture_depths(room: dict) -> list[float]:
+            depths = []
+            for f in room.get("furniture", []) or []:
+                if not isinstance(f, dict):
+                    continue
+                depth = f.get("depth_m") or f.get("depth") or f.get("w")
+                if isinstance(depth, (int, float)) and depth > 0:
+                    depths.append(float(depth))
+            return depths
+
+        for room in rooms:
+            rname = room.get("name", room.get("type", "房间"))
+            rtype = room.get("type", room.get("room_type", ""))
+            is_main = _is_main_pass(rtype)
+            requirement = (
+                self.CHANNEL_RULES["main_pass_width"] if is_main
+                else self.CHANNEL_RULES["furniture_pass_width"]
+            )
+            rule = "main_pass" if is_main else "furniture_pass"
+
+            w, h = room.get("w"), room.get("h")
+            if not isinstance(w, (int, float)) or not isinstance(h, (int, float)) or w <= 0 or h <= 0:
+                # 无足够数据：不伪造通道宽度，返回 warning + note
+                checks.append({
+                    "room": rname,
+                    "room_type": rtype,
+                    "channel_width": None,
+                    "requirement": requirement,
+                    "rule": rule,
+                    "status": "warning",
+                    "estimated": True,
+                    "note": "缺少房间尺寸数据（w/h），无法估算通道宽度",
+                    "suggestion": "补充房间尺寸后重新分析",
+                })
+                continue
+
+            short_side = min(float(w), float(h))
+            furniture_depths = _furniture_depths(room)
+            if furniture_depths:
+                # 精确路径：按两侧墙边家具进深占用估算净宽
+                largest = sorted(furniture_depths, reverse=True)
+                occupied = largest[0] + (largest[1] if len(largest) > 1 else largest[0])
+                channel = round(short_side - occupied, 2)
+                estimated = False
+                note = "基于家具布局数据计算净宽"
+            else:
+                # 估算路径：短边减双侧默认家具深度
+                channel = round(short_side - 2 * default_depth, 2)
+                estimated = True
+                note = f"按房间短边减双侧家具深度估算（默认单侧家具深度 {default_depth}m）"
+
+            if channel >= requirement:
+                status = "pass"
+                suggestion = f"通道净宽 {channel}m ≥ {requirement}m，满足通行要求"
+            elif channel >= requirement * warning_ratio:
+                status = "warning"
+                suggestion = f"通道净宽 {channel}m 未达 {requirement}m 标准，建议调整家具布局"
+            else:
+                status = "fail"
+                suggestion = f"通道净宽 {channel}m 低于 {requirement}m 的 {int(warning_ratio * 100)}%，需调整布局"
+
+            checks.append({
+                "room": rname,
+                "room_type": rtype,
+                "channel_width": channel,
+                "requirement": requirement,
+                "rule": rule,
+                "status": status,
+                "estimated": estimated,
+                "note": note + ("（估算值）" if estimated else ""),
+                "suggestion": suggestion,
+            })
+        return checks
 
     @staticmethod
     def detect_modification_intent(message: str) -> list[dict]:

@@ -107,6 +107,9 @@ class SettlementAgent(BaseAgent):
             "paid_amount": round(paid_amount, 2),
             "total_payable": round(total_payable, 2),
             "trigger": milestone["trigger"],
+            # 诚实标注：结算由确定性规则引擎生成（里程碑比例/异常检测规则），未调用 LLM
+            "engine": "rule_based",
+            "source_note": "规则引擎生成（未调用 LLM）",
             "reply": (
                 f"已生成「{milestone['name']}」结算单：应付 ¥{total_payable:,.2f}"
                 f"（含合同 {milestone['payment_ratio']*100:.0f}% + 变更 ¥{change_amount:,.0f}"
@@ -305,6 +308,9 @@ class SettlementAgent(BaseAgent):
             "anomalies": anomalies,
             "reconciliation": reconciliation,
             "review_required": review_required,
+            # 诚实标注：自动结算由确定性规则引擎生成（里程碑/异常检测规则），未调用 LLM
+            "engine": "rule_based",
+            "source_note": "规则引擎生成（未调用 LLM）",
             "reply": (
                 f"自动结算完成：{anomalies['reply']}。{reconciliation['reply']}。"
                 + ("⚠ 检测到严重异常，已标记需人工复核。" if review_required else "✓ 未触发人工复核。")

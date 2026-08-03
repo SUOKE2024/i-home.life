@@ -136,7 +136,7 @@ async def ai_match_suppliers(
 
     # 匹配同品类、激活状态的供应商
     sup_stmt = select(Supplier).where(
-        Supplier.is_active == True,
+        Supplier.is_active.is_(True),
         Supplier.category == category_code,
     ).order_by(Supplier.rating.desc())
     sup_result = await db.execute(sup_stmt)
@@ -145,7 +145,7 @@ async def ai_match_suppliers(
     # 若同品类无供应商，则放宽到全部活跃供应商
     if not suppliers:
         all_result = await db.execute(
-            select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
+            select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.rating.desc())
         )
         suppliers = list(all_result.scalars().all())
 
@@ -167,6 +167,8 @@ async def ai_match_suppliers(
             "delivery_days": delivery,
             "in_stock": in_stock,
             "rating": sup.rating,
+            # 诚实标注：报价为基准价×折扣公式生成的模拟市场报价
+            "source": "mock",
         })
 
     # 综合评分排名
@@ -196,6 +198,8 @@ async def ai_match_suppliers(
         "matched_suppliers": ranked,
         "recommended_supplier_id": recommended_id,
         "reason": reason,
+        # 诚实标注：顶层说明候选报价为模拟市场报价
+        "quote_source_note": "模拟市场报价（真实供应商询价需配置采购 API）",
     }
 
 

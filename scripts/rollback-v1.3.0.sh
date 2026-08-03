@@ -102,7 +102,7 @@ else
     echo ""
     echo "  ▶ 验证回滚后行为（应恢复 v1.2.9 基线）："
     echo "    source .venv/bin/activate"
-    echo "    python -u -m pytest tests/ -q --timeout=60 -n auto"
+    echo "    python -u -m pytest tests/ -q --timeout=60"
 fi
 echo "=========================================="
 echo ""

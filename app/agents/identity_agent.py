@@ -4,6 +4,7 @@ from app.agents.base import BaseAgent
 
 class IdentityAgent(BaseAgent):
     agent_name = "identity"
+    cost_tier = "economy"  # 身份查询低价值意图：优先低成本供应商
 
     @property
     def system_prompt(self) -> str:

@@ -128,6 +128,7 @@ export default function SettingsPage() {
                         key={m}
                         type="button"
                         className={`wb-theme-option ${theme === m ? 'wb-theme-option--active' : ''}`}
+                        aria-pressed={theme === m}
                         onClick={() => changeTheme(m)}
                         data-testid={`wb-theme-option--${m}`}
                       >
@@ -166,7 +167,7 @@ export default function SettingsPage() {
                 <div className="wb-settings-section__title">其他</div>
                 <div className="wb-settings-row">
                   <span className="wb-settings-row__label">版本</span>
-                  <span className="wb-settings-row__value">v1.2.7 · Web 控制台</span>
+                  <span className="wb-settings-row__value">v1.8.0 · Web 控制台</span>
                 </div>
               </div>
 
@@ -225,7 +226,7 @@ function ToggleRow({
             width: 18,
             height: 18,
             borderRadius: '50%',
-            background: '#fff',
+            background: 'var(--surface0)',
             transition: 'left 0.2s',
           }}
         />

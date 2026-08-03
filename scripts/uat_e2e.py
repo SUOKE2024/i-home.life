@@ -4,7 +4,6 @@ import asyncio
 import os
 import sys
 import uuid
-import json
 
 # 确保项目根目录在 Python path 中（支持从任意目录运行）
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,15 +14,17 @@ if _project_root not in sys.path:
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_uat_{os.getpid()}.db"
 
 # IMPORTANT: 必须在 import app 之前设置 DATABASE_URL
-from app.database import engine, Base
-from httpx import AsyncClient, ASGITransport
+from app.database import engine, Base  # noqa: E402
+from httpx import AsyncClient, ASGITransport  # noqa: E402
+
 
 async def setup_db():
     """创建测试数据库表"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-from app.main import app
+
+from app.main import app  # noqa: E402
 
 PASS = 0
 FAIL = 0
@@ -312,7 +313,7 @@ async def uat():
         ok("创建巡检") if r.status_code in (200, 201, 404) else err("巡检", r.status_code, r.text)
 
         r = await c.get(
-            f"/api/construction/quality-checklist/mep", headers=headers
+            "/api/construction/quality-checklist/mep", headers=headers
         )
         ok("质检清单") if r.status_code == 200 else err("质检清单", r.status_code)
 
@@ -332,7 +333,7 @@ async def uat():
         # ═══════════════════════════════════════
         total = PASS + FAIL + SKIP
         print(f"\n{'='*50}")
-        print(f"  UAT 全链路验证结果")
+        print("  UAT 全链路验证结果")
         print(f"  通过: {PASS}  失败: {FAIL}  跳过: {SKIP}  总计: {total}")
         print(f"  通过率: {PASS/total*100:.1f}%" if total else "  N/A")
         print(f"{'='*50}")

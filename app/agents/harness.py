@@ -115,6 +115,7 @@ class AgentTrace:
     error_type: str = ""
     user_id: str = ""
     project_id: str = ""
+    scope: str = ""  # v1.4.0: QM 作用域（personal/project/team/org），借鉴 YC QM
     context_source: str = ""  # "harness" | "raw"
 
     def to_dict(self) -> dict:
@@ -149,6 +150,7 @@ class AgentTrace:
             "error_type": self.error_type,
             "user_id": self.user_id,
             "project_id": self.project_id,
+            "scope": self.scope,
             "context_source": self.context_source,
         }
 
@@ -357,8 +359,14 @@ class AgentRuntime:
         provider: str = "",
         user_id: str = "",
         project_id: str = "",
+        scope: str = "",
     ) -> AgentTrace:
-        """开始新的执行轨迹"""
+        """开始新的执行轨迹
+
+        v1.4.0：新增 scope 参数（借鉴 YC QM 四级作用域 personal/project/team/org），
+        用于标记本次 Agent 执行所属的作用域，便于审计与可还原追溯。默认空字符串，
+        向后兼容。
+        """
         trace = AgentTrace(
             agent_name=agent_name,
             agent_version=settings.app_version,
@@ -369,6 +377,7 @@ class AgentRuntime:
             user_message_truncated=user_message[:200],
             user_id=user_id,
             project_id=project_id,
+            scope=scope,
             context_source="harness",
         )
         return trace

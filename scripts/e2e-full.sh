@@ -6,7 +6,7 @@
 set -e
 
 API="${API:-http://localhost:8081}"
-PHONE="13900001234"
+PHONE="${PHONE:-13900001234}"
 PASS="demo123456"
 REPORT_DIR="${REPORT_DIR:-./reports}"
 REPORT="${REPORT_DIR}/demo-$(date +%Y%m%d-%H%M%S).md"
@@ -72,8 +72,8 @@ check "AI 布局: $LAYOUT_REPLY"
 
 # === Step 6: Browse Materials ===
 step 6 "浏览物料库"
-MATS=$(_exec "$API/api/materials?limit=5")
-MAT_COUNT=$(_exec "$API/api/materials?limit=200" | $PYTHON -c "import sys,json;print(len(json.load(sys.stdin)))" 2>/dev/null)
+MATS=$(_exec "$API/api/materials?limit=5" -H "$AUTH")
+MAT_COUNT=$(_exec "$API/api/materials?limit=200" -H "$AUTH" | $PYTHON -c "import sys,json;print(len(json.load(sys.stdin)))" 2>/dev/null)
 check "物料库: $MAT_COUNT SKU"
 
 # === Step 7: Save Floor Plan ===
@@ -86,12 +86,12 @@ check "户型已保存 ($PLAN_ID)"
 
 # === Step 8: Add BOM ===
 step 8 "添加物料清单"
-MAT1=$(_exec "$API/api/materials?limit=1" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[0]['id'])" 2>/dev/null)
-MAT2=$(_exec "$API/api/materials?limit=2" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[1]['id'])" 2>/dev/null)
-MAT3=$(_exec "$API/api/materials?limit=3" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[2]['id'])" 2>/dev/null)
-P1=$(_exec "$API/api/materials?limit=1" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[0]['unit_price'])" 2>/dev/null)
-P2=$(_exec "$API/api/materials?limit=2" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[1]['unit_price'])" 2>/dev/null)
-P3=$(_exec "$API/api/materials?limit=3" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[2]['unit_price'])" 2>/dev/null)
+MAT1=$(_exec "$API/api/materials?limit=1" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[0]['id'])" 2>/dev/null)
+MAT2=$(_exec "$API/api/materials?limit=2" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[1]['id'])" 2>/dev/null)
+MAT3=$(_exec "$API/api/materials?limit=3" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[2]['id'])" 2>/dev/null)
+P1=$(_exec "$API/api/materials?limit=1" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[0]['unit_price'])" 2>/dev/null)
+P2=$(_exec "$API/api/materials?limit=2" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[1]['unit_price'])" 2>/dev/null)
+P3=$(_exec "$API/api/materials?limit=3" -H "$AUTH" | $PYTHON -c "import sys,json;print(json.load(sys.stdin)[2]['unit_price'])" 2>/dev/null)
 
 bom_total=0
 for item in "$MAT1 80 $P1" "$MAT2 60 $P2" "$MAT3 30 $P3"; do

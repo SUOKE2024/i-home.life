@@ -46,10 +46,16 @@ export type ProjectStatus =
 export interface Project {
   id: string;
   name: string;
+  description?: string | null;
   address?: string | null;
   total_area?: number | null;
   status: ProjectStatus;
   project_type: ProjectType | string;
+  house_type?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
   owner_id: string;
   created_at: string;
   updated_at: string;
@@ -243,6 +249,23 @@ export interface Material {
   description?: string | null;
   is_active: boolean;
   category?: MaterialCategory | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── BOM 清单（对齐 app/schemas/material.py:BOMItemResponse）──
+// 端点：GET /api/materials/bom/{projectId}
+export interface BomItem {
+  id: string;
+  project_id: string;
+  material_id: string;
+  room_id?: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  note?: string | null;
+  status: string;
+  material?: Material | null;
   created_at: string;
   updated_at: string;
 }
@@ -1035,4 +1058,510 @@ export interface CirculationAnalysisResult {
   suggestions: string[];
   reply: string;
   error?: string; // rooms 为空时后端返回 { error }
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  B2B 装企交付（v1.4.x，对齐 app/api/b2b_delivery.py）
+//  交付单状态机：draft → quoted → accepted → in_construction → completed / cancelled
+//  命名 B2BDeliveryStatus 避免与采购物流 DeliveryStatus 冲突
+// ──────────────────────────────────────────────────────────────────
+
+export type B2BDeliveryStatus =
+  | 'generating'
+  | 'draft'
+  | 'quoted'
+  | 'accepted'
+  | 'in_construction'
+  | 'completed'
+  | 'cancelled';
+
+/** POST /api/b2b/delivery 响应（整包交付） */
+export interface DeliveryPackage {
+  delivery_id: string;
+  delivery_order_id: string;
+  status: B2BDeliveryStatus;
+  name: string;
+  summary: string;
+  proposals: DeliveryProposalSpec[];
+  budget_estimate: {
+    source: string;
+    project_id?: string;
+    area: number;
+    style: string;
+    total_estimated?: number;
+    line_count?: number;
+    status?: string;
+    breakdown_by_category?: Record<string, number>;
+    tiers?: Record<string, { label: string; price_per_sqm: string; total_estimate: number }>;
+    breakdown_ratio?: Record<string, number>;
+    recommended_tier?: string;
+  };
+  construction_plan: {
+    source: string;
+    total_days: number;
+    buffer_days: number;
+    buffer_ratio: number;
+    phases: { phase_code: string; name: string; days: number }[];
+    note: string;
+  };
+  sources: Record<string, string>;
+  generated_at: string;
+}
+
+export interface DeliveryProposalSpec {
+  proposal_id: string;
+  title: string;
+  layout_type: string;
+  area_sqm: number;
+  budget_cny: number;
+  highlights: string[];
+  rationale: string;
+  change_log: string[];
+  source: string;
+}
+
+/** GET /api/b2b/delivery 列表项 */
+export interface DeliveryListItem {
+  delivery_order_id: string;
+  name: string;
+  area: number;
+  style: string;
+  status: B2BDeliveryStatus;
+  summary: string | null;
+  created_at: string;
+}
+
+/** GET /api/b2b/delivery/{id} 详情（整包快照） */
+export interface DeliveryOrderDetail {
+  delivery_order_id: string;
+  project_id: string | null;
+  name: string;
+  area: number;
+  style: string;
+  budget: number;
+  requirements: string;
+  status: B2BDeliveryStatus;
+  summary: string | null;
+  proposals: DeliveryProposalSpec[] | null;
+  budget_estimate: DeliveryPackage['budget_estimate'] | null;
+  construction_plan: DeliveryPackage['construction_plan'] | null;
+  sources: Record<string, string> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  v1.5.0 F41-F47 新增功能（对齐 app/api/*.py 返回结构）
+// ──────────────────────────────────────────────────────────────────
+
+// ── F41 适老改造（对齐 app/api/elderly_adaptation.py:SchemeResponse）──
+// occupant_type: elderly_living / semi_selfcare / nursing / family
+// compliance_status: pass / warning / fail
+export interface ElderlyAdaptationScheme {
+  id: string;
+  project_id: string;
+  name: string;
+  occupant_type: string;
+  items?: unknown[] | null;
+  accessibility_report?: Record<string, unknown> | null;
+  compliance_status: string;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** POST /api/elderly-adaptation/schemes/{id}/validate 返回（GB 50763-2012 合规判定） */
+export interface ElderlyAdaptationValidation {
+  compliance_status: string; // pass | warning | fail
+  score: number | null;
+  summary: string;
+}
+
+// ── F42 局部焕新（对齐 app/api/partial_renovation.py:PlanResponse）──
+// scope_type: kitchen_refresh / bathroom_refresh / wall_refresh / single_room / full_renovation
+// budget_level: economic / comfort / quality
+export interface PartialRenovationPlan {
+  id: string;
+  project_id: string;
+  name: string;
+  scope_type: string;
+  budget_level: string;
+  duration_days: number;
+  budget_lower: number;
+  budget_upper: number;
+  tasks?: unknown[] | null;
+  interference_plan?: Record<string, string> | null;
+  status: string;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** GET /api/partial-renovation/templates 返回（对齐 partial_renovation_service.list_templates） */
+export interface PartialRenovationTemplate {
+  scope_type: string;
+  name: string;
+  duration_days: number;
+  budget_range: Record<string, [number, number]>;
+  task_count: number;
+}
+
+// ── F43 资金托管（对齐 app/api/escrow_trustee.py:_account_dict）──
+// trustee_type: bank / third_party
+// status: active / release_requested / released
+export interface EscrowTrusteeAccount {
+  id: string;
+  escrow_payment_id: string;
+  trustee_type: string;
+  account_no_masked: string;
+  interest_to_owner: boolean;
+  owner_confirmed: boolean;
+  contractor_confirmed: boolean;
+  status: string;
+  release_rule: string;
+  released_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** GET /api/escrow/trustee-accounts/{id}/interest 返回（托管资金利息归属说明） */
+export interface EscrowInterestInfo {
+  interest_to_owner: boolean;
+  note: string;
+}
+
+// ── F44 环保材料标签（对齐 app/services/eco_material_service.py）──
+/** 材料环保认证标签 + 材料信息（_cert_item，用于 /materials 列表） */
+export interface MaterialEcoCertItem {
+  material_id: string;
+  material_name: string;
+  sku: string;
+  brand: string | null;
+  unit_price: number;
+  eco_grade: string; // ENF / E0 / E1
+  certification: string;
+}
+
+/** GET /api/eco-materials/grades 返回：各环保等级数量统计（含 0） */
+export type EcoGradeCounts = Record<string, number>;
+
+/** POST /api/eco-materials/validate 返回（对标 HC-003 环保等级硬约束） */
+export interface EcoComplianceReport {
+  total: number;
+  compliant_count: number;
+  non_compliant_count: number;
+  items: Array<{
+    material_id: string;
+    material_name: string;
+    eco_grade: string;
+    certification: string;
+    compliant: boolean;
+    requirement: string;
+    note: string;
+  }>;
+}
+
+// ── F45 方案前置决策（对齐 app/services/solution_first_service.generate_package）──
+export interface SolutionFirstLayout {
+  plan_no: string; // A / B / C
+  name: string;
+  summary: string;
+  layout_points: string[];
+  pros: string[];
+  cons: string[];
+  source: string; // rule_based
+  source_note: string;
+}
+
+export interface SolutionFirstPackage {
+  project_id: string;
+  project_name: string;
+  plan_count: number;
+  layouts: SolutionFirstLayout[];
+  budget_range: {
+    level: string;
+    lower: number;
+    upper: number;
+    per_sqm_lower: number;
+    per_sqm_upper: number;
+    levels: Array<{ level: string; per_sqm_lower: number; per_sqm_upper: number; lower: number; upper: number }>;
+    note: string;
+  };
+  recommendations: string[];
+  source: string;
+  source_note: string;
+  generated_at: string;
+}
+
+// ── F46 生态桥接优先级（对齐 app/services/ecosystem_bridge_status.py）──
+/** GET /api/ecosystem/status 返回（含诚实降级标注） */
+export interface EcosystemBridgeStatus {
+  bridges: Array<{
+    key: string;
+    name: string;
+    priority: number;
+    configured: boolean;
+    status: string; // ready | requires_api_key
+    required_env_keys: string[];
+    note: string;
+  }>;
+  updated_at: string;
+  honest_note: string;
+}
+
+/** GET /api/ecosystem/bridges 返回（优先级列表 + 策略说明） */
+export interface EcosystemBridges {
+  bridges: Array<{
+    key: string;
+    name: string;
+    priority: number;
+    required_env_keys: string[];
+    bridge: string;
+  }>;
+  priority_strategy: string;
+}
+
+// ── F47 AI 装修问答（对齐 app/services/ai_qa_search_service.py）──
+/** POST /api/ai-qa/search 返回（含引用来源，未命中诚实降级） */
+export interface AIQASource {
+  domain: string;
+  title: string;
+  citation: string;
+  snippet: string;
+}
+
+export interface AIQAResult {
+  query: string;
+  answer: string;
+  sources: AIQASource[];
+  match_type: string; // knowledge_base | no_match
+  honest_note: string;
+}
+
+/** GET /api/ai-qa/faq 返回（知识库 faq 域前 20 条） */
+export interface AIQAFaq {
+  total: number;
+  topics: Array<{
+    id: string;
+    name: string;
+    content: string;
+    citation: string;
+  }>;
+}
+
+// ── F11 多方案预算对比（对齐 app/agents/budget.py:compare_budget_plans）──
+/** 单个档位方案（经济/舒适/品质） */
+export interface BudgetComparePlan {
+  tier: string; // economy | comfort | premium | luxury
+  tier_name: string; // 中文档位名
+  total_range: [number, number];
+  total_estimated: number;
+  breakdown: Record<string, number>; // 分项 {分类: 金额}
+}
+
+/** POST /api/budgets/compare-plans 返回 */
+export interface BudgetCompareResult {
+  area: number;
+  plans: BudgetComparePlan[];
+  differences: {
+    economy_to_comfort: number;
+    comfort_to_premium: number;
+  };
+  recommendation: string;
+  reply: string;
+}
+
+// ── F13 预算模板库（对齐 app/agents/budget.py:list_templates / apply_template）──
+export interface BudgetTemplate {
+  code: string;
+  name: string;
+  area: number;
+  tier: string;
+  style: string;
+  total_range: [number, number];
+  line_count: number;
+}
+
+/** GET /api/budgets/templates 返回 */
+export interface BudgetTemplateList {
+  templates: BudgetTemplate[];
+  total: number;
+  reply: string;
+}
+
+export interface BudgetTemplateLine {
+  category: string;
+  name: string;
+  unit_price: number;
+  quantity: number;
+  unit: string;
+  estimated_amount: number;
+}
+
+/** POST /api/budgets/templates/apply 返回 */
+export interface BudgetTemplateApplyResult {
+  template_code: string;
+  template_name: string;
+  applied_area: number;
+  scale: number;
+  total_estimated: number;
+  lines: BudgetTemplateLine[];
+  reply: string;
+}
+
+// ── F18 厨卫水电（对齐 app/schemas/kitchen_bath_mep.py）──
+export interface KitchenBathMEPPlan {
+  id: string;
+  project_id: string;
+  room_name: string;
+  room_type: string; // kitchen | bathroom | laundry | balcony
+  water_inlets: Record<string, unknown>[] | null;
+  drains: Record<string, unknown>[] | null;
+  gas_pipe_layout: Record<string, unknown>[] | null;
+  electrical_circuits: Record<string, unknown>[] | null;
+  equipotential_bonding: boolean;
+  water_heater_type: string | null;
+  water_heater_capacity_l: number | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MEPPoint {
+  id: string;
+  plan_id: string;
+  point_type: string; // water_inlet | drain | ...
+  device: string | null;
+  position_x: number;
+  position_y: number;
+  position_z: number;
+  spec: string | null;
+  voltage: string | null;
+  power_w: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+/** GET /api/mep-kb/plans/{planId}/circuits 返回 */
+export interface MEPCircuitResult {
+  plan_id: string;
+  circuits: Array<{
+    circuit_no: string;
+    type: string;
+    device: string;
+    power_w: number;
+    wire: string;
+    breaker: string;
+    voltage: string;
+  }>;
+  total_circuits: number;
+  total_power_w: number;
+  main_breaker_recommended: string;
+}
+
+/** GET /api/mep-kb/plans/{planId}/equipotential 返回 */
+export interface MEPEquipotentialResult {
+  plan_id: string;
+  compliant: boolean;
+  room_type: string;
+  equipotential_bonding: boolean;
+  checks: Array<{
+    item: string;
+    value: string;
+    passed: boolean;
+    standard: string;
+  }>;
+}
+
+/** GET /api/mep-kb/plans/{planId}/gas 返回 */
+export interface MEPGasResult {
+  plan_id: string;
+  needed: boolean;
+  reason?: string;
+  outlets: Array<{
+    device: string;
+    position: { x: number; y: number; z: number };
+    pipe_spec: string;
+    valve: string;
+    note: string;
+  }>;
+}
+
+// ── F35 服务商匹配（对齐 app/schemas/service_worker.py）──
+export interface ServiceWorker {
+  id: string;
+  name: string;
+  phone: string | null;
+  avatar_url: string | null;
+  city: string | null;
+  district: string | null;
+  role: string;
+  role_attributes: Record<string, unknown>;
+  qualification: string;
+  rating: number;
+  completed_projects: number;
+  years_of_experience: number;
+  hourly_rate: number;
+  daily_rate: number;
+  status: string;
+  introduction: string | null;
+  certifications: string[];
+  portfolio_urls: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkerMatch {
+  id: string;
+  project_id: string;
+  worker_id: string;
+  role: string;
+  match_score: number;
+  score_breakdown: Record<string, number>; // 六维评分明细
+  recommendation: string | null;
+  status: string; // pending | shortlisted | hired | rejected
+  worker: ServiceWorker | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── F40 三方协作 IM（对齐 app/schemas/chat.py + chat.py 扩展字段）──
+export interface ChatRoom {
+  id: string;
+  project_id: string;
+  name: string;
+  member_count: number;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  project_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: string;
+  content: string;
+  message_type: string;
+  mentions: string[];
+  reply_to_id: string | null;
+  thread_root_id: string | null;
+  read_by: string[];
+  is_deleted: boolean;
+  created_at: string;
+  // F40 Agent 自动回复标注（缺失字段为 null）
+  generated_by?: string | null;
+  agent_mode?: string | null;
+  engine?: string | null;
+  is_placeholder?: boolean | null;
+}
+
+/** GET /api/chat/rooms/{roomId}/agents 返回 */
+export interface ChatRoomAgents {
+  room_id: string;
+  project_id: string;
+  agent_members: string[];
 }

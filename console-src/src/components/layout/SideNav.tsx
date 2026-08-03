@@ -39,6 +39,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: '工作台', path: '/', emoji: '🏠' },
       { label: '仪表盘', path: '/dashboard', emoji: '📊' },
+      { label: '装企交付', path: '/delivery', emoji: '📦' },
+      { label: '协作IM', path: '/im-chat', emoji: '💬' },
     ],
   },
   {
@@ -67,9 +69,11 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '任务', path: '/tasks', agent: 'tasks' },
       { label: '变更', path: '/change-orders', agent: 'change_orders' },
       { label: '工程队', path: '/crews', agent: 'crews' },
+      { label: '服务商匹配', path: '/workers', emoji: '🧑‍🔧' },
       { label: '工程量', path: '/takeoff', agent: 'takeoff' },
       { label: '土建结构', path: '/structural', agent: 'structural' },
       { label: '水电暖通', path: '/mep', agent: 'mep' },
+      { label: '厨卫水电', path: '/kitchen-bath-mep', emoji: '🔧' },
       { label: '门窗防水', path: '/door-window', agent: 'door_window_waterproof' },
     ],
   },
@@ -86,6 +90,8 @@ const NAV_GROUPS: NavGroup[] = [
     title: '财务',
     items: [
       { label: '预算', path: '/budget', agent: 'budget' },
+      { label: '方案对比', path: '/budget-compare', emoji: '📊' },
+      { label: '模板库', path: '/budget-templates', emoji: '📚' },
       { label: '结算', path: '/settlement', agent: 'settlement' },
     ],
   },
@@ -107,6 +113,18 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: '个人',
     items: [{ label: '设置', path: '/settings', emoji: '⚙️' }],
+  },
+  {
+    title: '新增功能（v1.5.0）',
+    items: [
+      { label: '适老改造', path: '/elderly-adaptation', emoji: '🧓' },
+      { label: '局部焕新', path: '/partial-renovation', emoji: '🔧' },
+      { label: '资金托管', path: '/escrow', emoji: '🛡' },
+      { label: '环保材料', path: '/eco-materials', emoji: '🌿' },
+      { label: '方案前置', path: '/solution-first', emoji: '🚀' },
+      { label: '生态桥接', path: '/ecosystem', emoji: '🔗' },
+      { label: 'AI 问答', path: '/ai-qa', emoji: '🤖' },
+    ],
   },
 ];
 

@@ -18,6 +18,13 @@ from app.ws import ws_manager
 router = APIRouter(prefix="/change-orders", tags=["变更管理"])
 
 
+class ChangeOrderReviewResponse(ChangeOrderResponse):
+    """review 响应扩展：评估来源标注（agent / manual / unavailable）"""
+
+    assessment_source: str | None = None
+    assessment_note: str | None = None
+
+
 @router.get("/project/{project_id}", response_model=list[ChangeOrderResponse])
 async def list_change_orders(
     project_id: str,
@@ -57,7 +64,7 @@ async def get_change_order(
     return ChangeOrderResponse.model_validate(order)
 
 
-@router.post("/{change_id}/review", response_model=ChangeOrderResponse)
+@router.post("/{change_id}/review", response_model=ChangeOrderReviewResponse)
 async def review_change_order(
     change_id: str,
     data: ChangeOrderReview,
@@ -68,10 +75,34 @@ async def review_change_order(
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
     await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
-    order = await change_order_service.review_change_order(db, change_id, data.model_dump(), current_user.name)
+
+    payload = data.model_dump()
+    assessment_source = "manual"
+    assessment_note = None
+    # F39：请求体未提供人工评估字段 → 自动调用设计 Agent + 预算 Agent（规则引擎路径）
+    if not set(data.model_dump(exclude_unset=True).keys()):
+        try:
+            assessment = await change_order_service.auto_assess_change_order(existing)
+        except Exception as e:
+            # 诚实降级：Agent 失败不得伪造结论，标注 unavailable 并待人工评估
+            assessment_source = "unavailable"
+            assessment_note = f"Agent 自动评估失败，已降级为待人工评估（{type(e).__name__}: {e}）"
+            payload["feasibility"] = "pending"
+            payload["feasibility_note"] = assessment_note
+        else:
+            assessment_source = "agent"
+            estimated = assessment.pop("estimated", False)
+            payload.update(assessment)
+            assessment_note = "自动评估（规则引擎，未调用 LLM）" + ("，费用为估算值" if estimated else "")
+
+    order = await change_order_service.review_change_order(
+        db, change_id, payload, current_user.name, assessment_source=assessment_source
+    )
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="变更单不存在")
-    resp = ChangeOrderResponse.model_validate(order)
+    resp = ChangeOrderReviewResponse.model_validate(order)
+    resp.assessment_source = assessment_source
+    resp.assessment_note = assessment_note
     await ws_manager.broadcast_to_project(order.project_id, "change_order.reviewed", resp.model_dump())
     return resp
 

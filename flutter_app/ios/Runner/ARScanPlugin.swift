@@ -138,22 +138,19 @@ class ARScanPlugin: NSObject {
             return
         }
 
-        let session = RoomCaptureSession()
         let builder = RoomBuilder(options: [.beautifyObjects])
-        _captureSession = session
         _captureBuilder = builder
         isScanCancelled = false
         scanStartedAt = Date()
 
         let config = RoomCaptureSession.Configuration()
-        session.run(configuration: config)
-        session.delegate = self
 
         let tmpDir = NSTemporaryDirectory()
         tempUsdzPath = "\(tmpDir)scan_\(Int(Date().timeIntervalSince1970)).usdz"
 
         // 展示系统捕获界面: 摄像头画面 + RoomPlan 引导 + 完成/取消按钮
-        presentRoomCaptureUI(session: session)
+        // iOS 26 SDK: RoomCaptureView 自持 RoomCaptureSession, 由视图内部创建后统一运行
+        presentRoomCaptureUI(configuration: config)
 
         // 仅作即时确认, 不消费最终结果 (最终结果走 onScanCompleted 事件)
         result(["status": "scanning", "message": "RoomPlan 扫描已启动"])
@@ -172,15 +169,19 @@ class ARScanPlugin: NSObject {
     // MARK: - 捕获界面展示
 
     @available(iOS 16.0, *)
-    private func presentRoomCaptureUI(session: RoomCaptureSession) {
+    private func presentRoomCaptureUI(configuration: RoomCaptureSession.Configuration) {
         guard _captureViewController == nil,
               let top = ARScanPlugin.topViewController() else { return }
 
         let viewController = RoomCaptureViewController(
-            session: session,
+            configuration: configuration,
+            sessionDelegate: self,
+            onSessionReady: { [weak self] session in
+                self?._captureSession = session
+            },
             onFinish: { [weak self] in
                 // 完成扫描 → stop() 触发 didEndWith, 由插件统一收尾
-                session.stop()
+                (self?._captureSession as? RoomCaptureSession)?.stop()
             },
             onCancel: { [weak self] in
                 self?.cancelRoomPlanScan()
@@ -381,13 +382,21 @@ extension ARScanPlugin: @preconcurrency RoomCaptureSessionDelegate {
 /// 全屏展示 RoomCaptureView (摄像头画面 + 引导) 与 完成/取消 操作
 @available(iOS 16.0, *)
 final class RoomCaptureViewController: UIViewController {
-    private let session: RoomCaptureSession
+    private let configuration: RoomCaptureSession.Configuration
+    private weak var sessionDelegate: RoomCaptureSessionDelegate?
+    private let onSessionReady: (RoomCaptureSession) -> Void
     private let onFinish: () -> Void
     private let onCancel: () -> Void
     private var captureView: RoomCaptureView?
 
-    init(session: RoomCaptureSession, onFinish: @escaping () -> Void, onCancel: @escaping () -> Void) {
-        self.session = session
+    init(configuration: RoomCaptureSession.Configuration,
+         sessionDelegate: RoomCaptureSessionDelegate,
+         onSessionReady: @escaping (RoomCaptureSession) -> Void,
+         onFinish: @escaping () -> Void,
+         onCancel: @escaping () -> Void) {
+        self.configuration = configuration
+        self.sessionDelegate = sessionDelegate
+        self.onSessionReady = onSessionReady
         self.onFinish = onFinish
         self.onCancel = onCancel
         super.init(nibName: nil, bundle: nil)
@@ -403,9 +412,14 @@ final class RoomCaptureViewController: UIViewController {
         view.backgroundColor = .black
 
         // 系统捕获视图: 摄像头实时画面 + RoomPlan 扫描引导
+        // iOS 26 SDK: RoomCaptureView 自持 RoomCaptureSession, 通过 captureSession 获取后运行
         let captureView = RoomCaptureView(frame: view.bounds)
-        captureView.session = session
         captureView.delegate = self
+        if let captureSession = captureView.captureSession {
+            captureSession.delegate = sessionDelegate
+            captureSession.run(configuration: configuration)
+            onSessionReady(captureSession)
+        }
         view.addSubview(captureView)
         captureView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([

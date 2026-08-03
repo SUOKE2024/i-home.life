@@ -31,13 +31,13 @@ class _TimelinePageState extends State<TimelinePage> {
 
   // 7 阶段定义
   static const _phases = [
-    {'key': 'initiation', 'label': '立项', 'icon': Icons.flag, 'color': Color(0xFFE57373)},
-    {'key': 'design', 'label': '设计', 'icon': Icons.design_services, 'color': Color(0xFF64B5F6)},
-    {'key': 'budget', 'label': '预算', 'icon': Icons.account_balance_wallet, 'color': Color(0xFF81C784)},
-    {'key': 'procurement', 'label': '采购', 'icon': Icons.shopping_cart, 'color': Color(0xFFFFB74D)},
-    {'key': 'construction', 'label': '施工', 'icon': Icons.construction, 'color': Color(0xFFBA68C8)},
-    {'key': 'inspection', 'label': '质检', 'icon': Icons.verified, 'color': Color(0xFF4DD0E1)},
-    {'key': 'settlement', 'label': '结算', 'icon': Icons.payment, 'color': Color(0xFFFFD54F)},
+    {'key': 'initiation', 'label': '立项', 'icon': Icons.flag, 'color': SuokeDesignTokens.danger},
+    {'key': 'design', 'label': '设计', 'icon': Icons.design_services, 'color': SuokeDesignTokens.info},
+    {'key': 'budget', 'label': '预算', 'icon': Icons.account_balance_wallet, 'color': SuokeDesignTokens.success},
+    {'key': 'procurement', 'label': '采购', 'icon': Icons.shopping_cart, 'color': SuokeDesignTokens.warning},
+    {'key': 'construction', 'label': '施工', 'icon': Icons.construction, 'color': SuokeDesignTokens.purple},
+    {'key': 'inspection', 'label': '质检', 'icon': Icons.verified, 'color': SuokeDesignTokens.teal},
+    {'key': 'settlement', 'label': '结算', 'icon': Icons.payment, 'color': SuokeDesignTokens.accent},
   ];
 
   @override
@@ -337,7 +337,7 @@ class _TimelinePageState extends State<TimelinePage> {
                           _buildPhaseBadge('$taskCount 项', color),
                           if (hasChange) ...[
                             const SizedBox(width: 6),
-                            _buildPhaseBadge('有变更', const Color(0xFFFFB74D)),
+                            _buildPhaseBadge('有变更', SuokeDesignTokens.warning),
                           ],
                         ],
                       ),

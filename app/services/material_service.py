@@ -2,11 +2,13 @@ import time
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
+from app.models.eco_material import MaterialEcoCert
 from app.models.material import MaterialCategory, Material, BOMItem
 from app.models.project import Floor, Room
+from app.models.budget import Budget
 
 
 # 标准损耗系数
@@ -15,6 +17,10 @@ WASTE_FACTOR = {
     "wall": 1.08,       # 墙面 8% 损耗
     "ceiling": 1.05,    # 顶面 5% 损耗
 }
+
+# F44 AI 选材强制提示环保等级（对标 HC-003 环保等级硬约束）：
+# 材料无环保认证数据时诚实标注 unverified，不伪装认证等级。
+ECO_NOTICE_UNVERIFIED = "该材料未登记环保等级（HC-003 合规要求建议选用 ENF/E0 认证材料）"
 
 # 墙地比（墙面面积 / 地面面积）经验值
 WALL_TO_FLOOR_RATIO = 2.8
@@ -65,6 +71,26 @@ def invalidate_material_cache() -> None:
         _cache_store.pop(k, None)
 
 
+# ── F44 环保等级强制提示辅助 ──
+
+
+async def _load_eco_certs(db: AsyncSession, material_ids: list[str]) -> dict[str, MaterialEcoCert]:
+    """批量加载材料环保认证（MaterialEcoCert）：material_id -> cert（无认证的材料不含在内）"""
+    if not material_ids:
+        return {}
+    result = await db.execute(
+        select(MaterialEcoCert).where(MaterialEcoCert.material_id.in_(material_ids))
+    )
+    return {cert.material_id: cert for cert in result.scalars().all()}
+
+
+def _eco_notice(grade: str, cert: MaterialEcoCert | None) -> str:
+    """环保等级提示文案：有认证如实标注，无认证诚实提示 HC-003 合规要求"""
+    if cert:
+        return f"环保等级 {grade}（认证：{cert.certification}，来源：{cert.source}）"
+    return ECO_NOTICE_UNVERIFIED
+
+
 async def get_categories(db: AsyncSession) -> list[MaterialCategory]:
     cached = _cache_get("categories")
     if cached is not None:
@@ -98,7 +124,7 @@ async def get_materials(
 ) -> list[Material]:
     stmt = (
         select(Material)
-        .where(Material.is_active == True)
+        .where(Material.is_active.is_(True))
         .options(selectinload(Material.category))
         .offset(skip)
         .limit(limit)
@@ -129,9 +155,20 @@ async def create_material(db: AsyncSession, data: dict) -> Material:
     return await get_material_by_id(db, material.id)
 
 
+async def get_current_bom_version(db: AsyncSession, project_id: str) -> int:
+    """当前 BOM 工作集版本号（F7 版本管理；无 BOM 时默认 1）"""
+    result = await db.execute(
+        select(func.max(BOMItem.version)).where(BOMItem.project_id == project_id)
+    )
+    max_version = result.scalar()
+    return int(max_version) if max_version else 1
+
+
 async def add_bom_item(db: AsyncSession, data: dict) -> BOMItem:
     total = data["quantity"] * data["unit_price"]
-    bom_item = BOMItem(**data, total_price=total)
+    # F7: 新 BOM 项加入当前工作集版本
+    version = await get_current_bom_version(db, data["project_id"])
+    bom_item = BOMItem(**data, total_price=total, version=version)
     db.add(bom_item)
     await db.commit()
     await db.refresh(bom_item)
@@ -139,9 +176,11 @@ async def add_bom_item(db: AsyncSession, data: dict) -> BOMItem:
 
 
 async def get_project_bom(db: AsyncSession, project_id: str) -> list[BOMItem]:
+    # F7: 仅返回当前工作集版本（最新版本），历史快照不参与日常 BOM 视图
+    current_version = await get_current_bom_version(db, project_id)
     result = await db.execute(
         select(BOMItem)
-        .where(BOMItem.project_id == project_id)
+        .where(BOMItem.project_id == project_id, BOMItem.version == current_version)
         .options(selectinload(BOMItem.material).selectinload(Material.category))
         .order_by(BOMItem.created_at.desc())
     )
@@ -186,6 +225,169 @@ async def get_bom_summary(db: AsyncSession, project_id: str) -> dict | None:
         "total_items": len(bom_items),
         "total_price": total_price,
         "categories": list(cat_map.values()),
+    }
+
+
+# ── F7 BOM 版本管理与差异标注 ──
+
+
+async def snapshot_bom_version(db: AsyncSession, project_id: str) -> dict:
+    """F7 手动打版本快照：将当前工作集（最新版本）复制为 version+1
+
+    快照后旧版本不可变，新版本作为工作集承接后续 BOM 编辑，
+    支持跨版本差异对比（新增/删除/价格变化）。
+    """
+    current_version = await get_current_bom_version(db, project_id)
+    result = await db.execute(
+        select(BOMItem).where(
+            BOMItem.project_id == project_id,
+            BOMItem.version == current_version,
+        )
+    )
+    items = list(result.scalars().all())
+    if not items:
+        raise ValueError("PROJECT_HAS_NO_BOM")
+
+    new_version = current_version + 1
+    for item in items:
+        db.add(BOMItem(
+            project_id=item.project_id,
+            material_id=item.material_id,
+            room_id=item.room_id,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            total_price=item.total_price,
+            note=item.note,
+            status=item.status,
+            version=new_version,
+            quantity_source=item.quantity_source or "empirical",
+            fallback_note=item.fallback_note,
+        ))
+    await db.commit()
+    return {
+        "project_id": project_id,
+        "snapshot_version": current_version,
+        "new_version": new_version,
+        "copied_items": len(items),
+    }
+
+
+async def get_bom_versions(db: AsyncSession, project_id: str) -> dict:
+    """F7 BOM 版本列表（含各版本条目数与总价）"""
+    result = await db.execute(
+        select(
+            BOMItem.version,
+            func.count(BOMItem.id),
+            func.sum(BOMItem.total_price),
+            func.min(BOMItem.created_at),
+        )
+        .where(BOMItem.project_id == project_id)
+        .group_by(BOMItem.version)
+        .order_by(BOMItem.version.asc())
+    )
+    versions = []
+    for version, cnt, price, created_at in result.all():
+        versions.append({
+            "version": int(version),
+            "item_count": int(cnt),
+            "total_price": round(float(price or 0.0), 2),
+            "created_at": created_at.isoformat() if created_at else None,
+        })
+    return {
+        "project_id": project_id,
+        "versions": versions,
+        "current_version": versions[-1]["version"] if versions else None,
+    }
+
+
+async def diff_bom_versions(
+    db: AsyncSession,
+    project_id: str,
+    from_version: int,
+    to_version: int,
+) -> dict:
+    """F7 BOM 版本差异对比：新增 / 删除 / 数量与价格变化标注
+
+    以 material_id 为键对比两个版本的 BOM 项：
+    - added：仅在 to_version 出现
+    - removed：仅在 from_version 出现
+    - changed：两版本均有但数量或单价变化（change_type 标注）
+    - unchanged：完全一致
+    """
+    result = await db.execute(
+        select(BOMItem)
+        .where(
+            BOMItem.project_id == project_id,
+            BOMItem.version.in_([from_version, to_version]),
+        )
+        .options(selectinload(BOMItem.material).selectinload(Material.category))
+    )
+    items = list(result.scalars().all())
+    from_items = {i.material_id: i for i in items if i.version == from_version}
+    to_items = {i.material_id: i for i in items if i.version == to_version}
+
+    def _entry(item: BOMItem) -> dict:
+        mat = item.material
+        return {
+            "material_id": item.material_id,
+            "material_name": mat.name if mat else None,
+            "material_sku": mat.sku if mat else None,
+            "category": mat.category.name if mat and mat.category else None,
+            "quantity": item.quantity,
+            "unit_price": item.unit_price,
+            "total_price": item.total_price,
+        }
+
+    added: list[dict] = []
+    removed: list[dict] = []
+    changed: list[dict] = []
+    unchanged: list[dict] = []
+
+    for mid in sorted(set(from_items) | set(to_items)):
+        old = from_items.get(mid)
+        new = to_items.get(mid)
+        if old is None:
+            added.append(_entry(new))
+        elif new is None:
+            removed.append(_entry(old))
+        else:
+            qty_delta = round(new.quantity - old.quantity, 2)
+            price_delta = round(new.unit_price - old.unit_price, 2)
+            if abs(qty_delta) <= 1e-6 and abs(price_delta) <= 1e-6:
+                unchanged.append(_entry(new))
+                continue
+            if abs(price_delta) > 1e-6 and abs(qty_delta) <= 1e-6:
+                change_type = "price"
+            elif abs(qty_delta) > 1e-6 and abs(price_delta) <= 1e-6:
+                change_type = "quantity"
+            else:
+                change_type = "quantity_and_price"
+            changed.append({
+                **_entry(old),
+                "from_quantity": old.quantity,
+                "from_unit_price": old.unit_price,
+                "to_quantity": new.quantity,
+                "to_unit_price": new.unit_price,
+                "quantity_delta": qty_delta,
+                "price_delta": price_delta,
+                "change_type": change_type,
+            })
+
+    return {
+        "project_id": project_id,
+        "from_version": from_version,
+        "to_version": to_version,
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+        "unchanged": unchanged,
+        "summary": {
+            "added": len(added),
+            "removed": len(removed),
+            "changed": len(changed),
+            "unchanged": len(unchanged),
+            "total": len(added) + len(removed) + len(changed) + len(unchanged),
+        },
     }
 
 
@@ -235,10 +437,15 @@ def _calc_material_quantity(category_code: str, material: Material, room: Room) 
     return 1.0
 
 
-async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BOMItem]:
+async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BOMItem]:  # noqa: C901
     """F6 BOM 自动生成
 
-    基于项目房间面积/类型，按标准用量自动生成 BOM 物料清单。
+    数据源优先级（F6 几何算量接入）：
+    1. 项目有 active floorplan 且几何算量成功 → 墙体/地面/涂料/吊顶用量
+       取自 quantity_takeoff_service 的派生量（quantity_source=geometric_takeoff）
+    2. 几何算量失败/无 floorplan → 回退面积×标准用量经验法
+       （quantity_source=empirical，fallback_note 标注）
+
     若项目已有 BOM 项则抛出 ValueError("PROJECT_ALREADY_HAS_BOM")。
     若项目无房间则返回空列表。
     """
@@ -257,7 +464,7 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
     # 取所有启用物料，按品类 code 取首条作为默认物料
     mat_result = await db.execute(
         select(Material)
-        .where(Material.is_active == True)
+        .where(Material.is_active.is_(True))
         .options(selectinload(Material.category))
         .order_by(Material.created_at.asc())
     )
@@ -268,11 +475,44 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
         if code and code not in materials_by_category:
             materials_by_category[code] = m
 
-    # 聚合：material_id -> (quantity, note)
+    # ── F6 几何算量优先：从 active floorplan 派生墙体/地面/涂料/吊顶用量 ──
+    geometric = None
+    try:
+        from app.services.quantity_takeoff_service import forward_takeoff_for_project
+        geometric = await forward_takeoff_for_project(db, project_id)
+    except Exception:
+        geometric = None
+
+    geometric_quantities: dict[str, float] = {}
+    if geometric is not None:
+        s = geometric.summary
+        if s.get("total_floor_area_m2"):
+            geometric_quantities["flooring"] = round(s["total_floor_area_m2"], 2)
+        if s.get("total_ceiling_area_m2"):
+            geometric_quantities["ceiling"] = round(s["total_ceiling_area_m2"], 2)
+        wall_mat = materials_by_category.get("wall")
+        if wall_mat and wall_mat.unit and "桶" in wall_mat.unit:
+            # 涂料按桶：几何算量的底漆+面漆桶数（18L/桶）
+            buckets = sum(
+                (p.get("primer_count") or 0) + (p.get("finish_count") or 0)
+                for p in geometric.paints
+            )
+            if buckets > 0:
+                geometric_quantities["wall"] = float(buckets)
+        elif s.get("total_paint_area_m2"):
+            geometric_quantities["wall"] = round(s["total_paint_area_m2"], 2)
+
+    fallback_note = None
+    if geometric is None:
+        fallback_note = "无可用户型几何数据，采用面积×标准用量经验估算"
+
+    # 聚合：material_id -> (quantity, rooms, source)
     aggregated: dict[str, dict] = {}
     for room in rooms:
         cats = ROOM_CATEGORY_MAP.get(room.room_type, ["flooring", "wall", "ceiling"])
         for code in cats:
+            if code in geometric_quantities:
+                continue  # 该品类已由几何算量填充（项目级汇总量）
             mat = materials_by_category.get(code)
             if not mat:
                 continue
@@ -280,16 +520,38 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
             if qty <= 0:
                 continue
             if mat.id not in aggregated:
-                aggregated[mat.id] = {"quantity": 0.0, "rooms": []}
+                aggregated[mat.id] = {"quantity": 0.0, "rooms": [], "source": "empirical"}
             aggregated[mat.id]["quantity"] = round(aggregated[mat.id]["quantity"] + qty, 2)
             aggregated[mat.id]["rooms"].append(room.name or room.room_type)
 
-    # 创建 BOM 项
+    for code, qty in geometric_quantities.items():
+        mat = materials_by_category.get(code)
+        if not mat or qty <= 0:
+            continue
+        if mat.id not in aggregated:
+            aggregated[mat.id] = {"quantity": 0.0, "rooms": [], "source": "geometric_takeoff"}
+        aggregated[mat.id]["quantity"] = round(qty, 2)
+        aggregated[mat.id]["rooms"].append("几何算量（floorplan）")
+
+    # F44 AI 选材强制提示环保等级：创建 BOM 项时按 MaterialEcoCert 认证数据
+    # 拼接环保提示（无认证 → unverified 诚实标注，不伪装认证等级）
+    certs = await _load_eco_certs(db, list(aggregated.keys()))
+
+    # 创建 BOM 项（F7: 写入当前工作集版本）
+    current_version = await get_current_bom_version(db, project_id)
     new_items: list[BOMItem] = []
     for mat_id, info in aggregated.items():
         mat = next(m for m in all_materials if m.id == mat_id)
         total = round(info["quantity"] * mat.unit_price, 2)
-        note = f"自动生成（覆盖房间：{', '.join(info['rooms'])}）"
+        source = info.get("source", "empirical")
+        cert = certs.get(mat_id)
+        grade = cert.eco_grade if cert else "unverified"
+        eco_notice = _eco_notice(grade, cert)
+        if source == "geometric_takeoff":
+            note = "自动生成（来源：户型几何算量 floorplan）"
+        else:
+            note = f"自动生成（覆盖房间：{', '.join(info['rooms'])}）"
+        note = f"{note}；{eco_notice}"
         item = BOMItem(
             project_id=project_id,
             material_id=mat_id,
@@ -298,20 +560,31 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
             total_price=total,
             note=note,
             status="auto_generated",
+            version=current_version,
+            quantity_source=source,
+            fallback_note=fallback_note if source == "empirical" else None,
         )
         db.add(item)
         new_items.append(item)
 
     await db.commit()
 
-    # 重新查询以加载关联
+    # 重新查询以加载关联（仅当前工作集版本）
     result = await db.execute(
         select(BOMItem)
-        .where(BOMItem.project_id == project_id)
+        .where(BOMItem.project_id == project_id, BOMItem.version == current_version)
         .options(selectinload(BOMItem.material).selectinload(Material.category))
         .order_by(BOMItem.created_at.asc())
     )
-    return list(result.scalars().all())
+    items = list(result.scalars().all())
+
+    # 补充 eco_grade/eco_notice 字段（动态属性，认证数据与创建时一致）
+    for item in items:
+        cert = certs.get(item.material_id)
+        grade = cert.eco_grade if cert else "unverified"
+        item.eco_grade = grade
+        item.eco_notice = _eco_notice(grade, cert)
+    return items
 
 
 async def search_materials(
@@ -322,7 +595,7 @@ async def search_materials(
     stmt = (
         select(Material)
         .where(
-            Material.is_active == True,
+            Material.is_active.is_(True),
             (Material.name.ilike(pattern))
             | (Material.sku.ilike(pattern))
             | (Material.brand.ilike(pattern)),
@@ -444,7 +717,7 @@ def _estimate_environmental_grade(material: Material) -> str:
     return "A"
 
 
-async def recommend_materials(
+async def recommend_materials(  # noqa: C901
     db: AsyncSession,
     project_id: str,
     room_type: str | None = None,
@@ -570,7 +843,7 @@ async def recommend_materials(
             # 生成推荐理由
             reasons: list[str] = []
             if cat_code_val in (target_categories or []):
-                reasons.append(f"匹配目标房间类型")
+                reasons.append("匹配目标房间类型")
             if style:
                 style_kws = STYLE_KEYWORD_MAP.get(style, [])
                 text = (m.name or "") + " " + (m.description or "")
@@ -604,6 +877,15 @@ async def recommend_materials(
 
     # 按匹配分数降序排列所有推荐
     recommendations.sort(key=lambda x: x["match_score"], reverse=True)
+
+    # F44 AI 选材强制提示环保等级：以 MaterialEcoCert 认证数据为准补充
+    # eco_grade/eco_notice；无环保认证数据 → eco_grade=unverified 诚实标注，不伪装。
+    certs = await _load_eco_certs(db, [r["material_id"] for r in recommendations])
+    for rec in recommendations:
+        cert = certs.get(rec["material_id"])
+        grade = cert.eco_grade if cert else "unverified"
+        rec["eco_grade"] = grade
+        rec["eco_notice"] = _eco_notice(grade, cert)
 
     # 7. 计算预算利用率
     budget_utilization = round((total_material_cost / total_budget) * 100, 1) if total_budget > 0 else 0.0

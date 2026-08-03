@@ -39,6 +39,9 @@ class ChatMessage(Base):
     # 已读状态：{"user_id": "ISO_timestamp"}（JSON dict）
     read_by: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # F40: Agent 自动回复标注（JSON dict：generated_by/agent_mode/engine/is_placeholder）
+    auto_reply_meta: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # 软删除
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -58,6 +61,8 @@ class ChatRoom(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False, default="项目协作群")
     # 成员数（缓存）
     member_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # F40: Agent 群成员（JSON 字符串数组，如 ["qa_inspector", "concierge"]，默认空数组）
+    agent_members: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_message_preview: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

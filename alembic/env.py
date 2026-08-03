@@ -28,6 +28,8 @@ from app.models import furniture_catalog, smart_home, scene_automation, procurem
 from app.models import appliance, structural  # noqa: F401
 from app.models import a2a_task  # noqa: F401 — v1.2.4 A2A 任务持久化
 from app.models import energy_monitor, health_monitor  # noqa: F401 — A1/A2 能耗+健康监测（补注册）
+from app.models import agent_memory  # noqa: F401 — v1.4.x Agent 记忆作用域
+from app.models import delivery_order  # noqa: F401 — v1.4.x B2B 交付单
 
 config = context.config
 

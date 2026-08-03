@@ -294,7 +294,7 @@ async def test_delete_ai_image_job(client: AsyncClient, auth_headers: dict):
 async def test_ai_image_job_not_found(client: AsyncClient, auth_headers: dict):
     """查询不存在的任务返回 404"""
     resp = await client.get(
-        f"/api/ai-image/jobs/non-existent-id",
+        "/api/ai-image/jobs/non-existent-id",
         headers=auth_headers,
     )
     assert resp.status_code == 404

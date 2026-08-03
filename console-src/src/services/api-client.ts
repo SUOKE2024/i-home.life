@@ -360,6 +360,20 @@ export class ApiClient {
     return this.request<T>('/api/projects');
   }
 
+  /** 项目详情（GET /api/projects/{id}，对齐 ProjectResponse） */
+  async getProject<T = import('../types/domain').Project>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/projects/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 项目 BOM 清单（GET /api/materials/bom/{projectId}） */
+  async getProjectBom<T = import('../types/domain').BomItem[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/materials/bom/${encodeURIComponent(projectId)}`);
+  }
+
   /** 仪表盘概览（GET /api/dashboard/overview）— v1.2.9 Bento Dashboard 跨项目聚合 */
   async getDashboardOverview(): Promise<
     ApiResult<{
@@ -787,6 +801,405 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  B2B 装企交付（v1.4.x，借鉴"卖结果不卖功能"交付式产品）
+  //  对齐 app/api/b2b_delivery.py：POST 落库 / GET 列表 / 详情 / 状态流转
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 创建交付单（POST /api/b2b/delivery）→ 整包：设计方案+报价+施工计划 */
+  async createDelivery<T = import('../types/domain').DeliveryPackage>(
+    payload: {
+      name?: string;
+      area: number;
+      style?: string;
+      budget?: number;
+      requirements?: string;
+      rooms?: string;
+      projectId?: string | null;
+      asyncMode?: boolean;
+    },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/b2b/delivery', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: payload.name ?? '整装交付',
+        area: payload.area,
+        style: payload.style ?? 'modern',
+        budget: payload.budget ?? 0,
+        requirements: payload.requirements ?? '',
+        rooms: payload.rooms ?? '客厅,卧室,厨房,卫生间',
+        project_id: payload.projectId ?? null,
+        async_mode: payload.asyncMode ?? false,
+      }),
+    });
+  }
+
+  /** 交付单列表（GET /api/b2b/delivery，当前用户强隔离） */
+  async listDeliveries<T = import('../types/domain').DeliveryListItem[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/b2b/delivery');
+  }
+
+  /** 交付单详情（GET /api/b2b/delivery/{id}，整包快照） */
+  async getDelivery<T = import('../types/domain').DeliveryOrderDetail>(
+    orderId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/b2b/delivery/${encodeURIComponent(orderId)}`);
+  }
+
+  /** 交付单状态流转（PUT /api/b2b/delivery/{id}/status） */
+  async updateDeliveryStatus<T = import('../types/domain').DeliveryOrderDetail>(
+    orderId: string,
+    status: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/b2b/delivery/${encodeURIComponent(orderId)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  v1.5.0 F41-F47 新增功能（对齐 app/api/ 下各模块）
+  // ──────────────────────────────────────────────────────────────────
+
+  // ── F41 适老改造（app/api/elderly_adaptation.py）──
+
+  /** 项目适老改造方案列表（GET /api/elderly-adaptation/schemes/project/{projectId}） */
+  async getElderlyAdaptationSchemes<T = import('../types/domain').ElderlyAdaptationScheme[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/elderly-adaptation/schemes/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 创建适老改造方案（POST /api/elderly-adaptation/schemes） */
+  async createElderlyAdaptationScheme<T = import('../types/domain').ElderlyAdaptationScheme>(
+    data: { project_id: string; name: string; occupant_type: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/elderly-adaptation/schemes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 方案合规校验（POST /api/elderly-adaptation/schemes/{id}/validate，GB 50763-2012） */
+  async validateElderlyAdaptationScheme<T = import('../types/domain').ElderlyAdaptationValidation>(
+    schemeId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/elderly-adaptation/schemes/${encodeURIComponent(schemeId)}/validate`, {
+      method: 'POST',
+    });
+  }
+
+  // ── F42 局部焕新（app/api/partial_renovation.py）──
+
+  /** 局部焕新模板列表（GET /api/partial-renovation/templates） */
+  async getPartialRenovationTemplates<T = import('../types/domain').PartialRenovationTemplate[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/partial-renovation/templates');
+  }
+
+  /** 项目局部焕新计划列表（GET /api/partial-renovation/plans/project/{projectId}） */
+  async getPartialRenovationPlans<T = import('../types/domain').PartialRenovationPlan[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/partial-renovation/plans/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 创建局部焕新计划（POST /api/partial-renovation/plans，按模板生成） */
+  async createPartialRenovationPlan<T = import('../types/domain').PartialRenovationPlan>(
+    data: { project_id: string; name: string; scope_type: string; budget_level: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/partial-renovation/plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ── F43 资金托管深化（app/api/escrow_trustee.py）──
+
+  /** 开通存管账户（POST /api/escrow/trustee-accounts） */
+  async createEscrowTrusteeAccount<T = import('../types/domain').EscrowTrusteeAccount>(
+    data: {
+      escrow_payment_id: string;
+      trustee_type: string;
+      account_no_masked: string;
+      interest_to_owner: boolean;
+      release_rule?: string;
+    },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/escrow/trustee-accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 项目存管账户列表（GET /api/escrow/project/{projectId}/trustee-accounts） */
+  async listEscrowTrusteeAccounts<T = import('../types/domain').EscrowTrusteeAccount[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/escrow/project/${encodeURIComponent(projectId)}/trustee-accounts`);
+  }
+
+  /** 存管账户详情（GET /api/escrow/trustee-accounts/{id}） */
+  async getEscrowTrusteeAccount<T = import('../types/domain').EscrowTrusteeAccount>(
+    accountId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/escrow/trustee-accounts/${encodeURIComponent(accountId)}`);
+  }
+
+  /** 节点验收双向确认（POST /api/escrow/trustee-accounts/{id}/acceptance，role=owner|contractor） */
+  async confirmEscrowAcceptance<T = import('../types/domain').EscrowTrusteeAccount>(
+    accountId: string,
+    role: 'owner' | 'contractor',
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/escrow/trustee-accounts/${encodeURIComponent(accountId)}/acceptance`, {
+      method: 'POST',
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  /** 放款（POST /api/escrow/trustee-accounts/{id}/release） */
+  async releaseEscrowFunds<T = import('../types/domain').EscrowTrusteeAccount>(
+    accountId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/escrow/trustee-accounts/${encodeURIComponent(accountId)}/release`, {
+      method: 'POST',
+    });
+  }
+
+  /** 托管资金利息信息（GET /api/escrow/trustee-accounts/{id}/interest） */
+  async getEscrowInterest<T = import('../types/domain').EscrowInterestInfo>(
+    accountId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/escrow/trustee-accounts/${encodeURIComponent(accountId)}/interest`);
+  }
+
+  // ── F44 环保材料标签（app/api/eco_materials.py）──
+
+  /** 按环保等级筛选材料（GET /api/eco-materials/materials?grade=） */
+  async getEcoMaterials<T = import('../types/domain').MaterialEcoCertItem[]>(
+    grade?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = grade ? `?grade=${encodeURIComponent(grade)}` : '';
+    return this.request<T>(`/api/eco-materials/materials${qs}`);
+  }
+
+  /** 环保等级数量统计（GET /api/eco-materials/grades） */
+  async getEcoGrades<T = import('../types/domain').EcoGradeCounts>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/eco-materials/grades');
+  }
+
+  /** 分配环保认证标签（POST /api/eco-materials/certs，已存在则更新） */
+  async assignEcoCert<T = import('../types/domain').MaterialEcoCertItem>(
+    data: { material_id: string; eco_grade: string; certification: string; source: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/eco-materials/certs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 环保合规校验报告（POST /api/eco-materials/validate，对标 HC-003） */
+  async validateEcoCompliance<T = import('../types/domain').EcoComplianceReport>(
+    materialIds: string[],
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/eco-materials/validate', {
+      method: 'POST',
+      body: JSON.stringify({ material_ids: materialIds }),
+    });
+  }
+
+  // ── F45 方案前置决策（app/api/solution_first.py）──
+
+  /** 生成 3 套前置方案 + 预算区间（POST /api/solution-first/generate） */
+  async generateSolutionFirst<T = import('../types/domain').SolutionFirstPackage>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/solution-first/generate', {
+      method: 'POST',
+      body: JSON.stringify({ project_id: projectId }),
+    });
+  }
+
+  // ── F46 生态桥接优先级（app/api/ecosystem.py）──
+
+  /** 生态桥接状态报告（GET /api/ecosystem/status，含诚实降级标注） */
+  async getEcosystemStatus<T = import('../types/domain').EcosystemBridgeStatus>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ecosystem/status');
+  }
+
+  /** 生态桥接优先级列表（GET /api/ecosystem/bridges） */
+  async getEcosystemBridges<T = import('../types/domain').EcosystemBridges>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ecosystem/bridges');
+  }
+
+  // ── F47 AI 装修问答（app/api/ai_qa.py）──
+
+  /** 知识库问答搜索（POST /api/ai-qa/search，未命中诚实降级） */
+  async searchAIQA<T = import('../types/domain').AIQAResult>(
+    query: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-qa/search', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    });
+  }
+
+  /** FAQ 话题列表（GET /api/ai-qa/faq，知识库 faq 域前 20 条） */
+  async getAIQAFaq<T = import('../types/domain').AIQAFaq>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-qa/faq');
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  缺口补齐批次：F11/F13 预算对比与模板、F18 厨卫水电、F35 服务商匹配、F40 协作 IM
+  // ──────────────────────────────────────────────────────────────────
+
+  // ── F11/F13 预算（app/api/budgets.py + app/agents/budget.py）──
+
+  /** 多方案预算对比（POST /api/budgets/compare-plans，按面积生成经济/舒适/品质三档） */
+  async compareBudgetPlans<T = import('../types/domain').BudgetCompareResult>(
+    message: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/budgets/compare-plans', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    });
+  }
+
+  /** 预算模板列表（GET /api/budgets/templates） */
+  async listBudgetTemplates<T = import('../types/domain').BudgetTemplateList>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/budgets/templates');
+  }
+
+  /** 应用预算模板（POST /api/budgets/templates/apply，按面积等比缩放） */
+  async applyBudgetTemplate<T = import('../types/domain').BudgetTemplateApplyResult>(
+    templateCode: string,
+    area?: number,
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { template_code: templateCode };
+    if (area != null) body.area = area;
+    return this.request<T>('/api/budgets/templates/apply', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  // ── F18 厨卫水电（app/api/kitchen_bath_mep.py）──
+
+  /** 项目厨卫水电方案列表（GET /api/mep-kb/plans/project/{projectId}） */
+  async listKitchenBathMepPlans<T = import('../types/domain').KitchenBathMEPPlan[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/mep-kb/plans/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 厨卫水电方案点位列表（GET /api/mep-kb/plans/{planId}/points） */
+  async getKitchenBathMepPoints<T = import('../types/domain').MEPPoint[]>(
+    planId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/mep-kb/plans/${encodeURIComponent(planId)}/points`);
+  }
+
+  /** 厨房回路设计（GET /api/mep-kb/plans/{planId}/circuits） */
+  async getKitchenCircuits<T = import('../types/domain').MEPCircuitResult>(
+    planId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/mep-kb/plans/${encodeURIComponent(planId)}/circuits`);
+  }
+
+  /** 等电位校验（GET /api/mep-kb/plans/{planId}/equipotential，GB 50096） */
+  async getEquipotentialCheck<T = import('../types/domain').MEPEquipotentialResult>(
+    planId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/mep-kb/plans/${encodeURIComponent(planId)}/equipotential`);
+  }
+
+  /** 燃气管道规划（GET /api/mep-kb/plans/{planId}/gas） */
+  async getGasPlan<T = import('../types/domain').MEPGasResult>(
+    planId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/mep-kb/plans/${encodeURIComponent(planId)}/gas`);
+  }
+
+  // ── F35 服务商匹配（app/api/workers.py）──
+
+  /** 服务商列表（GET /api/workers，支持 role 过滤） */
+  async listWorkers<T = import('../types/domain').ServiceWorker[]>(
+    role?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = role ? `?role=${encodeURIComponent(role)}` : '';
+    return this.request<T>(`/api/workers${qs}`);
+  }
+
+  /** 智能匹配服务商（POST /api/workers/match，六维评分） */
+  async matchWorkers<T = import('../types/domain').WorkerMatch[]>(
+    payload: { project_id: string; role?: string; top_n?: number },
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { project_id: payload.project_id };
+    if (payload.role) body.role = payload.role;
+    if (payload.top_n != null) body.top_n = payload.top_n;
+    return this.request<T>('/api/workers/match', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** 项目服务商匹配记录（GET /api/workers/matches/{projectId}） */
+  async getWorkerMatches<T = import('../types/domain').WorkerMatch[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/workers/matches/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 更新匹配状态（PATCH /api/workers/matches/{matchId}/status?status=） */
+  async updateWorkerMatchStatus<T = import('../types/domain').WorkerMatch>(
+    matchId: string,
+    status: 'shortlisted' | 'hired' | 'rejected',
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(
+      `/api/workers/matches/${encodeURIComponent(matchId)}/status?status=${encodeURIComponent(status)}`,
+      { method: 'PATCH' },
+    );
+  }
+
+  // ── F40 三方协作 IM（app/api/chat.py）──
+
+  /** 获取（或创建）项目聊天室（GET /api/chat/rooms/{projectId}） */
+  async getChatRoom<T = import('../types/domain').ChatRoom>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/chat/rooms/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 项目消息列表（GET /api/chat/messages/{projectId}，含 Agent 自动回复标注） */
+  async listChatMessages<T = import('../types/domain').ChatMessage[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/chat/messages/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 发送消息（POST /api/chat/messages） */
+  async sendChatMessage<T = import('../types/domain').ChatMessage>(
+    payload: { project_id: string; content: string; message_type?: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/chat/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        project_id: payload.project_id,
+        content: payload.content,
+        message_type: payload.message_type ?? 'text',
+      }),
+    });
+  }
+
+  /** 查询聊天室内 Agent 成员（GET /api/chat/rooms/{roomId}/agents） */
+  async listRoomAgents<T = import('../types/domain').ChatRoomAgents>(
+    roomId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/chat/rooms/${encodeURIComponent(roomId)}/agents`);
   }
 }
 

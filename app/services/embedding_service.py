@@ -32,7 +32,7 @@ _EMBED_CACHE: dict[str, list[float]] = {}
 _EMBED_CACHE_MAX = 256
 
 
-async def embed_query(text: str) -> Optional[list[float]]:
+async def embed_query(text: str) -> Optional[list[float]]:  # noqa: C901
     """将文本转为 embedding 向量。
 
     Args:

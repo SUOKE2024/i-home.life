@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """生成 TRAE 竞赛提交所需的 4 张截图"""
 
-import json
-import subprocess
 import os
-import sys
 from PIL import Image, ImageDraw, ImageFont
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "images", "screenshots")
@@ -30,6 +27,7 @@ FONT_PATHS = [
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
 ]
 
+
 def _find_font(size=20):
     for fp in FONT_PATHS:
         if os.path.exists(fp):
@@ -38,6 +36,7 @@ def _find_font(size=20):
             except Exception:
                 continue
     return ImageFont.load_default()
+
 
 def _find_mono(size=16):
     mono_paths = [
@@ -73,7 +72,6 @@ def screenshot_01_trae():
 
     font = _find_font(15)
     mono = _find_mono(14)
-    f_large = _find_font(20)
     f_bold = _find_font(22)
 
     # 左侧面板 (IDE)
@@ -154,7 +152,6 @@ def screenshot_02_prd():
     draw = ImageDraw.Draw(img)
     _title_bar(draw, "i-home.life PRD — 索克家居产品需求文档")
 
-    font = _find_font(15)
     f_title = _find_font(24)
     f_h2 = _find_font(18)
     f_small = _find_font(12)
@@ -256,7 +253,6 @@ def screenshot_03_swagger():
     draw = ImageDraw.Draw(img)
     _title_bar(draw, "Swagger UI — i-home.life API v0.1.0 — 47 Endpoints")
 
-    font = _find_font(13)
     f_title = _find_font(18)
     f_tag = _find_font(14)
     mono = _find_mono(12)
@@ -341,8 +337,13 @@ def screenshot_03_swagger():
 
     # Footer
     y += 10
-    draw.text((30, y), "WebSocket 21 Events: project.created/updated/deleted, floorplan.*, bom.*, budget.*, task.*, order.*, settlement.*",
-              fill=GRAY, font=_find_font(11))
+    draw.text(
+        (30, y),
+        "WebSocket 21 Events: project.created/updated/deleted, floorplan.*, bom.*, budget.*, "
+        "task.*, order.*, settlement.*",
+        fill=GRAY,
+        font=_find_font(11),
+    )
 
     img.save(os.path.join(OUT, "screenshot-03-swagger.png"))
     print("✅ screenshot-03-swagger.png")

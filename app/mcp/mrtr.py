@@ -20,8 +20,6 @@ import time
 import uuid
 from typing import Any
 
-from app.mcp.extensions import Extension
-
 _MRTR_TTL_SECONDS = 300  # 5 分钟超时
 
 

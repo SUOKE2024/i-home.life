@@ -4,6 +4,7 @@ import '../models/chat_message.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 import '../widgets/chat_message_card.dart';
+import '../theme/suoke_theme.dart';
 
 /// IM 协作聊天页面 (F40) — 消息/聊天室/@提及/已读
 class ChatPage extends StatefulWidget {
@@ -208,7 +209,7 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
             trailing: room['unread'] != null && (room['unread'] as int) > 0
                 ? CircleAvatar(
                     radius: 10,
-                    backgroundColor: Colors.red,
+                    backgroundColor: SuokeDesignTokens.danger,
                     child: Text('${room['unread']}', style: const TextStyle(fontSize: 10, color: Colors.white)),
                   )
                 : null,

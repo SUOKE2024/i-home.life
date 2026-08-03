@@ -6,6 +6,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import PlaceholderHome from './pages/PlaceholderHome';
 
 import ProjectsPage from './pages/ProjectsPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 import DashboardPage from './pages/DashboardPage';
 import SettingsPage from './pages/SettingsPage';
 import BudgetPage from './pages/BudgetPage';
@@ -39,6 +40,19 @@ import CADPage from './pages/CADPage';
 import Sketch3DPage from './pages/Sketch3DPage';
 import IFCExportPage from './pages/IFCExportPage';
 import DesignPage from './pages/DesignPage';
+import DeliveryPage from './pages/DeliveryPage';
+import ElderlyAdaptationPage from './pages/ElderlyAdaptationPage';
+import PartialRenovationPage from './pages/PartialRenovationPage';
+import EscrowPage from './pages/EscrowPage';
+import EcoMaterialsPage from './pages/EcoMaterialsPage';
+import SolutionFirstPage from './pages/SolutionFirstPage';
+import EcosystemPage from './pages/EcosystemPage';
+import AIQAPage from './pages/AIQAPage';
+import BudgetComparePage from './pages/BudgetComparePage';
+import BudgetTemplatesPage from './pages/BudgetTemplatesPage';
+import KitchenBathMepPage from './pages/KitchenBathMepPage';
+import WorkersPage from './pages/WorkersPage';
+import IMChatPage from './pages/IMChatPage';
 
 export default function App() {
   const location = useLocation();
@@ -51,6 +65,7 @@ export default function App() {
           <Route path="/tokens" element={<PlaceholderHome />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/construction" element={<ConstructionPage />} />
@@ -83,6 +98,19 @@ export default function App() {
           <Route path="/sketch-3d" element={<Sketch3DPage />} />
           <Route path="/ifc-export" element={<IFCExportPage />} />
           <Route path="/design" element={<DesignPage />} />
+          <Route path="/delivery" element={<DeliveryPage />} />
+          <Route path="/elderly-adaptation" element={<ElderlyAdaptationPage />} />
+          <Route path="/partial-renovation" element={<PartialRenovationPage />} />
+          <Route path="/escrow" element={<EscrowPage />} />
+          <Route path="/eco-materials" element={<EcoMaterialsPage />} />
+          <Route path="/solution-first" element={<SolutionFirstPage />} />
+          <Route path="/ecosystem" element={<EcosystemPage />} />
+          <Route path="/ai-qa" element={<AIQAPage />} />
+          <Route path="/budget-compare" element={<BudgetComparePage />} />
+          <Route path="/budget-templates" element={<BudgetTemplatesPage />} />
+          <Route path="/kitchen-bath-mep" element={<KitchenBathMepPage />} />
+          <Route path="/workers" element={<WorkersPage />} />
+          <Route path="/im-chat" element={<IMChatPage />} />
           {/* 真 404：取代此前静默回退到 Workbench 的反直觉行为 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

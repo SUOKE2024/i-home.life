@@ -884,7 +884,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.redAccent),
+          const Icon(Icons.error_outline, size: 64, color: SuokeDesignTokens.danger),
           const SizedBox(height: 16),
           Text(message,
               style: TextStyle(fontSize: 16, color: SuokeDesignTokens.textSub(context))),
@@ -925,9 +925,9 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
       height: 32,
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
+          foregroundColor: isDanger ? SuokeDesignTokens.danger : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
+              color: isDanger ? SuokeDesignTokens.danger : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -1195,7 +1195,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: SuokeDesignTokens.danger,
                 foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);

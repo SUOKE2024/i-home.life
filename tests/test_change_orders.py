@@ -7,6 +7,7 @@
 - PATCH /api/change-orders/{id}/status
 """
 import uuid
+import json
 import pytest
 from httpx import AsyncClient
 
@@ -140,3 +141,101 @@ async def test_cross_user_change_order_access(auth_headers: dict, client: AsyncC
         headers=other_headers,
     )
     assert resp.status_code in (403, 404)
+
+
+# ── F39 变更管理 Agent 自动评估 ──
+
+
+@pytest.mark.asyncio
+async def test_review_manual_assessment_source(auth_headers: dict, client: AsyncClient):
+    """人工传入评估字段 → assessment_source=manual（向后兼容路径不变）"""
+    project_id = await _create_project(client, auth_headers)
+    create_resp = await client.post(
+        "/api/change-orders",
+        json={
+            "project_id": project_id,
+            "title": "人工评估",
+            "change_type": "design",
+            "description": "电视墙插座上移",
+        },
+        headers=auth_headers,
+    )
+    co_id = create_resp.json()["id"]
+    resp = await client.post(
+        f"/api/change-orders/{co_id}/review",
+        json={"feasibility": "feasible", "feasibility_note": "人工评估：可行", "cost_impact": 500.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["assessment_source"] == "manual"
+    assert body["feasibility"] == "feasible"
+    assert body["cost_impact"] == 500.0
+    assert body["status"] == "reviewing"
+
+
+@pytest.mark.asyncio
+async def test_review_auto_assessment_source_agent(auth_headers: dict, client: AsyncClient):
+    """未传人工评估字段 → Agent 规则引擎自动评估 → assessment_source=agent"""
+    project_id = await _create_project(client, auth_headers)
+    create_resp = await client.post(
+        "/api/change-orders",
+        json={
+            "project_id": project_id,
+            "title": "客厅改造",
+            "change_type": "design",
+            "description": "126㎡ 客厅改造",
+            "items": [
+                {
+                    "name": "客厅",
+                    "action": "modify",
+                    "target_type": "room",
+                    "after_data": json.dumps(
+                        {"name": "客厅", "type": "living_room", "x": 0.5, "y": 0.5, "w": 5.5, "h": 4.5},
+                        ensure_ascii=False,
+                    ),
+                    "quantity": 1,
+                    "unit_price": 5000,
+                }
+            ],
+        },
+        headers=auth_headers,
+    )
+    co_id = create_resp.json()["id"]
+    resp = await client.post(f"/api/change-orders/{co_id}/review", json={}, headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["assessment_source"] == "agent"
+    assert body["feasibility"] == "feasible"
+    assert body["cost_impact"] == 5000.0  # 明细金额汇总（精确）
+    assert body["status"] == "reviewing"
+
+
+@pytest.mark.asyncio
+async def test_review_auto_assessment_degraded(auth_headers: dict, client: AsyncClient, monkeypatch):
+    """Agent 评估失败 → 诚实降级 assessment_source=unavailable，结论 pending，不伪造"""
+    project_id = await _create_project(client, auth_headers)
+    create_resp = await client.post(
+        "/api/change-orders",
+        json={
+            "project_id": project_id,
+            "title": "自动评估失败",
+            "change_type": "design",
+            "description": "降级测试",
+        },
+        headers=auth_headers,
+    )
+    co_id = create_resp.json()["id"]
+
+    async def _boom(_order):
+        raise RuntimeError("LLM 不可用")
+
+    monkeypatch.setattr("app.services.change_order_service.auto_assess_change_order", _boom)
+    resp = await client.post(f"/api/change-orders/{co_id}/review", json={}, headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["assessment_source"] == "unavailable"
+    assert body["feasibility"] == "pending"
+    assert body["status"] == "pending"  # 状态机未推进
+    assert body["assessment_note"]
+    assert "待人工评估" in body["assessment_note"]

@@ -208,6 +208,7 @@ EMOTION_RESPONSE_STRATEGIES = {
 
 class ConciergeAgent(BaseAgent):
     agent_name = "concierge"
+    cost_tier = "economy"  # 客服低价值意图：优先低成本供应商
     system_prompt = """你是索克家居（i-home.life）AI 客服 Agent。
 
 你的职责：

@@ -38,7 +38,7 @@
   display: flex; align-items: center; justify-content: center;
 }
 .wallpaper-popover-inner {
-  background: var(--bg-card, #1a1a2e); border-radius: 16px;
+  background: var(--bg-card, #12121d); border-radius: 16px;
   padding: 20px; max-width: 520px; width: 90%; max-height: 80vh;
   overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
@@ -52,10 +52,10 @@
   transition: border-color 0.2s, transform 0.15s; position: relative;
 }
 .wallpaper-thumb:hover { transform: scale(1.03); }
-.wallpaper-thumb.selected { border-color: var(--accent, #4fc3f7); }
+.wallpaper-thumb.selected { border-color: var(--accent, #c9973b); }
 .wallpaper-thumb.selected::after {
   content: '✓'; position: absolute; top: 4px; right: 6px;
-  color: var(--accent, #4fc3f7); font-weight: bold; font-size: 14px;
+  color: var(--accent, #c9973b); font-weight: bold; font-size: 14px;
   text-shadow: 0 0 4px rgba(0,0,0,0.8);
 }
 </style>
@@ -134,7 +134,8 @@
       <div class="settings-list">
         <div class="settings-item">
           <span>🌙 深色模式</span>
-          <span class="settings-item-value">当前</span>
+          <span class="settings-item-value" id="dark-mode-label">当前</span>
+          <button class="toggle" id="dark-mode-toggle" aria-label="切换深色/浅色模式" aria-pressed="true"></button>
         </div>
         <div class="settings-item">
           <span>🌐 语言</span>
@@ -441,6 +442,21 @@
   wallpaperPopover.addEventListener('click', (e) => {
     if (e.target === wallpaperPopover) wallpaperPopover.style.display = 'none';
   });
+
+  // 深色/浅色主题切换（对齐 React 控制台 / Flutter 主题：data-theme + localStorage）
+  const darkModeLabel = document.getElementById('dark-mode-label');
+  const darkModeToggle = document.getElementById('dark-mode-toggle');
+  function applyThemePref() {
+    const dark = localStorage.getItem('theme') !== 'light';
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    darkModeLabel.textContent = dark ? '深色' : '浅色';
+    darkModeToggle.setAttribute('aria-pressed', String(dark));
+  }
+  darkModeToggle.addEventListener('click', () => {
+    localStorage.setItem('theme', document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    applyThemePref();
+  });
+  applyThemePref();
 
   loadUser();
 })();

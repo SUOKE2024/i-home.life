@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from app.agents.base import BaseAgent
 from app.services.agent_tool_registry import tool_registry
 from app.standards.acceptance_checklists import (
-    ACCEPTANCE_CHECKLISTS,
     QUALITY_CHECKLISTS,
     get_checklist,
 )

@@ -7,7 +7,7 @@ from app.models.floorplan import FloorPlan
 async def list_floor_plans(db: AsyncSession, project_id: str) -> list[FloorPlan]:
     result = await db.execute(
         select(FloorPlan)
-        .where(FloorPlan.project_id == project_id, FloorPlan.is_active == True)
+        .where(FloorPlan.project_id == project_id, FloorPlan.is_active.is_(True))
         .order_by(FloorPlan.updated_at.desc())
     )
     return list(result.scalars().all())

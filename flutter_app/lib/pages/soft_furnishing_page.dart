@@ -567,6 +567,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
               IconButton(
                 icon: Icon(Icons.delete_outline,
                     color: SuokeDesignTokens.textSub(context), size: 20),
+                tooltip: '删除方案',
                 onPressed: () =>
                     _deleteScheme(scheme['id'] as String),
               ),

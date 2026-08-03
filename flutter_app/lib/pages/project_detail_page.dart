@@ -9,6 +9,13 @@ import 'settlement_page.dart';
 import 'design_deepening_page.dart';
 import 'procurement_enhanced_page.dart';
 import 'ar_scan_page.dart';
+import 'elderly_adaptation_page.dart';
+import 'partial_renovation_page.dart';
+import 'escrow_trustee_page.dart';
+import 'eco_materials_page.dart';
+import 'solution_first_page.dart';
+import 'ecosystem_page.dart';
+import 'ai_qa_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final String projectId;
@@ -56,9 +63,13 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   String _statusText(String s) {
     switch (s) {
       case 'in_progress':
+      case 'active':
+        // 后端施工中状态为 active，兼容旧值 in_progress
         return '施工中';
       case 'completed':
         return '已完成';
+      case 'cancelled':
+        return '已取消';
       case 'draft':
       default:
         return '草稿';
@@ -68,9 +79,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   Color _statusColor(String s) {
     switch (s) {
       case 'in_progress':
+      case 'active':
         return const Color(0xFF4A9E6E);
       case 'completed':
         return const Color(0xFF5B8EC4);
+      case 'cancelled':
+        return const Color(0xFFC0392B);
       default:
         return SuokeDesignTokens.textSub(context);
     }
@@ -163,7 +177,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFD9534F)),
+            style: TextButton.styleFrom(foregroundColor: SuokeDesignTokens.danger),
             child: const Text('删除'),
           ),
         ],
@@ -230,6 +244,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         _buildDesignDeepeningEntry(),
                         const SizedBox(height: 12),
                         _buildProcurementEnhancedEntry(),
+                        const SizedBox(height: 16),
+                        _buildV150FeaturesEntry(),
                         const SizedBox(height: 16),
                         _buildActions(),
                         const SizedBox(height: 12),
@@ -410,9 +426,9 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF0D0D18),
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF1E1E32)),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -503,7 +519,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       trailing: Text(
         '¥${((total ?? unitPrice ?? 0) as num).toDouble().toStringAsFixed(2)}',
         style: const TextStyle(
-            color: Color(0xFFE0AA4A), fontWeight: FontWeight.bold, fontSize: 14),
+            color: SuokeDesignTokens.accent, fontWeight: FontWeight.bold, fontSize: 14),
       ),
     );
   }
@@ -602,6 +618,144 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     );
   }
 
+  Widget _buildV150FeaturesEntry() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('新增功能（v1.5.0）'),
+        Card(
+          color: SuokeDesignTokens.card(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF1E1E32)),
+          ),
+          child: Column(
+            children: [
+              _v150FeatureTile(
+                'F41 适老改造',
+                '无障碍方案与合规校验（GB 50763-2012）',
+                Icons.elderly,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          ElderlyAdaptationPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F42 局部焕新',
+                '模板化焕新计划与预算档位',
+                Icons.construction,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          PartialRenovationPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F43 资金托管',
+                '银行存管/第三方监管与双向确认放款',
+                Icons.savings_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          EscrowTrusteePage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F44 环保材料',
+                'ENF/E0/E1 等级与环保合规校验',
+                Icons.eco_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          EcoMaterialsPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F45 方案前置',
+                '3 套布局方案 + 预算区间生成',
+                Icons.auto_awesome,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          SolutionFirstPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F46 生态桥接',
+                '智能家居生态配置状态与优先级',
+                Icons.link,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          EcosystemPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'F47 AI 装修问答',
+                '知识库问答搜索与 FAQ',
+                Icons.smart_toy_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => AIQAPage(projectId: widget.projectId)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _v150FeatureTile(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      leading: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: SuokeDesignTokens.accent.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: SuokeDesignTokens.accent, size: 22),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+            color: SuokeDesignTokens.text(context),
+            fontSize: 14,
+            fontWeight: FontWeight.w600),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(subtitle,
+            style:
+                TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+      ),
+      trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
+      onTap: onTap,
+    );
+  }
+
   Widget _buildActions() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -686,7 +840,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
       child: OutlinedButton.icon(
         onPressed: _confirmDelete,
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFD9534F),
+          foregroundColor: SuokeDesignTokens.danger,
           side: const BorderSide(color: Color(0xFF3A1E1E)),
           padding: const EdgeInsets.symmetric(vertical: 12),
           shape: RoundedRectangleBorder(

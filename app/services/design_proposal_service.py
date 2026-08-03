@@ -12,13 +12,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any
 
 import httpx
 from pydantic import BaseModel, Field
 
 from app.agents.base import PROVIDER_REGISTRY
 from app.config import get_settings
+from app.services.cache_service import cache
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -106,21 +106,39 @@ class ProposalSet(BaseModel):
     session_id: str = Field("", description="关联的语音会话 ID")
 
 
-# ── 内存级方案存储（按 session_id 索引）──
+# ── 方案存储（统一缓存层：Redis 多 worker 共享 / 内存降级）──
 # 讨论式交互需要跨轮保留方案上下文供修订。
-# 生产可换 Redis；当前单实例内存足够（语音会话 TTL 1 小时）。
-_proposal_store: dict[str, list[ProposalSpec]] = {}
+# 走 cache_service（对齐 REDIS_URL）：Redis 已配置时多 worker 共享，
+# 未配置时降级内存 dict。TTL 1 小时（与语音会话生命周期一致）。
+_PROPOSAL_TTL_SECONDS = 3600
 
 
-def _store_proposals(session_id: str, proposals: list[ProposalSpec]) -> None:
+def _proposal_cache_key(session_id: str) -> str:
+    # 前缀 + session_id（session_id 形如 proposal_{user_id}，已含 user_id，
+    # 满足缓存隔离硬约束：私有数据 key 必须含 user_id）
+    return f"design_proposal:{session_id}"
+
+
+async def _store_proposals(session_id: str, proposals: list[ProposalSpec]) -> None:
     """缓存方案供后续修订"""
-    if session_id:
-        _proposal_store[session_id] = proposals
+    if not session_id:
+        return
+    data = [p.model_dump() for p in proposals]
+    await cache.set(_proposal_cache_key(session_id), data, ttl=_PROPOSAL_TTL_SECONDS)
 
 
-def _get_proposals(session_id: str) -> list[ProposalSpec]:
+async def _get_proposals(session_id: str) -> list[ProposalSpec]:
     """读取缓存的方案"""
-    return _proposal_store.get(session_id, [])
+    if not session_id:
+        return []
+    raw = await cache.get(_proposal_cache_key(session_id))
+    if not raw:
+        return []
+    try:
+        return [ProposalSpec(**item) for item in raw]
+    except Exception as e:
+        logger.warning("design_proposal: 缓存方案解析失败: %s", e)
+        return []
 
 
 def _parse_llm_json(content: str) -> dict | None:
@@ -192,7 +210,7 @@ async def generate_proposals(
     """
     if not settings.design_proposal_llm_enabled:
         proposals = [_fallback_proposal(user_requirement)]
-        _store_proposals(session_id, proposals)
+        await _store_proposals(session_id, proposals)
         return ProposalSet(proposals=proposals, session_id=session_id)
 
     content = await _call_llm(_PROPOSAL_GEN_SYSTEM, user_requirement)
@@ -215,7 +233,7 @@ async def generate_proposals(
     if not proposals:
         proposals = [_fallback_proposal(user_requirement)]
 
-    _store_proposals(session_id, proposals)
+    await _store_proposals(session_id, proposals)
     return ProposalSet(proposals=proposals, session_id=session_id)
 
 
@@ -232,7 +250,7 @@ async def revise_proposal(
     Returns:
         修订后的 ProposalSpec；找不到原方案或 LLM 不可用返回 None
     """
-    existing = _get_proposals(session_id)
+    existing = await _get_proposals(session_id)
     if not existing:
         logger.warning("design_proposal: session=%s 无历史方案", session_id)
         return None
@@ -245,6 +263,7 @@ async def revise_proposal(
     if not settings.design_proposal_llm_enabled:
         # flag 关闭：简单追加 change_log，不改字段
         target.change_log.append(f"{change_instruction}（本地降级，未调 LLM）")
+        await _store_proposals(session_id, existing)
         return target
 
     existing_json = json.dumps(
@@ -265,12 +284,12 @@ async def revise_proposal(
 
     try:
         revised = ProposalSpec(**parsed, source="llm")
-        # 更新内存中的方案
+        # 更新缓存中的方案
         for i, p in enumerate(existing):
             if p.proposal_id == proposal_id:
                 existing[i] = revised
                 break
-        _store_proposals(session_id, existing)
+        await _store_proposals(session_id, existing)
         return revised
     except Exception as e:
         logger.warning("design_proposal: 修订结果解析失败: %s", e)

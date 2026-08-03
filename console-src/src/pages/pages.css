@@ -118,22 +118,206 @@
 }
 
 .wb-create-form {
-  background: var(--surface1);
+  position: relative;
+  background: linear-gradient(180deg, var(--surface2), var(--surface1) 46%);
   border: 1px solid var(--border-active);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  margin-bottom: 16px;
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  animation: wb-create-in 360ms var(--ease-decelerated) both;
+}
+/* 顶部金色氛围光晕 */
+.wb-create-form::before {
+  content: '';
+  position: absolute;
+  top: -72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 340px;
+  height: 130px;
+  background: radial-gradient(ellipse, var(--accent-glow), transparent 70%);
+  pointer-events: none;
+}
+@keyframes wb-create-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wb-create-form__head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.wb-create-form__badge {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--bg-deep);
+  font-size: 16px;
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
 .wb-create-form__title {
-  font-size: var(--font-size-md);
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  letter-spacing: 0.01em;
 }
-.wb-create-form__actions {
+.wb-create-form__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.wb-create-form__body {
+  position: relative;
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wb-create-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.wb-create-form__field--grow {
+  flex: 1;
+}
+.wb-create-form__field--area {
+  width: 132px;
+  flex: none;
+}
+
+.wb-create-form__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.wb-create-form__required {
+  color: var(--accent-bright);
+}
+.wb-create-form__hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+/* 装修类型 — 图标网格选择器 */
+.wb-create-type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-top: 12px;
+}
+.wb-create-type {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 6px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard),
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+  animation: wb-create-type-in 380ms var(--ease-decelerated) both;
+}
+.wb-create-type:hover {
+  border-color: var(--border-active);
+  background: var(--surface2);
+  transform: translateY(-1px);
+}
+.wb-create-type--active {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  color: var(--accent-bright);
+  box-shadow: 0 0 0 1px var(--accent) inset, 0 4px 14px var(--accent-glow);
+}
+.wb-create-type__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.wb-create-type__label {
+  font-weight: 600;
+}
+@keyframes wb-create-type-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 地址 + 面积 行布局 */
+.wb-create-form__row {
+  display: flex;
+  gap: 12px;
+}
+
+/* 提交错误提示 */
+.wb-create-form__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(201, 74, 74, 0.45);
+  background: rgba(201, 74, 74, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: var(--font-size-sm);
+}
+
+.wb-create-form__actions {
+  padding-top: 2px;
+}
+
+@media (max-width: 480px) {
+  .wb-create-form__row {
+    flex-direction: column;
+  }
+  .wb-create-form__field--area {
+    width: 100%;
+  }
+  .wb-create-type-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 空状态标题/描述 */
+.wb-state__title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.wb-state__desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 8px;
 }
 
 /* ════════════════════════════════════════════
@@ -1486,4 +1670,160 @@
   .wb-bento__value {
     font-size: 24px;
   }
+}
+
+/* ════════════════════════════════════════════
+   DeliveryPage — B2B 装企交付工作台（v1.4.x）
+   ════════════════════════════════════════════ */
+.wb-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs, 12px);
+  color: var(--text-secondary);
+  background: var(--surface3);
+  white-space: nowrap;
+}
+.wb-delivery-form {
+  background: var(--surface2);
+  border: 1px solid var(--surface3);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+.wb-delivery-form__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.wb-delivery-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.wb-delivery-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.wb-delivery-form__field > span {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+.wb-delivery-form__field input,
+.wb-delivery-form__field select,
+.wb-delivery-form__field textarea {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface3);
+  background: var(--surface1);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  width: 100%;
+  box-sizing: border-box;
+}
+.wb-delivery-form__field textarea {
+  resize: vertical;
+}
+.wb-delivery-card {
+  background: var(--surface2);
+  border: 1px solid var(--surface3);
+  border-radius: var(--radius-lg);
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.wb-delivery-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+.wb-delivery-card__head:hover {
+  background: var(--surface3);
+}
+.wb-delivery-card__name {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.wb-delivery-card__meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.wb-delivery-card__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wb-delivery-card__chevron {
+  color: var(--text-muted);
+}
+.wb-delivery-card__body {
+  border-top: 1px solid var(--surface3);
+  padding: 14px 16px;
+}
+.wb-delivery-summary {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.wb-delivery-section {
+  margin-top: 14px;
+}
+.wb-delivery-section__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.wb-delivery-tier {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+.wb-delivery-tier--rec {
+  color: var(--accent);
+  font-weight: 600;
+}
+.wb-delivery-phases {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 16px;
+}
+.wb-delivery-phase {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  background: var(--surface3);
+  border-radius: var(--radius-md);
+}
+.wb-delivery-proposal {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--surface3);
+}
+.wb-delivery-proposal__head {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+.wb-delivery-proposal__hl {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.wb-delivery-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
 }

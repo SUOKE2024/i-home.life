@@ -1,5 +1,7 @@
 """F15 支付 / F28 动线 / F40 IM / F36 工程队 新功能测试"""
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -254,24 +256,43 @@ async def test_crew_match(client: AsyncClient):
     project_id = await _create_project(client, headers, "工程队匹配测试")
 
     # 创建 2 个工程队
-    await client.post(
-        "/api/crews",
-        json={
-            "name": "高分匹配队", "leader": "王工长", "city": "北京", "district": "朝阳区",
-            "qualification": "A", "specialties": ["mep", "masonry"],
-            "rating": 4.8, "daily_rate": 900, "avg_duration": 50,
-        },
-        headers=headers,
+    crew_ids = []
+    for crew_name, leader, crew_city, crew_district, qual, specs, rating, rate, duration in [
+        ("高分匹配队", "王工长", "北京", "朝阳区", "A", ["mep", "masonry"], 4.8, 900, 50),
+        ("低分匹配队", "李工长", "天津", None, "C", ["masonry"], 3.5, 1500, 80),
+    ]:
+        resp = await client.post(
+            "/api/crews",
+            json={
+                "name": crew_name, "leader": leader, "city": crew_city, "district": crew_district,
+                "qualification": qual, "specialties": specs,
+                "rating": rating, "daily_rate": rate, "avg_duration": duration,
+            },
+            headers=headers,
+        )
+        crew_ids.append(resp.json()["id"])
+
+    # F36: 审核通过前工程队不出现在匹配中，先提交审核并由管理员 approve
+    admin_phone = f"139{str(uuid.uuid4().int)[:8]}"
+    admin_resp = await client.post(
+        "/api/auth/register",
+        json={"phone": admin_phone, "name": "审核管理员", "password": "test123456", "role": "admin"},
     )
-    await client.post(
-        "/api/crews",
-        json={
-            "name": "低分匹配队", "leader": "李工长", "city": "天津",
-            "qualification": "C", "specialties": ["masonry"],
-            "rating": 3.5, "daily_rate": 1500, "avg_duration": 80,
-        },
-        headers=headers,
-    )
+    assert admin_resp.status_code == 201
+    admin_headers = {"Authorization": f"Bearer {admin_resp.json()['access_token']}"}
+    for crew_id in crew_ids:
+        submit_resp = await client.post(
+            f"/api/crews/{crew_id}/submit",
+            json={"license_no": f"LIC-{crew_id[:8]}", "license_type": "营业执照", "insurance_no": f"INS-{crew_id[:8]}"},
+            headers=headers,
+        )
+        assert submit_resp.status_code == 200, f"提交审核失败: {submit_resp.json()}"
+        review_resp = await client.post(
+            f"/api/crews/{crew_id}/review",
+            json={"action": "approve", "note": "测试通过"},
+            headers=admin_headers,
+        )
+        assert review_resp.status_code == 200, f"审核失败: {review_resp.json()}"
 
     # 匹配
     resp = await client.post(

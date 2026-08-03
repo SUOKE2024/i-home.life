@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def register_all_rules():
+def register_all_rules():  # noqa: C901
     """Register all orchestration rules. Call once at app startup."""
     bus = get_event_bus()
 

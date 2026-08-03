@@ -82,8 +82,8 @@ async def test_mcp_manifest(client: AsyncClient):
     assert "version" in data
     assert "protocol_version" in data
     assert "tools_count" in data
-    # 项目内置 10 个 Agent 工具（5 个业务 + 3 个编排 + 2 个设计方案）
-    assert data["tools_count"] == 10
+    # 项目内置 14 个 Agent 工具（5 业务 + 3 编排 + 2 设计方案 + 1 LBS POI + 3 知识/工单）
+    assert data["tools_count"] == 14
 
 
 # === /api/mcp/tools ===
@@ -98,14 +98,14 @@ async def test_mcp_list_tools_unauth(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_mcp_list_tools(client: AsyncClient):
-    """已认证返回工具列表（10 个工具）"""
+    """已认证返回工具列表（14 个工具）"""
     token = await _register(client, "13900007010")
     resp = await client.get("/api/mcp/tools", headers=_headers(token))
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert "tools" in data
     tools = data["tools"]
-    assert len(tools) == 10
+    assert len(tools) == 14
     # 验证 MCP 协议字段（name/description/inputSchema）
     for tool in tools:
         assert "name" in tool
@@ -126,12 +126,16 @@ async def test_mcp_list_tools(client: AsyncClient):
         "cancel_agent_task",
         "generate_design_proposals",
         "update_design_proposal",
+        "search_poi",
+        "search_knowledge",
+        "create_support_ticket",
+        "list_support_tickets",
     }
 
 
 @pytest.mark.asyncio
 async def test_mcp_list_tools_orchestration_flag_on(client: AsyncClient, monkeypatch):
-    """voice_agent_orchestration_enabled=True 时全部 10 个工具可见"""
+    """voice_agent_orchestration_enabled=True 时全部 14 个工具可见"""
     from app.config import get_settings
     monkeypatch.setattr(get_settings(), "voice_agent_orchestration_enabled", True)
     token = await _register(client, "13900007015")
@@ -139,9 +143,10 @@ async def test_mcp_list_tools_orchestration_flag_on(client: AsyncClient, monkeyp
     assert resp.status_code == 200, resp.text
     tools = resp.json()["tools"]
     names = {t["name"] for t in tools}
-    assert len(tools) == 10
+    assert len(tools) == 14
     assert {"launch_agent_task", "get_voice_tasks", "cancel_agent_task"} <= names
     assert {"generate_design_proposals", "update_design_proposal"} <= names
+    assert "search_poi" in names
 
 
 # === /api/mcp/tools/call ===

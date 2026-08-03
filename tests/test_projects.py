@@ -371,6 +371,71 @@ async def test_create_project_minimal(client: AsyncClient):
     assert data["floors"] == []
 
 
+@pytest.mark.asyncio
+async def test_create_project_with_collect_fields(client: AsyncClient):
+    """创建项目卡片收集的户型/定位/联系方式应落库并随响应返回（v1.3.1 P1-2）"""
+    token = await _register_and_get_token(client, phone="13900001002")
+    headers = _headers(token)
+
+    response = await client.post(
+        "/api/projects",
+        json={
+            "name": "收集字段项目",
+            "description": "三居室整装",
+            "house_type": "3室2厅1厨2卫",
+            "latitude": 30.5928,
+            "longitude": 114.3055,
+            "contact_name": "张三",
+            "contact_phone": "13912345678",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["description"] == "三居室整装"
+    assert data["house_type"] == "3室2厅1厨2卫"
+    assert data["latitude"] == 30.5928
+    assert data["longitude"] == 114.3055
+    assert data["contact_name"] == "张三"
+    assert data["contact_phone"] == "13912345678"
+
+    # 详情接口同样返回
+    project_id = data["id"]
+    detail = await client.get(f"/api/projects/{project_id}", headers=headers)
+    assert detail.status_code == 200
+    detail_data = detail.json()
+    assert detail_data["house_type"] == "3室2厅1厨2卫"
+    assert detail_data["contact_phone"] == "13912345678"
+
+
+@pytest.mark.asyncio
+async def test_create_project_invalid_project_type_returns_422(client: AsyncClient):
+    """非法 project_type 应被 Literal 校验拦截（P3-2）"""
+    token = await _register_and_get_token(client, phone="13900001003")
+    headers = _headers(token)
+
+    response = await client.post(
+        "/api/projects",
+        json={"name": "非法类型项目", "project_type": "bogus_type"},
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_project_invalid_source_returns_422(client: AsyncClient):
+    """非法 source 应被 Literal 校验拦截（P3-2）"""
+    token = await _register_and_get_token(client, phone="13900001004")
+    headers = _headers(token)
+
+    response = await client.post(
+        "/api/projects",
+        json={"name": "非法来源项目", "source": "hacker"},
+        headers=headers,
+    )
+    assert response.status_code == 422
+
+
 # ====================================================================
 # WebSocket 广播测试
 # 验证项目变更（创建/更新/删除）会触发 ws_manager.broadcast_to_project
@@ -494,3 +559,52 @@ async def test_project_update_forbidden_no_broadcast(client: AsyncClient):
         assert len(calls) == 0
     finally:
         restore()
+
+
+# ====================================================================
+# 轻量级 schema 迁移回归（v6: projects 项目卡片采集字段）
+# ====================================================================
+# 背景：description/house_type/latitude/longitude/contact_name/contact_phone
+# 已加入 ORM 模型/schema/alembic，但 _run_lightweight_migrations 漏加，
+# create_all 不补已有表列 → dev/生产库重启后项目查询 500。
+# 本测试模拟生产库缺列状态，验证迁移能补齐。
+
+
+@pytest.mark.asyncio
+async def test_lightweight_migration_adds_project_collect_columns(db_session):
+    """模拟 projects 表缺少采集字段，迁移后应补齐 description/house_type 等 6 列"""
+    from sqlalchemy import text, inspect
+    from app.database import _run_lightweight_migrations
+
+    collect_columns = [
+        "description", "house_type", "latitude", "longitude",
+        "contact_name", "contact_phone",
+    ]
+    async with db_session.bind.begin() as conn:
+        for col in collect_columns:
+            try:
+                await conn.execute(text(f"ALTER TABLE projects DROP COLUMN {col}"))
+            except Exception:
+                pass  # 列可能不存在
+
+        def _cols(sync_conn):
+            ins = inspect(sync_conn)
+            return [c["name"] for c in ins.get_columns("projects")]
+
+        cols_before = await conn.run_sync(_cols)
+        for col in collect_columns:
+            assert col not in cols_before, f"列 {col} 应已被删除"
+
+        await conn.commit()
+
+    # force=True 绕过 _schema_migrations 版本检查
+    await _run_lightweight_migrations(force=True)
+
+    async with db_session.bind.begin() as conn:
+        def _cols(sync_conn):
+            ins = inspect(sync_conn)
+            return [c["name"] for c in ins.get_columns("projects")]
+
+        cols_after = await conn.run_sync(_cols)
+        for col in collect_columns:
+            assert col in cols_after, f"迁移后应存在列 {col}"

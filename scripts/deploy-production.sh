@@ -18,7 +18,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 DATABASE_URL=postgresql+asyncpg://ihome:CHANGE_ME@localhost:5432/ihome
 SECRET_KEY=CHANGE_ME_TO_RANDOM_64_CHARS
 APP_NAME=i-home.life
-APP_VERSION=1.3.1
+APP_VERSION=1.8.0
 DEEPSEEK_API_KEY=
 GLM_API_KEY=
 EOF

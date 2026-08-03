@@ -26,7 +26,7 @@
 .acct-sub { font-size:12px; color:var(--text-secondary); margin-top:4px; }
 /* Level bar */
 .level-bar { height:6px; background:var(--bg-deep); border-radius:3px; margin:12px 0; overflow:hidden; }
-.level-fill { height:100%; background:linear-gradient(90deg,var(--accent),#ffd700); border-radius:3px; transition:width .5s; }
+.level-fill { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-bright)); border-radius:3px; transition:width .5s; }
 /* Transaction row */
 .txn-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border); }
 .txn-row:last-child { border-bottom:none; }
@@ -34,15 +34,15 @@
 .txn-desc { font-size:13px; color:var(--text-primary); }
 .txn-time { font-size:11px; color:var(--text-secondary); }
 .txn-pts { font-size:15px; font-weight:700; }
-.txn-pts.plus { color:#4CAF50; }
-.txn-pts.minus { color:#E57373; }
+.txn-pts.plus { color:var(--success); }
+.txn-pts.minus { color:var(--danger); }
 /* Mall item */
 .mall-item { display:flex; gap:12px; padding:12px; border:1px solid var(--border); border-radius:10px; margin-bottom:8px; align-items:center; }
 .mall-icon { font-size:32px; width:48px; text-align:center; }
 .mall-info { flex:1; }
 .mall-name { font-size:14px; font-weight:600; color:var(--text-primary); }
 .mall-cost { font-size:12px; color:var(--accent); margin-top:2px; }
-.mall-btn { padding:6px 16px; background:var(--accent); color:#000; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
+.mall-btn { padding:6px 16px; background:var(--accent); color:var(--on-accent); border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
 .mall-btn:disabled { opacity:.4; cursor:not-allowed; }
 /* Ranking */
 .rank-row { display:flex; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); gap:10px; }

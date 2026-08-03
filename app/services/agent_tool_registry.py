@@ -144,11 +144,11 @@ async def _tool_get_budget(
                     "breakdown_by_category": {k: round(v, 2) for k, v in by_category.items()},
                     "lines": [
                         {
-                            "category": l.category, "name": l.name,
-                            "estimated": round(l.estimated_amount, 2),
-                            "quantity": l.quantity, "unit": l.unit,
-                            "unit_price": round(l.unit_price, 2),
-                        } for l in lines[:20]
+                            "category": line.category, "name": line.name,
+                            "estimated": round(line.estimated_amount, 2),
+                            "quantity": line.quantity, "unit": line.unit,
+                            "unit_price": round(line.unit_price, 2),
+                        } for line in lines[:20]
                     ],
                 }
             logger.debug("_tool_get_budget: 项目 %s 无预算记录，回退估算", effective_pid)
@@ -258,7 +258,7 @@ async def _tool_search_materials(
             stmt = (
                 select(Material, MaterialCategory.name.label("category_name"))
                 .join(MaterialCategory, MaterialCategory.id == Material.category_id, isouter=True)
-                .where(Material.is_active == True, Material.deleted_at.is_(None))
+                .where(Material.is_active.is_(True), Material.deleted_at.is_(None))
             )
             if category:
                 stmt = stmt.where(MaterialCategory.name.like(f"%{category}%"))
@@ -513,6 +513,33 @@ async def _tool_run_qa_inspection(
     }
 
 
+# ── LBS 真实 POI 搜索工具 ──
+# 走 app/services/amap_service，配置 amap_api_key 后返回真实高德 POI 数据。
+# 未配置 key 时诚实降级（空结果 + source=demo），不伪造假 POI。
+
+async def _tool_search_poi(
+    keywords: str = "",
+    location: str = "",
+    city: str = "",
+    radius: int = 3000,
+    _db=None, _project_id: str = "", _user_id: str = "",
+) -> dict:
+    """搜索周边/指定城市 POI（建材市场、小区、家电卖场等）
+
+    Args:
+        keywords: 搜索关键词（如 建材市场/五金/小区）
+        location: 中心点经纬度 "lng,lat"（可选，提供时走周边搜索）
+        city: 城市（可选，未提供 location 时按城市关键词搜索）
+        radius: 周边搜索半径（米）
+    """
+    from app.services import amap_service
+    if location:
+        return await amap_service.search_nearby_poi(
+            location=location, keywords=keywords, radius=radius, limit=5,
+        )
+    return await amap_service.search_poi_text(keywords=keywords, city=city, limit=5)
+
+
 # ── 语音智能体编排工具（voice_agent_orchestration_enabled 门控）──
 #
 # 借鉴 GPT Voice / Claude Voice 调度范式：让 Qwen Realtime 模式的 LLM
@@ -700,6 +727,19 @@ BUILTIN_TOOLS: list[AgentTool] = [
         handler=_tool_run_qa_inspection,
         category="qa",
     ),
+    # ── LBS 真实 POI 搜索（真实高德数据，amap_api_key 配置后生效）──
+    AgentTool(
+        name="search_poi",
+        description="搜索周边或指定城市的 POI（建材市场、五金店、家电卖场、小区楼盘等）。当用户询问「附近哪里有建材市场/五金店」「周边小区」等位置相关问题时使用。",
+        parameters={
+            "keywords": {"type": "string", "description": "搜索关键词（如：建材市场/五金/家电卖场/小区）"},
+            "location": {"type": "string", "description": "中心点经纬度 \"lng,lat\"（可选，提供时搜索周边）"},
+            "city": {"type": "string", "description": "城市名（可选，未提供 location 时按城市搜索）"},
+            "radius": {"type": "number", "description": "周边搜索半径（米），默认 3000"},
+        },
+        handler=_tool_search_poi,
+        category="location",
+    ),
     # ── 语音智能体编排（voice_agent_orchestration_enabled 门控）──
     AgentTool(
         name="launch_agent_task",
@@ -806,6 +846,9 @@ class ToolRegistry:
     async def execute(
         self, name: str, arguments: dict,
         _db=None, _project_id: str = "", _user_id: str = "",
+        _agent_id: str = "", _model_source: str = "",
+        _scope: str = "", _trace_id: str = "",
+        _posture: str = "",
     ) -> Any:
         """执行工具调用
 
@@ -814,11 +857,83 @@ class ToolRegistry:
         ``project_id`` 参数冲突），仅用于 handler 内部查真实 DB。
         当 ``_db is None`` 时不注入，handler 走默认回退逻辑。
         ``_user_id`` 同理（语音编排工具需要定位用户任务）。
+
+        v1.4.0: 新增 ``_agent_id`` / ``_model_source`` / ``_scope`` / ``_trace_id``
+        四个隐式上下文参数（借鉴 YC QM 的"可还原"治理）。其中：
+        - ``_agent_id`` / ``_model_source`` 非空时透传给 handler（handler 可选用）
+        - ``_scope`` / ``_trace_id`` 仅用于审计 details，不注入 handler
+        审计 details 扩展为 {tool, project_id, category, agent_id, model_source, scope, trace_id}，
+        使 AI 决策可还原到具体的 Agent / 模型 / 作用域 / 轨迹。
+
+        v1.8.0: 新增 ``_posture`` 隐式参数（借鉴 YC QM 三档安全 posture）：
+        - strict + 工具命中高危清单（或清单空=全部）→ 创建 AgentApproval(pending)，
+          返回 {"error": "needs_approval", "approval_id": apr_xxx}，不执行
+        - auto（默认）→ 正常执行（外部数据 PII masking 已在 audit 层处理）
+        - dangerous → 全放行
+        - 已批准重新执行（execute_approved 调用）传 _posture="dangerous" 绕过二次拦截
         """
         tool = self.get(name)
         if not tool:
             return {"error": f"工具不存在: {name}"}
         logger.info(f"tool_execute: {name}, args={arguments}")
+
+        # v1.8.0 posture 检查（strict 模式拦截高危工具，借鉴 YC QM）
+        posture = _posture or settings.agent_security_posture
+        if posture == "strict" and _db is not None and _user_id:
+            high_risk = [
+                t.strip() for t in (settings.agent_strict_high_risk_tools or "").split(",")
+                if t.strip()
+            ]
+            # 高危清单空 = strict 模式所有工具都需批准
+            needs_approval = (not high_risk) or (name in high_risk)
+            if needs_approval:
+                try:
+                    from app.services.agent_approval_service import create_approval
+                    approval = await create_approval(
+                        db=_db, user_id=_user_id, agent_name=_agent_id or "unknown",
+                        tool_name=name, arguments=arguments,
+                        project_id=_project_id or None,
+                        scope=_scope or "personal", trace_id=_trace_id or None,
+                    )
+                    logger.info(
+                        "tool_strict_blocked: tool=%s approval_id=%s", name, approval.approval_id,
+                    )
+                    return {
+                        "error": "needs_approval",
+                        "approval_id": approval.approval_id,
+                        "message": f"此操作（{name}）需人工批准，请通过 /api/agents/approvals/{approval.approval_id}/approve 批准后执行",
+                    }
+                except Exception as e:
+                    logger.warning("tool_approval_create_failed: %s", e)
+                    # 审批创建失败 → 安全失败（拒绝执行）
+                    return {"error": f"approval_create_failed: {e}"}
+
+        # v1.4.x Agent 动作审计（借鉴 YC QM 的"可还原"）：best-effort 记录
+        # 工具调用（谁、何时、对哪个项目、调了什么），失败不阻断主流程。
+        # v1.4.0: details 扩展 agent_id/model_source/scope/trace_id，使决策可还原。
+        # v1.8.0: details 再扩展 posture/approval_id（strict 拦截时 approval_id 在上面 return 前已记录）
+        if _db is not None and _user_id:
+            try:
+                from app.services.audit_log_service import log_audit_event
+                await log_audit_event(
+                    db=_db,
+                    user_id=_user_id,
+                    action="AGENT_ACTION",
+                    resource_type=f"tool:{name}",
+                    resource_id=_project_id or None,
+                    details={
+                        "tool": name,
+                        "project_id": _project_id or "",
+                        "category": tool.category,
+                        "agent_id": _agent_id,
+                        "model_source": _model_source,
+                        "scope": _scope,
+                        "trace_id": _trace_id,
+                        "posture": posture,
+                    },
+                )
+            except Exception:
+                logger.debug("tool_audit_log_failed: tool=%s", name)
         inject: dict = {}
         if _db is not None:
             inject["_db"] = _db
@@ -826,6 +941,10 @@ class ToolRegistry:
             inject["_project_id"] = _project_id
         if _user_id:
             inject["_user_id"] = _user_id
+        if _agent_id:
+            inject["_agent_id"] = _agent_id
+        if _model_source:
+            inject["_model_source"] = _model_source
         return await tool.execute(**arguments, **inject)
 
     @property

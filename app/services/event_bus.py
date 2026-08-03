@@ -24,10 +24,10 @@ class EventType(str, Enum):
     PROJECT_UPDATED = "project.updated"
     BOM_GENERATED = "bom.generated"           # BOM 生成后 → 自动创建采购建议
     BOM_UPDATED = "bom.updated"
-    MATERIAL_DELIVERED = "material.delivered" # 材料到货 → 触发施工任务启动
+    MATERIAL_DELIVERED = "material.delivered"  # 材料到货 → 触发施工任务启动
     INSPECTION_PASSED = "inspection.passed"   # 验收通过 → 推进施工状态+结算
     INSPECTION_FAILED = "inspection.failed"
-    CHANGE_ORDER_APPROVED = "change_order.approved" # 变更审批 → 更新预算+结算
+    CHANGE_ORDER_APPROVED = "change_order.approved"  # 变更审批 → 更新预算+结算
     TASK_COMPLETED = "task.completed"
     TASK_STARTED = "task.started"
     BUDGET_APPROVED = "budget.approved"

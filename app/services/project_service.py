@@ -64,10 +64,16 @@ async def get_user_projects(db: AsyncSession, user_id: str) -> list[Project]:
 async def create_project(db: AsyncSession, user_id: str, data: ProjectCreate) -> Project:
     project = Project(
         name=data.name,
+        description=data.description,
         address=data.address,
         total_area=data.total_area,
         project_type=data.project_type,
         source=data.source,
+        house_type=data.house_type,
+        latitude=data.latitude,
+        longitude=data.longitude,
+        contact_name=data.contact_name,
+        contact_phone=data.contact_phone,
         owner_id=user_id,
     )
     db.add(project)

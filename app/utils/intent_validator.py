@@ -35,7 +35,8 @@ def load_contract() -> dict:
     contract_path = Path(__file__).resolve().parents[2] / settings.intent_contract_path
     if not contract_path.exists():
         return {"patterns": [], "validation_rules": {}}
-    return json.loads(contract_path.read_text(encoding="utf-8"))
+    data: dict = json.loads(contract_path.read_text(encoding="utf-8"))
+    return data
 
 
 def validate_contract(contract: dict | None = None) -> list[str]:

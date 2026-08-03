@@ -28,10 +28,10 @@ class _QualityReportPageState extends State<QualityReportPage> {
   bool _loading = true;
   String? _error;
 
-  static const _success = Color(0xFF4CAF50);
-  static const _danger = Color(0xFFE57373);
-  static const _warning = Color(0xFFFFB74D);
-  static const _info = Color(0xFF64B5F6);
+  static const _success = SuokeDesignTokens.success;
+  static const _danger = SuokeDesignTokens.danger;
+  static const _warning = SuokeDesignTokens.warning;
+  static const _info = SuokeDesignTokens.info;
 
   @override
   void initState() {

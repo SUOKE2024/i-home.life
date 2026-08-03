@@ -144,8 +144,8 @@ class _KitchenBathMepPageState extends State<KitchenBathMepPage> with SingleTick
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _createPlan),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadPlans),
+          IconButton(icon: const Icon(Icons.add), onPressed: _createPlan, tooltip: '新建方案'),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadPlans, tooltip: '刷新'),
         ],
       ),
       body: _loading

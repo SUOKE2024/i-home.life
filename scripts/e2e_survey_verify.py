@@ -10,29 +10,36 @@ if _project_root not in sys.path:
 
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///./data/test_survey_e2e_{os.getpid()}.db"
 
-from app.database import engine, Base
+from app.database import engine, Base  # noqa: E402
+
 
 async def setup_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-from app.main import app
-from httpx import AsyncClient, ASGITransport
-from app.models.user import User
+
+from app.main import app  # noqa: E402
+from httpx import AsyncClient, ASGITransport  # noqa: E402
+from app.models.user import User  # noqa: E402, F401
 
 PASS = 0
 FAIL = 0
 
+
 def ok(msg, detail=""):
-    global PASS; PASS += 1
+    global PASS
+    PASS += 1
     print(f"  ✅ {msg}{' — ' + detail if detail else ''}")
 
+
 def err(msg, code=0, body=""):
-    global FAIL; FAIL += 1
+    global FAIL
+    FAIL += 1
     short = str(body)[:120] if body else ""
     print(f"  ❌ {msg} (HTTP {code}) {short}")
 
-async def main():
+
+async def main():  # noqa: C901
     transport = ASGITransport(app=app)
 
     print("\n" + "=" * 60)
@@ -99,14 +106,14 @@ async def main():
         if r0.get("name") == "客厅" and r0.get("height") == 3.2:
             ok("客厅 height=3.2 (挑高字段)", f"area={r0['area']}")
         else:
-            err(f"客厅 height 期望 3.2", 0, str(r0))
+            err("客厅 height 期望 3.2", 0, str(r0))
 
         # 验证 area 自动计算
         r2 = rooms[2]
         if r2.get("area") == 7.5:
             ok("厨房 area 自动计算 3.0×2.5=7.5")
         else:
-            err(f"厨房 area 期望 7.5", 0, str(r2))
+            err("厨房 area 期望 7.5", 0, str(r2))
 
         # 验证新字段
         checks = [
@@ -185,7 +192,7 @@ async def main():
             if proj_area == 51.5:
                 ok("项目 total_area 已同步", f"{proj_area}㎡")
             else:
-                err(f"项目 total_area 期望 51.5", 0, str(proj_area))
+                err("项目 total_area 期望 51.5", 0, str(proj_area))
 
         # ═══════════════════════════════════════
         # 5. FloorPlan 验证
@@ -242,13 +249,14 @@ async def main():
     # ── 汇总 ──
     total = PASS + FAIL
     print(f"\n{'='*60}")
-    print(f"  量房 E2E 验证结果")
+    print("  量房 E2E 验证结果")
     print(f"  通过: {PASS}  失败: {FAIL}  总计: {total}")
     print(f"  通过率: {PASS/total*100:.1f}%" if total else "  N/A")
     print(f"{'='*60}")
 
     if FAIL > 0:
         sys.exit(1)
+
 
 async def cleanup():
     db_path = f"./data/test_survey_e2e_{os.getpid()}.db"

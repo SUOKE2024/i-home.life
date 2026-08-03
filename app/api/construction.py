@@ -34,9 +34,15 @@ from app.schemas.quality import (
     QualityAssessmentResponse,
     QualityDetectRequest,
 )
+from app.schemas.predictive_maintenance import (
+    RiskPredictionResponse,
+    RiskMitigateRequest,
+    RiskResolveRequest,
+)
 from app.auth import get_current_user
 from app.rbac import verify_project_access
 from app.services import construction_service, progress_service, quality_service
+from app.services import predictive_maintenance_service as pm_svc
 from app.agents.construction import ConstructionAgent, manage_progress, detect_quality_issues
 from app.ws import ws_manager
 from app.config import get_settings
@@ -1149,13 +1155,6 @@ async def analyze_construction_logs(
 
 
 # ── A6 施工预测性维护 ──
-
-from app.services import predictive_maintenance_service as pm_svc
-from app.schemas.predictive_maintenance import (
-    RiskPredictionResponse,
-    RiskMitigateRequest,
-    RiskResolveRequest,
-)
 
 
 def _risk_to_response(risk) -> RiskPredictionResponse:

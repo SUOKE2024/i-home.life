@@ -89,6 +89,9 @@ class ProcurementAgent(BaseAgent):
                 {"name": s, "rating": round(4.5 - i * 0.1, 1), "tier": "认证" if i < 2 else "普通"}
                 for i, s in enumerate(suppliers)
             ],
+            # 诚实标注：推荐结果来自内置模板，未接入真实供应商库
+            "source": "mock_template",
+            "source_note": "模板推荐数据（未接入真实供应商库）",
             "reply": f"已为「{category}」品类推荐 {len(suppliers)} 家优质供应商：{'、'.join(suppliers)}",
         }
 

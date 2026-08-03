@@ -1,12 +1,9 @@
 """A1 智能家居能耗监测系统服务层 — 能耗记录 + 报告生成 + 节能建议"""
 
-from datetime import datetime, timedelta
-
-from sqlalchemy import select, func as sql_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.energy_monitor import EnergyMonitor, EnergySavingTip
-from app.models.smart_home import SmartHomeScheme, SmartDevice
 
 # ── 常量 ──
 
@@ -222,7 +219,13 @@ async def generate_tips(db: AsyncSession, scheme_id: str) -> list[EnergySavingTi
         tip = EnergySavingTip(
             scheme_id=scheme_id,
             tip_type="standby_reduction",
-            suggestion=f"待机能耗占比 {standby_pct:.0f}%，超过 15% 阈值。建议：1) 为电视/路由器/音箱安装智能插座定时断电；2) 开启设备的节能模式；3) 不使用时完全关闭而非待机。预计每月可节省 {round(standby * 0.6 * ENERGY_PRICE_PER_KWH, 2)} 元。",
+            suggestion=(
+                f"待机能耗占比 {standby_pct:.0f}%，超过 15% 阈值。建议："
+                f"1) 为电视/路由器/音箱安装智能插座定时断电；"
+                f"2) 开启设备的节能模式；"
+                f"3) 不使用时完全关闭而非待机。预计每月可节省 "
+                f"{round(standby * 0.6 * ENERGY_PRICE_PER_KWH, 2)} 元。"
+            ),
             priority="high",
         )
         db.add(tip)
@@ -235,7 +238,13 @@ async def generate_tips(db: AsyncSession, scheme_id: str) -> list[EnergySavingTi
         tip = EnergySavingTip(
             scheme_id=scheme_id,
             tip_type="schedule_optimization",
-            suggestion=f"峰值功率 {peak_power:.0f}W 远高于平均功率 {avg_power:.0f}W（比值 {peak_power / avg_power:.1f}x），存在功率尖峰。建议：1) 错峰使用大功率电器（空调、热水器）；2) 利用智能场景设置定时启动，避免同时开启多台大功率设备；3) 考虑安装智能负载管理设备。",
+            suggestion=(
+                f"峰值功率 {peak_power:.0f}W 远高于平均功率 {avg_power:.0f}W"
+                f"（比值 {peak_power / avg_power:.1f}x），存在功率尖峰。建议："
+                f"1) 错峰使用大功率电器（空调、热水器）；"
+                f"2) 利用智能场景设置定时启动，避免同时开启多台大功率设备；"
+                f"3) 考虑安装智能负载管理设备。"
+            ),
             priority="medium",
         )
         db.add(tip)
@@ -256,7 +265,12 @@ async def generate_tips(db: AsyncSession, scheme_id: str) -> list[EnergySavingTi
                         device_name=DEVICE_TYPE_LABELS.get(dev, dev),
                         current_consumption=round(kwh, 2),
                         potential_saving_pct=15.0,
-                        suggestion=f"{DEVICE_TYPE_LABELS.get(dev, dev)} 能耗占比 {pct * 100:.0f}%，建议：1) 夏季空调温度设定在 26°C 以上（每升高 1°C 可节电 6-8%）；2) 定期清洗滤网；3) 配合智能窗帘和自然通风减少使用时长。预计可降低该类能耗 15-20%。",
+                        suggestion=(
+                            f"{DEVICE_TYPE_LABELS.get(dev, dev)} 能耗占比 {pct * 100:.0f}%，建议："
+                            f"1) 夏季空调温度设定在 26°C 以上（每升高 1°C 可节电 6-8%）；"
+                            f"2) 定期清洗滤网；"
+                            f"3) 配合智能窗帘和自然通风减少使用时长。预计可降低该类能耗 15-20%。"
+                        ),
                         priority="high",
                     )
                     db.add(tip)
@@ -267,7 +281,13 @@ async def generate_tips(db: AsyncSession, scheme_id: str) -> list[EnergySavingTi
         tip = EnergySavingTip(
             scheme_id=scheme_id,
             tip_type="device_replacement",
-            suggestion=f"系统检测到待机能耗较高（{standby:.2f} kWh），可能存在老旧高功耗待机设备。建议：1) 排查路由器、机顶盒等 24 小时在线设备；2) 更换为一级能效新品；3) 老式变压器适配器建议更换为开关电源。预计月省 {round(standby * 0.5, 2)} kg CO2 碳排放。",
+            suggestion=(
+                f"系统检测到待机能耗较高（{standby:.2f} kWh），可能存在老旧高功耗待机设备。建议："
+                f"1) 排查路由器、机顶盒等 24 小时在线设备；"
+                f"2) 更换为一级能效新品；"
+                f"3) 老式变压器适配器建议更换为开关电源。预计月省 "
+                f"{round(standby * 0.5, 2)} kg CO2 碳排放。"
+            ),
             priority="medium",
         )
         db.add(tip)

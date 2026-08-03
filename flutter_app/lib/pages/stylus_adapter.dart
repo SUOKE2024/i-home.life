@@ -177,7 +177,6 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
       appBar: AppBar(
         title: const Text('笔触适配器'),
         backgroundColor: SuokeDesignTokens.card(context),
-        foregroundColor: Colors.white,
       ),
       body: Container(
         color: const Color(0xFF0E0E1A),
@@ -187,9 +186,9 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A2E),
+                color: SuokeDesignTokens.card(context),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2A2A3E)),
+                border: Border.all(color: SuokeDesignTokens.borderClr(context)),
               ),
               child: Column(
                 children: [
@@ -200,7 +199,7 @@ class _StylusAdapterPageState extends State<StylusAdapterPage> {
                   ]),
                   const SizedBox(height: 12),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text('防手掌误触', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
+                    Text('防手掌误触', style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13)),
                     Switch(
                       value: _palmRejection,
                       onChanged: (v) => setState(() => _palmRejection = v),

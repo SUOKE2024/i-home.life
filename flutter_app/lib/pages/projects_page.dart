@@ -100,13 +100,8 @@ class _ProjectsPageState extends State<ProjectsPage> {
             'rooms': [],
           }
         ],
-        'house_type': {
-          'floors': _floors,
-          'bedrooms': _bedrooms,
-          'living_rooms': _livingRooms,
-          'kitchens': _kitchens,
-          'bathrooms': _bathrooms,
-        },
+        // 户型信息落库为描述字符串（后端 house_type 字段，如 "2层3室2厅1厨2卫"）
+        'house_type': '$_floors层$_bedrooms室$_livingRooms厅$_kitchens厨$_bathrooms卫',
       });
       if (result.isSuccess) {
         _nameCtrl.clear();
@@ -328,11 +323,35 @@ class _ProjectsPageState extends State<ProjectsPage> {
   }
 
   String _statusText(String s) {
-    return s == 'draft' ? '草稿' : s == 'in_progress' ? '施工中' : '已完成';
+    switch (s) {
+      case 'draft':
+        return '草稿';
+      case 'in_progress':
+      case 'active':
+        return '施工中';
+      case 'completed':
+        return '已完成';
+      case 'cancelled':
+        return '已取消';
+      default:
+        return s;
+    }
   }
 
   Color _statusColor(String s) {
-    return s == 'draft' ? const Color(0xFF8A8894) : s == 'in_progress' ? const Color(0xFF4A9E6E) : const Color(0xFF5B8EC4);
+    switch (s) {
+      case 'draft':
+        return const Color(0xFF8A8894);
+      case 'in_progress':
+      case 'active':
+        return const Color(0xFF4A9E6E);
+      case 'completed':
+        return const Color(0xFF5B8EC4);
+      case 'cancelled':
+        return const Color(0xFFC0392B);
+      default:
+        return const Color(0xFF5B8EC4);
+    }
   }
 
   @override

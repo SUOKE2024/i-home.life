@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, Asyn
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import select, func, text
 from sqlalchemy.pool import StaticPool, AsyncAdaptedQueuePool
+from typing import Any, AsyncGenerator
 
 from app.config import get_settings
 
@@ -12,7 +13,7 @@ settings = get_settings()
 # PostgreSQL: AsyncAdaptedQueuePool 连接池（pool_size + max_overflow + pre_ping + recycle）
 # echo 仅在 debug 模式下开启（生产环境关闭以避免 IO 开销）
 _is_sqlite = "sqlite" in settings.database_url
-_engine_kwargs = {"echo": settings.debug}
+_engine_kwargs: dict[str, Any] = {"echo": settings.debug}
 
 if _is_sqlite:
     _engine_kwargs["poolclass"] = StaticPool
@@ -38,14 +39,14 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
 # v1.2.x: 新增 ar_scan_sessions.floorplan_id (AR 测量会话关联户型方案)
-_SCHEMA_MIGRATION_VERSION = 5  # A5/A6: procurement_orders delivery columns + risk_predictions; + ar_scan_sessions.floorplan_id; v5: ai_image_jobs.render_backend
+_SCHEMA_MIGRATION_VERSION = 7  # v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
 
 
 class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         try:
             yield session
@@ -127,7 +128,10 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                     )
 
         # 检查 projects 表（v1.0.14 修复：project_type/source/scan_session_id
-        # 在模型中存在但 init 迁移未包含，导致生产库查询 500）
+        # 在模型中存在但 init 迁移未包含，导致生产库查询 500；
+        # v6: 项目卡片采集字段 description/house_type/latitude/longitude/contact_name/contact_phone
+        # 由 UI（Flutter projects_page/ai_chat_page）提交，schema/模型已加但轻量迁移漏加，
+        # 会导致 dev/生产库重启后所有项目查询 500（create_all 不补已有表列））
         project_cols = await conn.run_sync(
             lambda sync_conn: _get_table_columns(sync_conn, "projects")
         )
@@ -136,6 +140,12 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                 ("projects", "project_type", "VARCHAR(30) NOT NULL DEFAULT 'full_renovation'"),
                 ("projects", "source", "VARCHAR(20) NOT NULL DEFAULT 'manual'"),
                 ("projects", "scan_session_id", "VARCHAR(36)"),
+                ("projects", "description", "VARCHAR(500)"),
+                ("projects", "house_type", "VARCHAR(50)"),
+                ("projects", "latitude", "FLOAT"),
+                ("projects", "longitude", "FLOAT"),
+                ("projects", "contact_name", "VARCHAR(100)"),
+                ("projects", "contact_phone", "VARCHAR(30)"),
             ]
             for table, column, coltype in project_migrations:
                 if column not in project_cols:
@@ -715,6 +725,49 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
             logging.getLogger("ihome").info(
                 "migration: ALTER TABLE ai_image_jobs ADD COLUMN render_backend"
             )
+
+        # ── v1.6.0 F40：chat_rooms.agent_members（Agent 作为群成员进入 IM 房间）──
+        _cr_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "chat_rooms")
+        )
+        if _cr_cols is not None and "agent_members" not in _cr_cols:
+            await conn.execute(text(
+                "ALTER TABLE chat_rooms ADD COLUMN agent_members TEXT NOT NULL DEFAULT '[]'"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE chat_rooms ADD COLUMN agent_members"
+            )
+
+        # ── v1.6.0 F40：chat_messages.auto_reply_meta（Agent 自动回复标注元数据）──
+        _cm_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "chat_messages")
+        )
+        if _cm_cols is not None and "auto_reply_meta" not in _cm_cols:
+            await conn.execute(text(
+                "ALTER TABLE chat_messages ADD COLUMN auto_reply_meta TEXT"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE chat_messages ADD COLUMN auto_reply_meta"
+            )
+
+        # ── v1.6.0 F6/F7：bom_items BOM 版本管理与几何算量标注列 ──
+        _bom_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "bom_items")
+        )
+        if _bom_cols is not None:
+            bom_migrations = [
+                ("bom_items", "version", "INTEGER NOT NULL DEFAULT 1"),
+                ("bom_items", "quantity_source", "VARCHAR(30) NOT NULL DEFAULT 'empirical'"),
+                ("bom_items", "fallback_note", "VARCHAR(500)"),
+            ]
+            for table, column, coltype in bom_migrations:
+                if column not in _bom_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
 
         # ── 标记本次迁移版本，下次启动可跳过 ──
         # v1.1.12 生产修复：根据 _has_schema_migrations 标志决定是否创建表，

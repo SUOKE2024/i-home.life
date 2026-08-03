@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../theme/suoke_theme.dart';
 
 /// 服务者匹配页面 (F35) — 设计师/监理/预算师/木工/水电安装工/窗帘安装工
 class WorkerPage extends StatefulWidget {
@@ -117,7 +118,7 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadWorkers),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadWorkers, tooltip: '刷新'),
         ],
       ),
       body: _loading
@@ -237,18 +238,18 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A2E),
+            color: SuokeDesignTokens.surface2,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('${d.$1}: ', style: const TextStyle(fontSize: 11, color: Color(0xFFA0A0C0))),
+              Text('${d.$1}: ', style: TextStyle(fontSize: 11, color: SuokeDesignTokens.textSub(context))),
               Text(score.toStringAsFixed(1),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: score >= 4.5 ? Colors.green : score >= 3.5 ? Colors.orange : Colors.red,
+                    color: score >= 4.5 ? SuokeDesignTokens.success : score >= 3.5 ? SuokeDesignTokens.warning : SuokeDesignTokens.danger,
                   )),
             ],
           ),

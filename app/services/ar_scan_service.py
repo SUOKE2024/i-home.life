@@ -478,14 +478,12 @@ def _estimate_normals_numpy(points, k: int = 30):
 
     # 尝试用 scipy.spatial.KDTree 真实加速
     tree = None
-    method = "brute_force"
     try:
         from scipy.spatial import KDTree as _ScipyKDTree
         tree = _ScipyKDTree(points)
-        method = "scipy_kdtree"
     except ImportError:
         # scipy 未安装：回退到暴力搜索（分块降低峰值内存）
-        method = "brute_force"
+        pass
 
     normals = np.zeros_like(points)
 
@@ -506,7 +504,7 @@ def _estimate_normals_numpy(points, k: int = 30):
             return normals
         except Exception:
             # KDTree 查询异常：回退暴力
-            method = "brute_force"
+            pass
 
     # 暴力搜索回退（分块：每块 2000 点，避免一次性 O(n²) 矩阵过大）
     CHUNK = 2000

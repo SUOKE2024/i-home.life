@@ -11,6 +11,7 @@ from app.services.procurement_service import (
     compare_suppliers,
     verify_delivery,
     get_material_availability,
+    create_order,
 )
 
 
@@ -337,3 +338,50 @@ async def test_get_material_availability_material_not_found(db_session: AsyncSes
     """测试库存查询 — 物料不存在应抛出 ValueError"""
     with pytest.raises(ValueError, match="物料不存在"):
         await get_material_availability(db_session, "non-existent-material-id")
+
+
+# ── F12 采购订单 → 预算科目自动扣减联动 ──
+
+
+@pytest.mark.asyncio
+async def test_create_order_deducts_budget(db_session: AsyncSession, test_project, test_material, test_suppliers):
+    """F12 服务层：创建订单后预算科目 actual_amount 自动扣减，note 记录联动"""
+    from app.models.budget import Budget, BudgetLine
+    from app.services.budget_service import get_budget
+
+    budget = Budget(project_id=test_project.id, total_estimated=50000.0)
+    db_session.add(budget)
+    await db_session.commit()
+    db_session.add(BudgetLine(
+        budget_id=budget.id, category="地面工程", name="瓷砖",
+        estimated_amount=50000.0, unit="㎡", quantity=100.0, unit_price=500.0,
+    ))
+    await db_session.commit()
+
+    # test_material 品类 code=flooring → 预算科目「地面工程」
+    order = await create_order(db_session, {
+        "project_id": test_project.id,
+        "supplier_id": test_suppliers[0].id,
+        "lines": [{"material_id": test_material.id, "quantity": 10, "unit_price": 180.0}],
+    })
+    assert order.total_amount == 1800.0
+
+    budget = await get_budget(db_session, test_project.id)
+    assert budget.total_actual == 1800.0
+    line = budget.lines[0]
+    assert line.actual_amount == 1800.0
+    assert "linked_order" in (line.note or "")
+
+
+@pytest.mark.asyncio
+async def test_create_order_no_budget_does_not_fail(
+    db_session: AsyncSession, test_project, test_material, test_suppliers
+):
+    """F12 服务层：无预算时下单不报错，订单正常创建"""
+    order = await create_order(db_session, {
+        "project_id": test_project.id,
+        "supplier_id": test_suppliers[0].id,
+        "lines": [{"material_id": test_material.id, "quantity": 2, "unit_price": 100.0}],
+    })
+    assert order.total_amount == 200.0
+    assert order.status == "draft"

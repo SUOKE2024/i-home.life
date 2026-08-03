@@ -388,7 +388,7 @@ async def test_delete_soft_scheme(client: AsyncClient, auth_headers: dict):
 async def test_soft_scheme_not_found(client: AsyncClient, auth_headers: dict):
     """查询不存在的软装方案返回 404"""
     resp = await client.get(
-        f"/api/soft-furnishing/schemes/non-existent-id",
+        "/api/soft-furnishing/schemes/non-existent-id",
         headers=auth_headers,
     )
     assert resp.status_code == 404

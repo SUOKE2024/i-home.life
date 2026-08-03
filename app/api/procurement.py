@@ -438,6 +438,9 @@ async def get_order_tracking(
         "delivery_address": order.delivery_address,
         "tracking_history": tracking_history,
         "current_location": tracking_history[-1]["location"] if tracking_history else None,
+        # 诚实标注：轨迹为本地生成的模拟数据，未接入真实物流商 API
+        "data_source": "mock",
+        "data_source_note": "模拟物流轨迹（未接入真实物流商 API）",
     }
 
 
@@ -483,6 +486,7 @@ def _generate_mock_tracking(order) -> list[dict]:
             "status": step["status"],
             "location": step["location"],
             "description": step["description"],
+            "source": "mock",
         })
 
     return tracking

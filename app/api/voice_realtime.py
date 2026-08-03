@@ -376,7 +376,9 @@ async def _auto_tool_call(
             result = await tool_registry.execute("get_budget", {"area": area, "style": style}, **_inject)
             results.append({"tool": "get_budget", "result": result})
         elif intent == "design" and area > 0:
-            result = await tool_registry.execute("get_design_layout", {"area": area, "style": style or "modern"}, **_inject)
+            result = await tool_registry.execute(
+                "get_design_layout", {"area": area, "style": style or "modern"}, **_inject
+            )
             results.append({"tool": "get_design_layout", "result": result})
         elif intent == "procurement":
             for kw in ["瓷砖", "地板", "涂料"]:
@@ -525,11 +527,13 @@ async def _qwen_events_to_client(  # noqa: C901
                     # v1.1.31 FP-1: 注入隐式 _db / _project_id，让工具查真实 DB
                     # 按需创建 async session（工具 handler 内部 try/except 回退样例）
                     # _user_id: 语音编排工具（launch_agent_task 等）定位用户任务
+                    # v1.4.0: _agent_id 供审计可还原（借鉴 YC QM 的"可还原"治理）
                     async with async_session() as _tool_db:
                         result = await tool_registry.execute(
                             func_name, args,
                             _db=_tool_db, _project_id=session.project_id or "",
                             _user_id=user_id,
+                            _agent_id=f"voice:{func_name}",
                         )
                     await websocket.send_json({
                         "type": "tool_call",

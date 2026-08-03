@@ -581,7 +581,7 @@ class _LightingPageState extends State<LightingPage>
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline,
-                      color: Colors.redAccent, size: 20),
+                      color: SuokeDesignTokens.danger, size: 20),
                   onPressed: () => _confirmDeleteFixture(id),
                   tooltip: '删除',
                 ),
@@ -871,9 +871,9 @@ class _LightingPageState extends State<LightingPage>
       height: 48, // WCAG 2.2 minimum touch target
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          foregroundColor: isDanger ? Colors.redAccent : SuokeDesignTokens.accent,
+          foregroundColor: isDanger ? SuokeDesignTokens.danger : SuokeDesignTokens.accent,
           side: BorderSide(
-              color: isDanger ? Colors.redAccent : SuokeDesignTokens.borderClr(context)),
+              color: isDanger ? SuokeDesignTokens.danger : SuokeDesignTokens.borderClr(context)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         onPressed: onPressed,
@@ -1074,7 +1074,7 @@ class _LightingPageState extends State<LightingPage>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: SuokeDesignTokens.danger,
                 foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
@@ -1104,7 +1104,7 @@ class _LightingPageState extends State<LightingPage>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                backgroundColor: SuokeDesignTokens.danger,
                 foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);

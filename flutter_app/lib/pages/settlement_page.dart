@@ -106,11 +106,11 @@ class _SettlementPageState extends State<SettlementPage>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.surface2,
-        title: const Text('确认结算',
-            style: TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('确认结算',
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text('确认后将锁定结算金额，无法修改明细。\n是否继续？',
-            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -151,12 +151,12 @@ class _SettlementPageState extends State<SettlementPage>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.surface2,
-        title: const Text('异议反馈',
-            style: TextStyle(color: Color(0xFFE8E6E1))),
+        backgroundColor: SuokeDesignTokens.card(context),
+        title: Text('异议反馈',
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         content: Text(
             '如有异议，请联系客服：400-888-6666\n或在消息中心提交反馈。',
-            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            style: TextStyle(color: SuokeDesignTokens.text(context))),
         actions: [
           TextButton(
             onPressed: () {
@@ -183,7 +183,6 @@ class _SettlementPageState extends State<SettlementPage>
         backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('结算确认',
             style: TextStyle(fontWeight: FontWeight.bold)),
-        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,

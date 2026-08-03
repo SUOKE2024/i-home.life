@@ -33,6 +33,15 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'var(--text-muted)',
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  running: '进行中',
+  pending: '待处理',
+  done: '已完成',
+  completed: '已完成',
+  failed: '失败',
+  cancelled: '已取消',
+};
+
 export default function VoiceTaskPanel({ open, onClose, projectId }: VoiceTaskPanelProps) {
   const [input, setInput] = useState('');
   const [note, setNote] = useState<string | null>(null);
@@ -111,7 +120,7 @@ export default function VoiceTaskPanel({ open, onClose, projectId }: VoiceTaskPa
                     className="wb-vtp__badge"
                     style={{ background: STATUS_COLOR[status] ?? 'var(--text-secondary)' }}
                   >
-                    {status}
+                    {STATUS_LABEL[status] ?? status}
                   </span>
                   {t.agent && <span style={{ color: 'var(--text-secondary)' }}>{t.agent}</span>}
                 </div>

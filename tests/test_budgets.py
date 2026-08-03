@@ -1,5 +1,7 @@
 """预算模块全量测试 —— CRUD / F10 AI 分项预算 / F11 多方案对比 / F12 偏差预警 / F13 模板库"""
 
+import json
+
 import pytest
 from httpx import AsyncClient
 
@@ -292,10 +294,27 @@ async def test_f10_generate_budget_plan_default(client: AsyncClient):
     mid = (low + high) / 2
     assert data["total_estimated"] == round(126.0 * mid, 2)
     assert data["unit_price_range"] == [low, high]
-    assert len(data["lines"]) == 5
-    # 分项预算合计应等于总预算
+    assert len(data["lines"]) == 8
+    # 分项预算合计应等于总预算（round 容差）
     total_lines = round(sum(line["estimated_amount"] for line in data["lines"]), 2)
-    assert total_lines == data["total_estimated"]
+    assert abs(total_lines - data["total_estimated"]) <= 0.05
+    # 8 类拆分 + 三费 + 价格来源
+    categories = {line["category"] for line in data["lines"]}
+    assert categories == {
+        "土建改造", "硬装工程", "软装工程", "厨卫工程",
+        "家具采购", "灯具照明", "家电设备", "智能家居",
+    }
+    for line in data["lines"]:
+        assert "material_cost" in line and "labor_cost" in line and "management_cost" in line
+        assert line["price_source"] == "市场价格库（估算）"
+        assert abs(line["material_cost"] + line["labor_cost"] + line["management_cost"]
+                   - line["estimated_amount"]) <= 0.05
+    # 旧 5 类聚合字段向后兼容
+    assert "legacy_5cat" in data
+    assert set(data["legacy_5cat"].keys()) == {"hard_fit", "custom_cabinet", "soft_decor", "appliance", "other"}
+    # 诚实标注：预算由规则引擎生成，未调用 LLM
+    assert data["engine"] == "rule_based"
+    assert "规则引擎" in data["source_note"]
 
 
 @pytest.mark.asyncio
@@ -532,6 +551,224 @@ async def test_f13_apply_template_not_found(client: AsyncClient):
     assert "available" in data
 
 
+# ── F13 预算模板 AI 自动填充（LLM 优先 + 诚实回退）─────────────
+
+
+@pytest.mark.asyncio
+async def test_f13_apply_template_llm_success(client: AsyncClient, monkeypatch):
+    """LLM 可用（返回有效 JSON lines）时 filling_source=llm 且按 unit_price×quantity 计算"""
+    token = await _register_and_login(client, phone="13900000050")
+
+    async def fake_chat(self, messages, **kwargs):
+        return json.dumps({
+            "lines": [
+                {"category": "硬装", "name": "水电改造", "unit_price": 250, "quantity": 126, "unit": "㎡"},
+                {"category": "软装", "name": "全屋窗帘", "unit_price": 8000, "quantity": 1, "unit": "套"},
+            ]
+        }, ensure_ascii=False)
+
+    monkeypatch.setattr(BudgetAgent, "_chat", fake_chat)
+
+    response = await client.post(
+        "/api/budgets/templates/apply",
+        json={"template_code": "126_comfort_modern"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filling_source"] == "llm"
+    assert "llm" in data["note"]
+    assert data["total_estimated"] == round(250 * 126 + 8000, 2)
+    assert len(data["lines"]) == 2
+    for line in data["lines"]:
+        assert line["estimated_amount"] == round(line["unit_price"] * line["quantity"], 2)
+
+
+@pytest.mark.asyncio
+async def test_f13_apply_template_llm_fallback_rule(client: AsyncClient, monkeypatch):
+    """LLM 抛异常时回退线性缩放，filling_source=rule 且 note 标注降级"""
+    token = await _register_and_login(client, phone="13900000051")
+
+    async def fake_chat(self, messages, **kwargs):
+        raise RuntimeError("LLM unavailable")
+
+    monkeypatch.setattr(BudgetAgent, "_chat", fake_chat)
+
+    code = "90_economy_modern"
+    tpl = BUDGET_TEMPLATES[code]
+    target_area = 120.0
+    response = await client.post(
+        "/api/budgets/templates/apply",
+        json={"template_code": code, "area": target_area},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filling_source"] == "rule"
+    assert "降级" in data["note"]
+    assert data["applied_area"] == target_area
+    expected_scale = target_area / tpl["area"]
+    assert data["scale"] == round(expected_scale, 3)
+    # 缩放逻辑与规则路径一致
+    expected_total = round(sum(line["unit_price"] * round(line["quantity"] * expected_scale, 2)
+                               for line in tpl["lines"]), 2)
+    assert data["total_estimated"] == expected_total
+
+
+@pytest.mark.asyncio
+async def test_f13_apply_template_llm_non_json_fallback_rule(client: AsyncClient, monkeypatch):
+    """LLM 返回非 JSON 时回退线性缩放（诚实降级，不伪装 LLM 能力）"""
+    token = await _register_and_login(client, phone="13900000052")
+
+    async def fake_chat(self, messages, **kwargs):
+        return "抱歉，我只能给出文字建议。"
+
+    monkeypatch.setattr(BudgetAgent, "_chat", fake_chat)
+
+    response = await client.post(
+        "/api/budgets/templates/apply",
+        json={"template_code": "126_comfort_modern"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["filling_source"] == "rule"
+    assert "降级" in data["note"]
+
+
+# ── F12 采购订单 → 预算科目自动扣减联动 ─────────────────────
+
+
+@pytest.mark.asyncio
+async def test_f12_purchase_order_deducts_budget(client: AsyncClient):
+    """F12 联动：创建采购订单后，对应预算科目 actual_amount 自动扣减"""
+    token = await _register_and_login(client, phone="13900000040")
+    headers = {"Authorization": f"Bearer {token}"}
+    proj_id = await _create_project(client, token, "F12联动项目")
+
+    # 创建预算（含「地面工程」科目）
+    budget_resp = await client.post(
+        "/api/budgets",
+        json={
+            "project_id": proj_id,
+            "lines": [
+                {
+                    "category": "地面工程", "name": "大板砖",
+                    "estimated_amount": 50000.0, "unit": "㎡",
+                    "quantity": 100, "unit_price": 500,
+                },
+            ],
+        },
+        headers=headers,
+    )
+    assert budget_resp.status_code == 201
+
+    # 供应商 + 物料（flooring 品类 → 预算科目「地面工程」）
+    sup_resp = await client.post(
+        "/api/procurement/suppliers",
+        json={"name": "F12供应商", "category": "flooring", "rating": 4.5},
+        headers=headers,
+    )
+    supplier_id = sup_resp.json()["id"]
+    cat_resp = await client.post(
+        "/api/materials/categories",
+        json={"name": "地面材料", "code": "flooring"},
+        headers=headers,
+    )
+    mat_resp = await client.post(
+        "/api/materials",
+        json={
+            "category_id": cat_resp.json()["id"], "name": "大板瓷砖",
+            "sku": "F12-TILE-001", "unit": "㎡", "unit_price": 180.0,
+        },
+        headers=headers,
+    )
+    material_id = mat_resp.json()["id"]
+
+    # 创建采购订单（10 × 180 = 1800）
+    order_resp = await client.post(
+        "/api/procurement/orders",
+        json={
+            "project_id": proj_id,
+            "supplier_id": supplier_id,
+            "lines": [{"material_id": material_id, "quantity": 10, "unit_price": 180.0}],
+        },
+        headers=headers,
+    )
+    assert order_resp.status_code == 201
+    order_id = order_resp.json()["id"]
+
+    # 预算科目已被自动扣减
+    budget_resp = await client.get(f"/api/budgets/project/{proj_id}", headers=headers)
+    budget = budget_resp.json()
+    assert budget["total_actual"] == 1800.0
+    floor_line = next(ln for ln in budget["lines"] if ln["category"] == "地面工程")
+    assert floor_line["actual_amount"] == 1800.0
+
+    # 订单 note 体现预算联动审计
+    detail_resp = await client.get(
+        f"/api/procurement/orders/detail/{order_id}", headers=headers
+    )
+    assert "预算联动" in (detail_resp.json().get("note") or "")
+
+    # 联动记录可查
+    links_resp = await client.get(f"/api/budgets/{proj_id}/linked-purchases", headers=headers)
+    assert links_resp.status_code == 200
+    links = links_resp.json()
+    assert links["has_budget"] is True
+    assert links["linked_count"] == 1
+    assert links["linked_purchases"][0]["order_id"] == order_id
+    assert links["linked_purchases"][0]["category"] == "地面工程"
+    assert links["linked_purchases"][0]["status"] == "draft"
+    assert links["linked_purchases"][0]["total_amount"] == 1800.0
+
+
+@pytest.mark.asyncio
+async def test_f12_purchase_order_without_budget(client: AsyncClient):
+    """F12 联动：项目无预算时下单不报错（预算联动不阻塞采购主流程）"""
+    token = await _register_and_login(client, phone="13900000041")
+    headers = {"Authorization": f"Bearer {token}"}
+    proj_id = await _create_project(client, token, "F12无预算项目")
+
+    sup_resp = await client.post(
+        "/api/procurement/suppliers",
+        json={"name": "F12供应商2", "category": "flooring", "rating": 4.0},
+        headers=headers,
+    )
+    cat_resp = await client.post(
+        "/api/materials/categories",
+        json={"name": "地面材料2", "code": "flooring"},
+        headers=headers,
+    )
+    mat_resp = await client.post(
+        "/api/materials",
+        json={
+            "category_id": cat_resp.json()["id"], "name": "瓷砖2",
+            "sku": "F12-TILE-002", "unit_price": 100.0,
+        },
+        headers=headers,
+    )
+    order_resp = await client.post(
+        "/api/procurement/orders",
+        json={
+            "project_id": proj_id,
+            "supplier_id": sup_resp.json()["id"],
+            "lines": [
+                {"material_id": mat_resp.json()["id"], "quantity": 5, "unit_price": 100.0},
+            ],
+        },
+        headers=headers,
+    )
+    assert order_resp.status_code == 201
+    assert order_resp.json()["total_amount"] == 500.0
+
+    # 无预算 → 联动记录为空且不报错
+    links_resp = await client.get(f"/api/budgets/{proj_id}/linked-purchases", headers=headers)
+    assert links_resp.status_code == 200
+    assert links_resp.json()["has_budget"] is False
+    assert links_resp.json()["linked_count"] == 0
+
+
 # ── Agent 单元测试（不依赖 HTTP，直接测业务逻辑）──────────────
 
 
@@ -557,7 +794,10 @@ class TestBudgetAgentUnit:
     def test_generate_budget_plan_lines_cover_all_categories(self):
         plan = self.agent.generate_budget_plan("126㎡ 舒适型")
         categories = {line["category"] for line in plan["lines"]}
-        assert categories == {"硬装工程", "定制柜体", "软装工程", "家电设备", "其他费用"}
+        assert categories == {
+            "土建改造", "硬装工程", "软装工程", "厨卫工程",
+            "家具采购", "灯具照明", "家电设备", "智能家居",
+        }
 
     def test_generate_budget_plan_ratio_match(self):
         for tier in TIER_PRICES:
@@ -566,11 +806,26 @@ class TestBudgetAgentUnit:
             ratios = BUDGET_RATIOS[tier]
             for line in plan["lines"]:
                 cat_key = {
-                    "硬装工程": "hard_fit", "定制柜体": "custom_cabinet",
-                    "软装工程": "soft_decor", "家电设备": "appliance", "其他费用": "other",
+                    "土建改造": "structural", "硬装工程": "hard_fit", "软装工程": "soft_decor",
+                    "厨卫工程": "kitchen_bath", "家具采购": "furniture", "灯具照明": "lighting",
+                    "家电设备": "appliance", "智能家居": "smart_home",
                 }[line["category"]]
                 expected = round(plan["total_estimated"] * ratios[cat_key], 2)
                 assert line["estimated_amount"] == expected
+
+    def test_generate_budget_plan_cost_split_and_price_source(self):
+        """每项预算行含材料/人工/管理费拆分（60/30/10）与价格来源（规则路径标市场价格库估算）"""
+        plan = self.agent.generate_budget_plan("126㎡ 舒适型")
+        assert len(plan["lines"]) == 8
+        for line in plan["lines"]:
+            assert line["material_cost"] == round(line["estimated_amount"] * 0.6, 2)
+            assert line["labor_cost"] == round(line["estimated_amount"] * 0.3, 2)
+            assert line["management_cost"] == round(line["estimated_amount"] * 0.1, 2)
+            assert line["price_source"] == "市场价格库（估算）"
+            assert "估算" in line["cost_split_note"]
+        # 旧 5 类聚合合计应等于总预算
+        legacy_total = round(sum(plan["legacy_5cat"].values()), 2)
+        assert abs(legacy_total - plan["total_estimated"]) <= 0.05
 
     def test_compare_budget_plans_returns_three_tiers(self):
         result = self.agent.compare_budget_plans("126㎡")
@@ -591,7 +846,8 @@ class TestBudgetAgentUnit:
         codes = {t["code"] for t in result["templates"]}
         assert codes == set(BUDGET_TEMPLATES.keys())
 
-    def test_apply_template_invalid_code(self):
-        result = self.agent.apply_template("invalid_code")
+    @pytest.mark.asyncio
+    async def test_apply_template_invalid_code(self):
+        result = await self.agent.apply_template("invalid_code")
         assert "error" in result
         assert result["available"] == list(BUDGET_TEMPLATES.keys())

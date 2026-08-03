@@ -1,12 +1,15 @@
 from datetime import datetime, timezone
+import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.models.procurement import Supplier, Quotation, ProcurementOrder, OrderLine
-from app.models.material import BOMItem, Material, MaterialCategory
+from app.models.material import BOMItem, Material
 from app.models.construction import ConstructionTask
+
+logger = logging.getLogger(__name__)
 
 # 采购订单状态流转定义
 ORDER_STATUS_FLOW: dict[str, set[str]] = {
@@ -27,7 +30,7 @@ def is_valid_status_transition(current: str, target: str) -> bool:
 
 
 async def get_suppliers(db: AsyncSession, category: str | None = None) -> list[Supplier]:
-    stmt = select(Supplier).where(Supplier.is_active == True).order_by(Supplier.rating.desc())
+    stmt = select(Supplier).where(Supplier.is_active.is_(True)).order_by(Supplier.rating.desc())
     if category:
         stmt = stmt.where(Supplier.category == category)
     result = await db.execute(stmt)
@@ -63,6 +66,8 @@ async def get_quotations(db: AsyncSession, project_id: str) -> list[Quotation]:
 
 async def create_order(db: AsyncSession, data: dict) -> ProcurementOrder:
     lines_data = data.pop("lines", [])
+    # F12: 可选预算科目提示（服务层直传用；API 层由 OrderCreate 丢弃，走物料品类推断）
+    category_hint = data.pop("budget_category", None)
     order = ProcurementOrder(**data)
     db.add(order)
     await db.flush()
@@ -74,10 +79,42 @@ async def create_order(db: AsyncSession, data: dict) -> ProcurementOrder:
         ol = OrderLine(order_id=order.id, **line_data, total_price=line_total)
         db.add(ol)
 
-    order.total_amount = total
+    order.total_amount = round(total, 2)
     await db.commit()
-    await db.refresh(order)
-    return await get_order(db, order.id)
+    order = await get_order(db, order.id)
+
+    # F12 预算联动：订单创建成功后按订单金额扣减对应预算科目。
+    # 预算联动不能阻塞采购主流程：失败仅记日志，成功则写入订单 note 审计。
+    try:
+        if category_hint is None and lines_data:
+            # 无显式提示时，从首行物料品类 code 推断预算科目（flooring → 地面工程）
+            first_material_id = lines_data[0].get("material_id")
+            if first_material_id:
+                mat_result = await db.execute(
+                    select(Material)
+                    .where(Material.id == first_material_id)
+                    .options(selectinload(Material.category))
+                )
+                first_material = mat_result.scalar_one_or_none()
+                if first_material and first_material.category:
+                    from app.services.budget_service import BUDGET_CATEGORY_BY_CODE
+                    category_hint = BUDGET_CATEGORY_BY_CODE.get(first_material.category.code)
+
+        from app.services.budget_service import deduct_budget_for_purchase
+        link = await deduct_budget_for_purchase(
+            db, order.project_id, order.id, order.total_amount, category_hint=category_hint
+        )
+        if link.get("deducted"):
+            order.note = (
+                f"{order.note or ''} [预算联动] 已扣减预算科目「{link.get('category')}」"
+                f"{link.get('amount')} 元".strip()
+            )
+            await db.commit()
+            order = await get_order(db, order.id)
+    except Exception:
+        logger.exception("F12 预算联动失败（order_id=%s），不影响采购订单", order.id)
+
+    return order
 
 
 async def get_order(db: AsyncSession, order_id: str) -> ProcurementOrder | None:
@@ -147,10 +184,12 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
 
     按物料分类分组 BOM 项，为每个供应商（同品类）创建 draft 状态的采购订单。
     """
-    # 查询项目所有 BOM 项（含物料及分类信息）
+    # 查询项目当前版本（工作集）的 BOM 项（F7 版本管理：仅取最新版本，避免快照重复）
+    from app.services.material_service import get_current_bom_version
+    current_version = await get_current_bom_version(db, project_id)
     bom_result = await db.execute(
         select(BOMItem)
-        .where(BOMItem.project_id == project_id)
+        .where(BOMItem.project_id == project_id, BOMItem.version == current_version)
         .options(
             selectinload(BOMItem.material).selectinload(Material.category),
         )
@@ -174,7 +213,7 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
         # 找该品类下评分最高的活跃供应商
         supplier_result = await db.execute(
             select(Supplier)
-            .where(Supplier.category == cat_name, Supplier.is_active == True)
+            .where(Supplier.category == cat_name, Supplier.is_active.is_(True))
             .order_by(Supplier.rating.desc())
             .limit(1)
         )
@@ -183,7 +222,7 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
             # 如果没有同品类供应商，找任意活跃供应商
             fallback_result = await db.execute(
                 select(Supplier)
-                .where(Supplier.is_active == True)
+                .where(Supplier.is_active.is_(True))
                 .order_by(Supplier.rating.desc())
                 .limit(1)
             )
@@ -203,7 +242,6 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
 
         total = 0.0
         for item in items:
-            mat = item.material
             line_total = round(item.quantity * item.unit_price, 2)
             total += line_total
             ol = OrderLine(
@@ -309,7 +347,7 @@ async def compare_suppliers(db: AsyncSession, material_id: str, quantity: float)
     if not comparisons:
         suppliers_result = await db.execute(
             select(Supplier)
-            .where(Supplier.is_active == True)
+            .where(Supplier.is_active.is_(True))
             .order_by(Supplier.rating.desc())
         )
         suppliers = list(suppliers_result.scalars().all())
@@ -381,9 +419,13 @@ async def verify_delivery(db: AsyncSession, order_id: str) -> dict:
             "difference": diff,
             "status": line_status,
             "note": (
-                f"缺少 {diff} {getattr(line.material, 'unit', '件')}" if diff > 0
-                else (f"超出 {abs(diff)} {getattr(line.material, 'unit', '件')}" if diff < 0
-                else "数量匹配")
+                f"缺少 {diff} {getattr(line.material, 'unit', '件')}"
+                if diff > 0
+                else (
+                    f"超出 {abs(diff)} {getattr(line.material, 'unit', '件')}"
+                    if diff < 0
+                    else "数量匹配"
+                )
             ),
         })
 
@@ -459,8 +501,11 @@ async def link_to_construction(db: AsyncSession, order_id: str, task_id: str) ->
         "task_id": task.id,
         "task_name": task.name,
         "task_status": task.status,
-        "material_delivered_at": order.material_delivered_at.isoformat()
-            if order.material_delivered_at else None,
+        "material_delivered_at": (
+            order.material_delivered_at.isoformat()
+            if order.material_delivered_at
+            else None
+        ),
         "linked_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -1,6 +1,14 @@
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from typing import Literal
+
+# 项目类型枚举（与 console PROJECT_TYPE_LABELS / 模型注释对齐）
+PROJECT_TYPE_VALUES = Literal[
+    "full_renovation", "hard_decoration", "soft_furnishing",
+    "curtain", "kitchen", "bathroom", "electrical", "carpentry",
+    "painting", "plumbing", "masonry", "installation",
+]
 
 
 class RoomCreate(BaseModel):
@@ -50,13 +58,15 @@ class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     address: str | None = None
     total_area: float | None = None
-    project_type: str = Field(default="full_renovation")
-    # full_renovation(整装) / hard_decoration(硬装) / soft_furnishing(软装) /
-    # curtain(窗帘定制) / kitchen(厨房改造) / bathroom(卫浴改造) /
-    # electrical(电路改造) / carpentry(木工制作) / painting(油漆涂刷) /
-    # plumbing(水管改造) / masonry(泥瓦铺贴) / installation(设备安装)
-    source: str = Field(default="manual")
-    # manual / ar_measure
+    project_type: PROJECT_TYPE_VALUES = "full_renovation"
+    source: Literal["manual", "ar_measure"] = "manual"
+    description: str | None = Field(default=None, max_length=500)
+    # 创建时收集的可选信息（户型/定位/联系方式），落库持久化
+    house_type: str | None = Field(default=None, max_length=50)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    contact_name: str | None = Field(default=None, max_length=100)
+    contact_phone: str | None = Field(default=None, max_length=30)
     floors: list[FloorCreate] = []
 
 
@@ -64,17 +74,23 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     address: str | None = None
     total_area: float | None = None
-    project_type: str | None = None
+    project_type: PROJECT_TYPE_VALUES | None = None
     status: str | None = None
 
 
 class ProjectResponse(BaseModel):
     id: str
     name: str
+    description: str | None = None
     address: str | None = None
     total_area: float | None = None
     status: str
     project_type: str = "full_renovation"
+    house_type: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
     owner_id: str
     floors: list[FloorResponse] = []
     created_at: datetime
@@ -86,10 +102,16 @@ class ProjectResponse(BaseModel):
 class ProjectListResponse(BaseModel):
     id: str
     name: str
+    description: str | None = None
     address: str | None = None
     total_area: float | None = None
     status: str
     project_type: str = "full_renovation"
+    house_type: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    contact_name: str | None = None
+    contact_phone: str | None = None
     owner_id: str
     created_at: datetime
     updated_at: datetime

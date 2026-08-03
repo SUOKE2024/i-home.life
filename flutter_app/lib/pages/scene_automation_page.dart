@@ -118,8 +118,8 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: _createScene),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
+          IconButton(icon: const Icon(Icons.add), onPressed: _createScene, tooltip: '新建场景'),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData, tooltip: '刷新'),
         ],
       ),
       body: _loading

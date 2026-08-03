@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 
-/// 项目状态
+/// 项目状态（词表对齐后端 app/models/project.py: draft / active / completed / cancelled）
 enum ProjectStatus {
   draft,
   inProgress,
-  completed;
+  completed,
+  cancelled;
 
   static ProjectStatus fromString(String? s) {
     switch (s) {
       case 'draft':
         return ProjectStatus.draft;
       case 'in_progress':
+      case 'active':
+        // 后端施工中状态为 active，兼容旧值 in_progress
         return ProjectStatus.inProgress;
       case 'completed':
         return ProjectStatus.completed;
+      case 'cancelled':
+        return ProjectStatus.cancelled;
       default:
         return ProjectStatus.draft;
     }
@@ -27,6 +32,8 @@ enum ProjectStatus {
         return 'in_progress';
       case ProjectStatus.completed:
         return 'completed';
+      case ProjectStatus.cancelled:
+        return 'cancelled';
     }
   }
 
@@ -38,6 +45,8 @@ enum ProjectStatus {
         return '施工中';
       case ProjectStatus.completed:
         return '已完成';
+      case ProjectStatus.cancelled:
+        return '已取消';
     }
   }
 }

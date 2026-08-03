@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -453,7 +451,7 @@ async def generate_wbs(db: AsyncSession, project_id: str) -> dict:
 # ── 关键路径计算 ──
 
 
-async def calculate_critical_path(db: AsyncSession, project_id: str) -> dict:
+async def calculate_critical_path(db: AsyncSession, project_id: str) -> dict:  # noqa: C901
     """计算项目关键路径
 
     基于任务依赖关系和预估工期，找出最长路径（瓶颈路径）。

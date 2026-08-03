@@ -9,6 +9,7 @@ trace_id, span_id（v1.2.2 F4：由 inject_trace_context 从活跃 OTel span 注
 tracing 未启用或无活跃 span 时缺失，不影响日志）。
 """
 import logging
+from typing import Any
 
 import structlog
 
@@ -39,7 +40,7 @@ def _redact_sensitive(_logger, _method_name, event_dict: dict) -> dict:
 
 
 # 共享处理器链 —— structlog 原生日志与 stdlib foreign 记录共用
-_shared_processors = [
+_shared_processors: list[Any] = [
     structlog.contextvars.merge_contextvars,
     structlog.stdlib.add_logger_name,
     structlog.stdlib.add_log_level,

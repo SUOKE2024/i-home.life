@@ -154,10 +154,10 @@ class TestIntentContract:
     """Feature Validation Pipeline 测试"""
 
     def test_contract_loads(self):
-        """契约文件可加载，含 39 个 pattern"""
+        """契约文件可加载，含 41 个 pattern"""
         from app.utils.intent_validator import load_contract
         contract = load_contract()
-        assert len(contract["patterns"]) == 39
+        assert len(contract["patterns"]) == 41
 
     def test_all_patterns_validated(self):
         """全部 pattern validation_status=validated"""
@@ -454,6 +454,6 @@ class TestFeatureFlags:
         assert hasattr(s, "tts_enabled")
 
     def test_app_version_bumped(self):
-        """app_version 已升至 1.3.1（v1.3.0 → v1.3.1 总控智能体全链路修复 + 任务协调接线）"""
+        """app_version 已升至 1.8.0（v1.7.0 → v1.8.0 YC QM 借鉴：Scope API 贯通 + Skill 资产化 + 三档 posture）"""
         from app.config import get_settings
-        assert get_settings().app_version == "1.3.1"
+        assert get_settings().app_version == "1.8.0"

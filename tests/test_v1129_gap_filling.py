@@ -31,8 +31,8 @@ class TestA2UIProtocol:
         assert len(types) >= 8
         type_values = {t.value for t in types}
         required = {"design_plan", "budget_breakdown", "construction_progress",
-                     "procurement_order", "qa_report", "settlement_summary",
-                     "material_card", "alert_card"}
+                    "procurement_order", "qa_report", "settlement_summary",
+                    "material_card", "alert_card"}
         assert required.issubset(type_values)
 
     def test_generator_design_to_card(self):
@@ -45,6 +45,34 @@ class TestA2UIProtocol:
         assert card["type"] == "design_plan"
         assert "data" in card
         assert "version" in card
+
+    def test_generator_design_to_card_plans_schema(self):
+        """DesignerAgent LLM 输出 {plans, recommendation, materials, reply} → 非空卡片（P1 回归）
+
+        修复前 design_to_card 读取 project_name/rooms/total_area 等顶层字段，
+        与 LLM 的 plans 结构无交集，卡片数据恒为空。
+        """
+        from app.services.a2ui_generator import design_to_card
+        card = design_to_card({
+            "plans": [
+                {"name": "方案A", "brief": "6个房间", "total_area": 62.0,
+                 "rooms": [
+                     {"name": "客厅", "type": "living_room", "x": 0.5, "y": 0.5, "w": 5.0, "h": 4.0},
+                     {"name": "主卧", "type": "bedroom", "x": 0.5, "y": 5.0, "w": 3.5, "h": 3.0},
+                 ]},
+                {"name": "方案B", "brief": "6个房间", "total_area": 66.0, "rooms": []},
+            ],
+            "recommendation": "方案A",
+            "reply": "已为您生成方案",
+        })
+        assert card["type"] == "design_plan"
+        data = card["data"]
+        assert data["total_area"] == 62.0
+        assert len(data["rooms"]) == 2
+        assert data["rooms"][0]["name"] == "客厅"
+        assert data["rooms"][0]["area"] == 20.0  # 5.0 * 4.0
+        assert data["floor_layout"] == "6个房间"  # brief 落地
+        assert data["notes"] == "已为您生成方案"  # reply 兜底
 
     def test_generator_budget_to_card(self):
         """预算输出 → A2UI 卡片转换"""
@@ -424,7 +452,7 @@ class TestA2UIProtocol:
     def test_e2e_ss_end_to_end_card_structure(self):
         """端到端: 验证 A2UI 卡片完整结构可被 Flutter A2UIRenderer 消费"""
         from app.services.a2ui_schema import (
-            make_card, CardType, DesignPlanData, BudgetBreakdownData,
+            CardType, DesignPlanData, BudgetBreakdownData,
             ConstructionProgressData, ProcurementOrderData, QAReportData,
             SettlementSummaryData, MaterialCardData, encode_cards_to_wire,
         )

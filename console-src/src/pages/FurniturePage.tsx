@@ -45,6 +45,19 @@ export default function FurniturePage() {
     return items.filter((it) => it.category === selectedCategory);
   }, [items, selectedCategory]);
 
+  // 后端 category 为英文 slug（living_room 等），展示层映射为中文（筛选逻辑仍用 slug）
+  const CATEGORY_LABELS: Record<string, string> = {
+    living_room: '客厅',
+    dining_room: '餐厅',
+    bedroom: '卧室',
+    study: '书房',
+    entrance: '玄关',
+    kitchen: '厨房',
+    balcony: '阳台',
+    office: '办公',
+  };
+  const categoryLabel = (slug: string) => CATEGORY_LABELS[slug] ?? slug;
+
   return (
     <SuokeLayout>
       <div className="wb-page-shell" data-testid="wb-furniture-page">
@@ -95,7 +108,7 @@ export default function FurniturePage() {
                       onClick={() => setSelectedCategory(cat.name)}
                       data-testid={`wb-furniture-filter--${cat.name}`}
                     >
-                      {cat.name}({cat.count})
+                      {categoryLabel(cat.name)}({cat.count})
                     </button>
                   ))}
                 </div>

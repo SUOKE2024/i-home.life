@@ -614,24 +614,23 @@ class _AIChatPageState extends State<AIChatPage> {
     final api = ApiClient();
     final r = await api.post('/projects', result);
     if (r.isSuccess && mounted) {
-      await pc.loadProjects();
-      // 自动选中新创建的项目
-      final projects = pc.projects;
-      if (projects.isNotEmpty) {
-        final newProject = projects.last;
-        final newId = newProject['id'] as String?;
-        if (newId != null) {
-          await pc.switchProject(newId);
-          setState(() {
-            _currentProjectId = newId;
-            _messages.clear();
-            _messages.add(ChatMessage.agentText(
-              text: '欢迎使用索克家居！我是 AI 总控 Agent，请告诉我您的需求。',
-              agent: 'master',
-            ));
-          });
-          unawaited(_connectWebSocket());
-        }
+      // 用 POST 响应中的项目 id 切换（列表按 created_at DESC 排序，last 不是最新项目）
+      final resp = r.data;
+      final newId = resp is Map ? resp['id'] as String? : null;
+      if (newId != null) {
+        await pc.switchProject(newId);
+        setState(() {
+          _currentProjectId = newId;
+          _messages.clear();
+          _messages.add(ChatMessage.agentText(
+            text: '欢迎使用索克家居！我是 AI 总控 Agent，请告诉我您的需求。',
+            agent: 'master',
+          ));
+        });
+        unawaited(_connectWebSocket());
+      } else {
+        // 兜底：响应无 id 时刷新列表
+        await pc.loadProjects();
       }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -15,7 +15,6 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services import design_proposal_service as dps
 from app.services.design_proposal_service import (
-    ProposalSet,
     ProposalSpec,
     generate_proposals,
     revise_proposal,
@@ -27,11 +26,12 @@ from app.services.agent_tool_registry import ToolRegistry
 
 
 @pytest.fixture(autouse=True)
-def _reset_store():
-    """每个测试前清空方案内存存储"""
-    dps._proposal_store.clear()
+async def _reset_store():
+    """每个测试前清空方案缓存存储"""
+    from app.services.cache_service import cache
+    await cache.delete_pattern("design_proposal:*")
     yield
-    dps._proposal_store.clear()
+    await cache.delete_pattern("design_proposal:*")
 
 
 @pytest.mark.asyncio
@@ -99,7 +99,7 @@ async def test_revise_proposal_not_found(monkeypatch):
     """方案 ID 不存在时返回 None"""
     monkeypatch.setattr(dps.settings, "design_proposal_llm_enabled", True)
     # 先存一个方案
-    dps._store_proposals("sess_x", [
+    await dps._store_proposals("sess_x", [
         ProposalSpec(proposal_id="A", title="紧凑型", layout_type="L型",
                      area_sqm=5.0, budget_cny=15000, highlights=["x"])
     ])
@@ -111,7 +111,7 @@ async def test_revise_proposal_not_found(monkeypatch):
 async def test_revise_proposal_success(monkeypatch):
     """LLM 修订成功 → 返回修订后方案，内存更新"""
     monkeypatch.setattr(dps.settings, "design_proposal_llm_enabled", True)
-    dps._store_proposals("sess_rev", [
+    await dps._store_proposals("sess_rev", [
         ProposalSpec(proposal_id="A", title="紧凑型", layout_type="L型",
                      area_sqm=5.0, budget_cny=15000, highlights=["x"]),
         ProposalSpec(proposal_id="B", title="标准型", layout_type="U型",
@@ -128,8 +128,8 @@ async def test_revise_proposal_success(monkeypatch):
     assert revised.layout_type == "U型+中岛"
     assert revised.budget_cny == 26000
     assert "加中岛" in revised.change_log
-    # 验证内存已更新
-    stored = dps._get_proposals("sess_rev")
+    # 验证缓存已更新
+    stored = await dps._get_proposals("sess_rev")
     assert next(p for p in stored if p.proposal_id == "B").budget_cny == 26000
 
 
@@ -137,7 +137,7 @@ async def test_revise_proposal_success(monkeypatch):
 async def test_revise_proposal_flag_off_appends_changelog(monkeypatch):
     """flag 关闭时修订仅追加 change_log，不改字段"""
     monkeypatch.setattr(dps.settings, "design_proposal_llm_enabled", False)
-    dps._store_proposals("sess_flag", [
+    await dps._store_proposals("sess_flag", [
         ProposalSpec(proposal_id="A", title="标准型", layout_type="L型",
                      area_sqm=6.0, budget_cny=20000, highlights=["x"])
     ])

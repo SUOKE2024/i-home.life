@@ -7,7 +7,7 @@
 配置在 [pytest.ini](file:///Users/netsong/Developer/i-home.life/pytest.ini)：
 
 ```bash
-pytest                    # 全量，-n auto 并行，--tb=short，timeout=60s
+pytest                    # 全量，串行（xdist 未启用，异步测试稳定性优先），--tb=short，timeout=60s
 pytest tests/test_xxx.py  # 单文件
 pytest -k "test_register" # 按名筛选
 pytest -m slow            # 按标记筛选（slow/integration/websocket/e2e）
@@ -126,7 +126,7 @@ async def test_cross_user_isolation(cache):
 - ❌ 自建 AsyncClient 或 DB session（用 `client` / `db_session` fixture）
 - ❌ 测试间共享状态（`setup_db` autouse 已隔离，勿绕过）
 - ❌ 用 `pytest.skip` 跳过已知 bug（应修复或标记 `xfail`）
-- ❌ 测试依赖执行顺序（xdist 并行下不保证顺序）
+- ❌ 测试依赖执行顺序（每个测试应独立，setup_db autouse 已隔离）
 
 ## e2e 测试
 
@@ -151,7 +151,6 @@ pytest tests/test_auth.py -v              # 单文件详细
 pytest -k "register or login"             # 按名筛选
 pytest -m "not slow"                      # 跳过慢测试
 pytest --lf                               # 只跑上次失败的
-pytest -n 4                               # 4 进程并行
-pytest tests/e2e/ -m e2e                  # e2e 套件
+pytest tests/e2e/ -m e2e                  # e2e 套件（串行，xdist 未启用）
 pre-commit run --all-files                # 提交前
 ```

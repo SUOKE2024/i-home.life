@@ -543,3 +543,199 @@ async def test_get_project_bom_with_material_info(client: AsyncClient):
     assert item["material"]["category"] is not None
     assert item["total_price"] == 1000.0
     assert item["note"] == "测试备注"
+
+
+# ============ F7 BOM 版本管理与差异标注 ============
+
+
+@pytest.mark.asyncio
+async def test_bom_version_snapshot_and_diff(client: AsyncClient, db_session):
+    """F7 版本快照 + 差异对比：新增/删除/价格变化三类标注"""
+    token = await _register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    proj_id = await _create_project(client, token, "BOM版本项目")
+
+    _, mat_a = await _create_category_and_material(
+        client, token, "品类A", "cat_a", "物料A", "VER-A-001", 100.0,
+    )
+    _, mat_b = await _create_category_and_material(
+        client, token, "品类B", "cat_b", "物料B", "VER-B-001", 200.0,
+    )
+
+    # v1：添加 A、B 两项
+    await client.post(
+        "/api/materials/bom",
+        json={"project_id": proj_id, "material_id": mat_a, "quantity": 2, "unit_price": 100.0},
+        headers=headers,
+    )
+    await client.post(
+        "/api/materials/bom",
+        json={"project_id": proj_id, "material_id": mat_b, "quantity": 1, "unit_price": 200.0},
+        headers=headers,
+    )
+
+    # 版本列表：只有 v1
+    versions = (await client.get(f"/api/materials/bom/{proj_id}/versions", headers=headers)).json()
+    assert versions["current_version"] == 1
+    assert versions["versions"][0]["version"] == 1
+    assert versions["versions"][0]["item_count"] == 2
+
+    # 打版本快照 → v2（复制工作集）
+    snap = (await client.post(f"/api/materials/bom/{proj_id}/version", headers=headers)).json()
+    assert snap["snapshot_version"] == 1
+    assert snap["new_version"] == 2
+    assert snap["copied_items"] == 2
+
+    # v2 工作集改造：删除 B 副本、修改 A 单价（模拟设计变更）
+    from sqlalchemy import select as sa_select
+    from app.models.material import BOMItem
+
+    v2_items = (
+        await db_session.execute(
+            sa_select(BOMItem).where(BOMItem.project_id == proj_id, BOMItem.version == 2)
+        )
+    ).scalars().all()
+    b_v2 = next(i for i in v2_items if i.material_id == mat_b)
+    a_v2 = next(i for i in v2_items if i.material_id == mat_a)
+    await db_session.delete(b_v2)
+    a_v2.unit_price = 180.0
+    a_v2.total_price = round(a_v2.quantity * 180.0, 2)
+    await db_session.commit()
+
+    # 新增：物料 C
+    _, mat_c = await _create_category_and_material(
+        client, token, "品类C", "cat_c", "物料C", "VER-C-001", 50.0,
+    )
+    await client.post(
+        "/api/materials/bom",
+        json={"project_id": proj_id, "material_id": mat_c, "quantity": 5, "unit_price": 50.0},
+        headers=headers,
+    )
+
+    # 差异对比 from=1&to=2
+    diff = (await client.get(f"/api/materials/bom/{proj_id}/diff?from=1&to=2", headers=headers)).json()
+    assert diff["from_version"] == 1
+    assert diff["to_version"] == 2
+    added_ids = {d["material_id"] for d in diff["added"]}
+    removed_ids = {d["material_id"] for d in diff["removed"]}
+    assert mat_c in added_ids
+    assert mat_b in removed_ids
+    price_change = next(c for c in diff["changed"] if c["material_id"] == mat_a)
+    assert price_change["from_unit_price"] == 100.0
+    assert price_change["to_unit_price"] == 180.0
+    assert price_change["change_type"] == "price"
+    # 汇总
+    assert diff["summary"]["added"] == 1
+    assert diff["summary"]["removed"] == 1
+    assert diff["summary"]["changed"] == 1
+
+    # 打快照后工作集视图 = v2（不含历史 v1 快照）
+    current = (await client.get(f"/api/materials/bom/{proj_id}", headers=headers)).json()
+    assert len(current) == 2  # A、C
+
+
+@pytest.mark.asyncio
+async def test_bom_snapshot_no_bom_404(client: AsyncClient):
+    """F7 无 BOM 时打版本快照应返回 404"""
+    token = await _register_and_login(client)
+    proj_id = await _create_project(client, token, "空BOM快照项目")
+    resp = await client.post(
+        f"/api/materials/bom/{proj_id}/version",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+# ============ F6 BOM 接入几何算量 ============
+
+
+async def _create_geometric_project(
+    client: AsyncClient, db_session, token: str, name: str, with_floorplan: bool
+) -> str:
+    """工具：创建含房间（可选 active floorplan）的项目与三类物料"""
+    proj_id = await _create_project(client, token, name)
+
+    floor = Floor(project_id=proj_id, name="1F", floor_number=1, area=20.0)
+    db_session.add(floor)
+    await db_session.commit()
+    await db_session.refresh(floor)
+    db_session.add(Room(floor_id=floor.id, name="客厅", room_type="living", area=20.0))
+    await db_session.commit()
+
+    if with_floorplan:
+        import json as _json
+        from app.models.floorplan import FloorPlan
+
+        plan = FloorPlan(
+            project_id=proj_id, name="户型A",
+            data=_json.dumps({
+                "walls": [
+                    {"name": "W1", "start": {"x": 0, "y": 0}, "end": {"x": 5000, "y": 0}, "thickness": 240},
+                    {"name": "W2", "start": {"x": 0, "y": 0}, "end": {"x": 0, "y": 4000}, "thickness": 240},
+                ],
+                "doors": [], "windows": [],
+                "rooms": [{"name": "客厅", "area": 20.0, "type": "living", "tile_size": "600x600"}],
+            }),
+            wall_height=2.8, total_area=20.0, room_count=1, is_active=True,
+        )
+        db_session.add(plan)
+        await db_session.commit()
+
+    cat_flooring = MaterialCategory(name="地面材料", code="flooring")
+    cat_wall = MaterialCategory(name="墙面材料", code="wall")
+    cat_ceiling = MaterialCategory(name="顶面材料", code="ceiling")
+    for c in [cat_flooring, cat_wall, cat_ceiling]:
+        db_session.add(c)
+    await db_session.commit()
+
+    materials = [
+        Material(category_id=cat_flooring.id, name="大板砖", sku=f"GEO-FLR-{name[:4]}", unit="㎡", unit_price=198.0),
+        Material(category_id=cat_wall.id, name="乳胶漆", sku=f"GEO-WLL-{name[:4]}", unit="桶", unit_price=680.0),
+        Material(category_id=cat_ceiling.id, name="石膏板吊顶", sku=f"GEO-CEL-{name[:4]}", unit="㎡", unit_price=95.0),
+    ]
+    for m in materials:
+        db_session.add(m)
+    await db_session.commit()
+    return proj_id
+
+
+@pytest.mark.asyncio
+async def test_generate_bom_geometric_takeoff(client: AsyncClient, db_session):
+    """F6 几何算量接入：有 active floorplan 时 BOM 项 quantity_source=geometric_takeoff"""
+    token = await _register_and_login(client)
+    proj_id = await _create_geometric_project(client, db_session, token, "几何算量项目", with_floorplan=True)
+
+    resp = await client.post(
+        f"/api/materials/bom/generate/{proj_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["quantity_source"] == "geometric_takeoff"
+    assert data["fallback_note"] is None
+    assert len(data["items"]) == 3  # flooring / wall / ceiling 均由几何算量填充
+    for item in data["items"]:
+        assert item["quantity_source"] == "geometric_takeoff"
+        # 几何量应为 floorplan 派生量（地面 20㎡ 而非经验法 20×1.05）
+        if item["material"]["category"]["code"] == "flooring":
+            assert item["quantity"] == 20.0
+
+
+@pytest.mark.asyncio
+async def test_generate_bom_empirical_fallback(client: AsyncClient, db_session):
+    """F6 无 floorplan 时回退经验法并标注 empirical + fallback_note"""
+    token = await _register_and_login(client)
+    proj_id = await _create_geometric_project(client, db_session, token, "经验回退项目", with_floorplan=False)
+
+    resp = await client.post(
+        f"/api/materials/bom/generate/{proj_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["quantity_source"] == "empirical"
+    assert data["fallback_note"] == "无可用户型几何数据，采用面积×标准用量经验估算"
+    assert len(data["items"]) == 3
+    for item in data["items"]:
+        assert item["quantity_source"] == "empirical"
+        assert item["fallback_note"] == "无可用户型几何数据，采用面积×标准用量经验估算"

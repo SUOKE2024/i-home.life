@@ -2,11 +2,14 @@
 
 覆盖:
 - QAInspectorAgent: generate_acceptance_report / compare_with_design / detect_defects / detect_qa_intent
+- F38 真实 CV：多模态视觉 LLM 路径（cv_mode=real_vision_llm / engine=vision_llm）+ 失败诚实降级
 - ConciergeAgent: answer_faq / classify_inquiry / generate_response / detect_concierge_intent
 - 模块级函数: get_acceptance_items / list_defect_categories / search_knowledge_base / check_escalation
 - Orchestrator 路由: qa_inspector / concierge 意图
 - API 端点: /qa-inspector/* /concierge/* (mock 模式)
 """
+
+import json
 
 import pytest
 from httpx import AsyncClient
@@ -149,6 +152,9 @@ def test_qa_compare_with_design():
     assert result["source"] == "mock"
     assert result["engine"] == "mock_cv_engine"
     assert result["is_placeholder"] is True
+    # F38 诚实说明：mock 路径必须携带 cv_mode + note
+    assert result["cv_mode"] == "mock"
+    assert "真实 CV" in result["note"]
 
 
 def test_qa_detect_defects():
@@ -179,6 +185,9 @@ def test_qa_detect_defects():
     assert result["source"] == "mock"
     assert result["engine"] == "mock_cv_engine"
     assert result["is_placeholder"] is True
+    # F38 诚实说明：mock 路径必须携带 cv_mode + note
+    assert result["cv_mode"] == "mock"
+    assert "真实 CV" in result["note"]
 
 
 def test_qa_detect_defects_no_defects():
@@ -195,6 +204,126 @@ def test_qa_detect_defects_no_defects():
     assert result["defect_count"] == 0
     assert result["verdict"] == "pass"
     assert "合格" in result["verdict_text"]
+
+
+# === F38 真实 CV（多模态视觉 LLM）测试 ===
+
+
+def test_qa_detect_defects_real_cv(monkeypatch):
+    """F38: 真实 CV 路径 — 视觉模型返回结构化缺陷 → cv_mode=real_vision_llm/engine=vision_llm"""
+    from app.agents import qa_inspector as qa_mod
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "real_cv_quality_enabled", True)
+    monkeypatch.setattr(qa_mod, "_fetch_image_bytes", lambda url: (b"fake-image", "image/jpeg"))
+    monkeypatch.setattr(
+        qa_mod, "_call_vision_llm",
+        lambda prompt, image_bytes, mime: json.dumps({
+            "defects": [
+                {
+                    "category": "hollow",
+                    "description": "客厅东墙瓷砖空鼓",
+                    "confidence": 0.92,
+                    "location_hint": "墙面中下部",
+                    "suggestion": "拆除空鼓瓷砖重新铺贴",
+                },
+                {
+                    "category": "crack",
+                    "description": "卫生间墙面裂缝",
+                    "confidence": 0.85,
+                    "location_hint": "墙角",
+                    "suggestion": "裂缝修补后复检",
+                },
+            ]
+        }),
+    )
+
+    agent = QAInspectorAgent()
+    result = agent.detect_defects({
+        "project_id": "P001",
+        "phase": "masonry",
+        "images": [
+            {"url": "http://example.com/d1.jpg", "type": "tile_surface", "location": "卫生间墙面"},
+        ],
+        "check_categories": ["hollow", "crack"],
+    })
+
+    assert result["cv_mode"] == "real_vision_llm"
+    assert result["engine"] == "vision_llm"
+    assert result["source"] == "vision_llm"
+    assert result["is_placeholder"] is False
+    assert result["defect_count"] == 2
+    defect = result["detected_defects"][0]
+    # 结构化输出：类型/位置/置信度/建议
+    assert defect["category"] == "hollow"
+    assert defect["location"] == "墙面中下部"
+    assert defect["confidence"] == 0.92
+    assert defect["rectification"] == "拆除空鼓瓷砖重新铺贴"
+
+
+def test_qa_detect_defects_real_cv_failure_degrades_to_mock(monkeypatch):
+    """F38: 真实 CV 调用失败 → 诚实降级为 mock（engine=mock_cv_engine + note 标注）"""
+    from app.agents import qa_inspector as qa_mod
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "real_cv_quality_enabled", True)
+    monkeypatch.setattr(
+        qa_mod, "_fetch_image_bytes",
+        lambda url: (_ for _ in ()).throw(RuntimeError("vision api down")),
+    )
+
+    agent = QAInspectorAgent()
+    result = agent.detect_defects({
+        "project_id": "P001",
+        "phase": "masonry",
+        "images": [{"url": "http://example.com/d1.jpg", "type": "tile_surface"}],
+        "check_categories": ["hollow"],
+    })
+
+    assert result["engine"] == "mock_cv_engine"
+    assert result["cv_mode"] == "mock"
+    assert result["is_placeholder"] is True
+    assert "降级" in result["note"]
+
+
+def test_qa_compare_with_design_real_cv(monkeypatch):
+    """F38: 真实 CV 路径 — 图纸比对走视觉模型 → cv_mode=real_vision_llm"""
+    from app.agents import qa_inspector as qa_mod
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "real_cv_quality_enabled", True)
+    monkeypatch.setattr(qa_mod, "_fetch_image_bytes", lambda url: (b"fake-image", "image/jpeg"))
+    monkeypatch.setattr(
+        qa_mod, "_call_vision_llm",
+        lambda prompt, image_bytes, mime: json.dumps({
+            "image_analysis": {"matches_design": False, "confidence": 0.7, "notes": "瓷砖缝隙明显偏大"},
+            "spec_comparisons": [
+                {"spec_item": "tile_size", "design_value": "800x800", "actual_value": "约800x800", "consistent": True},
+            ],
+            "dimension_deviations": [
+                {"dimension": "tile_gap", "standard": "2mm", "measured_value": 3.5, "deviation": 1.5, "pass": False},
+            ],
+        }),
+    )
+
+    agent = QAInspectorAgent()
+    result = agent.compare_with_design({
+        "project_id": "P001",
+        "phase": "masonry",
+        "images": [{"url": "http://example.com/1.jpg", "type": "tile_surface", "location": "客厅东墙"}],
+        "design_reference": {"specs": {"tile_size": "800x800"}},
+        "expected_dimensions": {"tile_gap": "2mm"},
+    })
+
+    assert result["cv_mode"] == "real_vision_llm"
+    assert result["engine"] == "vision_llm"
+    assert result["is_placeholder"] is False
+    assert result["image_analyses"][0]["matches_design"] is False
+    assert result["dimension_deviations"][0]["pass"] is False
+    assert result["verdict"] in ("consistent", "minor_deviation", "major_deviation")
 
 
 def test_qa_detect_intent():

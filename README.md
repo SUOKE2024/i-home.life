@@ -2,10 +2,58 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.3.0 · MCP 2026-07-28 规范完整对齐 + 缓存用户隔离硬约束 + AI 渲染接入契约固化 + H-IFC 湖北地方标准（2026-07-31）
-> 核心能力：35 页面 React Web 控制台 + Flutter 46 页面 + 22 Agent 全链路 + 80+ Service + 50 ORM 模型 + 74 路由 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.7.0 · 需求-实现验证遗留项 Wave 2 落地（F45 方案前置决策 LLM 升级 / F10 预算 8 类拆分+三费+价格来源 / F13 模板 AI 填充 / F36 工程队入驻审核 / F39 变更 Agent 评估 / F28 通道宽度检查 / F4 剖面图+DXF 导出 / React 控制台 5 页面补齐，2026-08-03）
+> 核心能力：40 页面 React Web 控制台 + Flutter 46 页面 + 22 Agent 全链路 + 82 Service + 118 ORM 模型 + 630+ 路由（70 模块）+ L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-03 · v1.7.0 需求-实现验证遗留项 Wave 2
+
+- **F45 方案前置决策 LLM 升级**: [solution_first_service.py](app/services/solution_first_service.py) 新增 `SolutionFirstAgent`（走多 LLM fallback 链），LLM 可用时 `source="llm"`，失败/无 key 诚实回退 `source="rule_based"`
+- **F10 预算 8 类拆分**: [budget.py](app/agents/budget.py) 5 类 → 8 类（土建/硬装/软装/厨卫/家具/灯具/电器/智能家居）+ 每项材料费/人工费/管理费 + `price_source`（诚实标注估算），保留 `legacy_5cat` 向后兼容
+- **F13 模板 AI 自动填充**: `apply_template` LLM 优先 + 线性缩放兜底（`filling_source="llm"/"rule"`）
+- **F36 工程队入驻审核**: [crews.py](app/api/crews.py) + [crew_service.py](app/services/crew_service.py) pending→approved/rejected 状态机 + 执照/保险/资质材料校验 + submit/review 端点（仅 admin 审核，未审核不参与匹配）
+- **F39 变更 Agent 自动评估**: [change_orders.py](app/api/change_orders.py) review 未传人工评估时自动调设计/预算 Agent（`assessment_source="agent"`），失败降级 `"unavailable"` 不伪造
+- **F28 通道宽度检查**: [designer.py](app/agents/designer.py) `analyze_circulation` 新增 `channel_checks`（主通道≥0.9m/家具间≥0.6m，缺数据诚实 warning）
+- **F4 剖面图 + DXF 导出**: [construction_drawing_service.py](app/services/construction_drawing_service.py) 新增 `/section` 端点 + `svg_to_dxf`（手写 DXF 无依赖）；PDF 导出依赖缺失诚实 501
+- **React 控制台 5 页面补齐**: BudgetCompare（F11）/BudgetTemplates（F13）/KitchenBathMep（F18）/Workers（F35）/IMChat（F40）+ SideNav/App 路由/api-client/domain 类型
+- 版本号全链路同步 1.7.0
+
+### 2026-08-03 · v1.6.0 需求-实现验证 v1.5.0 复核修复落地
+
+基于《需求-实现验证报告（v1.5.0 复核）》（F1-F47 全量重新核验：22 已实现 / 25 部分实现 / 0 未实现，全量 pytest 1713+ 通过）执行系统修复：
+
+- **🔴 P0 红线修复**: [knowledge/loader.py](knowledge/loader.py) 伪向量 RAG（`[0.0]*128`）→ 真实 embedding（对齐 agentic_rag v1.1.31 FP-3 修复）
+- **名实差距标注**: budget/settlement 补 `engine="rule_based"`；procurement 模拟物流/报价/推荐补 `source="mock"`（响应体级诚实标注）
+- **F41 适老改造深化**: [elderly_adaptation_service.py](app/services/elderly_adaptation_service.py) 新增 HC-006 逃生通道专项检查（入户门/逃生窗/禁止封闭走廊）
+- **F44 环保强制提示**: [material_service.py](app/services/material_service.py) BOM/AI 选材链路接入 `eco_grade` + `eco_notice`（未认证诚实标注 unverified + HC-003）
+- **F47 知识库补全**: 新增 eco_ratings/safety/design_rules/cost_reference 4 域 → 8 域 114 条
+- **F38 真实 CV**: [qa_inspector.py](app/agents/qa_inspector.py) 接入多模态视觉 LLM（flag `real_cv_quality_enabled`，失败诚实降级 mock）
+- **F40 Agent 进 IM 群**: [chat_service.py](app/services/chat_service.py) 聊天室 Agent 群成员 + 自动回复（真实/规则/降级三档标注）
+- **F12 采购→预算联动**: [budget_service.py](app/services/budget_service.py) 订单创建自动扣减预算科目 + `GET /budgets/{project_id}/linked-purchases`
+- **F7 BOM 版本管理 + F6 几何算量**: BOMItem 新增 version 列 + `/bom/{project_id}/versions|version|diff`；BOM 优先几何算量（`quantity_source` 诚实标注）
+- 轻量 schema 迁移 v7（chat_rooms.agent_members / chat_messages.auto_reply_meta / bom_items.version 等）+ 新增 ~30 测试 + 版本号全链路同步 1.6.0
+
+### 2026-08-03 · v1.5.0 PRD v3.1 F41-F47 需求补充落地
+
+基于 2026-08-03 行业调研与需求-实现验证，将 PRD v3.1 新增 7 项需求全部落地（后端 + React Web 控制台 + Flutter），每项配套 feature flag：
+
+- **F41 适老改造**: [app/api/elderly_adaptation.py](app/api/elderly_adaptation.py) 适老方案 + 无障碍动线检查（GB 50763，门宽/通道/高差）
+- **F42 局部焕新**: [app/api/partial_renovation.py](app/api/partial_renovation.py) 5 种短周期改造模板 + 预算包 + 干扰最小化
+- **F43 资金托管深化**: [app/api/escrow_trustee.py](app/api/escrow_trustee.py) 银行存管账户 + 节点验收双向确认放款 + 利息归属业主
+- **F44 环保材料标签**: [app/api/eco_materials.py](app/api/eco_materials.py) 材料 ENF/E0/E1 环保等级 + 合规校验（HC-003）+ 环保替代推荐
+- **F45 方案前置决策**: [app/api/solution_first.py](app/api/solution_first.py) 上传户型 → 3 套布局 + 预算区间
+- **F46 生态桥接优先级**: [app/api/ecosystem.py](app/api/ecosystem.py) 4 生态注册表 + 状态报告（未配置 key 诚实标注）
+- **F47 AI 装修问答**: [app/api/ai_qa.py](app/api/ai_qa.py) 知识库检索 + 引用来源，未命中诚实降级
+- 新增 4 ORM 模型 + 57 测试 + 全链路版本号同步至 1.5.0
+
+### 2026-08-02 · v1.4.0 YC QM / OWLFY / LocalAI 借鉴落地
+
+借鉴 YC QM 多人 Agent Harness（Scope 治理 + 可还原）、OWLFY 端侧零 TOKEN、LocalAI 端云协同，落地 AI 决策审计可还原：
+
+- **P1 Scope 治理贯穿 cache / trace / audit 层**: `cache_service.build_isolated_key` 新增 `scope` 参数（对齐 YC QM 四级作用域）；AgentTrace 新增 `scope` 字段；`tool_registry.execute()` 新增 `_agent_id`/`_model_source`/`_scope`/`_trace_id` 隐式上下文，审计 details 扩展 7 字段，AI 决策可还原到具体 Agent/模型/作用域/轨迹
+- **P2 文档与配置**: CLAUDE.md 测试基线 1491 → 1640；.env.example 补安全约束硬开关；mcp-agent guide 记录 v1.4.0 借鉴落地
+- **P3 测试**: 新增 12 用例（test_agent_trace_scope / test_tool_audit_fields / cache scope），基线 1607 → 1640
 
 ### 2026-07-31 · v1.3.0 MCP 2026-07-28 规范完整对齐
 
@@ -261,7 +309,7 @@ open web/3d-viewer.html   # 3D 效果图
 ```
 i-home.life/
 ├── app/
-│   ├── api/           # 46 个路由模块 (461 端点)
+│   ├── api/           # 63 个路由模块 (590+ 端点)
 │   │   ├── auth.py          # 认证 (register/login/me)
 │   │   ├── projects.py      # 项目管理
 │   │   ├── materials.py     # 物料 + BOM + Excel导出
@@ -302,7 +350,7 @@ i-home.life/
 │   │   ├── points.py        # 积分系统
 │   │   ├── location.py      # 地理位置
 │   │   └── agents.py        # AI Agent 路由 (含 F28 动线分析)
-│   ├── agents/        # 10 个 AI Agent (业务逻辑版)
+│   ├── agents/        # 22 个 AI Agent (业务逻辑版)
 │   │   ├── orchestrator.py  # 总控 (意图路由)
 │   │   ├── designer.py      # 设计 (9套布局 + NL 修改 + F28 动线分析)
 │   │   ├── budget.py        # 预算 (多方案对比/偏差预警/模板库)
@@ -313,9 +361,9 @@ i-home.life/
 │   │   ├── concierge.py     # 客服 (FAQ 知识库/咨询分类/升级规则)
 │   │   ├── admin.py         # 管理员 (审计日志/平台运营)
 │   │   └── content_publisher.py  # 内容发布 (方案/案例/资讯)
-│   ├── models/        # 80+ ORM 模型 (41 文件)
+│   ├── models/        # 118 ORM 模型 (54 文件)
 │   ├── schemas/       # 40+ Pydantic 验证模块
-│   ├── services/      # 43 个业务服务
+│   ├── services/      # 82 个业务服务
 │   └── auth/          # PASETO Token 认证
 ├── flutter_app/       # 跨平台 App (iOS/iPadOS/Android/HarmonyOS)
 │   └── lib/
@@ -486,7 +534,9 @@ i-home.life/
 | 身份 | /identity/verify, /identity/status | 4端点 |
 | 位置 | /location/ip, /location/nearby | 3端点 |
 | 语音 | /voice/asr | 1端点 |
-| **合计** | | **461 端点** |
+| **合计** | | **630+ 路由（70 模块）** |
+
+> 注：上表为模块级端点快照；v1.5.0 实测 `app/api/` 70 个路由模块 / 630+ 路由（含 /health、/metrics、/docs、/ws 等，2026-08-03 实测 631）。
 
 ## 验收标准
 

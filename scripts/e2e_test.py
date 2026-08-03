@@ -3,13 +3,19 @@
 适配 Flutter SPA 架构，涵盖 PASETO 认证 / Project CRUD / Agent LLM / 物料 / Web 资源 / 详细健康检查
 """
 
-import json, os, sys, time, urllib.request, urllib.error
+import json
+import os
+import sys
+import time
+import urllib.error
+import urllib.request
 
 API_HOST = os.environ.get("API_HOST", "http://118.31.223.213:8081")
 BASE = API_HOST + "/api"
 passed = 0
 total = 0
 errors = []  # 收集失败项详情
+
 
 def api(method, path, body=None, token=None, timeout=30):
     """调用 API 端点，返回 (status_code, parsed_json_body)。
@@ -40,6 +46,7 @@ def api(method, path, body=None, token=None, timeout=30):
     except Exception as ex:
         return 0, {"error": str(ex)}
 
+
 def check(name, ok, detail=""):
     global passed, total
     total += 1
@@ -50,9 +57,11 @@ def check(name, ok, detail=""):
         errors.append(f"{name}" + (f"  ({detail})" if detail else ""))
         print(f"  FAIL {name}" + (f"  [{detail}]" if detail else ""))
 
+
 def skip(name):
     """跳过检查（不纳入通过/失败统计）"""
     print(f"  SKIP {name}")
+
 
 # ════════════════
 print("=" * 55)
@@ -67,8 +76,10 @@ check("Version: " + d.get("version", "?"), d.get("version") is not None)
 
 # 2. Auth
 print("\n[2] PASETO 认证")
-s, d = api("POST", "/auth/login",
-    body={"phone": "13800138000", "password": "123456"})
+s, d = api(
+    "POST", "/auth/login",
+    body={"phone": "13800138000", "password": "123456"},
+)
 check("POST /auth/login -> 200", s == 200)
 TOKEN = d.get("access_token", "")
 check("access_token exists", len(TOKEN) > 20)
@@ -109,11 +120,14 @@ agents = [
 ]
 
 for at, msg in agents:
-    sys.stdout.write(f"  {at:20s} ... "); sys.stdout.flush()
+    sys.stdout.write(f"  {at:20s} ... ")
+    sys.stdout.flush()
     t0 = time.time()
-    s, d_ = api("POST", "/agents/chat",
+    s, d_ = api(
+        "POST", "/agents/chat",
         body={"message": msg, "agent_type": at},
-        token=TOKEN, timeout=240)
+        token=TOKEN, timeout=240,
+    )
     elapsed = int(time.time() - t0)
     ok = s == 200 and "reply" in d_
     reply_len = len(d_.get("reply", "")) if ok else 0
@@ -179,13 +193,18 @@ if s == 200:
     # secret_manager: ok / disabled / 缺 status 但有 fingerprint 均为正常状态
     sm = checks.get("secret_manager", {})
     if sm.get("enabled") is False:
-        print(f"  OK   secret_manager: disabled (feature flag off)")
-        passed += 1; total += 1
+        print("  OK   secret_manager: disabled (feature flag off)")
+        passed += 1
+        total += 1
     elif sm.get("status") == "ok":
-        check(f"  secret_manager: ok", True)
+        check("  secret_manager: ok", True)
     elif sm.get("paseto_key_fingerprint"):
-        print(f"  OK   secret_manager: enabled (fingerprint={sm['paseto_key_fingerprint']}, vault={sm.get('vault_configured', False)})")
-        passed += 1; total += 1
+        print(
+            f"  OK   secret_manager: enabled "
+            f"(fingerprint={sm['paseto_key_fingerprint']}, vault={sm.get('vault_configured', False)})"
+        )
+        passed += 1
+        total += 1
     else:
         sm_status = sm.get("status", "unknown")
         check(f"  secret_manager: {sm_status}", sm_status == "ok",
@@ -200,7 +219,7 @@ if s == 200:
 print("\n[8] 清理")
 if PROJECT_ID:
     s, _ = api("DELETE", f"/projects/{PROJECT_ID}", token=TOKEN)
-    check(f"DELETE /projects/:id -> 200/204", s in (200, 204),
+    check("DELETE /projects/:id -> 200/204", s in (200, 204),
           f"HTTP {s}")
 else:
     skip("DELETE /projects/:id (跳过，无 PROJECT_ID)")

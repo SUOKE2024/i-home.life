@@ -62,21 +62,28 @@ def build_isolated_key(
     user_id: int | None = None,
     project_id: int | None = None,
     public: bool = False,
+    scope: str | None = None,
 ) -> str:
-    """构造用户隔离的缓存 key（v1.3.0 硬约束）。
+    """构造用户隔离的缓存 key（v1.3.0 硬约束，v1.4.0 加 scope 维度）。
 
     强制所有缓存 key 含 user_id 或为公共数据，防跨用户数据泄露。
+
+    v1.4.0：新增 scope 维度（借鉴 YC QM 的 personal/project/team/org 四级作用域），
+    scope 非空时在 key 中插入 ``s:{scope}:`` 段，区分同 user 同 project 下不同
+    作用域的缓存（如团队共享 vs 个人私有）。scope=None（默认）维持原格式，向后兼容。
 
     Args:
         base_key: 业务 key（如 "budget:summary"）
         user_id: 用户 ID（私有数据必填）
         project_id: 项目 ID（可选，进一步隔离）
-        public: 是否为公共数据（True 时无需 user_id）
+        public: 是否为公共数据（True 时无需 user_id，忽略 scope）
+        scope: 作用域（可选，借鉴 YC QM：personal/project/team/org）
 
     Returns:
         隔离 key：
-        - 公共数据: ``public:{base_key}``
-        - 私有数据: ``u:{user_id}:p:{project_id}:{base_key}``（project_id 可选）
+        - 公共数据: ``public:{base_key}``（忽略 scope）
+        - 私有 + scope: ``u:{user_id}:p:{project_id}:s:{scope}:{base_key}``（project_id 可选）
+        - 私有无 scope: ``u:{user_id}:p:{project_id}:{base_key}``（project_id 可选，v1.3.0 格式）
 
     Raises:
         ValueError: strict 模式下私有数据未传 user_id
@@ -94,11 +101,14 @@ def build_isolated_key(
             )
         # 非 strict 模式回退（仅开发环境，记录警告）
         logger.warning("cache_isolation_violation_fallback", base_key=base_key)
-        return f"u:anon:{base_key}"
+        scope_seg = f"s:{scope}:" if scope else ""
+        return f"u:anon:{scope_seg}{base_key}"
 
+    scope_seg = f"s:{scope}:" if scope else ""
     if project_id is not None:
-        return f"u:{user_id}:p:{project_id}:{base_key}"
-    return f"u:{user_id}:{base_key}"
+        return f"u:{user_id}:p:{project_id}:{scope_seg}{base_key}"
+    return f"u:{user_id}:{scope_seg}{base_key}"
+
 
 # ── 内存降级模式最大条目数 ──
 _MAX_MEMORY_ENTRIES = 10_000
@@ -351,8 +361,9 @@ class CacheService:
         user_id: int | None = None,
         project_id: int | None = None,
         public: bool = False,
+        scope: str | None = None,
     ) -> Optional[Any]:
-        """读取用户隔离缓存（v1.3.0 硬约束便捷方法）。
+        """读取用户隔离缓存（v1.3.0 硬约束便捷方法，v1.4.0 加 scope）。
 
         自动构造隔离 key 并读取。strict 模式下私有数据未传 user_id 将 raise。
 
@@ -361,11 +372,12 @@ class CacheService:
             user_id: 用户 ID（私有数据必填）
             project_id: 项目 ID（可选）
             public: 是否为公共数据
+            scope: 作用域（可选，借鉴 YC QM：personal/project/team/org）
 
         Returns:
             缓存值，不存在返回 None
         """
-        key = build_isolated_key(base_key, user_id, project_id, public)
+        key = build_isolated_key(base_key, user_id, project_id, public, scope)
         return await self.get(key)
 
     async def set_isolated(
@@ -376,8 +388,9 @@ class CacheService:
         project_id: int | None = None,
         public: bool = False,
         ttl: int = 300,
+        scope: str | None = None,
     ) -> None:
-        """写入用户隔离缓存（v1.3.0 硬约束便捷方法）。
+        """写入用户隔离缓存（v1.3.0 硬约束便捷方法，v1.4.0 加 scope）。
 
         自动构造隔离 key 并写入。strict 模式下私有数据未传 user_id 将 raise。
 
@@ -388,8 +401,9 @@ class CacheService:
             project_id: 项目 ID（可选）
             public: 是否为公共数据
             ttl: 过期时间（秒）
+            scope: 作用域（可选，借鉴 YC QM：personal/project/team/org）
         """
-        key = build_isolated_key(base_key, user_id, project_id, public)
+        key = build_isolated_key(base_key, user_id, project_id, public, scope)
         await self.set(key, value, ttl=ttl)
 
     async def delete_isolated(
@@ -398,9 +412,10 @@ class CacheService:
         user_id: int | None = None,
         project_id: int | None = None,
         public: bool = False,
+        scope: str | None = None,
     ) -> None:
-        """删除用户隔离缓存（v1.3.0 硬约束便捷方法）。"""
-        key = build_isolated_key(base_key, user_id, project_id, public)
+        """删除用户隔离缓存（v1.3.0 硬约束便捷方法，v1.4.0 加 scope）。"""
+        key = build_isolated_key(base_key, user_id, project_id, public, scope)
         await self.delete(key)
 
     async def invalidate_user_keys(self, user_id: int) -> int:

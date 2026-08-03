@@ -47,6 +47,8 @@ AUDIT_ACTIONS = frozenset(
         "LOGOUT",
         "EXPORT",
         "PERMISSION_CHANGE",
+        # v1.4.x: Agent 动作审计（工具调用/关键操作，QM 的"可还原"）
+        "AGENT_ACTION",
         # 扩展动作（非枚举但允许）
         "REGISTER",
     }

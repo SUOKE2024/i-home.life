@@ -26,6 +26,12 @@ htmlcov/
 # Test artifacts
 test-results/
 .playwright/
+# dogfood/QA 产物（截图+报告，不入库）
+dogfood-output/
+console-src/dogfood-output/
+*.tmp-capture.mjs
+# Playwright 浏览器本地缓存（系统 ms-playwright 缓存常被清理，QA 用项目内缓存）
+.pw-browsers/
 
 # Flutter
 .dart_tool/

@@ -153,7 +153,7 @@ async def get_latest_air_quality(db: AsyncSession, project_id: str) -> AirQualit
 # ── 阈值检测 ──
 
 
-def check_thresholds(
+def check_thresholds(  # noqa: C901
     monitor_type: str,
     value: dict[str, Any],
 ) -> tuple[str, str | None]:

@@ -37,7 +37,7 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.3.1"
+          APP_VERSION: "1.8.0"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto
@@ -179,7 +179,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.3.1"
+          APP_VERSION: "1.8.0"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -365,7 +365,7 @@ jobs:
 
   # ── Alembic 迁移双向测试（v1.2.1 P0-2 修复）──
   # 验证迁移双向可逆：upgrade head → downgrade -1 → upgrade head
-  # 背景：versions/ 目录 13 个迁移版本，此前 CI 从不跑迁移测试，生产迁移未在 CI 验证，
+  # 背景：versions/ 目录已有 20+ 个迁移版本，此前 CI 从不跑迁移测试，生产迁移未在 CI 验证，
   # 违反"生产改动必配回滚方案"约束（P0 风险）。本 job 用 SQLite 临时库验证正/逆向应用。
   # SQLite 兼容性：迁移脚本已处理 PG 特性——CONCURRENTLY 走 is_pg 分支（SQLite 用普通
   # CREATE INDEX），列变更用 batch_alter_table 兼容 SQLite，故无需 continue-on-error。
@@ -384,7 +384,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.3.1"
+      APP_VERSION: "1.8.0"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4
@@ -400,7 +400,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Upgrade head（正向应用全部 13 个迁移）
+      - name: Upgrade head（正向应用全部迁移）
         run: alembic upgrade head
 
       - name: Downgrade -1（回滚最近一个迁移，验证可逆）

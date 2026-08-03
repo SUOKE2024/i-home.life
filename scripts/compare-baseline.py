@@ -55,7 +55,7 @@ def main() -> int:
 
     # 缺少 before → 仅记录模式
     if args.before is None or not args.before.exists():
-        print(f"⚠️  未提供 before 基线, 降级为仅记录模式 (首次建立基线)")
+        print("⚠️  未提供 before 基线, 降级为仅记录模式 (首次建立基线)")
         print(f"   after 基线: {args.after}")
         print(f"   端点数: {len(after)}")
         if args.report:

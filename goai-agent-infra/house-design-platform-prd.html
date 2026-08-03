@@ -257,7 +257,7 @@ mark.key { background: none; color: var(--accent); font-weight: 600; }
 <!-- ====== COVER ====== -->
 <div class="cover">
   <div class="container">
-    <div class="tag">Product Requirements Document v3.0</div>
+    <div class="tag">Product Requirements Document v3.1</div>
     <div class="brand-row">
       <img src="assets/images/icons/desktop/suoke-logo-128.png" alt="索克家居 LOGO" style="width:64px;height:64px;border-radius:14px;flex-shrink:0;">
       <div>
@@ -267,8 +267,8 @@ mark.key { background: none; color: var(--accent); font-weight: 600; }
     </div>
     <p class="subtitle">一款面向多平台平板与手机的 AI 智能体自主运营平台矩阵：从 AR 空间测量、CAD 平立剖面图出图、3D 效果图渲染，到预算规划、土建选材、硬装软装厨卫家具灯具电器搭配、智能家居方案设计，再到多供应商比价采购、工程队施工管理、结算验收——全部由 AI 智能体代理协同驱动，覆盖"设计 → 预算 → 选材 → 采购 → 施工 → 结算 → 验收"全流程。四端分离：设计台（平板）、业主端（手机）、供应链端（手机）、施工端（手机），统一数据底座实时同步。</p>
     <div class="meta">
-      <span><strong>版本</strong> v3.0</span>
-      <span><strong>日期</strong> 2026-07-06</span>
+      <span><strong>版本</strong> v3.1</span>
+      <span><strong>日期</strong> 2026-08-03</span>
       <span><strong>状态</strong> 草案</span>
       <span><strong>作者</strong> 索克生活 (suoke.life)</span>
       <span><strong>联系</strong> song.xu@icloud.com</span>
@@ -875,8 +875,32 @@ flowchart LR
 
 <tr><td>F40</td><td>三方协作</td><td>业主 ↔ 工长 ↔ Agent 三方 IM 群（Agent 作为群成员自动响应查询、推送提醒）。</td></tr>
 
+<tr><td>F41</td><td rowspan="2"><strong>存量焕新模块</strong> <span class="badge badge-green">v3.1 新增</span></td><td>适老改造</td><td>适老卫浴（扶手/防滑/无障碍尺寸）；全屋无障碍动线检查；适老智能设备点位（夜间照明/跌倒报警）；对接 HC-006 逃生通道硬约束。依据：适老化是存量焕新 3-5 年增长主线。</td></tr>
+
+<tr><td>F42</td><td>局部焕新模式</td><td>厨卫焕新/墙面刷新/单空间改造的轻量项目模板；短周期排期与预算包；局部施工与既有居住的干扰最小化方案。依据：局部装修短周期为主流增长方向，新一线存量需求爆发。</td></tr>
+
+<tr><td>F43</td><td rowspan="2"><strong>信任与合规模块</strong> <span class="badge badge-green">v3.1 新增</span></td><td>资金托管深化</td><td>现有 escrow 担保支付对接银行存管/第三方监管账户；节点验收双向确认后放款；托管资金利息归属业主。依据：资金托管渗透率已达 93.5%，为行业标配。</td></tr>
+
+<tr><td>F44</td><td>环保材料库标签</td><td>材料 SKU 增加 ENF/E0 环保等级与绿色建材认证字段与筛选；AI 选材强制提示环保等级（强化 HC-003）。依据：近九成消费者首选环保建材，环保为硬性刚需。</td></tr>
+
+<tr><td>F45</td><td rowspan="3"><strong>AI 决策模块</strong> <span class="badge badge-green">v3.1 新增</span></td><td>方案前置决策</td><td>「上传户型 → AI 先出 3 套方案 + 预算区间」作为业主端首屏入口，再引流服务商选择。依据：37.98% 用户先 AI 规划，决策链重构为「先方案后选商」。</td></tr>
+
+<tr><td>F46</td><td>生态桥接优先级</td><td>优先落地 1-2 个主流生态（米家/华为鸿蒙）真实设备联动，其余生态保持 stub 诚实标注。依据：全屋智能互联互通国家强制标准制定中，2026 为全屋智能元年。</td></tr>
+
+<tr><td>F47</td><td>AI 装修问答/案例搜索</td><td>生成式搜索式问答（对齐 AI 搜索渗透），基于 AgenticRAG + 真实案例库，输出带引用来源的答案。依据：生成式 AI 搜索使用率 62.5%。</td></tr>
+
 </tbody>
 </table>
+</div>
+
+<div class="callout">
+  <strong>2026-08-03 v3.1 需求验证与补充：</strong>
+  F1-F40 经代码库逐项核验，30 项已实现 / 10 项部分实现 / 0 项未实现（详见
+  <code>docs/superpowers/specs/2026-08-03-requirements-verification.md</code>）。
+  部分实现项缺口：F5 真实渲染后端未配置时全 mock、F6 BOM 为面积×标准用量经验法、F7 BOM 无版本管理/差异标注、
+  F12 采购→预算科目自动扣减联动未打通、F19 电器无 3D 模型资产、F24 AR 挂画试挂未实现、F32 生态桥接为 stub、
+  F35 在线签约（电子签）未实现、F38 质检缺陷识别为 mock CV、F40 Agent 未作为群成员进入 IM 房间。
+  基于 2026 行业调研新增 F41-F47（详见 <code>docs/superpowers/specs/2026-08-03-industry-competitor-research.md</code>）。
 </div>
 
 <h3>6.2 新增模块详细设计</h3>

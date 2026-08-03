@@ -72,7 +72,7 @@ async def earn_points(
     if amount is None:
         stmt = select(PointsRule).where(
             PointsRule.action == source,
-            PointsRule.is_active == True,
+            PointsRule.is_active.is_(True),
         )
         result = await db.execute(stmt)
         rule = result.scalar_one_or_none()
@@ -142,7 +142,7 @@ async def redeem_item(
     # 获取商品
     stmt = select(PointsMallItem).where(
         PointsMallItem.id == item_id,
-        PointsMallItem.is_active == True,
+        PointsMallItem.is_active.is_(True),
     )
     result = await db.execute(stmt)
     item = result.scalar_one_or_none()

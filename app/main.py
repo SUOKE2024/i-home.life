@@ -34,16 +34,19 @@ from app.metrics import (
 from app.api import (
     auth, projects, materials, budgets, procurement, construction, settlements,
     floorplans, voice, voice_realtime, voice_orchestrate, files, agents, surveys, location,
+    agent_memory,
     change_orders, takeoff, mep, payments, chat, crews, workers, lighting,
     kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
     kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
     smart_home, scene_automation, procurement_enhanced, appliance, structural,
+    dashboard,
 )
 from app.api import identity, products, tasks, points
 from app.api import notifications
 from app.api import admin
 from app.api import product_batch
 from app.api import camera_scan
+from app.api import b2b_delivery  # /api/b2b/* (B2B 装企交付 v1.4.x)
 from app.api import config as config_api
 from app.api import harness_api
 from app.api import sketch_to_3d
@@ -58,6 +61,14 @@ from app.api import energy
 from app.api import health as health_api
 from app.api import sensor_snapshot
 from app.api import analytics
+# v1.5.0 需求补充落地（PRD v3.1 F41-F47）
+from app.api import elderly_adaptation
+from app.api import partial_renovation
+from app.api import escrow_trustee
+from app.api import eco_materials
+from app.api import solution_first
+from app.api import ecosystem
+from app.api import ai_qa
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -122,7 +133,7 @@ def _normalize_endpoint(path: str) -> str:
     UUID 路径段也替换为 {id}。
     """
     parts = path.split("/")
-    normalized = []
+    normalized: list[str] = []
     for part in parts:
         if not part:
             normalized.append(part)
@@ -349,6 +360,7 @@ api_router.include_router(auth.router)          # /api/auth/*
 api_router.include_router(projects.router)      # /api/projects/*
 api_router.include_router(product_batch.router)  # /api/products/batch/* (must be before products)
 api_router.include_router(camera_scan.router)  # /api/products/camera/* (must be before products)
+api_router.include_router(dashboard.router)      # /api/dashboard/* (v1.2.9 Bento 仪表盘)
 api_router.include_router(materials.router)     # /api/materials/*
 api_router.include_router(budgets.router)       # /api/budgets/*
 api_router.include_router(procurement.router)   # /api/procurement/*
@@ -359,6 +371,8 @@ api_router.include_router(voice.router)         # /api/voice/*
 api_router.include_router(voice_realtime.router)  # /api/voice/* (实时语音)
 api_router.include_router(voice_orchestrate.router)  # /api/voice/orchestrate/* (语音智能体编排)
 api_router.include_router(files.router)         # /api/files/*
+# /api/agents/memory/* 必须先于 agents router 注册，避免路径歧义
+api_router.include_router(agent_memory.router)  # /api/agents/memory/*
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(location.router)      # /api/location/*
@@ -406,7 +420,16 @@ api_router.include_router(construction_drawing.router)  # /api/construction-draw
 api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
 api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)
 api_router.include_router(energy.router)           # /api/energy/* (A1 能耗监测)
+api_router.include_router(b2b_delivery.router)     # /api/b2b/* (B2B 装企交付 v1.4.x)
 api_router.include_router(sensor_snapshot.router)   # /api/sensors/* (传感器快照 v1.2.3)
+# v1.5.0 需求补充落地（PRD v3.1 F41-F47）
+api_router.include_router(elderly_adaptation.router)  # /api/elderly-adaptation/* (F41 适老改造)
+api_router.include_router(partial_renovation.router)  # /api/partial-renovation/* (F42 局部焕新)
+api_router.include_router(escrow_trustee.router)      # /api/escrow/* (F43 资金托管深化)
+api_router.include_router(eco_materials.router)       # /api/eco-materials/* (F44 环保材料标签)
+api_router.include_router(solution_first.router)      # /api/solution-first/* (F45 方案前置决策)
+api_router.include_router(ecosystem.router)           # /api/ecosystem/* (F46 生态桥接优先级)
+api_router.include_router(ai_qa.router)               # /api/ai-qa/* (F47 AI 装修问答)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
 # v1.3.0: MCP Server Card 公开端点（GET /.well-known/mcp，无 /api 前缀）
@@ -414,6 +437,8 @@ app.include_router(mcp_api.public_router)
 app.include_router(api_router)
 
 # ── 自定义 Swagger UI（使用本地 CSS 替代 jsdelivr CDN） ──
+
+
 @app.get("/api/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
     """Swagger UI 文档页面，使用本地 swagger-ui.css 避免 CDN 不可达。"""

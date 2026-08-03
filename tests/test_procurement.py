@@ -243,3 +243,49 @@ async def test_order_not_found(client: AsyncClient):
     # 更新状态
     resp = await client.patch("/api/procurement/orders/non-existent-id/status?status=pending", headers=headers)
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_order_tracking_data_source_mock(client: AsyncClient):
+    """测试10: 物流轨迹为模拟数据，响应体必须带 data_source 诚实标注"""
+    token, headers = await _register_and_login(client, "13900000018")
+    project_id = await _create_project(client, headers, "物流轨迹测试")
+    supplier_id = await _create_supplier(client, headers, "物流供应商")
+    material_id = await _create_material(client, headers, "物流物料", "PO-TRK-001")
+    order = await _create_order(client, headers, project_id, supplier_id, material_id)
+
+    # 更新物流状态为运输中，确保生成非空模拟轨迹
+    resp = await client.patch(
+        f"/api/procurement/orders/{order['id']}/delivery",
+        json={"delivery_status": "in_transit", "tracking_number": "SF1234567890", "carrier": "sf_express"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.get(f"/api/procurement/orders/{order['id']}/tracking", headers=headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["data_source"] == "mock"
+    assert "模拟物流轨迹" in data["data_source_note"]
+    assert len(data["tracking_history"]) > 0
+    # 每条轨迹也带 source=mock 标注
+    for item in data["tracking_history"]:
+        assert item.get("source") == "mock"
+
+
+@pytest.mark.asyncio
+async def test_recommend_suppliers_source_mock_template(client: AsyncClient):
+    """测试11: 供应商推荐来自内置模板，响应体必须带 source 诚实标注"""
+    token, headers = await _register_and_login(client, "13900000019")
+
+    resp = await client.get(
+        "/api/procurement/recommend-suppliers",
+        params={"category": "瓷砖"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["category"] == "瓷砖"
+    assert data["source"] == "mock_template"
+    assert "模板" in data["source_note"]
+    assert data["suppliers"]

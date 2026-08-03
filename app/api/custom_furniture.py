@@ -5,8 +5,6 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
-
 from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
@@ -24,6 +22,8 @@ from app.schemas.custom_furniture import (
 )
 from app.services import custom_furniture_service as svc
 from app.ws import ws_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/custom-furniture", tags=["定制家具"])
 

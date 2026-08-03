@@ -36,6 +36,11 @@
 - [ ] `.github/workflows/ci.yml` → `APP_VERSION: "X.Y.Z"`（**共 3 处**：line 40 / 182 / 387，全改）
 - [ ] `scripts/deploy-production.sh` → `APP_VERSION=X.Y.Z`（line 21）
 
+### 测试文件硬编码版本断言（v1.4.0 补登，v1.2.9 教训延伸）
+- [ ] `tests/test_v1_3_0_compliance.py` → `assert app_version == "X.Y.Z"` + `assert SERVER_VERSION == "X.Y.Z"`（函数名也含版本号，同步改）
+- [ ] `tests/test_mcp_2026_07_28.py` → `assert mcp_server.SERVER_VERSION == "X.Y.Z"`
+- [ ] `tests/test_v1128_suoke_borrowed.py` → `test_app_version_bumped` 内 `assert get_settings().app_version == "X.Y.Z"`（docstring 也含版本号）
+
 ---
 
 ## 二、Web 缓存版本同步（用脚本，勿手改）
