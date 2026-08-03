@@ -6,7 +6,16 @@ library;
 
 import 'package:flutter/material.dart';
 import '../../theme/suoke_theme.dart';
-import 'ar_scan_shared_widgets.dart';
+import 'ar_scan_components.dart';
+
+// ── AR 扫描共享枚举与颜色（v1.2.10：原 ar_scan_shared_widgets.dart 死代码清理后迁入此处）──
+// 历史背景：ar_scan_shared_widgets.dart 曾承载 13 个符号，但主文件仅 `show EnvCondition`，
+// 其余 12 个（RoomPreset/methodLabel/ReticlePainter/GridPainter/ReviewItem/...）均与主文件
+// 或 ar_scan_components.dart 重复且从未被引用，属 v1.2.9 G7 拆分遗留死代码。现已删除该文件，
+// 仅保留 coaching 实际依赖的 EnvCondition 枚举与 arWarning 颜色常量。
+enum EnvCondition { normal, lowLight, lowTexture, fastMotion }
+
+const arWarning = SuokeDesignTokens.warning;
 
 /// 首次使用引导覆盖层
 ///
@@ -126,16 +135,13 @@ class _CoachingOverlayState extends State<CoachingOverlay> {
                         onPressed: widget.onDismiss,
                         child: Text('跳过', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                       ),
-                      ElevatedButton(
+                      // 主操作统一走共享 SuokePrimaryButton，与主页面 CTA 视觉一致
+                      SuokePrimaryButton(
+                        label: isLast ? '开始使用' : '下一步',
                         onPressed: isLast ? widget.onDismiss : () {
                           setState(() => _currentTip++);
                         },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: SuokeDesignTokens.accent,
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: Text(isLast ? '开始使用' : '下一步'),
+                        expand: false,
                       ),
                     ],
                   ),

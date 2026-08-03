@@ -2988,23 +2988,16 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
 
   /// 主操作按钮（品牌金色实心，统一默认 12 圆角/黑字）。
   /// 收敛散落各步骤的重复 styleFrom，保证主 CTA 视觉一致。
+  /// 委托给共享组件 SuokePrimaryButton，全页与引导层单一来源。
   Widget _primaryButton(String label, IconData icon, VoidCallback onTap,
       {double? height, double radius = 12, double fontSize = 15}) {
-    return SizedBox(
-      width: double.infinity,
+    return SuokePrimaryButton(
+      label: label,
+      icon: icon,
+      onPressed: onTap,
       height: height ?? 48,
-      child: ElevatedButton.icon(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: SuokeDesignTokens.accent,
-          foregroundColor: Colors.black,
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-        icon: Icon(icon, size: 20),
-        label: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize)),
-      ),
+      radius: radius,
+      fontSize: fontSize,
     );
   }
 

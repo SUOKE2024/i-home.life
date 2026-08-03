@@ -161,7 +161,7 @@ lib/pages/
 **测试**：`test/pages/ar_scan_page_test.dart` 覆盖 coaching overlay 首次展示/关闭 + 步骤指示器标签渲染回归。页面含 `repeat` 动画控制器，测试不可用 `pumpAndSettle`，统一用固定时长 `pump`。
 
 **UI/UX 收敛约定（v1.2.x）**：
-- 主 CTA 统一走 `_primaryButton`（金色实心，默认 12 圆角/黑字），禁止散落重复 `styleFrom`；次操作走 `_outlineButton` / `_actionButton`。
+- 主 CTA 统一走共享 `SuokePrimaryButton`（`ar_scan_components.dart`），页面 `_primaryButton` 与引导层「下一步/开始使用」均委托它，禁止散落重复 `styleFrom`；次操作走 `_outlineButton` / `_actionButton`。
 - 精度校准卡片统一走共享 `_buildCalibrationCard(title, {highlight})`，复核步骤与结果步骤复用，禁止复制粘贴两套。
 - 扫描预览（`_buildScanPreview`）是扫描步骤主视觉锚点，高度 280，必须保留"示意图"诚实标注。
 - 金色强调色只留给关键操作与状态，次要指标用中性 `textSub`，避免稀释 action 信号。

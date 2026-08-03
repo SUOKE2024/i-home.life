@@ -97,3 +97,58 @@ class ArReviewItem {
         _ => confidence.toUpperCase(),
       };
 }
+
+/// 共享主操作按钮（品牌金色实心）。
+///
+/// 全页主 CTA（ar_scan_page 的 `_primaryButton`）与引导层「下一步/开始使用」
+/// 统一走此组件，保证主操作视觉一致，消除跨文件重复的 `styleFrom`。
+class SuokePrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool expand; // 是否占满父级宽度（引导层紧凑按钮传 false）
+  final double height;
+  final double radius;
+  final double fontSize;
+  final double iconSize;
+
+  const SuokePrimaryButton({
+    super.key,
+    required this.label,
+    this.icon,
+    required this.onPressed,
+    this.expand = true,
+    this.height = 48,
+    this.radius = 12,
+    this.fontSize = 15,
+    this.iconSize = 20,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = ElevatedButton.styleFrom(
+      backgroundColor: SuokeDesignTokens.accent,
+      foregroundColor: Colors.black,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+    );
+    final Widget button;
+    if (icon != null) {
+      button = ElevatedButton.icon(
+        onPressed: onPressed,
+        style: style,
+        icon: Icon(icon, size: iconSize),
+        label: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize)),
+      );
+    } else {
+      button = ElevatedButton(
+        onPressed: onPressed,
+        style: style,
+        child: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize)),
+      );
+    }
+    if (!expand) return button;
+    return SizedBox(width: double.infinity, height: height, child: button);
+  }
+}
