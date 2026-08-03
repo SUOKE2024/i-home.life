@@ -2410,22 +2410,10 @@ class _ARScanPageState extends State<ARScanPage> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              setState(() { _errorMessage = ''; _scanState = _ScanState.ready; });
-              _startScan();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: SuokeDesignTokens.accent,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            icon: const Icon(Icons.refresh, size: 20),
-            label: const Text('重试扫描'),
-          ),
-        ),
+        _primaryButton('重试扫描', Icons.refresh, () {
+          setState(() { _errorMessage = ''; _scanState = _ScanState.ready; });
+          _startScan();
+        }, height: 48, radius: 16, fontSize: 16),
       ],
     );
   }
