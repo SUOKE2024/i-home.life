@@ -136,6 +136,36 @@ flutter test integration_test/smoke_test.dart  # 集成冒烟
 flutter analyze                       # 静态分析（0 error）
 ```
 
+## AR 空间测量模块（[ar_scan_page.dart](file:///Users/netsong/Developer/i-home.life/flutter_app/lib/pages/ar_scan_page.dart)）
+
+7 步状态机：`设备检测 → 房间设置 → 扫描引导 → 复核 → 结果 → 门窗 → 水电`（`_ScanStep` 枚举，`PageView` 不可滑动，靠 `_goToStep` 驱动）。
+
+**文件结构（v1.2.10 死代码清理后）**：
+
+```
+lib/pages/
+├── ar_scan_page.dart              # 主页面（~3700 行，含 _ReticlePainter）
+└── ar_scan/
+    ├── ar_scan_coaching.dart      # CoachingOverlay + EnvCoachingBanner + EnvCondition 枚举 + arWarning
+    └── ar_scan_components.dart    # ArGridPainter + ArCoachingTip + ArReviewItem（主文件 typedef 引用）
+```
+
+> 历史：`ar_scan_shared_widgets.dart` 已于 v1.2.10 删除。该文件曾承载 13 个符号，但主文件仅 `show EnvCondition`，其余 12 个（`RoomPreset`/`methodLabel`/`ReticlePainter`/`GridPainter`/`ReviewItem`/...）均与主文件或 components 重复且从未被引用，且两份副本已分叉（`photogrammetry` 译法、`lidar` 图标不一致）。`EnvCondition` 与 `arWarning` 已迁入 `ar_scan_coaching.dart`。
+
+**诚实降级红线（CLAUDE.md 架构红线本地化）**：
+
+- 扫描预览是**示意图**而非实时相机画面，必须保留"示意图"标注，禁止用硬编码"房间轮廓"矩形/装饰脉冲环伪装 AR 正在识别房间。
+- 未实现的功能（如导出 PDF/CSV）必须以**禁用态按钮**（`onPressed: null`）+ "即将上线"文案呈现，禁止渲染成等权重可用按钮后弹"开发中" toast。
+- 追踪质量三态（searching/limited/normal/lost）颜色由原生通道 `_arChannel` 事件驱动，UI 不得伪造。
+
+**测试**：`test/pages/ar_scan_page_test.dart` 覆盖 coaching overlay 首次展示/关闭 + 步骤指示器标签渲染回归。页面含 `repeat` 动画控制器，测试不可用 `pumpAndSettle`，统一用固定时长 `pump`。
+
+**UI/UX 收敛约定（v1.2.x）**：
+- 主 CTA 统一走 `_primaryButton`（金色实心，默认 12 圆角/黑字），禁止散落重复 `styleFrom`；次操作走 `_outlineButton` / `_actionButton`。
+- 精度校准卡片统一走共享 `_buildCalibrationCard(title, {highlight})`，复核步骤与结果步骤复用，禁止复制粘贴两套。
+- 扫描预览（`_buildScanPreview`）是扫描步骤主视觉锚点，高度 280，必须保留"示意图"诚实标注。
+- 金色强调色只留给关键操作与状态，次要指标用中性 `textSub`，避免稀释 action 信号。
+
 ## 禁止事项
 
 - ❌ 使用 Dart 3.10+ 语法（鸿蒙端 Flutter-OH 3.35.7 不支持）
