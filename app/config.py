@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.6.0"
+    app_version: str = "1.8.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -152,6 +152,17 @@ class Settings(BaseSettings):
     agent_function_call_max_rounds: int = 5            # 单次对话最大工具调用轮数
     # MCP 工具服务器地址 (留空则仅使用内置工具)
     agent_mcp_server_url: str = ""
+    # v1.8.0 Agent 三档安全 posture（借鉴 YC QM）：strict / auto / dangerous
+    # - strict: 命中高危清单（或清单空=全部）的工具需人工批准（AgentApproval pending）
+    # - auto（默认）: 正常执行（外部数据 PII masking 已在 audit 层处理）
+    # - dangerous: 全放行
+    agent_security_posture: str = "auto"
+    # strict 模式下的高危工具清单（逗号分隔）。空 = 全部工具需批准。
+    agent_strict_high_risk_tools: str = ""
+    # 审批请求（AgentApproval）有效时长（小时），超时自动过期。
+    agent_approval_ttl_hours: int = 24
+    # v1.8.0 Agent Skill 资产化总开关（scope-owned 可授权共享的 Agent 能力）。
+    agent_skill_enabled: bool = True
 
     # ── MCP Server 暴露（v1.1.12 新增）──
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具
@@ -164,6 +175,9 @@ class Settings(BaseSettings):
     mcp_mrtr_enabled: bool = True
     # Tasks 扩展（tasks/create, tasks/update, tasks/get, tasks/list, tasks/cancel）
     mcp_tasks_extension_enabled: bool = True
+    # Enterprise 扩展（enterprise/status 能力声明 + enterprise/audit 审计轨迹）
+    # 对齐 MCP 2026 Roadmap Enterprise Readiness（审计/SSO/网关）
+    mcp_enterprise_extension_enabled: bool = True
 
     # ── AI 渲染（v1.1.12 新增，PRD §7.x）──
     # 启用后 /api/ai-render/* 端点可用，支持 2D 效果图 / 3D 场景 / 照片重布置
@@ -532,8 +546,10 @@ class Settings(BaseSettings):
     # 启用后 QAInspectorAgent.detect_defects / compare_with_design 调用
     # 多模态视觉模型（DeepSeek/GLM/Qwen 优先，复用 LLM fallback 供应商）分析现场照片，
     # 输出结构化缺陷列表（类型/位置/置信度/建议）。
-    # 默认 False：保持 hash mock 路径，响应体携带 cv_mode="mock" + note 诚实标注。
-    real_cv_quality_enabled: bool = False
+    # 默认 True：配置视觉 key 时走真实 CV（cv_mode="real_vision_llm"）；
+    # 未配置任何视觉 key 时 _call_vision_llm 抛 RuntimeError → 诚实降级 hash mock
+    # （cv_mode="mock" + note 标注），禁止伪装真实视觉能力。
+    real_cv_quality_enabled: bool = True
 
     # ── Web 控制台 v2（React+Vite，对齐移动端 UI/UX）──
     # 启用后 Nginx /console/* 入口对外可见；前端经 /api/config/feature-flags 读取

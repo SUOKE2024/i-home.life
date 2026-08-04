@@ -249,3 +249,163 @@ async def delete_plan(db: AsyncSession, plan_id: str) -> bool:
     await db.delete(plan)
     await db.commit()
     return True
+
+
+# ── F49 局改快装产品化：标准化套餐（一口价 + 干法施工 + 0 搬家） ──
+#
+# 局改独立赛道 30%+ 增速（京东/索菲亚/金牌全线下场）。产品化核心：
+# - 一口价 fixed_price：标准化透明报价，无隐形增项
+# - 干法施工 dry_construction：免湿作业/免停水，48h 内可交付
+# - 0 搬家 zero_relocation：业主无需搬离，原位保护施工
+QUICK_INSTALL_PACKAGES: dict[str, dict] = {
+    "PKG-48H-KITCHEN": {
+        "name": "48h 厨房快装",
+        "scope_type": "kitchen_refresh",
+        "duration_hours": 48,
+        "duration_days": 2,
+        "fixed_price": 19800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "旧橱柜/台面保护性拆除清运",
+            "干法橱柜定制（环保板材，免湿作业）",
+            "台面石英石/岩板安装",
+            "烟机/灶具/水槽/龙头安装调试",
+            "水电点位原位或微调",
+            "成品保护 + 唯一污染区隔离",
+        ],
+        "excludes": ["旧电器更换", "燃气改造申报", "非厨房区域施工"],
+        "warranty": "整包 2 年质保，防水 5 年",
+    },
+    "PKG-48H-BATHROOM": {
+        "name": "48h 卫浴快装",
+        "scope_type": "bathroom_refresh",
+        "duration_hours": 48,
+        "duration_days": 2,
+        "fixed_price": 21800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "旧洁具/瓷砖保护性拆除清运",
+            "干法墙板 + 快装防水（免剔凿）",
+            "马桶/淋浴/浴室柜/五金安装调试",
+            "下水口临时封堵与最终疏通",
+            "成品保护 + 卫生间封闭施工",
+        ],
+        "excludes": ["结构改造", "排水主管移位", "全屋施工"],
+        "warranty": "整包 2 年质保，防水 5 年",
+    },
+    "PKG-7D-WALL": {
+        "name": "7 天墙面焕新",
+        "scope_type": "wall_refresh",
+        "duration_hours": 168,
+        "duration_days": 7,
+        "fixed_price": 6800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "家具集中收纳与地面保护",
+            "旧墙皮铲除/空鼓修补（干法基层）",
+            "一底两面环保涂料涂刷",
+            "阴阳角找直 + 灯带/踢脚线收口",
+            "逐间施工逐间恢复，7 天交付",
+        ],
+        "excludes": ["墙纸/软包类", "外墙", "全屋拆改"],
+        "warranty": "涂料 3 年质保，返修免费",
+    },
+}
+
+
+def list_quick_install_packages() -> list[dict]:
+    """返回标准快装套餐目录（不含任务/干扰方案等私有结构）"""
+    return [
+        {
+            "package_code": code,
+            "name": pkg["name"],
+            "scope_type": pkg["scope_type"],
+            "duration_hours": pkg["duration_hours"],
+            "duration_days": pkg["duration_days"],
+            "fixed_price": pkg["fixed_price"],
+            "dry_construction": pkg["dry_construction"],
+            "zero_relocation": pkg["zero_relocation"],
+            "inclusions": pkg["inclusions"],
+            "excludes": pkg["excludes"],
+            "warranty": pkg["warranty"],
+        }
+        for code, pkg in QUICK_INSTALL_PACKAGES.items()
+    ]
+
+
+def get_quick_install_package(package_code: str) -> dict | None:
+    """按编码取单个快装套餐"""
+    pkg = QUICK_INSTALL_PACKAGES.get(package_code)
+    if pkg is None:
+        return None
+    return {
+        "package_code": package_code,
+        "name": pkg["name"],
+        "scope_type": pkg["scope_type"],
+        "duration_hours": pkg["duration_hours"],
+        "duration_days": pkg["duration_days"],
+        "fixed_price": pkg["fixed_price"],
+        "dry_construction": pkg["dry_construction"],
+        "zero_relocation": pkg["zero_relocation"],
+        "inclusions": pkg["inclusions"],
+        "excludes": pkg["excludes"],
+        "warranty": pkg["warranty"],
+    }
+
+
+async def instantiate_quick_install_package(
+    db: AsyncSession,
+    project_id: str,
+    package_code: str,
+    name: str | None = None,
+) -> PartialRenovationPlan:
+    """把标准快装套餐实例化为具体项目计划（一口价/干法/0 搬家落库）
+
+    Args:
+        db: 数据库会话
+        project_id: 项目 ID
+        package_code: PKG-48H-KITCHEN / PKG-48H-BATHROOM / PKG-7D-WALL
+        name: 计划名称（缺省用套餐名）
+
+    Raises:
+        ValueError: package_code 非法
+    """
+    pkg = QUICK_INSTALL_PACKAGES.get(package_code)
+    if pkg is None:
+        raise ValueError(
+            f"未知快装套餐: {package_code}，可选: {', '.join(QUICK_INSTALL_PACKAGES.keys())}"
+        )
+
+    plan = PartialRenovationPlan(
+        project_id=project_id,
+        name=name or pkg["name"],
+        scope_type=pkg["scope_type"],
+        budget_level="comfort",
+        duration_days=pkg["duration_days"],
+        budget_lower=pkg["fixed_price"],
+        budget_upper=pkg["fixed_price"],
+        package_code=package_code,
+        fixed_price=pkg["fixed_price"],
+        dry_construction=pkg["dry_construction"],
+        zero_relocation=pkg["zero_relocation"],
+        tasks=[
+            {"phase": "快装", "name": pkg["name"], "duration_days": pkg["duration_days"],
+             "detail": "标准化套餐干法施工，免湿作业/免停水，业主无需搬离",
+             "needs_owner_confirm": False},
+        ],
+        interference_plan={
+            "noise_windows": "工作日 9:00-18:00（干法施工噪音低）",
+            "dust_control": "施工区封闭 + 湿法除尘，0 搬家属地保护",
+            "living_zone": "仅施工单一空间，其余空间正常使用",
+            "material_inventory": "材料按套餐标准清单当日进场",
+            "relocation": "0 搬家：业主原位正常居住，家具原位覆盖保护",
+        },
+        status="draft",
+    )
+    db.add(plan)
+    await db.commit()
+    await db.refresh(plan)
+    return plan

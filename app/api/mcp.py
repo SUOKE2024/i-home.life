@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.mcp.server import mcp_server
+from app.mcp.server import build_trace_meta, mcp_server
 from app.models.user import User
 from app.rbac import verify_project_access
 
@@ -202,8 +202,16 @@ async def mcp_jsonrpc(
         await _check_project_access_for_args(arguments, current_user, db)
 
     # 分发方法
-    result, error = await mcp_server.dispatch_method(method, params)
+    result, error = await mcp_server.dispatch_method(method, params, db=db)
     response = mcp_server.to_mcp_response(req.id, result=result, error=error)
+
+    # MCP 2026-07-28 SEP-414: W3C Trace Context 嵌入响应 _meta
+    # 透传客户端 traceparent/tracestate/baggage；未提供时生成服务端根 span。
+    response["_meta"] = build_trace_meta(
+        traceparent=request.headers.get("traceparent"),
+        tracestate=request.headers.get("tracestate"),
+        baggage=request.headers.get("baggage"),
+    )
 
     # v1.3.0: cacheable list results —— tools/list 响应加 Cache-Control + ETag
     if method == "tools/list" and result and "cache_hint" in result:

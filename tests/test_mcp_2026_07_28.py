@@ -443,3 +443,98 @@ async def test_jsonrpc_tools_call_missing_name(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert resp.json()["error"]["code"] == -32602
+
+
+# === P1-9 W3C Trace Context（SEP-414） ===
+
+
+@pytest.mark.asyncio
+async def test_jsonrpc_w3c_trace_meta_generated(client: AsyncClient):
+    """未携带 traceparent 时，服务端生成根 span 写入响应 _meta（SEP-414）"""
+    token = await _register(client, "13900007118")
+    resp = await client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "server/discover"},
+        headers=_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    meta = data["_meta"]
+    assert "traceparent" in meta
+    # W3C format: version-00-<trace-id 32hex>-<span-id 16hex>-flags-01
+    parts = meta["traceparent"].split("-")
+    assert parts[0] == "00"
+    assert len(parts[1]) == 32
+    assert len(parts[2]) == 16
+    assert parts[3] == "01"
+    assert meta["trace_id"] == parts[1]
+    assert meta["span_id"] == parts[2]
+
+
+@pytest.mark.asyncio
+async def test_jsonrpc_w3c_trace_meta_passthrough(client: AsyncClient):
+    """携带 traceparent/tracestate/baggage 时透传至响应 _meta（SEP-414）"""
+    token = await _register(client, "13900007119")
+    traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+    headers = {
+        **_headers(token),
+        "traceparent": traceparent,
+        "tracestate": "vendor=abc123",
+        "baggage": "userId=42",
+    }
+    resp = await client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "server/discover"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    meta = resp.json()["_meta"]
+    assert meta["traceparent"] == traceparent
+    assert meta["tracestate"] == "vendor=abc123"
+    assert meta["baggage"] == "userId=42"
+    # 透传时不生成新的 trace_id/span_id
+    assert "trace_id" not in meta
+    assert "span_id" not in meta
+
+
+# === P1-10 Enterprise 扩展（MCP 2026 Roadmap Enterprise Readiness） ===
+
+
+@pytest.mark.asyncio
+async def test_enterprise_status(client: AsyncClient):
+    """enterprise/status 返回企业级能力声明（审计/SSO/网关）"""
+    token = await _register(client, "13900007120")
+    resp = await client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "enterprise/status"},
+        headers=_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    result = resp.json()["result"]
+    assert result["extension"] == "enterprise"
+    er = result["enterprise_readiness"]
+    assert "audit" in er and "sso" in er and "gateway" in er
+    assert er["audit"]["hmac_integrity"] is True
+    assert er["sso"]["session"] == "paseto_v4_local"
+    assert er["gateway"]["stateless"] is True
+
+
+@pytest.mark.asyncio
+async def test_enterprise_audit(client: AsyncClient):
+    """enterprise/audit 返回审计轨迹（count + entries 结构）"""
+    token = await _register(client, "13900007121")
+    resp = await client.post(
+        "/api/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "enterprise/audit", "params": {"limit": 5}},
+        headers=_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    result = resp.json()["result"]
+    assert "count" in result
+    assert "entries" in result
+    assert isinstance(result["entries"], list)
+    # 注册后应存在审计记录（REGISTER/LOGIN）
+    assert result["count"] >= 1
+    if result["entries"]:
+        entry = result["entries"][0]
+        assert "action" in entry and "user_id" in entry and "created_at" in entry

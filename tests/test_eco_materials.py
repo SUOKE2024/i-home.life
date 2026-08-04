@@ -418,3 +418,110 @@ async def test_recommend_materials_attaches_eco_grade(
     assert by_mat[m_plain.id]["eco_grade"] == "unverified"
     assert "未登记环保等级" in by_mat[m_plain.id]["eco_notice"]
     assert "HC-003" in by_mat[m_plain.id]["eco_notice"]
+
+
+# ── F50 一板一码溯源 ──
+
+
+@pytest.mark.asyncio
+async def test_board_trace_create_and_get(client: AsyncClient):
+    """创建一板一码溯源记录并查询（含 HENF 等级）"""
+    headers = await _auth_headers(client, "13930050020")
+    _, mat_id = await _create_category_and_material(
+        client, headers, "溯源分类A", "trace_cat_a", "板材A", "TRACE-001",
+    )
+    resp = await client.post(
+        "/api/eco-materials/boards",
+        json={
+            "board_code": "B202607-001",
+            "material_id": mat_id,
+            "batch_no": "BATCH-2026-07",
+            "origin": "佛山",
+            "vendor": "大自然家居",
+            "produced_at": "2026-07-01T00:00:00Z",
+            "logistics": {"stages": [{"stage": "出厂", "location": "佛山"}]},
+            "henf_grade": "HENF",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["board_code"] == "B202607-001"
+    assert data["henf_grade"] == "HENF"
+    assert data["origin"] == "佛山"
+    assert data["material_name"] == "板材A"
+
+    # 查询
+    get_resp = await client.get("/api/eco-materials/boards/B202607-001", headers=headers)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["board_code"] == "B202607-001"
+    assert get_resp.json()["henf_grade"] == "HENF"
+
+
+@pytest.mark.asyncio
+async def test_board_trace_duplicate_409(client: AsyncClient):
+    """重复创建同一板材编码 → 404（valueerror 映射）"""
+    headers = await _auth_headers(client, "13930050021")
+    _, mat_id = await _create_category_and_material(
+        client, headers, "溯源分类B", "trace_cat_b", "板材B", "TRACE-002",
+    )
+    payload = {"board_code": "B202607-DUP", "material_id": mat_id}
+    r1 = await client.post("/api/eco-materials/boards", json=payload, headers=headers)
+    assert r1.status_code == 201
+    r2 = await client.post("/api/eco-materials/boards", json=payload, headers=headers)
+    assert r2.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_board_trace_list_and_filter(client: AsyncClient):
+    """列出板材溯源记录，可按材料筛选"""
+    headers = await _auth_headers(client, "13930050022")
+    _, mat_id = await _create_category_and_material(
+        client, headers, "溯源分类C", "trace_cat_c", "板材C", "TRACE-003",
+    )
+    for code in ("B202607-01", "B202607-02"):
+        await client.post(
+            "/api/eco-materials/boards",
+            json={"board_code": code, "material_id": mat_id},
+            headers=headers,
+        )
+    resp = await client.get("/api/eco-materials/boards", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 2
+    filtered = await client.get(
+        f"/api/eco-materials/boards?material_id={mat_id}", headers=headers
+    )
+    assert filtered.status_code == 200
+    assert {b["board_code"] for b in filtered.json()} == {"B202607-01", "B202607-02"}
+
+
+@pytest.mark.asyncio
+async def test_board_trace_not_found(client: AsyncClient):
+    """查询不存在的板材编码 → 404"""
+    headers = await _auth_headers(client, "13930050023")
+    resp = await client.get("/api/eco-materials/boards/NO-SUCH-CODE", headers=headers)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cert_henf_grade_field(client: AsyncClient):
+    """环保认证标签支持 HENF 等级预埋字段"""
+    headers = await _auth_headers(client, "13930050024")
+    _, mat_id = await _create_category_and_material(
+        client, headers, "溯源分类D", "trace_cat_d", "板材D", "TRACE-004",
+    )
+    resp = await client.post(
+        "/api/eco-materials/certs",
+        json={
+            "material_id": mat_id,
+            "eco_grade": "ENF",
+            "certification": "绿色建材产品认证",
+            "henf_grade": "HENF",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["henf_grade"] == "HENF"
+    # 查询详情也带 henf_grade
+    detail = await client.get(f"/api/eco-materials/certs/{mat_id}", headers=headers)
+    assert detail.json()["henf_grade"] == "HENF"

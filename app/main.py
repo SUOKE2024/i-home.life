@@ -35,6 +35,8 @@ from app.api import (
     auth, projects, materials, budgets, procurement, construction, settlements,
     floorplans, voice, voice_realtime, voice_orchestrate, files, agents, surveys, location,
     agent_memory,
+    agent_approvals,
+    agent_skills,
     change_orders, takeoff, mep, payments, chat, crews, workers, lighting,
     kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
     kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
@@ -373,6 +375,8 @@ api_router.include_router(voice_orchestrate.router)  # /api/voice/orchestrate/* 
 api_router.include_router(files.router)         # /api/files/*
 # /api/agents/memory/* 必须先于 agents router 注册，避免路径歧义
 api_router.include_router(agent_memory.router)  # /api/agents/memory/*
+api_router.include_router(agent_approvals.router)  # /api/agents/approvals/* (Agent 工具批准, v1.8.0)
+api_router.include_router(agent_skills.router)  # /api/agents/skills/* (Agent Skill 资产, v1.8.0)
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(location.router)      # /api/location/*

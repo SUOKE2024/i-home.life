@@ -46,6 +46,11 @@ class PlanResponse(BaseModel):
     tasks: list | None = None
     interference_plan: dict | None = None
     status: str
+    # F49 局改快装产品化
+    package_code: str | None = None
+    fixed_price: float | None = None
+    dry_construction: bool = False
+    zero_relocation: bool = False
     notes: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -125,3 +130,61 @@ async def delete_plan(
     deleted = await partial_renovation_service.delete_plan(db, plan_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="局部焕新计划不存在")
+
+
+# ── F49 局改快装产品化：标准化套餐（一口价 + 干法施工 + 0 搬家） ──
+
+
+class QuickInstallInstantiate(BaseModel):
+    """标准快装套餐实例化请求"""
+    project_id: str
+    # PKG-48H-KITCHEN / PKG-48H-BATHROOM / PKG-7D-WALL
+    package_code: str
+    name: str | None = None
+
+
+@router.get("/quick-install/packages")
+async def list_quick_install_packages(
+    current_user: User = Depends(get_current_user),
+):
+    """标准快装套餐目录（48h 厨卫 / 7 天墙面 + 一口价 + 干法施工 + 0 搬家）"""
+    _check_enabled()
+    return partial_renovation_service.list_quick_install_packages()
+
+
+@router.get("/quick-install/packages/{package_code}")
+async def get_quick_install_package(
+    package_code: str,
+    current_user: User = Depends(get_current_user),
+):
+    """单个快装套餐详情（含一口价/包含/不含/质保）"""
+    _check_enabled()
+    pkg = partial_renovation_service.get_quick_install_package(package_code)
+    if pkg is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="快装套餐不存在")
+    return pkg
+
+
+@router.post(
+    "/quick-install/plans",
+    response_model=PlanResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def instantiate_quick_install_plan(
+    data: QuickInstallInstantiate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """把标准快装套餐实例化为项目计划（一口价 + 干法施工 + 0 搬家落库）"""
+    _check_enabled()
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
+    try:
+        plan = await partial_renovation_service.instantiate_quick_install_package(
+            db,
+            project_id=data.project_id,
+            package_code=data.package_code,
+            name=data.name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return PlanResponse.model_validate(plan)

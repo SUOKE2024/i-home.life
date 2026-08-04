@@ -15,7 +15,6 @@ from app.services.agent_context_service import (
     build_time_context,
     build_location_context,
     build_agent_context,
-    build_nearby_poi_context,
 )
 
 

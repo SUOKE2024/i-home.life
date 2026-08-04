@@ -62,6 +62,12 @@ class InspectionAnalyzeRequest(BaseModel):
     expected_dimensions: dict = {}
 
 
+class SupervisionPatrolRequest(BaseModel):
+    """F48 AI 工地监理巡检请求"""
+    project_id: str
+    photos: list[dict] = []  # [{url, scene_type: waterproofing|safety, location, captured_at}]
+
+
 class ResolveAlertRequest(BaseModel):
     note: str | None = None
 
@@ -373,6 +379,30 @@ async def analyze_inspection_images(
 ):
     agent = ConstructionAgent()
     return agent.analyze_inspection_images(data.model_dump())
+
+
+# ── F48 AI 工地监理（闭水试验监测 + 安全违规抓拍） ──
+@router.post(
+    "/supervision/patrol",
+    summary="AI 工地监理巡检",
+    description="AI 对施工照片进行工地监理巡检（闭水试验监测 + 安全违规抓拍），输出结构化发现。",
+    responses={
+        200: {"description": "巡检成功"},
+        400: {"description": "请求参数无效"},
+    },
+    tags=["施工管理"],
+)
+async def supervision_patrol(
+    data: SupervisionPatrolRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """F48 AI 工地监理 — 闭水试验监测 + 安全违规抓拍（诚实降级标注）"""
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
+    from app.services.supervision_patrol_service import run_ai_patrol
+    result = await run_ai_patrol(data.project_id, data.photos)
+    await ws_manager.broadcast_to_project(data.project_id, "supervision.patrol", result)
+    return result
 
 
 # ── F37 AI 进度管理（预警 + 里程碑跟踪） ──

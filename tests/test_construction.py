@@ -5,6 +5,7 @@
 - GET  /api/construction/tasks/{project_id}
 - PATCH /api/construction/tasks/{task_id}/status
 """
+import json
 import uuid
 import pytest
 from httpx import AsyncClient
@@ -147,3 +148,75 @@ def test_detect_quality_issues_mock_annotation():
     assert result["engine"] == "mock_rule_engine"
     assert result["is_placeholder"] is True
     assert len(result["detected_issues"]) >= 1
+
+
+# ── F48 AI 工地监理（闭水试验监测 + 安全违规抓拍） ──
+
+
+@pytest.mark.asyncio
+async def test_supervision_patrol_degrade_to_rule(
+    auth_headers: dict, client: AsyncClient, monkeypatch
+):
+    """视觉 key 不可用时诚实降级 rule_mock，绝不伪装真实视觉"""
+    from app.services import supervision_patrol_service as sp
+
+    def _boom(*a, **k):
+        raise RuntimeError("未配置视觉模型 key")
+
+    monkeypatch.setattr(sp, "_call_vision_llm", _boom)
+    project_id = await _create_project(client, auth_headers)
+    resp = await client.post(
+        "/api/construction/supervision/patrol",
+        json={
+            "project_id": project_id,
+            "photos": [
+                {"url": "data:image/png;base64,iVBORw0KGgo=", "scene_type": "waterproofing"},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["source"] == "rule_mock"
+    assert data["photo_count"] == 1
+    assert data["findings"][0]["source"] == "rule_mock"
+    assert "诚实降级" in data["note"] or "未配置视觉模型" in data["note"]
+
+
+@pytest.mark.asyncio
+async def test_supervision_patrol_ai_vision(
+    auth_headers: dict, client: AsyncClient, monkeypatch
+):
+    """视觉模型可用时走真实 AI 视觉（source=ai_vision），检出渗漏为 critical"""
+    from app.services import supervision_patrol_service as sp
+
+    def _fake_vision(prompt, image_bytes, mime):
+        return json.dumps({
+            "waterproofing": {
+                "leak_detected": True,
+                "water_level_ok": False,
+                "confidence": 0.95,
+                "notes": "检测到渗水印",
+            },
+            "issues": [
+                {"type": "leak", "description": "局部渗水", "severity": "critical", "suggestion": "重做防水"}
+            ],
+        })
+
+    monkeypatch.setattr(sp, "_call_vision_llm", _fake_vision)
+    project_id = await _create_project(client, auth_headers)
+    resp = await client.post(
+        "/api/construction/supervision/patrol",
+        json={
+            "project_id": project_id,
+            "photos": [
+                {"url": "data:image/png;base64,iVBORw0KGgo=", "scene_type": "waterproofing"},
+            ],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["source"] == "ai_vision"
+    assert data["summary"]["critical"] >= 1
+    assert data["findings"][0]["issues"][0]["source"] == "ai_vision"

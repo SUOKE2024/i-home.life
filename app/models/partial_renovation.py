@@ -8,7 +8,7 @@ PRD v3.1 F42（2026-08-03 行业调研新增）：
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Float, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Float, Text, Boolean, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,6 +36,15 @@ class PartialRenovationPlan(Base):
     interference_plan: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # status: draft / active / completed
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    # ── F49 局改快装产品化（标准化套餐） ──
+    # package_code: 标准快装套餐编码（如 PKG-48H-KITCHEN / PKG-7D-WALL），非套餐计划为 None
+    package_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # fixed_price: 一口价（元），套餐产品化定价
+    fixed_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # dry_construction: 干法施工（免湿作业/免停水，48h 内可交付）
+    dry_construction: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # zero_relocation: 0 搬家（业主无需搬离，原位保护施工）
+    zero_relocation: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

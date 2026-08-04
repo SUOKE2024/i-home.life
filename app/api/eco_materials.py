@@ -20,11 +20,24 @@ class EcoCertCreate(BaseModel):
     eco_grade: str
     certification: str = "无认证"
     source: str = "third_party"
+    henf_grade: str | None = None  # F50 HENF 等级预埋（HENF/ENF/E0/E1）
 
 
 class ValidateRequest(BaseModel):
     """环保合规校验请求"""
     material_ids: list[str]
+
+
+class BoardTraceCreate(BaseModel):
+    """F50 一板一码溯源创建请求"""
+    board_code: str
+    material_id: str
+    batch_no: str = ""
+    origin: str = ""
+    vendor: str = ""
+    produced_at: str | None = None
+    logistics: dict | None = None
+    henf_grade: str | None = None
 
 
 def _check_eco_enabled() -> None:
@@ -40,6 +53,7 @@ def _cert_dict(cert: MaterialEcoCert) -> dict:
         "id": cert.id,
         "material_id": cert.material_id,
         "eco_grade": cert.eco_grade,
+        "henf_grade": cert.henf_grade,  # F50 HENF 等级预埋
         "certification": cert.certification,
         "source": cert.source,
         "created_at": cert.created_at,
@@ -63,7 +77,12 @@ async def assign_cert(
     if data.eco_grade not in eco_material_service.ECO_GRADES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="环保等级不合法，可选: ENF/E0/E1",
+            detail="环保等级不合法，可选: HENF/ENF/E0/E1",
+        )
+    if data.henf_grade and data.henf_grade not in eco_material_service.ECO_GRADES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="HENF 等级不合法，可选: HENF/ENF/E0/E1",
         )
     try:
         cert, created = await eco_material_service.assign_cert(
@@ -72,6 +91,7 @@ async def assign_cert(
             eco_grade=data.eco_grade,
             certification=data.certification,
             source=data.source,
+            henf_grade=data.henf_grade,
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -143,3 +163,61 @@ async def recommend_alternatives(
         return await eco_material_service.recommend_alternatives(db, material_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+# ── F50 一板一码溯源 ──
+
+
+@router.post(
+    "/boards",
+    status_code=status.HTTP_201_CREATED,
+    summary="创建一板一码溯源记录",
+    description="为板材创建产地/批次/物流/环保等级全链路溯源记录（一板一码）。",
+)
+async def create_board(
+    data: BoardTraceCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """创建一板一码溯源记录（F50）"""
+    _check_eco_enabled()
+    try:
+        board = await eco_material_service.create_board_trace(
+            db,
+            board_code=data.board_code,
+            material_id=data.material_id,
+            batch_no=data.batch_no,
+            origin=data.origin,
+            vendor=data.vendor,
+            produced_at=data.produced_at,
+            logistics=data.logistics,
+            henf_grade=data.henf_grade,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return await eco_material_service.get_board_trace(db, board.board_code)
+
+
+@router.get("/boards/{board_code}", summary="按一板一码查询溯源")
+async def get_board(
+    board_code: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """按一板一码查询溯源记录（F50，无则 404）"""
+    _check_eco_enabled()
+    trace = await eco_material_service.get_board_trace(db, board_code)
+    if not trace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="板材溯源记录不存在")
+    return trace
+
+
+@router.get("/boards", summary="列出板材溯源记录")
+async def list_boards(
+    material_id: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出板材溯源记录（可选按材料筛选）"""
+    _check_eco_enabled()
+    return await eco_material_service.list_boards(db, material_id)

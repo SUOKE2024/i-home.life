@@ -13,6 +13,8 @@ from httpx import AsyncClient
 ALL_SCOPE_TYPES = ["kitchen_refresh", "bathroom_refresh", "wall_refresh",
                    "single_room", "full_renovation"]
 
+ALL_PACKAGE_CODES = ["PKG-48H-KITCHEN", "PKG-48H-BATHROOM", "PKG-7D-WALL"]
+
 
 async def _auth_headers(client: AsyncClient, phone: str = "13960010001") -> dict:
     resp = await client.post(
@@ -180,3 +182,98 @@ async def test_partial_renovation_cross_user_access_blocked(client: AsyncClient)
         headers=headers_b,
     )
     assert resp.status_code == 403
+
+
+# ── F49 局改快装产品化：标准化套餐（一口价 + 干法施工 + 0 搬家） ──
+
+
+@pytest.mark.asyncio
+async def test_quick_install_packages_list(client: AsyncClient):
+    """标准快装套餐目录含 3 个套餐，均一口价 + 干法 + 0 搬家"""
+    headers = await _auth_headers(client, "13960010010")
+    resp = await client.get("/api/partial-renovation/quick-install/packages", headers=headers)
+    assert resp.status_code == 200
+    packages = resp.json()
+    codes = [p["package_code"] for p in packages]
+    assert set(codes) == set(ALL_PACKAGE_CODES)
+    for p in packages:
+        assert p["fixed_price"] > 0
+        assert p["dry_construction"] is True
+        assert p["zero_relocation"] is True
+        assert p["duration_hours"] > 0
+        assert isinstance(p["inclusions"], list) and len(p["inclusions"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_quick_install_package_detail(client: AsyncClient):
+    """单个套餐详情：48h 厨房一口价 19800、7 天墙面 6800"""
+    headers = await _auth_headers(client, "13960010011")
+    resp = await client.get(
+        "/api/partial-renovation/quick-install/packages/PKG-48H-KITCHEN", headers=headers
+    )
+    assert resp.status_code == 200
+    pkg = resp.json()
+    assert pkg["package_code"] == "PKG-48H-KITCHEN"
+    assert pkg["name"] == "48h 厨房快装"
+    assert pkg["duration_hours"] == 48
+    assert pkg["fixed_price"] == 19800.0
+    assert "warranty" in pkg and "excludes" in pkg
+
+    resp = await client.get(
+        "/api/partial-renovation/quick-install/packages/PKG-7D-WALL", headers=headers
+    )
+    assert resp.json()["fixed_price"] == 6800.0
+
+
+@pytest.mark.asyncio
+async def test_quick_install_package_not_found(client: AsyncClient):
+    """未知套餐编码 → 404"""
+    headers = await _auth_headers(client, "13960010012")
+    resp = await client.get(
+        "/api/partial-renovation/quick-install/packages/PKG-UNKNOWN", headers=headers
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_instantiate_quick_install_plan(client: AsyncClient):
+    """实例化 48h 厨房套餐 → 计划落库（一口价/干法/0 搬家/package_code）"""
+    headers = await _auth_headers(client, "13960010013")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/partial-renovation/quick-install/plans",
+        json={"project_id": project_id, "package_code": "PKG-48H-KITCHEN"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    plan = resp.json()
+    assert plan["package_code"] == "PKG-48H-KITCHEN"
+    assert plan["fixed_price"] == 19800.0
+    assert plan["dry_construction"] is True
+    assert plan["zero_relocation"] is True
+    assert plan["duration_days"] == 2
+    assert plan["budget_lower"] == plan["budget_upper"] == 19800.0
+    assert plan["scope_type"] == "kitchen_refresh"
+    assert plan["status"] == "draft"
+
+    # 入库后可读回（持久化）
+    resp = await client.get(
+        f"/api/partial-renovation/plans/{plan['id']}", headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["package_code"] == "PKG-48H-KITCHEN"
+
+
+@pytest.mark.asyncio
+async def test_instantiate_quick_install_invalid_code(client: AsyncClient):
+    """非法套餐编码 → 400"""
+    headers = await _auth_headers(client, "13960010014")
+    project_id = await _create_project(client, headers)
+    resp = await client.post(
+        "/api/partial-renovation/quick-install/plans",
+        json={"project_id": project_id, "package_code": "PKG-UNKNOWN"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert "未知快装套餐" in resp.json()["detail"]

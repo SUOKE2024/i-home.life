@@ -5,15 +5,21 @@
 材料 SKU 增加 ENF/E0 环保等级与绿色建材认证字段与筛选（强化 HC-003 环保等级硬约束）。
 """
 
+import datetime as dt  # F50 一板一码 produced_at 解析
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.eco_material import MaterialEcoCert
+from app.models.eco_material import MaterialBoardTrace, MaterialEcoCert
 from app.models.material import Material
 
-# 环保等级（ENF > E0 > E1），国标 GB/T 39600-2021 人造板甲醛释放分级
-ECO_GRADES = ["ENF", "E0", "E1"]
-GRADE_RANK = {"ENF": 3, "E0": 2, "E1": 1}
+# 环保等级（HENF > ENF > E0 > E1），国标 GB/T 39600-2021 人造板甲醛释放分级
+# F50: HENF 为 2026 新标准无醛最高级（GB18580-2025 强制 + HENF 新标准）
+ECO_GRADES = ["HENF", "ENF", "E0", "E1"]
+GRADE_RANK = {"HENF": 4, "ENF": 3, "E0": 2, "E1": 1}
+
+# F50 一板一码溯源字段
+TRACE_FIELDS = ["board_code", "batch_no", "origin", "vendor", "produced_at", "logistics", "henf_grade"]
 
 # 对标 HC-003 环保等级硬约束
 COMPLIANCE_REQUIREMENT = "HC-003 环保等级硬约束"
@@ -30,18 +36,23 @@ async def assign_cert(
     eco_grade: str,
     certification: str,
     source: str,
+    henf_grade: str | None = None,
 ) -> tuple[MaterialEcoCert, bool]:
     """为材料分配/更新环保认证标签；返回 (认证记录, 是否新建)"""
     material = await db.get(Material, material_id)
     if not material:
         raise ValueError("材料不存在")
     if eco_grade not in ECO_GRADES:
-        raise ValueError("环保等级不合法，可选: ENF/E0/E1")
+        raise ValueError("环保等级不合法，可选: HENF/ENF/E0/E1")
+    if henf_grade and henf_grade not in ECO_GRADES:
+        raise ValueError("HENF 等级不合法，可选: HENF/ENF/E0/E1")
     existing = await get_cert(db, material_id)
     if existing:
         existing.eco_grade = eco_grade
         existing.certification = certification
         existing.source = source
+        if henf_grade is not None:
+            existing.henf_grade = henf_grade
         await db.commit()
         await db.refresh(existing)
         return existing, False
@@ -50,6 +61,7 @@ async def assign_cert(
         eco_grade=eco_grade,
         certification=certification,
         source=source,
+        henf_grade=henf_grade,
     )
     db.add(cert)
     await db.commit()
@@ -172,3 +184,93 @@ async def recommend_alternatives(db: AsyncSession, material_id: str) -> list[dic
                 "unit_price": candidate.unit_price,
             })
     return alternatives
+
+
+# ── F50 一板一码溯源 ──
+
+
+def _board_item(board: MaterialBoardTrace, material: Material) -> dict:
+    """一板一码溯源记录序列化（含材料信息）"""
+    return {
+        "board_code": board.board_code,
+        "material_id": board.material_id,
+        "material_name": material.name,
+        "sku": material.sku,
+        "batch_no": board.batch_no,
+        "origin": board.origin,
+        "vendor": board.vendor,
+        "produced_at": board.produced_at.isoformat() if board.produced_at else None,
+        "logistics": board.logistics,
+        "henf_grade": board.henf_grade,
+        "created_at": board.created_at.isoformat() if board.created_at else None,
+    }
+
+
+async def create_board_trace(
+    db: AsyncSession,
+    board_code: str,
+    material_id: str,
+    batch_no: str = "",
+    origin: str = "",
+    vendor: str = "",
+    produced_at=None,
+    logistics: dict | None = None,
+    henf_grade: str | None = None,
+) -> MaterialBoardTrace:
+    """创建一板一码溯源记录（board_code 唯一，重复创建抛 ValueError）"""
+    material = await db.get(Material, material_id)
+    if not material:
+        raise ValueError("材料不存在")
+    if henf_grade and henf_grade not in ECO_GRADES:
+        raise ValueError("HENF 等级不合法，可选: HENF/ENF/E0/E1")
+    existing = await db.execute(
+        select(MaterialBoardTrace).where(MaterialBoardTrace.board_code == board_code)
+    )
+    if existing.scalar_one_or_none():
+        raise ValueError("板材编码已存在")
+    produced_dt = None
+    if produced_at:
+        if isinstance(produced_at, str):
+            produced_dt = dt.datetime.fromisoformat(produced_at.replace("Z", "+00:00"))
+        else:
+            produced_dt = produced_at
+    board = MaterialBoardTrace(
+        board_code=board_code,
+        material_id=material_id,
+        batch_no=batch_no,
+        origin=origin,
+        vendor=vendor,
+        produced_at=produced_dt,
+        logistics=logistics,
+        henf_grade=henf_grade,
+    )
+    db.add(board)
+    await db.commit()
+    await db.refresh(board)
+    return board
+
+
+async def get_board_trace(db: AsyncSession, board_code: str) -> dict | None:
+    """按一板一码查询溯源记录（无则 None）"""
+    result = await db.execute(
+        select(MaterialBoardTrace, Material)
+        .join(Material, Material.id == MaterialBoardTrace.material_id)
+        .where(MaterialBoardTrace.board_code == board_code)
+    )
+    row = result.first()
+    if row is None:
+        return None
+    return _board_item(row[0], row[1])
+
+
+async def list_boards(db: AsyncSession, material_id: str | None = None) -> list[dict]:
+    """列出板材溯源记录（可按材料筛选）"""
+    stmt = (
+        select(MaterialBoardTrace, Material)
+        .join(Material, Material.id == MaterialBoardTrace.material_id)
+        .order_by(MaterialBoardTrace.created_at.desc())
+    )
+    if material_id:
+        stmt = stmt.where(MaterialBoardTrace.material_id == material_id)
+    result = await db.execute(stmt)
+    return [_board_item(board, mat) for board, mat in result.all()]

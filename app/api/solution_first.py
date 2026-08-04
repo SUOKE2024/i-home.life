@@ -25,6 +25,14 @@ settings = get_settings()
 
 class SolutionGenerateRequest(BaseModel):
     project_id: str
+    style: str | None = None  # 偏好风格 key（可选，见 STYLE_CATALOG）
+
+
+class SolutionRefineRequest(BaseModel):
+    project_id: str
+    plan_no: str  # 方案编号（A/B/C）
+    feedback: str  # 用户反馈/偏好
+    style: str | None = None
 
 
 @router.post("/generate", status_code=status.HTTP_201_CREATED)
@@ -33,11 +41,39 @@ async def generate_package(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """生成 3 套前置方案 + 预算区间（项目不存在返回 404，越权返回 403）。"""
+    """生成 3 套前置方案 + 预算区间（支持偏好风格；项目不存在返回 404，越权返回 403）。"""
     if not settings.solution_first_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该功能未启用")
     await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
-    return await solution_first_service.generate_package(db, data.project_id)
+    return await solution_first_service.generate_package(db, data.project_id, data.style)
+
+
+@router.get("/styles")
+async def list_styles(
+    current_user: User = Depends(get_current_user),
+):
+    """可选装修风格目录（多风格深化）。"""
+    if not settings.solution_first_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该功能未启用")
+    return solution_first_service.list_styles()
+
+
+@router.post("/refine", status_code=status.HTTP_201_CREATED)
+async def refine_layout(
+    data: SolutionRefineRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """多轮对话：依据用户反馈深化指定方案（LLM 优先，规则兜底）。"""
+    if not settings.solution_first_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该功能未启用")
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
+    try:
+        return await solution_first_service.refine_layout(
+            db, data.project_id, data.plan_no, data.feedback, data.style,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
 
 @router.get("/entry")

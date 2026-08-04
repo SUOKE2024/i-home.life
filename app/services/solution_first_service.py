@@ -99,6 +99,31 @@ _LAYOUT_PLANS: list[dict[str, Any]] = [
 
 BUDGET_NOTE = "区间估值为行业行情参考，非精确报价（source: rule_based）"
 
+# ── F45 多风格目录（2026 主流装修风格，诚实标注：非精确报价） ──
+STYLE_CATALOG: list[dict[str, Any]] = [
+    {"key": "modern", "name": "现代简约", "desc": "线条利落、低饱和中性色，强调收纳与秩序感"},
+    {"key": "new_chinese", "name": "新中式", "desc": "传统元素现代化，木质+留白，沉稳雅致"},
+    {"key": "nordic", "name": "北欧风", "desc": "浅木色+白墙，自然光感强，温馨舒适"},
+    {"key": "luxury", "name": "轻奢风", "desc": "金属/石材点缀，精致质感，低调奢华"},
+    {"key": "industrial", "name": "工业风", "desc": "裸露结构/水泥肌理，个性硬朗"},
+    {"key": "log", "name": "原木风", "desc": "大面积原木+暖色，自然治愈，日式氛围"},
+]
+
+
+def list_styles() -> list[dict[str, Any]]:
+    """返回可用装修风格目录。"""
+    return [dict(style) for style in STYLE_CATALOG]
+
+
+def _resolve_style(style: str | None) -> dict[str, Any]:
+    """解析风格 key；未知/空回退现代简约（诚实标注）。"""
+    if not style:
+        return STYLE_CATALOG[0]
+    for s in STYLE_CATALOG:
+        if s["key"] == style:
+            return s
+    return STYLE_CATALOG[0]
+
 
 def _parse_floorplan_data(data: str) -> dict[str, Any] | None:
     """解析 floorplan.data JSON 字符串，解析失败或非对象返回 None。"""
@@ -218,7 +243,11 @@ def _normalize_llm_package(parsed: dict, total_area: float) -> dict[str, Any] | 
     return {"layouts": layouts, "budget_range": _normalize_llm_budget(parsed.get("budget_range"), total_area)}
 
 
-async def _llm_generate_package(floorplan_data: dict[str, Any] | None, total_area: float) -> dict[str, Any] | None:
+async def _llm_generate_package(
+    floorplan_data: dict[str, Any] | None,
+    total_area: float,
+    style: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """调用 LLM 生成 3 套布局 + 预算区间；任何失败返回 None（调用方回退 rule_based）。
 
     诚实降级：LLM 无 key 时 _chat 返回 mock（非 JSON）→ 解析失败 → None；
@@ -228,8 +257,10 @@ async def _llm_generate_package(floorplan_data: dict[str, Any] | None, total_are
     try:
         rooms = _extract_room_names(floorplan_data)
         room_desc = "、".join(rooms) if rooms else "（未提供房间明细）"
+        style_hint = f"偏好风格：{style['name']}（{style['desc']}）。" if style else ""
         user_prompt = (
             f"项目总面积 {total_area:.0f}㎡，房间：{room_desc}。\n"
+            f"{style_hint}"
             "请生成 3 套装修布局方案。必须只输出如下 JSON（不要输出任何其他文字）：\n"
             f"{_LLM_OUTPUT_SCHEMA}"
         )
@@ -251,29 +282,37 @@ async def _llm_generate_package(floorplan_data: dict[str, Any] | None, total_are
 
 
 async def _resolve_package(
-    floorplan_data: dict[str, Any] | None, total_area: float,
+    floorplan_data: dict[str, Any] | None,
+    total_area: float,
+    style: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str, str]:
     """LLM 优先、规则兜底的包解析：返回 (layouts, budget_range, source, source_note)。"""
-    llm_pkg = await _llm_generate_package(floorplan_data, total_area)
+    llm_pkg = await _llm_generate_package(floorplan_data, total_area, style)
     if llm_pkg:
         return llm_pkg["layouts"], llm_pkg["budget_range"], "llm", SOURCE_NOTE_LLM
-    layouts = generate_layouts(floorplan_data, total_area)
+    layouts = generate_layouts(floorplan_data, total_area, style)
     budget_range = budget_range_for(total_area)
     return layouts, budget_range, "rule_based", SOURCE_NOTE_FALLBACK
 
 
-def generate_layouts(floorplan_data: dict[str, Any] | None, total_area: float) -> list[dict[str, Any]]:
+def generate_layouts(
+    floorplan_data: dict[str, Any] | None,
+    total_area: float,
+    style: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """生成 3 套布局方案（纯规则，source=rule_based）。
 
     Args:
         floorplan_data: 解析后的户型数据（可能含 rooms 数组），None 则用 total_area 兜底
         total_area: 项目总面积（m²）
+        style: 偏好风格（可选，仅用于 source_note 标注，不影响布局结构）
     """
     room_names = _extract_room_names(floorplan_data)
+    style_hint = f"，风格偏好：{style['name']}" if style else ""
     if not room_names:
-        area_hint = f"（户型数据缺失，按总面积 {total_area:.0f}㎡ 通用规则生成）"
+        area_hint = f"（户型数据缺失，按总面积 {total_area:.0f}㎡ 通用规则生成{style_hint}）"
     else:
-        area_hint = f"（户型含 {len(room_names)} 个房间，按空间结构规则生成）"
+        area_hint = f"（户型含 {len(room_names)} 个房间，按空间结构规则生成{style_hint}）"
 
     plans = []
     for plan in _LAYOUT_PLANS:
@@ -344,12 +383,17 @@ def _resolve_total_area(project: Project, floorplan: FloorPlan | None) -> float:
     return total_area
 
 
-async def generate_package(db: AsyncSession, project_id: str) -> dict[str, Any]:
+async def generate_package(
+    db: AsyncSession,
+    project_id: str,
+    style: str | None = None,
+) -> dict[str, Any]:
     """生成方案前置决策包：3 套布局 + 预算区间 + 推荐建议。
 
     Args:
         db: 数据库会话
         project_id: 项目 ID（API 层已校验存在性与访问权限）
+        style: 偏好风格 key（可选，见 STYLE_CATALOG）
 
     Returns:
         {project_id, project_name, plan_count, layouts, budget_range,
@@ -363,9 +407,12 @@ async def generate_package(db: AsyncSession, project_id: str) -> dict[str, Any]:
     floorplan = await _get_active_floorplan(db, project_id)
     floorplan_data = _parse_floorplan_data(floorplan.data) if floorplan else None
     total_area = _resolve_total_area(project, floorplan)
+    style_info = _resolve_style(style)
 
-    # LLM 优先（source="llm"），失败/无 key/解析失败回退规则（source="rule_based"）
-    layouts, budget_range, source, source_note = await _resolve_package(floorplan_data, total_area)
+    # LLM 优先（source="llm"，含风格），失败/无 key/解析失败回退规则（source="rule_based"）
+    layouts, budget_range, source, source_note = await _resolve_package(
+        floorplan_data, total_area, style_info,
+    )
 
     recommendations = [
         "先确定预算档位：8-12 万升级化装修是 2026 市场主力档，可按面积档位上下浮动"
@@ -377,12 +424,131 @@ async def generate_package(db: AsyncSession, project_id: str) -> dict[str, Any]:
     return {
         "project_id": project_id,
         "project_name": project.name,
+        "style": style_info,
         "plan_count": len(layouts),
         "layouts": layouts,
         "budget_range": budget_range,
         "recommendations": recommendations,
         "source": source,
         "source_note": source_note,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ── F45 多轮对话：方案 refine 深化 ──
+
+_REFINE_SCHEMA = (
+    '{"refined_layout": {"layout_name": "方案名", "description": "一句话描述", '
+    '"layout_points": ["要点"], "pros": ["优点"], "cons": ["缺点"]}}'
+)
+
+
+async def _llm_refine_layout(
+    plan_name: str,
+    feedback: str,
+    style: dict[str, Any] | None,
+    total_area: float,
+) -> dict[str, Any] | None:
+    """调用 LLM 依据用户反馈深化方案；任何失败返回 None（调用方回退 rule_based）。"""
+    agent = SolutionFirstAgent()
+    try:
+        style_hint = f"偏好风格：{style['name']}（{style['desc']}）。" if style else ""
+        user_prompt = (
+            f"针对已有方案「{plan_name}」（总面积 {total_area:.0f}㎡），"
+            f"用户反馈：{feedback}。{style_hint}"
+            "请给出深化后的单一方案。必须只输出如下 JSON（不要输出任何其他文字）：\n"
+            f"{_REFINE_SCHEMA}"
+        )
+        messages = [
+            {"role": "system", "content": SolutionFirstAgent.system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        reply = await agent._chat(messages)
+        parsed = _parse_llm_json(reply)
+        if not parsed:
+            logger.warning("solution_first.refine: LLM 返回非 JSON，降级 rule_based")
+            return None
+        raw = parsed.get("refined_layout")
+        if not isinstance(raw, dict) or not raw.get("layout_name"):
+            return None
+        return {
+            "plan_no": "R",
+            "name": str(raw["layout_name"]),
+            "summary": str(raw.get("description") or ""),
+            "layout_points": list(raw.get("layout_points") or []),
+            "pros": list(raw.get("pros") or []),
+            "cons": list(raw.get("cons") or []),
+            "feedback": feedback,
+            "source": "llm",
+            "source_note": SOURCE_NOTE_LLM,
+        }
+    except Exception as e:
+        logger.warning("solution_first.refine: LLM 调用失败，降级 rule_based (error=%s)", e)
+        return None
+    finally:
+        await agent.close()
+
+
+def _rule_refine_layout(plan_name: str, feedback: str) -> dict[str, Any]:
+    """规则兜底：基于反馈生成深化建议（诚实标注 rule_based，不伪装 LLM）。"""
+    return {
+        "plan_no": "R",
+        "name": f"{plan_name}（深化）",
+        "summary": f"基于反馈「{feedback}」的深化方案",
+        "layout_points": [
+            "优先落实反馈中明确的空间诉求（如动线/收纳/交互）",
+            "保持原方案结构与预算基调，仅做局部微调",
+            "建议下一步由设计师结合现场复核深化",
+        ],
+        "pros": ["延续原方案可行性，改动可控"],
+        "cons": ["规则引擎生成，未充分体现个性化偏好"],
+        "feedback": feedback,
+        "source": "rule_based",
+        "source_note": SOURCE_NOTE_FALLBACK,
+    }
+
+
+async def refine_layout(
+    db: AsyncSession,
+    project_id: str,
+    plan_no: str,
+    feedback: str,
+    style: str | None = None,
+) -> dict[str, Any]:
+    """多轮对话：依据用户反馈深化指定方案（LLM 优先，规则兜底）。
+
+    Args:
+        db: 数据库会话
+        project_id: 项目 ID（API 层已校验存在性与访问权限）
+        plan_no: 方案编号（A/B/C 或实际方案名）
+        feedback: 用户反馈/偏好
+        style: 偏好风格 key（可选）
+
+    Returns:
+        {project_id, plan_no, refined_layout, source, generated_at}
+    """
+    if not feedback or not feedback.strip():
+        raise ValueError("feedback 不能为空")
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise ValueError(f"项目不存在: {project_id}")
+
+    floorplan = await _get_active_floorplan(db, project_id)
+    total_area = _resolve_total_area(project, floorplan)
+    style_info = _resolve_style(style)
+
+    plan_name = plan_no.strip()
+    refined = await _llm_refine_layout(plan_name, feedback.strip(), style_info, total_area)
+    if not refined:
+        refined = _rule_refine_layout(plan_name, feedback.strip())
+
+    return {
+        "project_id": project_id,
+        "plan_no": plan_no,
+        "refined_layout": refined,
+        "source": refined["source"],
+        "source_note": refined["source_note"],
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -262,3 +262,119 @@ async def test_entry_with_floorplan_true(client: AsyncClient):
     data = resp.json()
     assert data["has_floorplan"] is True
     assert data["total_area"] == 88.0
+
+
+# ── F45 多风格 + 多轮对话（refine） ──
+
+
+@pytest.mark.asyncio
+async def test_styles_catalog(client: AsyncClient):
+    """风格目录返回 6 种主流风格"""
+    headers = await _auth_headers(client, "13940040060")
+    resp = await client.get("/api/solution-first/styles", headers=headers)
+    assert resp.status_code == 200
+    styles = resp.json()
+    assert len(styles) == 6
+    keys = [s["key"] for s in styles]
+    assert "modern" in keys and "new_chinese" in keys and "nordic" in keys
+
+
+@pytest.mark.asyncio
+async def test_generate_with_style(client: AsyncClient):
+    """generate 支持风格参数，返回风格信息，规则生成标注风格偏好"""
+    headers = await _auth_headers(client, "13940040061")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/solution-first/generate",
+        json={"project_id": project_id, "style": "new_chinese"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["style"]["key"] == "new_chinese"
+    assert data["style"]["name"] == "新中式"
+    assert any("风格偏好：新中式" in p["source_note"] for p in data["layouts"])
+
+
+@pytest.mark.asyncio
+async def test_generate_unknown_style_falls_back(client: AsyncClient):
+    """未知风格回退现代简约（诚实标注）"""
+    headers = await _auth_headers(client, "13940040062")
+    project_id = await _create_project(client, headers)
+    resp = await client.post(
+        "/api/solution-first/generate",
+        json={"project_id": project_id, "style": "no_such_style"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["style"]["key"] == "modern"
+
+
+@pytest.mark.asyncio
+async def test_refine_fallback_to_rule(client: AsyncClient, monkeypatch):
+    """LLM 不可用时 refine 回退 rule_based 并诚实标注"""
+    async def fake_chat(self, messages, **kwargs):
+        raise RuntimeError("LLM unavailable")
+
+    monkeypatch.setattr(solution_first_service.SolutionFirstAgent, "_chat", fake_chat)
+
+    headers = await _auth_headers(client, "13940040063")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/solution-first/refine",
+        json={"project_id": project_id, "plan_no": "A", "feedback": "希望增加收纳"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["source"] == "rule_based"
+    assert "降级" in data["source_note"]
+    assert data["refined_layout"]["source"] == "rule_based"
+    assert data["refined_layout"]["plan_no"] == "R"
+    assert "收纳" in data["refined_layout"]["summary"]
+
+
+@pytest.mark.asyncio
+async def test_refine_llm_source(client: AsyncClient, monkeypatch):
+    """LLM 可用时 refine 深化方案 source=llm"""
+    async def fake_chat(self, messages, **kwargs):
+        return json.dumps({
+            "refined_layout": {
+                "layout_name": "加大收纳版",
+                "description": "在方案 A 基础上强化收纳",
+                "layout_points": ["整面墙柜体", "飘窗利用"],
+                "pros": ["收纳最大"],
+                "cons": ["造价略高"],
+            }
+        }, ensure_ascii=False)
+
+    monkeypatch.setattr(solution_first_service.SolutionFirstAgent, "_chat", fake_chat)
+
+    headers = await _auth_headers(client, "13940040064")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/solution-first/refine",
+        json={"project_id": project_id, "plan_no": "A", "feedback": "多加点收纳"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["source"] == "llm"
+    assert data["refined_layout"]["name"] == "加大收纳版"
+    assert data["refined_layout"]["source"] == "llm"
+
+
+@pytest.mark.asyncio
+async def test_refine_empty_feedback(client: AsyncClient):
+    """空反馈 → 400"""
+    headers = await _auth_headers(client, "13940040065")
+    project_id = await _create_project(client, headers)
+    resp = await client.post(
+        "/api/solution-first/refine",
+        json={"project_id": project_id, "plan_no": "A", "feedback": "  "},
+        headers=headers,
+    )
+    assert resp.status_code == 400

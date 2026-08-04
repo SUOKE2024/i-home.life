@@ -19,6 +19,7 @@ v1.3.0 完整对齐 MCP 2026-07-28 规范：
 import hashlib
 import json
 import logging
+import secrets
 import time
 from typing import Any, cast
 
@@ -26,6 +27,34 @@ from app.config import get_settings
 from app.services.agent_tool_registry import tool_registry
 
 logger = logging.getLogger(__name__)
+
+
+def build_trace_meta(
+    traceparent: str | None = None,
+    tracestate: str | None = None,
+    baggage: str | None = None,
+) -> dict:
+    """MCP 2026-07-28 SEP-414: W3C Trace Context 嵌入 JSON-RPC 响应 `_meta`。
+
+    客户端请求头携带 traceparent/tracestate/baggage 时透传；
+    未提供 traceparent 时生成服务端根 span（version=00 / 128-bit trace-id /
+    64-bit span-id / flags=01），并附 trace_id/span_id 便于与对象存储/日志关联。
+
+    返回恒非空 dict（至少含 traceparent）。
+    """
+    meta: dict = {}
+    if not traceparent:
+        trace_id = secrets.token_hex(16)
+        span_id = secrets.token_hex(8)
+        traceparent = f"00-{trace_id}-{span_id}-01"
+        meta["trace_id"] = trace_id
+        meta["span_id"] = span_id
+    meta["traceparent"] = traceparent
+    if tracestate:
+        meta["tracestate"] = tracestate
+    if baggage:
+        meta["baggage"] = baggage
+    return meta
 
 
 class MCPServer:
@@ -70,6 +99,14 @@ class MCPServer:
                 logger.info("mcp_extension_loaded: extension=tasks")
             except Exception as e:
                 logger.warning("mcp_extension_load_failed: extension=tasks error=%s", e)
+        # Enterprise 扩展（MCP 2026 Roadmap Enterprise Readiness：审计/SSO/网关）
+        if settings.mcp_enterprise_extension_enabled:
+            try:
+                from app.mcp.extensions.enterprise import EnterpriseExtension
+                self._extensions["enterprise"] = EnterpriseExtension()
+                logger.info("mcp_extension_loaded: extension=enterprise")
+            except Exception as e:
+                logger.warning("mcp_extension_load_failed: extension=enterprise error=%s", e)
 
     def list_extensions(self) -> list[dict]:
         """返回已注册扩展的元信息。"""
@@ -291,8 +328,13 @@ class MCPServer:
 
     # ── v1.3.0 JSON-RPC 方法分发 ──
 
-    async def dispatch_method(self, method: str, params: dict | None = None) -> tuple[dict | None, dict | None]:
+    async def dispatch_method(self, method: str, params: dict | None = None, db: Any = None) -> tuple[dict | None, dict | None]:
         """分发 JSON-RPC 方法（server/discover / tools/list / tools/call 等）
+
+        Args:
+            method: JSON-RPC 方法名
+            params: 方法参数
+            db: 可选数据库会话（透传给需要持久化的扩展，如 enterprise/audit）
 
         Returns:
             (result, error) —— 成功时 result 非 None，失败时 error 非 None
@@ -325,6 +367,14 @@ class MCPServer:
             if tasks_ext is None:
                 return None, self.make_error(-32601, f"Tasks 扩展未启用: {method}")
             result = await tasks_ext.dispatch(method, params)
+            return cast(tuple[dict | None, dict | None], result)
+
+        # Enterprise 扩展方法分发（MCP 2026 Roadmap Enterprise Readiness）
+        if method.startswith("enterprise/"):
+            ent_ext = self.get_extension("enterprise")
+            if ent_ext is None:
+                return None, self.make_error(-32601, f"Enterprise 扩展未启用: {method}")
+            result = await ent_ext.dispatch(method, params, db=db)
             return cast(tuple[dict | None, dict | None], result)
 
         return None, self.make_error(-32601, f"方法不存在: {method}")

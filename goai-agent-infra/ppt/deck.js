@@ -85,9 +85,9 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   });
 
   const layers = [
-    { t: "582 条 API 路由", d: "61 个模块 · 112 ORM · 79 Service", c: C.primary },
-    { t: "24 个 Agent 模块", d: "总控/设计/预算/采购/施工/质检/结算…", c: C.info },
-    { t: "MCP 8 项 + A2A v1.0", d: "2026 双协议 · 10 个真实工具", c: C.success },
+    { t: "658 条 API 路由", d: "73 个模块 · 121 ORM · 95 Service", c: C.primary },
+    { t: "25 个 Agent 模块", d: "总控/设计/预算/采购/施工/质检/结算…", c: C.info },
+    { t: "MCP 8 项 + A2A v1.0", d: "2026 双协议 · 11 个真实工具", c: C.success },
   ];
   layers.forEach((L, i) => {
     const x = 0.9 + i * 3.9;
@@ -99,10 +99,10 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     s.addText(L.d, { x: x + 0.25, y: 4.6, w: 3.15, h: 0.6, fontSize: 10.5, color: "99C9FF", fontFace: FONT });
   });
 
-  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.3.1(生产运行)", {
+  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.8.0(生产运行)", {
     x: 0.9, y: 6.3, w: 11.5, h: 0.35, fontSize: 12, color: "66ADFF", fontFace: FONT,
   });
-  s.addText("2026 · 初赛 V3.0(基于真实能力全景 + 2026 技术对齐)", { x: 0.9, y: 6.7, w: 8, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
+  s.addText("2026 · 初赛 V3.2(基于真实能力全景 + 2026 技术对齐 + 前沿增量)", { x: 0.9, y: 6.7, w: 9, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
 }
 
 // ════════════════════════════════════════════════════════
@@ -156,7 +156,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   // 底部定位
   addCard(s, MARGIN, 6.05, 12.1, 0.9, C.dark);
   s.addShape(pptx.ShapeType.rect, { x: MARGIN, y: 6.05, w: 0.1, h: 0.9, fill: { color: C.primary } });
-  s.addText("索克差异化定位:不做\"效果图工具\",而是家装全流程多 Agent 自主协同 + 标准 MCP/A2A 基础设施 —— 真实业务闭环(582 路由/112 模型/24 Agent/79 Service)+ 开放协议 + 可编排协同层(AgentTeams)", {
+  s.addText("索克差异化定位:不做\"效果图工具\",而是家装全流程多 Agent 自主协同 + 标准 MCP/A2A 基础设施 —— 真实业务闭环(658 路由/121 模型/25 Agent/95 Service)+ 开放协议 + 可编排协同层(AgentTeams)", {
     x: MARGIN + 0.3, y: 6.18, w: 11.5, h: 0.65, fontSize: 11.5, color: C.white, fontFace: FONT, valign: "mid",
   });
 }
@@ -224,7 +224,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
-  addHeader(s, "Capability Map", "索克家居能力全景:真实全流程自动化闭环(582 路由实测)");
+  addHeader(s, "Capability Map", "索克家居能力全景:真实全流程自动化闭环(658 路由实测)");
   addFooter(s, 4);
 
   const stages = [
@@ -252,19 +252,54 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     }
   });
 
-  s.addText("* 诚实边界:质检缺陷识别(mock CV)、VR 渲染、AI 渲染 L1/L2 为标注降级;其余环节均为真实计算/生成逻辑(实测 582 路由/112 模型/1491 测试全绿)", {
+  s.addText("* 诚实边界:质检真实 CV 已启用(`real_cv_quality_enabled=True`),不可用时诚实降级到规则 mock 并标注 `cv_mode=\"mock\"`;VR 渲染、AI 渲染 L1/L2 为标注降级;前沿功能(材料溯源 HENF / AI 工地监理 / 局改快装 / 米家生态+L1-L5 / 方案 LLM 深化 / BOM 版本+几何算量)均已实装(实测 658 路由/121 模型/1700+ 测试全绿)", {
     x: MARGIN, y: 6.35, w: 12.1, h: 0.4, fontSize: 10.5, color: C.gray, fontFace: FONT, align: "center",
   });
 }
 
 // ════════════════════════════════════════════════════════
-// P5 多模态采集:真实空间感知 + 残健融合
+// P5 2026 前沿功能实装(方案 V3.2 新增,诚实降级)
+// ════════════════════════════════════════════════════════
+{
+  const s = pptx.addSlide();
+  s.background = { color: C.white };
+  addHeader(s, "Frontier Features", "2026 前沿功能实装:六项增量全部落地(带诚实降级)");
+  addFooter(s, 5);
+
+  const frontier = [
+    { t: "F50 材料溯源(HENF)", d: "一板一码:产地/批次/物流全链路可查 + HENF 环保等级(GB18580-2025)", g: "无认证数据 → unverified 诚实标注,不伪装等级", c: C.primary },
+    { t: "F48 AI 施工监理", d: "闭水试验监测 / 违规抓拍,多模态视觉大模型(DeepSeek→GLM→Qwen)", g: "视觉 key 不可用 → 规则 mock + `cv_mode=\"mock\"` 标注", c: C.info },
+    { t: "F49 局改快装产品化", d: "48h 厨卫换新 / 7 天墙面焕新标准化套餐 + 干法施工 + 0 搬家", g: "无套餐模板 → 明确占位,不臆造", c: C.success },
+    { t: "F46 米家生态桥接 + L1-L5", d: "真实小米云登录 + 设备清单;L1-L5 智能等级量化(对齐国标,L3 起真智能)", g: "云登录失败/未实现控制 → 诚实报错 + 待实现标注", c: C.warning },
+    { t: "F45 方案前置 LLM 深化", d: "6 大装修风格目录 + 多轮反馈深化方案(LLM 优先,方案 B 加中岛)", g: "LLM 不可用 → 规则兜底 + `source=rule_based` 标注", c: C.error },
+    { t: "F7 BOM 版本 + 几何算量", d: "BOM 版本快照/差异对比 + 从 floorplan 几何派生工程量", g: "无几何数据 → 经验法 + `quantity_source=empirical` 标注", c: C.dark },
+  ];
+  frontier.forEach((f, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const x = MARGIN + col * 4.18;
+    const y = 1.6 + row * 2.0;
+    addCard(s, x, y, 3.9, 1.8, C.light);
+    addAccentBar(s, x, y, 0.25, f.c);
+    s.addText(f.t, { x: x + 0.2, y: y + 0.14, w: 3.5, h: 0.35, fontSize: 13.5, color: C.dark, fontFace: FONT, bold: true });
+    s.addText(f.d, { x: x + 0.2, y: y + 0.55, w: 3.55, h: 0.7, fontSize: 9.5, color: C.gray, fontFace: FONT });
+    s.addText("诚实降级:" + f.g, { x: x + 0.2, y: y + 1.28, w: 3.55, h: 0.42, fontSize: 8.5, color: C.primary600, fontFace: FONT, bold: true });
+  });
+
+  addCard(s, MARGIN, 5.75, 12.1, 1.0, C.success50);
+  s.addText("诚实降级原则:所有前沿功能带 feature flag + 来源标注(db / rule_based / empirical / mock),禁用硬编码假数据 —— 呼应赛题\"不伪装能力\"与白皮书空间智能(实测 658 路由/121 模型/25 Agent/95 Service)", {
+    x: MARGIN + 0.25, y: 5.9, w: 11.6, h: 0.7, fontSize: 11, color: C.success, fontFace: FONT, valign: "mid",
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// P6 多模态采集:真实空间感知 + 残健融合
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Spatial Perception", "多模态采集:对齐 2026 白皮书\"空间感知\"能力");
-  addFooter(s, 5);
+  addFooter(s, 6);
 
   const inputs = [
     { t: "AR 空间测量", d: "LiDAR / 视觉 SLAM / 摄影测量 / 手动四级降级,RMS 精度报告;iOS ARKit+RoomPlan,鸿蒙原生工程", c: C.primary },
@@ -292,13 +327,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P6 总控编排:Orchestrator × AgentTeams(五项映射 + 审批 + 自主权)
+// P7 总控编排:Orchestrator × AgentTeams(五项映射 + 审批 + 自主权)
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Orchestration", "总控编排:i-home.life 总控 × AgentTeams 协同的映射");
-  addFooter(s, 6);
+  addFooter(s, 7);
 
   // 左:i-home.life
   addCard(s, MARGIN, 1.55, 5.6, 1.85, C.primary50);
@@ -368,13 +403,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P7 设计域:从方案到交付物
+// P8 设计域:从方案到交付物
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Design Domain", "设计域:从空间理解到交付物一键生成");
-  addFooter(s, 7);
+  addFooter(s, 8);
 
   // 左:方案能力
   addCard(s, MARGIN, 1.6, 5.4, 4.9, C.light);
@@ -418,13 +453,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P8 Skill 工程化:ihome-mcp + 10 工具矩阵
+// P9 Skill 工程化:ihome-mcp + 10 工具矩阵
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
-  addHeader(s, "Skill Engineering", "Skill 工程化:ihome-mcp 能力抽象层(10 工具实测)");
-  addFooter(s, 8);
+  addHeader(s, "Skill Engineering", "Skill 工程化:ihome-mcp 能力抽象层(11 工具实测)");
+  addFooter(s, 9);
 
   s.addText("ihome-mcp(核心 Skill,8 Worker 复用)", {
     x: MARGIN, y: 1.6, w: 6, h: 0.4, fontSize: 15, color: C.dark, fontFace: FONT, bold: true,
@@ -446,7 +481,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     s.addText(row.v, { x: MARGIN + 1.6, y: y + 0.06, w: 4.3, h: 0.34, fontSize: 10.5, color: C.ink, fontFace: FONT });
   });
 
-  s.addText("MCP 工具能力矩阵(10 个,实测)", {
+  s.addText("MCP 工具能力矩阵(11 个,实测)", {
     x: 7.0, y: 1.6, w: 5.7, h: 0.4, fontSize: 15, color: C.dark, fontFace: FONT, bold: true,
   });
   const tools = [
@@ -474,13 +509,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P9 MCP 2026-07-28 规范 8 项 + A2A v1.0 双协议
+// P10 MCP 2026-07-28 规范 8 项 + A2A v1.0 双协议
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "MCP + A2A", "双协议在线:MCP 2026-07-28 规范 8 项 + A2A v1.0");
-  addFooter(s, 9);
+  addFooter(s, 10);
 
   s.addText("MCP(自研,纯 Python,零第三方 SDK)", {
     x: MARGIN, y: 1.5, w: 6.5, h: 0.32, fontSize: 13, color: C.dark, fontFace: FONT, bold: true,
@@ -524,16 +559,20 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   comp.forEach((t, i) => {
     s.addText("•  " + t, { x: 7.0, y: 5.66 + i * 0.38, w: 5.5, h: 0.34, fontSize: 10, color: C.ink, fontFace: FONT });
   });
+
+  s.addText("前沿增量:W3C Trace(SEP-414,响应 `_meta` 注入 traceparent/tracestate/baggage)+ MCP Enterprise(审计/SSO/gateway 扩展,`mcp_enterprise_extension_enabled=True`)均已实装", {
+    x: MARGIN, y: 6.6, w: 12.1, h: 0.35, fontSize: 10.5, color: C.primary600, fontFace: FONT, bold: true, align: "center",
+  });
 }
 
 // ════════════════════════════════════════════════════════
-// P10 2026 技术对齐(新增)
+// P11 2026 技术对齐(新增)
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "2026 Alignment", "2026 技术对齐:协议标准化 × 空间智能 × 评估飞轮");
-  addFooter(s, 10);
+  addFooter(s, 11);
 
   const items = [
     { t: "MCP 2026-07-28 正式版", d: "AAIF 托管 · 8 大 Platinum · SDK 月下载近 5 亿", s: "自研 MCP 规范 8 项(纯 Python 零 SDK)", c: C.primary },
@@ -556,19 +595,19 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     s.addText("✅ " + it.s, { x: x + 0.32, y: y + 1.42, w: 3.3, h: 0.36, fontSize: 9.5, color: C.success, fontFace: FONT, bold: true });
   });
 
-  s.addText("对齐原则:AgentTeams(协同基座)+ AgentLoop(数据飞轮)双基础设施对标赛题 —— MCP/A2A 标准协议解耦,业务零重写,编排层可替换", {
+  s.addText("对齐原则:AgentTeams(协同基座)+ AgentLoop(数据飞轮)双基础设施对标赛题 —— MCP/A2A 标准协议解耦,业务零重写,编排层可替换 ｜ 新增:MCP Enterprise(W3C Trace + 审计/SSO/gateway)+ GB/Z 185-2026 互联互通国标 + WAICO 创始文件", {
     x: MARGIN, y: 6.55, w: 12.1, h: 0.4, fontSize: 11.5, color: C.primary600, fontFace: FONT, bold: true, align: "center",
   });
 }
 
 // ════════════════════════════════════════════════════════
-// P11 可观测与评估
+// P12 可观测与评估
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Observability & Eval", "可观测三支柱 + 评估飞轮(对标赛题 AgentLoop)");
-  addFooter(s, 11);
+  addFooter(s, 12);
 
   const pillars = [
     { t: "Trace 链路", d: "OTel 追踪 + AgentHarness 执行轨迹(状态/Token/工具调用链/降级信息)", c: C.primary },
@@ -609,13 +648,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P12 安全与审计
+// P13 安全与审计
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Security & Audit", "安全边界:可运行、可验证、可审计");
-  addFooter(s, 12);
+  addFooter(s, 13);
 
   const secs = [
     { t: "PASETO v4.local 鉴权", d: "非 JWT;密钥 ≥32 字节硬校验;WebAuthn/FIDO2/Passkey 无密码登录", c: C.primary },
@@ -639,19 +678,19 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P13 运行验证与 Demo
+// P14 运行验证与 Demo
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Running Demo", "运行验证:线上部署已实测打通");
-  addFooter(s, 13);
+  addFooter(s, 14);
 
   addCard(s, MARGIN, 1.6, 5.9, 2.35, C.dark);
   s.addText("部署环境(已在线)", { x: MARGIN + 0.25, y: 1.78, w: 5.4, h: 0.4, fontSize: 14.5, color: C.white, fontFace: FONT, bold: true });
   const deploys = [
     "开源 Hiclaw(controller / manager / dashboard / Element Web)",
-    "i-home.life v1.3.1(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
+    "i-home.life v1.8.0(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
     "家装团队 ihome-team:1 Leader + 5 Worker 全部 Running",
     "演示数据:120 平三居 · 预算 ¥157,250 · 4 施工任务",
   ];
@@ -684,13 +723,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 }
 
 // ════════════════════════════════════════════════════════
-// P14 开放/开源计划
+// P15 开放/开源计划
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Open Source", "开放/开源计划:可复用、可验证、可迁移");
-  addFooter(s, 14);
+  addFooter(s, 15);
 
   const items = [
     { t: "AgentTeams Worker 模板", d: "SOUL.md + Agent Identity 清单,任何垂直行业可复制建团", c: C.primary },
@@ -713,22 +752,22 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   s.addText("仓库:github.com/SUOKE2024/i-home.life(已公开)", {
     x: MARGIN + 0.25, y: 5.75, w: 11.6, h: 0.35, fontSize: 13, color: C.primary600, fontFace: FONT, bold: true,
   });
-  s.addText("协议 Apache-2.0(与 AgentTeams 兼容)｜ 披露:LLM 商业 API(deepseek/qwen/glm/doubao)· 第三方依赖 · 数据授权边界 ｜ 已有项目基础:i-home.life(582 路由 / 112 模型 / 24 Agent / 79 Service)", {
+  s.addText("协议 Apache-2.0(与 AgentTeams 兼容)｜ 披露:LLM 商业 API(deepseek/qwen/glm/doubao)· 第三方依赖 · 数据授权边界 ｜ 已有项目基础:i-home.life(658 路由 / 121 模型 / 25 Agent / 95 Service)", {
     x: MARGIN + 0.25, y: 6.15, w: 11.6, h: 0.55, fontSize: 10.5, color: C.gray, fontFace: FONT,
   });
 }
 
 // ════════════════════════════════════════════════════════
-// P15 落地计划与风险(含复赛 Demo 验收目标)
+// P16 落地计划与风险(含复赛 Demo 验收目标)
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
   addHeader(s, "Roadmap & Risks", "落地计划与风险应对");
-  addFooter(s, 15);
+  addFooter(s, 16);
 
   const phases = [
-    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V3.1)", c: C.success },
+    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V3.2)", c: C.success },
     { v: "V1.5 复赛", t: "完整闭环 Demo", d: "三场景可演示 + 评测集 + Trace 看板 + A2A 委托证据", c: C.primary },
     { v: "V2 决赛", t: "真实项目试点", d: "真实项目接入、Agent-as-a-Judge 评测、开源工程化", c: C.warning },
   ];
