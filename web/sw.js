@@ -17,7 +17,7 @@
  *   3. Increment CACHE_VERSION if you need to force a re-sweep
  *      (e.g., if the old SW had a different scope).
  */
-const CACHE_VERSION = 11;
+const CACHE_VERSION = 13;
 self.addEventListener('install', () => {
   self.skipWaiting();
 });

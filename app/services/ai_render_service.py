@@ -25,6 +25,7 @@ except ImportError:  # httpx 为可选依赖，缺失时禁用真实后端调用
 
 from app.agents.base import BaseAgent
 from app.config import get_settings
+from app.services.ai_content_labeling import annotate_output
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ class AIRenderService:
         if degraded.get("error"):
             raise RenderUnavailableError(degraded["degradation_reason"])
 
-        return {
+        result = {
             "prompt": sd_prompt,
             "description": description,
             "placeholder_image_url": degraded["image_url"],  # 兼容字段名
@@ -192,6 +193,7 @@ class AIRenderService:
             "processing_time_ms": processing_ms,
             "preference_hint_applied": hint_applied,
         }
+        return annotate_output(result, content_type="render", source="render_2d")
 
     async def render_3d(
         self,
@@ -265,7 +267,7 @@ class AIRenderService:
                 "reason": degraded["degradation_reason"] or "backend_unavailable",
             }
 
-        return {
+        result = {
             "prompts": prompts,
             "reconstruction_params": reconstruction_params,
             "reconstruction_available": reconstruction_available,
@@ -282,6 +284,7 @@ class AIRenderService:
             "processing_time_ms": processing_ms,
             "preference_hint_applied": hint_applied,
         }
+        return annotate_output(result, content_type="render", source="render_3d")
 
     async def restage_photo(
         self,
@@ -351,7 +354,7 @@ class AIRenderService:
         if degraded.get("error"):
             raise RenderUnavailableError(degraded["degradation_reason"])
 
-        return {
+        result = {
             "mode": mode,
             "prompt": sd_prompt,
             "placeholder_result_url": degraded["image_url"],  # 兼容字段名
@@ -369,6 +372,7 @@ class AIRenderService:
             "processing_time_ms": processing_ms,
             "preference_hint_applied": hint_applied,
         }
+        return annotate_output(result, content_type="render", source="restage_photo")
 
     # ── 真实渲染后端调用（v1.2.0 新增）──────────────────────
 

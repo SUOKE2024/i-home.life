@@ -26,7 +26,7 @@ from pathlib import Path
 
 # 复用同目录的 auto_relogin 工具
 sys.path.insert(0, str(Path(__file__).parent))
-from test_auto_relogin import AutoReloginClient, DEFAULT_BASE_URL, DEFAULT_PHONE, DEFAULT_PASSWORD  # noqa: E402
+from test_auto_relogin import AutoReloginClient, DEFAULT_BASE_URL  # noqa: E402
 
 # ── 种子数据（对齐 app/models/appliance.py subcategory 枚举）──
 

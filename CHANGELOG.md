@@ -2,6 +2,81 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.9.0] - 2026-08-05
+
+### 前沿研究 2026 第二轮落地（docs/superpowers/specs/2026-08-05-frontier-research.md）
+
+基于《索克家居 · 前沿研究 2026 第二轮》落地 6 项可回滚前沿方向，全部为 feature flag 灰度（默认 False，验证后开启），零回归。
+
+#### P0 AI 生成内容标识合规（《人工智能生成合成内容标识办法》）
+
+- **AI 内容标识模块** [app/services/ai_content_labeling.py](app/services/ai_content_labeling.py)：新增 `ai_content_labeling_enabled` flag（默认 False）。显式标识（"本内容由 AI 生成，请注意甄别"）+ 隐式标识元数据（producer/watermark_version/label_method 水印字段预埋）；接入 [app/services/ai_render_service.py](app/services/ai_render_service.py) 的 render_2d/render_3d/restage_photo 输出管道，flag 开启时补 `ai_content_label` + `ai_content_meta` 字段
+
+#### 高 MCP 安全硬化（2026 MCP 工具投毒/SSRF 防御）
+
+- **MCP 安全模块** [app/services/mcp_security.py](app/services/mcp_security.py)：新增 `mcp_security_hardening_enabled` flag（默认 False）。SSRF 拦截（内网/回环/链路本地/169.254.169.254 云元数据）、工具 description 防投毒校验（长度/指令注入关键词）、工具输出敏感字段递归清洗；接入 [app/services/agent_tool_registry.py](app/services/agent_tool_registry.py) 的 register/execute 路径
+
+#### 高 OTel GenAI SemConv 埋点对齐（MCP SEP-414 W3C Trace + OTel）
+
+- **W3C Trace 上下文** [app/agents/harness.py](app/agents/harness.py)：新增 `otel_genai_semconv_enabled` flag（默认 False）。AgentTrace 生成 W3C traceparent/tracestate/baggage，to_dict 时按 OTel GenAI 语义约定标注 `_meta`（gen_ai.system/model/agent.name/usage.*）
+
+#### 高 GB/Z 185 智能体身份码/ACDL 预研（元数据预埋，不硬接）
+
+- **身份卡模块** [app/services/agent_identity_card.py](app/services/agent_identity_card.py) + [app/api/agent_identity.py](app/api/agent_identity.py)：新增 `gbz185_agent_card_enabled` flag（默认 False）。28 位 AID 身份码（厂商信用代码+类型码+安全分级+序列号+Luhn 校验位）+ ACDL JSON 能力描述（GB-Z-185.4）；`GET /api/agents/identity/{name}` + `GET /api/agents/identity`，flag 关闭时 404 诚实降级
+
+#### 中 Matter/GB-T 46456 智能家居协议兼容矩阵
+
+- **协议兼容模块** [app/services/protocol_compliance.py](app/services/protocol_compliance.py)：新增 `smart_protocol_compliance_enabled` flag（默认 False）。8 类设备 × 6 协议兼容矩阵 + 三标准（Matter 1.6/OneConnect/GB-T 46456）对齐校验；接入 [app/services/smart_home_service.py](app/services/smart_home_service.py) 的 recommend_protocol
+
+#### 中 商业运营 Agent 记忆冲突门控（SSGM 防记忆漂移/投毒）
+
+- **记忆冲突门控** [app/services/agent_memory_service.py](app/services/agent_memory_service.py)：新增 `memory_conflict_gate_enabled` flag（默认 False）。`detect_conflict` 相似度判定 + `save_memory(gate_conflict=True)` 冲突时保留旧值并标记，`build_conflict_gate_result` 供人工复核
+
+#### 版本号全链路同步 1.8.1 → 1.9.0
+
+config.py / .env / .env.example / .env.production / .env.production.example / pubspec(1.9.0+35) / flutter config.dart / settings_page.dart / console(1.9.0.0) / web/version.json(1.9.0/35) / deploy脚本 / CI(3处) / web/*.html(v=20260805b) / sw.js(CACHE_VERSION=13) / mcp/server.py(SERVER_VERSION) / 3处版本断言测试
+
+#### 测试验证
+
+- 新增 6 个测试文件（73 用例）：test_ai_content_labeling / test_mcp_security / test_otel_genai_semconv / test_gbz185_agent_card / test_protocol_compliance / test_memory_conflict_gate
+- 全量 pytest：1945 passed, 2 skipped, 3 xfailed in 820s（基线 1872 passed → 1945，无回退）
+- mypy：11 个改动文件 0 errors
+- pre-commit：trailing whitespace / end of files / yaml / merge conflicts / debug statements / large files / detect private key / flake8 全 Passed
+
+## [1.8.1] - 2026-08-05
+
+### 项目全景评估修复（评估报告 P1/P2 落地 + 冗余清理）
+
+基于《i-home.life 项目全景全量全链路开发进度评估报告》（2026-08-05）执行修复、完善、优化与冗余清理。
+
+#### P1 修复（本迭代）
+
+- **CLAUDE.md 数据同步** [CLAUDE.md](CLAUDE.md)：ORM 50→121 / Agent 80+→97 Service / 路由 74→75 / pytest 基线 1821→1872 passed（collect 1877 = 1872+2 skipped+3 xfailed）；澄清本地 pytest.ini 串行 vs CI `-n auto` 并行；工作目录补 `rollback.sh` 通用回滚
+- **通用回滚脚本** [scripts/rollback.sh](scripts/rollback.sh)：支持 `rollback.sh <version> [.env] [--dry-run]`，内置 v1.3.0/v1.6.0/v1.8.0 三个版本的 feature flag 回滚清单；`--list` 列出支持版本；保留旧 `rollback-v1.3.0.sh` 向后兼容
+
+#### P2 完善（本迭代）
+
+- **Flutter 鸿蒙兼容性标注** [flutter_app/pubspec.yaml](flutter_app/pubspec.yaml)：`cached_network_image` 补鸿蒙兼容性注释（4 个使用点：chat_message_card / ai_image_page / points_page / vr_panorama_page），标注依赖 errorWidget 兜底 + TODO 真机验证
+- **CI 全量测试核验** [.github/workflows/ci.yml](.github/workflows/ci.yml)：确认 `backend-test` job 用 `-n auto` 跑全量 pytest（timeout 30 分钟，覆盖 1877 用例）；mypy 当前 `continue-on-error`（信息收集阶段）
+- **PASETO 撤销列表 Redis 化** [app/auth/paseto_handler.py](app/auth/paseto_handler.py) + [app/config.py](app/config.py)：新增 `paseto_revocation_redis_enabled` + `paseto_revocation_redis_url` feature flag（默认 False）；flag 开时用 Redis 共享撤销列表（多 worker 必需），Redis 不可用时 best-effort 降级到内存；同步 .env/.env.example/.env.production/.env.production.example 4 处
+
+#### 冗余清理
+
+- **data/ 目录**：清理 197 个 `test_*.db` 测试临时库 + 运行时 log/pid，419M → 2.7M（节省 416M）
+- **reports/**：清理 8 个 `demo-20260802-*.md` 演示报告（gitignore 已忽略）
+- **.trae-html-share-packages/**：清理构建产物
+
+#### 测试验证
+
+- 全量 pytest：1872 passed, 2 skipped, 3 xfailed in 550s（基线无回退）
+- mypy：`app/auth/paseto_handler.py` + `app/config.py` 0 errors
+- pre-commit：trailing whitespace / end of files / yaml / merge conflicts / debug statements / large files / detect private key / flake8 全 Passed
+- paseto/auth 测试子集：63 passed in 15.38s（PASETO Redis 改动无回归）
+
+#### 版本号全链路同步 1.8.0 → 1.8.1
+
+config.py / .env / .env.example / .env.production / .env.production.example / pubspec(1.8.1+34) / flutter config.dart / settings_page.dart / console(1.8.1.0) / web/version.json(1.8.1/34) / deploy脚本 / CI(3处) / web/*.html(v=20260805a) / sw.js(CACHE_VERSION=12) / mcp/server.py(SERVER_VERSION) / 3处版本断言测试(test_v1_3_0_compliance / test_v1128_suoke_borrowed / test_mcp_2026_07_28)
+
 ## [1.7.0] - 2026-08-03
 
 ### 需求-实现验证遗留项 Wave 2（F45 LLM / F10 预算 8 类 / F13 模板 AI / F36 入驻审核 / F39 Agent 评估 / F28 通道检查 / F4 剖面图+导出 / React 5 页面）

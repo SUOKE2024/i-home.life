@@ -19,6 +19,7 @@ import logging
 from typing import Any, Callable, Coroutine
 
 from app.config import get_settings
+from app.services import mcp_security
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -791,6 +792,25 @@ BUILTIN_TOOLS: list[AgentTool] = [
 ]
 
 
+# ── MCP 安全硬化辅助（v1.8.x）──
+# 受 settings.mcp_security_hardening_enabled 控制；flag 关闭时原样透传（零回归）。
+# 提取为模块级函数以保持 ToolRegistry.execute 复杂度在门禁内。
+
+
+def _apply_argument_security(name: str, arguments: dict) -> dict:
+    """执行前 SSRF 参数拦截（flag 开启时）"""
+    if settings.mcp_security_hardening_enabled:
+        return mcp_security.apply_tool_security(name, arguments)
+    return arguments
+
+
+def _apply_output_security(result: Any) -> Any:
+    """执行后敏感输出清洗（flag 开启时）"""
+    if settings.mcp_security_hardening_enabled:
+        return mcp_security.sanitize_tool_output(result)
+    return result
+
+
 class ToolRegistry:
     """工具注册表（单例）"""
 
@@ -808,6 +828,13 @@ class ToolRegistry:
             self.register(tool)
 
     def register(self, tool: AgentTool):
+        # v1.8.x MCP 安全硬化：description 防投毒校验（flag 关闭时零回归）
+        if settings.mcp_security_hardening_enabled:
+            ok, reason = mcp_security.validate_tool_description(tool.description)
+            if not ok:
+                logger.warning(
+                    "tool_description_rejected: name=%s reason=%s", tool.name, reason,
+                )
         self._tools[tool.name] = tool
         logger.debug(f"tool_registered: {tool.name} [{tool.category}]")
 
@@ -945,7 +972,10 @@ class ToolRegistry:
             inject["_agent_id"] = _agent_id
         if _model_source:
             inject["_model_source"] = _model_source
-        return await tool.execute(**arguments, **inject)
+        # v1.8.x MCP 安全硬化：执行前 SSRF 参数拦截 + 执行后敏感输出清洗
+        # （flag 关闭时保持原执行路径，零回归）
+        result = await tool.execute(**_apply_argument_security(name, arguments), **inject)
+        return _apply_output_security(result)
 
     @property
     def tool_count(self) -> int:

@@ -4,7 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import get_settings
 from app.models.smart_home import SmartHomeScheme, SmartDevice
+from app.services.protocol_compliance import decorate_protocol_recommendation
 
 
 # ── 房间类型 → 设备推荐配置 ──
@@ -483,13 +485,17 @@ def recommend_protocol(hub_brand: str, devices: list) -> dict:
     if "sensor" in device_types:
         compatibility.append("传感器建议 Zigbee/BLE 低功耗协议,电池续航更久")
 
-    return {
+    result = {
         "hub_brand": hub_brand,
         "recommended_protocol": recommended,
         "alternative_protocols": alternative,
         "compatibility": compatibility,
         "notes": "Matter 1.4 是 CSA 推出的跨生态标准,推荐作为统一协议",
     }
+    # 智能家居协议兼容矩阵校验（Matter 1.6 / OneConnect / GB-T 46456）
+    if get_settings().smart_protocol_compliance_enabled:
+        decorate_protocol_recommendation(result, devices)
+    return result
 
 
 # ── 方案总价 ──

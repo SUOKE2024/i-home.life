@@ -73,6 +73,45 @@ class FallbackStrategy(str, Enum):
 # ════════════════════════════════════════════════════════════════
 
 
+def _generate_w3c_trace_context() -> dict:
+    """生成 W3C Trace Context（traceparent/tracestate/baggage）。
+    traceparent = "00-" + 32位hex trace-id + "-" + 16位hex span-id + "-01"
+    tracestate = "gen_ai=v1"；baggage = ""（可空）。
+    用 uuid4().hex 截取生成 trace-id/span-id。"""
+    trace_id = uuid.uuid4().hex[:32]
+    span_id = uuid.uuid4().hex[:16]
+    return {
+        "traceparent": f"00-{trace_id}-{span_id}-01",
+        "tracestate": "gen_ai=v1",
+        "baggage": "",
+    }
+
+
+def _build_genai_semconv_meta(trace: "AgentTrace") -> dict:
+    """构建 OTel GenAI 语义约定元数据：
+    {"traceparent": ..., "tracestate": ..., "baggage": ...,
+     "gen_ai": {"system": trace.provider, "model": trace.model,
+                "agent.name": trace.agent_name,
+                "usage": {"input_tokens": trace.prompt_tokens,
+                          "output_tokens": trace.completion_tokens,
+                          "total_tokens": trace.total_tokens}}}"""
+    return {
+        "traceparent": trace.w3c_trace.get("traceparent", ""),
+        "tracestate": trace.w3c_trace.get("tracestate", ""),
+        "baggage": trace.w3c_trace.get("baggage", ""),
+        "gen_ai": {
+            "system": trace.provider,
+            "model": trace.model,
+            "agent.name": trace.agent_name,
+            "usage": {
+                "input_tokens": trace.prompt_tokens,
+                "output_tokens": trace.completion_tokens,
+                "total_tokens": trace.total_tokens,
+            },
+        },
+    }
+
+
 @dataclass
 class AgentTrace:
     """Agent 执行轨迹（用于可观测性、离线评估、在线进化）"""
@@ -117,9 +156,10 @@ class AgentTrace:
     project_id: str = ""
     scope: str = ""  # v1.4.0: QM 作用域（personal/project/team/org），借鉴 YC QM
     context_source: str = ""  # "harness" | "raw"
+    w3c_trace: dict = field(default_factory=dict)  # OTel GenAI SemConv: W3C Trace Context
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "trace_id": self.trace_id,
             "agent_name": self.agent_name,
             "agent_version": self.agent_version,
@@ -153,6 +193,9 @@ class AgentTrace:
             "scope": self.scope,
             "context_source": self.context_source,
         }
+        if get_settings().otel_genai_semconv_enabled and self.w3c_trace:
+            result["_meta"] = _build_genai_semconv_meta(self)
+        return result
 
     def finish(self, status: AgentRunStatus):
         """标记轨迹结束"""
@@ -380,6 +423,8 @@ class AgentRuntime:
             scope=scope,
             context_source="harness",
         )
+        if get_settings().otel_genai_semconv_enabled and not trace.w3c_trace:
+            trace.w3c_trace = _generate_w3c_trace_context()
         return trace
 
     def finish_trace(self, trace: AgentTrace, status: AgentRunStatus):

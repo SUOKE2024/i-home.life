@@ -3,7 +3,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import cast
+from typing import Any, cast
 
 import paseto
 from paseto.keys.symmetric_key import SymmetricKey
@@ -17,11 +17,46 @@ settings = get_settings()
 
 
 # ── v1.8.1 P0-2: Token 撤销列表（logout 主动失效） ──────────────────
-# 进程内 dict[jti -> expires_at_timestamp]，惰性清理过期项。
-# 多 worker 限制：每个 worker 独立内存，logout 仅对当前 worker 生效；
-# 阿里云 FC 单实例部署下足够。多 worker 场景需引入 Redis 共享（见 TODO）。
-# TODO: 多 worker 部署时改为 sync redis 客户端查询 f"revoked_jti:{jti}"。
+# v1.8.2 P2.5: 加 Redis backend（受 paseto_revocation_redis_enabled 控制）
+# - False（默认）：进程内 dict[jti -> expires_at_timestamp]，FC 单实例场景 OK
+# - True：Redis 共享撤销列表（多 worker 必需），Redis 不可用时 best-effort 降级到内存
 _revoked_tokens: dict[str, float] = {}
+_redis_client: Any = None
+_redis_init_attempted: bool = False
+
+
+def _get_redis_client() -> Any:
+    """延迟初始化 Redis 客户端（best-effort，失败返回 None 降级到内存）。
+
+    单例：_redis_init_attempted 防重复初始化。paseto_handler 是同步代码，
+    用同步 redis 客户端（非 redis.asyncio）。
+    """
+    global _redis_client, _redis_init_attempted
+    if _redis_init_attempted:
+        return _redis_client
+    _redis_init_attempted = True
+    url = getattr(settings, "paseto_revocation_redis_url", "")
+    if not url:
+        logger.warning(
+            "paseto_revocation_redis_enabled=True 但 paseto_revocation_redis_url 未配置，降级到内存撤销列表"
+        )
+        return None
+    try:
+        import redis  # redis>=5.2.0（已在 requirements.txt）
+        _redis_client = redis.from_url(url, decode_responses=True)
+        _redis_client.ping()  # 健康检查
+        logger.info("paseto_revocation: Redis backend 已启用")
+    except Exception as e:
+        logger.warning("paseto_revocation: Redis 初始化失败，降级到内存: %s", e)
+        _redis_client = None
+    return _redis_client
+
+
+def _use_redis_backend() -> bool:
+    """是否启用 Redis 撤销列表 backend（flag 开 + Redis 可用）。"""
+    if not getattr(settings, "paseto_revocation_redis_enabled", False):
+        return False
+    return _get_redis_client() is not None
 
 
 def revoke_token(jti: str, exp_iso: str) -> None:
@@ -33,7 +68,7 @@ def revoke_token(jti: str, exp_iso: str) -> None:
 
     Notes:
         - 内存模式：进程内 dict，进程重启即清空（已知限制）
-        - 多 worker：仅当前 worker 生效（FC 单实例场景 OK）
+        - Redis 模式（v1.8.2）：多 worker 共享，setex 自动过期
         - 已过期 token 无需撤销（直接返回）
     """
     try:
@@ -46,6 +81,16 @@ def revoke_token(jti: str, exp_iso: str) -> None:
     if ttl_seconds <= 0:
         return  # 已过期，无需撤销
 
+    # v1.8.2: Redis backend（flag 开时优先）
+    if _use_redis_backend():
+        try:
+            client = _get_redis_client()
+            client.setex(f"revoked_jti:{jti}", int(ttl_seconds), "1")
+            return
+        except Exception as e:
+            logger.warning("paseto_revocation: Redis setex 失败，降级到内存: %s", e)
+
+    # 内存 backend
     _revoked_tokens[jti] = time.time() + ttl_seconds
     # 惰性清理：每 100 次撤销清一次过期项，防内存增长
     if len(_revoked_tokens) % 100 == 0:
@@ -54,6 +99,14 @@ def revoke_token(jti: str, exp_iso: str) -> None:
 
 def is_token_revoked(jti: str) -> bool:
     """检查 token 是否被撤销。"""
+    # v1.8.2: Redis backend（flag 开时优先）
+    if _use_redis_backend():
+        try:
+            client = _get_redis_client()
+            return int(client.exists(f"revoked_jti:{jti}")) > 0
+        except Exception as e:
+            logger.warning("paseto_revocation: Redis 查询失败，降级到内存: %s", e)
+    # 内存 backend
     exp_ts = _revoked_tokens.get(jti)
     if exp_ts is None:
         return False
@@ -64,7 +117,7 @@ def is_token_revoked(jti: str) -> bool:
 
 
 def cleanup_revoked_tokens() -> None:
-    """清理已过期的撤销记录。"""
+    """清理已过期的撤销记录（仅内存 backend 需要，Redis setex 自动过期）。"""
     now = time.time()
     expired = [jti for jti, ts in _revoked_tokens.items() if ts <= now]
     for jti in expired:

@@ -71,6 +71,7 @@ from app.api import eco_materials
 from app.api import solution_first
 from app.api import ecosystem
 from app.api import ai_qa
+from app.api import agent_identity  # v1.9.0 GB/Z 185 智能体身份码/ACDL（flag 门控）
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -378,6 +379,7 @@ api_router.include_router(agent_memory.router)  # /api/agents/memory/*
 api_router.include_router(agent_approvals.router)  # /api/agents/approvals/* (Agent 工具批准, v1.8.0)
 api_router.include_router(agent_skills.router)  # /api/agents/skills/* (Agent Skill 资产, v1.8.0)
 api_router.include_router(agents.router)        # /api/agents/*
+api_router.include_router(agent_identity.router)  # /api/agents/identity/* (GB/Z 185 身份卡, v1.9.0)
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(location.router)      # /api/location/*
 api_router.include_router(change_orders.router)  # /api/change-orders/*

@@ -1,7 +1,7 @@
 name: ihome_app
 description: "索克家居 · i-home.life"
 publish_to: 'none'
-version: 1.8.0+33
+version: 1.9.0+35
 
 # 版本治理说明（v1.3.0）：
 # - 鸿蒙端：Flutter-OH 3.35.7-ohos-0.0.3 / Dart 3.9.2（DevEco Studio 6.0.2 / OpenHarmony API 23+）
@@ -24,6 +24,9 @@ dependencies:
   file_picker: ^11.0.2
   image_picker: ^1.1.0
   # 网络图片缓存（F2: 替换 Image.network 避免重复下载 + 占位符/错误态）
+  # 鸿蒙兼容性：cached_network_image 在 OHOS 上未官方支持，依赖其 errorWidget
+  # 兜底显示占位图（4 个使用点：chat_message_card / ai_image_page / points_page / vr_panorama_page）。
+  # TODO: 鸿蒙真机验证后若 errorWidget 不可用，需降级为 Image.network + try-catch
   cached_network_image: ^3.4.1
   # 状态管理
   provider: ^6.1.2

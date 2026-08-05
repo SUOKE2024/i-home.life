@@ -2,8 +2,8 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.7.0 · 需求-实现验证遗留项 Wave 2 落地（F45 方案前置决策 LLM 升级 / F10 预算 8 类拆分+三费+价格来源 / F13 模板 AI 填充 / F36 工程队入驻审核 / F39 变更 Agent 评估 / F28 通道宽度检查 / F4 剖面图+DXF 导出 / React 控制台 5 页面补齐，2026-08-03）
-> 核心能力：40 页面 React Web 控制台 + Flutter 46 页面 + 22 Agent 全链路 + 82 Service + 118 ORM 模型 + 630+ 路由（70 模块）+ L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.9.0 · 前沿研究 2026 第二轮落地（AI 内容标识 / MCP 安全硬化 / OTel GenAI SemConv / GB/Z 185 身份码预研 / Matter-GBT46456 协议矩阵 / 记忆冲突门控，6 项全部 feature flag 灰度默认 False，2026-08-05）
+> 核心能力：49 页面 React Web 控制台 + Flutter 40+ 页面 + 26 Agent（22 执行型 + 4 商业运营）+ 101 Service + 121 ORM 模型 + 76 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
 

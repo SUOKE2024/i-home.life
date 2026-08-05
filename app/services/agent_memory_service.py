@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import logging
 import re
@@ -102,6 +103,49 @@ def _key_for(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+# ── v1.9.0 记忆冲突门控（防记忆漂移/投毒，SSGM 思路）──
+
+# 冲突判定阈值：相似度低于该值判为冲突（SequenceMatcher.ratio() ∈ [0,1]）
+_CONFLICT_SIMILARITY_THRESHOLD = 0.35
+# 冲突检测最小长度（过短的记忆无判定价值，直接放行）
+_CONFLICT_MIN_LEN = 4
+
+
+def detect_conflict(old_value: str, new_value: str) -> tuple[bool, float]:
+    """记忆冲突检测（纯函数，简单相似度，无需 LLM）。
+
+    相同/包含 → (False, 相似度)；相似度低于阈值且双方长度均 >= 4 → 冲突 (True, 相似度)。
+    相似度用 difflib.SequenceMatcher.ratio()（公共子序列占比）。
+    """
+    if old_value is None:
+        old_value = ""
+    if new_value is None:
+        new_value = ""
+    old_value = str(old_value)
+    new_value = str(new_value)
+    ratio = difflib.SequenceMatcher(None, old_value, new_value).ratio()
+    if old_value == new_value:
+        return False, ratio
+    if len(old_value.strip()) < _CONFLICT_MIN_LEN or len(new_value.strip()) < _CONFLICT_MIN_LEN:
+        return False, ratio
+    return ratio < _CONFLICT_SIMILARITY_THRESHOLD, ratio
+
+
+def build_conflict_gate_result(mem: AgentMemory) -> dict:
+    """将带冲突标记的 ORM 对象转换为可返回给调用方的 dict。
+
+    无冲突时返回 {"conflict": False}；有冲突时返回旧/新值与人工复核提示。
+    """
+    if not getattr(mem, "conflict_detected", False):
+        return {"conflict": False}
+    return {
+        "conflict": True,
+        "old_value": getattr(mem, "conflict_old_value", ""),
+        "new_value": getattr(mem, "conflict_new_value", ""),
+        "message": "记忆冲突检测：存在与新值冲突的旧记忆，已保留旧值待人工复核（conflict gate）",
+    }
+
+
 # ── 读写 ──
 
 
@@ -115,6 +159,7 @@ async def save_memory(
     importance: int = 1,
     scope: str = SCOPE_PERSONAL,
     project_id: str | None = None,
+    gate_conflict: bool = False,
 ) -> AgentMemory:
     """保存/更新一条记忆（(user_id, category, scope, project_id, key) 唯一 upsert）。
 
@@ -124,6 +169,12 @@ async def save_memory(
     v1.4.x 记忆作用域（借鉴 YC QM Scope）：
     - scope=project 时必须提供 project_id，否则回退 personal 并告警
     - personal 作用域 project_id 落库为空串，保证唯一约束生效
+
+    v1.9.0 记忆冲突门控（memory_conflict_gate_enabled + gate_conflict=True）：
+    - 检测到新旧值冲突时保留旧值（不覆盖），在 ORM 对象上附加
+      conflict_detected / conflict_old_value / conflict_new_value 临时属性，
+      调用方可用 build_conflict_gate_result(mem) 读取；
+    - flag 关闭或 gate_conflict 未显式开启时保持原 upsert 行为（零回归）。
     """
     from sqlalchemy import select as _select
 
@@ -163,6 +214,17 @@ async def save_memory(
         )
         db.add(mem)
     else:
+        # v1.9.0 冲突门控：flag 开启 + 调用方显式请求 + 新旧值判为冲突 → 保留旧值待人工复核
+        conflict_enabled = get_settings().memory_conflict_gate_enabled
+        if conflict_enabled and gate_conflict:
+            is_conflict, _ratio = detect_conflict(mem.memory_value, value)
+            if is_conflict:
+                mem.conflict_detected = True
+                mem.conflict_old_value = mem.memory_value
+                mem.conflict_new_value = value
+                await db.commit()
+                await db.refresh(mem)
+                return mem
         mem.memory_value = value
         mem.source = source
         mem.importance = importance

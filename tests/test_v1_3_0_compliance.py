@@ -31,15 +31,15 @@ from app.services.ai_render_service import (
 # === 版本号一致性 ===
 
 
-def test_app_version_is_1_8_0():
-    """app_version == 1.8.0"""
-    assert get_settings().app_version == "1.8.0"
+def test_app_version_is_1_9_0():
+    """app_version == 1.9.0"""
+    assert get_settings().app_version == "1.9.0"
 
 
-def test_mcp_server_version_is_1_8_0():
-    """MCP SERVER_VERSION == 1.8.0"""
+def test_mcp_server_version_is_1_9_0():
+    """MCP SERVER_VERSION == 1.9.0"""
     from app.mcp.server import mcp_server
-    assert mcp_server.SERVER_VERSION == "1.8.0"
+    assert mcp_server.SERVER_VERSION == "1.9.0"
 
 
 # === 新增 feature flag 默认值 ===

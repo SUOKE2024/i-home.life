@@ -13,7 +13,6 @@
 - source="rule_mock"  : 无视觉 key 时基于规则/关键词的诚实降级
 """
 
-import json
 import logging
 
 from app.agents.qa_inspector import (
@@ -47,7 +46,8 @@ def _build_waterproof_vision_prompt(location: str) -> str:
     "notes": "简要说明"
   }},
   "issues": [
-    {{"type": "leak|water_level|hollow|other", "description": "描述", "severity": "low|medium|high|critical", "suggestion": "整改建议"}}
+    {{"type": "leak|water_level|hollow|other", "description": "描述",
+      "severity": "low|medium|high|critical", "suggestion": "整改建议"}}
   ]
 }}
 ```
@@ -65,7 +65,8 @@ def _build_safety_vision_prompt(location: str) -> str:
   "violations_detected": false,
   "confidence": 0.0-1.0,
   "issues": [
-    {{"type": "no_helmet|no_reflective|no_protection|other", "description": "描述", "severity": "low|medium|high|critical", "suggestion": "整改建议"}}
+    {{"type": "no_helmet|no_reflective|no_protection|other", "description": "描述",
+      "severity": "low|medium|high|critical", "suggestion": "整改建议"}}
   ]
 }}
 ```

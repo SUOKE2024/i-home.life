@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.8.0"
+    app_version: str = "1.9.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     # 注意：paseto_strict_mode=True 时 PASETO 密钥已被 config 层硬校验，本 flag
     # 仅在 strict_mode=False 的回滚路径或密钥为空字符串时生效。
     allow_plaintext_session: bool = False
+    # v1.8.2 P2.5: Token 撤销列表 Redis 化（多 worker 共享，评估报告建议项）
+    # False（默认）= 进程内 dict（FC 单实例场景 OK，logout 仅当前 worker 生效）
+    # True = Redis 共享撤销列表（多 worker 必需），Redis 不可用时 best-effort 降级到内存
+    paseto_revocation_redis_enabled: bool = False
+    paseto_revocation_redis_url: str = ""  # 留空则降级到内存（不自动复用 cache_service）
 
     # ── WebAuthn / FIDO2 / Passkey ──
     webauthn_enabled: bool = True
@@ -605,6 +610,43 @@ class Settings(BaseSettings):
     # 启用后 procurement_service.drive_procurement_from_bom 从 BOM 反向驱动采购建议；
     # 关闭时 procurement 保留原直接 task-ready 逻辑。
     procurement_demand_driven_enabled: bool = False
+
+    # ════════════════════════════════════════════════════════════════
+    # v1.9.0 前沿研究 2026 第二轮落地（docs/superpowers/specs/2026-08-05-frontier-research.md）
+    # 均为可回滚 feature flag，默认 False 灰度，验证后开启。
+    # ════════════════════════════════════════════════════════════════
+
+    # ── P0 AI 生成内容标识（《人工智能生成合成内容标识办法》合规）──
+    # 启用后 AI 渲染/效果图/报告输出管道补显式标识 + 元数据隐式标识（水印字段预埋）；
+    # 关闭时保持原输出不变（零回归）。
+    ai_content_labeling_enabled: bool = False
+
+    # ── 高 MCP 安全硬化（2026 MCP 工具投毒/SSRF 防御）──
+    # 启用后 agent_tool_registry 执行工具时：description 防投毒校验、URL 抓取
+    # SSRF 拦截（内网/云元数据 169.254.169.254 等）、工具输出敏感字段清洗。
+    # 关闭时保持原执行路径（零回归）。
+    mcp_security_hardening_enabled: bool = False
+
+    # ── 高 OTel GenAI SemConv 埋点对齐（MCP SEP-414 W3C Trace + OTel）──
+    # 启用后 AgentTrace._meta 写入 traceparent/tracestate/baggage，
+    # span 按 gen_ai.system/model/tool.name/usage.* 语义约定标注。
+    # 关闭时保持原 AgentTrace 结构（零回归）。
+    otel_genai_semconv_enabled: bool = False
+
+    # ── 高 GB/Z 185 智能体身份码/ACDL 预研（元数据预埋，不硬接）──
+    # 启用后 /api/agents/identity/{name} 可查询 28 位 AID 身份码 + ACDL 能力描述；
+    # 关闭时端点返回 404（零回归）。
+    gbz185_agent_card_enabled: bool = False
+
+    # ── 中 Matter/GB-T 46456 智能家居协议兼容矩阵校验 ──
+    # 启用后 smart_home 设备补协议兼容矩阵（Matter/OneConnect/GB-T 46456 物模型）；
+    # 关闭时保持原协议判断（零回归）。
+    smart_protocol_compliance_enabled: bool = False
+
+    # ── 中 商业运营 Agent 记忆冲突门控（防记忆漂移/投毒）──
+    # 启用后 save_memory 检测新旧值冲突时返回 conflict 标记，不静默覆盖；
+    # 关闭时保持原 upsert 行为（零回归）。
+    memory_conflict_gate_enabled: bool = False
 
 
 @lru_cache
