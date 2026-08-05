@@ -36,7 +36,7 @@
 
 ## 四、附带发现（本次排查新增，非本次修复范围）
 
-1. **4 张 model 表无建表迁移**：`elderly_adaptation_schemes` / `escrow_trustee_accounts` / `material_eco_certs` / `partial_renovation_plans`（均 v1.5.0 新增 model），仅靠 `Base.metadata.create_all` 建表。空库 `upgrade head` 后缺失（118 张 vs model 121 张），`check_schema_drift` 报 drift。本地/生产库因历史 create_all 存在故未暴露。**建议**：后续补建表迁移，使 CI 空库迁移与生产 schema 完全等价。
+1. **~~4 张 model 表无建表迁移~~（已修复，见 §七）**：`elderly_adaptation_schemes` / `escrow_trustee_accounts` / `material_eco_certs` / `partial_renovation_plans`（均 v1.5.0 新增 model），仅靠 `Base.metadata.create_all` 建表。空库 `upgrade head` 后缺失（118 张 vs model 121 张）。**后续已补建表迁移 [z0e1f2a3b4c5](file:///Users/netsong/Developer/i-home.life/alembic/versions/z0e1f2a3b4c5_add_v150_missing_tables.py)**，空库 drift 复扫 0 缺失 0 多余。
 2. **j0f5a9c2d4e6 / q1f2e3d4c5b6 downgrade 静默 skip**：用非 batch `op.drop_column` + `try/except` 吞错，SQLite 下删列被跳过、列残留，不报错不崩溃。属"静默失败"模式，downgrade 不完整但不阻断。暂不修复（避免扩大改动面），已记录。
 
 ## 五、CI 流水线同步
@@ -56,3 +56,29 @@
 | 日志埋点 | 全程 | ✅ upgrade/downgrade 起止、每列/表 added/dropped/skip、backfill rowcount 均输出 |
 | 全量 pytest | 测试库 | ✅ 1956 passed + 2 skipped + 3 xfailed（无回退） |
 | flake8 / mypy | 改动文件 | ✅ Passed / 342 源文件 0 errors |
+
+## 七、后续修复与新增工具（2026-08-06 第二轮）
+
+### 7.1 补全 v1.5.0 缺失的 4 张表建表迁移
+
+新增 [z0e1f2a3b4c5_add_v150_missing_tables.py](file:///Users/netsong/Developer/i-home.life/alembic/versions/z0e1f2a3b4c5_add_v150_missing_tables.py)（down_revision = y0f1a2b3c4d5，当前 head）：
+- `material_eco_certs`（FK→materials，含 F50 `henf_grade`）/ `partial_renovation_plans`（FK→projects，含 F49 套餐字段）/ `elderly_adaptation_schemes`（FK→projects）/ `escrow_trustee_accounts`（FK→escrow_payments）
+- 列/索引/唯一约束与 model 对齐；`_has_table` 幂等——本地/生产已有表（create_all 建过）则 skip，实测真实库 4 表全部 skip
+- 验证：空库 upgrade head 后 `check_schema_drift` **0 缺失 0 多余**（此前 4 缺失）；downgrade base 正确逆序删 4 表
+
+### 7.2 表结构对比脚本 [scripts/compare_db_schema.py](file:///Users/netsong/Developer/i-home.life/scripts/compare_db_schema.py)
+
+```bash
+python scripts/compare_db_schema.py <url_a> <url_b>
+# 或 DATABASE_URL_A=... DATABASE_URL_B=... python scripts/compare_db_schema.py
+```
+- 对比表集合 / 列（名·类型·可空）/ 索引（名·列·唯一），跳过 `alembic_version`/`_schema_migrations` 内部表
+- 退出码：0 一致 / 1 有差异 / 2 连接错误
+- 实测（真实库 `data/ihome.db` vs 空库迁移库）揭示仍在的差异：
+  - **8 张表仅真实库有**：`assets_3d` / `digital_human_profiles` / `knowledge_entries` / `provider_api_keys` / `provider_listings` / `provider_settlements` / `service_providers` / `support_tickets`（无 model 历史残留，见下方遗留项）
+  - **8 张表列差异**（`bom_items.fallback_note/quantity_source/version`、`chat_messages.auto_reply_meta`、`escrow_payments.amount`、`milestone_trackers.due_date`、`orchestrator_tasks.agent_type`、`quality_issues.title`、`rectification_orders.issue_id` 等仅真实库有）——真实库 create_all 历史残留列（model 已删），空库无
+  - **28 张表索引差异**——真实库 create_all 按旧 model 建索引 vs 迁移链索引定义不一致（如 `a2a_tasks` 同索引名 unique 标志相反；空库缺 `ix_ar_scan_sessions_project_id` 等一批单列索引）
+
+### 7.3 遗留项（未修，已记录）
+
+- 上述 8 张无 model 表 + 列/索引差异属历史 create_all 残留与迁移链缺口，需逐项核对后决定删表或补迁移（涉及 `service_providers`/`support_tickets` 等可能有实际数据的业务表，超出本次诊断范围）
