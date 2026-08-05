@@ -264,6 +264,11 @@ async def snapshot_bom_version(db: AsyncSession, project_id: str) -> dict:
             fallback_note=item.fallback_note,
         ))
     await db.commit()
+
+    # 全链路编排：BOM 版本定稿 → 自动采购建议（受 lifecycle_orchestration_enabled flag 控制）
+    from app.services.lifecycle_events import emit_bom_generated
+    await emit_bom_generated(project_id, bom_version=new_version)
+
     return {
         "project_id": project_id,
         "snapshot_version": current_version,

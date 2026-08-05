@@ -13,7 +13,8 @@ from app.models.project import Project, Floor, Room
 # completed    → 终态，不可再变
 # cancelled    → 终态，不可再变
 TASK_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"in_progress", "cancelled"},
+    "pending": {"in_progress", "ready", "cancelled"},
+    "ready": {"in_progress", "cancelled"},
     "in_progress": {"paused", "completed", "cancelled"},
     "paused": {"in_progress", "cancelled"},
     "completed": set(),
@@ -150,6 +151,20 @@ async def update_inspection_status(
     inspection.status = status
     await db.commit()
     await db.refresh(inspection)
+
+    # 全链路编排：验收通过 → 触发后继任务链推进（受 lifecycle_orchestration_enabled flag 控制）
+    if status == "passed":
+        # 取 inspection 所属 task 的 project_id 用于事件派发
+        from sqlalchemy import select as _sel
+        from app.models.construction import ConstructionTask
+        task_result = await db.execute(
+            _sel(ConstructionTask).where(ConstructionTask.id == inspection.task_id)
+        )
+        task = task_result.scalar_one_or_none()
+        if task:
+            from app.services.lifecycle_events import emit_inspection_passed
+            await emit_inspection_passed(task.project_id, task.id, inspection.id)
+
     return inspection
 
 
@@ -242,7 +257,7 @@ async def get_task_chain(db: AsyncSession, task_id: str) -> dict:
     if not current:
         raise ValueError(f"任务不存在: {task_id}")
 
-    visited_ids = {task_id}
+    visited_ids = set()
     await _collect_successors(task_id)
 
     return {

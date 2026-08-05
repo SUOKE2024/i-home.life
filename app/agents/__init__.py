@@ -21,6 +21,11 @@ from app.agents.identity_agent import IdentityAgent
 from app.agents.notifications_agent import NotificationsAgent
 from app.agents.takeoff_agent import TakeoffAgent
 from app.agents.ifc_export_agent import IfcExportAgent
+# v1.6.0 平台商业运营 Agent（借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」模式）
+from app.agents.growth import GrowthAgent
+from app.agents.marketing import MarketingAgent
+from app.agents.competitor_research import CompetitorResearchAgent
+from app.agents.finance_recon import FinanceReconAgent
 from app.agents.harness import (
     AgentRuntime, AgentTrace, AgentRunStatus, HarnessConfig,
     FallbackStrategy, get_harness,
@@ -35,6 +40,8 @@ __all__ = [
     "KitchenAgent", "BathroomAgent", "MepAgent", "ApplianceAgent",
     "FurnitureAgent", "DoorWindowAgent", "FilesAgent", "ProductsAgent",
     "IdentityAgent", "NotificationsAgent", "TakeoffAgent", "IfcExportAgent",
+    # v1.6.0 平台商业运营 Agent
+    "GrowthAgent", "MarketingAgent", "CompetitorResearchAgent", "FinanceReconAgent",
     # Harness 层（v1.2.0）
     "AgentRuntime", "AgentTrace", "AgentRunStatus", "HarnessConfig",
     "FallbackStrategy", "get_harness",

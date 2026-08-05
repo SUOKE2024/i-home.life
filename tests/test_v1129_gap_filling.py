@@ -547,18 +547,17 @@ class TestAuditIntegrity:
         )
         assert valid is False
 
-    def test_sign_audit_entry_returns_none_when_disabled(self):
+    def test_sign_audit_entry_returns_none_when_disabled(self, monkeypatch):
         """feature flag 关闭时不签名"""
         from app.config import get_settings
         from app.services.audit_integrity import sign_audit_entry
 
-        original = get_settings().audit_hmac_enabled
-        try:
-            get_settings().audit_hmac_enabled = False
-            result = sign_audit_entry("u-1", "LOGIN", "user", "rid-1", {})
-            assert result is None
-        finally:
-            get_settings().audit_hmac_enabled = original
+        # 用 monkeypatch.setattr 改单例属性，teardown 自动还原。
+        # 勿用 get_settings().xxx = v + try/finally：若 cache_clear 破坏单例一致性，
+        # 改的是新对象、模块级旧引用仍为旧值（曾致全量跑失败）。
+        monkeypatch.setattr(get_settings(), "audit_hmac_enabled", False)
+        result = sign_audit_entry("u-1", "LOGIN", "user", "rid-1", {})
+        assert result is None
 
     def test_audit_hmac_feature_flag(self):
         """audit_hmac_enabled feature flag 已定义"""

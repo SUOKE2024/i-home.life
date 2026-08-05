@@ -143,6 +143,10 @@ def mask_dict(data: dict[str, Any]) -> dict[str, Any]:
                     result[k] = mask_name(v)
                 elif k_lower in ("address", "addr", "location"):
                     result[k] = mask_address(v)
+                # v1.8.1 P2-1: phone_suffix 仅 4 位数字不匹配手机号正则，
+                # 显式脱敏为 ****（保留字段存在性，便于审计排查）
+                elif k_lower in ("phone_suffix", "phone_last4", "phone_tail"):
+                    result[k] = "****"
                 else:
                     result[k] = mask_text(v)
             elif isinstance(v, dict):

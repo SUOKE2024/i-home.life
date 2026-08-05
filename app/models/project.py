@@ -18,6 +18,11 @@ class Project(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # draft / active / completed / cancelled
 
+    # 全链路 7 阶段状态机（lifecycle chain，受 PHASE_ORDER 约束）
+    # initiation → design → budget → procurement → construction → quality → settlement → completed
+    # 任意阶段可转 cancelled（终态）；详见 app/services/project_service.py PHASE_ORDER / _assert_phase_transition
+    phase: Mapped[str] = mapped_column(String(30), nullable=False, default="initiation")
+
     # 项目类型：整装/硬装/软装/窗帘定制/厨卫改造/其他
     project_type: Mapped[str] = mapped_column(String(30), nullable=False, default="full_renovation")
     # full_renovation(整装) / hard_decoration(硬装) / soft_furnishing(软装) /

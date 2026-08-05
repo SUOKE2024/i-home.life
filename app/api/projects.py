@@ -8,6 +8,7 @@ from app.schemas.project import (
     ProjectUpdate,
     ProjectResponse,
     ProjectListResponse,
+    AcceptanceRequest,
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access
@@ -16,7 +17,10 @@ from app.services.project_service import (
     get_project,
     create_project,
     update_project,
+    update_project_phase,
     delete_project,
+    ProjectStateError,
+    ProjectPhaseError,
 )
 from app.ws import ws_manager
 
@@ -124,7 +128,14 @@ async def update_project_handler(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
 
-    updated = await update_project(db, project_id, data)
+    try:
+        updated = await update_project(db, project_id, data)
+    except (ProjectStateError, ProjectPhaseError) as e:
+        # 状态机校验失败 → 409 Conflict（修复断裂 2：原 PATCH 直绕校验）
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"reason": type(e).__name__, "message": str(e)},
+        )
     resp = ProjectResponse.model_validate(updated)
     try:
         await ws_manager.broadcast_to_project(project_id, "project.updated", resp.model_dump())
@@ -206,13 +217,14 @@ async def get_project_timeline(
          "substeps": "结算审核 · 支付 · 交付确认", "module": "settlement"},
     ]
 
-    # 根据项目状态计算当前活跃阶段
-    project_status = project.status if hasattr(project, 'status') else "draft"
-    status_stage_map = {
-        "draft": 1, "design": 2, "active": 3, "in_progress": 5,
-        "construction": 5, "completed": 7, "cancelled": 1,
+    # 根据 phase 直接计算当前活跃阶段（修复断裂 4：原 status_stage_map 引用幻影状态）
+    # phase: initiation/design/budget/procurement/construction/quality/settlement/completed/cancelled
+    phase_stage_map = {
+        "initiation": 1, "design": 2, "budget": 3, "procurement": 4,
+        "construction": 5, "quality": 6, "settlement": 7, "completed": 7, "cancelled": 1,
     }
-    active_stage = status_stage_map.get(project_status, 1)
+    project_phase = project.phase if hasattr(project, 'phase') and project.phase else "initiation"
+    active_stage = phase_stage_map.get(project_phase, 1)
 
     # 并行查询关联数据（v1.2.1: 3 queries → 1 gather，减少串行等待）
     from sqlalchemy import select, func
@@ -248,8 +260,13 @@ async def get_project_timeline(
         else:
             stage["status"] = "pending"
 
-    # 计算进度百分比
-    progress_pct = int((active_stage - 1) / 7 * 100) if project_status != "completed" else 100
+    # 计算进度百分比（基于 phase；cancelled 视为 0%）
+    if project_phase == "completed":
+        progress_pct = 100
+    elif project_phase == "cancelled":
+        progress_pct = 0
+    else:
+        progress_pct = int((active_stage - 1) / 7 * 100)
 
     # 统计数据
     stats = {
@@ -265,7 +282,122 @@ async def get_project_timeline(
     return {
         "project_id": project_id,
         "project_name": project.name if hasattr(project, 'name') else "",
-        "project_status": project_status,
+        "project_phase": project_phase,
+        "project_status": project.status if hasattr(project, 'status') else "draft",
         "stages": stages,
         "stats": stats,
     }
+
+
+# ── 竣工验收 ──
+
+@router.post(
+    "/{project_id}/accept",
+    summary="竣工验收（强制验收报告闸门）",
+    description=(
+        "项目级竣工验收：强制闸门校验通过后推进 phase→completed / status→completed。\n\n"
+        "闸门规则（强制，无人工绕过路径）：\n"
+        "1. 项目当前 phase 必须为 quality 或 settlement\n"
+        "2. 调用 quality_service.generate_acceptance_report 生成/取最新报告\n"
+        "3. 查询项目下所有 QualityIssue，若存在 status in (open, in_progress) → 409 Conflict\n"
+        "4. 报告 pass_rate < 100% 或含 fail 项 → 409 Conflict\n\n"
+        "通过后：phase→completed，status→completed，WS 广播 project.accepted。"
+    ),
+    responses={
+        200: {"description": "验收通过"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+        409: {"description": "验收闸门未通过（有未闭环质量问题或报告含 fail 项）"},
+    },
+)
+async def accept_project(
+    project_id: str,
+    data: AcceptanceRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """竣工验收端点（强制验收报告闸门）"""
+    project = await get_project(db, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+
+    # 闸门 1：phase 必须处于 quality 或 settlement 阶段
+    if project.phase not in ("quality", "settlement"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "phase_not_ready",
+                "message": f"当前阶段「{project.phase}」不可竣工验收，需先推进到 quality 或 settlement 阶段",
+                "current_phase": project.phase,
+                "required_phases": ["quality", "settlement"],
+            },
+        )
+
+    # 闸门 2：查未闭环质量问题
+    from sqlalchemy import select as _sel
+    from app.models.quality import QualityIssue
+    open_issues_result = await db.execute(
+        _sel(QualityIssue).where(
+            QualityIssue.project_id == project_id,
+            QualityIssue.status.in_(["open", "in_progress"]),
+        )
+    )
+    open_issues = list(open_issues_result.scalars().all())
+    if open_issues:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "open_quality_issues",
+                "message": f"存在 {len(open_issues)} 个未闭环质量问题，禁止竣工验收",
+                "open_issues": [
+                    {
+                        "id": i.id,
+                        "category": i.category,
+                        "severity": i.severity,
+                        "status": i.status,
+                        "description": i.description,
+                    }
+                    for i in open_issues
+                ],
+            },
+        )
+
+    # 闸门 3：生成/取最新验收报告，必须 pass_rate==100 且无 fail 项
+    from app.services.quality_service import generate_acceptance_report
+    report = await generate_acceptance_report(db, project_id, phase=None)
+    pass_rate = report.get("pass_rate", 0)
+    failed_items = [r for r in report.get("results", []) if r.get("status") == "fail"]
+    if failed_items or pass_rate < 100:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "acceptance_report_failed",
+                "message": f"验收报告未通过：pass_rate={pass_rate}%，{len(failed_items)} 项 fail",
+                "pass_rate": pass_rate,
+                "failed_items": failed_items,
+            },
+        )
+
+    # 闸门通过：推进 phase→completed / status→completed
+    updated = await update_project_phase(db, project_id, "completed")
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="状态推进失败")
+
+    from datetime import datetime, timezone
+    resp = {
+        "project_id": project_id,
+        "project_name": project.name,
+        "status": updated.status,
+        "phase": updated.phase,
+        "accepted": True,
+        "acceptance_report": report,
+        "accepted_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await ws_manager.broadcast_to_project(project_id, "project.accepted", resp)
+    except Exception:
+        _ws_logger.warning("project.accepted broadcast failed", project_id=project_id, exc_info=True)
+
+    return resp

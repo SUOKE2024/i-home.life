@@ -152,6 +152,14 @@ async def update_order_status(db: AsyncSession, order_id: str, status: str) -> P
     order.status = status
     await db.commit()
     await db.refresh(order)
+
+    # 全链路编排：材料到货 → 触发施工任务就绪推进
+    # （受 lifecycle_orchestration_enabled flag 控制；关闭时 no-op，
+    #  link_order_to_task 中既有直接 task→ready 逻辑作为回退路径保留）
+    if status == "delivered":
+        from app.services.lifecycle_events import emit_material_delivered
+        await emit_material_delivered(order.project_id, order.id, getattr(order, "construction_task_id", None))
+
     return order
 
 
@@ -297,6 +305,56 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
             for o in orders
         ],
     }
+
+
+# ── P3 以销定产：从 designer BOM 反向驱动采购建议 ──
+
+
+async def drive_procurement_from_bom(db: AsyncSession, project_id: str) -> dict:
+    """以销定产：从 designer BOM 反向驱动采购建议（受 procurement_demand_driven_enabled 控制）
+
+    借鉴义乌「以销定产」反向驱动供应链模式（用户设计需求 → 采购备货）。
+    在 generate_from_bom 基础上增加需求优先级分析（按金额排序标注紧急/常规/可缓），
+    不改 generate_from_bom 原行为（向后兼容）。
+
+    诚实标注：基于 BOM 规则分析，无外部供应商库存数据，建议需人工确认后下单。
+    """
+    from app.config import get_settings
+    _settings = get_settings()
+
+    if not _settings.procurement_demand_driven_enabled:
+        return {
+            "enabled": False,
+            "note": "procurement_demand_driven_enabled=False，回退原 generate_from_bom 行为",
+        }
+
+    # 复用现有 generate_from_bom 生成基础采购单（已 db.commit）
+    base_result = await generate_from_bom(db, project_id)
+
+    # 需求优先级分析：按订单金额排序标注紧急度
+    orders = base_result.get("orders", [])
+    amounts = [float(o.get("total_amount") or 0) for o in orders]
+    max_amount = max(amounts) if amounts else 0.0
+
+    for order in orders:
+        amt = float(order.get("total_amount") or 0)
+        if max_amount > 0 and amt >= max_amount * 0.6:
+            order["demand_priority"] = "high"
+            order["demand_note"] = "高金额采购，建议优先备货"
+        elif max_amount > 0 and amt >= max_amount * 0.3:
+            order["demand_priority"] = "medium"
+            order["demand_note"] = "中等金额采购，常规备货"
+        else:
+            order["demand_priority"] = "low"
+            order["demand_note"] = "低金额采购，可缓备货"
+
+    base_result["enabled"] = True
+    base_result["demand_driven"] = True
+    base_result["note"] = (
+        "基于 BOM 规则分析生成采购建议，含需求优先级标注。"
+        "无外部供应商库存数据，建议需人工确认后下单。"
+    )
+    return base_result
 
 
 # ── 供应商比价 ──

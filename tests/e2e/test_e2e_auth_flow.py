@@ -50,9 +50,9 @@ async def test_e2e_auth_full_flow(client: AsyncClient):
     assert me_data["name"] == "E2E 认证测试用户"
     assert me_data["role"] == "homeowner"
 
-    # ── Step 3: 登出后使用旧 token 访问（确认 token 仍可用） ──
-    # 注意：本项目为无状态 token，不存在服务端登出逻辑，
-    # 合法 token 在有效期内始终可用。
+    # ── Step 3: 重复使用 token 访问（确认 token 在有效期内可复用） ──
+    # v1.8.1 P0-2 起，POST /api/auth/logout 可主动撤销 token；
+    # 本步骤不调用 logout，仅验证 token 在多次请求间保持有效。
     me_resp2 = await client.get(
         "/api/auth/me",
         headers={"Authorization": f"Bearer {token}"},

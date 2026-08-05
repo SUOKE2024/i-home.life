@@ -145,13 +145,13 @@ async def test_update_project(client: AsyncClient):
 
     response = await client.patch(
         f"/api/projects/{project_id}",
-        json={"name": "已更新项目", "status": "in_progress"},
+        json={"name": "已更新项目", "status": "active"},
         headers=headers,
     )
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "已更新项目"
-    assert data["status"] == "in_progress"
+    assert data["status"] == "active"
     # 更新后 floors 关系应仍然可访问
     assert "floors" in data
 
@@ -499,7 +499,7 @@ async def test_project_update_triggers_broadcast(client: AsyncClient):
     try:
         resp = await client.patch(
             f"/api/projects/{project_id}",
-            json={"name": "更新后项目", "status": "in_progress"},
+            json={"name": "更新后项目", "status": "active"},
             headers=headers,
         )
         assert resp.status_code == 200

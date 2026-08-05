@@ -155,7 +155,7 @@ async def test_project_update_triggers_broadcast(client: AsyncClient):
 
         resp = await client.patch(
             f"/api/projects/{project_id}",
-            json={"name": "更新后项目", "status": "in_progress"},
+            json={"name": "更新后项目", "status": "active"},
             headers=headers,
         )
         assert resp.status_code == 200

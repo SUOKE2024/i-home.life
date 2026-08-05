@@ -76,6 +76,8 @@ class ProjectUpdate(BaseModel):
     total_area: float | None = None
     project_type: PROJECT_TYPE_VALUES | None = None
     status: str | None = None
+    # 阶段推进（受 PHASE_ORDER 状态机校验，仅允许前进或 →cancelled）
+    phase: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -85,6 +87,7 @@ class ProjectResponse(BaseModel):
     address: str | None = None
     total_area: float | None = None
     status: str
+    phase: str = "initiation"
     project_type: str = "full_renovation"
     house_type: str | None = None
     latitude: float | None = None
@@ -106,6 +109,7 @@ class ProjectListResponse(BaseModel):
     address: str | None = None
     total_area: float | None = None
     status: str
+    phase: str = "initiation"
     project_type: str = "full_renovation"
     house_type: str | None = None
     latitude: float | None = None
@@ -115,5 +119,26 @@ class ProjectListResponse(BaseModel):
     owner_id: str
     created_at: datetime
     updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AcceptanceRequest(BaseModel):
+    """竣工验收请求"""
+    # 验收备注（可选，记录验收结论说明）
+    note: str | None = Field(default=None, max_length=1000)
+    # 是否强制重新生成验收报告（默认 False：使用最新既有报告，无则现场生成）
+    force_regenerate: bool = False
+
+
+class AcceptanceResponse(BaseModel):
+    """竣工验收结果"""
+    project_id: str
+    project_name: str
+    status: str
+    phase: str
+    accepted: bool
+    acceptance_report: dict
+    accepted_at: datetime | None = None
 
     model_config = {"from_attributes": True}

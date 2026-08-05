@@ -120,6 +120,17 @@ async def approve_change_order(db: AsyncSession, change_id: str, approver: str) 
     order.approved_at = datetime.now(timezone.utc)
     order.status = "approved"
     await db.commit()
+
+    # 全链路编排：变更审批通过 → 触发预算更新（受 lifecycle_orchestration_enabled flag 控制）
+    from app.services.lifecycle_events import emit_change_order_approved
+    await emit_change_order_approved(
+        project_id=order.project_id,
+        change_order_id=order.id,
+        cost_change=float(order.cost_impact or 0.0),
+        description=order.description or "变更项",
+        unit="项",
+    )
+
     return await get_change_order(db, change_id)
 
 

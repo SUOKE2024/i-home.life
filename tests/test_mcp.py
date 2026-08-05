@@ -2,13 +2,19 @@
 
 覆盖:
 - /manifest            公开端点返回正确格式
-- /tools               未认证返回 401，已认证返回 5 个工具
-- /tools/call          调用 5 个内置工具，未知工具返回错误
+- /tools               未认证返回 401，已认证返回 11 个工具
+- /tools/call          调用内置工具，未知工具返回错误
 - /tools/call          越权访问其他用户项目返回 403
 - /sse                 SSE 端点返回 text/event-stream
 
 注意：本项目约定不修改已有文件，因此 MCP 路由暂未注册到 main.py。
 本测试文件参照 test_idor_v1_1_1.py 的引导模式，在测试启动时将路由注册到 app。
+
+工具清单（BUILTIN_TOOLS，共 11 个）：
+  5 业务: get_budget / get_design_layout / search_materials / get_construction_progress / run_qa_inspection
+  1 LBS:  search_poi
+  3 编排: launch_agent_task / get_voice_tasks / cancel_agent_task（voice_agent_orchestration_enabled 门控）
+  2 方案: generate_design_proposals / update_design_proposal（design_proposal_llm_enabled 门控，默认 True）
 """
 
 import json
@@ -73,8 +79,12 @@ async def _create_project(
 
 
 @pytest.mark.asyncio
-async def test_mcp_manifest(client: AsyncClient):
+async def test_mcp_manifest(client: AsyncClient, monkeypatch):
     """公开端点返回正确格式（无需认证）"""
+    # 显式启用编排 flag，使工具数在 CI（无 .env，默认 False）和本地（.env=True）一致
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "voice_agent_orchestration_enabled", True)
+
     resp = await client.get("/api/mcp/manifest")
     assert resp.status_code == 200, resp.text
     data = resp.json()
@@ -82,8 +92,8 @@ async def test_mcp_manifest(client: AsyncClient):
     assert "version" in data
     assert "protocol_version" in data
     assert "tools_count" in data
-    # 项目内置 14 个 Agent 工具（5 业务 + 3 编排 + 2 设计方案 + 1 LBS POI + 3 知识/工单）
-    assert data["tools_count"] == 14
+    # BUILTIN_TOOLS 共 11 个工具（5 业务 + 1 LBS + 3 编排 + 2 设计方案）
+    assert data["tools_count"] == 11
 
 
 # === /api/mcp/tools ===
@@ -97,15 +107,19 @@ async def test_mcp_list_tools_unauth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_mcp_list_tools(client: AsyncClient):
-    """已认证返回工具列表（14 个工具）"""
+async def test_mcp_list_tools(client: AsyncClient, monkeypatch):
+    """已认证返回工具列表（11 个工具）"""
+    # 显式启用编排 flag，使工具数在 CI（无 .env，默认 False）和本地（.env=True）一致
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "voice_agent_orchestration_enabled", True)
+
     token = await _register(client, "13900007010")
     resp = await client.get("/api/mcp/tools", headers=_headers(token))
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert "tools" in data
     tools = data["tools"]
-    assert len(tools) == 14
+    assert len(tools) == 11
     # 验证 MCP 协议字段（name/description/inputSchema）
     for tool in tools:
         assert "name" in tool
@@ -113,7 +127,7 @@ async def test_mcp_list_tools(client: AsyncClient):
         assert "inputSchema" in tool
         assert tool["inputSchema"]["type"] == "object"
         assert "properties" in tool["inputSchema"]
-    # 验证所有工具名一致
+    # 验证所有工具名一致（BUILTIN_TOOLS 全部 11 个）
     names = {t["name"] for t in tools}
     assert names == {
         "get_budget",
@@ -127,15 +141,12 @@ async def test_mcp_list_tools(client: AsyncClient):
         "generate_design_proposals",
         "update_design_proposal",
         "search_poi",
-        "search_knowledge",
-        "create_support_ticket",
-        "list_support_tickets",
     }
 
 
 @pytest.mark.asyncio
 async def test_mcp_list_tools_orchestration_flag_on(client: AsyncClient, monkeypatch):
-    """voice_agent_orchestration_enabled=True 时全部 14 个工具可见"""
+    """voice_agent_orchestration_enabled=True 时全部 11 个工具可见"""
     from app.config import get_settings
     monkeypatch.setattr(get_settings(), "voice_agent_orchestration_enabled", True)
     token = await _register(client, "13900007015")
@@ -143,7 +154,7 @@ async def test_mcp_list_tools_orchestration_flag_on(client: AsyncClient, monkeyp
     assert resp.status_code == 200, resp.text
     tools = resp.json()["tools"]
     names = {t["name"] for t in tools}
-    assert len(tools) == 14
+    assert len(tools) == 11
     assert {"launch_agent_task", "get_voice_tasks", "cancel_agent_task"} <= names
     assert {"generate_design_proposals", "update_design_proposal"} <= names
     assert "search_poi" in names

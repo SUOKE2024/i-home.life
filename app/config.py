@@ -560,6 +560,52 @@ class Settings(BaseSettings):
     # 关闭时回退静态 SUGGESTIONS 常量
     workbench_adaptive_suggestions_enabled: bool = False
 
+    # ── 项目全链路编排（事件总线接线）──
+    # 启用后 5 处业务点发射 PROJECT_CREATED / BOM_GENERATED / MATERIAL_DELIVERED /
+    # INSPECTION_PASSED / CHANGE_ORDER_APPROVED 事件，触发跨模块编排规则
+    # （自动建预算 / 自动采购建议 / 任务就绪推进 / 后继任务链推进 / 预算更新）。
+    # 关闭时发射函数 no-op，零回归；procurement_service 保留原直接 task-ready 逻辑。
+    # 状态机校验与 accept 端点独立于此 flag（属 bugfix，不受 flag 控制）。
+    lifecycle_orchestration_enabled: bool = False
+
+    # ── 验收报告标准清单比对（quality_service.generate_acceptance_report）──
+    # True=完整比对标准验收清单 + 实际 QualityIssue；False=仅汇总 issue（回退）
+    acceptance_checklist_enabled: bool = True
+
+    # ════════════════════════════════════════════════════════════════
+    # v1.6.0 平台商业运营 Agent（借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」模式）
+    # 平台自身获客/增长/营销/竞品/财务对账，区别于面向用户交付的执行型 Agent。
+    # 默认 False 灰度，验证后开启（遵循长线技术决策 feature flag 约束）。
+    # ════════════════════════════════════════════════════════════════
+
+    # ── P0 功能使用率周报 + Agent 调用统计（GrowthAgent）──
+    # 启用后 GrowthAgent.generate_weekly_report 基于 agent_feedbacks 表生成周报；
+    # 关闭时返回 enabled=False 提示。
+    growth_agent_enabled: bool = False
+
+    # ── P1 多渠道推广素材生成（MarketingAgent）──
+    # 启用后 MarketingAgent.generate_content 生成小红书/抖音/朋友圈素材草稿；
+    # 诚实标注 AI 生成草稿需人工审核。
+    marketing_agent_enabled: bool = False
+
+    # ── P1 竞品调研（CompetitorResearchAgent）──
+    # 启用后基于 LLM 公开知识生成竞品调研简报；诚实标注非实时数据。
+    competitor_research_agent_enabled: bool = False
+
+    # ── P1 平台财务对账（FinanceReconAgent，区别于 settlement 工程结算）──
+    # 启用后基于 payment/escrow 表统计平台抽成收入；无 Stripe/广告平台对接时诚实标注。
+    finance_recon_agent_enabled: bool = False
+
+    # ── P2 主动 Orchestrator 定时调度 + 运营日报 ──
+    # 启用后 OrchestratorAgent.generate_daily_briefing 生成每日运营简报；
+    # FC 定时触发器调用 /api/admin/daily-briefing 端点（无 K8s/Cron）。
+    business_ops_orchestrator_enabled: bool = False
+
+    # ── P3 供应链以销定产（designer BOM → procurement 反向驱动）──
+    # 启用后 procurement_service.drive_procurement_from_bom 从 BOM 反向驱动采购建议；
+    # 关闭时 procurement 保留原直接 task-ready 逻辑。
+    procurement_demand_driven_enabled: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

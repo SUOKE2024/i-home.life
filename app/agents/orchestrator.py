@@ -237,3 +237,50 @@ class OrchestratorAgent(BaseAgent):
 
         best = max(scores, key=scores.get)
         return {"intent": best, "reasoning": f"匹配关键词: {best}", "reply": ""}
+
+    # ── P2: 主动 Orchestrator 每日运营简报（借鉴 Polsia 每日 2 次日报）──
+
+    async def generate_daily_briefing(self, db) -> dict:
+        """生成每日运营简报（受 business_ops_orchestrator_enabled 控制）
+
+        聚合 GrowthAgent 功能使用率周报 + FinanceRecon 平台财务对账，
+        供 FC 定时触发器每日调用 /api/admin/daily-briefing 触发。
+
+        诚实标注：各子报告受各自 feature flag 控制，关闭时标注未生成；
+        子报告异常时 best-effort 跳过，不阻断整体简报。
+        """
+        from datetime import datetime, timezone
+        from app.config import get_settings
+        _settings = get_settings()
+
+        if not _settings.business_ops_orchestrator_enabled:
+            return {"enabled": False, "note": "business_ops_orchestrator_enabled=False"}
+
+        briefing: dict = {
+            "enabled": True,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "briefing_type": "daily",
+            "sections": {},
+        }
+
+        # 聚合 GrowthAgent 周报（受 growth_agent_enabled 控制）
+        try:
+            from app.agents.growth import GrowthAgent
+            growth = GrowthAgent()
+            briefing["sections"]["growth_weekly"] = await growth.generate_weekly_report(db, days=7)
+            await growth.close()
+        except Exception as e:
+            logger.warning("orchestrator.daily_briefing: growth 报告失败: %s", e)
+            briefing["sections"]["growth_weekly"] = {"error": str(e)}
+
+        # 聚合 FinanceRecon 对账（受 finance_recon_agent_enabled 控制）
+        try:
+            from app.agents.finance_recon import FinanceReconAgent
+            fin = FinanceReconAgent()
+            briefing["sections"]["finance_recon"] = await fin.generate_recon_report(db, days=30)
+            await fin.close()
+        except Exception as e:
+            logger.warning("orchestrator.daily_briefing: finance 报告失败: %s", e)
+            briefing["sections"]["finance_recon"] = {"error": str(e)}
+
+        return briefing

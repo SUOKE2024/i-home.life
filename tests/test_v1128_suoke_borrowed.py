@@ -154,10 +154,10 @@ class TestIntentContract:
     """Feature Validation Pipeline 测试"""
 
     def test_contract_loads(self):
-        """契约文件可加载，含 41 个 pattern"""
+        """契约文件可加载，含 39 个 pattern（config/intent_contract.json 自述 39 个）"""
         from app.utils.intent_validator import load_contract
         contract = load_contract()
-        assert len(contract["patterns"]) == 41
+        assert len(contract["patterns"]) == 39
 
     def test_all_patterns_validated(self):
         """全部 pattern validation_status=validated"""
@@ -350,21 +350,17 @@ class TestTTSChain:
         from app.services.tts_chain import tts_chain
         assert tts_chain is not None
 
-    def test_tts_disabled_raises(self):
+    def test_tts_disabled_raises(self, monkeypatch):
         """tts_enabled=False 时抛 RuntimeError"""
         from app.config import get_settings
         from app.services.tts_chain import TTSChain
         import asyncio
 
-        # 临时关闭 tts_enabled
-        original = get_settings().tts_enabled
-        try:
-            get_settings().tts_enabled = False
-            chain = TTSChain()
-            with pytest.raises(RuntimeError, match="TTS 未启用"):
-                asyncio.get_event_loop().run_until_complete(chain.synthesize("test"))
-        finally:
-            get_settings().tts_enabled = original
+        # 用 monkeypatch.setattr 改单例属性，teardown 自动还原（同 audit 测试加固理由）
+        monkeypatch.setattr(get_settings(), "tts_enabled", False)
+        chain = TTSChain()
+        with pytest.raises(RuntimeError, match="TTS 未启用"):
+            asyncio.get_event_loop().run_until_complete(chain.synthesize("test"))
 
 
 # ════════════════════════════════════════════════════════════════

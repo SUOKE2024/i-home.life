@@ -19,6 +19,26 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
+# ── 全链路 7 阶段状态机（phase 列）──
+# initiation → design → budget → procurement → construction → quality → settlement → completed
+# 任意阶段可 → cancelled（终态）；仅允许前进，禁止后退/跳跃
+PHASE_ORDER: list[str] = [
+    "initiation", "design", "budget", "procurement",
+    "construction", "quality", "settlement", "completed",
+]
+# phase→status 联动：进入 completed 时 status 同步 completed；离开 initiation 时 status 同步 active
+_PHASE_TO_STATUS: dict[str, str] = {
+    "initiation": "draft",
+    "design": "active",
+    "budget": "active",
+    "procurement": "active",
+    "construction": "active",
+    "quality": "active",
+    "settlement": "active",
+    "completed": "completed",
+}
+
+
 class ProjectStateError(Exception):
     """项目状态机校验失败"""
 
@@ -32,11 +52,55 @@ class ProjectStateError(Exception):
         )
 
 
+class ProjectPhaseError(Exception):
+    """项目阶段状态机校验失败"""
+
+    def __init__(self, current_phase: str, target_phase: str, reason: str = ""):
+        self.current_phase = current_phase
+        self.target_phase = target_phase
+        self.reason = reason
+        super().__init__(
+            f"项目阶段「{current_phase}」不允许转换到「{target_phase}」"
+            f"{f'：{reason}' if reason else '，仅允许前进至下一阶段或 cancelled'}"
+        )
+
+
 def _assert_transition(project: Project, action: str, target: str) -> None:
     """校验状态机：当前状态是否允许转换到 target"""
     allowed = VALID_TRANSITIONS.get(project.status, set())
     if target not in allowed:
         raise ProjectStateError(project.status, action, allowed)
+
+
+def _assert_phase_transition(project: Project, target: str) -> None:
+    """校验 phase 状态机：
+    - cancelled：任意阶段可进入（终态）
+    - completed：仅允许从 quality 或 settlement 进入（验收阶段完工）
+    - 其他：仅允许前进到相邻下一阶段（禁止后退或跳跃）
+    """
+    if target == project.phase:
+        return  # 幂等，允许同状态
+    if target == "cancelled":
+        return  # 任意阶段可取消
+    if target not in PHASE_ORDER:
+        raise ProjectPhaseError(project.phase, target, "未知阶段码")
+    cur = project.phase
+    cur_idx = PHASE_ORDER.index(cur) if cur in PHASE_ORDER else -1
+    target_idx = PHASE_ORDER.index(target)
+    if target == "completed":
+        # 完工闸门：仅允许从 quality 或 settlement 进入
+        if cur not in ("quality", "settlement"):
+            raise ProjectPhaseError(
+                cur, target, "completed 仅允许从 quality 或 settlement 阶段进入"
+            )
+        return
+    # 普通阶段：只允许前进到相邻下一阶段（target_idx == cur_idx + 1）
+    if target_idx != cur_idx + 1:
+        raise ProjectPhaseError(
+            cur, target,
+            f"仅允许前进到相邻下一阶段（{PHASE_ORDER[cur_idx+1] if cur_idx+1 < len(PHASE_ORDER) else '无'}），"
+            f"禁止后退或跳跃",
+        )
 
 
 async def get_project(db: AsyncSession, project_id: str) -> Project | None:
@@ -102,7 +166,13 @@ async def create_project(db: AsyncSession, user_id: str, data: ProjectCreate) ->
             db.add(room)
 
     await db.commit()
-    return await get_project(db, project.id)
+    project = await get_project(db, project.id)
+
+    # 全链路编排：项目创建 → 自动建预算（受 lifecycle_orchestration_enabled flag 控制）
+    from app.services.lifecycle_events import emit_project_created
+    await emit_project_created(project.id, owner_id=user_id)
+
+    return project
 
 
 async def update_project(db: AsyncSession, project_id: str, data: ProjectUpdate) -> Project | None:
@@ -112,6 +182,34 @@ async def update_project(db: AsyncSession, project_id: str, data: ProjectUpdate)
         return None
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # status 变更走状态机校验（修复断裂 2：原 setattr 直绕校验）
+    if "status" in update_data:
+        new_status = update_data.pop("status")
+        if new_status != project.status:
+            _assert_transition(project, "update_status", new_status)
+            project.status = new_status
+            # status→completed 联动 phase→completed（兜底，正常路径走 update_project_phase/accept）
+            if new_status == "completed" and project.phase != "completed":
+                # 仅当当前 phase 在 settlement/completed 附近时才联动，避免 phase 跳跃
+                if project.phase in ("settlement", "completed"):
+                    project.phase = "completed"
+                # 否则保留当前 phase，由 accept 端点统一推进
+
+    # phase 变更走阶段状态机校验
+    if "phase" in update_data:
+        new_phase = update_data.pop("phase")
+        if new_phase != project.phase:
+            _assert_phase_transition(project, new_phase)
+            project.phase = new_phase
+            # phase→status 联动
+            linked_status = _PHASE_TO_STATUS.get(new_phase)
+            if linked_status and linked_status != project.status:
+                # 走状态机校验（cancelled 不在 _PHASE_TO_STATUS，单独处理）
+                if linked_status in VALID_TRANSITIONS.get(project.status, set()):
+                    project.status = linked_status
+
+    # 其余字段直接 setattr
     for key, value in update_data.items():
         setattr(project, key, value)
 
@@ -137,6 +235,39 @@ async def update_project_status(
         return None
     _assert_transition(project, action, status)
     project.status = status
+    # status→completed 联动 phase→completed
+    if status == "completed":
+        project.phase = "completed"
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
+async def update_project_phase(
+    db: AsyncSession, project_id: str, phase: str,
+) -> Project | None:
+    """更新项目阶段（带阶段状态机校验 + status 联动）
+
+    用于 accept 端点或显式阶段推进。phase→completed 时同步 status→completed。
+    """
+    result = await db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .options(
+            selectinload(Project.floors).selectinload(Floor.rooms),
+            selectinload(Project.bom_items),
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        return None
+    _assert_phase_transition(project, phase)
+    project.phase = phase
+    # phase→status 联动
+    linked_status = _PHASE_TO_STATUS.get(phase)
+    if linked_status and linked_status != project.status:
+        if linked_status in VALID_TRANSITIONS.get(project.status, set()):
+            project.status = linked_status
     await db.commit()
     await db.refresh(project)
     return project

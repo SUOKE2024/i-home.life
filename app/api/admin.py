@@ -273,3 +273,27 @@ async def list_audit_logs(
         "skip": skip,
         "limit": limit,
     }
+
+
+# ── P2: 每日运营简报（主动 Orchestrator，FC 定时触发器调用）──
+
+
+@router.get("/daily-briefing")
+async def get_daily_briefing(
+    current_user: User = Depends(require_platform_manage),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """每日运营简报（受 business_ops_orchestrator_enabled 控制）
+
+    聚合 GrowthAgent 功能使用率周报 + FinanceRecon 平台财务对账。
+    阿里云 FC 定时触发器每日调用本端点生成简报（部署侧配置触发器 + invoker 鉴权，
+    无 K8s/Cron）。子报告受各自 feature flag 控制
+    （growth_agent_enabled / finance_recon_agent_enabled）。
+    """
+    from app.agents.orchestrator import OrchestratorAgent
+    orch = OrchestratorAgent()
+    try:
+        briefing = await orch.generate_daily_briefing(db)
+    finally:
+        await orch.close()
+    return briefing

@@ -127,6 +127,37 @@ async def test_cross_user_isolation(cache):
 - ❌ 测试间共享状态（`setup_db` autouse 已隔离，勿绕过）
 - ❌ 用 `pytest.skip` 跳过已知 bug（应修复或标记 `xfail`）
 - ❌ 测试依赖执行顺序（每个测试应独立，setup_db autouse 已隔离）
+- ❌ 调 `get_settings.cache_clear()`（`@lru_cache` 单例被清后，其他模块 import 时的 `settings = get_settings()` 模块级绑定变陈旧引用，致跨文件测试隔离失败；曾致 test_v1129 audit + test_webauthn 全量跑失败、单独跑通过）
+
+## feature flag 切换范式（测试中改 settings）
+
+`get_settings()` 是 `@lru_cache` 单例。测试中临时关闭/开启 flag **必须用 `monkeypatch.setattr`**，teardown 自动还原：
+
+```python
+def test_xxx_disabled(self, monkeypatch):  # 加 monkeypatch fixture
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "audit_hmac_enabled", False)
+    # 断言 flag 关闭行为...
+    # 无需 try/finally，monkeypatch 在 teardown 自动还原
+```
+
+**错误写法**（曾导致全量测试失败）：
+
+```python
+# ❌ cache_clear 破坏单例一致性
+get_settings.cache_clear()
+monkeypatch.setenv("ACCEPTANCE_CHECKLIST_ENABLED", "false")  # 还需 cache_clear 才生效，恶性循环
+
+# ❌ 直接改属性 + try/finally：若进程异常中断在 try 块内，状态泄漏
+original = get_settings().xxx_enabled
+try:
+    get_settings().xxx_enabled = False
+    ...
+finally:
+    get_settings().xxx_enabled = original
+```
+
+参考：[tests/test_lifecycle_chain.py](file:///Users/netsong/Developer/i-home.life/tests/test_lifecycle_chain.py)（test_8/test_9）、[tests/test_v1129_gap_filling.py](file:///Users/netsong/Developer/i-home.life/tests/test_v1129_gap_filling.py)（TestAuditIntegrity）。
 
 ## e2e 测试
 

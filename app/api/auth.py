@@ -156,6 +156,64 @@ async def me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
 
 
+@router.post(
+    "/logout",
+    status_code=status.HTTP_200_OK,
+    summary="用户登出",
+    description="撤销当前 PASETO Token 使其立即失效，并清除服务端用户缓存。"
+    "v1.8.1 P0-2：原无 logout 端点，token 签发后 24h 内一直有效，"
+    "用户登出/改密码/被禁用后 token 仍可访问。现通过 jti 撤销列表 + 用户缓存失效解决。",
+    response_description="登出成功",
+    responses={
+        200: {"description": "登出成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+    tags=["认证"],
+)
+async def logout(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """撤销当前 token（v1.8.1 P0-2）。
+
+    流程：
+    1. 从 request.state.paseto_payload 读取 jti + exp（中间件已缓存）
+    2. revoke_token(jti, exp) 加入撤销列表（TTL = 剩余 exp 时间）
+    3. invalidate_user_cache(user_id) 清除 30s LRU 用户缓存
+    4. 写审计日志
+
+    向后兼容：旧 token 无 jti → 跳过 blacklist 写入，但仍清缓存。
+    多 worker 限制：blacklist 仅当前 worker 生效（FC 单实例 OK）。
+    """
+    from app.auth import invalidate_user_cache
+    from app.auth.paseto_handler import revoke_token
+
+    payload = getattr(request.state, "paseto_payload", None) or {}
+    jti = payload.get("jti")
+    exp_iso = payload.get("exp")
+
+    if jti and exp_iso:
+        revoke_token(jti, exp_iso)
+    # 无论 jti 是否存在，都清用户缓存（确保被禁用/改密码立即生效）
+    invalidate_user_cache(current_user.id)
+
+    # 审计日志：记录登出事件
+    await log_audit_event(
+        db=db,
+        user_id=current_user.id,
+        action="LOGOUT",
+        resource_type="user",
+        resource_id=current_user.id,
+        details={"role": current_user.role},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return {"detail": "登出成功"}
+
+
 # ═══════════════════════════════════════════
 #  WebAuthn / Passkey 注册
 # ═══════════════════════════════════════════

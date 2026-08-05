@@ -179,8 +179,8 @@ async def test_register_writes_audit_log(client: AsyncClient, db_session):
     assert entry.resource_type == "user"
     assert entry.resource_id == user_id
     assert entry.details["role"] == "homeowner"
-    # 手机号后 4 位应记录
-    assert entry.details["phone_suffix"] == phone[-4:]
+    # v1.8.1 P2-1: phone_suffix 经 PII 脱敏后为 ****（原 phone[-4:] 不再明文落库）
+    assert entry.details["phone_suffix"] == "****"
 
 
 @pytest.mark.asyncio
