@@ -1,0 +1,83 @@
+# 定期对比生产库与空库（CI 迁移基线）的表结构差异
+#
+# 背景（2026-08-06）：空库（从零 alembic upgrade head）与生产库曾长期不一致——
+# 8 张无 model 残留表、8 表残留列、28 表索引差异（详见 docs/reports/schema-cleanup-20260806.md）。
+# 本 job 定期用 scripts/compare_db_schema.py 监控回归：生产库 vs CI 空库迁移基线，
+# 发现差异即 job 失败 + 上传对比日志 artifact。
+#
+# 触发：
+#   - schedule: 每天 02:00 UTC（北京时间 10:00）
+#   - workflow_dispatch: 手动运行（Repository → Actions → Schema Compare → Run workflow）
+#
+# 前置配置（一次性）：
+#   Settings → Secrets and variables → Actions → New repository secret:
+#     PROD_DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/db（脚本自动 strip +asyncpg）
+#   建议使用**只读**账号，避免生产写权限暴露给 CI。
+
+name: Schema Compare (Prod vs Empty)
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # 生产库只读连接（secret）；空库基线用本地 SQLite 文件
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      # CI 空库基线：复用 migration-test 的 env（env.py 触发 get_settings 需合法 PASETO key）
+      DATABASE_URL: "sqlite+aiosqlite:///./schema_compare.db"
+      PASETO_SECRET_KEY: "ci-schema-compare-paseto-key-32-bytes-random-xx"
+      PASETO_STRICT_MODE: "false"
+      ALLOW_PLAINTEXT_SESSION: "true"
+      APP_NAME: "i-home.life"
+      APP_VERSION: "1.9.0"
+      DEBUG: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 校验生产库 secret 已配置
+        if: env.PROD_DATABASE_URL == ''
+        run: |
+          echo "::error::PROD_DATABASE_URL secret 未配置，无法对比生产库。请在 Settings → Secrets 添加只读连接串。"
+          exit 1
+
+      - name: 空库迁移到 head（构造 CI 基线 schema）
+        run: alembic upgrade head
+
+      - name: 对比生产库 vs 空库（输出差异 + 写日志）
+        run: |
+          python scripts/compare_db_schema.py \
+            "$PROD_DATABASE_URL" \
+            "sqlite:///./schema_compare.db" 2>&1 | tee /tmp/schema_diff.log
+          echo "compare_exit=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+
+      - name: 上传对比日志 artifact（无论成败）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-diff
+          path: /tmp/schema_diff.log
+          retention-days: 14
+
+      - name: 差异即失败（暴露 schema 回归）
+        run: |
+          if [ "$compare_exit" -eq 1 ]; then
+            echo "::error::生产库与空库（CI 基线）存在表结构差异，请查看上方日志或 artifact，对照 docs/reports/schema-cleanup-20260806.md 处理。"
+            exit 1
+          fi
+          echo "✅ 生产库与空库表结构一致"
