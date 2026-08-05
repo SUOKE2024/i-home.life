@@ -40,6 +40,16 @@ _COLUMNS = [
 ]
 
 
+def _has_column(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    try:
+        cols = [c["name"] for c in inspector.get_columns(table_name)]
+    except Exception:
+        return False  # 表不存在 → 视为无此列（downgrade 直接跳过）
+    return column_name in cols
+
+
 def upgrade():
     """为 bathroom_designs 表添加 7 个防水/通风真校验字段。
 
@@ -67,11 +77,18 @@ def upgrade():
 
 
 def downgrade():
-    """回滚：移除 7 个防水/通风字段。"""
+    """回滚：移除 7 个防水/通风字段。
+
+    幂等：n5e6f7a8b9c0（v1.2.7 drift fix）的 downgrade 已先删过同一批列
+    （k2b3 在后来的 n5e6 中被重复补齐），此处 _has_column 跳过已删列，
+    否则 SQLite batch 重建表时 drop 不存在的列会 KeyError（2026-08-06 空库实测）。
+    """
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
 
     for col_name, _, _ in reversed(_COLUMNS):
+        if not _has_column("bathroom_designs", col_name):
+            continue
         if is_sqlite:
             with op.batch_alter_table("bathroom_designs") as batch_op:
                 batch_op.drop_column(col_name)

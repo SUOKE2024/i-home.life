@@ -52,6 +52,15 @@ def _has_index(table: str, index_name: str) -> bool:
         return False
 
 
+def _has_table(table: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    try:
+        return table in inspector.get_table_names()
+    except Exception:
+        return False
+
+
 def _add_column(table: str, col: sa.Column) -> None:
     bind = op.get_bind()
     if bind.dialect.name == "sqlite":
@@ -99,6 +108,12 @@ def downgrade() -> None:
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
     logger.info("[%s] downgrade start: dialect=%s", revision, bind.dialect.name)
+    # 表可能不存在（partial_renovation_plans 由 model/create_all 建，空库 migration 链
+    # 从未建表——2026-08-06 空库 downgrade base 实测 NoSuchTableError），先跳过
+    if not _has_table(_TABLE):
+        logger.info("[%s] skip: table %s not exists", revision, _TABLE)
+        logger.info("[%s] downgrade done", revision)
+        return
     # package_code 带索引 ix_partial_renovation_plans_package_code：SQLite batch 重建表时
     # 必须先删索引，否则报 no such column: package_code（2026-08-06 本地实测复现）
     if _has_index(_TABLE, "ix_partial_renovation_plans_package_code"):

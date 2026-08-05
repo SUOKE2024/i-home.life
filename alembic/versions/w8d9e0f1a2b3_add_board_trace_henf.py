@@ -125,7 +125,11 @@ def downgrade() -> None:
     else:
         logger.info("[%s] skip: %s not exists", revision, _BOARD_TABLE)
 
-    if _has_column(_CERT_TABLE, "henf_grade"):
+    # material_eco_certs 可能不存在（由 model/create_all 建，空库 migration 链从未建表
+    # ——2026-08-06 空库 downgrade base 实测 NoSuchTableError），先跳过
+    if not _has_table(_CERT_TABLE):
+        logger.info("[%s] skip: table %s not exists", revision, _CERT_TABLE)
+    elif _has_column(_CERT_TABLE, "henf_grade"):
         # henf_grade 在 upgrade 中由 sa.Column(index=True) 隐式建索引，先删索引防 SQLite 重建表报错
         if _has_index(_CERT_TABLE, "ix_material_eco_certs_henf_grade"):
             op.drop_index("ix_material_eco_certs_henf_grade", table_name=_CERT_TABLE)

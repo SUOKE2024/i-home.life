@@ -403,8 +403,12 @@ jobs:
       - name: Upgrade head（正向应用全部迁移）
         run: alembic upgrade head
 
-      - name: Downgrade -1（回滚最近一个迁移，验证可逆）
-        run: alembic downgrade -1
+      # v1.9.0 修复：此前仅 downgrade -1（只覆盖 head），碰不到历史迁移的 SQLite
+      # batch 陷阱（w8d9/x9e0/y0f1：drop 带索引列未先删索引 / BatchOperations 无
+      # drop_table / 对不存在的表执行 batch → NoSuchTableError，均 2026-08-06 实测复现并修复）。
+      # 现覆盖最近 3 个迁移，日志埋点（alembic.runtime.migration INFO）随命令输出可见。
+      - name: Downgrade -3（回滚最近 3 个迁移，验证可逆）
+        run: alembic downgrade -3
 
       - name: Upgrade head again（回滚后重新应用，验证幂等可重放）
         run: alembic upgrade head
