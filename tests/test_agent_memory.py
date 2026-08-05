@@ -10,10 +10,12 @@
 import pytest
 from httpx import AsyncClient
 
+from app.config import get_settings
 from app.services import agent_memory_service
 from app.services.agent_context_service import (
     build_time_context,
     build_location_context,
+    build_nearby_poi_context,
     build_agent_context,
 )
 
@@ -454,3 +456,184 @@ async def test_regeo_municipality_fallback_province(monkeypatch):
     assert result["city"] == "北京市"
     assert result["district"] == "朝阳区"
     assert result["source"] == "real"
+
+
+# ── v1.8.x 周边真实 POI 注入（build_nearby_poi_context）──
+
+
+def _fake_pois(items: list[dict]) -> dict:
+    return {"count": len(items), "source": "real", "pois": items}
+
+
+@pytest.mark.asyncio
+async def test_nearby_poi_context_no_key_honest_degrade(monkeypatch):
+    """未配置高德 key 时应诚实降级返回空，绝不伪造 POI"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: False)
+
+    async def _should_not_be_called(**kwargs):  # pragma: no cover - 防回归
+        raise AssertionError("无 key 时不应发起 POI 请求")
+
+    monkeypatch.setattr(amap_service, "search_nearby_poi", _should_not_be_called)
+    assert await build_nearby_poi_context("116.481028,39.989643") == ""
+
+
+@pytest.mark.asyncio
+async def test_nearby_poi_context_flag_disabled(monkeypatch):
+    """agent_location_awareness_enabled=False 时直接返回空"""
+    monkeypatch.setattr(get_settings(), "agent_location_awareness_enabled", False)
+    assert await build_nearby_poi_context("116.481028,39.989643") == ""
+
+
+@pytest.mark.asyncio
+async def test_nearby_poi_context_formats_real_pois(monkeypatch):
+    """真实 POI 应格式化为注入块（名称 + 距离）"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: True)
+
+    async def fake_search(location: str, keywords: str, radius: int, limit: int) -> dict:
+        assert location == "116.481028,39.989643"
+        assert "建材" in keywords  # 家装场景默认关键词
+        return _fake_pois([
+            {"name": "居然之家建材馆", "distance": "850"},
+            {"name": "望京五金建材市场"},  # 无距离字段也应兼容
+        ])
+
+    monkeypatch.setattr(amap_service, "search_nearby_poi", fake_search)
+    ctx = await build_nearby_poi_context("116.481028,39.989643")
+    assert "【用户位置周边POI】" in ctx
+    assert "居然之家建材馆（850米外）" in ctx
+    assert "- 望京五金建材市场" in ctx
+
+
+@pytest.mark.asyncio
+async def test_nearby_poi_context_amap_exception_degrades(monkeypatch):
+    """高德调用异常时优雅降级返回空，不阻断主流程"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: True)
+
+    async def boom(**kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(amap_service, "search_nearby_poi", boom)
+    assert await build_nearby_poi_context("116.481028,39.989643") == ""
+
+
+@pytest.mark.asyncio
+async def test_nearby_poi_context_empty_pois(monkeypatch):
+    """高德返回空 POI 列表时返回空块"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: True)
+
+    async def fake_search(**kwargs) -> dict:
+        return _fake_pois([])
+
+    monkeypatch.setattr(amap_service, "search_nearby_poi", fake_search)
+    assert await build_nearby_poi_context("116.481028,39.989643") == ""
+
+
+# ── v1.8.x GPS 全链路闭环（build_agent_context(location=...)）──
+
+
+@pytest.mark.asyncio
+async def test_agent_context_gps_full_lbs_loop(db_session, monkeypatch):
+    """GPS → 逆地理编码城市落库长期记忆 + 注入城市 + 注入周边真实 POI"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: True)
+
+    async def fake_regeo(location: str) -> dict:
+        assert location == "120.1552,30.2741"
+        return {"city": "杭州市", "district": "余杭区", "source": "real"}
+
+    async def fake_search(**kwargs) -> dict:
+        return _fake_pois([{"name": "余杭建材市场", "distance": "1200"}])
+
+    monkeypatch.setattr(amap_service, "regeo", fake_regeo)
+    monkeypatch.setattr(amap_service, "search_nearby_poi", fake_search)
+
+    ctx = await build_agent_context(db_session, "u1", location="120.1552,30.2741")
+    assert "用户所在城市：杭州市" in ctx
+    assert "【用户位置周边POI】" in ctx
+    assert "余杭建材市场（1200米外）" in ctx
+
+    # 城市已落库长期记忆（粗粒度城市，非精确 GPS，防 PII 扩散）
+    rows = await agent_memory_service.get_user_memories(
+        db_session, "u1", categories=[agent_memory_service.CATEGORY_LOCATION],
+    )
+    assert len(rows) == 1
+    assert rows[0].memory_key == "city"
+    assert rows[0].memory_value == "杭州市"
+    assert rows[0].source == "lbs_geo"
+
+
+@pytest.mark.asyncio
+async def test_agent_context_gps_no_key_no_fake_store(db_session, monkeypatch):
+    """无 key 时 GPS 不落库、不注入城市/POI（诚实降级核心约束）"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: False)
+    ctx = await build_agent_context(db_session, "u1", location="120.1552,30.2741")
+    assert "用户所在城市" not in ctx
+    assert "周边POI" not in ctx
+    rows = await agent_memory_service.get_user_memories(
+        db_session, "u1", categories=[agent_memory_service.CATEGORY_LOCATION],
+    )
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_agent_context_gps_regeo_failure_degrades(db_session, monkeypatch):
+    """逆地理编码失败时优雅降级：不注入城市、不落库，其余块不受影响"""
+    from app.services import amap_service
+
+    monkeypatch.setattr(amap_service, "is_real_key", lambda: True)
+
+    async def boom(location: str) -> dict:
+        raise RuntimeError("amap timeout")
+
+    async def fake_search(**kwargs) -> dict:
+        return _fake_pois([])
+
+    monkeypatch.setattr(amap_service, "regeo", boom)
+    monkeypatch.setattr(amap_service, "search_nearby_poi", fake_search)
+    ctx = await build_agent_context(db_session, "u1", location="120.1552,30.2741")
+    assert "用户所在城市" not in ctx
+    assert "当前时间" in ctx  # 时间块不受影响
+    rows = await agent_memory_service.get_user_memories(
+        db_session, "u1", categories=[agent_memory_service.CATEGORY_LOCATION],
+    )
+    assert rows == []
+
+
+# ── feature flag 降级路径 ──
+
+
+@pytest.mark.asyncio
+async def test_build_time_context_flag_disabled(monkeypatch):
+    """agent_time_awareness_enabled=False 时时间上下文为空"""
+    monkeypatch.setattr(get_settings(), "agent_time_awareness_enabled", False)
+    assert build_time_context() == ""
+
+
+@pytest.mark.asyncio
+async def test_build_location_context_flag_disabled(db_session, monkeypatch):
+    """有城市记忆但空间感知 flag 关闭时不注入"""
+    monkeypatch.setattr(get_settings(), "agent_location_awareness_enabled", False)
+    await agent_memory_service.save_memory(db_session, "u1", "location", "city", "北京")
+    assert await build_location_context(db_session, "u1") == ""
+
+
+@pytest.mark.asyncio
+async def test_build_agent_context_all_flags_disabled(db_session, monkeypatch):
+    """时间/空间/记忆三个 flag 全关时组合上下文为空"""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "agent_time_awareness_enabled", False)
+    monkeypatch.setattr(settings, "agent_location_awareness_enabled", False)
+    monkeypatch.setattr(settings, "agent_memory_enabled", False)
+    await agent_memory_service.save_memory(db_session, "u1", "location", "city", "北京")
+    assert await build_agent_context(db_session, "u1") == ""
