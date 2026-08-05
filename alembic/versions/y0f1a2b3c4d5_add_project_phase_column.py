@@ -19,8 +19,13 @@ Create Date: 2026-08-04
 """
 from typing import Sequence, Union
 
+import logging
+
 from alembic import op
 import sqlalchemy as sa
+
+# 复用 alembic 内置 logger 命名空间：随 alembic 命令输出，无需额外配置
+logger = logging.getLogger("alembic.runtime.migration")
 
 
 # revision identifiers, used by Alembic.
@@ -52,49 +57,62 @@ def _add_column(table: str, col: sa.Column) -> None:
 
 
 def upgrade() -> None:
-    if not _has_column(_TABLE, "phase"):
-        # 先加为 nullable，backfill 后改 NOT NULL
-        _add_column(_TABLE, sa.Column("phase", sa.String(30), nullable=True))
-        print(f"  added: {_TABLE}.phase (nullable)")
+    bind = op.get_bind()
+    logger.info("[%s] upgrade start: dialect=%s", revision, bind.dialect.name)
 
-        # 按 status 反推 backfill（与 project_service PHASE_ORDER 对齐）
-        bind = op.get_bind()
-        bind.execute(sa.text(
-            "UPDATE projects SET phase='completed' WHERE phase IS NULL AND status='completed'"
-        ))
-        bind.execute(sa.text(
-            "UPDATE projects SET phase='construction' WHERE phase IS NULL AND status='active'"
-        ))
-        bind.execute(sa.text(
-            "UPDATE projects SET phase='initiation' WHERE phase IS NULL"
-        ))
-        print(f"  backfilled: {_TABLE}.phase by status")
+    if _has_column(_TABLE, "phase"):
+        logger.info("[%s] skip: %s.phase already exists", revision, _TABLE)
+        return
 
-        # 改为 NOT NULL with server_default（SQLite batch 需重建表，PostgreSQL 直接 alter）
-        if bind.dialect.name == "sqlite":
-            with op.batch_alter_table(_TABLE) as batch_op:
-                batch_op.alter_column(
-                    "phase",
-                    existing_type=sa.String(30),
-                    nullable=False,
-                    existing_server_default=sa.text("'initiation'"),
-                )
-        else:
-            op.alter_column(
-                _TABLE, "phase",
+    # 先加为 nullable，backfill 后改 NOT NULL
+    _add_column(_TABLE, sa.Column("phase", sa.String(30), nullable=True))
+    logger.info("[%s] added: %s.phase (nullable)", revision, _TABLE)
+
+    # 按 status 反推 backfill（与 project_service PHASE_ORDER 对齐），记录各档影响行数
+    r1 = bind.execute(sa.text(
+        "UPDATE projects SET phase='completed' WHERE phase IS NULL AND status='completed'"
+    ))
+    r2 = bind.execute(sa.text(
+        "UPDATE projects SET phase='construction' WHERE phase IS NULL AND status='active'"
+    ))
+    r3 = bind.execute(sa.text(
+        "UPDATE projects SET phase='initiation' WHERE phase IS NULL"
+    ))
+    logger.info(
+        "[%s] backfilled: %s.phase by status (completed=%s, construction=%s, initiation=%s)",
+        revision, _TABLE, r1.rowcount, r2.rowcount, r3.rowcount,
+    )
+
+    # 改为 NOT NULL with server_default（SQLite batch 需重建表，PostgreSQL 直接 alter）
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table(_TABLE) as batch_op:
+            batch_op.alter_column(
+                "phase",
                 existing_type=sa.String(30),
                 nullable=False,
-                server_default=sa.text("'initiation'"),
+                existing_server_default=sa.text("'initiation'"),
             )
-        print(f"  set: {_TABLE}.phase NOT NULL default 'initiation'")
+    else:
+        op.alter_column(
+            _TABLE, "phase",
+            existing_type=sa.String(30),
+            nullable=False,
+            server_default=sa.text("'initiation'"),
+        )
+    logger.info("[%s] set: %s.phase NOT NULL default 'initiation'", revision, _TABLE)
+    logger.info("[%s] upgrade done", revision)
 
 
 def downgrade() -> None:
     bind = op.get_bind()
+    logger.info("[%s] downgrade start: dialect=%s", revision, bind.dialect.name)
     if not _has_column(_TABLE, "phase"):
+        logger.info("[%s] skip: %s.phase not exists", revision, _TABLE)
         return
     if bind.dialect.name == "sqlite":
         with op.batch_alter_table(_TABLE) as batch_op:
             batch_op.drop_column("phase")
     else:
         op.drop_column(_TABLE, "phase")
+    logger.info("[%s] dropped: %s.phase", revision, _TABLE)
+    logger.info("[%s] downgrade done", revision)

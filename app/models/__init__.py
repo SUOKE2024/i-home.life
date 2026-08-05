@@ -1,3 +1,7 @@
+import logging
+
+from app.database import Base as _Base  # 注册自检用（见文件末尾）
+
 from app.models.user import User
 from app.models.project import Project, Floor, Room
 from app.models.material import MaterialCategory, Material, BOMItem
@@ -212,3 +216,20 @@ __all__ = [
     "EscrowTrusteeAccount",
     "MaterialEcoCert",
 ]
+
+
+# ── 模型注册自检（2026-08-06 全景诊断落地）──
+# 背景：agent_approval / agent_skill 曾只被 service 直接 import、未在本文件注册，
+# 致 Base.metadata 缺表、create_all / alembic autogenerate / check_schema_drift 漏管。
+# import 期一次性自检：关键表缺失即 warning，零运行时成本。
+_logger = logging.getLogger(__name__)
+
+_REGISTRATION_CRITICAL_TABLES = ("agent_approvals", "agent_skills")
+_registered_tables = set(_Base.metadata.tables.keys())
+_missing_tables = [t for t in _REGISTRATION_CRITICAL_TABLES if t not in _registered_tables]
+if _missing_tables:
+    _logger.warning(
+        "models 注册自检失败: 关键表未注册到 Base.metadata: %s —— create_all/autogenerate 将漏管",
+        _missing_tables,
+    )
+_logger.debug("models 注册自检通过: Base.metadata 共 %d 张表", len(_registered_tables))

@@ -2,6 +2,37 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased]
+
+### migration 日志埋点 + SQLite downgrade 链路修复 + 模型注册自检（2026-08-06）
+
+全景诊断收尾阶段：为 3 个核心 migration（w8d9/x9e0/y0f1）与模型注册点补充日志埋点，并在冒烟验证中**实测复现并修复 2 个预存的 SQLite downgrade bug**（此前 CI 只测 `downgrade -1` 覆盖不到，本地也从未跑通全量 downgrade 链路）。
+
+#### 两个预存 bug 修复（重点）
+
+- **x9e0（F49 局改快装）downgrade 报 `no such column: package_code`** [x9e0f1a2b3c4_add_quick_install_package_columns.py](alembic/versions/x9e0f1a2b3c4_add_quick_install_package_columns.py)：
+  - 根因：`package_code` 列在 upgrade 时带 `ix_partial_renovation_plans_package_code` 索引，SQLite `batch_alter_table` 删列前需先删索引（batch 通过重建临时表实现，索引仍引用旧表定义）；原代码循环删列时先删 `zero_relocation` 等（重建表），再删 `package_code` 时索引指向重建后的新表 → 报 `no such column`。
+  - 修复：downgrade 入口先 `op.drop_index("ix_partial_renovation_plans_package_code")`（幂等 `_has_index` 守卫），再循环删列。
+- **w8d9（F50 一板一码）downgrade 报 `AttributeError: 'BatchOperations' object has no attribute 'drop_table'`** [w8d9e0f1a2b3_add_board_trace_henf.py](alembic/versions/w8d9e0f1a2b3_add_board_trace_henf.py)：
+  - 根因：`BatchOperations`（`op.batch_alter_table` 上下文）只提供列级操作，没有 `drop_table`；整表删除应直接用迁移级 `op.drop_table`。
+  - 修复：`material_board_traces` 整表删除改走 `op.drop_table`；同时补 `henf_grade` 删列前先删其隐式索引 `ix_material_eco_certs_henf_grade`（同 x9e0 陷阱，`sa.Column(index=True)` 在 upgrade 中隐式建索引）。
+- **连带发现 batch 失败残留临时表**：SQLite batch 重建表失败会残留 `_alembic_tmp_<table>`，导致后续所有 batch 操作报 `table already exists`。已在本地清理，并在记忆库记录排查路径（`PRAGMA sqlite_master WHERE name LIKE '_alembic_tmp%'`）。
+
+#### 日志埋点
+
+- **3 个 migration 的 `print` 升级为 `logging.getLogger("alembic.runtime.migration")`**：随 alembic 命令输出，无需额外配置。埋点覆盖 upgrade/downgrade 起止、每列/表 `added|dropped|skip`（此前列已存在时静默跳过，是排查 drift 的盲区）、`projects.phase` backfill 各档影响行数（completed/construction/initiation）。
+- **模型注册自检** [app/models/__init__.py](app/models/__init__.py)：import 期一次性校验 `agent_approvals` / `agent_skills` 已注册进 `Base.metadata`，缺失即 warning；表数 debug 输出。防 agent_approval/agent_skill 漏注册类问题复发（create_all/autogenerate/check_schema_drift 漏管）。
+
+#### 其他
+
+- **CI 依赖补齐** [requirements-dev.txt](requirements-dev.txt)：新增 `pytest-xdist>=3.3.0`。CI backend-test 用 `-n auto` 并行，缺失时 pytest 以 exit 4 失败（本地 .venv 已装故不复现，为 CI 红根因）。
+
+#### 验证
+
+- 全量 pytest：1956 passed, 2 skipped, 3 xfailed（与基线一致，无回退）
+- mypy：342 源文件 0 errors；flake8 改动文件 Passed
+- migration 全链路：`alembic downgrade -3` → `alembic upgrade head` 双向全程无 Error，终态回到 head，无 `_alembic_tmp_*` 残留；backfill 21 行（2 completed + 3 construction + 16 initiation）与修复前一致；`check_schema_drift` 复扫对齐
+
 ## [1.9.0] - 2026-08-05
 
 ### 前沿研究 2026 第二轮落地（docs/superpowers/specs/2026-08-05-frontier-research.md）

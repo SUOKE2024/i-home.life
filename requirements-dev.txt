@@ -2,6 +2,9 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 pytest-timeout>=2.1.0
+# CI backend-test 使用 -n auto 并行（.github/workflows/ci.yml），缺失时 pytest 报
+# unrecognized argument 以 exit 4 退出（CI 持续红的根因，本地 .venv 已装故不复现）
+pytest-xdist>=3.3.0
 httpx>=0.24.0
 mypy>=1.13.0
 pre-commit>=4.0.0

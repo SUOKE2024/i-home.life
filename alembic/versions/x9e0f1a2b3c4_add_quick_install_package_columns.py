@@ -15,8 +15,13 @@ F49 局改快装产品化（PRD v3.1，2026-08-03 行业调研新增）：
 """
 from typing import Sequence, Union
 
+import logging
+
 from alembic import op
 import sqlalchemy as sa
+
+# 复用 alembic 内置 logger 命名空间：随 alembic 命令输出，无需额外配置
+logger = logging.getLogger("alembic.runtime.migration")
 
 
 # revision identifiers, used by Alembic.
@@ -38,6 +43,15 @@ def _has_column(table: str, column_name: str) -> bool:
     return column_name in cols
 
 
+def _has_index(table: str, index_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    try:
+        return any(ix["name"] == index_name for ix in inspector.get_indexes(table))
+    except Exception:
+        return False
+
+
 def _add_column(table: str, col: sa.Column) -> None:
     bind = op.get_bind()
     if bind.dialect.name == "sqlite":
@@ -48,35 +62,56 @@ def _add_column(table: str, col: sa.Column) -> None:
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    logger.info("[%s] upgrade start: dialect=%s", revision, bind.dialect.name)
+
     if not _has_column(_TABLE, "package_code"):
         _add_column(_TABLE, sa.Column("package_code", sa.String(32), nullable=True))
         op.create_index("ix_partial_renovation_plans_package_code", _TABLE, ["package_code"])
-        print(f"  added: {_TABLE}.package_code")
+        logger.info("[%s] added: %s.package_code (+index)", revision, _TABLE)
+    else:
+        logger.info("[%s] skip: %s.package_code already exists", revision, _TABLE)
     if not _has_column(_TABLE, "fixed_price"):
         _add_column(_TABLE, sa.Column("fixed_price", sa.Float(), nullable=True))
-        print(f"  added: {_TABLE}.fixed_price")
+        logger.info("[%s] added: %s.fixed_price", revision, _TABLE)
+    else:
+        logger.info("[%s] skip: %s.fixed_price already exists", revision, _TABLE)
     if not _has_column(_TABLE, "dry_construction"):
         _add_column(
             _TABLE,
             sa.Column("dry_construction", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
-        print(f"  added: {_TABLE}.dry_construction")
+        logger.info("[%s] added: %s.dry_construction", revision, _TABLE)
+    else:
+        logger.info("[%s] skip: %s.dry_construction already exists", revision, _TABLE)
     if not _has_column(_TABLE, "zero_relocation"):
         _add_column(
             _TABLE,
             sa.Column("zero_relocation", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
-        print(f"  added: {_TABLE}.zero_relocation")
+        logger.info("[%s] added: %s.zero_relocation", revision, _TABLE)
+    else:
+        logger.info("[%s] skip: %s.zero_relocation already exists", revision, _TABLE)
+    logger.info("[%s] upgrade done", revision)
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
+    logger.info("[%s] downgrade start: dialect=%s", revision, bind.dialect.name)
+    # package_code 带索引 ix_partial_renovation_plans_package_code：SQLite batch 重建表时
+    # 必须先删索引，否则报 no such column: package_code（2026-08-06 本地实测复现）
+    if _has_index(_TABLE, "ix_partial_renovation_plans_package_code"):
+        op.drop_index("ix_partial_renovation_plans_package_code", table_name=_TABLE)
+        logger.info("[%s] dropped index: ix_partial_renovation_plans_package_code", revision)
     for column in ("zero_relocation", "dry_construction", "fixed_price", "package_code"):
         if not _has_column(_TABLE, column):
+            logger.info("[%s] skip: %s.%s not exists", revision, _TABLE, column)
             continue
         if is_sqlite:
             with op.batch_alter_table(_TABLE) as batch_op:
                 batch_op.drop_column(column)
         else:
             op.drop_column(_TABLE, column)
+        logger.info("[%s] dropped: %s.%s", revision, _TABLE, column)
+    logger.info("[%s] downgrade done", revision)
