@@ -36,6 +36,7 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.3.0  — MCP 2026-07-28 对齐 / 缓存隔离 / AI 渲染契约 / H-IFC / MEP"
             echo "  v1.6.0  — 商业运营 Agent / PASETO 撤销列表 / lifecycle 全链路"
             echo "  v1.8.0  — project_phase / quick_install_package / board_trace_henf"
+            echo "  v1.9.0  — 前沿研究第二轮 6 flag（内容标识/MCP 硬化/OTel/GBZ185/协议矩阵/记忆门控）"
             exit 0
             ;;
         --help|-h)
@@ -107,6 +108,19 @@ case "$VERSION" in
         ROLLBACK_FLAGS=()
         echo "⚠️  v1.8.0 无 feature flag 回滚项（schema 变更需 alembic downgrade）" >&2
         echo "   回滚 schema: alembic downgrade -1" >&2
+        ;;
+    v1.9.0)
+        # 前沿研究 2026 第二轮 6 项灰度 flag（默认 false，灰度开启后回滚置 false）
+        # P0 AI 内容标识 / 高 MCP 安全硬化 / 高 OTel GenAI / 高 GBZ185 身份码 /
+        # 中 协议兼容矩阵 / 中 记忆冲突门控
+        ROLLBACK_FLAGS=(
+            "AI_CONTENT_LABELING_ENABLED=false"
+            "MCP_SECURITY_HARDENING_ENABLED=false"
+            "OTEL_GENAI_SEMCONV_ENABLED=false"
+            "GBZ185_AGENT_CARD_ENABLED=false"
+            "SMART_PROTOCOL_COMPLIANCE_ENABLED=false"
+            "MEMORY_CONFLICT_GATE_ENABLED=false"
+        )
         ;;
     *)
         echo "❌ 不支持的版本: $VERSION" >&2

@@ -65,6 +65,12 @@ from app.models.device_token import DeviceToken
 from app.models.permission import Permission, RolePermission
 from app.models.audit_log import AuditLog
 
+# v1.8.0 Agent 工具批准 + Skill 资产化（同 energy_monitor 补注册先例：
+# model 文件已存在且 service 直接引用，但未在 __init__ 注册会致 Base.metadata 缺表、
+# create_all / autogenerate / check_schema_drift 漏管）
+from app.models.agent_approval import AgentApproval
+from app.models.agent_skill import AgentSkill
+
 # A1/A2 智能家居能耗 + 健康监测（model 文件已存在且 service 引用，但此前未在 __init__ 注册，
 # 致 Base.metadata 不含这些表、alembic autogenerate 检测不到、check_schema_drift 误报为多余表。
 # 补注册后 create_all 与 autogenerate 均能正确管理这些表）
@@ -192,6 +198,9 @@ __all__ = [
     "AgentMessage",
     "AgentMemory",
     "AuditLog",
+    # v1.8.0 Agent 工具批准 + Skill 资产化
+    "AgentApproval",
+    "AgentSkill",
     # A1/A2 智能家居能耗 + 健康监测
     "EnergyMonitor",
     "EnergySavingTip",

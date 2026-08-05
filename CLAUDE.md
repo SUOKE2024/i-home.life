@@ -33,7 +33,7 @@ Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + React Web 控�
 
 ## 协作四原则（改编自 Karpathy LLM 编程四铁律）
 
-1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 22 执行型 + 4 商业运营 Agent / 101 Service，猜错代价高。
+1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 22 执行型 + 4 商业运营 Agent / 99 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。121 ORM 模型 + 76 路由已够复杂。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
 4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 1945 passed 不得回退（collect 1950 = 1945 passed + 2 skipped + 3 xfailed）。
