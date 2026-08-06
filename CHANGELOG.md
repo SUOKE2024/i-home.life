@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+### v1.6.0 F40 业务列迁移链补齐（2026-08-06）
+
+全景全量 E2E 验证（空库 `alembic upgrade head`）发现 `check_schema_drift` 报 4 列缺失，为 v1.6.0 F40 真实业务字段的**迁移链缺口**，已补幂等迁移 [z8a9b0c1d2e3_add_v160_f40_columns.py](alembic/versions/z8a9b0c1d2e3_add_v160_f40_columns.py)。
+
+#### 背景与根因
+
+- 缺失列（model 声明、真实库已有、空库迁移链无）：
+  - `chat_rooms.agent_members` — F40 Agent 群成员（JSON 数组）
+  - `chat_messages.auto_reply_meta` — F40 Agent 自动回复标注（JSON dict）
+  - `bom_items.quantity_source` — F6 几何算量诚实标注（geometric_takeoff / empirical）
+  - `bom_items.fallback_note` — F6 经验估算回退说明
+- 根因：v1.6.0 起这些列由 [app/database.py](app/database.py) 运行时轻量迁移（`_SCHEMA_MIGRATION_VERSION=7` + `_schema_migrations` 表）在应用启动时 `ALTER TABLE` 补列，**alembic 迁移链从未收录**；[z7a8b9c0d1e2](alembic/versions/z7a8b9c0d1e2_align_missing_indexes.py) 只补了同批 `bom_items.version` 列，漏这 4 列。真实库因运行时机制有列，此前对真实库跑 drift 检查为 0 缺失，掩盖了空库缺口。
+
+#### 迁移设计（z8a9b0c1d2e3，down_revision=z7a8b9c0d1e2）
+
+- **upgrade 幂等补列**：`_has_column` 守卫，已存在 skip（与 z7a8b9c0d1e2 同策略）
+- **DDL 对齐运行时轻量迁移**：`quantity_source VARCHAR(30) NOT NULL DEFAULT 'empirical'` / `fallback_note VARCHAR(500)` / `auto_reply_meta TEXT` / `agent_members TEXT NOT NULL DEFAULT '[]'`
+- **downgrade 不删列**：业务活跃字段，删列破坏性大，与 `bom_items.version` 处理一致（upgrade 幂等 skip）
+
+#### 验证
+
+- 空库 `upgrade head` → `check_schema_drift` **exit=0（Schema 已对齐）**；compare_db_schema 差异 8 表 → 5 表（仅剩 model 无的 P3 历史残留列）
+- `downgrade -3` → `upgrade head` 幂等重放：4 列全 skip，无 `_alembic_tmp` 残留
+- 真实库 `data/ihome.db` 已备份 `.bak-f40-20260806` 并 `upgrade head`（4 skip），drift exit=0
+- 全量 pytest：1956 passed, 2 skipped, 3 xfailed（与基线一致，无回退）；迁移文件 flake8 + mypy 通过
+
+#### 一并纳入本次提交（同主题 schema 对齐工作线，此前未提交）
+
+- [z7a8b9c0d1e2_align_missing_indexes.py](alembic/versions/z7a8b9c0d1e2_align_missing_indexes.py)：A 类 30 + B 类 5 索引对齐 + `bom_items.version` 补列
+- [drop_legacy_tables.py](scripts/drop_legacy_tables.py)：8 张无 model 残留表 DROP（0 行校验 + `--dry-run`）
+- [schema-compare-troubleshooting-20260806.md](docs/reports/schema-compare-troubleshooting-20260806.md)：schema-compare CI 故障排查文档
+
 ### migration 日志埋点 + SQLite downgrade 链路修复 + 模型注册自检（2026-08-06）
 
 全景诊断收尾阶段：为 3 个核心 migration（w8d9/x9e0/y0f1）与模型注册点补充日志埋点，并在冒烟验证中**实测复现并修复 2 个预存的 SQLite downgrade bug**（此前 CI 只测 `downgrade -1` 覆盖不到，本地也从未跑通全量 downgrade 链路）。
