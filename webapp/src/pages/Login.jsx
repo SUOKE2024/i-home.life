@@ -109,6 +109,19 @@ export default function LoginPage() {
 
         {err && <div className="auth-err">{err}</div>}
       </div>
+
+      {/* 备案号 Footer（公开可见，工信部合规：链接至备案管理系统） */}
+      <footer
+        className="app-footer"
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'transparent', borderTop: 'none' }}
+      >
+        <span className="app-footer-copy">© 2026 索克家居 · i-home.life</span>
+        <span className="app-footer-beian">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+            滇ICP备2026015233号-2
+          </a>
+        </span>
+      </footer>
     </div>
   )
 }
