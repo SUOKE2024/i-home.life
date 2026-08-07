@@ -6,8 +6,9 @@
 ## 项目定位
 
 模块化单体（modular monolith，非微服务，见 `app/config.py` `service_role` 澄清）。
-Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + React Web 控制台。
+Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + webapp(Vite+React，`webapp/`，2026-08-08 起替代旧 `web/` 静态多页，构建产物 `webapp/dist/` 由 Nginx root 服务) + 管理控制台(`console-src/`，React+Vite+TSX，构建至 `webapp/dist/console/`)。
 所有路由在 `app/main.py` 无条件 `include_router` 加载。
+WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-2」并链接 `https://beian.miit.gov.cn/`（见 `webapp/src/components/Shell.jsx` Footer），新增页面不得移除。
 
 ## Agent 分类约定（v1.6.0）
 

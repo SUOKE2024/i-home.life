@@ -1,20 +1,20 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-// 索克家居 Web 控制台 v2 — Vite 配置
-// 生产路径 /console/，构建产物输出到 webapp/dist/console/（由 Nginx root 直接服务）
-// 本地开发：Vite dev (5173) + FastAPI (8000)，proxy /api /ws 到后端
+// 索克家居 i-home.life Web App — Vite 配置
+// 本地开发：Vite dev + FastAPI (8000)，proxy /api /ws 到后端
+// 生产构建：npm run build → dist/（由 Nginx / 部署脚本同步到站点根）
 export default defineConfig({
   plugins: [react()],
-  base: '/console/',
+  base: '/',
   build: {
-    outDir: '../webapp/dist/console',
+    outDir: 'dist',
     emptyOutDir: true,
     assetsDir: 'assets',
     sourcemap: true,
   },
   server: {
-    port: 5173,
+    port: 5273,
     strictPort: true,
     proxy: {
       '/api': {
@@ -28,7 +28,7 @@ export default defineConfig({
     },
   },
   preview: {
-    port: 4173,
+    port: 4273,
     strictPort: true,
   },
-});
+})

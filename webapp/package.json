@@ -1,0 +1,22 @@
+{
+  "name": "ihome-life-webapp",
+  "private": true,
+  "version": "1.9.0",
+  "type": "module",
+  "description": "索克家居 i-home.life Web App — AI 驱动的全链路智能家居建造平台",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

@@ -51,16 +51,29 @@ jobs:
             data/
             *.log
 
-  # ── 前端冒烟测试 ──
+  # ── 前端冒烟测试（webapp Vite 构建产物）──
   frontend-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Build webapp
+        run: |
+          cd webapp
+          npm ci
+          npm run build
+
       - name: Start web server
         run: |
-          cd web
+          cd webapp/dist
           python3 -m http.server 8766 &
 
       - name: Wait for server
@@ -319,11 +332,17 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Build webapp
+        run: |
+          cd webapp
+          npm ci
+          npm run build
+
       - name: Sync web assets
         run: |
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            web/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/web/
+            webapp/dist/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/webapp/dist/
 
       - name: Sync backend
         run: |

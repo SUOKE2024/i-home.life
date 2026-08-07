@@ -18,6 +18,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 WEB_DIR="$PROJECT_DIR/web"
 
+# ── 2026-08-08 迁移说明 ──
+# 旧 web/（Flutter web 构建产物 + 静态多页）已移除，替换为 webapp/（Vite+React，
+# 构建产物 dist/ 文件名带 hash，无需手动 v=YYYYMMDDx 版本号与 sw.js CACHE_VERSION）。
+# 保留脚本结构以防回滚旧静态站需要；web/ 不存在时直接提示退出。
+if [ ! -d "$WEB_DIR" ]; then
+  echo -e "\033[0;32m[INFO]\033[0m 旧 web/ 目录不存在——已迁移至 webapp/（Vite 构建产物自动 hash，无需手动版本号）。"
+  echo -e "\033[0;32m[INFO]\033[0m 如需回滚旧静态站，请先恢复 web/ 目录再运行本脚本。"
+  exit 0
+fi
+
 # ── 颜色输出 ──
 RED='\033[0;31m'
 GREEN='\033[0;32m'

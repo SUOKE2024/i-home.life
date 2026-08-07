@@ -100,9 +100,9 @@ echo "  🌐 同步 nginx 配置..."
 sudo cp "$PROJECT_DIR/scripts/nginx-ihome.conf" "$NGINX_CONF"
 # 跨平台 sed: 兼容 BSD (macOS) 与 GNU (Linux)
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  sudo sed -i '' "s|/opt/ihome/web|$DEPLOY_DIR/web|g" "$NGINX_CONF"
+  sudo sed -i '' "s|/opt/ihome/web|$DEPLOY_DIR/webapp/dist|g" "$NGINX_CONF"
 else
-  sudo sed -i "s|/opt/ihome/web|$DEPLOY_DIR/web|g" "$NGINX_CONF"
+  sudo sed -i "s|/opt/ihome/web|$DEPLOY_DIR/webapp/dist|g" "$NGINX_CONF"
 fi
 sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
 sudo nginx -t && sudo nginx -s reload

@@ -297,11 +297,9 @@ bash scripts/demo-start.sh
 source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 打开各前端页面
-open web/index.html       # 落地页
-open web/admin.html       # 管理后台 (PASETO 登录)
-open web/studio.html      # 统一设计台 (2D+3D+AI+平立剖)
-open web/3d-viewer.html   # 3D 效果图
+# Web App（Vite+React，v1.9.0 起替代旧 web/ 静态多页）
+cd webapp && npm install && npm run dev   # 打开 http://localhost:5273
+# 生产构建: cd webapp && npm run build    # 产物 dist/ 由 Nginx root 服务
 ```
 
 ## 项目结构
@@ -373,12 +371,11 @@ i-home.life/
 │       ├── models/    # 数据模型
 │       └── theme/     # 索克家居主题 (明/暗)
 ├── flutter_app/ohos/  # HarmonyOS 适配 (3.35.7-ohos-0.0.3, API 23+)
-├── web/              # 前端页面 (17 HTML + 8 JS + 1 CSS)
-│   ├── index.html, demo.html, workbench.html, admin.html
-│   ├── studio.html, 3d-viewer.html, vr-viewer.html
-│   ├── materials.html, project-detail.html, quality-report.html
-│   ├── login.html, settings.html, dashboard.html, quality.html
-│   └── house-design-platform-prd.html
+├── webapp/           # Web App（Vite+React，v1.9.0 起替代旧 web/ 静态多页）
+│   ├── src/          # 页面/组件/样式/API 封装（Login/Dashboard/项目/预算/施工/质检/结算/采购/智能家居/AI管家/我的）
+│   ├── public/       # 品牌资源 + robots.txt + sitemap + version.json
+│   └── dist/         # 生产构建产物（Nginx root 服务）
+├── console-src/      # Web 管理控制台（React+Vite+TSX，构建至 webapp/dist/console/）
 ├── assets/           # 品牌资源与文档 (logo/截图/壁纸)
 ├── alembic/          # 数据库迁移 (Alembic, SQLite/PostgreSQL 双库)
 ├── scripts/          # 运维脚本 (部署/测试/验收/HarmonyOS)

@@ -4,6 +4,36 @@
 
 ## [Unreleased]
 
+### webapp 网站（Vite+React）+ ICP 备案号悬挂 + 移除旧 web/（2026-08-08）
+
+#### 新增 webapp/（参考 suoke_club/webapp 结构，完整功能页）
+- Vite + React 18 + react-router-dom 6 + lucide-react，深色暗金主题（tokens.css）
+- 页面：Login（登录/注册）、Dashboard（聚合看板，`/api/dashboard/overview`）、
+  Projects/Budget/Construction/Quality/Settlement/Procurement/SmartHome（对接真实后端 API）、
+  AI 管家（SSE 流式 `/api/agents/chat/stream`）、Profile（我的）
+- 基础设施：[api.js](webapp/src/lib/api.js)（PASETO 封装，localStorage `paseto_token` 跨端共享）、
+  [Shell.jsx](webapp/src/components/Shell.jsx)（侧边栏+顶栏+Footer）、store.jsx（会话恢复/Toast）
+- 构建：`webapp/dist/`（gzip 后 ~71KB）；robots.txt / sitemap.xml / version.json 就绪
+
+#### ICP 备案号悬挂（合规）
+- Shell Footer 底部全局悬挂「滇ICP备2026015233号-2」，链接 https://beian.miit.gov.cn/
+  （target=_blank rel=noopener，[Shell.jsx](webapp/src/components/Shell.jsx) Footer）
+- CLAUDE.md 定位段固化该规则：新增页面不得移除备案号
+
+#### 移除旧 web/（249 个文件，含 Flutter web 产物 + 20 静态多页 + 静态 JS/CSS）
+- 部署迁移：Nginx root `web/` → `webapp/dist/`（[nginx-ihome.conf](scripts/nginx-ihome.conf)）
+- [ci.yml](.github/workflows/ci.yml)：frontend-smoke 改为 setup-node + `npm ci && npm run build` + 起 dist 冒烟；
+  deploy job 增加 webapp 构建并 rsync `webapp/dist/` → `/opt/ihome/webapp/dist/`
+- [e2e-pages.sh](scripts/e2e-pages.sh)：适配 webapp 产物（入口+品牌资源+hash 资源动态解析）
+- [console-src/vite.config.ts](console-src/vite.config.ts)：构建输出 `../web/console` → `../webapp/dist/console`，
+  移除引用旧 web 的 devWebStatic 插件
+- [deploy-production.sh](scripts/deploy-production.sh) / [bump-version.sh](scripts/bump-version.sh)（web 不存在时提示迁移）适配
+- README/CLAUDE.md 项目结构、快速启动更新
+
+#### 验证
+- `npm run build`（webapp + console-src）均成功；本地 smoke 5/5（index/favicon/logo/hash 资源）
+- bash -n 三个脚本通过；全量 pytest 未受影响（纯前端改动）
+
 ### 全景评估修复：基线同步 + 鸿蒙图片降级 + 传感器触发闭环（2026-08-08）
 
 按 2026-08-08 全景全链路评估报告（主代理核验）执行修复：
