@@ -4,6 +4,34 @@
 
 ## [Unreleased]
 
+### 全景评估修复：基线同步 + 鸿蒙图片降级 + 传感器触发闭环（2026-08-08）
+
+按 2026-08-08 全景全链路评估报告（主代理核验）执行修复：
+
+#### P1 门禁与文档同步
+- [scripts/test_baseline.json](scripts/test_baseline.json)：1827 → **1956 passed**（2026-08-03 基线严重落后，CI 门禁比实际宽松 129 用例）
+- [CLAUDE.md](CLAUDE.md)：pytest 基线 1945 → 1956；路由数 76 → 73（`app/api/` 磁盘实为 73 个路由模块）
+
+#### P1 Flutter 鸿蒙图片组件降级落地
+- 新增 [network_image.dart](flutter_app/lib/widgets/network_image.dart) 条件导入组件（native/stub 双实现，沿用项目既有模式）：
+  - iOS/Android：cached_network_image（磁盘缓存）
+  - Web / OHOS：Image.network 降级（cached_network_image 未官方支持 OHOS）
+- 替换 4 个文件 11 处调用点：chat_message_card / points_page / ai_image_page / vr_panorama_page（API 与 CachedNetworkImage 对齐）
+
+#### P2 静态页版本号对齐
+- [terms-of-service.html](web/assets/legal/terms-of-service.html) / [privacy-policy.html](web/assets/legal/privacy-policy.html) / [user-guide.html](web/assets/guide/user-guide.html)：`v=20260801a` → `v=20260805b`（此前漏同步）
+
+#### P2 传感器实时触发闭环（framework_stub → 真实实现）
+- [scene_automation_service.check_sensor_triggers](app/services/scene_automation_service.py)：由返回 `[]` 的框架 stub 改为真实闭环——
+  查询用户项目下 sensor 触发场景 → 逐项匹配 ambient_data（标量精确 / `gt/gte/lt/lte/eq` 比较符）→ 命中写入 `scene_behavior_logs`（action_type=sensor_trigger）
+  → 设备动作执行依赖生态桥接（未接入真机前诚实标注 `action_status=pending`，不伪装执行）
+- [validate_trigger](app/services/scene_automation_service.py)：新增 `sensor` 触发类型校验（condition 字段格式约束）
+- 新增 3 个测试（tests/test_scene_automation.py）：命中+落库 / 未命中 / 跨用户归属隔离
+
+#### 验证与清理
+- 全量 pytest 1956 passed（零回退）；flutter analyze 0 issues；flake8 + mypy 通过
+- 清理 data/ 下 18 个测试残留 `test_*.db`（35M）
+
 ### v1.6.0 F40 业务列迁移链补齐（2026-08-06）
 
 全景全量 E2E 验证（空库 `alembic upgrade head`）发现 `check_schema_drift` 报 4 列缺失，为 v1.6.0 F40 真实业务字段的**迁移链缺口**，已补幂等迁移 [z8a9b0c1d2e3_add_v160_f40_columns.py](alembic/versions/z8a9b0c1d2e3_add_v160_f40_columns.py)。

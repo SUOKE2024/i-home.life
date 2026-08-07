@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
@@ -734,7 +734,7 @@ class _PointsPageState extends State<PointsPage>
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(12),
                       ),
-                      child: CachedNetworkImage(
+                      child: SuokeNetworkImage(
                         imageUrl: imageUrl,
                         fit: BoxFit.cover,
                         placeholder: (context, url) => _imgPlaceholder(),

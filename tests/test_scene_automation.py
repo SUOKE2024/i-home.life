@@ -123,3 +123,126 @@ async def test_cross_user_scene_access(auth_headers: dict, client: AsyncClient):
         headers=other_headers,
     )
     assert resp.status_code in (403, 404)
+
+
+# ── 传感器实时触发（check_sensor_triggers）──
+
+
+async def _create_sensor_scene(db_session, user_id: str, project_id: str, condition: dict) -> str:
+    from app.models.scene_automation import SceneAutomation
+    scene = SceneAutomation(
+        project_id=project_id,
+        scene_name="传感器联动",
+        scene_type="triggered",
+        trigger_condition={"type": "sensor", "condition": condition},
+        actions=[{"device_id": "light-1", "action": "turn_on", "params": {}}],
+        enabled=True,
+    )
+    db_session.add(scene)
+    await db_session.commit()
+    await db_session.refresh(scene)
+    return scene.id
+
+
+@pytest.mark.asyncio
+async def test_check_sensor_triggers_hit(db_session):
+    """传感器数据命中场景条件：返回触发列表并写入 scene_behavior_logs"""
+    from app.models.user import User
+    from app.models.project import Project
+    from app.models.scene_behavior import SceneBehaviorLog
+    from sqlalchemy import select
+    from app.services.scene_automation_service import check_sensor_triggers
+
+    user = User(phone="13955010101", name="传感器测试", role="homeowner", hashed_password="x")
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    project = Project(name="传感器项目", owner_id=user.id, total_area=80.0)
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    scene_id = await _create_sensor_scene(
+        db_session, user.id, project.id,
+        {"temperature": {"gt": 28}, "motion_detected": True},
+    )
+
+    triggered = await check_sensor_triggers(
+        db_session,
+        user_id=user.id,
+        ambient_data={"temperature": 30.5, "motion_detected": True, "light_lux": 0},
+    )
+
+    assert len(triggered) == 1
+    assert triggered[0]["scene_id"] == scene_id
+    assert triggered[0]["action_status"] == "pending"  # 生态桥接未接入，诚实标注
+
+    # 触发日志真实落库
+    result = await db_session.execute(
+        select(SceneBehaviorLog).where(SceneBehaviorLog.scene_id == scene_id)
+    )
+    logs = list(result.scalars().all())
+    assert len(logs) == 1
+    assert logs[0].action_type == "sensor_trigger"
+    assert logs[0].ambient_data["temperature"] == 30.5
+
+
+@pytest.mark.asyncio
+async def test_check_sensor_triggers_no_hit(db_session):
+    """传感器数据不满足条件：不触发、不写日志"""
+    from app.models.user import User
+    from app.models.project import Project
+    from app.models.scene_behavior import SceneBehaviorLog
+    from sqlalchemy import select
+    from app.services.scene_automation_service import check_sensor_triggers
+
+    user = User(phone="13955010102", name="传感器测试2", role="homeowner", hashed_password="x")
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    project = Project(name="传感器项目2", owner_id=user.id, total_area=80.0)
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    await _create_sensor_scene(
+        db_session, user.id, project.id,
+        {"temperature": {"gt": 28}},
+    )
+
+    triggered = await check_sensor_triggers(
+        db_session,
+        user_id=user.id,
+        ambient_data={"temperature": 20.0},
+    )
+
+    assert triggered == []
+    result = await db_session.execute(select(SceneBehaviorLog))
+    assert list(result.scalars().all()) == []
+
+
+@pytest.mark.asyncio
+async def test_check_sensor_triggers_other_user_isolated(db_session):
+    """归属隔离：只触发用户自己项目下的场景"""
+    from app.models.user import User
+    from app.models.project import Project
+    from app.services.scene_automation_service import check_sensor_triggers
+
+    owner = User(phone="13955010103", name="场景拥有者", role="homeowner", hashed_password="x")
+    db_session.add(owner)
+    await db_session.commit()
+    await db_session.refresh(owner)
+    project = Project(name="他人项目", owner_id=owner.id, total_area=80.0)
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    await _create_sensor_scene(db_session, owner.id, project.id, {"temperature": {"gt": 0}})
+
+    # 另一个用户上传传感器数据，不应触发他人场景
+    triggered = await check_sensor_triggers(
+        db_session,
+        user_id="some-other-user",
+        ambient_data={"temperature": 99.0},
+    )
+
+    assert triggered == []

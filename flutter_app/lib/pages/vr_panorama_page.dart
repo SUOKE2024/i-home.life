@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 
@@ -1035,7 +1035,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
               const SizedBox(height: 8),
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: CachedNetworkImage(
+                child: SuokeNetworkImage(
                   imageUrl: scene['thumbnail_url'].toString(),
                   height: 120,
                   width: double.infinity,

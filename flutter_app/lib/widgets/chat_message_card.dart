@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'network_image.dart';
 import 'package:flutter/services.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 import 'markdown_renderer.dart';
@@ -545,7 +545,7 @@ class ChatMessageCard extends StatelessWidget {
                       child: url.isNotEmpty
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: CachedNetworkImage(
+                              child: SuokeNetworkImage(
                                 imageUrl: url,
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) =>
@@ -1098,7 +1098,7 @@ class ChatMessageCard extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: CachedNetworkImage(
+                    child: SuokeNetworkImage(
                       imageUrl: url.toString(),
                       fit: BoxFit.cover,
                       placeholder: (context, url) => const SizedBox(

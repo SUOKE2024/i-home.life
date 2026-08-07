@@ -153,6 +153,13 @@ def validate_trigger(condition: dict | None) -> dict:
             errors.append("地理触发缺少 longitude")
         if "radius" not in condition:
             errors.append("地理触发缺少 radius 字段")
+    elif trig_type == "sensor":
+        sensor_cond = condition.get("condition")
+        if not isinstance(sensor_cond, dict) or not sensor_cond:
+            errors.append(
+                "传感器触发缺少 condition 字段（键值对：键为传感器名，"
+                "值可为标量或 {\"gt\"/\"gte\"/\"lt\"/\"lte\"/\"eq\"} 比较符）"
+            )
     else:
         errors.append(f"不支持的触发类型: {trig_type}")
 
@@ -628,30 +635,121 @@ async def check_sensor_triggers(
 ) -> list[dict]:
     """检查传感器数据是否触发了任何场景自动化的 sensor_trigger 条件。
 
-    当传感器上传数据时调用，遍历用户的 sensor_trigger 类型场景自动化，
-    检查触发条件是否满足。满足条件的场景自动执行。
-
-    当前实现为框架级 stub：记录触发检查日志，但不实际执行场景动作。
-    实际执行需要在场景引擎中实现设备控制闭环。
+    真实闭环：
+    1. 查询用户项目下 enabled 且 trigger_condition.type == "sensor" 的场景
+    2. 将 ambient_data 与场景触发条件逐项匹配（值可为标量精确匹配，
+       或 {"gt"/"gte"/"lt"/"lte"/"eq"} 比较符）
+    3. 命中场景写入 scene_behavior_logs（action_type=sensor_trigger），记录真实触发
+    4. 设备动作执行依赖生态桥接（EcosystemBridge，HomeKit/Matter/米家等），
+       未接入真机/未配置 API key 前诚实标注 action_status=pending，不伪装为已执行
 
     Returns:
-        被触发的场景列表（当前为空，stub 实现）
+        被触发的场景列表（含触发时间与动作执行状态）
     """
     import logging
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.project import Project
+    from app.models.scene_automation import SceneAutomation
+    from app.models.scene_behavior import SceneBehaviorLog
+
     log = logging.getLogger("ihome.scene_automation")
 
-    log.debug(
-        "check_sensor_triggers",
-        user_id=user_id,
-        device_id=device_id,
-        ambient_keys=list(ambient_data.keys()),
-        status="framework_stub",
+    # 1. 查询用户所有项目下启用的 sensor 触发场景
+    result = await db.execute(
+        select(SceneAutomation)
+        .join(Project, Project.id == SceneAutomation.project_id)
+        .where(
+            Project.owner_id == user_id,
+            SceneAutomation.enabled.is_(True),
+        )
     )
+    scenes = list(result.scalars().all())
 
-    # 框架占位：查询 sensor_trigger 类型的场景自动化
-    # 实际实现需要：
-    # 1. 查询用户的所有 sensor_trigger 场景
-    # 2. 根据条件匹配传感器数据（温度/湿度/光照/运动/加速度）
-    # 3. 执行匹配场景的动作（通过设备控制接口）
-    # 4. 记录触发日志到 scene_behavior_logs
-    return []
+    triggered: list[dict] = []
+    for scene in scenes:
+        cond = scene.trigger_condition
+        if not isinstance(cond, dict) or cond.get("type") != "sensor":
+            continue
+        sensor_cond = cond.get("condition")
+        if not isinstance(sensor_cond, dict):
+            continue
+        # 2. 逐项匹配传感器条件
+        if not _match_sensor_condition(sensor_cond, ambient_data):
+            continue
+
+        # 3. 写入真实触发日志
+        log_entry = SceneBehaviorLog(
+            project_id=scene.project_id,
+            user_id=user_id,
+            action_type="sensor_trigger",
+            scene_id=scene.id,
+            ambient_data=ambient_data,
+        )
+        db.add(log_entry)
+
+        # 4. 动作执行依赖生态桥接，未接入前诚实标注 pending
+        action_status = "pending"
+        action_note = (
+            "设备动作执行依赖生态桥接（ecosystem_bridge），当前未配置 API key，"
+            "已记录触发意图，待桥接接入真机后执行"
+        )
+        log.info(
+            "sensor_trigger_hit: user=%s scene=%s scene_name=%s actions=%s action_status=%s device_id=%s",
+            user_id,
+            scene.id,
+            scene.scene_name,
+            len(scene.actions or []),
+            action_status,
+            device_id,
+        )
+        triggered.append({
+            "scene_id": scene.id,
+            "scene_name": scene.scene_name,
+            "actions": scene.actions or [],
+            "action_status": action_status,
+            "action_note": action_note,
+            "triggered_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    await db.commit()
+
+    if triggered:
+        log.info(
+            "sensor_triggers_executed: user=%s triggered_count=%s",
+            user_id,
+            len(triggered),
+        )
+    return triggered
+
+
+def _match_sensor_condition(condition: dict, ambient_data: dict) -> bool:
+    """传感器条件匹配。
+
+    支持两种取值形式：
+    - 标量：与 ambient_data 精确相等（如 {"occupancy": True}）
+    - 比较符 dict：{"gt": x, "gte": x, "lt": x, "lte": x, "eq": x} 任意组合
+
+    ambient_data 中缺失的键不参与判定（避免 humidity=0 占位误触发）。
+    """
+    for key, expected in condition.items():
+        if key not in ambient_data:
+            continue
+        actual = ambient_data[key]
+        if isinstance(expected, dict):
+            if "gt" in expected and not actual > expected["gt"]:
+                return False
+            if "gte" in expected and not actual >= expected["gte"]:
+                return False
+            if "lt" in expected and not actual < expected["lt"]:
+                return False
+            if "lte" in expected and not actual <= expected["lte"]:
+                return False
+            if expected.get("eq") is not None and actual != expected["eq"]:
+                return False
+        else:
+            if actual != expected:
+                return False
+    return True
