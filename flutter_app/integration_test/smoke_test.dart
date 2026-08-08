@@ -11,11 +11,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ihome_app/main.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  // headless flutter-tester 无插件通道：AuthGate._checkAuth → ApiClient.loadToken
+  // 会调用 SharedPreferences.getInstance()，不 mock 则抛 MissingPluginException
+  // 导致整个集成测试失败（与本仓库 test/test_helper.dart 的约定一致）。
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('应用启动后渲染登录页核心元素', (WidgetTester tester) async {
     // 启动应用 — 无 token 时 AuthGate 落入 LoginPage

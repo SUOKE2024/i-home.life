@@ -13,10 +13,19 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications ^22 要求启用 core library desugaring
+        // （java.time 等 API 在 minSdk < 26 的旧设备上需要反糖化），否则
+        // assembleDebug/assembleRelease 报 checkDebugAarMetadata 失败。
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+
+    // flutter_local_notifications AAR 元数据校验要求
+    dependencies {
+        coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     }
 
     defaultConfig {
