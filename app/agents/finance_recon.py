@@ -20,6 +20,9 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
 
 class FinanceReconAgent(BaseAgent):
     agent_name = "finance_recon"
@@ -47,7 +50,7 @@ class FinanceReconAgent(BaseAgent):
         report: dict = {
             "enabled": True,
             "period_days": days,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(_BJ_TZ).isoformat(),
             "data_source": "internal_tables",
             "note": (
                 "基于平台内部 payment/escrow 表统计；无 Stripe/广告平台实时对接，"

@@ -249,16 +249,18 @@ class OrchestratorAgent(BaseAgent):
         诚实标注：各子报告受各自 feature flag 控制，关闭时标注未生成；
         子报告异常时 best-effort 跳过，不阻断整体简报。
         """
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
         from app.config import get_settings
         _settings = get_settings()
 
         if not _settings.business_ops_orchestrator_enabled:
             return {"enabled": False, "note": "business_ops_orchestrator_enabled=False"}
 
+        # 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+        _bj_tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
         briefing: dict = {
             "enabled": True,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(_bj_tz).isoformat(),
             "briefing_type": "daily",
             "sections": {},
         }

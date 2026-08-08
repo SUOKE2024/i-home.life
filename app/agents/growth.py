@@ -19,6 +19,9 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
 
 class GrowthAgent(BaseAgent):
     agent_name = "growth"
@@ -102,7 +105,7 @@ class GrowthAgent(BaseAgent):
         return {
             "enabled": True,
             "period_days": days,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(_BJ_TZ).isoformat(),
             "data_source": "agent_feedbacks",
             "feedback_distribution": feedback_dist,
             "top_agents": top_agents,

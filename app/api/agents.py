@@ -202,6 +202,76 @@ class SimpleAgentResponse(BaseModel):
     suggestions: list[str] = []
 
 
+async def _extract_and_inject_agent_context(
+    db: AsyncSession,
+    current_user: User,
+    message: str,
+    base_ctx: str,
+    project_id: str | None = None,
+    location: str | None = None,
+) -> str:
+    """专用 Agent 端点统一：长期记忆提取 + 时间/空间感知上下文注入。
+
+    全链路记忆闭环（与 /chat、/chat/stream 行为一致，2026-08-08 全景评估补齐）：
+    - 写侧：提取用户消息中的偏好/城市入长期记忆（agent_memory_extract_enabled）
+    - 读侧：注入时间感知（北京时间）+ 空间感知（记忆城市/GPS）+ 长期记忆
+    - 安全：project_id 非空时校验项目归属（对齐 /chat，防越权写 project scope 记忆）
+
+    全部 best-effort，失败优雅降级，不阻断主流程。
+    """
+    import structlog
+    agent_logger = structlog.get_logger("agent")
+    agent_logger.info(
+        "agent_ctx_start",
+        message=message[:80], project_id=project_id or "", location=location or "",
+    )
+
+    if project_id:
+        result = await db.execute(select(Project).where(Project.id == project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+        agent_logger.info(
+            "agent_ctx_project_verified",
+            project_id=project_id, owner_id=project.owner_id, user_id=current_user.id,
+        )
+
+    _settings = get_settings()
+    if _settings.agent_memory_extract_enabled:
+        try:
+            from app.services.agent_memory_service import extract_and_store_memories
+            mem_scope = "project" if project_id else "personal"
+            saved = await extract_and_store_memories(
+                db, current_user.id, message, source="chat",
+                scope=mem_scope, project_id=project_id,
+            )
+            agent_logger.info(
+                "agent_memory_extracted",
+                user_id=current_user.id, saved=saved, scope=mem_scope,
+                project_id=project_id or "",
+            )
+        except Exception:
+            agent_logger.warning("agent_memory_extract_failed", exc_info=True)
+
+    try:
+        from app.services.agent_context_service import build_agent_context
+        agent_ctx = await build_agent_context(
+            db, current_user.id, project_id=project_id, location=location,
+        )
+        if agent_ctx:
+            agent_logger.info(
+                "agent_ctx_injected",
+                ctx_len=len(agent_ctx), preview=agent_ctx[:150],
+            )
+            return f"{agent_ctx}\n{base_ctx}"
+        agent_logger.info("agent_ctx_empty", base_ctx_len=len(base_ctx))
+    except Exception:
+        agent_logger.warning("agent_context_build_failed", exc_info=True)
+    return base_ctx
+
+
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
@@ -1449,9 +1519,14 @@ async def chat_stream(  # noqa: C901
 async def request_design(
     data: DesignRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     agent = DesignerAgent()
     try:
+        # 全链路记忆（写侧闭环）：提取用户需求中的偏好/城市入长期记忆
+        await _extract_and_inject_agent_context(
+            db, current_user, data.message, "", project_id=data.project_id,
+        )
         msg = data.message
         if data.room_info:
             msg = f"户型信息: {data.room_info}\n\n用户需求: {data.message}"
@@ -1557,10 +1632,23 @@ async def revise_design_proposal(
 async def analyze_budget(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    import structlog
+    agent_logger = structlog.get_logger("agent")
+    agent_logger.info(
+        "agent_budget_request",
+        user_id=current_user.id, project_id=data.project_id or "", message=data.message[:80],
+    )
     agent = BudgetAgent()
     try:
-        reply = await agent.think(data.message, f"业主: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"业主: {current_user.name}",
+            project_id=data.project_id, location=data.location,
+        )
+        agent_logger.info("agent_budget_ctx_ready", ctx_len=len(user_ctx))
+        reply = await agent.think(data.message, user_ctx)
+        agent_logger.info("agent_budget_reply", reply_len=len(reply), reply_preview=reply[:80])
         return BudgetAnalysisResponse(
             summary=reply,
             category_breakdown=reply,
@@ -1575,10 +1663,15 @@ async def analyze_budget(
 async def analyze_procurement(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     agent = ProcurementAgent()
     try:
-        reply = await agent.think(data.message, f"采购经理: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"采购经理: {current_user.name}",
+            project_id=data.project_id, location=data.location,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return ProcurementAnalysisResponse(
             purchase_plan=reply,
             supplier_recommendation=reply,
@@ -1593,10 +1686,15 @@ async def analyze_procurement(
 async def plan_construction(
     data: AgentMessage,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     agent = ConstructionAgent()
     try:
-        reply = await agent.think(data.message, f"工长: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"工长: {current_user.name}",
+            project_id=data.project_id, location=data.location,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return ConstructionPlanResponse(
             phases=reply,
             schedule=reply,
@@ -1699,11 +1797,24 @@ async def construction_publish_tasks(
 async def kitchen_design_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """厨房设计 Agent — 提供厨房空间规划、橱柜布局和功能分区建议"""
+    import structlog
+    agent_logger = structlog.get_logger("agent")
+    agent_logger.info(
+        "agent_kitchen_request",
+        user_id=current_user.id, project_id=data.project_id or "", message=data.message[:80],
+    )
     agent = KitchenAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        agent_logger.info("agent_kitchen_ctx_ready", ctx_len=len(user_ctx))
+        reply = await agent.think(data.message, user_ctx)
+        agent_logger.info("agent_kitchen_reply", reply_len=len(reply), reply_preview=reply[:80])
         return SimpleAgentResponse(
             agent_type="kitchen",
             reply=reply,
@@ -1717,11 +1828,16 @@ async def kitchen_design_agent(
 async def bathroom_design_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """卫浴设计 Agent — 提供卫生间/浴室空间规划和干湿分离方案"""
     agent = BathroomAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="bathroom",
             reply=reply,
@@ -1735,11 +1851,16 @@ async def bathroom_design_agent(
 async def mep_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """MEP/HVAC Agent — 暖通、给排水、电气系统设计与管线综合"""
     agent = MepAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="mep",
             reply=reply,
@@ -1753,11 +1874,16 @@ async def mep_agent(
 async def appliance_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """家电 Agent — 家电产品推荐、能效评估与智能配置"""
     agent = ApplianceAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="appliance",
             reply=reply,
@@ -1771,11 +1897,16 @@ async def appliance_agent(
 async def furniture_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """家具目录 Agent — 家具产品查询、风格搭配与尺寸适配"""
     agent = FurnitureAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="furniture",
             reply=reply,
@@ -1789,11 +1920,16 @@ async def furniture_agent(
 async def door_window_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """门窗/防水 Agent — 门窗选型、安装标准与防水工程指导"""
     agent = DoorWindowAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="door-window",
             reply=reply,
@@ -1807,11 +1943,16 @@ async def door_window_agent(
 async def files_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """文件管理 Agent — 项目文档、图纸、合同的版本管理与共享"""
     agent = FilesAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="files",
             reply=reply,
@@ -1825,11 +1966,16 @@ async def files_agent(
 async def products_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """产品管理 Agent — 建材/家居产品上架、更新与供应商管理"""
     agent = ProductsAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="products",
             reply=reply,
@@ -1843,6 +1989,7 @@ async def products_agent(
 async def identity_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """身份认证 Agent（管理员专用）— 用户实名认证审核"""
     if current_user.role != "admin":
@@ -1852,7 +1999,11 @@ async def identity_agent(
         )
     agent = IdentityAgent()
     try:
-        reply = await agent.think(data.message, f"管理员: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"管理员: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="identity",
             reply=reply,
@@ -1866,11 +2017,16 @@ async def identity_agent(
 async def notifications_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """通知 Agent — 系统消息推送、任务提醒与订阅管理"""
     agent = NotificationsAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="notifications",
             reply=reply,
@@ -1884,11 +2040,16 @@ async def notifications_agent(
 async def takeoff_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """工程量计算 Agent — 材料用量估算、工程量清单生成"""
     agent = TakeoffAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="takeoff",
             reply=reply,
@@ -1902,11 +2063,16 @@ async def takeoff_agent(
 async def ifc_export_agent(
     data: SimpleAgentRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """IFC 导出 Agent — 装修方案导出为标准 IFC 格式用于 BIM 协作"""
     agent = IfcExportAgent()
     try:
-        reply = await agent.think(data.message, f"用户: {current_user.name}")
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+            project_id=data.project_id,
+        )
+        reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
             agent_type="ifc-export",
             reply=reply,
@@ -1965,8 +2131,11 @@ async def detect_defects(
 async def answer_faq(
     data: FAQRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """FAQ 知识问答（基于预置知识库匹配）"""
+    # 全链路记忆（写侧闭环）：提取用户咨询中的偏好/城市入长期记忆
+    await _extract_and_inject_agent_context(db, current_user, data.question, "")
     agent = ConciergeAgent()
     try:
         return agent.answer_faq(data.question)
@@ -1978,8 +2147,11 @@ async def answer_faq(
 async def classify_inquiry(
     data: ClassifyInquiryRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """分类用户咨询（类型 + 紧急度 + 是否需人工）"""
+    # 全链路记忆（写侧闭环）：提取用户咨询中的偏好/城市入长期记忆
+    await _extract_and_inject_agent_context(db, current_user, data.message, "")
     agent = ConciergeAgent()
     try:
         return agent.classify_inquiry(data.message)
@@ -1991,11 +2163,16 @@ async def classify_inquiry(
 async def concierge_chat(
     data: ConciergeChatRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """生成客服回复（调用真实 LLM）"""
     agent = ConciergeAgent()
     try:
-        reply = await agent.generate_response(data.message, data.context)
+        user_ctx = await _extract_and_inject_agent_context(
+            db, current_user, data.message, f"用户: {current_user.name}",
+        )
+        ctx = f"{user_ctx}\n{data.context}" if data.context else user_ctx
+        reply = await agent.generate_response(data.message, ctx)
         return {"agent_type": "concierge", "reply": reply}
     finally:
         await agent.close()
