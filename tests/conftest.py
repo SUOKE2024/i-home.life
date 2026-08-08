@@ -108,13 +108,27 @@ def pytest_sessionfinish(session, exitstatus):
     十余个文件推高磁盘占用（历史已手动清理 2 次）。sessionfinish 在每个
     pytest 进程（含 xdist worker）结束时删除自己 PID 的文件，正常/异常
     退出都会触发。只删 data/test_{pid}.db*，不触碰 data/ihome.db 等业务库。
+
+    v1.10.x 监控补充：清理动作输出 removed 计数（info），删除失败输出
+    cleanup_failed（warning，进 pytest 日志），避免清理失效时无可见信号。
     """
     import glob
+    import logging
     import os
 
+    logger = logging.getLogger("tests.conftest")
     pid = os.getpid()
+    removed = 0
+    failed = 0
     for f in glob.glob(f"data/test_{pid}.db*"):
         try:
             os.remove(f)
+            removed += 1
         except OSError:
-            pass
+            failed += 1
+            logger.warning("test_db_cleanup_failed: file=%s", f)
+    if removed or failed:
+        logger.info(
+            "test_db_cleanup: pid=%s removed=%d failed=%d",
+            pid, removed, failed,
+        )

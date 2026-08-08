@@ -109,6 +109,11 @@
 
 实测（本地模拟 xdist `-n 2` 全量）：运行前后 `data/test_*.db*` 计数均为 0，无残留。hook 用 `glob + os.remove`（异常吞掉不报错），只匹配 `data/test_{pid}.db*`，不触碰 `data/ihome.db` 业务库，重复执行幂等。
 
+**监控指标（v1.10.x 补充）**：
+- `pytest_sessionfinish` 输出 `test_db_cleanup: pid=… removed=N failed=M`（info）与 `test_db_cleanup_failed`（warning，进 pytest 日志），删除失败不再静默
+- CI `backend-test` job 移除冗余 `DATABASE_URL` env（原 `test_${run_id}.db` 实际被 conftest 按 PID 强制覆盖，纯误导；若改为 `setdefault` 将导致各 worker 共享同一 db 并发写冲突），并加防回归注释
+- 决定性验证（`-n 2` 运行中观察）：运行期间 `data/` 同时存在 master + 2 worker 三个独立 `test_{pid}.db`（PID 隔离生效），结束后归零（各进程 sessionfinish 均执行）
+
 ### 本轮复核：SQLite 并发写入 / 资源瓶颈全量再排查
 
 - `datetime.utcnow()` 全仓 0 处（废弃 API 清零）；`datetime.now(timezone.utc)` 93 处逐处甄别后，**剩余均为 DB 存储字段 / 查询窗口 / TTL 计算 / 认证过期判断**（UTC 边界内，不改）

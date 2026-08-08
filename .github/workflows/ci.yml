@@ -28,7 +28,9 @@ jobs:
 
       - name: Run tests with pytest-xdist
         env:
-          DATABASE_URL: "sqlite+aiosqlite:///./data/test_${{ github.run_id }}.db"
+          # DATABASE_URL 由 tests/conftest.py 按 os.getpid() 强制覆盖（test_{pid}.db，
+          # xdist 各 worker 独立 PID 隔离 + pytest_sessionfinish 自动清理），
+          # 无需在此设置；勿改 conftest 为 setdefault，否则各 worker 共享同一 db 并发写冲突。
           SECRET_KEY: "ci-test-secret-key-64-chars-random-string-xxxxxxxxxxxxxxxx"
           # v1.2.1 P0-1/P1-8：debug 默认 False + paseto_strict_mode 默认 True 后，
           # CI 无 .env，必须显式提供合法 PASETO 密钥（>=32 字节且非默认值），否则
