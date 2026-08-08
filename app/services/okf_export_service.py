@@ -25,7 +25,7 @@ from __future__ import annotations
 import io
 import json
 import tarfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from sqlalchemy import or_, select
@@ -33,6 +33,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge import KnowledgeEntry
 from app.services.knowledge_service import KNOWN_DOMAINS
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 # OKF bundle 根目录名（tar.gz 内顶层目录）
 _BUNDLE_ROOT = "knowledge_bundle"
@@ -249,7 +252,7 @@ def _build_log(entries: list[KnowledgeEntry]) -> str:
     frontmatter = _emit_frontmatter({
         "type": "Log",
         "title": "知识包变更日志",
-        "description": f"由 OKF 导出器于 {datetime.now(timezone.utc).isoformat()} 生成",
+        "description": f"由 OKF 导出器于 {datetime.now(_BJ_TZ).isoformat()} 生成",
     })
     lines = ["# 变更日志", ""]
     if not entries:

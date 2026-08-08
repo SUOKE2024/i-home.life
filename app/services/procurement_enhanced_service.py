@@ -17,12 +17,15 @@ from app.models.procurement_enhanced import (
     SampleRequest,
 )
 
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
 
 # ── 通用工具 ──
 
 async def _gen_no(prefix: str) -> str:
     """生成业务单号: PREFIX-YYYYMMDD-XXXXXXXX"""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    today = datetime.now(_BJ_TZ).strftime("%Y%m%d")
     short = uuid.uuid4().hex[:8].upper()
     return f"{prefix}-{today}-{short}"
 

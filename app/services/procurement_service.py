@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,9 @@ from app.models.material import BOMItem, Material
 from app.models.construction import ConstructionTask
 
 logger = logging.getLogger(__name__)
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 # 采购订单状态流转定义
 ORDER_STATUS_FLOW: dict[str, set[str]] = {
@@ -564,7 +567,7 @@ async def link_to_construction(db: AsyncSession, order_id: str, task_id: str) ->
             if order.material_delivered_at
             else None
         ),
-        "linked_at": datetime.now(timezone.utc).isoformat(),
+        "linked_at": datetime.now(_BJ_TZ).isoformat(),
     }
 
 

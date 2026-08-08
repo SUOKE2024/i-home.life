@@ -1,13 +1,16 @@
 """支付管理服务 — F15 发起 / 确认 / 退款 / 里程碑聚合 / 电子发票 / 分阶段支付节点 / 最终结算报告"""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.payment import Payment
 from app.models.settlement import Settlement
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 状态机定义 ──
@@ -153,7 +156,7 @@ async def generate_invoice(db: AsyncSession, payment_id: str, data: dict) -> Pay
         return payment
 
     now = datetime.now(timezone.utc)
-    invoice_no = f"INV-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    invoice_no = f"INV-{datetime.now(_BJ_TZ).strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     payment.invoice_no = invoice_no
     payment.invoice_url = data.get("invoice_url")
     payment.invoiced_at = now
@@ -418,5 +421,5 @@ async def get_final_settlement_report(db: AsyncSession, project_id: str) -> dict
         "invoiced_amount": round(invoiced_amount, 2),
         "milestone_summary": milestone_data.get("milestones", []),
         "payment_count": payment_count,
-        "generated_at": datetime.now(timezone.utc),
+        "generated_at": datetime.now(_BJ_TZ),
     }

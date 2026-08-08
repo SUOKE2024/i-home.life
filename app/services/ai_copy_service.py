@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -11,6 +11,9 @@ from app.models.product import Product
 from app.agents.procurement import ProcurementAgent
 
 logger = logging.getLogger("ihome")
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 # 内存中的任务状态追踪（生产环境应迁移到 Redis/数据库）
 _job_status: dict[str, dict] = {}
@@ -33,8 +36,8 @@ async def start_batch_ai_copy(
         "completed": 0,
         "failed": 0,
         "in_progress": True,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "created_at": datetime.now(_BJ_TZ),
+        "updated_at": datetime.now(_BJ_TZ),
     }
     _job_status[batch_id] = job
 
@@ -89,7 +92,7 @@ async def _run_batch_ai_copy(
                 logger.warning(f"AI 文案生成失败 product={pid}: {e}")
                 _job_status[batch_id]["failed"] += 1
 
-            _job_status[batch_id]["updated_at"] = datetime.utcnow()
+            _job_status[batch_id]["updated_at"] = datetime.now(_BJ_TZ)
 
             # 避免 LLM API 限流
             await asyncio.sleep(0.5)
@@ -97,7 +100,7 @@ async def _run_batch_ai_copy(
     finally:
         await agent.close()
         _job_status[batch_id]["in_progress"] = False
-        _job_status[batch_id]["updated_at"] = datetime.utcnow()
+        _job_status[batch_id]["updated_at"] = datetime.now(_BJ_TZ)
 
 
 def _build_marketing_prompt(product: Product) -> str:

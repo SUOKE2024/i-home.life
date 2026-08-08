@@ -6,8 +6,11 @@
 """
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 # 生态注册表（按优先级升序，priority 越小越优先）
 ECOSYSTEMS: list[dict[str, Any]] = [
@@ -79,7 +82,7 @@ def status_report() -> dict[str, Any]:
         })
     return {
         "bridges": bridges,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(_BJ_TZ).isoformat(),
         "honest_note": HONEST_NOTE,
     }
 

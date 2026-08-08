@@ -15,6 +15,9 @@ from app.models.points import (
 
 logger = logging.getLogger(__name__)
 
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
 # ── 等级配置 ──
 LEVEL_CONFIG = {
     "bronze":   {"min": 0,     "max": 499,   "label": "铜牌"},
@@ -46,7 +49,7 @@ async def ensure_account(db: AsyncSession, user_id: str) -> PointsAccount:
         # refresh 获取 server_default 生成的 created_at / updated_at
         await db.refresh(account)
     # 检查是否需要重置年度统计
-    current_year = datetime.now(timezone.utc).year
+    current_year = datetime.now(_BJ_TZ).year
     if account.year_updated != current_year:
         account.year_earned = 0
         account.year_spent = 0
@@ -220,7 +223,7 @@ async def recompute_ranking(
 ) -> int:
     """重新计算积分排名"""
     if year is None:
-        year = datetime.now(timezone.utc).year
+        year = datetime.now(_BJ_TZ).year
 
     # 按 year_earned 降序排列，按角色分组
     stmt = (
@@ -275,7 +278,7 @@ async def get_ranking(
 ) -> list[dict]:
     """获取排行榜"""
     if year is None:
-        year = datetime.now(timezone.utc).year
+        year = datetime.now(_BJ_TZ).year
 
     conditions = [PointsRanking.year == year, PointsRanking.category == category]
     if role:

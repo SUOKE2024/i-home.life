@@ -11,9 +11,12 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 协议常量 ──
@@ -91,7 +94,7 @@ class CardHeader:
     """所有 A2UI 卡片的公共头"""
     type: str
     version: str = PROTOCOL_VERSION
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(_BJ_TZ).isoformat())
 
 
 @dataclass
@@ -265,7 +268,7 @@ def make_card(card_type: CardType, data: dict[str, Any]) -> dict[str, Any]:
         "type": card_type.value,
         "version": PROTOCOL_VERSION,
         "id": str(uuid.uuid4()),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(_BJ_TZ).isoformat(),
         "data": data,
     }
 

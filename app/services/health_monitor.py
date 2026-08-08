@@ -19,7 +19,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -27,6 +27,9 @@ from app.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 class AlertLevel(str, Enum):
@@ -270,7 +273,7 @@ class HealthMonitor:
         result = HealthCheckResult(
             project_id=project.id,
             project_name=getattr(project, "name", project.id),
-            checked_at=datetime.now(timezone.utc).isoformat(),
+            checked_at=datetime.now(_BJ_TZ).isoformat(),
         )
 
         # 加载所有里程碑

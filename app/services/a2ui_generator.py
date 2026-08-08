@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.services.a2ui_schema import (
@@ -22,6 +22,9 @@ from app.services.a2ui_schema import (
     SettlementSummaryData,
     make_card,
 )
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -176,7 +179,7 @@ def construction_to_card(agent_output: dict[str, Any]) -> dict[str, Any]:
             else {}
         ),
         updated_at=_safe_str(
-            agent_output.get("updated_at", datetime.now(timezone.utc).isoformat())
+            agent_output.get("updated_at", datetime.now(_BJ_TZ).isoformat())
         ),
     )
     return data.to_card()

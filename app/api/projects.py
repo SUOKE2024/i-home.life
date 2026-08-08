@@ -385,7 +385,9 @@ async def accept_project(
     if not updated:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="状态推进失败")
 
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
+    # 业务时区（北京时间，对齐 agent_context_service._DEFAULT_TZ）
+    _bj_tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
     resp = {
         "project_id": project_id,
         "project_name": project.name,
@@ -393,7 +395,7 @@ async def accept_project(
         "phase": updated.phase,
         "accepted": True,
         "acceptance_report": report,
-        "accepted_at": datetime.now(timezone.utc).isoformat(),
+        "accepted_at": datetime.now(_bj_tz).isoformat(),
     }
     try:
         await ws_manager.broadcast_to_project(project_id, "project.accepted", resp)

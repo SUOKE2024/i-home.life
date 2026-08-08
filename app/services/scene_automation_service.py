@@ -1,7 +1,7 @@
 """F32 场景编辑服务层 — 场景联动 + 生态对接 + 自然语言解析 + A4 预测式推荐"""
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,9 @@ from app.models.smart_home import SmartDevice
 
 # A4 预测式智能场景推荐服务（可选导入，由 feature flag 控制使用）
 from app.services import predictive_scene_service as predictive_scene  # noqa: F401
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 场景 CRUD ──
@@ -647,7 +650,7 @@ async def check_sensor_triggers(
         被触发的场景列表（含触发时间与动作执行状态）
     """
     import logging
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -711,7 +714,7 @@ async def check_sensor_triggers(
             "actions": scene.actions or [],
             "action_status": action_status,
             "action_note": action_note,
-            "triggered_at": datetime.now(timezone.utc).isoformat(),
+            "triggered_at": datetime.now(_BJ_TZ).isoformat(),
         })
 
     await db.commit()

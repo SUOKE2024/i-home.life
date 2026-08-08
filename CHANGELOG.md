@@ -31,12 +31,38 @@
   → agent_ctx_injected(preview) → agent_kitchen_ctx_ready → agent_kitchen_reply`）
 - 恢复 `AgentMessage.location` 字段与 `/chat`、`/chat/stream` 的 LBS 传参（v1.8.x 空间感知闭环）
 
+### 修复：时区统一全量收尾（对外展示类 13 文件 + 业务日期 4 处）
+
+承接上批报告时区统一，对全仓对外展示类时间戳做收尾扫描：
+
+- **13 个对外展示类文件统一 `_BJ_TZ`**（+08:00）：`projects.accepted_at`、
+  `procurement.actual_delivery_date`、`a2ui_schema/a2ui_generator`（卡片 `timestamp`/`updated_at`）、
+  `ai_copy_service`（3 处废弃 `utcnow`）、`ecosystem_bridge_status`、`health_monitor.checked_at`、
+  `okf_export_service`、`payment_service.generated_at`、`predictive_maintenance_service`（缓解/解决备注）、
+  `procurement_service.linked_at`、`scene_automation_service.triggered_at`、`settlement_service.exported_at`
+- **4 处业务日期/年份遗留**（UTC 生成 `YYYYMMDD`/`year` 在北京 00:00–07:59 跨日/跨年错位）：
+  `quality_service` 整改单号、`procurement_enhanced_service._gen_no` 业务单号、
+  `payment_service` 发票号（DB 存储 `invoiced_at` 仍 UTC，拆变量）、`points_service` 年度统计与排行榜年份
+- **边界约定**：DB 存储字段 + 查询窗口保留 UTC；对外展示与业务日期标识统一 +08:00。
+  `datetime.utcnow()` 全仓清零（废弃 API），`datetime.now(timezone.utc)` 剩余均为存储/窗口用途
+- 统一模式 `_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")`（固定偏移，不依赖 tzdata）
+
+### 修复：conftest 会话结束自动清理测试数据库残留
+
+- `tests/conftest.py` 新增 `pytest_sessionfinish`：按 `os.getpid()` 删除本进程
+  `data/test_{pid}.db*`（含 -journal/-wal），正常/异常退出均触发
+- 防 `data/` 残留 test db 累积占磁盘（历史已清理 2 次 18+ 个）；只匹配 test db，不触碰 `ihome.db`
+- 本地串行与 CI xdist（`-n auto`，各 worker 独立进程/PID）均验证无残留
+
 ### 验证
 
 - `tests/test_agent_chain.py` 12 passed（提取偏好/城市、提取+注入闭环 spy、越权 403/404、
   简报/报告时区 `+08:00` 断言、LBS POI 注入与诚实降级）
 - 相关回归 80 passed（energy / health_monitor / b2b_delivery / solution_first / design_proposal）
+- 时区收尾回归 235 passed（projects/procurement/payments/settlement/health/scene_automation/
+  procurement_enhanced/points 等）
 - flake8 / mypy 通过
+- 复盘：`docs/reports/technical-review-20260808.md`
 
 ## [1.10.2] — 2026-08-08
 

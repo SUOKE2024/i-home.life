@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -6,6 +6,9 @@ from sqlalchemy.orm import selectinload
 
 from app.models.settlement import Settlement, SettlementLine
 from app.models.budget import Budget
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 状态机定义 ──
@@ -262,7 +265,7 @@ async def export_reconciliation(db: AsyncSession, project_id: str) -> dict | Non
         "status": settlement.status,
         "settled_at": settlement.settled_at.isoformat() if settlement.settled_at else None,
         "lines": lines_payload,
-        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "exported_at": datetime.now(_BJ_TZ).isoformat(),
     }
 
 

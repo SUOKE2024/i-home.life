@@ -2,12 +2,15 @@
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.quality import QualityIssue, RectificationOrder, QualityAssessment
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 质量问题 ──
@@ -109,7 +112,7 @@ async def update_issue_status(
 
 async def generate_order_no() -> str:
     """生成整改单号：RO-YYYYMMDD-XXXX"""
-    today = datetime.now(timezone.utc).strftime("%Y%m%d")
+    today = datetime.now(_BJ_TZ).strftime("%Y%m%d")
     short_uuid = uuid.uuid4().hex[:8].upper()
     return f"RO-{today}-{short_uuid}"
 

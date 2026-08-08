@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -25,6 +25,9 @@ from app.agents.procurement import ProcurementAgent
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/procurement", tags=["采购"])
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 async def _verify_project_owner(db: AsyncSession, project_id: str, user: User) -> Project:
@@ -526,7 +529,7 @@ async def confirm_delivery(
 
     update_data = {
         "delivery_status": "delivered",
-        "actual_delivery_date": data.actual_delivery_date or datetime.utcnow(),
+        "actual_delivery_date": data.actual_delivery_date or datetime.now(_BJ_TZ),
     }
     if data.delivery_notes:
         update_data["delivery_notes"] = data.delivery_notes

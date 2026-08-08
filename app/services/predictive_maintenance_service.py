@@ -1,7 +1,7 @@
 """A6 施工预测性维护 — 风险分析服务"""
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,9 @@ from app.models.budget import Budget
 from app.models.material import BOMItem
 
 logger = logging.getLogger("ihome")
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 async def analyze_project_risks(project_id: str, db: AsyncSession) -> dict:
@@ -261,7 +264,7 @@ async def mitigate_risk(risk_id: str, db: AsyncSession, note: str | None = None)
     risk.status = "mitigated"
     if note:
         current_mitigation = risk.mitigation_actions or []
-        current_mitigation.append(f"[{datetime.now(timezone.utc).isoformat()}] 缓解备注: {note}")
+        current_mitigation.append(f"[{datetime.now(_BJ_TZ).isoformat()}] 缓解备注: {note}")
         risk.mitigation_actions = current_mitigation
     await db.flush()
     return risk
@@ -276,7 +279,7 @@ async def resolve_risk(risk_id: str, db: AsyncSession, note: str | None = None) 
     risk.resolved_at = datetime.now(timezone.utc)
     if note:
         current_mitigation = risk.mitigation_actions or []
-        current_mitigation.append(f"[{datetime.now(timezone.utc).isoformat()}] 解决备注: {note}")
+        current_mitigation.append(f"[{datetime.now(_BJ_TZ).isoformat()}] 解决备注: {note}")
         risk.mitigation_actions = current_mitigation
     await db.flush()
     return risk
