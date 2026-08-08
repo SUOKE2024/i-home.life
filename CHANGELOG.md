@@ -2,7 +2,28 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [Unreleased] — 2026-08-08
+## [Unreleased] — 2026-08-09
+
+### 新增：前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）
+
+承接全景评估待办清单（`docs/reports/backlog-external-frontend-20260808.md`），补齐无独立页面
+的后端模块前端覆盖：
+
+- **Web 控制台 +12 页**（`console-src/src/pages/`，均对接真实后端 API，flag 未启用时诚实降级）：
+  - Agent 治理 8 页：AgentIdentityPage（GB/Z 185 身份卡）/ AgentApprovalsPage（工具批准 approve/reject/execute）/
+    AgentSkillsPage（Skill 资产 创建/分享/升级/回滚/导入/实例化）/ AgentMemoryPage（长期记忆 管理）/
+    A2APage（Agent 发现 + 任务下发/状态）/ MCPPage（manifest/tools 浏览 + 工具调用）/ HarnessPage（metrics/traces/eval）/
+    EvalPage（维度 + 报告 + 触发 run）
+  - 单端独缺 4 页：PointsPage（积分账户/流水/商城/兑换/排行榜）/ AIImagePage（AI 图生图 任务/预设/批量）/
+    IdentityPage（身份认证 提交/审核）/ SurveysPage（量房 + AR 会话管理）
+- **Flutter +3 页**（`flutter_app/lib/pages/`，对齐 Web 功能）：b2b_delivery_page（装企交付 创建/列表/状态流转）、
+  sketch_to_3d_page（草图转 3D 上传生成）、ifc_export_page（BIM IFC 导出）；`api.dart` 追加
+  B2B/sketch 类型化方法（Result 风格）+ `project_detail_page` 功能入口补 3 项
+- **基线校准**：`scripts/test_baseline.json` 校准至实测 **2046 passed / 2 skipped / 4 xfailed**
+  （此前 2038/10/4 与两轮全量实测 2046/2/4 的 skip 分类差 8 为环境性，已消除；CLAUDE.md 同步）
+- 验证：全量 pytest 2046 passed 零回退；console `npm run build` 0 错误；flutter analyze 0 issues
+
+## [1.11.0] — 2026-08-08
 
 ### 修复：运营简报/报告 generated_at 统一为北京时间（+08:00）
 

@@ -2,9 +2,9 @@
 
 # i-home.life（索克家居）Code Wiki
 
-> **版本**：v6.0
-> **最后更新**：2026-07-31
-> **项目状态**：v1.3.0 MCP 2026-07-28 规范完整对齐 + 缓存用户隔离 + AI 渲染契约 + H-IFC 扩展（77 个新测试全通过）
+> **版本**：v7.1
+> **最后更新**：2026-08-09
+> **项目状态**：v1.11.0（时区统一 + 记忆注入闭环 + CI 基建加固，2046 passed）· 自进化管线（v1.10.2 引入）· 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 
@@ -657,9 +657,9 @@ Phase 4: 施工 + 质检 Agent (2027-07 ~ 2027-08) ✅ 后端完成
 
 Phase 5: 生态完善 (2027-09 ~ 2027-12) 进行中
 ├── 客服 Agent ✅
-├── 智能家居方案设计器 (规划中)
-├── AI 自适应学习 L4 (规划中)
-└── GA 正式版
+├── 智能家居方案设计器 ✅（smart_home 模块 + console/Flutter 页面）
+├── AI 自适应学习 L4 ✅（v1.10.x 自进化管线：Case 提取/Skill 蒸馏/进化，flag 灰度）
+└── GA 正式版 ✅（生产 i-home.life 已上线：LE 证书 + 80→443 + webapp dist）
 ```
 
 ### Phase 1 MVP 必须交付
@@ -746,6 +746,31 @@ __pycache__/, *.py[cod], *.egg-info/, .eggs/, dist/, build/, .venv/, venv/
 | DXF | Drawing Exchange Format（CAD 交换格式） |
 | DWG | DraWinG（AutoCAD 原生格式） |
 | Gantt | 甘特图（项目进度管理图表） |
+
+---
+
+## 12. 版本发布归档
+
+### 12.1 v1.11.0（2026-08-09 发布）
+
+> **主题**：时区统一（三批）+ 智能体记忆注入闭环 + CI 测试基建加固
+> **Git Tag**：`v1.11.0`（提交 `ac8a48c`）· 前置版本：v1.10.2 · 基线：2046 passed 零回退
+
+| 归档文件 | 说明 |
+|---------|------|
+| `assets/releases/v1.11.0/RELEASE_NOTES.md` | 面向开发团队的发布说明（时区/记忆/CI 三项 + 提交清单 + 回滚方案） |
+| `assets/releases/v1.11.0/changes.md` | 知识库归档用完整修复清单（文件级变更 + 时区边界约定 + 已知注意事项） |
+| `assets/releases/v1.11.0/ci-cd-impact.md` | 对 CI/CD 流水线的具体影响分析（逐 job 评估 + 发布待办） |
+| `assets/releases/v1.11.0/validation-report.md` | 最终验收报告（时区/记忆/CI/版本 bump 四维验收 + 全量结论） |
+| `docs/reports/technical-review-20260808.md` | 技术复盘（含 conftest 清理 CI 验证与资源瓶颈复核） |
+
+**关键结论**：
+- 时区边界约定：DB 存储字段 + 查询窗口保持 UTC；对外展示时间戳与业务日期标识统一 +08:00（`_BJ_TZ`）
+- 记忆注入：19 个专用 Agent 端点补齐提取/注入（统一 helper `_extract_and_inject_agent_context`）
+- CI 基建：conftest 按 PID 清理 test db + 监控日志；CI 移除冗余 `DATABASE_URL` env
+- 资源清理：`datetime.utcnow()` 清零、SQLite 孤儿文件清零、`data/` 仅业务库
+
+> 归档确认：2026-08-09 · 详见 `docs/reports/archive-confirmation-v1.11.0.md`
 
 ---
 
