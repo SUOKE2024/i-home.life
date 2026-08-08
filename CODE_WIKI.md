@@ -763,6 +763,7 @@ __pycache__/, *.py[cod], *.egg-info/, .eggs/, dist/, build/, .venv/, venv/
 | `assets/releases/v1.11.0/ci-cd-impact.md` | 对 CI/CD 流水线的具体影响分析（逐 job 评估 + 发布待办） |
 | `assets/releases/v1.11.0/validation-report.md` | 最终验收报告（时区/记忆/CI/版本 bump 四维验收 + 全量结论） |
 | `docs/reports/technical-review-20260808.md` | 技术复盘（含 conftest 清理 CI 验证与资源瓶颈复核） |
+| `docs/reports/performance-stability-review-v1.11.0.md` | 性能与稳定性复盘（时区效果 / CI 数据 / SQLite 风险消除） |
 
 **关键结论**：
 - 时区边界约定：DB 存储字段 + 查询窗口保持 UTC；对外展示时间戳与业务日期标识统一 +08:00（`_BJ_TZ`）
