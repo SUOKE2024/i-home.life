@@ -12,6 +12,44 @@
     <meta name="author" content="索克家居" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
+
+    <!-- SEO：社交分享卡片（Open Graph + Twitter） -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="索克家居" />
+    <meta property="og:title" content="索克家居 · i-home.life — AI 智能装修平台" />
+    <meta
+      property="og:description"
+      content="AI 驱动的全链路智能家居建造平台。覆盖设计→预算→采购→施工→质检→结算全流程，AR 量房、3D 方案、VR 全景。"
+    />
+    <meta property="og:url" content="https://i-home.life/" />
+    <meta property="og:image" content="https://i-home.life/logo.png" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="索克家居 · i-home.life — AI 智能装修平台" />
+    <meta
+      name="twitter:description"
+      content="AI 驱动的全链路智能家居建造平台。覆盖设计→预算→采购→施工→质检→结算全流程。"
+    />
+    <meta name="twitter:image" content="https://i-home.life/logo.png" />
+
+    <!-- SEO：结构化数据（WebSite + Organization） -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "索克家居 · i-home.life",
+        "url": "https://i-home.life/",
+        "description": "AI 驱动的全链路智能家居建造平台，覆盖设计→预算→采购→施工→质检→结算全流程。",
+        "inLanguage": "zh-CN",
+        "publisher": {
+          "@type": "Organization",
+          "name": "索克家居",
+          "url": "https://i-home.life/",
+          "logo": { "@type": "ImageObject", "url": "https://i-home.life/logo.png" }
+        }
+      }
+    </script>
+
     <title>索克家居 · i-home.life — AI 智能装修平台</title>
     <style>
       html, body { background: #08080f; margin: 0; }
@@ -19,6 +57,14 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- 备案号静态兜底：React 挂载渲染 Shell/Login 的 footer；此处供禁用 JS 的爬虫/审核工具读取（工信部合规双保险） -->
+    <noscript>
+      <footer style="padding: 14px; text-align: center; font-size: 12px; color: #9a97a8; background: #08080f;">
+        <span style="margin-right: 8px;">© 2026 索克家居 · i-home.life</span>
+        <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color: #9a97a8; text-decoration: none;">滇ICP备2026015233号-2</a>
+      </footer>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

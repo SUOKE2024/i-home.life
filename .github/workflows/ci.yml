@@ -338,6 +338,12 @@ jobs:
           npm ci
           npm run build
 
+      - name: Build console (Web 控制台 v2，构建至 webapp/dist/console 随 webapp 同步)
+        run: |
+          cd console-src
+          npm ci
+          npm run build
+
       - name: Sync web assets
         run: |
           rsync -avz --delete \
