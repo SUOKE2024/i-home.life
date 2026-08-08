@@ -14,16 +14,25 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 
 两类 Agent，feature flag 独立控制，勿混淆：
 
-- **执行型 Agent**（面向用户交付）：designer/budget/procurement/construction/qa_inspector/settlement/concierge 等 22 个，覆盖家装交付链路。
+- **执行型 Agent**（面向用户交付）：designer/budget/procurement/construction/qa_inspector/settlement/concierge 等 21 个，覆盖家装交付链路。
 - **商业运营 Agent**（平台自身运营，借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」）：growth/marketing/competitor_research/finance_recon，受各自 `xxx_agent_enabled` flag 灰度，默认 False。
-- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron）。
+- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `https://i-home.life/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron；2026-08-08 域名切换后触发器目标 URL 须为域名 443，不再用 `http://118.31.223.213:8081`）。
 - **以销定产**：`procurement_demand_driven_enabled`（默认 False）开启后 `procurement_service.drive_procurement_from_bom` 从 designer BOM 反向驱动采购优先级（紧急/常规/可缓），借鉴义乌「以销定产」模式。
 
 商业运营 Agent 数据源诚实标注（GrowthAgent 基于 `agent_feedbacks` 表，非全量调用日志；FinanceRecon 基于 `payment/escrow` 内部表，无 Stripe 对接），禁止伪装实时数据。
 
+## Agent 自进化管线（v1.10.2，借鉴 EverMind EverOS + SkillCorpus + HarnessBank）
+
+三层独立 feature flag 灰度，默认全 False（关闭则 Agent 维持无记忆无进化静态行为）：
+- **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。
+- **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：同主题 Case ≥3 条聚类蒸馏为 Skill（`distill_skill_from_cases`，生成前查重合并避免冗余——SkillCorpus 策展）；`BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文。
+- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。
+- 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
+- 用户指南见 `assets/guide/ai-self-evolution-guide.md`，隐私声明见 `assets/legal/agent-memory-privacy-notice.md`。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
-- **部署**：阿里云 FC 函数计算。**禁止引入 K8s/Helm/容器编排方案**。
+- **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
 - **鉴权**：PASETO v4.local。**禁止使用 JWT/JWS**。密钥 ≥32 字节，`paseto_strict_mode=True` 时硬校验（见 `app/config.py` `_validate_paseto_key`）。
 - **MCP**：遵循 2026-07-28 规范 8 项（stateless / discover / header-routing / cacheable / MRTR / RFC9207 / Tasks / Server Card）。改 MCP 看齐 `app/mcp/`。
 - **缓存隔离**：私有数据 cache key 必须含 `user_id`。`cache_user_isolation_strict=True`（默认），未传 user_id 直接 raise。用 `build_isolated_key` / `get_isolated` / `set_isolated`。
@@ -34,10 +43,10 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 
 ## 协作四原则（改编自 Karpathy LLM 编程四铁律）
 
-1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 22 执行型 + 4 商业运营 Agent / 99 Service，猜错代价高。
-2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。121 ORM 模型 + 73 路由已够复杂（`app/api/` 磁盘实为 73 个路由模块，main.py 76 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
+1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 103 Service，猜错代价高。
+2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。127 ORM 模型 + 74 路由已够复杂（`app/api/` 磁盘实为 74 个路由模块，main.py 77 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 1956 passed 不得回退（collect 1961 = 1956 passed + 2 skipped + 3 xfailed，2026-08-08 实测 488s）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2021 passed 不得回退（collect 2027 = 2021 passed + 2 skipped + 4 xfailed[test_diagnostics 并发 flaky 已标 xfail]）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

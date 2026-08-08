@@ -205,3 +205,111 @@ async def test_finance_report_generated_at_beijing_tz(monkeypatch, db_session):
         assert result["generated_at"].endswith("+08:00"), result["generated_at"]
     finally:
         await agent.close()
+
+
+# ── LBS 真实 POI 闭环（v1.9.x）──
+
+
+@pytest.mark.asyncio
+async def test_specialized_endpoint_injects_lbs_poi(
+    client: AsyncClient, auth_token: str, monkeypatch,
+):
+    """LBS 闭环：/kitchen 带 GPS location → 周边真实 POI 注入 + 城市落库长期记忆。
+
+    模拟真实高德 key（is_real_key=True + fake search_nearby_poi/regeo），
+    断言：读侧注入城市 + 周边 POI 块；写侧城市记忆落库。
+    """
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.services import amap_service as amap
+
+    monkeypatch.setattr(amap, "is_real_key", lambda: True)
+
+    async def _fake_search(location="", keywords="", radius=3000, limit=10, types=""):
+        return {"count": 1, "source": "real",
+                "pois": [{"name": "昆明建材市场", "distance": "500"}]}
+
+    async def _fake_regeo(location):
+        return {"city": "昆明", "district": "五华区", "source": "real"}
+
+    monkeypatch.setattr(amap, "search_nearby_poi", _fake_search)
+    monkeypatch.setattr(amap, "regeo", _fake_regeo)
+
+    captured: dict = {}
+
+    async def _spy_think(self, user_message, context="", db=None, project_id=""):
+        captured["context"] = context
+        return "[mock] kitchen 响应"
+
+    monkeypatch.setattr(KitchenAgent, "think", _spy_think)
+    headers = {"Authorization": f"Bearer {auth_token}"}
+
+    resp = await client.post(
+        "/api/agents/kitchen",
+        headers=headers,
+        json={"message": "附近哪里有建材市场", "location": "102.8332,24.8801"},
+    )
+    assert resp.status_code == 200
+
+    ctx = captured.get("context", "")
+    assert "用户所在城市：昆明" in ctx, f"未注入城市上下文: {ctx!r}"
+    assert "【用户位置周边POI】" in ctx and "昆明建材市场" in ctx, f"未注入周边POI: {ctx!r}"
+
+    # 写侧：逆地理编码城市落库长期记忆
+    mem_resp = await client.get("/api/agents/memory", headers=headers)
+    assert mem_resp.status_code == 200
+    items = mem_resp.json()["items"]
+    loc = [i for i in items if i["category"] == "location" and i["key"] == "city"]
+    assert loc and "昆明" in loc[0]["value"], f"未落库昆明城市记忆: {items}"
+
+
+@pytest.mark.asyncio
+async def test_specialized_endpoint_location_validation(
+    client: AsyncClient, auth_token: str,
+):
+    """SimpleAgentRequest.location 格式校验：非法格式/越界经纬度 → 422"""
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    for bad in ("not-a-coord", "200,100", "102.8332"):
+        resp = await client.post(
+            "/api/agents/kitchen", headers=headers,
+            json={"message": "测试", "location": bad},
+        )
+        assert resp.status_code == 422, f"location={bad!r} 应返回 422: {resp.text}"
+
+
+@pytest.mark.asyncio
+async def test_lbs_no_key_honest_degrade(
+    client: AsyncClient, monkeypatch,
+):
+    """诚实降级：无高德 key → 带 location 不注入 POI/城市、不落库城市记忆"""
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.services import amap_service as amap
+
+    monkeypatch.setattr(amap, "is_real_key", lambda: False)
+    token = await _register(client, "13900771234")  # 独立用户，环境干净
+
+    captured: dict = {}
+
+    async def _spy_think(self, user_message, context="", db=None, project_id=""):
+        captured["context"] = context
+        return "[mock] kitchen 响应"
+
+    monkeypatch.setattr(KitchenAgent, "think", _spy_think)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.post(
+        "/api/agents/kitchen",
+        headers=headers,
+        json={"message": "附近哪里有建材市场", "location": "102.8332,24.8801"},
+    )
+    assert resp.status_code == 200
+
+    ctx = captured.get("context", "")
+    assert "周边POI" not in ctx, f"无 key 不应注入 POI: {ctx!r}"
+    assert "用户所在城市" not in ctx, f"无 key 不应注入城市: {ctx!r}"
+
+    mem_resp = await client.get("/api/agents/memory", headers=headers)
+    items = mem_resp.json()["items"]
+    # 只断言 GPS 逆地理编码（source=lbs_geo）未落库；文本提取器（source=chat）
+    # 对「附近哪里」句式的位置类提取属另一机制，与本用例无关
+    loc = [i for i in items if i["category"] == "location" and i["source"] == "lbs_geo"]
+    assert not loc, f"无 key 不应落库 lbs_geo 城市记忆: {items}"

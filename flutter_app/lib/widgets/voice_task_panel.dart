@@ -200,7 +200,12 @@ class _VoiceTaskPanelState extends State<VoiceTaskPanel> {
           ),
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: const Icon(Icons.close, size: 20, color: SuokeDesignTokens.textSecondary),
+            // 44dp 触摸目标（WCAG 2.5.8）
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(12),
+              child: Icon(Icons.close, size: 20, color: SuokeDesignTokens.textSecondary),
+            ),
           ),
         ],
       ),
@@ -354,11 +359,16 @@ class _VoiceTaskPanelState extends State<VoiceTaskPanel> {
                 const SizedBox(width: SuokeDesignTokens.spacingSm),
                 GestureDetector(
                   onTap: () => _cancel(task),
-                  child: const Text(
-                    '取消',
-                    style: TextStyle(
-                      fontSize: SuokeDesignTokens.fontSizeSm,
-                      color: SuokeDesignTokens.danger,
+                  // 44dp 触摸目标（WCAG 2.5.8）
+                  behavior: HitTestBehavior.opaque,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    child: Text(
+                      '取消',
+                      style: TextStyle(
+                        fontSize: SuokeDesignTokens.fontSizeSm,
+                        color: SuokeDesignTokens.danger,
+                      ),
                     ),
                   ),
                 ),

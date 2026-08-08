@@ -4,6 +4,7 @@ import '../widgets/network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 
 class PointsPage extends StatefulWidget {
   const PointsPage({super.key});
@@ -534,11 +535,10 @@ class _PointsPageState extends State<PointsPage>
           ),
           const SizedBox(height: 8),
           if (_transactions.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text('暂无流水记录', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
-              ),
+            const EmptyStateWidget(
+              icon: Icons.receipt_long_outlined,
+              title: '暂无流水记录',
+              description: '积分获得与消费记录将显示在这里',
             )
           else
             ..._transactions
@@ -792,7 +792,8 @@ class _PointsPageState extends State<PointsPage>
                       backgroundColor: canRedeem ? SuokeDesignTokens.accent : SuokeDesignTokens.borderClr(context),
                       foregroundColor: canRedeem ? SuokeDesignTokens.bg(context) : SuokeDesignTokens.textSub(context),
                       padding: const EdgeInsets.symmetric(vertical: 6),
-                      minimumSize: const Size.fromHeight(30),
+                      // 44dp 最小触摸高度（WCAG 2.5.8，原 30dp）
+                      minimumSize: const Size.fromHeight(44),
                     ),
                     onPressed: canRedeem ? () => _confirmRedeem(item) : null,
                     child: const Text('兑换', style: TextStyle(fontSize: 13)),

@@ -2,6 +2,157 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased] — 2026-08-08
+
+### 修复：运营简报/报告 generated_at 统一为北京时间（+08:00）
+
+平台业务时区为 Asia/Shanghai（对齐 `agent_context_service._DEFAULT_TZ`），对外报告类时间戳
+此前为 UTC，现统一为北京时间（DB 存储字段仍保留 UTC 与存储一致）：
+
+- **运营简报**：Orchestrator `generate_daily_briefing` / Growth `generate_weekly_report` /
+  FinanceRecon `generate_recon_report` 的 `generated_at` → `+08:00`（`app/agents/` 三处）
+- **方案/交付报告**：`solution_first_service`（方案生成 + refine 两处）、`b2b_delivery`
+  （整包交付同步/异步两处）、`health_monitor_service`（综合健康报告）、`energy` API
+  （能耗报告 `generated_at`，废弃 `datetime.utcnow()` 改 tz-aware）、
+  `schemas/energy_monitor.EnergyReportResponse.generated_at` default_factory → 北京时间
+
+### 优化：智能体全链路记忆注入闭环（专用 Agent 端点）
+
+此前记忆提取/注入仅在 `/chat` 与 `/chat/stream` 两个端点闭环；19 个专用 Agent 端点
+（`/budget` `/procurement` `/construction` `/concierge/chat` + 12 个 SimpleAgent 端点 +
+`/design` `/concierge/faq` `/concierge/classify`）既不提取也不注入记忆：
+
+- 新增统一 helper `_extract_and_inject_agent_context`（`app/api/agents.py`）：
+  写侧提取偏好/城市入长期记忆（`agent_memory_extract_enabled`）→ 读侧注入时间感知
+  （北京时间）+ 空间感知（记忆城市/GPS）+ 长期记忆（`build_agent_context`）
+- 安全：`project_id` 非空时校验项目归属（对齐 `/chat`，防越权写 project scope 记忆）
+- 排查日志：`/kitchen`、`/budget` 与 helper 增加 structlog 日志
+  （`agent_kitchen_request → agent_ctx_start → agent_memory_extracted(saved=N)
+  → agent_ctx_injected(preview) → agent_kitchen_ctx_ready → agent_kitchen_reply`）
+- 恢复 `AgentMessage.location` 字段与 `/chat`、`/chat/stream` 的 LBS 传参（v1.8.x 空间感知闭环）
+
+### 验证
+
+- `tests/test_agent_chain.py` 12 passed（提取偏好/城市、提取+注入闭环 spy、越权 403/404、
+  简报/报告时区 `+08:00` 断言、LBS POI 注入与诚实降级）
+- 相关回归 80 passed（energy / health_monitor / b2b_delivery / solution_first / design_proposal）
+- flake8 / mypy 通过
+
+## [1.10.2] — 2026-08-08
+
+### 新增：自进化管线边界测试补全（LLM 异常返回 + 空值输入）
+
+基于覆盖率报告（89%）定位的防御性路径缺口，新增 22 个边界测试（`tests/test_agent_case.py` 37→59）：
+
+- **LLM 异常返回**：非法 JSON（`_parse_case_json` / `_parse_skill_json` 子串提取成功与失败）、
+  LLM 调用异常（`distill_skill_from_cases` / `_llm_extract_case` best-effort 降级）、
+  markdown 代码块包裹、approach 非法 JSON 降级
+- **空值输入**：空 task_intent 检索、空 name 查重跳过、不存在的 skill_id、
+  零使用记录 Skill（total=0）、sample_size=0 / before_success_rate=1.0 显著性检验边界、
+  trace 类型不支持、≥8 字符闲聊过滤、tool_calls 非列表、超长轨迹有界性
+
+### 修复：验证中发现 2 个边界问题
+
+- `search_cases` 空 task_intent 未过滤 → 返回用户全量未蒸馏 Case（新增空值守卫）
+- `_compress_trajectory` tool_calls 非列表类型 → AttributeError（新增 isinstance 防御）
+
+### 覆盖率提升
+
+| 模块 | 覆盖前 | 覆盖后 |
+|------|--------|--------|
+| `app/models/agent_case.py` | 100% | 100% |
+| `app/services/agent_case_service.py` | 91% | 99% |
+| `app/services/agent_skill_evolution_service.py` | 85% | 100% |
+| **合计** | **89%** | **99%** |
+
+> 剩余 1 行未覆盖：`_compress_trajectory` L93 "[已截断]" 分支——各段截断上限之和 < 2000，
+> 当前参数下为防御性死代码（不可达），已由有界性不变式测试守护。
+
+### 验证
+
+- `tests/test_agent_case.py` 59 passed（覆盖率 99%）
+- `scripts/verify_self_evolution.py` 66 项端到端验证全通过
+- 边界清单与验证报告已同步至 `assets/guide/ai-self-evolution-guide.md`
+
+### 版本全链路同步
+
+- `app_version` / MCP `SERVER_VERSION` / Flutter `1.10.2+38` / webapp `1.10.2`
+  （version.json + build 38）/ console `1.10.2.0` / CI `APP_VERSION` / schema-compare /
+  deploy-production.sh / rollback.sh（v1.10.2 条目）/.env* `APP_VERSION`
+- 测试断言同步：`test_v1_3_0_compliance.py` / `test_v1128_suoke_borrowed.py` / `test_mcp_2026_07_28.py`
+
+## [1.10.1] — 2026-08-08
+
+### 新增：Agent 自进化管线（借鉴 EverMind EverOS Agent Memory + SkillCorpus + HarnessBank）
+
+三层独立 feature flag 灰度，默认全 False（关闭则 Agent 维持无记忆无进化静态行为）：
+
+- **P0 Case 提取**（`agent_case_extraction_enabled`）：
+  - 新增 `AgentCase` 模型（`app/models/agent_case.py`）+ alembic 迁移 `a9b0c1d2e3f4`
+  - `agent_case_service.py`：从 `AgentTrace` 压缩去噪 → 过滤非目标导向对话 → LLM 提取 Case（task_intent + approach + quality_score）
+  - `harness.AgentRuntime._maybe_extract_case`：执行成功后 best-effort 沉淀 Case，不影响主流程
+- **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：
+  - `agent_skill_evolution_service.distill_skill_from_cases`：同主题 Case ≥3 条聚类 → LLM 蒸馏为 Skill → 生成前查重合并（SkillCorpus 策展）→ STATUS_DRAFT
+  - `BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文（新增 `user_id` 参数，向后兼容）
+- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：
+  - `agent_skills` 表新增 6 列：success_count / fail_count / utility_score / robustness_score / safety_score / last_evaluated_at
+  - `evaluate_skill_quality`：三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE
+  - `diagnose_credit_skill_patch`：借鉴 HarnessBank「诊断-归因分离」—— LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合归纳偏置）
+- 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构
+
+### 文档
+- 新增 `assets/guide/ai-self-evolution-guide.md`（用户使用指南）
+- 新增 `assets/legal/agent-memory-privacy-notice.md`（Agent 记忆隐私声明）
+- CLAUDE.md 新增「Agent 自进化管线」小节；ORM 126→127 / Service 101→103 / pytest 1987→2021
+
+### 版本全链路同步
+- `app_version` / MCP `SERVER_VERSION` / Flutter `1.10.1+37` / webapp `1.10.1`（version.json + build 37）/
+  console `1.10.1.0` / CI `APP_VERSION` / deploy-production.sh / rollback.sh（v1.10.1 条目）/.env* `APP_VERSION`
+- 测试断言同步：`test_v1_3_0_compliance.py` / `test_v1128_suoke_borrowed.py` / `test_mcp_2026_07_28.py`
+
+### 验证
+- `tests/test_agent_case.py` 34 passed（Case 提取/检索/蒸馏/进化/诊断归因/注入全链路）
+- 版本断言 3 文件 89 passed；Agent 相关子集 186 passed
+
+## [1.10.0] — 2026-08-08
+
+### 新增：全链路诊断系统（v1.10.x 落地，`diagnostics_enabled` 门控，默认 False）
+
+前端可观测性 + 后端全链路追踪（对齐 Datadog Bits AI / Dynatrace Davis 的「AI 辅助可观测性」思路，自研规则版）：
+
+- **全链路 Trace**：中间件采样（`diagnostics_sample_rate`，默认 10%）开启 Trace，`trace_id` 与 `X-Request-ID` 对齐，
+  HTTP → DB（`session.info` 关联）→ LLM/Agent 子 span（contextvar 链路）一条 Trace 落库
+- **指标滚动快照**：端点聚合（count/error_rate/avg/p50/p95/p99/max）滚动落库，喂异常检测基线
+- **异常检测引擎**（`app/services/diagnostics_analysis.py`）：错误率 / p95 延迟 / 慢查询突发 / LLM fallback 率 /
+  DB 查询风暴(N+1) / RUM LCP 规则告警 + p95 z-score 统计偏离，告警去重 + ack/resolve 状态机
+- **优化建议**：慢端点缓存/索引、N+1 selectinload、缓存命中率、LLM 成本档路由、持续 5xx 降级路径
+- **RUM**：webapp 埋点（LCP/CLS/INP/FCP/TTFB）经 `/api/analytics/collect` 落库（`diagnostics_rum_enabled` 门控）
+- **管理端 API**：`/api/diagnostics/*`（overview/metrics/endpoints/traces/alerts/recommendations/rum），非 admin 403、未启用 503
+- 后台任务：lifespan 启动快照/分析/清理三任务；alembic 迁移 `y1a2b3c4d5e6_add_v110_diagnostics_tables.py`
+- webapp 新增 Diagnostics 页面（全链路追踪 / 异常告警 / 优化建议 / RUM 看板）
+
+### 修复
+
+- **中间件 path_label 丢失 `/api` 前缀**：FastAPI 0.139 惰性 include（`_IncludedRouter`）下 `route.path`
+  不含外层 `APIRouter(prefix="/api")` 前缀，导致 Trace/监控 label 记录为 `/dashboard/overview` 等残缺路径；
+  按真实请求路径补全为 `/api/dashboard/overview`（`app/main.py`）
+- **starlette 0.46 常量漂移**：`HTTP_422_UNPROCESSABLE_CONTENT` 已移除，施工图 API 4 处改用
+  `HTTP_422_UNPROCESSABLE_ENTITY`，修复 section/export 非法参数请求挂起超时（`app/api/construction_drawing.py`）
+- **产品批量上传异常逃逸**：空/损坏 Excel 解析抛 `ValueError` 未捕获，经中间件栈传播挂起 ~50s；
+  服务端改为 400 响应（`app/api/product_batch.py`）
+
+### 版本全链路同步
+
+- `app_version` / MCP `SERVER_VERSION` / Flutter `1.10.0+36` / webapp `1.10.0`（version.json + Profile）/
+  console `1.10.0.0` / CI `APP_VERSION` / deploy-production.sh / rollback.sh（v1.10.0 条目）/.env* `APP_VERSION`
+- CLAUDE.md 数字同步：Service 99→101、执行型 Agent 22→21（+1 主动 Orchestrator）
+- 测试断言同步：`test_v1_3_0_compliance.py` / `test_v1128_suoke_borrowed.py` / `test_mcp_2026_07_28.py`
+
+### 验证
+
+- `tests/test_diagnostics.py` 16 passed + 1 xpassed（并发 flaky 标 xfail 不变）；版本断言 5 文件 105 passed
+- Flutter 依赖升级保留：file_picker 12 beta / permission_handler 13 / sensors_plus 7 / geolocator 14（Android desugaring + 鸿蒙适配配套）
+
 ## [Unreleased]
 
 ### webapp 网站（Vite+React）+ ICP 备案号悬挂 + 移除旧 web/（2026-08-08）

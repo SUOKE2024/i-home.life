@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
 import '../widgets/floor_plan_canvas.dart';
 
 class HardDecorationPage extends StatefulWidget {
@@ -292,7 +293,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
 
   Widget _buildSchemesTab() {
     if (_schemesLoading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return Center(
@@ -503,8 +504,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         const SizedBox(height: 8),
         Expanded(
           child: _detailsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _floors.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.grid_on_outlined,
@@ -616,8 +616,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         const SizedBox(height: 8),
         Expanded(
           child: _detailsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _walls.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.view_quilt_outlined,
@@ -713,8 +712,7 @@ class _HardDecorationPageState extends State<HardDecorationPage>
         const SizedBox(height: 8),
         Expanded(
           child: _detailsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _ceilings.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.calendar_view_day_outlined,
@@ -1230,7 +1228,8 @@ class _HardDecorationPageState extends State<HardDecorationPage>
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
+                // redAccent+白字 3.19:1 不达标 → danger(#C94A4A)+白字 4.6:1 达 WCAG AA
+                backgroundColor: SuokeDesignTokens.danger,
                 foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);

@@ -641,8 +641,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         const SizedBox(height: 8),
         Expanded(
           child: _devicesLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemCount: 3, itemHeight: 90)
               : _devices.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.devices,
@@ -788,8 +787,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         ),
         Expanded(
           child: _scenesLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _scenes.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.movie_filter_outlined,

@@ -14,6 +14,7 @@ import ProcurementPage from './pages/Procurement'
 import SmartHomePage from './pages/SmartHome'
 import AiPage from './pages/Ai'
 import ProfilePage from './pages/Profile'
+import DiagnosticsPage from './pages/Diagnostics'
 
 function RequireAuth({ children }) {
   const { loggedIn, booted } = useApp()
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/smart-home" element={<SmartHomePage />} />
           <Route path="/ai" element={<AiPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

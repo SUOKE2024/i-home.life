@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
 import '../widgets/floor_plan_canvas.dart';
 
 class MepPage extends StatefulWidget {
@@ -286,7 +287,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
 
   Widget _buildPlansTab() {
     if (_plansLoading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return _buildErrorRetry(_error!, _loadPlans);
@@ -486,8 +487,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         const SizedBox(height: 8),
         Expanded(
           child: _pointsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _points.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.place,
@@ -636,8 +636,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
         const SizedBox(height: 8),
         Expanded(
           child: _circuitsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _circuits.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.electrical_services,

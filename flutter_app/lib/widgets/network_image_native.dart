@@ -16,6 +16,7 @@ class SuokeNetworkImage extends StatelessWidget {
     this.height,
     this.placeholder,
     this.errorWidget,
+    this.semanticLabel,
   });
 
   final String imageUrl;
@@ -25,6 +26,8 @@ class SuokeNetworkImage extends StatelessWidget {
   final Widget Function(BuildContext context, String url)? placeholder;
   final Widget Function(BuildContext context, String url, Object error)?
       errorWidget;
+  /// 无障碍：图片语义标签（读屏朗读，如「方案效果图」）
+  final String? semanticLabel;
 
   static bool get _isOHOS {
     try {
@@ -36,30 +39,33 @@ class SuokeNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (_isOHOS) {
-      return Image.network(
-        imageUrl,
-        width: width,
-        height: height,
-        fit: fit,
-        loadingBuilder: placeholder == null
-            ? null
-            : (context, child, progress) =>
-                progress == null ? child : placeholder!(context, imageUrl),
-        errorBuilder: errorWidget == null
-            ? null
-            : (context, error, stack) => errorWidget!(context, imageUrl, error),
-      );
-    }
-    return CachedNetworkImage(
-      imageUrl: imageUrl,
-      width: width,
-      height: height,
-      fit: fit,
-      placeholder: (context, url) =>
-          placeholder?.call(context, url) ?? const SizedBox.shrink(),
-      errorWidget: (context, url, error) =>
-          errorWidget?.call(context, url, error) ?? const SizedBox.shrink(),
-    );
+    final Widget child = _isOHOS
+        ? Image.network(
+            imageUrl,
+            width: width,
+            height: height,
+            fit: fit,
+            semanticLabel: semanticLabel,
+            loadingBuilder: placeholder == null
+                ? null
+                : (context, child, progress) =>
+                    progress == null ? child : placeholder!(context, imageUrl),
+            errorBuilder: errorWidget == null
+                ? null
+                : (context, error, stack) => errorWidget!(context, imageUrl, error),
+          )
+        : CachedNetworkImage(
+            imageUrl: imageUrl,
+            width: width,
+            height: height,
+            fit: fit,
+            placeholder: (context, url) =>
+                placeholder?.call(context, url) ?? const SizedBox.shrink(),
+            errorWidget: (context, url, error) =>
+                errorWidget?.call(context, url, error) ?? const SizedBox.shrink(),
+          );
+    // CachedNetworkImage 不支持 semanticLabel 参数，用 Semantics 包裹提供无障碍标签
+    if (semanticLabel == null || _isOHOS) return child;
+    return Semantics(image: true, label: semanticLabel, child: child);
   }
 }

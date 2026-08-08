@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
+import '../widgets/loading_skeleton.dart';
 import '../widgets/floor_plan_canvas.dart';
 
 class KitchenPage extends StatefulWidget {
@@ -313,7 +314,7 @@ class _KitchenPageState extends State<KitchenPage>
 
   Widget _buildDesignsTab() {
     if (_designsLoading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return _buildErrorRetry(_error!, _loadDesigns);
@@ -538,8 +539,7 @@ class _KitchenPageState extends State<KitchenPage>
         const SizedBox(height: 8),
         Expanded(
           child: _componentsLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: SuokeDesignTokens.accent))
+              ? const LoadingSkeleton(itemHeight: 90)
               : _components.isEmpty
                   ? _buildEmptyState(
                       icon: Icons.widgets,

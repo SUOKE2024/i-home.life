@@ -3,6 +3,7 @@ import '../services/api.dart';
 import '../theme/suoke_theme.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 
 /// F46 生态桥接页面（v1.5.0）
 class EcosystemPage extends StatefulWidget {
@@ -129,6 +130,12 @@ class _EcosystemPageState extends State<EcosystemPage> {
                 ),
               ],
             ),
+          ),
+        if (_bridges.isEmpty)
+          const EmptyStateWidget(
+            icon: Icons.link_off,
+            title: '暂无生态接入',
+            description: '生态桥接需在服务端配置 API Key，接入后即可联动 HomeKit / HarmonyOS / Matter / Tuya 设备',
           ),
         for (final bridge in _bridges)
           _buildBridgeCard(bridge as Map<String, dynamic>),

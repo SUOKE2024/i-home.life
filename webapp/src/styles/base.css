@@ -60,6 +60,12 @@ a:hover {
   background: transparent;
 }
 
+/* ── 键盘可达性：焦点可见（WCAG 2.4.7）── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ── 动效降级 ── */
 @media (prefers-reduced-motion: reduce) {
   * {

@@ -1,8 +1,11 @@
 """A1 智能家居能耗监测系统 Pydantic 模型"""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, Field
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 能耗记录 ──
@@ -103,4 +106,7 @@ class EnergyReportResponse(BaseModel):
     trend: list[EnergyTrendPoint] = Field(default_factory=list, description="能耗趋势数据")
     device_ranking: list[DeviceRanking] = Field(default_factory=list, description="设备能耗排行")
     tips: list[EnergySavingTipResponse] = Field(default_factory=list, description="节能建议")
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(
+        default_factory=lambda: datetime.now(_BJ_TZ),
+        description="报告生成时间（北京时间）",
+    )

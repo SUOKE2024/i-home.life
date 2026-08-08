@@ -56,6 +56,7 @@ class _DesignProposalPageState extends State<DesignProposalPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
+          tooltip: '返回',
         ),
       ),
       body: Stack(

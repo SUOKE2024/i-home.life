@@ -1,6 +1,7 @@
 
 import json
 import logging
+import time
 
 import httpx
 
@@ -8,6 +9,20 @@ from app.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def _record_llm_span(agent: str, provider: str, started_at: float, status: str, fallback: bool) -> None:
+    """v1.10.x 全链路诊断：记录 LLM/Agent 子 span（best-effort，失败零影响）。"""
+    try:
+        from app.services.diagnostics_service import record_llm_span
+        record_llm_span(
+            agent=agent, provider=provider,
+            latency_ms=(time.perf_counter() - started_at) * 1000,
+            status=status, fallback=fallback,
+        )
+    except Exception:
+        pass  # 诊断采集失败不应影响业务
+
 
 # ── 供应商注册表 ──────────────────────────────────────────────
 # 每个供应商约定的 API 路径均为 OpenAI 兼容风格
@@ -140,12 +155,19 @@ class BaseAgent:
 
         last_error = None
         for provider in chain:
+            _provider_started = time.perf_counter()
             try:
-                return await self._chat_single_provider(
+                result = await self._chat_single_provider(
                     provider, messages, max_retries=max_retries, with_tools=with_tools
                 )
+                _record_llm_span(self.agent_name, provider, _provider_started, "ok", fallback=False)
+                return result
             except Exception as e:
                 last_error = e
+                _record_llm_span(
+                    self.agent_name, provider, _provider_started, "error",
+                    fallback=provider != chain[-1],
+                )
                 if provider != chain[-1]:
                     logger.warning(
                         "%s._chat: 供应商 %s 失败，降级到下一个 (error=%s)",
@@ -287,12 +309,46 @@ class BaseAgent:
                     await asyncio.sleep(1)
         raise last_error
 
-    async def think(self, user_message: str, context: str = "", db=None, project_id: str = "") -> str:
+    async def _inject_evolution_context(
+        self, messages: list[dict], user_message: str, user_id: str, db,
+    ) -> None:
+        """v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）。
+
+        检索同类 Case + Skill 注入上下文，flag 关闭则降级为无注入。
+        best-effort：任何失败仅 log debug，不影响主流程。
+        """
+        if not settings.agent_skill_distillation_enabled or not user_id or db is None:
+            return
+        try:
+            from app.services.agent_case_service import search_cases, build_case_context
+            from app.services.agent_skill_evolution_service import get_skill_for_injection
+            cases = await search_cases(
+                db, task_intent=user_message, owner_id=user_id, scope="personal",
+            )
+            case_ctx = build_case_context(cases)
+            if case_ctx:
+                messages.append({"role": "system", "content": case_ctx})
+            skill = await get_skill_for_injection(
+                db, agent_name=self.agent_name, owner_id=user_id, scope="personal",
+            )
+            if skill and skill.system_prompt:
+                messages.append({
+                    "role": "system",
+                    "content": f"[进化 Skill: {skill.name}]\n{skill.system_prompt}",
+                })
+        except Exception as e:
+            logger.debug("%s: 自进化经验注入失败（降级）: %s", self.agent_name, e)
+
+    async def think(self, user_message: str, context: str = "", db=None, project_id: str = "",
+                    user_id: str = "") -> str:
         """高层封装：自动拼接 system prompt + 上下文 → LLM 调用。
 
         v1.1.28 新增：
         - AgenticRAG 证据检索（借鉴索克生活）：db 传入时前置检索知识库证据注入上下文
         - Model Spec HC 硬约束校验（借鉴索克生活 rebuttal_engine）：输出违规时注入反驳重生成
+        v1.10.1 新增（借鉴 EverMind EverOS Agent Memory）：
+        - 自进化经验注入：user_id 传入时检索同类 Case + Skill 注入上下文
+          受 agent_skill_distillation_enabled 门控，flag 关闭则降级为无注入（诚实降级）
         """
         messages = []
         if self.system_prompt:
@@ -309,6 +365,9 @@ class BaseAgent:
                     messages.append({"role": "system", "content": evidence_context})
             except Exception as e:
                 logger.debug("%s.think: AgenticRAG 检索失败（降级到无 RAG）: %s", self.agent_name, e)
+
+        # v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）
+        await self._inject_evolution_context(messages, user_message, user_id, db)
 
         if context:
             messages.append({"role": "assistant", "content": context})
@@ -409,7 +468,7 @@ class BaseAgent:
 
     async def think_with_tools(
         self, user_message: str, context: str = "", max_rounds: int | None = None,
-        db=None, project_id: str = "",
+        db=None, project_id: str = "", user_id: str = "",
     ) -> dict:
         """FunctionCall 增强版对话：支持多轮工具调用。
 
@@ -428,7 +487,8 @@ class BaseAgent:
             {"final_reply": str, "tool_calls": [...], "rounds": int}
         """
         if not settings.agent_function_call_enabled or not self.tools:
-            reply = await self.think(user_message, context, db=db, project_id=project_id)
+            reply = await self.think(user_message, context, db=db, project_id=project_id,
+                                     user_id=user_id)
             return {"final_reply": reply, "tool_calls": [], "rounds": 0}
 
         max_rounds = max_rounds or settings.agent_function_call_max_rounds
@@ -447,6 +507,9 @@ class BaseAgent:
                     messages.append({"role": "system", "content": evidence_context})
             except Exception as e:
                 logger.debug("%s.think_with_tools: AgenticRAG 检索失败: %s", self.agent_name, e)
+
+        # v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）
+        await self._inject_evolution_context(messages, user_message, user_id, db)
 
         if context:
             messages.append({"role": "assistant", "content": context})

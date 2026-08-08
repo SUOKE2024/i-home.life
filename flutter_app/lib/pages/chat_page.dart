@@ -3,6 +3,7 @@ import '../services/api.dart';
 import '../models/chat_message.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/chat_message_card.dart';
 import '../theme/suoke_theme.dart';
 
@@ -98,7 +99,7 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
+          duration: SuokeDesignTokens.durationBase,
           curve: Curves.easeOut,
         );
       }
@@ -168,12 +169,20 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
       children: [
         Expanded(
           child: _messages.isEmpty
-              ? Center(child: Text('暂无消息', style: TextStyle(color: colors.onSurfaceVariant)))
-              : ListView.builder(
-                  controller: _scrollCtrl,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  itemCount: _messages.length,
-                  itemBuilder: (_, i) => ChatMessageCard(message: _messages[i]),
+              ? const EmptyStateWidget(
+                  icon: Icons.chat_bubble_outline,
+                  title: '暂无消息',
+                  description: '发送第一条消息开始对话',
+                )
+              : RefreshIndicator(
+                  onRefresh: () => _loadMessages(_currentRoom!['id']),
+                  child: ListView.builder(
+                    controller: _scrollCtrl,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (_, i) => ChatMessageCard(message: _messages[i]),
+                  ),
                 ),
         ),
         _buildInputBar(colors),
@@ -183,40 +192,48 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
 
   Widget _buildRoomList(ColorScheme colors) {
     if (_rooms.isEmpty) {
-      return Center(child: Text('暂无聊天室', style: TextStyle(color: colors.onSurfaceVariant)));
+      return const EmptyStateWidget(
+        icon: Icons.forum_outlined,
+        title: '暂无聊天室',
+        description: '下拉刷新加载聊天室列表',
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _rooms.length,
-      itemBuilder: (_, i) {
-        final room = _rooms[i];
-        final isActive = _currentRoom != null && _currentRoom!['id'] == room['id'];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          decoration: BoxDecoration(
-            color: isActive ? colors.primary.withValues(alpha: 0.08) : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: colors.primary.withValues(alpha: 0.15),
-              child: Text(room['type'] == 'group' ? '群' : '1', style: TextStyle(color: colors.primary, fontSize: 14)),
+    return RefreshIndicator(
+      onRefresh: _loadRooms,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _rooms.length,
+        itemBuilder: (_, i) {
+          final room = _rooms[i];
+          final isActive = _currentRoom != null && _currentRoom!['id'] == room['id'];
+          return Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            decoration: BoxDecoration(
+              color: isActive ? colors.primary.withValues(alpha: 0.08) : null,
+              borderRadius: BorderRadius.circular(8),
             ),
-            title: Text(room['name'] ?? '聊天室', style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(room['last_message'] ?? '暂无消息',
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
-            trailing: room['unread'] != null && (room['unread'] as int) > 0
-                ? CircleAvatar(
-                    radius: 10,
-                    backgroundColor: SuokeDesignTokens.danger,
-                    child: Text('${room['unread']}', style: const TextStyle(fontSize: 10, color: Colors.white)),
-                  )
-                : null,
-            onTap: () => _selectRoom(room),
-          ),
-        );
-      },
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: colors.primary.withValues(alpha: 0.15),
+                child: Text(room['type'] == 'group' ? '群' : '1', style: TextStyle(color: colors.primary, fontSize: 14)),
+              ),
+              title: Text(room['name'] ?? '聊天室', style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(room['last_message'] ?? '暂无消息',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              trailing: room['unread'] != null && (room['unread'] as int) > 0
+                  ? CircleAvatar(
+                      radius: 10,
+                      backgroundColor: SuokeDesignTokens.danger,
+                      child: Text('${room['unread']}', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                    )
+                  : null,
+              onTap: () => _selectRoom(room),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -256,6 +273,7 @@ class _ChatPageState extends State<ChatPage> with SingleTickerProviderStateMixin
             IconButton(
               onPressed: _sendMessage,
               icon: Icon(Icons.send_rounded, color: colors.primary),
+              tooltip: '发送',
             ),
           ],
         ),

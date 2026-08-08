@@ -16,6 +16,7 @@ import '../image_helper.dart';
 import '../services/project_context.dart';
 import '../services/sse_service.dart';
 import '../services/sensor_service.dart';
+import '../services/location_service.dart';
 import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
@@ -69,6 +70,9 @@ class _AIChatPageState extends State<AIChatPage> {
     _initAvatar();
     _connectWebSocket();
     _restoreSessionId();
+    // LBS 闭环：预取 GPS 坐标（异步缓存，失败/拒绝授权不阻塞对话，
+    // 发送消息时通过 getCached() 同步读取），供空间感知/周边真实 POI 注入
+    unawaited(LocationService.instance.prefetch());
   }
 
   Future<void> _restoreSessionId() async {
@@ -288,7 +292,7 @@ class _AIChatPageState extends State<AIChatPage> {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
           _scrollCtrl.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
+          duration: SuokeDesignTokens.durationSlow,
           curve: Curves.easeOut,
         );
       }
@@ -346,6 +350,8 @@ class _AIChatPageState extends State<AIChatPage> {
         projectId: _currentProjectId,
         history: history,
         sessionId: _currentSessionId,
+        // LBS：缓存 GPS 坐标（可能为 null，后端同样诚实降级为空）
+        location: LocationService.instance.getCached(),
       );
 
       _sseSub = stream.listen(
@@ -1526,8 +1532,8 @@ class _AIChatPageState extends State<AIChatPage> {
             GestureDetector(
               onTap: _showEmojiPicker,
               child: Container(
-                width: 38,
-                height: 38,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
@@ -1537,12 +1543,12 @@ class _AIChatPageState extends State<AIChatPage> {
               ),
             ),
             const SizedBox(width: 8),
-            // 语音按钮
+            // 语音按钮（44dp 触摸目标，WCAG 2.5.8）
             GestureDetector(
               onTap: _toggleVoiceMode,
               child: Container(
-                width: 38,
-                height: 38,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: _isVoiceMode ? SuokeDesignTokens.accent : inputBg,
                   borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
@@ -1563,9 +1569,10 @@ class _AIChatPageState extends State<AIChatPage> {
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send_rounded, color: Colors.black, size: 20),
+                icon: const Icon(Icons.send_rounded, color: SuokeDesignTokens.bgDeep, size: 20),
                 onPressed: _isLoading ? null : _send,
                 splashRadius: 22,
+                tooltip: '发送',
               ),
             ),
           ],

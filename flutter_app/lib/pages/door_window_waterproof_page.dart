@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
 
 class DoorWindowWaterproofPage extends StatefulWidget {
   final String projectId;
@@ -575,7 +576,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
 
   Widget _buildSpecsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return Center(
@@ -689,7 +690,7 @@ class _DoorWindowWaterproofPageState extends State<DoorWindowWaterproofPage>
       );
     }
     if (_waterproofLoading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_waterproofs.isEmpty) {
       return Center(

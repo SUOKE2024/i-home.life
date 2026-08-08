@@ -39,8 +39,9 @@ class SuokeDesignTokens {
   /// 次文字（已升级对比度，适配 WCAG 2.2）
   static const Color textSecondary = Color(0xFF8A8894);
 
-  /// 弱文字/占位（升级对比度：was 0xFF5A5866, now 0xFF6B6978 for WCAG AA）
-  static const Color textMuted = Color(0xFF6B6978);
+  /// 弱文字/占位（升级对比度：was 0xFF5A5866 → 0xFF6B6978 → 0xFF807E8D）
+  /// 0xFF807E8D 在暗色 surface1(0xFF12121D) 上对比度 4.63:1，达 WCAG AA
+  static const Color textMuted = Color(0xFF807E8D);
 
   /// 品牌金色
   static const Color accent = Color(0xFFC9973B);
@@ -157,7 +158,8 @@ class SuokeDesignTokens {
   static const Color lightBorder = Color(0xFFE8E5DE);
   static const Color lightTextPrimary = Color(0xFF1A1814);
   static const Color lightTextSecondary = Color(0xFF6B6760);
-  static const Color lightTextMuted = Color(0xFF9E9A94);
+  /// 浅色弱文字：was 0xFF9E9A94(2.63:1) → 0xFF706C66(4.79:1 on #F8F7F4)，达 WCAG AA
+  static const Color lightTextMuted = Color(0xFF706C66);
 
   // ── Theme-aware context helpers ──
 
@@ -189,6 +191,8 @@ class SuokeTheme {
   /// 暗色主题（主力，对齐 Web 端 workbench）
   static ThemeData dark() {
     return ThemeData(
+      // 显式声明 Material 3（Flutter 3.16+ 默认开启，显式化保证意图不被 SDK 升级改变）
+      useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: SuokeDesignTokens.bgDeep,
       colorScheme: const ColorScheme.dark(
@@ -197,6 +201,19 @@ class SuokeTheme {
         onPrimary: SuokeDesignTokens.bgDeep,
         onSurface: SuokeDesignTokens.textPrimary,
         error: SuokeDesignTokens.danger,
+      ),
+
+      // ── 品牌化页面转场（所有 MaterialPageRoute 自动生效，对齐 M3 emphasized 动效）──
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          // 鸿蒙(Flutter-OH 映射为 android)/Android/iOS/macOS 统一使用品牌转场
+          TargetPlatform.android: _SuokePageTransitionsBuilder(),
+          TargetPlatform.iOS: _SuokePageTransitionsBuilder(),
+          TargetPlatform.macOS: _SuokePageTransitionsBuilder(),
+          TargetPlatform.windows: _SuokePageTransitionsBuilder(),
+          TargetPlatform.linux: _SuokePageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _SuokePageTransitionsBuilder(),
+        },
       ),
 
       // ── AppBar 半透明，对齐 Web chat-header ──
@@ -411,12 +428,25 @@ class SuokeTheme {
   /// 浅色/普通主题
   static ThemeData light() {
     return ThemeData(
+      useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: SuokeDesignTokens.lightBg,
       colorScheme: const ColorScheme.light(
         primary: SuokeDesignTokens.accent,
         onSurface: SuokeDesignTokens.lightTextPrimary,
         error: SuokeDesignTokens.danger,
+      ),
+
+      // ── 品牌化页面转场（与暗色主题一致）──
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _SuokePageTransitionsBuilder(),
+          TargetPlatform.iOS: _SuokePageTransitionsBuilder(),
+          TargetPlatform.macOS: _SuokePageTransitionsBuilder(),
+          TargetPlatform.windows: _SuokePageTransitionsBuilder(),
+          TargetPlatform.linux: _SuokePageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _SuokePageTransitionsBuilder(),
+        },
       ),
 
       appBarTheme: AppBarTheme(
@@ -462,7 +492,8 @@ class SuokeTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: SuokeDesignTokens.accent,
-          foregroundColor: Colors.white,
+          // 金色底用深色文字（7.56:1），白字仅 2.64:1 不达 WCAG AA
+          foregroundColor: SuokeDesignTokens.bgDeep,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusInput),
@@ -520,6 +551,39 @@ class SuokeTheme {
           color: SuokeDesignTokens.lightTextMuted,
           fontSize: SuokeDesignTokens.fontSizeXs,
         ),
+      ),
+    );
+  }
+}
+
+/// 品牌化页面转场：淡入 + 轻微上移（160ms，对齐 M3 emphasized 动效语言）。
+///
+/// 2026 前沿：品牌化转场替代系统默认 Zoom，强化 App 识别度；
+/// 通过 pageTransitionsTheme 全局配置，所有 MaterialPageRoute 自动生效。
+class _SuokePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _SuokePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: SuokeDesignTokens.easeEmphasized,
+      reverseCurve: SuokeDesignTokens.easeDecelerated,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.02),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
+import '../widgets/loading_skeleton.dart';
 import '../widgets/floor_plan_canvas.dart';
 
 class BathroomPage extends StatefulWidget {
@@ -531,7 +532,7 @@ class _BathroomPageState extends State<BathroomPage>
 
   Widget _buildDesignsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return Center(

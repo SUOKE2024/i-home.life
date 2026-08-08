@@ -37,6 +37,9 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.6.0  — 商业运营 Agent / PASETO 撤销列表 / lifecycle 全链路"
             echo "  v1.8.0  — project_phase / quick_install_package / board_trace_henf"
             echo "  v1.9.0  — 前沿研究第二轮 6 flag（内容标识/MCP 硬化/OTel/GBZ185/协议矩阵/记忆门控）"
+            echo "  v1.10.0 — 全链路诊断（diagnostics_enabled / RUM / 慢查询治理）"
+            echo "  v1.10.1 — EverMind 自进化管线（agent_case_extraction / skill_distillation / skill_evolution）"
+            echo "  v1.10.2 — 自进化边界测试补全（无新 flag，复用 v1.10.1 回滚清单）"
             exit 0
             ;;
         --help|-h)
@@ -120,6 +123,29 @@ case "$VERSION" in
             "GBZ185_AGENT_CARD_ENABLED=false"
             "SMART_PROTOCOL_COMPLIANCE_ENABLED=false"
             "MEMORY_CONFLICT_GATE_ENABLED=false"
+        )
+        ;;
+    v1.10.0)
+        # v1.10.0 全链路诊断（默认 false，灰度开启后回滚置 false）
+        ROLLBACK_FLAGS=(
+            "DIAGNOSTICS_ENABLED=false"
+            "DIAGNOSTICS_RUM_ENABLED=false"
+        )
+        ;;
+    v1.10.1)
+        # v1.10.1 EverMind 自进化管线（默认全 false，灰度开启后回滚置 false）
+        ROLLBACK_FLAGS=(
+            "AGENT_CASE_EXTRACTION_ENABLED=false"
+            "AGENT_SKILL_DISTILLATION_ENABLED=false"
+            "AGENT_SKILL_EVOLUTION_ENABLED=false"
+        )
+        ;;
+    v1.10.2)
+        # v1.10.2 自进化边界测试补全（无新 flag，复用 v1.10.1 自进化管线回滚清单）
+        ROLLBACK_FLAGS=(
+            "AGENT_CASE_EXTRACTION_ENABLED=false"
+            "AGENT_SKILL_DISTILLATION_ENABLED=false"
+            "AGENT_SKILL_EVOLUTION_ENABLED=false"
         )
         ;;
     *)

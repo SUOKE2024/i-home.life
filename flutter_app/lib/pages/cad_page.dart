@@ -245,14 +245,14 @@ class _CADPageState extends State<CADPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('图层面板', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text('图层面板', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 16),
               ..._layers.asMap().entries.map((entry) {
                 final idx = entry.key;
                 final layer = entry.value;
                 return ListTile(
-                  leading: Icon(Icons.layers, color: layer['visible'] ? SuokeDesignTokens.accent : const Color(0xFF5A5866)),
-                  title: Text(layer['name'], style: TextStyle(color: layer['visible'] ? Colors.white : const Color(0xFF5A5866))),
+                  leading: Icon(Icons.layers, color: layer['visible'] ? SuokeDesignTokens.accent : SuokeDesignTokens.textMuted),
+                  title: Text(layer['name'], style: TextStyle(color: layer['visible'] ? SuokeDesignTokens.text(context) : SuokeDesignTokens.textMuted)),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(
                       icon: Icon(layer['visible'] ? Icons.visibility : Icons.visibility_off, color: SuokeDesignTokens.textSub(context), size: 20),

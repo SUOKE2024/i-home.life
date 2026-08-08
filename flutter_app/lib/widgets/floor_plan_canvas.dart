@@ -416,7 +416,7 @@ class _FloorPlanCanvasState extends State<FloorPlanCanvas>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: SuokeDesignTokens.durationSlow,
     );
     _transformCtrl.addListener(_onTransformChanged);
   }

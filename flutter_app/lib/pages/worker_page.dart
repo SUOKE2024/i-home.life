@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 import '../theme/suoke_theme.dart';
 
 /// 服务者匹配页面 (F35) — 设计师/监理/预算师/木工/水电安装工/窗帘安装工
@@ -138,16 +139,24 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
 
   Widget _buildWorkerList(ColorScheme colors) {
     if (_workers.isEmpty) {
-      return Center(child: Text('暂无服务者', style: TextStyle(color: colors.onSurfaceVariant)));
+      return const EmptyStateWidget(
+        icon: Icons.engineering_outlined,
+        title: '暂无服务者',
+        description: '下拉刷新或稍后再试，服务者列表由施工履约数据同步',
+      );
     }
     return Column(
       children: [
         _buildRoleFilter(colors),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: _workers.length,
-            itemBuilder: (_, i) => _buildWorkerCard(_workers[i], colors),
+          child: RefreshIndicator(
+            onRefresh: _loadWorkers,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _workers.length,
+              itemBuilder: (_, i) => _buildWorkerCard(_workers[i], colors),
+            ),
           ),
         ),
       ],
@@ -163,7 +172,8 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(e.value, style: TextStyle(fontSize: 13, color: active ? Colors.white : colors.onSurfaceVariant)),
+              // 选中态金色底用深色文字（7.56:1），白字仅 2.64:1 不达 WCAG AA
+              label: Text(e.value, style: TextStyle(fontSize: 13, color: active ? SuokeDesignTokens.bgDeep : colors.onSurfaceVariant)),
               selected: active,
               onSelected: (_) {
                 setState(() => _roleFilter = e.key);
@@ -262,30 +272,34 @@ class _WorkerPageState extends State<WorkerPage> with SingleTickerProviderStateM
     if (_matches.isEmpty) {
       return Center(child: Text('暂无匹配记录', style: TextStyle(color: colors.onSurfaceVariant)));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _matches.length,
-      itemBuilder: (_, i) {
-        final m = _matches[i];
-        final status = m['status'] ?? 'pending';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            title: Text(m['worker_name'] ?? '服务者', style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('${_roleLabels[m['role']] ?? m['role']} · 评分: ${m['score'] ?? '-'}'),
-            trailing: status == 'pending'
-                ? Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextButton(onPressed: () => _updateMatchStatus(m['id'], 'accepted'), child: const Text('接受')),
-                      TextButton(onPressed: () => _updateMatchStatus(m['id'], 'rejected'),
-                          child: const Text('拒绝', style: TextStyle(color: Colors.red))),
-                    ],
-                  )
-                : Chip(label: Text(status, style: const TextStyle(fontSize: 12))),
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _loadMatches,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _matches.length,
+        itemBuilder: (_, i) {
+          final m = _matches[i];
+          final status = m['status'] ?? 'pending';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              title: Text(m['worker_name'] ?? '服务者', style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('${_roleLabels[m['role']] ?? m['role']} · 评分: ${m['score'] ?? '-'}'),
+              trailing: status == 'pending'
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(onPressed: () => _updateMatchStatus(m['id'], 'accepted'), child: const Text('接受')),
+                        TextButton(onPressed: () => _updateMatchStatus(m['id'], 'rejected'),
+                            child: const Text('拒绝', style: TextStyle(color: SuokeDesignTokens.danger))),
+                      ],
+                    )
+                  : Chip(label: Text(status, style: const TextStyle(fontSize: 12))),
+            ),
+          );
+        },
+      ),
     );
   }
 

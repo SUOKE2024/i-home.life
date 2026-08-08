@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import uuid
@@ -72,6 +73,7 @@ from app.api import solution_first
 from app.api import ecosystem
 from app.api import ai_qa
 from app.api import agent_identity  # v1.9.0 GB/Z 185 智能体身份码/ACDL（flag 门控）
+from app.api import diagnostics as diagnostics_api  # v1.10.x 全链路诊断管理端
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -161,6 +163,12 @@ async def lifespan(app: FastAPI):
     register_slow_query_logging(engine)
     # 启动 Prometheus 指标采样后台任务（DB 连接池 + Redis 状态）
     start_metrics_samplers()
+    # v1.10.x：启动全链路诊断后台任务（指标快照 / 异常检测+建议 / 数据清理）
+    # 受 settings.diagnostics_enabled 门控；测试（ASGITransport）不触发 lifespan，
+    # 故仅生产环境运行。任务内每轮 try/except，单轮失败不终止循环。
+    _diagnostics_tasks: list[asyncio.Task] = []
+    if settings.diagnostics_enabled:
+        _diagnostics_tasks = _start_diagnostics_tasks()
     # 生产环境检查: WebAuthn 挑战存储需要 Redis 实现多 worker 共享
     _redis_valid = False
     if settings.redis_url:
@@ -192,6 +200,9 @@ async def lifespan(app: FastAPI):
         await health_monitor.start(interval_seconds=interval)
     yield
     # 应用关闭时清理
+    # v1.10.x：取消诊断后台任务
+    for _task in _diagnostics_tasks:
+        _task.cancel()
     # v1.2.3：停止施工健康巡检
     if settings.health_os_enabled:
         from app.services.health_monitor import health_monitor
@@ -203,6 +214,51 @@ async def lifespan(app: FastAPI):
     await cache.close()
     from app.services.webauthn_service import close_challenge_store
     await close_challenge_store()
+
+
+def _start_diagnostics_tasks() -> list[asyncio.Task]:
+    """启动全链路诊断后台任务：指标快照 / 异常检测+建议 / 数据清理。"""
+    tasks: list[asyncio.Task] = []
+
+    async def _snapshot_loop() -> None:
+        from app.services.diagnostics_service import snapshot_metrics
+        while True:
+            try:
+                await snapshot_metrics()
+            except Exception as e:  # pragma: no cover - 防御
+                logger.warning("diagnostics_snapshot_error", error=str(e))
+            await asyncio.sleep(settings.diagnostics_snapshot_interval_seconds)
+
+    async def _analysis_loop() -> None:
+        from app.database import async_session
+        from app.services.diagnostics_analysis import (
+            generate_recommendations,
+            run_anomaly_detection,
+        )
+        while True:
+            try:
+                async with async_session() as db:
+                    await run_anomaly_detection(db)
+                    await generate_recommendations(db)
+            except Exception as e:  # pragma: no cover - 防御
+                logger.warning("diagnostics_analysis_error", error=str(e))
+            await asyncio.sleep(settings.diagnostics_alert_interval_seconds)
+
+    async def _cleanup_loop() -> None:
+        from app.services.diagnostics_service import cleanup_expired
+        interval = max(settings.diagnostics_snapshot_interval_seconds * 10, 600)
+        while True:
+            try:
+                await cleanup_expired()
+            except Exception as e:  # pragma: no cover - 防御
+                logger.warning("diagnostics_cleanup_error", error=str(e))
+            await asyncio.sleep(interval)
+
+    tasks.append(asyncio.create_task(_snapshot_loop()))
+    tasks.append(asyncio.create_task(_analysis_loop()))
+    tasks.append(asyncio.create_task(_cleanup_loop()))
+    logger.info("diagnostics: 全链路诊断后台任务已启动（快照/分析/清理）")
+    return tasks
 
 
 app = FastAPI(
@@ -284,6 +340,8 @@ app.middleware("http")(rate_limit_middleware)
 
 
 # ── 请求追踪中间件：request_id / 结构化日志 / metrics / 异常率告警 ──
+# v1.10.x 全链路诊断集成：采样时开启 trace 链路（begin_trace），请求结束后
+# 组装全链路 Trace（HTTP→DB→LLM/Agent span）落库 + 更新内存端点统计。
 @app.middleware("http")
 async def request_tracking_middleware(request: Request, call_next):
     path = request.url.path
@@ -297,6 +355,16 @@ async def request_tracking_middleware(request: Request, call_next):
 
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     user_id = _extract_user_id(request)
+
+    # v1.10.x：采样命中时开启全链路追踪，trace_id 与 X-Request-ID 对齐
+    # （前端 RUM → HTTP → DB → LLM/Agent 全链路关联的唯一标识）
+    try:
+        from app.services.diagnostics_service import begin_trace
+        trace_id = begin_trace()
+        if trace_id:
+            request_id = trace_id
+    except Exception:
+        trace_id = None
 
     bind_contextvars(request_id=request_id, user_id=user_id, method=method, path=path)
 
@@ -325,6 +393,11 @@ async def request_tracking_middleware(request: Request, call_next):
         path_label = getattr(route, "path", path) if route else path
         if not path_label or path_label == "/":
             path_label = path
+        # v1.10.0 修复：FastAPI 0.139 惰性 include（_IncludedRouter）下 route.path 丢失
+        # 外层 APIRouter(prefix="/api") 前缀（如 /dashboard/overview），按真实请求路径
+        # 补全为 /api/dashboard/overview，保证 trace / 监控 label 与前端路径一致
+        if path_label.startswith("/") and not path_label.startswith("/api") and path.startswith("/api"):
+            path_label = "/api" + path_label
 
         http_requests_total.labels(
             method=method, path=path_label, status=str(status_code)
@@ -332,6 +405,29 @@ async def request_tracking_middleware(request: Request, call_next):
         http_request_duration_seconds.labels(method=method, path=path_label).observe(
             duration
         )
+
+        # v1.10.x：全链路 Trace 落库（仅采样命中）+ 内存端点统计（喂快照）
+        try:
+            from app.services.diagnostics_service import (
+                clear_trace_context,
+                record_endpoint_request,
+                record_trace,
+            )
+
+            record_endpoint_request(path_label, duration_ms, status_code)
+            if trace_id is not None:
+                await record_trace(
+                    trace_id,
+                    user_id=user_id,
+                    method=method,
+                    endpoint=path_label,
+                    status_code=status_code,
+                    duration_ms=duration_ms,
+                )
+            else:
+                clear_trace_context()  # 防 contextvar 跨请求残留
+        except Exception:
+            pass  # 诊断采集失败不应影响业务主流程
 
         logger.info(
             "request",
@@ -436,6 +532,7 @@ api_router.include_router(eco_materials.router)       # /api/eco-materials/* (F4
 api_router.include_router(solution_first.router)      # /api/solution-first/* (F45 方案前置决策)
 api_router.include_router(ecosystem.router)           # /api/ecosystem/* (F46 生态桥接优先级)
 api_router.include_router(ai_qa.router)               # /api/ai-qa/* (F47 AI 装修问答)
+api_router.include_router(diagnostics_api.router)     # /api/diagnostics/* (v1.10.x 全链路诊断)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
 # v1.3.0: MCP Server Card 公开端点（GET /.well-known/mcp，无 /api 前缀）

@@ -10,6 +10,7 @@ class SuokeNetworkImage extends StatelessWidget {
     this.height,
     this.placeholder,
     this.errorWidget,
+    this.semanticLabel,
   });
 
   final String imageUrl;
@@ -19,6 +20,8 @@ class SuokeNetworkImage extends StatelessWidget {
   final Widget Function(BuildContext context, String url)? placeholder;
   final Widget Function(BuildContext context, String url, Object error)?
       errorWidget;
+  /// 无障碍：图片语义标签（读屏朗读，如「方案效果图」）
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +30,7 @@ class SuokeNetworkImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
+      semanticLabel: semanticLabel,
       loadingBuilder: placeholder == null
           ? null
           : (context, child, progress) =>

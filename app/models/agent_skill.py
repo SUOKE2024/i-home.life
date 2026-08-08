@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    String, Text, DateTime, Integer, ForeignKey, UniqueConstraint,
+    String, Text, DateTime, Integer, Float, ForeignKey, UniqueConstraint,
     CheckConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -128,6 +128,18 @@ class AgentSkill(Base):
 
     # skill_pack 导入溯源
     skill_pack_source: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    # v1.10.1 自进化统计（借鉴 EverMind SkillCorpus 三维质控 + HarnessBank 诊断归因）：
+    # success/fail 计数来自 Agent 使用该 Skill 后的任务成败回写
+    success_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    fail_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # 三维质控评分（0.0-1.0，离线评估循环计算，见 agent_skill_evolution_service）
+    utility_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    robustness_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    safety_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    last_evaluated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
 
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None,

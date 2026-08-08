@@ -12,7 +12,7 @@
   python3 scripts/bench-fps.py
 
   # 自定义 URL
-  python3 scripts/bench-fps.py --url http://118.31.223.213:8081/studio.html --preset 126
+  python3 scripts/bench-fps.py --url https://i-home.life --preset 126
 
 输出:
   reports/fps-bench-YYYYMMDD-HHMMSS.json + .md

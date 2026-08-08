@@ -269,3 +269,89 @@ export async function streamChat({ message, projectId, sessionId }, onEvent, sig
   }
   return doneMeta
 }
+
+// ──────────────────────────────────────────────────────────────
+// 全链路诊断（v1.10.x，管理端）
+// ──────────────────────────────────────────────────────────────
+
+export async function getDiagnosticsOverview() {
+  return request('/api/diagnostics/overview')
+}
+
+export async function getDiagnosticsEndpoints() {
+  return request('/api/diagnostics/endpoints')
+}
+
+export async function getDiagnosticsMetrics(hours = 24, category = '', endpoint = '') {
+  const params = new URLSearchParams()
+  params.set('hours', String(hours))
+  if (category) params.set('category', category)
+  if (endpoint) params.set('endpoint', endpoint)
+  return request(`/api/diagnostics/metrics?${params}`)
+}
+
+export async function getDiagnosticsTraces({ limit = 50, endpoint = '', errorOnly = false, agent = '' } = {}) {
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  if (endpoint) params.set('endpoint', endpoint)
+  if (errorOnly) params.set('error_only', 'true')
+  if (agent) params.set('agent', agent)
+  return request(`/api/diagnostics/traces?${params}`)
+}
+
+export async function getDiagnosticsTraceDetail(traceId) {
+  return request(`/api/diagnostics/traces/${encodeURIComponent(traceId)}`)
+}
+
+export async function getDiagnosticsAlerts(status = '') {
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  return request(`/api/diagnostics/alerts?${params}`)
+}
+
+export async function acknowledgeDiagnosticsAlert(alertId) {
+  return request(`/api/diagnostics/alerts/${encodeURIComponent(alertId)}/ack`, { method: 'POST' })
+}
+
+export async function resolveDiagnosticsAlert(alertId) {
+  return request(`/api/diagnostics/alerts/${encodeURIComponent(alertId)}/resolve`, { method: 'POST' })
+}
+
+export async function getDiagnosticsRecommendations(status = '') {
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  return request(`/api/diagnostics/recommendations?${params}`)
+}
+
+export async function dismissDiagnosticsRecommendation(recId) {
+  return request(`/api/diagnostics/recommendations/${encodeURIComponent(recId)}/dismiss`, { method: 'POST' })
+}
+
+export async function getDiagnosticsRum(hours = 24) {
+  return request(`/api/diagnostics/rum?hours=${hours}`)
+}
+
+/**
+ * 前端 RUM（Core Web Vitals）上报 — 公开端点，后端按 diagnostics_rum_enabled 门控落库。
+ * 每页仅上报一次（约 4 条事件），失败静默。
+ */
+export function reportWebVitals(metrics = {}) {
+  try {
+    const events = Object.entries(metrics)
+      .filter(([, v]) => typeof v === 'number' && v >= 0)
+      .map(([metric, value]) => ({
+        type: 'perf',
+        metric,
+        value: Math.round(value * (metric === 'cls' ? 1000 : 1)) / (metric === 'cls' ? 1000 : 1),
+        page: window.location.pathname,
+        session_id: window.sessionStorage.getItem('ihome_rum_sid') || '',
+      }))
+    if (!events.length) return
+    navigator.sendBeacon(
+      '/api/analytics/collect',
+      new Blob([JSON.stringify({ events })], { type: 'application/json' }),
+    )
+  } catch {
+    /* RUM 上报失败静默 */
+  }
+}

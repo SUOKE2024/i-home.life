@@ -18,7 +18,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 DATABASE_URL=postgresql+asyncpg://ihome:CHANGE_ME@localhost:5432/ihome
 SECRET_KEY=CHANGE_ME_TO_RANDOM_64_CHARS
 APP_NAME=i-home.life
-APP_VERSION=1.9.0
+APP_VERSION=1.10.2
 DEEPSEEK_API_KEY=
 GLM_API_KEY=
 EOF
@@ -64,21 +64,15 @@ asyncio.run(setup())
 echo "  🌱 加载种子数据..."
 PYTHONPATH=. python scripts/seed.py 2>&1 | grep -v "INFO\|PRAGMA\|CREATE\|SELECT\|INSERT\|COMMIT\|FROM\|RETURNING\|BEGIN\|index\|FOREIGN\|UNIQUE\|PRIMARY\|idx\|ix\|ON\|TABLE\|user\|material\|supplier\|WHERE\|password\|avatar\|hashed\|id," | head -3
 
-# 生成自签名 SSL 证书（IP 直连场景无法使用 Let's Encrypt）
-SSL_DIR="/etc/nginx/ssl"
-SSL_CRT="$SSL_DIR/ihome-self-signed.crt"
-SSL_KEY="$SSL_DIR/ihome-self-signed.key"
-if [ ! -f "$SSL_CRT" ] || [ ! -f "$SSL_KEY" ]; then
-  echo "  🔐 生成自签名 SSL 证书（用于 https://118.31.223.213:8081 兼容访问）..."
-  sudo mkdir -p "$SSL_DIR"
-  sudo openssl req -x509 -newkey rsa:2048 -nodes \
-    -keyout "$SSL_KEY" -out "$SSL_CRT" \
-    -days 3650 \
-    -subj "/C=CN/ST=Shanghai/L=Shanghai/O=i-home.life/OU=IT/CN=118.31.223.213" \
-    -addext "subjectAltName=IP:118.31.223.213,DNS:i-home.life,DNS:www.i-home.life" 2>&1 | tail -2
-  sudo chmod 644 "$SSL_CRT"
-  sudo chmod 600 "$SSL_KEY"
-  echo "  ✅ 自签名证书已生成: $SSL_CRT (有效期 10 年)"
+# 检查 SSL 证书（2026-08-08 起模板 scripts/nginx-ihome.conf 固定使用 Let's Encrypt 正规证书）
+LE_CRT="/etc/letsencrypt/live/i-home.life/fullchain.pem"
+LE_KEY="/etc/letsencrypt/live/i-home.life/privkey.pem"
+if [ -f "$LE_CRT" ] && [ -f "$LE_KEY" ]; then
+  echo "  🔐 Let's Encrypt 证书已就绪: $LE_CRT"
+else
+  echo "  ⚠️  未找到 LE 证书，请先签发（否则下方 nginx -t 会失败）:"
+  echo "     sudo certbot certonly --webroot -w /var/www/acme -d i-home.life -d www.i-home.life"
+  echo "     或: sudo certbot --nginx -d i-home.life -d www.i-home.life"
 fi
 
 # 检查 Nginx 版本（同端口 HTTP+HTTPS 需要 Nginx >= 1.25.1）

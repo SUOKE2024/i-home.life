@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 
 /// 厨卫水电页面 (F18) — 给排水/燃气/回路/等电位
 class KitchenBathMepPage extends StatefulWidget {
@@ -183,66 +184,78 @@ class _KitchenBathMepPageState extends State<KitchenBathMepPage> with SingleTick
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _plans.length,
-      itemBuilder: (_, i) {
-        final plan = _plans[i];
-        final roomType = plan['room_type'] == 'kitchen' ? '厨房' : '卫生间';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: Icon(
-              plan['room_type'] == 'kitchen' ? Icons.kitchen : Icons.bathtub,
-              color: colors.primary,
+    return RefreshIndicator(
+      onRefresh: _loadPlans,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _plans.length,
+        itemBuilder: (_, i) {
+          final plan = _plans[i];
+          final roomType = plan['room_type'] == 'kitchen' ? '厨房' : '卫生间';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Icon(
+                plan['room_type'] == 'kitchen' ? Icons.kitchen : Icons.bathtub,
+                color: colors.primary,
+              ),
+              title: Text(plan['name'] ?? '未命名方案', style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text('$roomType · ${plan['points_count'] ?? 0} 个点位'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                setState(() => _currentPlan = plan);
+                _loadPoints(plan['id']);
+              },
             ),
-            title: Text(plan['name'] ?? '未命名方案', style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text('$roomType · ${plan['points_count'] ?? 0} 个点位'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              setState(() => _currentPlan = plan);
-              _loadPoints(plan['id']);
-            },
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
   Widget _buildPointsList(ColorScheme colors) {
     if (_points.isEmpty) {
-      return Center(child: Text('暂无水电点位', style: TextStyle(color: colors.onSurfaceVariant)));
+      return const EmptyStateWidget(
+        icon: Icons.timeline,
+        title: '暂无水电点位',
+        description: '在方案中添加点位或下拉刷新',
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _points.length,
-      itemBuilder: (_, i) {
-        final point = _points[i];
-        final typeLabel = switch (point['type'] ?? '') {
-          'water_supply' => '给水',
-          'drain' => '排水',
-          'power' => '电源',
-          'gas' => '燃气',
-          'vent' => '通风',
-          _ => point['type'] ?? '',
-        };
-        return Card(
-          margin: const EdgeInsets.only(bottom: 6),
-          child: ListTile(
-            dense: true,
-            leading: Container(
-              width: 36, height: 36,
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+    return RefreshIndicator(
+      onRefresh: () => _loadPoints(_currentPlan!['id']),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _points.length,
+        itemBuilder: (_, i) {
+          final point = _points[i];
+          final typeLabel = switch (point['type'] ?? '') {
+            'water_supply' => '给水',
+            'drain' => '排水',
+            'power' => '电源',
+            'gas' => '燃气',
+            'vent' => '通风',
+            _ => point['type'] ?? '',
+          };
+          return Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListTile(
+              dense: true,
+              leading: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: colors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.circle, size: 12, color: colors.primary),
               ),
-              child: Icon(Icons.circle, size: 12, color: colors.primary),
+              title: Text(point['name'] ?? '未命名点位'),
+              subtitle: Text('$typeLabel · ${point['position_x'] ?? 0}, ${point['position_y'] ?? 0}'),
             ),
-            title: Text(point['name'] ?? '未命名点位'),
-            subtitle: Text('$typeLabel · ${point['position_x'] ?? 0}, ${point['position_y'] ?? 0}'),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

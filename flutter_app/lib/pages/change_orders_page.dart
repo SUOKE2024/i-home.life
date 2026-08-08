@@ -214,7 +214,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: SuokeDesignTokens.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: SuokeDesignTokens.bgDeep,
               ),
               onPressed: () async {
                 if (!formKey.currentState!.validate()) return;
@@ -360,7 +360,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
         backgroundColor: SuokeDesignTokens.card(context),
         title: const Text('变更订单',
             style: TextStyle(fontWeight: FontWeight.bold)),
-        foregroundColor: Colors.white,
+        foregroundColor: SuokeDesignTokens.text(context),
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,
@@ -374,7 +374,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: SuokeDesignTokens.accent,
-        foregroundColor: Colors.white,
+        foregroundColor: SuokeDesignTokens.bgDeep,
         onPressed: _showCreateDialog,
         child: const Icon(Icons.add),
       ),
@@ -408,7 +408,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: SuokeDesignTokens.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: SuokeDesignTokens.bgDeep,
               ),
               onPressed: _showCreateDialog,
               icon: const Icon(Icons.add),
@@ -724,7 +724,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: SuokeDesignTokens.accent,
-                    foregroundColor: Colors.white,
+                    foregroundColor: SuokeDesignTokens.bgDeep,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                   onPressed: () => _approveOrder(order['id']),

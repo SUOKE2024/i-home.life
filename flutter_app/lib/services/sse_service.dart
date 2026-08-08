@@ -61,13 +61,15 @@ class SseService {
   /// [agentType] 目标 Agent 类型（默认 orchestrator），
   /// [projectId] 可选的项目上下文，
   /// [history] 可选的对话历史，
-  /// [sessionId] 可选的会话 ID（用于会话持久化）。
+  /// [sessionId] 可选的会话 ID（用于会话持久化），
+  /// [location] 可选 GPS 坐标（"lng,lat"，LBS 真实 POI/城市感知注入）。
   Stream<SseEvent> streamChat(
     String message, {
     String agentType = 'orchestrator',
     String? projectId,
     List<Map<String, dynamic>>? history,
     String? sessionId,
+    String? location,
   }) async* {
     final token = _api.token;
 
@@ -85,6 +87,9 @@ class SseService {
     }
     if (sessionId != null) {
       body['session_id'] = sessionId;
+    }
+    if (location != null) {
+      body['location'] = location;
     }
 
     final request = http.Request('POST', uri)

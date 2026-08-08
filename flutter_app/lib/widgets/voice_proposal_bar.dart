@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/voice_session_scope.dart';
+import '../theme/suoke_theme.dart';
 
 class VoiceProposalBar extends StatefulWidget {
   const VoiceProposalBar({
@@ -68,12 +69,13 @@ class _VoiceProposalBarState extends State<VoiceProposalBar> {
       ),
       child: Row(
         children: [
-          Icon(listening ? Icons.graphic_eq : Icons.mic, color: Colors.white),
+          // 蓝色渐变底用深色图标/文字（≥4.9:1），白色在 #00C6FF 端仅 1.94:1 不达标
+          Icon(listening ? Icons.graphic_eq : Icons.mic, color: SuokeDesignTokens.bgDeep),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+              style: const TextStyle(color: SuokeDesignTokens.bgDeep, fontSize: 12),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

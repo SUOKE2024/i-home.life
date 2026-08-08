@@ -8,7 +8,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -19,6 +19,9 @@ from app.models.floorplan import FloorPlan
 from app.models.project import Project
 
 logger = logging.getLogger(__name__)
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 SOURCE = "rule_based"
 SOURCE_NOTE = "布局与预算由内置规则引擎生成（source=rule_based），可接入 LLM 升级生成更个性化方案"
@@ -431,7 +434,7 @@ async def generate_package(
         "recommendations": recommendations,
         "source": source,
         "source_note": source_note,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(_BJ_TZ).isoformat(),
     }
 
 
@@ -549,7 +552,7 @@ async def refine_layout(
         "refined_layout": refined,
         "source": refined["source"],
         "source_note": refined["source_note"],
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(_BJ_TZ).isoformat(),
     }
 
 

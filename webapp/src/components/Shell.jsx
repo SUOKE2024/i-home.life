@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, Wallet, HardHat, ShieldCheck, FileCheck2,
   ShoppingCart, Home, Bot, UserCircle, LogOut, Menu, Search, Bell, ChevronDown,
+  Activity,
 } from 'lucide-react'
 import { Logo, Avatar } from './ui'
 import { useApp } from '../lib/store'
@@ -29,6 +30,7 @@ const PAGE_TITLES = {
   '/smart-home': ['智能家居', 'SMART HOME'],
   '/ai': ['AI 管家', 'AI CONCIERGE'],
   '/profile': ['我的', 'PROFILE'],
+  '/diagnostics': ['全链路诊断', 'DIAGNOSTICS'],
 }
 
 export default function Shell() {
@@ -98,6 +100,15 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
           <Bot size={18} strokeWidth={1.8} />
           {!collapsed && <span className="nav-label">AI 管家</span>}
           {!collapsed && <span className="nav-ai-live mono">● AI</span>}
+        </NavLink>
+
+        <NavLink
+          to="/diagnostics"
+          className={({ isActive }) => `nav-item${isActive ? ' nav-item--active' : ''}`}
+          title={collapsed ? '全链路诊断' : undefined}
+        >
+          <Activity size={18} strokeWidth={1.8} />
+          {!collapsed && <span className="nav-label">全链路诊断</span>}
         </NavLink>
 
         <NavLink

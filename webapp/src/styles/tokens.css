@@ -11,7 +11,8 @@
   /* 文字 */
   --text: #e8e6e1;
   --text-sub: #8a8894;
-  --text-dim: #5c5a66;
+  /* 弱文字：was #5c5a66(2.9:1 on #0d0d16) → #807e8d(4.93:1)，达 WCAG AA，对齐 Flutter textMuted */
+  --text-dim: #807e8d;
 
   /* 品牌（暗金） */
   --accent: #c9973b;
@@ -41,4 +42,20 @@
   --topbar-h: 60px;
   --radius: 12px;
   --radius-sm: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* 间距（对齐 Flutter SuokeDesignTokens spacing 8pt 基线） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  /* 动效（对齐 Flutter SuokeDesignTokens 动效语言，均 <320ms 保持响应感） */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.33, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
 }

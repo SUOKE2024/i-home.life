@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.9.0"
+    app_version: str = "1.10.2"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -168,6 +168,14 @@ class Settings(BaseSettings):
     agent_approval_ttl_hours: int = 24
     # v1.8.0 Agent Skill 资产化总开关（scope-owned 可授权共享的 Agent 能力）。
     agent_skill_enabled: bool = True
+    # v1.10.1 自进化管线（借鉴 EverMind EverOS Agent Memory + HarnessBank + SkillCorpus）：
+    # 三层独立灰度，默认全 False（诚实降级：关闭则 Agent 维持无记忆无进化静态行为）。
+    # P0: 从 AgentTrace 自动提取结构化 Case（task_intent + approach + quality_score）
+    agent_case_extraction_enabled: bool = False
+    # P1: Case 聚类蒸馏为 Skill + Agent 执行前检索注入同类 Case/Skill
+    agent_skill_distillation_enabled: bool = False
+    # P1: Skill 随成败进化（三维质控 Utility/Robustness/Safety + WHERE×WHY 诊断归因）
+    agent_skill_evolution_enabled: bool = False
 
     # ── MCP Server 暴露（v1.1.12 新增）──
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具
@@ -298,6 +306,32 @@ class Settings(BaseSettings):
     tracing_enabled: bool = False
     otel_exporter_otlp_endpoint: str = ""        # OTLP/HTTP 端点，空则用 console exporter（仅本地调试）
     otel_service_name: str = "i-home-life"        # 服务标识（resource service.name）
+
+    # ════════════════════════════════════════════════════════════════
+    # v1.10.x 全链路诊断系统（diagnostics）— MELT+P 可观测性落地
+    # ════════════════════════════════════════════════════════════════
+    # 五大能力：① 性能指标采集（滚动快照落库，FC 无持久 Prometheus）
+    # ② 全链路追踪（HTTP→DB→LLM/Agent span 关联 trace_id）
+    # ③ 异常检测与告警（规则 + z-score 统计，可管理 open/ack/resolved）
+    # ④ 优化建议（规则引擎，从 trace/指标证据生成可执行建议）
+    # ⑤ 可视化诊断界面（webapp /diagnostics，管理端只读）
+    # 对齐 2026 行业前沿：OTel GenAI 语义约定、RUM Core Web Vitals、
+    # exemplar→trace→log 关联、AI 辅助根因定位（自研规则版）。
+    # 总开关关闭时全部采集路径零开销（单次 contextvar 读判断即返回）。
+    diagnostics_enabled: bool = False            # 总开关（灰度，默认关）
+    diagnostics_sample_rate: float = 0.1         # 全链路追踪采样率（0-1，降低落库开销）
+    diagnostics_snapshot_interval_seconds: int = 60   # 指标快照采样间隔
+    diagnostics_alert_interval_seconds: int = 60      # 异常检测巡检间隔
+    diagnostics_rum_enabled: bool = False        # 前端 RUM（Core Web Vitals）采集
+    diagnostics_retention_hours: int = 168       # 诊断数据保留期（默认 7 天，后台清理）
+    diagnostics_anomaly_zscore: float = 3.0      # 统计异常 z-score 阈值
+    # 规则告警阈值（可随灰度调优）
+    diagnostics_error_rate_threshold: float = 0.10    # 端点错误率阈值（≥ 触发告警）
+    diagnostics_p95_latency_threshold_ms: int = 2000  # 端点 p95 延迟阈值（毫秒）
+    diagnostics_slow_query_burst_threshold: int = 10  # 单窗口慢查询数量阈值
+    diagnostics_llm_fallback_threshold: float = 0.30  # LLM fallback 率阈值
+    diagnostics_db_query_storm_threshold: int = 30    # 单请求 DB 查询数阈值（N+1 检测）
+    diagnostics_rum_lcp_threshold_ms: int = 2500      # RUM LCP 阈值（Core Web Vitals poor）
 
     # ════════════════════════════════════════════════════════════════
     # v1.1.28 借鉴索克生活：长线技术决策 feature flags

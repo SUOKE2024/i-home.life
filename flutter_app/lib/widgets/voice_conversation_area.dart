@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/voice_realtime_service.dart';
+import '../theme/suoke_theme.dart';
 
 class VoiceConversationArea extends StatefulWidget {
   const VoiceConversationArea({super.key, required this.service});
@@ -94,7 +95,8 @@ class _VoiceConversationAreaState extends State<VoiceConversationArea>
                     colors: [Color(0xFF007AFF), Color(0xFF00C6FF)],
                   ),
                 ),
-                child: const Icon(Icons.mic, color: Colors.white, size: 20),
+                // 蓝色渐变底用深色图标（≥4.9:1），白图标在 #00C6FF 端仅 1.94:1 不达标
+                child: const Icon(Icons.mic, color: SuokeDesignTokens.bgDeep, size: 20),
               ),
             ),
           ),

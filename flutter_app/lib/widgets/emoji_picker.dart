@@ -106,8 +106,12 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
   @override
   Widget build(BuildContext context) {
+    // 键盘弹出时自动避让（viewInsets.bottom 即键盘高度）：
+    // 高度同步上移、内容底部留出键盘空间，避免 emoji 网格被键盘遮挡
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     return Container(
-      height: 300,
+      height: 300 + keyboardInset,
+      padding: EdgeInsets.only(bottom: keyboardInset),
       decoration: const BoxDecoration(
         color: _bgDark,
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

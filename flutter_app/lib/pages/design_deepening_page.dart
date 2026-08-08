@@ -594,14 +594,14 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage>
                       height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: SuokeDesignTokens.bgDeep,
                       ),
                     )
                   : const Icon(Icons.analytics_outlined, size: 16),
               label: Text(_circLoading ? '分析中…' : '分析动线'),
               style: FilledButton.styleFrom(
                 backgroundColor: SuokeDesignTokens.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: SuokeDesignTokens.bgDeep,
               ),
             ),
           ],

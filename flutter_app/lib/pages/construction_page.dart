@@ -161,7 +161,8 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
             child: ExpansionTile(
               leading: CircleAvatar(
                 backgroundColor: statusColor,
-                child: const Text('0', style: TextStyle(color: Colors.white)),
+                // 彩色底用深色计数（蓝/绿/红 + bgDeep 均 ≥5.4:1），白字仅 2.78-3.68:1 不达标
+                child: const Text('0', style: TextStyle(color: SuokeDesignTokens.bgDeep)),
               ),
               title: Text(task.taskName),
               subtitle: Text('${task.phase ?? ''} · ${status.value}'),
@@ -544,7 +545,7 @@ class _ToggleChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: SuokeDesignTokens.durationBase,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected

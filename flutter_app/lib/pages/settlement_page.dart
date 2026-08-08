@@ -228,7 +228,7 @@ class _SettlementPageState extends State<SettlementPage>
               onPressed: _generateFromBudget,
               style: ElevatedButton.styleFrom(
                 backgroundColor: SuokeDesignTokens.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: SuokeDesignTokens.bgDeep,
               ),
               icon: const Icon(Icons.auto_awesome),
               label: const Text('从预算生成结算'),
@@ -362,7 +362,7 @@ class _SettlementPageState extends State<SettlementPage>
                     onPressed: _confirmSettlement,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: SuokeDesignTokens.accent,
-                      foregroundColor: Colors.white,
+                      foregroundColor: SuokeDesignTokens.bgDeep,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),

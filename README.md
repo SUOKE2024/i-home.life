@@ -2,10 +2,25 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.9.0 · 前沿研究 2026 第二轮落地（AI 内容标识 / MCP 安全硬化 / OTel GenAI SemConv / GB/Z 185 身份码预研 / Matter-GBT46456 协议矩阵 / 记忆冲突门控，6 项全部 feature flag 灰度默认 False，2026-08-05）
-> 核心能力：49 页面 React Web 控制台 + Flutter 40+ 页面 + 26 Agent（22 执行型 + 4 商业运营）+ 101 Service + 121 ORM 模型 + 76 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.10.2 · 自进化管线边界测试补全（LLM 异常返回 + 空值输入，覆盖率 89%→99%）
+> 核心能力：51 页面 React Web 控制台 + Flutter 52 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 103 Service + 127 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-08 · v1.10.2 自进化管线边界测试补全
+
+- **新增 22 个边界测试**（`tests/test_agent_case.py` 37→59）：覆盖 LLM 异常返回（非法 JSON / 调用异常 / markdown 包裹 / 子串提取失败）与空值输入（空 task_intent / 空 name / 不存在的 skill_id / 零使用记录）
+- **覆盖率提升**：`agent_case_service` 91%→99%、`agent_skill_evolution_service` 85%→100%、`agent_case` 100%，合计 **89%→99%**
+- **发现并修复 2 个边界问题**：`search_cases` 空 task_intent 返回全量 Case、`_compress_trajectory` tool_calls 非列表致 AttributeError
+- **验证脚本**：`scripts/verify_self_evolution.py` 66 项端到端验证全通过
+- 完整边界清单见 `assets/guide/ai-self-evolution-guide.md` 第九章至第十一章
+
+### 2026-08-08 · v1.10.1 Agent 自进化管线（借鉴 EverMind EverOS + SkillCorpus + HarnessBank）
+
+- **P0 Case 提取**（`agent_case_extraction_enabled`）: `AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），新增 `AgentCase` 模型 + alembic 迁移
+- **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）: 同主题 Case ≥3 条聚类 → LLM 蒸馏为 Skill → `BaseAgent._inject_evolution_context` 执行前检索注入同类 Case/Skill
+- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）: `record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）+ WHERE×WHY 病理归因 + z≥1.96 显著性检验（HarnessBank Gated Screening）
+- 三层独立 feature flag 灰度，默认全 False（关闭则 Agent 维持无记忆无进化静态行为）
 
 ### 2026-08-03 · v1.7.0 需求-实现验证遗留项 Wave 2
 

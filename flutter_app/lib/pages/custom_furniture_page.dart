@@ -499,73 +499,77 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _designs.length,
-      itemBuilder: (_, i) {
-        final d = _designs[i];
-        final type = _typeLabels[d['type']] ?? d['type'] ?? '未知类型';
-        final id = (d['id'] ?? '').toString();
-        final isSelected = _selectedDesignId == id;
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
-              width: isSelected ? 2 : 0,
+    return RefreshIndicator(
+      onRefresh: _loadDesigns,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _designs.length,
+        itemBuilder: (_, i) {
+          final d = _designs[i];
+          final type = _typeLabels[d['type']] ?? d['type'] ?? '未知类型';
+          final id = (d['id'] ?? '').toString();
+          final isSelected = _selectedDesignId == id;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                width: isSelected ? 2 : 0,
+              ),
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(type, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
-                    ),
-                    if (isSelected)
-                      const Icon(Icons.check_circle, color: Colors.green, size: 18),
-                    const SizedBox(width: 4),
-                    Chip(label: Text(d['material'] ?? '', style: const TextStyle(fontSize: 11))),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text('尺寸: ${d['width'] ?? '-'} × ${d['depth'] ?? '-'} × ${d['height'] ?? '-'} mm',
-                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() => _selectedDesignId = id);
-                        _tabController.animateTo(3);
-                      },
-                      icon: const Icon(Icons.grid_view, size: 18),
-                      label: const Text('布局'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => _viewBom(d['id']),
-                      icon: const Icon(Icons.list_alt, size: 18),
-                      label: const Text('BOM'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => _viewPrice(d['id']),
-                      icon: const Icon(Icons.attach_money, size: 18),
-                      label: const Text('价格'),
-                    ),
-                  ],
-                ),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(type, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                      ),
+                      if (isSelected)
+                        const Icon(Icons.check_circle, color: Colors.green, size: 18),
+                      const SizedBox(width: 4),
+                      Chip(label: Text(d['material'] ?? '', style: const TextStyle(fontSize: 11))),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text('尺寸: ${d['width'] ?? '-'} × ${d['depth'] ?? '-'} × ${d['height'] ?? '-'} mm',
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() => _selectedDesignId = id);
+                          _tabController.animateTo(3);
+                        },
+                        icon: const Icon(Icons.grid_view, size: 18),
+                        label: const Text('布局'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: () => _viewBom(d['id']),
+                        icon: const Icon(Icons.list_alt, size: 18),
+                        label: const Text('BOM'),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: () => _viewPrice(d['id']),
+                        icon: const Icon(Icons.attach_money, size: 18),
+                        label: const Text('价格'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -601,23 +605,27 @@ class _CustomFurniturePageState extends State<CustomFurniturePage> with SingleTi
         child: Text('请先创建设计方案', style: TextStyle(color: colors.onSurfaceVariant)),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _designs.length,
-      itemBuilder: (_, i) {
-        final d = _designs[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            title: Text(_typeLabels[d['type']] ?? d['type'] ?? ''),
-            subtitle: Text('${d['width']}×${d['depth']}×${d['height']} mm'),
-            trailing: ElevatedButton(
-              onPressed: () => _viewBom(d['id']),
-              child: const Text('查看BOM'),
+    return RefreshIndicator(
+      onRefresh: _loadDesigns,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _designs.length,
+        itemBuilder: (_, i) {
+          final d = _designs[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              title: Text(_typeLabels[d['type']] ?? d['type'] ?? ''),
+              subtitle: Text('${d['width']}×${d['depth']}×${d['height']} mm'),
+              trailing: ElevatedButton(
+                onPressed: () => _viewBom(d['id']),
+                child: const Text('查看BOM'),
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

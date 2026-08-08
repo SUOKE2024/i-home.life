@@ -10,9 +10,6 @@
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-SSL_DIR="/etc/nginx/ssl"
-SSL_CRT="$SSL_DIR/ihome-cert.pem"
-SSL_KEY="$SSL_DIR/ihome-key.pem"
 STREAM_DIR="/etc/nginx/stream.d"
 NGINX_CONF="/etc/nginx/nginx.conf"
 
@@ -63,21 +60,18 @@ else
   echo "     ✅ stream 块已存在"
 fi
 
-# ── 3. 生成/检查自签名 SSL 证书 ──
+# ── 3. 检查 SSL 证书（2026-08-08 起模板要求 Let's Encrypt 正规证书）──
 echo "  🔐 检查 SSL 证书..."
-if [ ! -f "$SSL_CRT" ] || [ ! -f "$SSL_KEY" ]; then
-  echo "     生成自签名 SSL 证书（用于 https:// 兼容访问）..."
-  sudo mkdir -p "$SSL_DIR"
-  sudo openssl req -x509 -newkey rsa:2048 -nodes \
-    -keyout "$SSL_KEY" -out "$SSL_CRT" \
-    -days 3650 \
-    -subj "/C=CN/ST=Shanghai/L=Shanghai/O=i-home.life/OU=IT/CN=118.31.223.213" \
-    -addext "subjectAltName=IP:118.31.223.213,DNS:i-home.life,DNS:www.i-home.life"
-  sudo chmod 644 "$SSL_CRT"
-  sudo chmod 600 "$SSL_KEY"
-  echo "     ✅ 自签名证书已生成（有效期 10 年）"
+LE_CRT="/etc/letsencrypt/live/i-home.life/fullchain.pem"
+LE_KEY="/etc/letsencrypt/live/i-home.life/privkey.pem"
+if [ -f "$LE_CRT" ] && [ -f "$LE_KEY" ]; then
+  echo "     ✅ Let's Encrypt 证书已存在: $LE_CRT"
 else
-  echo "     ✅ 自签名证书已存在"
+  echo "     ❌ 未找到 LE 证书。scripts/nginx-ihome.conf 的 443/8085 块已固定使用 LE 证书路径："
+  echo "        请先签发证书（webroot 方式，配合 ihome-acme.conf 的 /.well-known/acme-challenge/）："
+  echo "        sudo certbot certonly --webroot -w /var/www/acme -d i-home.life -d www.i-home.life"
+  echo "        或: sudo certbot --nginx -d i-home.life -d www.i-home.life"
+  exit 1
 fi
 
 # ── 4. 同步 stream 配置 ──
@@ -115,21 +109,26 @@ echo "$HTTP_CODE"
 
 echo -n "     HTTPS https://118.31.223.213:8081/health ... "
 HTTPS_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -m 5 https://118.31.223.213:8081/health 2>/dev/null || echo "FAIL")
-echo "$HTTPS_CODE (自签名证书，-k 跳过验证)"
+echo "$HTTPS_CODE (LE 证书，浏览器受信)"
+
+echo -n "     域名 https://i-home.life/health ... "
+DOMAIN_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 5 https://i-home.life/health 2>/dev/null || echo "FAIL")
+echo "$DOMAIN_CODE"
 
 echo ""
 echo "╠════════════════════════════════════════════╣"
-if [ "$HTTP_CODE" = "200" ] && [ "$HTTPS_CODE" = "200" ]; then
+if [ "$HTTP_CODE" = "200" ] && [ "$HTTPS_CODE" = "200" ] && [ "$DOMAIN_CODE" = "200" ]; then
   echo "║  ✅ 修复成功                                 ║"
   echo "║                                              ║"
-  echo "║  http://118.31.223.213:8081   正常            ║"
-  echo "║  https://118.31.223.213:8081  正常 (证书警告) ║"
-  echo "║  http://i-home.life:8081      正常            ║"
-  echo "║  https://i-home.life:8081     正常 (证书警告) ║"
+  echo "║  https://i-home.life            正常          ║"
+  echo "║  http://118.31.223.213:8081    正常          ║"
+  echo "║  https://118.31.223.213:8081   正常 (受信)    ║"
+  echo "║  https://i-home.life:8081      正常 (受信)    ║"
 else
   echo "║  ⚠️  可能需要进一步排查                      ║"
-  echo "║  HTTP: $HTTP_CODE                                    ║"
-  echo "║  HTTPS: $HTTPS_CODE (期望 200)                          ║"
+  echo "║  HTTP:   $HTTP_CODE                              ║"
+  echo "║  HTTPS:  $HTTPS_CODE (期望 200)                  ║"
+  echo "║  域名:   $DOMAIN_CODE (期望 200)                 ║"
   echo "║  请检查:                                      ║"
   echo "║  - sudo nginx -t                              ║"
   echo "║  - sudo systemctl status nginx                ║"

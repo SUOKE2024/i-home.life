@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 摄像头权限：拍照上架 / AR 测量 -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 定位权限：LBS 周边真实 POI / 场景地理触发（仅前台粗/精确定位） -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- ARCore / Google Play Services for AR (可选) -->
     <uses-feature android:name="android.hardware.camera.ar" android:required="false" />
     <!-- 传感器权限（高采样率） -->

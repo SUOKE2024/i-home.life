@@ -156,32 +156,36 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
         ),
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _scenes.length,
-      itemBuilder: (_, i) {
-        final scene = _scenes[i];
-        final type = scene['scene_type'] ?? '';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: colors.primary.withValues(alpha: 0.1),
-              child: Icon(
-                _sceneIcons[type] ?? Icons.auto_awesome,
-                color: colors.primary,
-                size: 22,
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _scenes.length,
+        itemBuilder: (_, i) {
+          final scene = _scenes[i];
+          final type = scene['scene_type'] ?? '';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: colors.primary.withValues(alpha: 0.1),
+                child: Icon(
+                  _sceneIcons[type] ?? Icons.auto_awesome,
+                  color: colors.primary,
+                  size: 22,
+                ),
+              ),
+              title: Text(scene['name'] ?? '未命名场景', style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(type),
+              trailing: IconButton(
+                icon: Icon(Icons.play_circle_outline, color: colors.primary),
+                onPressed: () => _simulateScene(scene['id']),
               ),
             ),
-            title: Text(scene['name'] ?? '未命名场景', style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(type),
-            trailing: IconButton(
-              icon: Icon(Icons.play_circle_outline, color: colors.primary),
-              onPressed: () => _simulateScene(scene['id']),
-            ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -226,23 +230,27 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
     if (_ecosystems.isEmpty) {
       return Center(child: Text('暂无生态对接', style: TextStyle(color: colors.onSurfaceVariant)));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _ecosystems.length,
-      itemBuilder: (_, i) {
-        final eco = _ecosystems[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: Icon(Icons.link, color: colors.primary),
-            title: Text(eco['name'] ?? '未命名', style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(eco['type'] ?? ''),
-            trailing: Chip(
-              label: Text(eco['status'] ?? 'offline', style: const TextStyle(fontSize: 11)),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _ecosystems.length,
+        itemBuilder: (_, i) {
+          final eco = _ecosystems[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Icon(Icons.link, color: colors.primary),
+              title: Text(eco['name'] ?? '未命名', style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(eco['type'] ?? ''),
+              trailing: Chip(
+                label: Text(eco['status'] ?? 'offline', style: const TextStyle(fontSize: 11)),
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

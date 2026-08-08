@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../widgets/loading_skeleton.dart';
 
 class SoftFurnishingPage extends StatefulWidget {
   final String projectId;
@@ -490,7 +491,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildSchemesTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_error != null) {
       return Center(
@@ -589,7 +590,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildItemsTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_items.isEmpty) {
       return Center(
@@ -679,7 +680,7 @@ class _SoftFurnishingPageState extends State<SoftFurnishingPage>
 
   Widget _buildStoragesTab() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_storages.isEmpty) {
       return Center(

@@ -62,8 +62,17 @@
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    border-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
   font-family: var(--font-sans);
+}
+
+/* 按压微交互（2026 标准：操作确认反馈，<200ms） */
+.btn:active {
+  transform: scale(0.97);
 }
 
 .btn:hover {
@@ -111,7 +120,9 @@
   background: transparent;
   color: var(--text-sub);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
 }
 
 .icon-btn:hover {
@@ -143,7 +154,7 @@
   font-size: 13px;
   font-family: var(--font-sans);
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-base) var(--ease-standard);
 }
 
 .input:focus,
@@ -184,6 +195,13 @@
   text-align: center;
 }
 
+.empty .sub {
+  font-size: 12px;
+  color: var(--text-sub);
+  max-width: 320px;
+  line-height: 1.6;
+}
+
 .empty .ico,
 .error-box .ico {
   opacity: 0.5;
@@ -211,7 +229,7 @@
   color: var(--text);
   font-size: 13px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: toast-in 0.2s ease;
+  animation: toast-in var(--dur-base) var(--ease-standard);
 }
 
 .toast--error { border-color: var(--red); }
@@ -277,4 +295,3 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-

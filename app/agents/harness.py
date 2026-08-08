@@ -341,6 +341,9 @@ class AgentRuntime:
                     trace.response = reply
                     trace.finish(AgentRunStatus.SUCCESS)
                     self._metrics["success_runs"] += 1
+                    # v1.10.1: 自进化 Case 提取（借鉴 EverMind EverOS Agent Memory）
+                    # best-effort：从 kwargs 取 db/user_id，flag 关闭或失败均不影响主流程
+                    await self._maybe_extract_case(trace, kwargs)
                     return {"reply": reply, "trace": trace.to_dict()}
 
                 except asyncio.TimeoutError:
@@ -392,6 +395,31 @@ class AgentRuntime:
         trace.response = reply
         trace.finish(AgentRunStatus.FALLBACK)
         return {"reply": reply, "trace": trace.to_dict(), "fallback": True}
+
+    # ── 自进化 Case 提取（v1.10.1，借鉴 EverMind EverOS Agent Memory）──
+
+    async def _maybe_extract_case(self, trace: "AgentTrace", kwargs: dict) -> None:
+        """best-effort 从执行轨迹提取 Case 并持久化。
+
+        受 agent_case_extraction_enabled 门控；从 kwargs 取 db / user_id。
+        任何失败仅 log debug，不影响主流程（诚实降级）。
+        """
+        settings = get_settings()
+        if not settings.agent_case_extraction_enabled:
+            return
+        db = kwargs.get("db")
+        user_id = kwargs.get("user_id", "")
+        if db is None or not user_id:
+            return
+        try:
+            from app.services.agent_case_service import extract_case_from_trace
+            await extract_case_from_trace(
+                trace, db, owner_id=user_id, scope="personal", created_by=user_id,
+            )
+            if db.in_transaction():
+                await db.commit()
+        except Exception as e:
+            logger.debug("harness._maybe_extract_case: Case 提取失败（不影响主流程）: %s", e)
 
     # ── 追踪管理 ──
 

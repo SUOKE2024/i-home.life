@@ -43,7 +43,12 @@ async def upload_batch_products(
         raise HTTPException(status_code=400, detail="文件为空")
 
     if filename.lower().endswith(".xlsx"):
-        products = await product_batch_service.parse_excel_file(content)
+        try:
+            products = await product_batch_service.parse_excel_file(content)
+        except ValueError as e:
+            # v1.10.0 修复：解析异常须转 400 响应，而非让异常逃逸（
+            # FastAPI 0.139 + starlette 0.46 下未捕获异常经中间件栈传播会挂起 ~50s）
+            raise HTTPException(status_code=400, detail=str(e)) from e
     elif filename.lower().endswith(".csv"):
         products = await product_batch_service.parse_csv_file(content)
     elif filename.lower().endswith(".xls"):

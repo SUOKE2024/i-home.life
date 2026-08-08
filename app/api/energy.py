@@ -1,6 +1,6 @@
 """A1 智能家居能耗监测系统 API"""
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,9 @@ from app.schemas.energy_monitor import (
 from app.services import energy_monitor_service as svc
 
 router = APIRouter(prefix="/energy", tags=["能耗监测"])
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 def _check_feature_flag():
@@ -126,9 +129,9 @@ async def generate_report(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     report_data = await svc.generate_energy_report(db, scheme_id)
-    # 转换报告中的 datetime 格式
+    # 转换报告中的 datetime 格式（业务时区北京时间）
     if report_data.get("generated_at"):
-        report_data["generated_at"] = datetime.utcnow()
+        report_data["generated_at"] = datetime.now(_BJ_TZ)
     return EnergyReportResponse(**report_data)
 
 

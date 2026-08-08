@@ -155,7 +155,10 @@ export default function ProjectsPage() {
       ) : error ? (
         <ErrorBox message={error} onRetry={load} />
       ) : projects.length === 0 ? (
-        <Empty message="暂无项目，点击右上角「新建项目」创建" />
+        <Empty
+          message="暂无项目"
+          description="创建第一个项目，即可开启设计、预算、施工、质检到结算的全流程装修管理"
+        />
       ) : (
         <Card title="项目列表" sub={`${total} 个`} icon={<FolderOpen size={15} className="ico" />}>
           <table className="table">

@@ -117,7 +117,7 @@ class _GanttChartState extends State<GanttChart> {
         if (_horizontalController.hasClients && targetOffset > 0) {
           _horizontalController.animateTo(
             targetOffset,
-            duration: const Duration(milliseconds: 300),
+            duration: SuokeDesignTokens.durationSlow,
             curve: Curves.easeOut,
           );
         }

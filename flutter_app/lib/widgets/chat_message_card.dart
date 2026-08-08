@@ -2141,7 +2141,8 @@ class _RenderProgressCard extends StatelessWidget {
                                     : Text(
                                         '${i + 1}',
                                         style: TextStyle(
-                                          color: isCurrent ? Colors.black : SuokeDesignTokens.textMuted,
+                                          // textSecondary(5.25:1 on 节点圆) 优于 textMuted(4.11:1)，达 WCAG AA
+                                          color: isCurrent ? Colors.black : SuokeDesignTokens.textSecondary,
                                           fontSize: 12, fontWeight: FontWeight.w700,
                                         ),
                                       ),

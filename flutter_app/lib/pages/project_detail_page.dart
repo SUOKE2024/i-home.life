@@ -3,6 +3,7 @@ import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 import 'budget_page.dart';
 import 'construction_page.dart';
 import 'settlement_page.dart';
@@ -214,6 +215,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
+          tooltip: '返回',
         ),
       ),
       body: _loading
@@ -224,11 +226,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   onRefresh: _load,
                   child: _project == null
                       ? ListView(
-                          children: [
-                            const SizedBox(height: 120),
-                            Center(
-                              child: Text('项目不存在或已被删除',
-                                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+                          children: const [
+                            SizedBox(height: 120),
+                            EmptyStateWidget(
+                              icon: Icons.folder_off_outlined,
+                              title: '项目不存在或已被删除',
+                              description: '返回项目列表重新选择',
                             ),
                           ],
                         )

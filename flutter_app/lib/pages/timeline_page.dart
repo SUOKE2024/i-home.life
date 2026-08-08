@@ -150,6 +150,7 @@ class _TimelinePageState extends State<TimelinePage> {
           IconButton(
             icon: Icon(Icons.refresh, color: SuokeDesignTokens.textSub(context)),
             onPressed: _loadTimeline,
+            tooltip: '刷新',
           ),
         ],
       ),
@@ -258,13 +259,17 @@ class _TimelinePageState extends State<TimelinePage> {
   // ── 时间线主体 ──
 
   Widget _buildTimeline() {
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-      itemCount: _phases.length,
-      itemBuilder: (context, index) {
-        final phase = _phases[index];
-        return _buildPhaseCard(phase, index);
-      },
+    return RefreshIndicator(
+      onRefresh: _loadTimeline,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+        itemCount: _phases.length,
+        itemBuilder: (context, index) {
+          final phase = _phases[index];
+          return _buildPhaseCard(phase, index);
+        },
+      ),
     );
   }
 

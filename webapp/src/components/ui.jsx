@@ -117,12 +117,18 @@ export function Spinner({ label = '加载中…' }) {
   )
 }
 
-/* Empty — 空态 */
-export function Empty({ message = '暂无数据' }) {
+/* Empty — 空态（对齐 Flutter EmptyStateWidget：图标 + 标题 + 描述 + 可选 CTA） */
+export function Empty({ message = '暂无数据', description, actionLabel, onAction, icon = '🗂' }) {
   return (
     <div className="empty">
-      <span style={{ fontSize: 32 }}>🗂</span>
+      <span style={{ fontSize: 32 }}>{icon}</span>
       <span>{message}</span>
+      {description && <span className="sub">{description}</span>}
+      {actionLabel && onAction && (
+        <button className="btn btn--ghost" onClick={onAction} style={{ marginTop: 4 }}>
+          {actionLabel}
+        </button>
+      )}
     </div>
   )
 }

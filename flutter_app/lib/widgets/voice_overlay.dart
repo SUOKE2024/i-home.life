@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 
 import '../services/voice_realtime_service.dart';
 import '../services/voice_session_scope.dart';
+import '../theme/suoke_theme.dart';
 import 'voice_fusion_panel.dart';
 
 /// 悬浮窗控制器：管理 OverlayEntry 的显示/隐藏/状态切换
@@ -76,7 +77,7 @@ class VoiceOverlayWidget extends StatelessWidget {
           right: 16,
           bottom: 16,
           child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
+            duration: SuokeDesignTokens.durationSlow,
             child: isExpanded
                 ? VoiceSessionScope(
                     service: service,

@@ -119,6 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: SuokeDesignTokens.textSub(context)),
           onPressed: () => Navigator.pop(context),
+          tooltip: '返回',
         ),
       ),
       body: _loading
@@ -269,7 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           leading: Icon(Icons.info_outline, color: SuokeDesignTokens.textSub(context)),
           title: Text('版本', style: TextStyle(color: SuokeDesignTokens.text(context))),
-          trailing: Text('1.9.0', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+          trailing: Text('1.10.2', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         ),
         Divider(color: SuokeDesignTokens.textSub(context), height: 1),
         ListTile(

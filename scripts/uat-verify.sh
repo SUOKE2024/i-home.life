@@ -3,7 +3,7 @@
 # 验证: 核心业务 API + 新 Agent 端点 + Feature Flags + 代码质量
 set -e
 
-API="${1:-http://118.31.223.213:8081}"
+API="${1:-https://i-home.life}"
 PASS=0
 FAIL=0
 

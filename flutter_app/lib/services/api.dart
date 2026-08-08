@@ -1278,31 +1278,36 @@ class ApiClient {
   /// 通用 Agent 聊天（自然语言路由）
   Future<Result<dynamic>> agentChat(String message,
           {String agentType = 'orchestrator', String? projectId,
-           String? sessionId}) =>
+           String? sessionId, String? location}) =>
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
         'project_id': ?projectId,
         'session_id': ?sessionId,
+        'location': ?location,
       });
 
   /// 支持多轮对话历史的 Agent 聊天
   Future<Result<dynamic>> agentChatWithHistory(String message,
           {String agentType = 'orchestrator', String? projectId,
-           List<Map<String, dynamic>>? history, String? sessionId}) =>
+           List<Map<String, dynamic>>? history, String? sessionId,
+           String? location}) =>
       post('/agents/chat', {
         'message': message,
         'agent_type': agentType,
         'project_id': ?projectId,
         'history': ?history,
         'session_id': ?sessionId,
+        'location': ?location,
       });
 
   /// 设计 Agent 专用端点
-  Future<Result<dynamic>> agentDesignChat(String message, {String? projectId}) =>
+  Future<Result<dynamic>> agentDesignChat(String message,
+          {String? projectId, String? location}) =>
       post('/agents/design', {
         'message': message,
         'project_id': ?projectId,
+        'location': ?location,
       });
 
   /// F28 智能布局动线分析（设计 Agent）
@@ -1317,24 +1322,30 @@ class ApiClient {
       });
 
   /// 预算 Agent 专用端点
-  Future<Result<dynamic>> agentBudgetChat(String message, {String? projectId}) =>
+  Future<Result<dynamic>> agentBudgetChat(String message,
+          {String? projectId, String? location}) =>
       post('/agents/budget', {
         'message': message,
         'project_id': ?projectId,
+        'location': ?location,
       });
 
   /// 采购 Agent 专用端点
-  Future<Result<dynamic>> agentProcurementChat(String message, {String? projectId}) =>
+  Future<Result<dynamic>> agentProcurementChat(String message,
+          {String? projectId, String? location}) =>
       post('/agents/procurement', {
         'message': message,
         'project_id': ?projectId,
+        'location': ?location,
       });
 
   /// 施工 Agent 专用端点
-  Future<Result<dynamic>> agentConstructionChat(String message, {String? projectId}) =>
+  Future<Result<dynamic>> agentConstructionChat(String message,
+          {String? projectId, String? location}) =>
       post('/agents/construction', {
         'message': message,
         'project_id': ?projectId,
+        'location': ?location,
       });
 
   // ── Agent 会话管理 ──

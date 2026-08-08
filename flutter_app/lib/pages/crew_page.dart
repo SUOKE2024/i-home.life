@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 import '../theme/suoke_theme.dart';
 
 /// 工程队匹配页面 (F36)
@@ -133,56 +134,64 @@ class _CrewPageState extends State<CrewPage> with SingleTickerProviderStateMixin
 
   Widget _buildCrewList(ColorScheme colors) {
     if (_crews.isEmpty) {
-      return Center(child: Text('暂无可选工程队', style: TextStyle(color: colors.onSurfaceVariant)));
+      return const EmptyStateWidget(
+        icon: Icons.groups_outlined,
+        title: '暂无可选工程队',
+        description: '下拉刷新或稍后再试',
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _crews.length,
-      itemBuilder: (_, i) {
-        final crew = _crews[i];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: colors.primary.withValues(alpha: 0.1),
-                      child: Icon(Icons.engineering, color: colors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        crew['name'] ?? '未命名工程队',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _crews.length,
+        itemBuilder: (_, i) {
+          final crew = _crews[i];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colors.primary.withValues(alpha: 0.1),
+                        child: Icon(Icons.engineering, color: colors.primary, size: 20),
                       ),
-                    ),
-                    _buildRatingStars(crew['rating'] ?? 0),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          crew['name'] ?? '未命名工程队',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
+                      ),
+                      _buildRatingStars(crew['rating'] ?? 0),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      _buildChip('专长: ${_phaseLabels[crew['specialty']] ?? crew['specialty'] ?? '综合'}'),
+                      _buildChip('团队: ${crew['team_size'] ?? '-'}人'),
+                      _buildChip('完成: ${crew['completed_projects'] ?? '-'} 项目'),
+                      _buildChip('评分: ${crew['rating'] ?? '-'}'),
+                    ],
+                  ),
+                  if (crew['description'] != null) ...[
+                    const SizedBox(height: 6),
+                    Text(crew['description'], style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
                   ],
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    _buildChip('专长: ${_phaseLabels[crew['specialty']] ?? crew['specialty'] ?? '综合'}'),
-                    _buildChip('团队: ${crew['team_size'] ?? '-'}人'),
-                    _buildChip('完成: ${crew['completed_projects'] ?? '-'} 项目'),
-                    _buildChip('评分: ${crew['rating'] ?? '-'}'),
-                  ],
-                ),
-                if (crew['description'] != null) ...[
-                  const SizedBox(height: 6),
-                  Text(crew['description'], style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
                 ],
-              ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -190,57 +199,61 @@ class _CrewPageState extends State<CrewPage> with SingleTickerProviderStateMixin
     if (_matches.isEmpty) {
       return Center(child: Text('暂无匹配记录', style: TextStyle(color: colors.onSurfaceVariant)));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _matches.length,
-      itemBuilder: (_, i) {
-        final match = _matches[i];
-        final status = match['status'] ?? 'pending';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        match['crew_name'] ?? '工程队',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        itemCount: _matches.length,
+        itemBuilder: (_, i) {
+          final match = _matches[i];
+          final status = match['status'] ?? 'pending';
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          match['crew_name'] ?? '工程队',
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                        ),
                       ),
-                    ),
-                    _buildStatusChip(status),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('匹配分数: ${match['score'] ?? '-'}',
-                        style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
-                    if (status == 'pending')
-                      Row(
-                        children: [
-                          TextButton(
-                            onPressed: () => _updateMatchStatus(match['id'], 'accepted'),
-                            child: const Text('接受'),
-                          ),
-                          const SizedBox(width: 4),
-                          TextButton(
-                            onPressed: () => _updateMatchStatus(match['id'], 'rejected'),
-                            child: const Text('拒绝', style: TextStyle(color: SuokeDesignTokens.danger)),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ],
+                      _buildStatusChip(status),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('匹配分数: ${match['score'] ?? '-'}',
+                          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13)),
+                      if (status == 'pending')
+                        Row(
+                          children: [
+                            TextButton(
+                              onPressed: () => _updateMatchStatus(match['id'], 'accepted'),
+                              child: const Text('接受'),
+                            ),
+                            const SizedBox(width: 4),
+                            TextButton(
+                              onPressed: () => _updateMatchStatus(match['id'], 'rejected'),
+                              child: const Text('拒绝', style: TextStyle(color: SuokeDesignTokens.danger)),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 

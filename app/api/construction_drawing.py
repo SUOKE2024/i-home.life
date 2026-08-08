@@ -145,12 +145,12 @@ async def get_section_drawing(
             plane = json.loads(section_plane)
         except json.JSONDecodeError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="section_plane 必须是合法 JSON 对象，如 {\"x\": 2500} 或 {\"line_index\": 0}",
             )
         if not isinstance(plane, dict):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="section_plane 必须是 JSON 对象，如 {\"x\": 2500}",
             )
     try:
@@ -233,12 +233,12 @@ async def export_drawing(
         )
     if drawing_type not in _EXPORT_DRAWING_TYPES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"不支持的图纸类型：{drawing_type}（支持 {'/'.join(_EXPORT_DRAWING_TYPES)}）",
         )
     if format not in _EXPORT_FORMATS:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"不支持的导出格式：{format}（支持 {'/'.join(_EXPORT_FORMATS)}）",
         )
     await verify_project_collaborator_access(

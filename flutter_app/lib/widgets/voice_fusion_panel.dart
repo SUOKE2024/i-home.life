@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/voice_realtime_service.dart';
+import '../theme/suoke_theme.dart';
 import '../pages/design_proposal_page.dart';
 import 'voice_conversation_area.dart';
 import 'voice_task_panel.dart';
@@ -79,9 +80,18 @@ class _VoiceFusionPanelState extends State<VoiceFusionPanel> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                GestureDetector(
-                  onTap: widget.onCollapse,
-                  child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                Semantics(
+                  label: '收起语音助手',
+                  button: true,
+                  child: GestureDetector(
+                    onTap: widget.onCollapse,
+                    // 44dp 触摸目标（WCAG 2.5.8）
+                    behavior: HitTestBehavior.opaque,
+                    child: const Padding(
+                      padding: EdgeInsets.all(13),
+                      child: Icon(Icons.close, size: 18, color: SuokeDesignTokens.textSecondary),
+                    ),
+                  ),
                 ),
               ],
             ),

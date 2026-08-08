@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
 import '../theme/suoke_theme.dart';
+import '../widgets/loading_skeleton.dart';
 
 class AppliancePage extends StatefulWidget {
   final String projectId;
@@ -319,7 +320,7 @@ class _AppliancePageState extends State<AppliancePage>
 
   Widget _buildPointsTab() {
     if (_loadingPoints) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     return RefreshIndicator(
       color: SuokeDesignTokens.accent,
@@ -395,7 +396,7 @@ class _AppliancePageState extends State<AppliancePage>
 
   Widget _buildAppliancesTab() {
     if (_loadingAppliances) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     return RefreshIndicator(
       color: SuokeDesignTokens.accent,
@@ -470,7 +471,7 @@ class _AppliancePageState extends State<AppliancePage>
 
   Widget _buildLoadCalcTab() {
     if (_loadingLoadCalc) {
-      return const Center(child: CircularProgressIndicator(color: SuokeDesignTokens.accent));
+      return const LoadingSkeleton(itemHeight: 110);
     }
     if (_loadCalcResult == null) {
       return Center(

@@ -3,6 +3,7 @@ import '../services/api.dart';
 import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 import '../theme/suoke_theme.dart';
 
 class BudgetPage extends StatefulWidget {
@@ -326,7 +327,11 @@ class _BudgetPageState extends State<BudgetPage> with SingleTickerProviderStateM
 
   Widget _buildTemplatesView() {
     if (_templates.isEmpty) {
-      return const Center(child: Text('暂无模板'));
+      return const EmptyStateWidget(
+        icon: Icons.description_outlined,
+        title: '暂无模板',
+        description: '从「生成预算」创建第一份预算模板',
+      );
     }
     return ListView.builder(
       padding: const EdgeInsets.all(16),

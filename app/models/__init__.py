@@ -74,6 +74,7 @@ from app.models.audit_log import AuditLog
 # create_all / autogenerate / check_schema_drift 漏管）
 from app.models.agent_approval import AgentApproval
 from app.models.agent_skill import AgentSkill
+from app.models.agent_case import AgentCase
 
 # A1/A2 智能家居能耗 + 健康监测（model 文件已存在且 service 引用，但此前未在 __init__ 注册，
 # 致 Base.metadata 不含这些表、alembic autogenerate 检测不到、check_schema_drift 误报为多余表。
@@ -86,6 +87,15 @@ from app.models.elderly_adaptation import ElderlyAdaptationScheme
 from app.models.partial_renovation import PartialRenovationPlan
 from app.models.escrow_trustee import EscrowTrusteeAccount
 from app.models.eco_material import MaterialEcoCert
+
+# v1.10.x 全链路诊断系统 — 指标快照 / 全链路 Trace / 告警 / 建议 / RUM
+from app.models.diagnostics import (
+    DiagnosticMetricSnapshot,
+    DiagnosticTrace,
+    DiagnosticAlert,
+    DiagnosticRecommendation,
+    DiagnosticRumEvent,
+)
 
 __all__ = [
     "User",
@@ -205,6 +215,8 @@ __all__ = [
     # v1.8.0 Agent 工具批准 + Skill 资产化
     "AgentApproval",
     "AgentSkill",
+    # v1.10.1 自进化管线 — Agent Case（借鉴 EverMind EverOS Agent Memory）
+    "AgentCase",
     # A1/A2 智能家居能耗 + 健康监测
     "EnergyMonitor",
     "EnergySavingTip",
@@ -215,6 +227,12 @@ __all__ = [
     "PartialRenovationPlan",
     "EscrowTrusteeAccount",
     "MaterialEcoCert",
+    # v1.10.x 全链路诊断系统
+    "DiagnosticMetricSnapshot",
+    "DiagnosticTrace",
+    "DiagnosticAlert",
+    "DiagnosticRecommendation",
+    "DiagnosticRumEvent",
 ]
 
 

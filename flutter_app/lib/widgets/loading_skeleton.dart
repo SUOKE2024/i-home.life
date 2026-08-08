@@ -40,6 +40,14 @@ class _LoadingSkeletonState extends State<LoadingSkeleton>
 
   @override
   Widget build(BuildContext context) {
+    // 无障碍：系统开启「减少动态效果」(prefers-reduced-motion) 时停止呼吸动画，
+    // 退化为静态骨架；恢复后自动续播。对齐 2026 WCAG 2.2 对动效的约束。
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (reduceMotion) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
     final surfaceColor = Theme.of(context).colorScheme.surface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // 浅色主题下用 surface variant 作为骨架底色

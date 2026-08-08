@@ -90,6 +90,21 @@ def register_slow_query_logging(engine: AsyncEngine) -> None:
         except Exception:
             pass  # Prometheus 指标记录失败不应影响业务
 
+        # v1.10.x 全链路诊断：采样链路内累计 DB 查询数与耗时。
+        # 事件回调在独立 greenlet/线程上下文，读取不到中间件设置的 contextvar，
+        # 故优先从 context.session.info（get_db 写入的 trace_id）关联（对象状态，
+        # 上下文无关）；无 session 时退回 contextvar（部分直连路径仍可见）。
+        try:
+            from app.services.diagnostics_service import record_db_query
+
+            trace_id = None
+            ctx_session = getattr(context, "session", None)
+            if ctx_session is not None:
+                trace_id = ctx_session.info.get("ihome_diag_trace")
+            record_db_query(duration_ms, statement, trace_id=trace_id)
+        except Exception:
+            pass  # 诊断采集失败不应影响业务
+
         # 超阈值才记录 WARNING 日志（有 IO 开销）
         if settings.slow_query_log_enabled and duration_ms > settings.slow_query_threshold_ms:
             logger.warning(

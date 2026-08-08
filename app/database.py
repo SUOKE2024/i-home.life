@@ -48,6 +48,13 @@ class Base(DeclarativeBase):
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
+        # v1.10.x 全链路诊断：把当前请求 trace_id 写入 session.info，
+        # 供 DB 事件回调（独立上下文，读不到 contextvar）关联本请求。
+        try:
+            from app.services.diagnostics_service import stamp_session_trace
+            stamp_session_trace(session)
+        except Exception:
+            pass  # 诊断采集失败不应影响业务
         try:
             yield session
         finally:

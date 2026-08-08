@@ -1,12 +1,15 @@
 """A2 智能家居健康监测系统服务层 — CRUD + 阈值检测 + 健康报告"""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select, func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.health_monitor import HealthMonitor, AirQualityRecord
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 # ── 预警级别序数映射 ──
@@ -302,7 +305,7 @@ def check_air_quality_thresholds(record: AirQualityRecord) -> tuple[str, str | N
 
 async def generate_health_report(db: AsyncSession, project_id: str) -> dict:
     """生成综合健康报告"""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(_BJ_TZ)
 
     # 统计总记录数
     total_result = await db.execute(

@@ -193,6 +193,29 @@ class SimpleAgentRequest(BaseModel):
     """通用 Agent 请求模型 — 用于新增的专用 Agent 端点"""
     message: str = Field(min_length=1, max_length=2000)
     project_id: str | None = None
+    # v1.9.x LBS 闭环：客户端实时 GPS 经纬度（格式 "lng,lat"），
+    # 注入空间感知（逆地理编码城市落库长期记忆 + 周边真实 POI）
+    location: str | None = Field(
+        default=None,
+        description="实时位置经纬度 \"lng,lat\"（如 116.481028,39.989643），由客户端 GPS 提供",
+    )
+
+    @field_validator("location")
+    @classmethod
+    def _validate_location(cls, v: str | None) -> str | None:
+        """校验并归一化 location 格式（lng,lat，经纬度合法范围）"""
+        if v is None:
+            return v
+        parts = v.split(",")
+        if len(parts) != 2:
+            raise ValueError('location 格式应为 "lng,lat"')
+        try:
+            lng, lat = float(parts[0]), float(parts[1])
+        except ValueError:
+            raise ValueError("location 经纬度必须为数字")
+        if not (-180 <= lng <= 180 and -90 <= lat <= 90):
+            raise ValueError("location 经纬度超出合法范围")
+        return f"{lng:.6f},{lat:.6f}"
 
 
 class SimpleAgentResponse(BaseModel):
@@ -1810,7 +1833,7 @@ async def kitchen_design_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         agent_logger.info("agent_kitchen_ctx_ready", ctx_len=len(user_ctx))
         reply = await agent.think(data.message, user_ctx)
@@ -1835,7 +1858,7 @@ async def bathroom_design_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1858,7 +1881,7 @@ async def mep_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1881,7 +1904,7 @@ async def appliance_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1904,7 +1927,7 @@ async def furniture_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1927,7 +1950,7 @@ async def door_window_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1950,7 +1973,7 @@ async def files_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -1973,7 +1996,7 @@ async def products_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -2001,7 +2024,7 @@ async def identity_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"管理员: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -2024,7 +2047,7 @@ async def notifications_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -2047,7 +2070,7 @@ async def takeoff_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(
@@ -2070,7 +2093,7 @@ async def ifc_export_agent(
     try:
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"用户: {current_user.name}",
-            project_id=data.project_id,
+            project_id=data.project_id, location=data.location,
         )
         reply = await agent.think(data.message, user_ctx)
         return SimpleAgentResponse(

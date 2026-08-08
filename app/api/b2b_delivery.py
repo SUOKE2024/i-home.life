@@ -24,7 +24,7 @@
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -41,6 +41,9 @@ router = APIRouter(prefix="/b2b", tags=["B2B 装企交付"])
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
+_BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 # 施工阶段（确定性工期估算，天数为 100㎡ 基准，按面积系数缩放）
 _PHASE_PLAN = [
@@ -361,7 +364,7 @@ async def create_delivery(
             budget_estimate={},
             construction_plan={},
             sources={},
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(_BJ_TZ).isoformat(),
         )
 
     # 同步模式：生成整包并落库
@@ -397,7 +400,7 @@ async def create_delivery(
         budget_estimate=budget_estimate,
         construction_plan=construction_plan,
         sources=sources,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=datetime.now(_BJ_TZ).isoformat(),
     )
 
 

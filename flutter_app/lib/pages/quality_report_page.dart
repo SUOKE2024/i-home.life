@@ -119,6 +119,7 @@ class _QualityReportPageState extends State<QualityReportPage> {
           IconButton(
             icon: Icon(Icons.refresh, color: SuokeDesignTokens.textSub(context)),
             onPressed: _loadData,
+            tooltip: '刷新',
           ),
         ],
       ),

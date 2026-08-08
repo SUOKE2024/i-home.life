@@ -62,7 +62,8 @@ class _HomePageState extends State<HomePage> {
       container: true,
       label: '离线模式横幅：当前离线，显示缓存数据',
       child: Container(
-        color: const Color(0xFFE65100),
+        // 深橙 #BF360C(deep orange 900)+白字 5.59:1 达 WCAG AA（原 #E65100 仅 3.80:1）
+        color: const Color(0xFFBF360C),
         padding: EdgeInsets.only(
           top: MediaQuery.of(context).padding.top,
           bottom: 8,

@@ -10,7 +10,7 @@ import time
 import urllib.error
 import urllib.request
 
-API_HOST = os.environ.get("API_HOST", "http://118.31.223.213:8081")
+API_HOST = os.environ.get("API_HOST", "https://i-home.life")
 BASE = API_HOST + "/api"
 passed = 0
 total = 0
@@ -152,7 +152,7 @@ check("GET /materials (no auth) -> 401/403", s in (401, 403),
 
 # 6. Web 静态资源（Flutter SPA 架构）
 print("\n[6] Web 静态资源 (Flutter SPA)")
-WEB_HOST = os.environ.get("API_HOST", "http://118.31.223.213:8081")
+WEB_HOST = os.environ.get("API_HOST", "https://i-home.life")
 # v1.2.0+: 项目已迁移到 Flutter SPA，旧 HTML 页面不存在（nginx 返回 410）
 # 仅检查 Flutter SPA 核心资源 + PWA 文件
 flutter_assets = {

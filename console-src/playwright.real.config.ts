@@ -16,7 +16,7 @@ import { defineConfig, devices } from '@playwright/test';
  * 或用 vite dev（5173，自带 proxy）+ E2E_BASE_URL=http://localhost:5173/console/
  */
 
-const BASE = process.env.E2E_BASE_URL ?? 'http://118.31.223.213:8081/console/';
+const BASE = process.env.E2E_BASE_URL ?? 'https://i-home.life/console/';
 
 export default defineConfig({
   testDir: './tests/real',

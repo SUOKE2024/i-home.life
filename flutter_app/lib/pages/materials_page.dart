@@ -4,6 +4,7 @@ import '../services/api.dart';
 import '../models/models.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
+import '../widgets/empty_state.dart';
 
 class MaterialsPage extends StatefulWidget {
   const MaterialsPage({super.key});
@@ -178,6 +179,15 @@ class _MaterialsPageState extends State<MaterialsPage> {
               ),
             ),
           ),
+          if (filtered.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyStateWidget(
+                icon: Icons.search_off,
+                title: '未找到匹配物料',
+                description: '试试更换搜索词或切换分类',
+              ),
+            ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
         ],
       ),
