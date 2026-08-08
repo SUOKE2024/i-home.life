@@ -98,3 +98,23 @@ async def auth_token(client: AsyncClient) -> str:
 async def auth_headers(auth_token: str) -> dict:
     """返回已认证的 Authorization headers，可直接用于 HTTP 请求。"""
     return {"Authorization": f"Bearer {auth_token}"}
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """会话结束清理本进程的测试数据库文件，防 data/ 残留累积。
+
+    v1.10.x 资源隐患修复：conftest 按 os.getpid() 命名测试 db（test_{pid}.db），
+    此前运行结束后文件残留 data/（含 -journal/-wal），全量 pytest 每次累积
+    十余个文件推高磁盘占用（历史已手动清理 2 次）。sessionfinish 在每个
+    pytest 进程（含 xdist worker）结束时删除自己 PID 的文件，正常/异常
+    退出都会触发。只删 data/test_{pid}.db*，不触碰 data/ihome.db 等业务库。
+    """
+    import glob
+    import os
+
+    pid = os.getpid()
+    for f in glob.glob(f"data/test_{pid}.db*"):
+        try:
+            os.remove(f)
+        except OSError:
+            pass
