@@ -11,30 +11,28 @@
 
 ### 1.1 console-src 新页（12 页，Playwright）
 
-| 页面 | 文件 | 关键后端端点 | 门控 flag |
+| 页面 | 文件 | 关键后端端点 | 门控 flag（已核实 app/config.py） |
 |------|------|-------------|----------|
-| AgentIdentity | AgentIdentityPage.tsx | /api/agents/identity | agent_identity_enabled |
-| AgentApprovals | AgentApprovalsPage.tsx | /api/agents/approvals | agent_approval_enabled |
-| AgentSkills | AgentSkillsPage.tsx | /api/agents/skills | agent_skills_enabled |
+| AgentIdentity | AgentIdentityPage.tsx | /api/agents/identity | 无独立 flag |
+| AgentApprovals | AgentApprovalsPage.tsx | /api/agents/approvals | 无独立 flag（非 admin 403） |
+| AgentSkills | AgentSkillsPage.tsx | /api/agents/skills | agent_skill_enabled |
 | AgentMemory | AgentMemoryPage.tsx | /api/agents/memory | agent_memory_enabled |
-| A2A | A2APage.tsx | /api/a2a | a2a_enabled |
-| MCP | MCPPage.tsx | /api/mcp | mcp_enabled |
-| Harness | HarnessPage.tsx | /api/harness | harness_enabled |
-| Eval | EvalPage.tsx | /api/eval | eval_enabled |
-| Points | PointsPage.tsx | /api/points | — |
-| AIImage | AIImagePage.tsx | /api/ai-image | ai_image_enabled |
-| Identity | IdentityPage.tsx | /api/identity | — |
-| Surveys | SurveysPage.tsx | /api/surveys + /api/ar-scan | — |
+| A2A | A2APage.tsx | /api/a2a/agents, /tasks/send | a2a_enabled |
+| MCP | MCPPage.tsx | /api/mcp/manifest, /tools | mcp_enabled（mrtr 子开关 mcp_mrtr_enabled） |
+| Harness | HarnessPage.tsx | /api/harness/metrics, /traces | harness_trace_enabled |
+| Eval | EvalPage.tsx | /api/eval/dimensions, /report, /run | eval_enabled |
+| Points | PointsPage.tsx | /api/points/account, /mall | — |
+| AIImage | AIImagePage.tsx | /api/ai-image/jobs, /presets | 无独立 flag |
+| Identity | IdentityPage.tsx | /api/identity/submit, /status, /pending | — |
+| Surveys | SurveysPage.tsx | /api/surveys, /ar/sessions | — |
 
 ### 1.2 Flutter 新页（3 页，flutter_test）
 
-| 页面 | 文件 | 后端端点 | 门控 |
+| 页面 | 文件 | 后端端点（已核实 api.dart） | 门控 |
 |------|------|---------|------|
-| 装企交付 | b2b_delivery_page.dart | /api/b2b/delivery | — |
-| 草图转 3D | sketch_to_3d_page.dart | /api/sketch-to-3d | ai_image_enabled |
-| IFC 导出 | ifc_export_page.dart | /api/ifc/export | ifc_enabled |
-
-> 门控列表以 `console-src/src/services/api-client.ts` / `flutter_app/lib/services/api.dart` 实际实现为准（提交前复核）。
+| 装企交付 | b2b_delivery_page.dart | /api/b2b/delivery, /api/b2b/delivery/{id}, /{id}/status | — |
+| 草图转 3D | sketch_to_3d_page.dart | /api/sketch-to-3d/analyze, /generate-3d, /supported-formats | sketch_to_3d_vision_enabled |
+| IFC 导出 | ifc_export_page.dart | /api/bim/export/structural/{id}, /api/bim/export/design/{id} | 无独立 flag |
 
 ---
 
@@ -58,12 +56,12 @@
 // console-src/tests/visual/p1-qa.spec.ts
 import { test, expect } from '@playwright/test';
 
-// 通过 query 或路由参数控制 flag 门控（按各页实际实现）
+// 路由 path 已核实 App.tsx L127-139
 const PAGES = [
-  { path: '/agents/identity', name: 'AgentIdentity' },
-  { path: '/agents/approvals', name: 'AgentApprovals' },
-  { path: '/agents/skills', name: 'AgentSkills' },
-  { path: '/agents/memory', name: 'AgentMemory' },
+  { path: '/agent-identity', name: 'AgentIdentity' },
+  { path: '/agent-approvals', name: 'AgentApprovals' },
+  { path: '/agent-skills', name: 'AgentSkills' },
+  { path: '/agent-memory', name: 'AgentMemory' },
   { path: '/a2a', name: 'A2A' },
   { path: '/mcp', name: 'MCP' },
   { path: '/harness', name: 'Harness' },
@@ -163,11 +161,13 @@ void main() {
 | 全量回归 | `pytest`（后端 2046 不回退）+ console build + flutter analyze |
 | 验收标准 | 15 页 × 5 类骨架全部落地；T1/T2 为必过项；T3-T5 允许标注「待后端 flag 就绪」skip |
 
-## 六、待确认项
+## 六、待确认项（已核实更新 2026-08-09）
 
-- [ ] 各页实际 flag 名与降级文案（提交后以 api-client.ts / api.dart 为准）
-- [ ] console 路由 path（/agents/identity 等）以 SideNav.tsx/App.tsx 实际注册为准
-- [ ] 「19 页」口径确认：若含 4 个基础设施文件，建议补 4 条「路由可达」用例（App.tsx/SideNav.tsx）
+- [x] **路由 path 已核实**：`App.tsx` L127-139（/agent-identity / agent-approvals / agent-skills / agent-memory / a2a / mcp / harness / eval / points / ai-image / identity / surveys）
+- [x] **flag 名已核实**：`app/config.py`（agent_skill_enabled / agent_memory_enabled / a2a_enabled / mcp_enabled / mcp_mrtr_enabled / harness_trace_enabled / eval_enabled / sketch_to_3d_vision_enabled；identity/approvals/ai-image/ifc 无独立 flag）
+- [x] **Flutter 端点已核实**：`api.dart`（/api/b2b/delivery* / /api/sketch-to-3d/* / /api/bim/export/*）
+- [ ] 「19 页」口径：15 新页 + 4 基础设施文件（App/SideNav/api-client/domain/api.dart/project_detail），如需补「路由可达」用例见 §三 3.2 建议
+- [ ] 各页降级文案（flag 关闭时的实际提示语）以页面实现为准，用例断言词需对齐页面文本
 
 ---
 
