@@ -34,7 +34,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.10.2"
+      APP_VERSION: "1.11.0"
       DEBUG: "false"
     steps:
       - uses: actions/checkout@v4

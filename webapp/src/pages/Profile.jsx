@@ -83,7 +83,7 @@ export default function ProfilePage() {
             {/* 系统信息卡片（诚实标注） */}
             <Card title="系统信息" icon={<Info size={16} className="ico" />}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <InfoRow label="系统版本" value={<span className="mono">v1.10.2</span>} />
+                <InfoRow label="系统版本" value={<span className="mono">v1.11.0</span>} />
                 <InfoRow label="平台" value="索克家居 · i-home.life" />
                 <InfoRow label="备案号" value="滇ICP备2026015233号-2" />
                 <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>
