@@ -5,6 +5,27 @@
 
 ---
 
+## Changelog 摘要（基于提交 d1790d0）
+
+> **Tag：`v1.10.2`** · Commit：`d1790d0` · 127 files changed · +8988 / -687
+> 已推送远端：`git push -u origin main`（main 已跟踪 origin/main）
+
+**feat(agents): v1.10.2 自进化管线边界测试补全（覆盖率 89%→99%）**
+
+- **新增 22 个边界测试**（tests/test_agent_case.py 37→59）：LLM 异常返回
+  （非法 JSON 子串提取/调用异常/markdown 包裹）与空值输入（空 task_intent /
+  空 name / 不存在 skill_id / 零使用记录 / 显著性检验边界）
+- **修复 2 个边界问题**：`search_cases` 空 task_intent 返回全量 Case（新增空值守卫）、
+  `_compress_trajectory` tool_calls 非列表致 AttributeError
+- **覆盖率 99%**：`agent_case_service` 91%→99%、`agent_skill_evolution_service` 85%→100%；
+  L93 "[已截断]" 分支确认为防御性死代码，以有界性不变式守护
+- **新增验证脚本** `scripts/verify_self_evolution.py`（66 项端到端验证全通过）
+- **版本全链路 1.10.1→1.10.2**（16 处）；`rollback.sh` 新增 v1.10.2 条目
+- **固化累积工作**：自进化管线 v1.10.1、全链路记忆闭环、LBS 定位、诊断系统、
+  移动端 UI/UX 优化、webapp 迁移增强等
+
+---
+
 ## 归档文件
 
 | 文件 | 内容 | 适用对象 |
