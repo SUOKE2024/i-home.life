@@ -32,13 +32,16 @@ class TestEvalFramework:
     """Suoke-Eval1 评估框架测试"""
 
     def test_dimensions_defined(self):
-        """10 个评估维度已定义"""
+        """13 个评估维度已定义（v1.12.x 新增 faithfulness/completeness/sufficiency）"""
         from app.eval.ihome_eval import IHomeEvalDimension
         dims = list(IHomeEvalDimension)
-        assert len(dims) == 10
+        assert len(dims) == 13
         assert IHomeEvalDimension.BUDGET_ACCURACY in dims
         assert IHomeEvalDimension.HC_COMPLIANCE_RATE in dims
         assert IHomeEvalDimension.COUNTER_ARGUMENT_QUALITY in dims
+        assert IHomeEvalDimension.FAITHFULNESS in dims
+        assert IHomeEvalDimension.COMPLETENESS in dims
+        assert IHomeEvalDimension.SUFFICIENCY in dims
 
     def test_dimension_benchmarks_complete(self):
         """每个维度都有 benchmark 参照"""
@@ -450,6 +453,6 @@ class TestFeatureFlags:
         assert hasattr(s, "tts_enabled")
 
     def test_app_version_bumped(self):
-        """app_version 已升至 1.11.0（v1.10.2 → v1.11.0 时区/记忆/CI 基建）"""
+        """app_version 已升至 1.12.0（v1.11.0 → v1.12.0 智能体系统性打磨）"""
         from app.config import get_settings
-        assert get_settings().app_version == "1.11.0"
+        assert get_settings().app_version == "1.12.0"

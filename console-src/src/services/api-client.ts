@@ -1201,6 +1201,786 @@ export class ApiClient {
   ): Promise<ApiResult<T>> {
     return this.request<T>(`/api/chat/rooms/${encodeURIComponent(roomId)}/agents`);
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  Agent 治理 — GB/Z 185 身份卡 / 工具批准 / Skill / 记忆 / A2A / MCP / Harness / Eval
+  //  对齐 app/api/agent_identity.py、agent_approvals.py、agent_skills.py、
+  //  agent_memory.py、a2a.py、mcp.py、harness_api.py、eval.py
+  // ──────────────────────────────────────────────────────────────────
+
+  // ── GB/Z 185 身份卡（app/api/agent_identity.py，flag: gbz185_agent_card_enabled）──
+
+  /** 支持身份码的 Agent 列表（GET /api/agents/identity） */
+  async listAgentIdentityCards<T = import('../types/domain').AgentIdentityListResponse>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/identity');
+  }
+
+  /** 单个 Agent 身份卡（GET /api/agents/identity/{name}，28 位 AID + ACDL） */
+  async getAgentIdentityCard<T = import('../types/domain').AgentIdentityCard>(
+    name: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/identity/${encodeURIComponent(name)}`);
+  }
+
+  // ── Agent 工具批准（app/api/agent_approvals.py）──
+
+  /** 待批准请求列表（GET /api/agents/approvals，仅 pending） */
+  async listAgentApprovals<T = import('../types/domain').AgentApprovalListResponse>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/approvals');
+  }
+
+  /** 单条批准请求（GET /api/agents/approvals/{approvalId}） */
+  async getAgentApproval<T = import('../types/domain').AgentApprovalItem>(
+    approvalId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/approvals/${encodeURIComponent(approvalId)}`);
+  }
+
+  /** 批准请求（POST /api/agents/approvals/{approvalId}/approve） */
+  async approveAgentApproval<T = import('../types/domain').AgentApprovalItem>(
+    approvalId: string,
+    reason?: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/approvals/${encodeURIComponent(approvalId)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? null }),
+    });
+  }
+
+  /** 拒绝请求（POST /api/agents/approvals/{approvalId}/reject） */
+  async rejectAgentApproval<T = import('../types/domain').AgentApprovalItem>(
+    approvalId: string,
+    reason?: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/approvals/${encodeURIComponent(approvalId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason ?? null }),
+    });
+  }
+
+  /** 执行已批准的工具调用（POST /api/agents/approvals/{approvalId}/execute） */
+  async executeAgentApproval<T = import('../types/domain').AgentApprovalExecuteResponse>(
+    approvalId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/approvals/${encodeURIComponent(approvalId)}/execute`, {
+      method: 'POST',
+    });
+  }
+
+  // ── Agent Skill 资产（app/api/agent_skills.py，创建/导入受 agent_skill_enabled flag 控制）──
+
+  /** Skill 列表（GET /api/agents/skills，支持 scope / include_archived 过滤） */
+  async listAgentSkills<T = import('../types/domain').AgentSkillListResponse>(
+    params: { scope?: string; includeArchived?: boolean } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.scope) qs.set('scope', params.scope);
+    if (params.includeArchived) qs.set('include_archived', 'true');
+    const query = qs.toString();
+    return this.request<T>(`/api/agents/skills${query ? `?${query}` : ''}`);
+  }
+
+  /** 创建 Skill（POST /api/agents/skills，status=draft；flag 关闭返回 503） */
+  async createAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    data: {
+      name: string;
+      description?: string;
+      agent_name: string;
+      system_prompt?: string;
+      provider?: string;
+      tools?: unknown[];
+      cost_tier?: string;
+      acceptance_criteria?: unknown[];
+      owner_scope?: string;
+      owner_id?: string | null;
+    },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/skills', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description ?? '',
+        agent_name: data.agent_name,
+        system_prompt: data.system_prompt ?? '',
+        provider: data.provider ?? 'deepseek',
+        tools: data.tools ?? [],
+        cost_tier: data.cost_tier ?? 'standard',
+        acceptance_criteria: data.acceptance_criteria ?? [],
+        owner_scope: data.owner_scope ?? 'personal',
+        owner_id: data.owner_id ?? null,
+      }),
+    });
+  }
+
+  /** Skill 详情（GET /api/agents/skills/{skillId}） */
+  async getAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    skillId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}`);
+  }
+
+  /** 更新 Skill（PUT /api/agents/skills/{skillId}，version+1） */
+  async updateAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    skillId: string,
+    data: Record<string, unknown>,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 软删除 Skill（DELETE /api/agents/skills/{skillId}） */
+  async deleteAgentSkill(skillId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/agents/skills/${encodeURIComponent(skillId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** 授权共享 Skill（POST /api/agents/skills/{skillId}/share） */
+  async shareAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    skillId: string,
+    data: { grant_to?: string[]; share_scope?: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}/share`, {
+      method: 'POST',
+      body: JSON.stringify({
+        grant_to: data.grant_to ?? [],
+        share_scope: data.share_scope ?? 'grant',
+      }),
+    });
+  }
+
+  /** 提升到 org 级（POST /api/agents/skills/{skillId}/promote，仅 admin） */
+  async promoteAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    skillId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}/promote`, {
+      method: 'POST',
+    });
+  }
+
+  /** 回退到指定 version（POST /api/agents/skills/{skillId}/rollback） */
+  async rollbackAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    skillId: string,
+    targetVersion: number,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}/rollback`, {
+      method: 'POST',
+      body: JSON.stringify({ target_version: targetVersion }),
+    });
+  }
+
+  /** 从 git URL 导入 Skill 包（POST /api/agents/skills/import，flag 关闭返回 503） */
+  async importAgentSkill<T = import('../types/domain').AgentSkillItem>(
+    data: { git_url: string; owner_scope?: string; owner_id?: string | null },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/skills/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        git_url: data.git_url,
+        owner_scope: data.owner_scope ?? 'personal',
+        owner_id: data.owner_id ?? null,
+      }),
+    });
+  }
+
+  /** 实例化 Skill 并执行测试消息（POST /api/agents/skills/{skillId}/instantiate） */
+  async instantiateAgentSkill<T = import('../types/domain').AgentSkillInstantiateResponse>(
+    skillId: string,
+    testMessage: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/agents/skills/${encodeURIComponent(skillId)}/instantiate`, {
+      method: 'POST',
+      body: JSON.stringify({ test_message: testMessage }),
+    });
+  }
+
+  // ── Agent 长期记忆（app/api/agent_memory.py）──
+
+  /** 记忆列表（GET /api/agents/memory，支持 scope / project_id 过滤） */
+  async listAgentMemories<T = import('../types/domain').AgentMemoryListResponse>(
+    params: { scope?: string; projectId?: string } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.scope) qs.set('scope', params.scope);
+    if (params.projectId) qs.set('project_id', params.projectId);
+    const query = qs.toString();
+    return this.request<T>(`/api/agents/memory${query ? `?${query}` : ''}`);
+  }
+
+  /** 手动保存一条记忆（POST /api/agents/memory，同 key+scope+project_id 覆盖更新） */
+  async createAgentMemory<T = import('../types/domain').AgentMemoryItem>(
+    data: {
+      category: string;
+      key: string;
+      value: string;
+      importance?: number;
+      scope?: string;
+      project_id?: string | null;
+    },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/memory', {
+      method: 'POST',
+      body: JSON.stringify({
+        category: data.category,
+        key: data.key,
+        value: data.value,
+        importance: data.importance ?? 1,
+        scope: data.scope ?? 'personal',
+        project_id: data.project_id ?? null,
+      }),
+    });
+  }
+
+  /** 删除一条记忆（DELETE /api/agents/memory/{memoryId}） */
+  async deleteAgentMemory(memoryId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/agents/memory/${encodeURIComponent(memoryId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ── A2A 协议（app/api/a2a.py，任务下发/查询受 a2a_enabled flag 控制）──
+
+  /** 已注册 Agent 列表（GET /api/a2a/agents） */
+  async listA2AAgents<T = import('../types/domain').A2AAgentListResponse>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/a2a/agents');
+  }
+
+  /** 下发任务到指定 Agent（POST /api/a2a/tasks/send；flag 关闭返回 503） */
+  async sendA2ATask<T = import('../types/domain').A2ATaskResponse>(
+    data: { agent_name: string; message: string; project_id?: string | null },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/a2a/tasks/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        agent_name: data.agent_name,
+        message: data.message,
+        project_id: data.project_id ?? null,
+      }),
+    });
+  }
+
+  /** 任务详情（GET /api/a2a/tasks/{taskId}；flag 关闭返回 503） */
+  async getA2ATask<T = import('../types/domain').A2ATaskResponse>(
+    taskId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/a2a/tasks/${encodeURIComponent(taskId)}`);
+  }
+
+  /** 任务状态（GET /api/a2a/tasks/{taskId}/status；flag 关闭返回 503） */
+  async getA2ATaskStatus<T = import('../types/domain').A2ATaskStatusResponse>(
+    taskId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/a2a/tasks/${encodeURIComponent(taskId)}/status`);
+  }
+
+  // ── MCP Server（app/api/mcp.py + app/mcp/server.py）──
+
+  /** 服务器元信息（GET /api/mcp/manifest） */
+  async getMCPManifest<T = import('../types/domain').MCPManifest>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/mcp/manifest');
+  }
+
+  /** 工具列表（GET /api/mcp/tools，MCP 协议格式） */
+  async listMCPTools<T = import('../types/domain').MCPToolsResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/mcp/tools');
+  }
+
+  /** 调用工具（POST /api/mcp/tools/call） */
+  async callMCPTool<T = import('../types/domain').MCPToolCallResult>(
+    name: string,
+    arguments_: Record<string, unknown>,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/mcp/tools/call', {
+      method: 'POST',
+      body: JSON.stringify({ name, arguments: arguments_ }),
+    });
+  }
+
+  /** MRTR 待响应请求列表（GET /api/mcp/mrtr；flag mcp_mrtr_enabled 关闭返回 503） */
+  async listMCPMrtr<T = import('../types/domain').MCPMrtrListResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/mcp/mrtr');
+  }
+
+  // ── Harness（app/api/harness_api.py）──
+
+  /** Harness 运行时指标（GET /api/harness/metrics，登录即可） */
+  async getHarnessMetrics<T = import('../types/domain').HarnessMetrics>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/harness/metrics');
+  }
+
+  /** 执行轨迹（GET /api/harness/traces，admin；支持 agent_name/status/limit 过滤） */
+  async getHarnessTraces<T = import('../types/domain').HarnessTracesResponse>(
+    params: { agentName?: string; status?: string; limit?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.agentName) qs.set('agent_name', params.agentName);
+    if (params.status) qs.set('status', params.status);
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return this.request<T>(`/api/harness/traces${query ? `?${query}` : ''}`);
+  }
+
+  /** 离线评估（GET /api/harness/eval，admin；返回最近 100 条轨迹指标） */
+  async getHarnessEval<T = import('../types/domain').HarnessEvalResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/harness/eval');
+  }
+
+  /** Harness 健康检查（GET /api/harness/health，公开） */
+  async getHarnessHealth<T = import('../types/domain').HarnessHealthResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/harness/health');
+  }
+
+  // ── 评估框架（app/api/eval.py，flag: eval_enabled 关闭时返回 run_id="disabled" 报告）──
+
+  /** 评估维度列表（GET /api/eval/dimensions） */
+  async getEvalDimensions<T = import('../types/domain').EvalDimensionsResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/eval/dimensions');
+  }
+
+  /** 最近评估报告（GET /api/eval/report） */
+  async getEvalReport<T = import('../types/domain').EvalReport>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/eval/report');
+  }
+
+  /** 触发一次评估运行（POST /api/eval/run，admin；baseline ∈ base_llm|keyword|full_system|mock） */
+  async runEval<T = import('../types/domain').EvalReport>(
+    baseline: string,
+    outputPath?: string,
+  ): Promise<ApiResult<T>> {
+    const body: Record<string, unknown> = { baseline };
+    if (outputPath) body.output_path = outputPath;
+    return this.request<T>('/api/eval/run', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Agent 质量漂移检测（GET /api/eval/drift，admin；v1.12.x） */
+  async getEvalDrift<T = import('../types/domain').EvalDriftResponse>(
+    windowDays = 7,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/eval/drift?window_days=${windowDays}`);
+  }
+
+  /** Agent 治理安全审计（GET /api/admin/agent-governance-audit，平台管理员；v1.12.x） */
+  async getGovernanceAudit<T = import('../types/domain').GovernanceAuditResponse>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/admin/agent-governance-audit');
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  积分商城（app/api/points.py，前缀 /api/points）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 当前用户积分账户（GET /api/points/account） */
+  async getPointsAccount<T = import('../types/domain').PointsAccount>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/points/account');
+  }
+
+  /** 指定用户积分账户（GET /api/points/account/{userId}） */
+  async getPointsUserAccount<T = import('../types/domain').PointsAccount>(
+    userId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/points/account/${encodeURIComponent(userId)}`);
+  }
+
+  /** 当前用户积分流水（GET /api/points/transactions?offset=&limit=） */
+  async getPointsTransactions<T = import('../types/domain').PointsTransaction[]>(
+    offset = 0,
+    limit = 20,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/points/transactions?offset=${offset}&limit=${limit}`);
+  }
+
+  /** 积分规则列表（GET /api/points/rules） */
+  async getPointsRules<T = import('../types/domain').PointsRule[]>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/points/rules');
+  }
+
+  /** 管理员调整积分（POST /api/points/earn，仅 admin） */
+  async earnPoints<T = import('../types/domain').PointsTransaction>(
+    data: import('../types/domain').PointsEarnInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/points/earn', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 积分商城商品列表（GET /api/points/mall?category=） */
+  async getPointsMall<T = import('../types/domain').PointsMallItem[]>(
+    category?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+    return this.request<T>(`/api/points/mall${qs}`);
+  }
+
+  /** 积分兑换商品（POST /api/points/redeem，body: { item_id }） */
+  async redeemPoints<T = import('../types/domain').PointsRedemption>(
+    itemId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/points/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ item_id: itemId }),
+    });
+  }
+
+  /** 当前用户兑换记录（GET /api/points/redemptions） */
+  async getPointsRedemptions<T = import('../types/domain').PointsRedemption[]>(
+    offset = 0,
+    limit = 20,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/points/redemptions?offset=${offset}&limit=${limit}`);
+  }
+
+  /** 积分排行榜（GET /api/points/ranking?role=&year=&category=&limit=） */
+  async getPointsRanking<T = import('../types/domain').PointsRankingEntry[]>(
+    params: { role?: string; year?: number; category?: string; limit?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.role) qs.set('role', params.role);
+    if (params.year != null) qs.set('year', String(params.year));
+    if (params.category) qs.set('category', params.category);
+    if (params.limit != null) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return this.request<T>(`/api/points/ranking${query ? `?${query}` : ''}`);
+  }
+
+  /** 重新计算排行榜（POST /api/points/ranking/recompute，仅 admin） */
+  async recomputePointsRanking<T = { message: string; count: number }>(
+    year?: number,
+  ): Promise<ApiResult<T>> {
+    const qs = year != null ? `?year=${year}` : '';
+    return this.request<T>(`/api/points/ranking/recompute${qs}`, {
+      method: 'POST',
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  AI 图生图（app/api/ai_image.py，前缀 /api/ai-image）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 创建图生图任务（POST /api/ai-image/jobs） */
+  async createAIImageJob<T = import('../types/domain').AIImageJob>(
+    data: import('../types/domain').AIImageJobCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-image/jobs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 项目图生图任务列表（GET /api/ai-image/jobs/project/{projectId}，支持 status_filter） */
+  async listAIImageJobs<T = import('../types/domain').AIImageJobListItem[]>(
+    projectId: string,
+    statusFilter?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+    return this.request<T>(`/api/ai-image/jobs/project/${encodeURIComponent(projectId)}${qs}`);
+  }
+
+  /** 任务详情（GET /api/ai-image/jobs/{jobId}） */
+  async getAIImageJob<T = import('../types/domain').AIImageJob>(
+    jobId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/ai-image/jobs/${encodeURIComponent(jobId)}`);
+  }
+
+  /** 触发任务处理（POST /api/ai-image/jobs/{jobId}/process，仅 queued/failed 可处理） */
+  async processAIImageJob<T = import('../types/domain').AIImageJob>(
+    jobId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/ai-image/jobs/${encodeURIComponent(jobId)}/process`, {
+      method: 'POST',
+    });
+  }
+
+  /** 任务状态（GET /api/ai-image/jobs/{jobId}/status，含 cost_yuan/render_backend） */
+  async getAIImageJobStatus<T = import('../types/domain').AIImageJobStatus>(
+    jobId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/ai-image/jobs/${encodeURIComponent(jobId)}/status`);
+  }
+
+  /** 删除任务（DELETE /api/ai-image/jobs/{jobId}） */
+  async deleteAIImageJob(jobId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/ai-image/jobs/${encodeURIComponent(jobId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** 预设模板列表（GET /api/ai-image/presets，按使用次数降序） */
+  async listAIImagePresets<T = import('../types/domain').AIImagePreset[]>(
+    category?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+    return this.request<T>(`/api/ai-image/presets${qs}`);
+  }
+
+  /** 创建预设模板（POST /api/ai-image/presets） */
+  async createAIImagePreset<T = import('../types/domain').AIImagePreset>(
+    data: import('../types/domain').AIImagePresetCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-image/presets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 预设详情（GET /api/ai-image/presets/{presetId}） */
+  async getAIImagePreset<T = import('../types/domain').AIImagePreset>(
+    presetId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/ai-image/presets/${encodeURIComponent(presetId)}`);
+  }
+
+  /** 应用预设模板创建任务（POST /api/ai-image/jobs/apply-preset） */
+  async applyAIImagePreset<T = import('../types/domain').AIImageJob>(
+    data: import('../types/domain').AIImageApplyPresetInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-image/jobs/apply-preset', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 批量渲染（POST /api/ai-image/jobs/batch，preset_ids 至少 1 个） */
+  async batchAIImageRender<T = import('../types/domain').AIImageJob[]>(
+    data: import('../types/domain').AIImageBatchRenderInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/ai-image/jobs/batch', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  身份认证（app/api/identity.py，前缀 /api/identity）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 提交实名认证（POST /api/identity/submit） */
+  async submitIdentity<T = import('../types/domain').IdentityVerification>(
+    data: import('../types/domain').IdentitySubmitInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/identity/submit', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 当前用户认证状态（GET /api/identity/status） */
+  async getIdentityStatus<T = import('../types/domain').IdentityStatus>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/identity/status');
+  }
+
+  /** 待审核认证列表（GET /api/identity/pending，仅 admin，非 admin 返回 403） */
+  async listPendingIdentities<T = import('../types/domain').IdentityVerification[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/identity/pending');
+  }
+
+  /** 审核认证（POST /api/identity/{verificationId}/review，仅 admin；status ∈ approved|rejected） */
+  async reviewIdentity<T = import('../types/domain').IdentityVerification>(
+    verificationId: string,
+    status: 'approved' | 'rejected',
+    reviewNote?: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/identity/${encodeURIComponent(verificationId)}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ status, review_note: reviewNote ?? null }),
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  量房 / AR 空间测量（app/api/surveys.py，前缀 /api/surveys）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 创建量房记录（POST /api/surveys，rooms 至少 1 个） */
+  async createSurvey<T = import('../types/domain').SurveyDetail>(
+    data: import('../types/domain').SurveyCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 项目量房列表（GET /api/surveys/project/{projectId}） */
+  async listSurveys<T = import('../types/domain').SurveyItem[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 量房详情（GET /api/surveys/{surveyId}） */
+  async getSurvey<T = import('../types/domain').SurveyDetail>(
+    surveyId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/${encodeURIComponent(surveyId)}`);
+  }
+
+  /** 更新量房（PUT /api/surveys/{surveyId}，空字段不更新） */
+  async updateSurvey<T = import('../types/domain').SurveyDetail>(
+    surveyId: string,
+    data: import('../types/domain').SurveyUpdateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/${encodeURIComponent(surveyId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 删除量房（DELETE /api/surveys/{surveyId}） */
+  async deleteSurvey(surveyId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/surveys/${encodeURIComponent(surveyId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** 应用量房数据生成户型（POST /api/surveys/{surveyId}/apply） */
+  async applySurvey<T = Record<string, unknown>>(surveyId: string): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/${encodeURIComponent(surveyId)}/apply`, {
+      method: 'POST',
+    });
+  }
+
+  /** 设备能力检测（GET /api/surveys/device-check，LiDAR/摄像头/语音等） */
+  async getSurveyDeviceCheck<T = import('../types/domain').SurveyDeviceCheck>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys/device-check');
+  }
+
+  /** AR 设备能力检测（POST /api/surveys/ar/device-capability） */
+  async detectARDeviceCapability<T = import('../types/domain').ARDeviceCapabilityResult>(
+    data: import('../types/domain').ARDeviceCapabilityInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys/ar/device-capability', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 创建 AR 扫描会话（POST /api/surveys/ar/sessions） */
+  async createARScanSession<T = import('../types/domain').ARScanSession>(
+    data: import('../types/domain').ARScanSessionCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys/ar/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 项目 AR 会话列表（GET /api/surveys/ar/sessions/project/{projectId}，支持 status_filter） */
+  async listARScanSessions<T = import('../types/domain').ARScanSessionListItem[]>(
+    projectId: string,
+    statusFilter?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = statusFilter ? `?status_filter=${encodeURIComponent(statusFilter)}` : '';
+    return this.request<T>(
+      `/api/surveys/ar/sessions/project/${encodeURIComponent(projectId)}${qs}`,
+    );
+  }
+
+  /** AR 会话详情（GET /api/surveys/ar/sessions/{sessionId}） */
+  async getARScanSession<T = import('../types/domain').ARScanSession>(
+    sessionId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}`);
+  }
+
+  /** 更新 AR 会话（PATCH /api/surveys/ar/sessions/{sessionId}） */
+  async updateARScanSession<T = import('../types/domain').ARScanSession>(
+    sessionId: string,
+    data: import('../types/domain').ARScanSessionUpdateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 开始 AR 扫描（POST /api/surveys/ar/sessions/{sessionId}/start，created/failed 可开始） */
+  async startARScan<T = import('../types/domain').ARScanSession>(
+    sessionId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/start`, {
+      method: 'POST',
+    });
+  }
+
+  /** 处理扫描数据（POST /api/surveys/ar/sessions/{sessionId}/process，解析 USDZ/GLB 生成精度报告） */
+  async processARScan<T = Record<string, unknown>>(
+    sessionId: string,
+    data: import('../types/domain').ARProcessScanInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/process`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 精度校验报告（GET /api/surveys/ar/sessions/{sessionId}/accuracy） */
+  async getARAccuracyReport<T = import('../types/domain').ARAccuracyReport>(
+    sessionId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/accuracy`);
+  }
+
+  /** 应用 AR 扫描结果到量房（POST /api/surveys/ar/sessions/{sessionId}/apply，需 completed） */
+  async applyARScanSession<T = Record<string, unknown>>(
+    sessionId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/apply`, {
+      method: 'POST',
+    });
+  }
+
+  /** 删除 AR 会话（DELETE /api/surveys/ar/sessions/{sessionId}） */
+  async deleteARScanSession(sessionId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** 添加墙面特征（POST /api/surveys/ar/features，门/窗/洞口/梁/柱/管道/开关插座） */
+  async addWallFeature<T = import('../types/domain').WallFeature>(
+    data: import('../types/domain').WallFeatureCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys/ar/features', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 墙面特征列表（GET /api/surveys/ar/features/{sessionId}，支持 room_name 过滤） */
+  async listWallFeatures<T = import('../types/domain').WallFeature[]>(
+    sessionId: string,
+    roomName?: string,
+  ): Promise<ApiResult<T>> {
+    const qs = roomName ? `?room_name=${encodeURIComponent(roomName)}` : '';
+    return this.request<T>(`/api/surveys/ar/features/${encodeURIComponent(sessionId)}${qs}`);
+  }
+
+  /** 添加测量校准点（POST /api/surveys/ar/points，AR 值 + 人工参考值） */
+  async addMeasurementPoint<T = import('../types/domain').MeasurementPoint>(
+    data: import('../types/domain').MeasurementPointCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/surveys/ar/points', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 测量校准点列表（GET /api/surveys/ar/points/{sessionId}） */
+  async listMeasurementPoints<T = import('../types/domain').MeasurementPoint[]>(
+    sessionId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/surveys/ar/points/${encodeURIComponent(sessionId)}`);
+  }
 }
 
 /**

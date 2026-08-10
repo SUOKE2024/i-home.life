@@ -53,6 +53,19 @@ import BudgetTemplatesPage from './pages/BudgetTemplatesPage';
 import KitchenBathMepPage from './pages/KitchenBathMepPage';
 import WorkersPage from './pages/WorkersPage';
 import IMChatPage from './pages/IMChatPage';
+import AgentIdentityPage from './pages/AgentIdentityPage';
+import AgentApprovalsPage from './pages/AgentApprovalsPage';
+import AgentSkillsPage from './pages/AgentSkillsPage';
+import AgentMemoryPage from './pages/AgentMemoryPage';
+import A2APage from './pages/A2APage';
+import MCPPage from './pages/MCPPage';
+import HarnessPage from './pages/HarnessPage';
+import EvalPage from './pages/EvalPage';
+import GovernanceAuditPage from './pages/GovernanceAuditPage';
+import PointsPage from './pages/PointsPage';
+import AIImagePage from './pages/AIImagePage';
+import IdentityPage from './pages/IdentityPage';
+import SurveysPage from './pages/SurveysPage';
 
 export default function App() {
   const location = useLocation();
@@ -111,6 +124,21 @@ export default function App() {
           <Route path="/kitchen-bath-mep" element={<KitchenBathMepPage />} />
           <Route path="/workers" element={<WorkersPage />} />
           <Route path="/im-chat" element={<IMChatPage />} />
+          {/* Agent 治理 */}
+          <Route path="/agent-identity" element={<AgentIdentityPage />} />
+          <Route path="/agent-approvals" element={<AgentApprovalsPage />} />
+          <Route path="/agent-skills" element={<AgentSkillsPage />} />
+          <Route path="/agent-memory" element={<AgentMemoryPage />} />
+          <Route path="/a2a" element={<A2APage />} />
+          <Route path="/mcp" element={<MCPPage />} />
+          <Route path="/harness" element={<HarnessPage />} />
+          <Route path="/eval" element={<EvalPage />} />
+          <Route path="/governance-audit" element={<GovernanceAuditPage />} />
+          {/* 积分商城 / AI 图生图 / 身份认证 / 量房-AR 扫描 */}
+          <Route path="/points" element={<PointsPage />} />
+          <Route path="/ai-image" element={<AIImagePage />} />
+          <Route path="/identity" element={<IdentityPage />} />
+          <Route path="/surveys" element={<SurveysPage />} />
           {/* 真 404：取代此前静默回退到 Workbench 的反直觉行为 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

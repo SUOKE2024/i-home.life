@@ -2,10 +2,17 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.10.2 · 自进化管线边界测试补全（LLM 异常返回 + 空值输入，覆盖率 89%→99%）
-> 核心能力：51 页面 React Web 控制台 + Flutter 52 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 103 Service + 127 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.11.0 · 时区统一全量收尾 + 智能体全链路记忆闭环（对外展示时间戳统一 +08:00）
+> 核心能力：63 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 103 Service + 127 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-09 · 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）
+
+- **Web 控制台 +12 页**：Agent 治理 8 页（身份卡/工具批准/Skill 资产/长期记忆/A2A/MCP/Harness/评估）+ 单端独缺 4 页（积分商城/AI 图生图/身份认证/量房 AR 扫描），全部对接真实后端 API，flag 未启用时诚实降级
+- **Flutter +3 页**：B2B 装企交付 / 草图转 3D / BIM IFC 导出（对齐 Web 端功能，接入 project_detail 入口）
+- **基线校准**：test_baseline.json 校准至实测 2046 passed（此前 2038/10/4 与实际 2046/2/4 的 skip 分类差 8 已消除）
+- 验证：全量 pytest 2046 passed 零回退 + console `npm run build` 0 错误 + flutter analyze 0 issues
 
 ### 2026-08-08 · v1.10.2 自进化管线边界测试补全
 

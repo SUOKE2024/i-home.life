@@ -45,7 +45,7 @@
      settings = get_settings()
      if not settings.agent_skill_distillation_enabled:
          return []
- 
+
 +    # 空 task_intent 不检索（避免无关键词过滤时返回全量 Case）
 +    if not task_intent or not task_intent.strip():
 +        return []

@@ -1672,6 +1672,157 @@ class ApiClient {
   Future<Result<dynamic>> aiQaFaq() =>
       get('/ai-qa/faq');
 
+  // ── B2B 装企交付 ──
+
+  /// 创建交付单（整包交付：设计方案 + 报价 + 施工计划，可 async_mode 异步生成）
+  Future<Result<dynamic>> b2bCreateDelivery(Map<String, dynamic> body) =>
+      post('/b2b/delivery', body);
+
+  /// 我的交付单列表（按创建时间倒序，用户强隔离）
+  Future<Result<dynamic>> b2bListDeliveries({int skip = 0, int limit = 20}) =>
+      get('/b2b/delivery?skip=$skip&limit=$limit');
+
+  /// 交付单详情（整包快照；异步生成中返回 status=generating）
+  Future<Result<dynamic>> b2bGetDelivery(String deliveryOrderId) =>
+      get('/b2b/delivery/$deliveryOrderId');
+
+  /// 流转交付单状态（generating→draft→quoted→accepted→in_construction→completed）
+  Future<Result<dynamic>> b2bUpdateDeliveryStatus(
+          String deliveryOrderId, String status) =>
+      put('/b2b/delivery/$deliveryOrderId/status', {'status': status});
+
+  // ── 草图转 3D ──
+
+  /// 分析手绘草图（multipart：file + 可选 description）
+  Future<Result<dynamic>> sketchAnalyze({
+    required Uint8List fileBytes,
+    required String filename,
+    String description = '',
+  }) async {
+    return _multipartPost(
+      '/sketch-to-3d/analyze',
+      fileBytes: fileBytes,
+      filename: filename,
+      fields: description.isEmpty ? const {} : {'description': description},
+    );
+  }
+
+  /// 生成 3D 布局（multipart：file + description + style）
+  Future<Result<dynamic>> sketchGenerate3D({
+    required Uint8List fileBytes,
+    required String filename,
+    String description = '',
+    String style = 'modern',
+  }) async {
+    return _multipartPost(
+      '/sketch-to-3d/generate-3d',
+      fileBytes: fileBytes,
+      filename: filename,
+      fields: {'description': description, 'style': style},
+    );
+  }
+
+  /// 支持的草图格式与文件限制
+  Future<Result<dynamic>> sketchSupportedFormats() =>
+      get('/sketch-to-3d/supported-formats');
+
+  // ── BIM IFC 导出（二进制文件） ──
+
+  /// 导出项目结构数据为 IFC 文件（响应为二进制 FileResponse，返回字节 + 文件名）
+  Future<Result<IFCExportFile>> exportStructuralIFCFile(
+    String projectId, {
+    bool includeFurniture = false,
+    String lodLevel = 'LOD300',
+  }) =>
+      _exportIFC('/bim/export/structural/$projectId',
+          includeFurniture: includeFurniture, lodLevel: lodLevel);
+
+  /// 导出设计方案数据为 IFC 文件（响应为二进制 FileResponse，返回字节 + 文件名）
+  Future<Result<IFCExportFile>> exportDesignIFCFile(
+    String planId, {
+    bool includeFurniture = false,
+    String lodLevel = 'LOD300',
+  }) =>
+      _exportIFC('/bim/export/design/$planId',
+          includeFurniture: includeFurniture, lodLevel: lodLevel);
+
+  // ── 上传 / 二进制响应辅助 ──
+
+  /// 通用 multipart 上传：字段名 file + 附加表单字段，返回 JSON 响应
+  Future<Result<dynamic>> _multipartPost(
+    String path, {
+    required Uint8List fileBytes,
+    required String filename,
+    Map<String, String> fields = const {},
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', _uri(path));
+      if (_token != null) {
+        request.headers['Authorization'] = 'Bearer $_token';
+      }
+      request.files
+          .add(http.MultipartFile.fromBytes('file', fileBytes, filename: filename));
+      request.fields.addAll(fields);
+      final streamed = await _send(() => request.send());
+      final res = await http.Response.fromStream(streamed);
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message,
+          statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  /// IFC 导出：成功为二进制文件，失败为 JSON detail
+  Future<Result<IFCExportFile>> _exportIFC(
+    String path, {
+    required bool includeFurniture,
+    required String lodLevel,
+  }) async {
+    try {
+      final res = await _send(() => http.post(
+            _uri(path),
+            headers: _headers,
+            body: jsonEncode({
+              'include_furniture': includeFurniture,
+              'lod_level': lodLevel,
+            }),
+          ));
+      if (res.statusCode == 401) {
+        unawaited(_onUnauthorized());
+        return Result.failure('未授权，请重新登录', statusCode: 401);
+      }
+      if (res.statusCode >= 400) {
+        return Result.failure(
+          _errorDetail(res.body) ?? '导出失败 (${res.statusCode})',
+          statusCode: res.statusCode,
+        );
+      }
+      return Result.success(
+          IFCExportFile(res.bodyBytes, _fileNameFromDisposition(res.headers['content-disposition'])));
+    } on ApiException catch (e) {
+      return Result.failure(e.message,
+          statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
+  /// 从 JSON 错误体提取 detail 字段
+  String? _errorDetail(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['detail'] != null) {
+        return decoded['detail'].toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 从 Content-Disposition 头解析文件名（attachment; filename="xxx.ifc"）
+  String _fileNameFromDisposition(String? disposition) {
+    if (disposition == null) return '';
+    final match = RegExp(r'filename="?([^";]+)"?').firstMatch(disposition);
+    return match?.group(1) ?? '';
+  }
+
   // ── 查询参数辅助 ──
   String _queryParams(Map<String, String> params) {
     if (params.isEmpty) return '';
@@ -1716,4 +1867,20 @@ class ApiException implements Exception {
   ApiException(this.message, {this.statusCode = 0, this.isNetwork = false, this.cause});
   @override
   String toString() => 'ApiException($statusCode): $message';
+}
+
+/// IFC 导出文件（二进制内容 + 后端 Content-Disposition 返回的文件名）
+class IFCExportFile {
+  final Uint8List bytes;
+  final String filename;
+
+  const IFCExportFile(this.bytes, this.filename);
+
+  /// 文件大小（KB / MB 展示）
+  String get sizeLabel {
+    final kb = bytes.length / 1024;
+    return kb >= 1024
+        ? '${(kb / 1024).toStringAsFixed(1)} MB'
+        : '${kb.toStringAsFixed(1)} KB';
+  }
 }

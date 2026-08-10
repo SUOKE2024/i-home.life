@@ -45,7 +45,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: '项目',
-    items: [{ label: '项目列表', path: '/projects', emoji: '📋' }],
+    items: [
+      { label: '项目列表', path: '/projects', emoji: '📋' },
+      { label: '量房/AR扫描', path: '/surveys', emoji: '📏' },
+    ],
   },
   {
     title: '设计',
@@ -56,6 +59,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '软装', path: '/soft-furnishing', agent: 'soft_furnishing' },
       { label: '硬装', path: '/hard-decoration', agent: 'hard_decoration' },
       { label: 'AI渲染', path: '/ai-render', agent: 'ai_render' },
+      { label: 'AI图生图', path: '/ai-image', emoji: '🎨' },
       { label: 'VR全景', path: '/vr-panorama', agent: 'vr_panorama' },
       { label: 'CAD导入', path: '/cad', agent: 'cad_import' },
       { label: '草图转3D', path: '/sketch-3d', agent: 'sketch_to_3d' },
@@ -108,11 +112,29 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '家具', path: '/furniture', agent: 'furniture_catalog' },
       { label: '智能家居', path: '/smart-home', agent: 'smart_home' },
       { label: '场景', path: '/scene', agent: 'scene_automation' },
+      { label: '积分商城', path: '/points', emoji: '🏅' },
     ],
   },
   {
     title: '个人',
-    items: [{ label: '设置', path: '/settings', emoji: '⚙️' }],
+    items: [
+      { label: '设置', path: '/settings', emoji: '⚙️' },
+      { label: '身份认证', path: '/identity', emoji: '🪪' },
+    ],
+  },
+  {
+    title: 'Agent 治理',
+    items: [
+      { label: '身份卡', path: '/agent-identity', emoji: '🪪' },
+      { label: '工具批准', path: '/agent-approvals', emoji: '✅' },
+      { label: 'Skill 资产', path: '/agent-skills', emoji: '🧩' },
+      { label: '长期记忆', path: '/agent-memory', emoji: '🧠' },
+      { label: 'A2A 协议', path: '/a2a', emoji: '🤝' },
+      { label: 'MCP Server', path: '/mcp', emoji: '🔌' },
+      { label: 'Harness', path: '/harness', emoji: '⚙️' },
+      { label: '评估', path: '/eval', emoji: '📐' },
+      { label: '治理安全', path: '/governance-audit', emoji: '🛡' },
+    ],
   },
   {
     title: '新增功能（v1.5.0）',

@@ -153,6 +153,23 @@ class BaseAgent:
         # v1.4.x: 意图成本路由 — economy 档优先低成本供应商
         chain = self._resolve_chain()
 
+        # v1.12.x: LLM 响应缓存（对齐 2026「缓存确定性 subtask 结果」）
+        # 仅缓存非工具调用的确定性请求（相同 agent+messages → 相同回复），
+        # TTL 内重复请求直接命中，避免相同确定性子任务重复调用 LLM。
+        # 工具调用（with_tools=True）有副作用，一律不缓存。
+        cache_key = None
+        if not with_tools and settings.llm_response_cache_enabled and settings.llm_response_cache_ttl > 0:
+            try:
+                cache_key = self._build_llm_cache_key(messages)
+                from app.services.cache_service import cache
+                cached = await cache.get(cache_key)
+                if cached is not None:
+                    self._record_tier_usage(self.cost_tier, self.agent_name, self.provider, "cache_hit")
+                    return cached
+            except Exception as e:
+                logger.debug("%s._chat: 缓存读取失败（直通 LLM）: %s", self.agent_name, e)
+                cache_key = None
+
         last_error = None
         for provider in chain:
             _provider_started = time.perf_counter()
@@ -161,6 +178,13 @@ class BaseAgent:
                     provider, messages, max_retries=max_retries, with_tools=with_tools
                 )
                 _record_llm_span(self.agent_name, provider, _provider_started, "ok", fallback=False)
+                # 成功且为字符串响应 → 写缓存（best-effort）
+                if cache_key is not None and isinstance(result, str):
+                    try:
+                        from app.services.cache_service import cache
+                        await cache.set(cache_key, result, ttl=settings.llm_response_cache_ttl)
+                    except Exception as e:
+                        logger.debug("%s._chat: 缓存写入失败（忽略）: %s", self.agent_name, e)
                 return result
             except Exception as e:
                 last_error = e
@@ -179,6 +203,21 @@ class BaseAgent:
                         self.agent_name, provider, e,
                     )
         raise last_error
+
+    def _build_llm_cache_key(self, messages: list[dict]) -> str:
+        """构造 LLM 响应缓存 key：agent + messages 内容哈希。
+
+        用 build_isolated_key(public=True)：LLM 回复由相同 messages 确定性决定，
+        视为公共缓存（用户内容已包含在哈希中，天然按内容隔离）。
+        """
+        import hashlib
+        try:
+            payload = json.dumps(messages, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError):
+            return ""
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        from app.services.cache_service import build_isolated_key
+        return build_isolated_key(f"llm:{self.agent_name}:{digest}", public=True)
 
     def _resolve_chain(self) -> list[str]:
         """按 cost_tier 解析本次 LLM 调用的供应商链（v1.4.x 意图成本路由）。
@@ -232,7 +271,13 @@ class BaseAgent:
                 self.agent_name, provider,
             )
             self._record_tier_usage(self.cost_tier, self.agent_name, provider, "mock")
-            return f"[mock] {self.agent_name} 响应：API key 未配置"
+            mock_text = f"[mock] {self.agent_name} 响应：API key 未配置"
+            # v1.12.x 修复：mock 响应需与 with_tools 契约对齐——工具模式下返回
+            # 结构化 dict（content + 空 tool_calls），否则 think_with_tools 对
+            # str 调用 .get() 触发 AttributeError（未配置 API key 时崩溃）。
+            if with_tools:
+                return {"content": mock_text, "tool_calls": []}
+            return mock_text
 
         client = await self._get_client(provider)
 

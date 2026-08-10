@@ -30,6 +30,14 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
 - 用户指南见 `assets/guide/ai-self-evolution-guide.md`，隐私声明见 `assets/legal/agent-memory-privacy-notice.md`。
 
+## Agent 可观测性 + 编排 + 评估（v1.12.x，基于 2026 生产级 Agent 前沿）
+
+- **轨迹落库**：每个 Agent 执行（`harness.run`）按采样率落 `agent_traces` 表（`agent_trace_persist_enabled` 默认 True + `agent_trace_sample_rate`）。`workflow_id` 跨 Agent 传播（同一用户请求的所有 Agent 执行共享），prompt 上下文截断采样防 PII。
+- **多智能体编排**：`OrchestratorAgent.plan_and_delegate`（`agent_orchestration_pipeline_enabled` 默认 True）→ LLM 任务分解（规则兜底）→ `validate_dag` 循环检测 → `run_workflow` 拓扑执行（复用 harness 自动落 trace）→ 结构化聚合（`AgentTaskResult` 防 prompt injection）。子任务失败标 failed 不阻断聚合，诚实降级。**API：`POST /api/agents/orchestrate`**（全链路可达，flag 关闭按规则单任务执行并标注 rule_single）。
+- **评估三要素**：`IHomeEval` 新增 FAITHFULNESS/COMPLETENESS/SUFFICIENCY 维度（启发式代理指标，非 LLM judge）+ `per_agent_scores` + `QUALITY_TARGETS` 量化基线。漂移检测 `detect_agent_drift`（基于 `agent_traces` 对比基线，`GET /api/eval/drift`）。
+- **成本优化**：`BaseAgent._chat` 确定性响应缓存（`llm_response_cache_enabled` 默认 True，`with_tools=True` 不缓存）；`cost_tiered_routing_enabled` 默认 True（economy 档 Agent 优先 qwen/glm）；Orchestrator `cost_tier="economy"`。
+- **治理安全**：OWASP Agentic Skills Top 10 对照审计 `run_governance_audit`（`app/services/agent_governance_audit.py`，只读确定性，`GET /api/admin/agent-governance-audit` 管理员调用）。`mcp_security_hardening_enabled` 默认 True（工具描述防投毒 + SSRF 拦截 + 输出敏感字段清洗）。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
@@ -46,7 +54,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 103 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。127 ORM 模型 + 74 路由已够复杂（`app/api/` 磁盘实为 74 个路由模块，main.py 77 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2021 passed 不得回退（collect 2027 = 2021 passed + 2 skipped + 4 xfailed[test_diagnostics 并发 flaky 已标 xfail]）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2087 passed 不得回退（collect 2101 = 2087 passed + 10 skipped + 4 xfailed）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

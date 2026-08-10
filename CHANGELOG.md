@@ -2,6 +2,74 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.12.0] — 2026-08-10
+
+### 新增：智能体全景/全量/全链路系统性打磨（基于 2026 技术前沿）
+
+基于 2026 生产级 Agent 工程前沿（MELT+P 可观测性、hub-spoke/pipeline 多智能体编排、
+faithfulness/completeness/sufficiency 评估三要素、确定性 subtask 缓存、workflow ID 传播）
+对 21+ 执行型 Agent 的运行时/评估/编排/成本四维度系统性打磨，全链路闭环：
+
+#### 全链路可观测性（AgentTrace 落库 + workflow ID 传播 + 漂移检测）
+- 新增 `agent_traces` 表（`app/models/agent_trace.py`，注册于 `models/__init__.py`）：
+  每个 Agent 执行（harness run）按采样率落库状态/延迟/token/工具调用/降级信息 +
+  prompt 上下文截断采样（防 PII 扩散，最长 500/1000 字符）
+- `AgentTrace` 新增 `workflow_id`（对齐 DZone 2026「workflow ID 在每条 agent span 传播」），
+  `start_trace` 透传；`harness._persist_trace` 受
+  `agent_trace_persist_enabled`（默认 True）+ `agent_trace_sample_rate`（默认 1.0）门控
+- 漂移检测 `detect_agent_drift`（`app/eval/ihome_eval.py`）：基于持久化轨迹对比
+  `QUALITY_TARGETS` 量化基线，输出 ok/warn/critical/insufficient_samples；
+  `GET /api/eval/drift`（admin）暴露
+
+#### 多智能体协作编排（Orchestrator 任务分解管线）
+- 新增 `app/services/agent_orchestration_service.py`：
+  LLM 任务分解（规则兜底）→ `validate_dag` 循环检测（Kahn 拓扑，拒绝悬空依赖/环）→
+  `run_workflow` 拓扑序执行子 Agent（复用 harness → 轨迹自动落库 + Case 提取闭环）→
+  `aggregate_results` 结构化聚合（`AgentTaskResult` 结构化 Agent 间消息，防 prompt injection）
+- `OrchestratorAgent.plan_and_delegate`（受 `agent_orchestration_pipeline_enabled` 默认 True 门控）；
+  DAG 非法/LLM 失败诚实降级单任务
+- **编排 API 化（打通全链路）**：`POST /api/agents/orchestrate`（用户需求输入 → 任务分解 →
+  子 Agent 拓扑执行 → 结构化聚合输出，workflow_id/engine/results 入 card_payload；
+  flag 关闭时按规则单任务执行并标注 rule_single + 编排未启用，会话持久化 best-effort）
+- 修复 `_INTENT_TO_AGENT` 命名体系差异（intent `design` vs Agent `designer`）
+
+#### 评估体系升级（faithfulness/completeness/sufficiency + per-agent 评分）
+- `IHomeEvalDimension` 新增 3 维：FAITHFULNESS（来源/依据标注率）/ COMPLETENESS（结构化完整输出率）/
+  SUFFICIENCY（长度适中率），启发式工程代理指标（诚实标注非 LLM judge）
+- 报告新增 `per_agent_scores`（逐 Agent 成功率/降级率/延迟/meets_targets）+
+  `quality_targets`（量化基线：success_rate_min 95 / fallback_rate_max 5 / avg_latency 15s 等）
+- console `EvalPage` 展示 per-agent 评分 + 漂移检测区块（`getEvalDrift` API 客户端）
+
+#### 成本与延迟优化（LLM 响应缓存 + 意图成本路由启用）
+- `BaseAgent._chat` 新增 LLM 响应缓存（对齐 2026「缓存确定性 subtask 结果」）：
+  相同 agent+messages 哈希 key（`build_isolated_key(public=True)`），TTL 内命中免重复调用；
+  `with_tools=True` 一律不缓存；受 `llm_response_cache_enabled`（默认 True）+
+  `llm_response_cache_ttl`（默认 600s）门控
+- `cost_tiered_routing_enabled` 默认开启（此前 False 休眠）：concierge/admin/notifications/
+  identity/files + 4 商业运营 Agent 的 economy 档位生效（qwen/glm 优先，主供应商兜底）
+- `OrchestratorAgent.cost_tier="economy"`（意图分类/任务分解为低价值解析）
+- 修复 `_chat` mock 模式契约：`with_tools=True` 时返回结构化 dict（原返回 str 致
+  `think_with_tools` 对 str 调用 `.get()` 崩溃）
+
+#### 运行时治理与安全（OWASP Agentic Skills Top 10 对照审计）
+- 新增 `app/services/agent_governance_audit.py`：将 2026 OWASP Agentic Skills Top 10
+  风险类别（AG1 提示注入 → AG10 输入输出校验）逐项映射到平台既有控制
+  （posture/审批/Model Spec/PII 掩码/会话加密/工具防投毒/SSRF/rounds 上限/A2A 等），
+  输出确定性 pass/warn/fail + 证据 + 整改建议（只读无副作用）
+- `GET /api/admin/agent-governance-audit`（平台管理员）暴露审计报告
+- console 新增「治理安全」页（`GovernanceAuditPage`，路由 `/governance-audit`，SideNav 入口）：
+  AG1-AG10 逐项展示 status/证据/整改建议 + 审计得分汇总，非管理员 403 诚实展示
+- 修复真实安全缺口：`mcp_security_hardening_enabled` 默认开启（此前 False——工具描述
+  防投毒校验/SSRF 拦截/输出敏感字段清洗未生效；开启后内置工具全过校验，121 项
+  工具/审批/voice 回归零回退）
+
+### 验证
+- 新增测试 56 个：`test_agent_trace_persist`（5）/ `test_agent_orchestration`（19，含 4 个
+  /agents/orchestrate API 测试）/ `test_eval_upgrade`（7）/ `test_llm_cost_optimization`（7）/
+  `test_agent_governance_audit`（9）/ 回归相关断言 9 个
+- 门禁：flake8 0 issues / mypy 0 issues / console `tsc --noEmit` 0 errors
+- 全量 pytest 基线（见 `scripts/test_baseline.json`）无回退
+
 ## [Unreleased] — 2026-08-09
 
 ### 新增：前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）

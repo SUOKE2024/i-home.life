@@ -819,10 +819,10 @@ async def test_local_service_startup():
             if resp.status_code == 200:
                 data = resp.json()
                 version = data.get("version", "")
-                if version == "1.11.0":
-                    ok(f"GET /api/health → version={version} (v1.11.0 正确)")
+                if version == "1.12.0":
+                    ok(f"GET /api/health → version={version} (v1.12.0 正确)")
                 else:
-                    fail(f"version={version} (应 1.11.0)")
+                    fail(f"version={version} (应 1.12.0)")
             else:
                 fail(f"GET /api/health → {resp.status_code}")
 
@@ -862,7 +862,7 @@ async def main():
             print(f"    {YELLOW}⚠{RESET} {w}")
 
     if failed == 0:
-        print(f"\n  {GREEN}✅ 全部验证通过！自进化管线 v1.11.0 运行正常。{RESET}")
+        print(f"\n  {GREEN}✅ 全部验证通过！自进化管线 v1.12.0 运行正常。{RESET}")
     else:
         print(f"\n  {RED}❌ 有 {failed} 项验证失败，需排查。{RESET}")
 

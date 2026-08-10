@@ -8,6 +8,8 @@ from app.eval.ihome_eval import (
     IHomeEvalDimension,
     IHomeEvalReport,
     IHomeEvalRunner,
+    QUALITY_TARGETS,
+    detect_agent_drift,
     run_ihome_eval,
 )
 
@@ -16,5 +18,7 @@ __all__ = [
     "IHomeEvalDimension",
     "IHomeEvalReport",
     "IHomeEvalRunner",
+    "QUALITY_TARGETS",
+    "detect_agent_drift",
     "run_ihome_eval",
 ]

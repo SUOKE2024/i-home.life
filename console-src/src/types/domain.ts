@@ -1565,3 +1565,894 @@ export interface ChatRoomAgents {
   project_id: string;
   agent_members: string[];
 }
+
+// ──────────────────────────────────────────────────────────────────
+//  Agent 治理 — GB/Z 185 身份卡 / 工具批准 / Skill / 记忆 / A2A / MCP / Harness / Eval
+//  对齐 app/api/agent_identity.py、agent_approvals.py、agent_skills.py、
+//  agent_memory.py、a2a.py、mcp.py、harness_api.py、eval.py
+// ──────────────────────────────────────────────────────────────────
+
+// ── GB/Z 185 身份卡（app/api/agent_identity.py + app/services/agent_identity_card.py）──
+// flag: gbz185_agent_card_enabled（默认 False，关闭时端点 404 诚实降级）
+/** GET /api/agents/identity 列表项 */
+export interface AgentIdentityListItem {
+  name: string;
+  type_code: string; // 2 位智能体类型码
+  security_level: string; // 1-4
+}
+
+/** GET /api/agents/identity 返回 */
+export interface AgentIdentityListResponse {
+  agents: AgentIdentityListItem[];
+  total: number;
+}
+
+/** GET /api/agents/identity/{name} 身份卡（28 位 AID + ACDL GB/Z 185.4） */
+export interface AgentIdentityCard {
+  agent_name: string;
+  aid: string; // 28 位身份码
+  acdl: {
+    schema: string;
+    acdl_version: string;
+    agent: {
+      agent_id: string;
+      name: string;
+      security_level: string; // L1-L4
+      capabilities: string[];
+      interface: Record<string, unknown>;
+    };
+  };
+}
+
+// ── Agent 工具批准（app/api/agent_approvals.py）──
+// state: pending | approved | rejected | expired
+/** 单条批准请求（ApprovalItemResponse） */
+export interface AgentApprovalItem {
+  id: string;
+  approval_id: string;
+  user_id: string;
+  agent_name: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  project_id: string | null;
+  scope: string;
+  trace_id: string | null;
+  state: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_reason: string | null;
+  expires_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** GET /api/agents/approvals 返回（仅 pending 请求） */
+export interface AgentApprovalListResponse {
+  count: number;
+  items: AgentApprovalItem[];
+}
+
+/** POST /api/agents/approvals/{approvalId}/execute 返回 */
+export interface AgentApprovalExecuteResponse {
+  executed: boolean;
+  result: Record<string, unknown> | null;
+  error: string | null;
+}
+
+// ── Agent Skill 资产（app/api/agent_skills.py）──
+// flag: agent_skill_enabled（创建/导入时校验，关闭返回 503）
+// status: draft | active | archived
+/** Skill 资产（SkillItemResponse） */
+export interface AgentSkillItem {
+  id: string;
+  name: string;
+  description: string;
+  owner_scope: string; // personal | project | team | org
+  owner_id: string;
+  agent_name: string;
+  system_prompt: string;
+  provider: string;
+  tools: unknown[];
+  cost_tier: string;
+  acceptance_criteria: unknown[];
+  version: number;
+  status: string;
+  parent_version_id: string | null;
+  share_scope: string;
+  share_grants: unknown[];
+  created_by: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  skill_pack_source: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** GET /api/agents/skills 返回 */
+export interface AgentSkillListResponse {
+  count: number;
+  items: AgentSkillItem[];
+}
+
+/** POST /api/agents/skills/{skillId}/instantiate 返回 */
+export interface AgentSkillInstantiateResponse {
+  skill_id: string;
+  agent_name: string;
+  reply: string;
+  status: string; // ok | degraded
+}
+
+// ── Agent 长期记忆（app/api/agent_memory.py）──
+// category: preference | location | fact；scope: personal | project | team | org
+/** 单条记忆（MemoryItemResponse） */
+export interface AgentMemoryItem {
+  id: string;
+  category: string;
+  key: string;
+  value: string;
+  source: string | null;
+  importance: number; // 1-5
+  scope: string;
+  project_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** GET /api/agents/memory 返回 */
+export interface AgentMemoryListResponse {
+  count: number;
+  items: AgentMemoryItem[];
+}
+
+// ── A2A 协议（app/api/a2a.py）──
+// flag: a2a_enabled（任务下发/查询时校验，关闭返回 503）
+/** GET /api/a2a/agents 列表项 */
+export interface A2AAgentInfo {
+  name: string;
+  class_name: string;
+  description: string;
+}
+
+/** GET /api/a2a/agents 返回 */
+export interface A2AAgentListResponse {
+  agents: A2AAgentInfo[];
+  count: number;
+}
+
+/** POST /api/a2a/tasks/send 响应 / GET /api/a2a/tasks/{id}（A2ATaskResponse） */
+export interface A2ATaskResponse {
+  task_id: string;
+  state: string; // submitted | working | completed | failed
+  result: unknown;
+  error: string | null;
+}
+
+/** GET /api/a2a/tasks/{id}/status 返回 */
+export interface A2ATaskStatusResponse {
+  task_id: string;
+  state: string;
+}
+
+// ── MCP Server（app/api/mcp.py + app/mcp/server.py）──
+// flag: mcp_enabled（jsonrpc/cimd/mrtr 校验）；mrtr 另受 mcp_mrtr_enabled 控制
+/** GET /api/mcp/manifest 返回（服务器元信息） */
+export interface MCPManifest {
+  name: string;
+  version: string;
+  protocol_version: string;
+  tools_count: number;
+  capabilities: Record<string, unknown>;
+  deprecated?: string;
+}
+
+/** GET /api/mcp/tools 列表项（MCP 协议格式） */
+export interface MCPTool {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required: string[];
+  };
+  annotations: { category: string };
+}
+
+/** GET /api/mcp/tools 返回 */
+export interface MCPToolsResponse {
+  tools: MCPTool[];
+}
+
+/** POST /api/mcp/tools/call 返回（MCP 协议格式结果） */
+export interface MCPToolCallResult {
+  content: Array<{ type: string; text: string }>;
+  isError: boolean;
+  tool: string;
+}
+
+/** GET /api/mcp/mrtr 返回（MRTR 待响应请求列表） */
+export interface MCPMrtrListResponse {
+  requests: Array<{
+    id: string;
+    method: string;
+    params: Record<string, unknown> | null;
+    state: string;
+    created_at: string;
+    expires_at: string;
+  }>;
+}
+
+// ── Harness（app/api/harness_api.py + app/agents/harness.py）──
+/** GET /api/harness/metrics 返回（HarnessMetricsResponse） */
+export interface HarnessMetrics {
+  total_runs: number;
+  success_runs: number;
+  fallback_runs: number;
+  failed_runs: number;
+  success_rate: number;
+  fallback_rate: number;
+  avg_latency_ms: number;
+  total_tokens: number;
+  trace_count: number;
+  registered_agents: string[];
+}
+
+/** 单条执行轨迹（AgentTrace.to_dict，traces 端点返回） */
+export interface HarnessTrace {
+  trace_id: string;
+  agent_name: string;
+  agent_version: string;
+  provider: string;
+  model: string;
+  started_at: string | null;
+  finished_at: string | null;
+  status: string; // success | failed | fallback
+  user_message_truncated: string;
+  response_truncated: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  tool_call_count: number;
+  tool_call_rounds: number;
+  fallback_used: boolean;
+  fallback_reason: string;
+  retry_count: number;
+  latency_ms: number;
+  first_token_latency_ms: number;
+  error_message: string;
+  error_type: string;
+  user_id: string;
+  project_id: string;
+  scope: string;
+  context_source: string;
+}
+
+/** GET /api/harness/traces 返回 */
+export interface HarnessTracesResponse {
+  traces: HarnessTrace[];
+  total: number;
+}
+
+/** GET /api/harness/eval 返回（HarnessEvalResponse） */
+export interface HarnessEvalResponse {
+  status: string; // ok | no_data
+  sample_size: number;
+  metrics: Record<string, number>;
+}
+
+/** GET /api/harness/health 返回 */
+export interface HarnessHealthResponse {
+  status: string;
+  registered_agents: string[];
+  trace_count: number;
+  total_runs: number;
+}
+
+// ── 评估框架（app/api/eval.py + app/eval/ihome_eval.py）──
+// flag: eval_enabled（关闭时 report/run 返回 run_id="disabled" 报告，非 4xx/5xx）
+/** GET /api/eval/dimensions 列表项 */
+export interface EvalDimensionItem {
+  id: string;
+  name: string;
+  benchmark: string;
+}
+
+/** GET /api/eval/dimensions 返回 */
+export interface EvalDimensionsResponse {
+  dimensions: EvalDimensionItem[];
+  total: number;
+}
+
+/** GET /api/eval/report + POST /api/eval/run 返回（EvalReportResponse） */
+export interface EvalReport {
+  run_id: string; // disabled 表示 eval_enabled=False
+  baseline: string; // base_llm | keyword | full_system | mock
+  sample_size: number;
+  started_at: number;
+  finished_at: number;
+  metrics: Record<string, number>;
+  dimension_scores: Record<string, number>;
+  // v1.12.x: per-agent 评分 + 量化目标基线
+  per_agent_scores: Record<string, EvalPerAgentScore>;
+  quality_targets: Record<string, number>;
+  notes: string[];
+}
+
+/** v1.12.x per-agent 评分（对齐 2026 逐 Agent 评估） */
+export interface EvalPerAgentScore {
+  sample_size: number;
+  success_rate: number;
+  fallback_rate: number;
+  avg_latency_ms: number;
+  meets_targets: boolean;
+}
+
+/** GET /api/eval/drift 返回（v1.12.x 漂移检测） */
+export interface EvalDriftRecord {
+  agent_name: string;
+  sample_size: number;
+  status: string; // ok | warn | critical | insufficient_samples
+  metric: string;
+  current: number;
+  target: number;
+}
+
+export interface EvalDriftResponse {
+  window_days: number;
+  quality_targets: Record<string, number>;
+  records: EvalDriftRecord[];
+  summary: { total: number; critical: number; warn: number; ok: number; insufficient_samples: number };
+}
+
+/** GET /api/admin/agent-governance-audit 返回（v1.12.x OWASP Agentic Skills Top 10 对照） */
+export interface GovernanceFinding {
+  id: string; // AG1-AG10
+  name: string;
+  desc: string;
+  control: string;
+  status: string; // pass | warn | fail
+  evidence: string;
+  recommendation: string;
+}
+
+export interface GovernanceAuditResponse {
+  generated_at: string;
+  framework: string;
+  summary: { total: number; pass: number; warn: number; fail: number; score: string };
+  findings: GovernanceFinding[];
+  recommendations: string[];
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  积分商城（对齐 app/schemas/points.py，前缀 /api/points）
+// ──────────────────────────────────────────────────────────────────
+
+/** GET /api/points/account 积分账户（PointsAccountResponse） */
+export interface PointsAccount {
+  id: string;
+  user_id: string;
+  account_type: string;
+  balance: number;
+  total_earned: number;
+  total_spent: number;
+  level: string;
+  year_earned: number;
+  year_spent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/points/transactions 积分流水（PointsTransactionResponse） */
+export interface PointsTransaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  transaction_type: string;
+  source: string;
+  description: string;
+  balance_after: number;
+  created_at: string;
+}
+
+/** GET /api/points/rules 积分规则（PointsRuleResponse） */
+export interface PointsRule {
+  id: string;
+  action: string;
+  role: string;
+  points: number;
+  limit_daily: number | null;
+  limit_weekly: number | null;
+  description: string;
+  is_active: boolean;
+}
+
+/** GET /api/points/mall 商城商品（PointsMallItemResponse） */
+export interface PointsMallItem {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  image_url: string | null;
+  points_required: number;
+  stock: number;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_max: number | null;
+  validity_days: number;
+  is_active: boolean;
+  sort_order: number;
+}
+
+/** GET /api/points/redemptions + POST /api/points/redeem 兑换记录（RedemptionResponse） */
+export interface PointsRedemption {
+  id: string;
+  user_id: string;
+  item_id: string;
+  item_name: string;
+  points_spent: number;
+  discount_code: string | null;
+  discount_type: string | null;
+  discount_value: number | null;
+  discount_max: number | null;
+  expires_at: string | null;
+  status: string;
+  created_at: string;
+}
+
+/** GET /api/points/ranking 排行榜条目（RankingResponse） */
+export interface PointsRankingEntry {
+  user_id: string;
+  user_name: string | null;
+  role: string;
+  year_earned: number;
+  rank: number;
+  level: string | null;
+}
+
+/** POST /api/points/earn 请求（PointsEarnRequest，仅管理员） */
+export interface PointsEarnInput {
+  user_id: string;
+  source: string;
+  amount?: number | null;
+  reference_id?: string | null;
+  description?: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  AI 图生图（对齐 app/schemas/ai_image.py，前缀 /api/ai-image）
+// ──────────────────────────────────────────────────────────────────
+
+/** POST /api/ai-image/jobs 请求（AIImageJobCreate） */
+export interface AIImageJobCreateInput {
+  project_id: string;
+  floorplan_id?: string | null;
+  job_type?: string;
+  input_image_url?: string | null;
+  prompt?: string | null;
+  negative_prompt?: string | null;
+  model_name?: string;
+  controlnet_type?: string | null;
+  controlnet_strength?: number;
+  guidance_scale?: number;
+  num_inference_steps?: number;
+  seed?: number | null;
+}
+
+/** GET /api/ai-image/jobs/{id} 任务详情（AIImageJobResponse） */
+export interface AIImageJob {
+  id: string;
+  project_id: string;
+  floorplan_id: string | null;
+  job_type: string;
+  input_image_url: string | null;
+  output_image_url: string | null;
+  prompt: string | null;
+  negative_prompt: string | null;
+  model_name: string;
+  controlnet_type: string | null;
+  controlnet_strength: number;
+  guidance_scale: number;
+  num_inference_steps: number;
+  seed: number | null;
+  status: string;
+  progress_percent: number;
+  error_message: string | null;
+  render_duration_sec: number;
+  render_backend: string; // mock（诚实降级占位）/ real
+  created_at: string;
+  completed_at: string | null;
+}
+
+/** GET /api/ai-image/jobs/project/{projectId} 列表项（AIImageJobListItem） */
+export interface AIImageJobListItem {
+  id: string;
+  project_id: string;
+  job_type: string;
+  input_image_url: string | null;
+  output_image_url: string | null;
+  model_name: string;
+  status: string;
+  progress_percent: number;
+  created_at: string;
+}
+
+/** GET /api/ai-image/jobs/{id}/status 任务状态（dict） */
+export interface AIImageJobStatus {
+  id: string;
+  status: string;
+  progress_percent: number;
+  output_image_url: string | null;
+  error_message: string | null;
+  render_backend: string;
+  cost_yuan: number;
+}
+
+/** GET /api/ai-image/presets 预设模板（AIImagePresetResponse） */
+export interface AIImagePreset {
+  id: string;
+  name: string;
+  category: string;
+  prompt_template: string;
+  negative_prompt_template: string | null;
+  default_params: string | null;
+  preview_image_url: string | null;
+  usage_count: number;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** POST /api/ai-image/presets 请求（AIImagePresetCreate） */
+export interface AIImagePresetCreateInput {
+  name: string;
+  category?: string;
+  prompt_template: string;
+  negative_prompt_template?: string | null;
+  default_params?: Record<string, unknown>;
+  preview_image_url?: string | null;
+  is_public?: boolean;
+}
+
+/** POST /api/ai-image/jobs/apply-preset 请求（ApplyPresetRequest） */
+export interface AIImageApplyPresetInput {
+  preset_id: string;
+  project_id: string;
+  floorplan_id?: string | null;
+  input_image_url: string;
+  customizations?: Record<string, unknown>;
+}
+
+/** POST /api/ai-image/jobs/batch 请求（BatchRenderRequest） */
+export interface AIImageBatchRenderInput {
+  project_id: string;
+  floorplan_id?: string | null;
+  preset_ids: string[];
+  input_image_url?: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  身份认证（对齐 app/schemas/identity.py，前缀 /api/identity）
+// ──────────────────────────────────────────────────────────────────
+
+/** POST /api/identity/submit 请求（IdentitySubmitRequest） */
+export interface IdentitySubmitInput {
+  real_name: string;
+  id_card: string;
+  id_card_front?: string | null;
+  id_card_back?: string | null;
+  selfie_with_id?: string | null;
+  role_attributes?: Record<string, unknown> | null;
+}
+
+/** POST /api/identity/submit 响应 + GET /api/identity/pending 列表项（IdentityVerificationResponse） */
+export interface IdentityVerification {
+  id: string;
+  user_id: string;
+  role: string;
+  real_name: string;
+  id_card: string;
+  third_party_verified: boolean;
+  third_party_provider: string | null;
+  status: string;
+  role_attributes: Record<string, unknown> | null;
+  review_note: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/identity/status 认证状态（IdentityStatusResponse） */
+export interface IdentityStatus {
+  is_verified: boolean;
+  status: string; // pending / approved / rejected / not_submitted
+  role: string | null;
+  submitted_at: string | null;
+  review_note: string | null;
+  verified_at: string | null;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  量房（对齐 app/schemas/survey.py，前缀 /api/surveys）
+// ──────────────────────────────────────────────────────────────────
+
+/** 单个房间测量数据（RoomMeasureItem） */
+export interface RoomMeasureItem {
+  name: string;
+  room_type: string;
+  width: number;
+  length: number;
+  height: number | null;
+  area: number | null;
+  notes: string | null;
+}
+
+/** POST /api/surveys 请求（SurveyCreate） */
+export interface SurveyCreateInput {
+  project_id: string;
+  name?: string;
+  surveyor?: string | null;
+  method?: string;
+  scene_type?: string;
+  wall_height?: number;
+  rooms: RoomMeasureItem[];
+  scan_data?: string | null;
+  voice_transcript?: string | null;
+  device_info?: string | null;
+  notes?: string | null;
+}
+
+/** PUT /api/surveys/{id} 请求（SurveyUpdate） */
+export interface SurveyUpdateInput {
+  name?: string | null;
+  surveyor?: string | null;
+  method?: string | null;
+  scene_type?: string | null;
+  wall_height?: number | null;
+  rooms?: RoomMeasureItem[] | null;
+  scan_data?: string | null;
+  voice_transcript?: string | null;
+  device_info?: string | null;
+  status?: string | null;
+  notes?: string | null;
+}
+
+/** GET /api/surveys/project/{projectId} 列表项（SurveyListItem） */
+export interface SurveyItem {
+  id: string;
+  project_id: string;
+  name: string;
+  surveyor: string | null;
+  method: string;
+  scene_type: string;
+  total_area: number;
+  wall_height: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/surveys/{id} 详情（SurveyResponse） */
+export interface SurveyDetail extends SurveyItem {
+  rooms: RoomMeasureItem[];
+  scan_data: string | null;
+  voice_transcript: string | null;
+  device_info: string | null;
+  notes: string | null;
+}
+
+/** GET /api/surveys/device-check 设备能力检测（dict） */
+export interface SurveyDeviceCheck {
+  available_sensors: Record<string, Record<string, unknown>>;
+  recommended_workflow: Record<string, string[]>;
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  AR 空间测量（对齐 app/schemas/ar_scan.py，前缀 /api/surveys/ar）
+// ──────────────────────────────────────────────────────────────────
+
+/** POST /api/surveys/ar/sessions 请求（ScanSessionCreate） */
+export interface ARScanSessionCreateInput {
+  project_id: string;
+  survey_id?: string | null;
+  floorplan_id?: string | null;
+  name?: string;
+  scanner?: string | null;
+  device_model?: string | null;
+  platform?: string;
+  requested_method?: string;
+  device_capability?: Record<string, unknown> | null;
+  floor_count?: number;
+  wall_height?: number;
+  notes?: string | null;
+}
+
+/** GET /api/surveys/ar/sessions/{id} 会话详情（ScanSessionResponse） */
+export interface ARScanSession {
+  id: string;
+  project_id: string;
+  survey_id: string | null;
+  floorplan_id: string | null;
+  name: string;
+  scanner: string | null;
+  device_model: string | null;
+  platform: string;
+  scan_method: string;
+  requested_method: string | null;
+  device_capability: string | null;
+  floor_count: number;
+  room_count: number;
+  total_area: number;
+  wall_height: number;
+  scan_duration_sec: number;
+  scan_points_count: number;
+  model_url: string | null;
+  model_format: string | null;
+  raw_data_url: string | null;
+  panorama_urls: string | null;
+  accuracy_rms_error: number | null;
+  accuracy_level: string | null;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** GET /api/surveys/ar/sessions/project/{projectId} 列表项（ScanSessionListItem） */
+export interface ARScanSessionListItem {
+  id: string;
+  project_id: string;
+  name: string;
+  scanner: string | null;
+  platform: string;
+  scan_method: string;
+  total_area: number;
+  room_count: number;
+  accuracy_level: string | null;
+  status: string;
+  created_at: string;
+}
+
+/** PATCH /api/surveys/ar/sessions/{id} 请求（ScanSessionUpdate） */
+export interface ARScanSessionUpdateInput {
+  name?: string | null;
+  scanner?: string | null;
+  scan_method?: string | null;
+  floor_count?: number | null;
+  room_count?: number | null;
+  floorplan_id?: string | null;
+  total_area?: number | null;
+  wall_height?: number | null;
+  scan_duration_sec?: number | null;
+  scan_points_count?: number | null;
+  model_url?: string | null;
+  model_format?: string | null;
+  raw_data_url?: string | null;
+  panoramas?: string[] | null;
+  status?: string | null;
+  notes?: string | null;
+}
+
+/** POST /api/surveys/ar/device-capability 请求（DeviceCapabilityRequest） */
+export interface ARDeviceCapabilityInput {
+  platform?: string;
+  device_model?: string | null;
+  os_version?: string | null;
+  has_lidar?: boolean;
+  has_depth_sensor?: boolean;
+  has_gyroscope?: boolean;
+  has_accelerometer?: boolean;
+  has_magnetometer?: boolean;
+  arkit_version?: string | null;
+  arcore_version?: string | null;
+  ar_engine_version?: string | null;
+  camera_resolution?: string | null;
+  supports_roomplan?: boolean;
+  supports_photogrammetry?: boolean;
+}
+
+/** POST /api/surveys/ar/device-capability 响应（ARDeviceCapabilityResponse） */
+export interface ARDeviceCapabilityResult {
+  platform: string;
+  recommended_method: string;
+  available_methods: string[];
+  lidar_supported: boolean;
+  fallback_chain: string[];
+  estimated_accuracy_cm: number;
+  estimated_scan_time_per_room_min: number;
+}
+
+/** POST /api/surveys/ar/sessions/{id}/process 请求（ProcessScanRequest） */
+export interface ARProcessScanInput {
+  model_url?: string | null;
+  model_format?: string;
+  raw_data_url?: string | null;
+  panoramas?: string[] | null;
+  scan_points_count?: number;
+  scan_duration_sec?: number;
+}
+
+/** POST /api/surveys/ar/features 请求（WallFeatureCreate） */
+export interface WallFeatureCreateInput {
+  session_id: string;
+  room_name: string;
+  wall_id?: string | null;
+  feature_type: string;
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  sill_height?: number | null;
+  load_bearing?: boolean;
+  material?: string | null;
+  direction?: string | null;
+  extra?: Record<string, unknown> | null;
+  confidence?: number;
+  detected_by?: string;
+}
+
+/** GET /api/surveys/ar/features/{sessionId} 墙面特征（WallFeatureResponse） */
+export interface WallFeature {
+  id: string;
+  session_id: string;
+  room_name: string;
+  wall_id: string | null;
+  feature_type: string;
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  depth: number;
+  sill_height: number | null;
+  load_bearing: boolean;
+  material: string | null;
+  direction: string | null;
+  extra: string | null;
+  confidence: number;
+  detected_by: string;
+  created_at: string;
+}
+
+/** POST /api/surveys/ar/points 请求（MeasurementPointCreate） */
+export interface MeasurementPointCreateInput {
+  session_id: string;
+  label: string;
+  room_name?: string | null;
+  point_type?: string;
+  ar_value: number;
+  reference_value: number;
+  unit?: string;
+  notes?: string | null;
+}
+
+/** GET /api/surveys/ar/points/{sessionId} 测量校准点（MeasurementPointResponse） */
+export interface MeasurementPoint {
+  id: string;
+  session_id: string;
+  label: string;
+  room_name: string | null;
+  point_type: string;
+  ar_value: number;
+  reference_value: number;
+  unit: string;
+  deviation: number;
+  deviation_percent: number;
+  measured_at: string;
+  notes: string | null;
+}
+
+/** GET /api/surveys/ar/sessions/{id}/accuracy 精度报告（AccuracyReportResponse） */
+export interface ARAccuracyReport {
+  session_id: string;
+  rms_error_cm: number;
+  accuracy_level: string; // high / medium / low
+  max_deviation_cm: number;
+  avg_deviation_cm: number;
+  passed_count: number;
+  total_count: number;
+  pass_rate: number;
+  degradation_path: string[];
+  recommendations: string[];
+  points: MeasurementPoint[];
+}

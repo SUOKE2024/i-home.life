@@ -297,3 +297,17 @@ async def get_daily_briefing(
     finally:
         await orch.close()
     return briefing
+
+
+@router.get("/agent-governance-audit")
+async def get_agent_governance_audit(
+    current_user: User = Depends(require_platform_manage),
+) -> dict:
+    """Agent 运行时治理安全审计（v1.12.x，OWASP Agentic Skills Top 10 对照）。
+
+    只读确定性检查：将 2026 OWASP Agentic Skills Top 10 风险类别逐项映射到
+    平台既有控制（posture/审批/Model Spec/PII 掩码/会话加密/工具防投毒等），
+    输出 pass/warn/fail + 证据 + 整改建议。详见 app/services/agent_governance_audit.py。
+    """
+    from app.services.agent_governance_audit import run_governance_audit
+    return run_governance_audit()

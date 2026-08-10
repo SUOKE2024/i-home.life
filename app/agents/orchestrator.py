@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 
 from app.agents.base import BaseAgent
 
@@ -8,6 +9,9 @@ logger = logging.getLogger(__name__)
 
 class OrchestratorAgent(BaseAgent):
     agent_name = "orchestrator"
+    # v1.12.x: 意图分类/任务分解为低价值解析任务，优先低成本供应商
+    # （cost_tiered_routing_enabled=True 时生效，qwen/glm 优先，deepseek 兜底）
+    cost_tier = "economy"
     system_prompt = (
         """你是索克家居（i-home.life）AI 总控 Agent。
 
@@ -286,3 +290,56 @@ class OrchestratorAgent(BaseAgent):
             briefing["sections"]["finance_recon"] = {"error": str(e)}
 
         return briefing
+
+    # ── P3: 多智能体协作编排（v1.12.x，对齐 2026 hub-spoke/pipeline 范式）──
+
+    async def plan_and_delegate(
+        self, message: str, db=None, user_id: str = "", project_id: str = "",
+    ) -> dict:
+        """复杂需求 → 任务分解 → 子 Agent 派发 → 结构化聚合（受 flag 门控）。
+
+        链路：LLM 分解（规则兜底）→ DAG 循环检测 → harness 拓扑执行
+        （每子任务自动落 agent_traces，workflow_id 贯穿）→ 聚合输出。
+
+        诚实降级：
+        - flag 关闭 → 仍按规则单任务执行（与原 classify 路由一致），
+          engine 标注 rule_single + summary 注明编排未启用
+        - LLM 分解失败 → 规则单任务（不伪装 LLM 能力）
+        - 子任务失败 → 标注 failed，不阻断其它成功任务聚合
+        """
+        from app.config import get_settings
+        _settings = get_settings()
+        pipeline_enabled = _settings.agent_orchestration_pipeline_enabled
+
+        from app.services.agent_orchestration_service import (
+            AgentTask, decompose_request, validate_dag, run_workflow, aggregate_results,
+        )
+
+        workflow_id = str(uuid.uuid4())[:12]
+        tasks = await decompose_request(message, db=db, user_id=user_id, project_id=project_id)
+        ok, dag_error = validate_dag(tasks)
+        if not ok:
+            # DAG 非法 → 降级为单任务（用第一个任务的 agent 兜底）
+            logger.warning(
+                "orchestrator.plan_and_delegate: DAG 校验失败(%s)，降级单任务",
+                dag_error,
+            )
+            tasks = [AgentTask(
+                task_id=str(uuid.uuid4())[:12],
+                agent_name="concierge",
+                description=message,
+            )]
+
+        results = await run_workflow(
+            tasks, db=db, user_id=user_id, project_id=project_id,
+            workflow_id=workflow_id,
+        )
+        aggregated = aggregate_results(results)
+        aggregated["workflow_id"] = workflow_id
+        aggregated["engine"] = "orchestration_pipeline" if pipeline_enabled else "rule_single"
+        if not pipeline_enabled:
+            aggregated["summary"] = (
+                "编排未启用（agent_orchestration_pipeline_enabled=False），"
+                "已按规则单任务处理"
+            )
+        return aggregated

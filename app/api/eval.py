@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.auth import get_current_user
 from app.config import get_settings
+from app.database import get_db
 from app.eval import IHomeEvalRunner, run_ihome_eval, IHomeEvalDimension, DIMENSION_BENCHMARKS
 from app.models.user import User
 from app.rbac import require_admin
@@ -37,6 +38,9 @@ class EvalReportResponse(BaseModel):
     finished_at: float = 0.0
     metrics: dict = {}
     dimension_scores: dict = {}
+    # v1.12.x：per-agent 评分 + 量化目标基线
+    per_agent_scores: dict = {}
+    quality_targets: dict = {}
     notes: list[str] = []
 
 
@@ -102,3 +106,39 @@ async def run_eval(
         current_user.id, request.baseline, report.sample_size,
     )
     return EvalReportResponse(**report.to_dict())
+
+
+@router.get("/drift")
+async def get_drift(
+    window_days: int = Query(7, ge=1, le=90, description="漂移检测窗口天数"),
+    current_user: User = Depends(require_admin),
+    db=Depends(get_db),
+):
+    """Agent 质量漂移检测（管理员）。
+
+    基于 agent_traces 持久化轨迹，对比 QUALITY_TARGETS 量化基线，
+    返回 per-agent 成功率/降级率/平均延迟的状态（ok/warn/critical）。
+    """
+    from app.eval.ihome_eval import detect_agent_drift, QUALITY_TARGETS
+
+    drift = await detect_agent_drift(db, window_days=window_days)
+    critical = [d for d in drift if d["status"] == "critical"]
+    warn = [d for d in drift if d["status"] == "warn"]
+    logger.info(
+        "eval_drift_checked: user=%s window_days=%d records=%d critical=%d warn=%d",
+        current_user.id, window_days, len(drift), len(critical), len(warn),
+    )
+    return {
+        "window_days": window_days,
+        "quality_targets": QUALITY_TARGETS,
+        "records": drift,
+        "summary": {
+            "total": len(drift),
+            "critical": len(critical),
+            "warn": len(warn),
+            "ok": len([d for d in drift if d["status"] == "ok"]),
+            "insufficient_samples": len(
+                [d for d in drift if d["status"] == "insufficient_samples"]
+            ),
+        },
+    }

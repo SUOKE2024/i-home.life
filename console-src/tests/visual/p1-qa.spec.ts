@@ -10,7 +10,7 @@
  */
 import { test, expect } from '@playwright/test';
 
-// 路由 path 已核实 App.tsx L127-139
+// 路由 path 已核实 App.tsx L127-141
 const PAGES = [
   { path: '/agent-identity', name: 'AgentIdentity' },
   { path: '/agent-approvals', name: 'AgentApprovals' },
@@ -20,13 +20,14 @@ const PAGES = [
   { path: '/mcp', name: 'MCP' },
   { path: '/harness', name: 'Harness' },
   { path: '/eval', name: 'Eval' },
+  { path: '/governance-audit', name: 'GovernanceAudit' },
   { path: '/points', name: 'Points' },
   { path: '/ai-image', name: 'AIImage' },
   { path: '/identity', name: 'Identity' },
   { path: '/surveys', name: 'Surveys' },
 ];
 
-test.describe('P1 QA — 15 新页路由可达 + 渲染', () => {
+test.describe('P1 QA — 16 新页路由可达 + 渲染', () => {
   for (const { path, name } of PAGES) {
     test(`${name} 路由可达且渲染容器存在`, async ({ page }) => {
       await page.goto(path);

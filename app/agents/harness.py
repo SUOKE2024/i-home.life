@@ -32,6 +32,7 @@ Harness（驾驭层）是围绕模型的运行时基础设施，决定 Agent 是
 import asyncio
 import json
 import logging
+import random
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -155,6 +156,7 @@ class AgentTrace:
     user_id: str = ""
     project_id: str = ""
     scope: str = ""  # v1.4.0: QM 作用域（personal/project/team/org），借鉴 YC QM
+    workflow_id: str = ""  # v1.12.x: 跨 Agent 协作编排 ID（同一用户请求共享）
     context_source: str = ""  # "harness" | "raw"
     w3c_trace: dict = field(default_factory=dict)  # OTel GenAI SemConv: W3C Trace Context
 
@@ -191,6 +193,7 @@ class AgentTrace:
             "user_id": self.user_id,
             "project_id": self.project_id,
             "scope": self.scope,
+            "workflow_id": self.workflow_id,
             "context_source": self.context_source,
         }
         if get_settings().otel_genai_semconv_enabled and self.w3c_trace:
@@ -308,7 +311,8 @@ class AgentRuntime:
             {"reply": str, "trace": AgentTrace, "metadata": {...}}
         """
         trace = trace or self.start_trace(
-            agent.agent_name, user_message, getattr(agent, "provider", "unknown")
+            agent.agent_name, user_message, getattr(agent, "provider", "unknown"),
+            workflow_id=kwargs.get("workflow_id", ""),
         )
         self._metrics["total_runs"] += 1
 
@@ -318,15 +322,19 @@ class AgentRuntime:
                 trace.response = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
                 trace.finish(AgentRunStatus.SUCCESS)
                 self._metrics["success_runs"] += 1
+                await self._persist_trace(trace, kwargs, agent)
                 return {"reply": result if isinstance(result, str) else result.get("reply", ""),
                         "trace": trace.to_dict()}
 
             # 尝试 LLM 调用
+            # v1.12.x: workflow_id 为 harness 级元数据（trace 落库用），
+            # 不向 agent.think/think_with_tools 透传（签名不含该参数）
+            agent_kwargs = {k: v for k, v in kwargs.items() if k != "workflow_id"}
             for attempt in range(self.config.max_retries + 1):
                 try:
                     if hasattr(agent, "think_with_tools") and agent.tools:
                         result = await asyncio.wait_for(
-                            agent.think_with_tools(user_message, **kwargs),
+                            agent.think_with_tools(user_message, **agent_kwargs),
                             timeout=self.config.agent_timeout_seconds,
                         )
                         reply = result.get("final_reply", "")
@@ -335,7 +343,7 @@ class AgentRuntime:
                         trace.tool_call_rounds = result.get("rounds", 0)
                     else:
                         reply = await asyncio.wait_for(
-                            agent.think(user_message, **kwargs),
+                            agent.think(user_message, **agent_kwargs),
                             timeout=self.config.agent_timeout_seconds,
                         )
                     trace.response = reply
@@ -344,6 +352,8 @@ class AgentRuntime:
                     # v1.10.1: 自进化 Case 提取（借鉴 EverMind EverOS Agent Memory）
                     # best-effort：从 kwargs 取 db/user_id，flag 关闭或失败均不影响主流程
                     await self._maybe_extract_case(trace, kwargs)
+                    # v1.12.x: 轨迹落库（受 agent_trace_persist_enabled + 采样率门控）
+                    await self._persist_trace(trace, kwargs, agent)
                     return {"reply": reply, "trace": trace.to_dict()}
 
                 except asyncio.TimeoutError:
@@ -360,7 +370,9 @@ class AgentRuntime:
             # 所有重试都失败 → 降级
             trace.fallback_used = True
             trace.fallback_reason = "all_retries_exhausted"
-            return self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            await self._persist_trace(trace, kwargs, agent)
+            return fallback_result
 
         except Exception as e:
             trace.error_message = str(e)
@@ -371,7 +383,9 @@ class AgentRuntime:
                 "harness_agent_error: agent=%s error=%s",
                 agent.agent_name, e,
             )
-            return self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            await self._persist_trace(trace, kwargs, agent)
+            return fallback_result
 
     def _apply_fallback(
         self,
@@ -421,6 +435,59 @@ class AgentRuntime:
         except Exception as e:
             logger.debug("harness._maybe_extract_case: Case 提取失败（不影响主流程）: %s", e)
 
+    # ── 轨迹持久化（v1.12.x，对齐 2026 Agent 可观测性 MELT+P）──
+
+    async def _persist_trace(self, trace: "AgentTrace", kwargs: dict, agent: Any) -> None:
+        """best-effort 将 AgentTrace 落库到 agent_traces 表。
+
+        受 agent_trace_persist_enabled 总开关 + agent_trace_sample_rate 采样率门控；
+        从 kwargs 取 db / user_id / project_id / workflow_id。
+        prompt 上下文采样：仅截断记录 system prompt + 用户消息（防 PII 扩散）。
+        任何失败仅 log debug，不影响主流程（诚实降级）。
+        """
+        _settings = get_settings()
+        if not _settings.agent_trace_persist_enabled:
+            return
+        db = kwargs.get("db")
+        if db is None:
+            return
+        try:
+            if _settings.agent_trace_sample_rate < 1.0 and random.random() > _settings.agent_trace_sample_rate:
+                return
+            from app.models.agent_trace import AgentTraceRecord
+            record = AgentTraceRecord(
+                id=trace.trace_id,
+                workflow_id=trace.workflow_id or kwargs.get("workflow_id", ""),
+                agent_name=trace.agent_name,
+                agent_version=trace.agent_version,
+                provider=trace.provider,
+                model=trace.model,
+                status=trace.status.value,
+                user_id=trace.user_id or kwargs.get("user_id", ""),
+                project_id=trace.project_id or kwargs.get("project_id", ""),
+                scope=trace.scope,
+                context_source=trace.context_source,
+                latency_ms=trace.latency_ms,
+                first_token_latency_ms=trace.first_token_latency_ms,
+                prompt_tokens=trace.prompt_tokens,
+                completion_tokens=trace.completion_tokens,
+                total_tokens=trace.total_tokens,
+                tool_call_count=trace.tool_call_count,
+                tool_call_rounds=trace.tool_call_rounds,
+                fallback_used=trace.fallback_used,
+                fallback_reason=trace.fallback_reason or "",
+                retry_count=trace.retry_count,
+                error_type=trace.error_type,
+                error_message=trace.error_message,
+                prompt_preview=(getattr(agent, "system_prompt", "") or "")[:500],
+                response_preview=(trace.response or "")[:1000],
+            )
+            db.add(record)
+            if db.in_transaction():
+                await db.commit()
+        except Exception as e:
+            logger.debug("harness._persist_trace: 轨迹落库失败（不影响主流程）: %s", e)
+
     # ── 追踪管理 ──
 
     def start_trace(
@@ -431,12 +498,15 @@ class AgentRuntime:
         user_id: str = "",
         project_id: str = "",
         scope: str = "",
+        workflow_id: str = "",
     ) -> AgentTrace:
         """开始新的执行轨迹
 
         v1.4.0：新增 scope 参数（借鉴 YC QM 四级作用域 personal/project/team/org），
         用于标记本次 Agent 执行所属的作用域，便于审计与可还原追溯。默认空字符串，
         向后兼容。
+        v1.12.x：新增 workflow_id 参数（跨 Agent 协作编排 ID），同一用户请求
+        的所有 Agent 执行共享同一 workflow_id，便于链路回溯与 per-agent 聚合。
         """
         trace = AgentTrace(
             agent_name=agent_name,
@@ -449,6 +519,7 @@ class AgentRuntime:
             user_id=user_id,
             project_id=project_id,
             scope=scope,
+            workflow_id=workflow_id,
             context_source="harness",
         )
         if get_settings().otel_genai_semconv_enabled and not trace.w3c_trace:

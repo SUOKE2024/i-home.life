@@ -17,6 +17,9 @@ import 'eco_materials_page.dart';
 import 'solution_first_page.dart';
 import 'ecosystem_page.dart';
 import 'ai_qa_page.dart';
+import 'b2b_delivery_page.dart';
+import 'sketch_to_3d_page.dart';
+import 'ifc_export_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final String projectId;
@@ -249,6 +252,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         _buildProcurementEnhancedEntry(),
                         const SizedBox(height: 16),
                         _buildV150FeaturesEntry(),
+                        const SizedBox(height: 16),
+                        _buildB2bBimEntry(),
                         const SizedBox(height: 16),
                         _buildActions(),
                         const SizedBox(height: 12),
@@ -714,6 +719,60 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   context,
                   MaterialPageRoute(
                       builder: (_) => AIQAPage(projectId: widget.projectId)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildB2bBimEntry() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('B2B 交付与 BIM'),
+        Card(
+          color: SuokeDesignTokens.card(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF1E1E32)),
+          ),
+          child: Column(
+            children: [
+              _v150FeatureTile(
+                'B2B 装企交付',
+                '设计方案 + 报价 + 施工计划整包交付',
+                Icons.inventory_2_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          B2BDeliveryPage(projectId: widget.projectId)),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                '草图转 3D',
+                '手绘户型草图识别与 3D 布局生成',
+                Icons.gesture,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const SketchTo3DPage()),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                'BIM IFC 导出',
+                '结构/设计方案导出为 IFC4 文件',
+                Icons.architecture,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          IFCExportPage(projectId: widget.projectId)),
                 ),
               ),
             ],

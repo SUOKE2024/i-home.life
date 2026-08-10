@@ -97,6 +97,9 @@ from app.models.diagnostics import (
     DiagnosticRumEvent,
 )
 
+# v1.12.x 智能体系统性打磨 — Agent 执行轨迹持久化（可观测性 + 离线评估 + 漂移检测）
+from app.models.agent_trace import AgentTraceRecord
+
 __all__ = [
     "User",
     "Project",
@@ -233,6 +236,8 @@ __all__ = [
     "DiagnosticAlert",
     "DiagnosticRecommendation",
     "DiagnosticRumEvent",
+    # v1.12.x Agent 执行轨迹持久化
+    "AgentTraceRecord",
 ]
 
 

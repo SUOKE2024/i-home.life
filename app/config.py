@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.11.0"
+    app_version: str = "1.12.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -258,6 +258,23 @@ class Settings(BaseSettings):
     harness_agent_timeout_seconds: int = 60
     harness_max_retries: int = 1
 
+    # ── Agent 执行轨迹持久化（v1.12.x 可观测性打磨，对齐 2026 workflow ID 传播范式）──
+    # 启用后每个 Agent 执行（harness run）按采样率落一条 agent_traces 记录，
+    # 供离线评估 / per-agent 漂移检测 / 问题回溯；关闭时零落库零开销。
+    agent_trace_persist_enabled: bool = True
+    agent_trace_sample_rate: float = 1.0   # 0-1 落库采样率（1.0 = 全量）
+
+    # ── 多智能体协作编排（v1.12.x 打磨，对齐 2026 hub-spoke/pipeline 编排）──
+    # 启用后 OrchestratorAgent.plan_and_delegate 可用：用户需求 → 任务分解 →
+    # 按依赖顺序分发子 Agent → 结构化聚合；关闭则维持单意图分类路由。
+    agent_orchestration_pipeline_enabled: bool = True
+
+    # ── LLM 响应缓存（v1.12.x 成本/延迟优化，对齐 2026 确定性 subtask 缓存）──
+    # 对非工具调用的重复请求（相同 provider+model+messages）命中缓存，
+    # 避免相同确定性子任务重复调用 LLM；TTL 内过期自动失效。
+    llm_response_cache_enabled: bool = True
+    llm_response_cache_ttl: int = 600
+
     # ── 在线进化闭环（v1.2.0）──
     # 轨迹驱动的 Agent 自我改进：收集执行轨迹 → 分析失败模式 → 优化 prompt/降级策略
     agent_evolution_enabled: bool = True
@@ -372,7 +389,8 @@ class Settings(BaseSettings):
     # ── 意图成本路由（借鉴端侧/本地模型分层 + EY token strategy）──
     # 启用后 cost_tier="economy" 的 Agent 优先走低成本供应商，
     # 将低价值意图（客服/通知/积分/文件/身份/通用）的解析成本压低。
-    cost_tiered_routing_enabled: bool = False
+    # v1.12.x：默认开启（Orchestrator 意图分类等低价值解析走 economy 档）。
+    cost_tiered_routing_enabled: bool = True
     # 低成本供应商（逗号分隔，按优先级排列，须在 PROVIDER_REGISTRY 中）
     economy_providers: str = "qwen,glm"
     # 经济档意图（低价值任务，优先使用低成本档位）
@@ -659,7 +677,9 @@ class Settings(BaseSettings):
     # 启用后 agent_tool_registry 执行工具时：description 防投毒校验、URL 抓取
     # SSRF 拦截（内网/云元数据 169.254.169.254 等）、工具输出敏感字段清洗。
     # 关闭时保持原执行路径（零回归）。
-    mcp_security_hardening_enabled: bool = False
+    # v1.12.x：默认开启（OWASP Agentic Skills AG1/AG4 对照——内置工具描述均
+    # 通过防投毒校验，开启无回归；见 scripts/verify_self_evolution.py 回归）。
+    mcp_security_hardening_enabled: bool = True
 
     # ── 高 OTel GenAI SemConv 埋点对齐（MCP SEP-414 W3C Trace + OTel）──
     # 启用后 AgentTrace._meta 写入 traceparent/tracestate/baggage，

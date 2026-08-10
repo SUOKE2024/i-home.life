@@ -28,7 +28,8 @@ run_console() {
 
 run_flutter() {
   echo "── Flutter test: $FLUTTER_TESTS ──"
-  (cd "$ROOT/flutter_app" && flutter test $FLUTTER_TESTS)
+  # --concurrency=1：3 个测试文件串行执行，避免并行 isolate 竞争导致 flaky
+  (cd "$ROOT/flutter_app" && flutter test --concurrency=1 $FLUTTER_TESTS)
   local code=$?
   echo "── Flutter test 退出码: $code ──"
   return $code
@@ -47,8 +48,9 @@ fi
 
 echo ""
 if [ "$EXIT" -eq 0 ]; then
-  echo "✅ P1 QA 全部通过（$MODE）"
+  # macOS bash 3.2 多字节解析：中文括号紧邻 $VAR 会被并入变量名 → 用 ${} 包裹
+  echo "✅ P1 QA 全部通过（${MODE}）"
 else
-  echo "❌ P1 QA 存在失败（exit=$EXIT，bit1=console bit2=flutter）"
+  echo "❌ P1 QA 存在失败（exit=${EXIT}，bit1=console bit2=flutter）"
 fi
 exit "$EXIT"

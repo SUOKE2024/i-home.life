@@ -189,6 +189,13 @@ class ConciergeChatRequest(BaseModel):
     context: str = ""
 
 
+class OrchestrateRequest(BaseModel):
+    """多智能体协作编排请求（v1.12.x，POST /agents/orchestrate）"""
+    message: str = Field(min_length=1, max_length=2000)
+    project_id: str | None = None
+    session_id: str | None = None
+
+
 class SimpleAgentRequest(BaseModel):
     """通用 Agent 请求模型 — 用于新增的专用 Agent 端点"""
     message: str = Field(min_length=1, max_length=2000)
@@ -2322,3 +2329,78 @@ async def delete_agent_session(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
     return None
+
+
+@router.post("/orchestrate", response_model=AgentResponse)
+async def orchestrate_agent(
+    data: OrchestrateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """多智能体协作编排（v1.12.x，受 agent_orchestration_pipeline_enabled 门控）。
+
+    链路：用户需求 → Orchestrator 任务分解（LLM 优先/规则兜底）→ DAG 循环检测 →
+    拓扑序派发子 Agent（每子任务落 agent_traces，workflow_id 贯穿）→ 结构化聚合。
+
+    诚实降级：
+    - flag 关闭 → 规则单任务执行（engine=rule_single，summary 注明编排未启用）
+    - LLM 分解失败 → 规则单任务；子任务失败 → 标注 failed 不阻断聚合
+    结构化编排明细（workflow_id/engine/summary/results）放入 card_payload 供前端渲染。
+    """
+    # 校验项目归属（若指定了 project_id）
+    if data.project_id:
+        result = await db.execute(select(Project).where(Project.id == data.project_id))
+        project = result.scalar_one_or_none()
+        if not project:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+        if current_user.role != "admin" and project.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    # 会话持久化（best-effort，失败不阻断编排）
+    session_id = None
+    try:
+        session = await agent_session_service.get_or_create_session(
+            db, current_user.id,
+            session_id=data.session_id,
+            project_id=data.project_id,
+            first_message=data.message,
+        )
+        session_id = session.id
+        await agent_session_service.persist_message(db, session, "user", data.message)
+    except Exception:
+        import structlog
+        structlog.get_logger("agent").debug(
+            "orchestrate_session_failed", user_id=current_user.id, exc_info=True
+        )
+
+    orch = OrchestratorAgent()
+    try:
+        result = await orch.plan_and_delegate(
+            data.message, db=db, user_id=current_user.id,
+            project_id=data.project_id or "",
+        )
+    finally:
+        await orch.close()
+
+    # 持久化 assistant 消息（best-effort）
+    if session_id and result.get("reply"):
+        try:
+            await agent_session_service.persist_message(
+                db, session, "assistant", result["reply"],
+            )
+        except Exception:
+            pass
+
+    return AgentResponse(
+        agent_type="orchestrator",
+        reply=result.get("reply") or result.get("summary", ""),
+        suggestions=[],
+        session_id=session_id,
+        message_type="text",
+        card_payload={
+            "workflow_id": result.get("workflow_id", ""),
+            "engine": result.get("engine", ""),
+            "summary": result.get("summary", ""),
+            "results": result.get("results", []),
+        },
+    )

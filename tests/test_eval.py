@@ -97,3 +97,27 @@ async def test_eval_run_admin_can_trigger(client: AsyncClient):
     )
     # 可能 200、503 或 disabled
     assert resp.status_code in (200, 503)
+
+
+# === v1.12.x 漂移检测 API ===
+
+
+@pytest.mark.asyncio
+async def test_eval_drift_requires_admin(client: AsyncClient, auth_headers: dict):
+    """非 admin 请求 /api/eval/drift 返回 403"""
+    resp = await client.get("/api/eval/drift", headers=auth_headers)
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_eval_drift_admin_ok(client: AsyncClient):
+    """admin 可获取漂移检测结果（records + summary + quality_targets）"""
+    headers = await _register_admin(client)
+    resp = await client.get("/api/eval/drift?window_days=7", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "records" in data
+    assert "summary" in data
+    assert "quality_targets" in data
+    assert data["quality_targets"]["success_rate_min"] == 95.0
+    assert {"total", "critical", "warn", "ok", "insufficient_samples"} <= set(data["summary"].keys())
