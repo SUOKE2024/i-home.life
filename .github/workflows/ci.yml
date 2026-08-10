@@ -119,6 +119,23 @@ jobs:
         run: |
           mypy app/ --ignore-missing-imports --no-strict-optional --follow-imports=silent || true
 
+  # ── DESIGN.md 校验（Google design.md 规范，2026-08-11 借鉴落地）──
+  # 根目录 DESIGN.md 是「设计版 CLAUDE.md」：YAML token（规范值）+ Markdown 设计理念。
+  # lint 发现 errors 时退出码 1，job 失败；warnings/infos 不阻塞。
+  design-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint DESIGN.md
+        run: npx @google/design.md lint DESIGN.md
+
   # ── Flutter 代码检查（v1.1.26 新增）──
   flutter-analyze:
     runs-on: ubuntu-latest

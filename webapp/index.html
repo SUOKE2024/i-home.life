@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#08080f" />
+    <meta name="theme-color" content="#f8f7f4" />
     <meta
       name="description"
       content="索克家居 i-home.life — AI 驱动的全链路智能家居建造平台。覆盖设计→预算→采购→施工→质检→结算全流程，AR 量房、3D 方案、VR 全景。"
@@ -52,15 +52,16 @@
 
     <title>索克家居 · i-home.life — AI 智能装修平台</title>
     <style>
-      html, body { background: #08080f; margin: 0; }
+      /* C 端默认浅色暖底（DESIGN.md：业主端 = canvas-warm），data-theme 由 tokens.css 承载变量 */
+      html, body { background: #f8f7f4; margin: 0; }
     </style>
   </head>
-  <body>
+  <body data-theme="light">
     <div id="root"></div>
 
     <!-- 备案号静态兜底：React 挂载渲染 Shell/Login 的 footer；此处供禁用 JS 的爬虫/审核工具读取（工信部合规双保险） -->
     <noscript>
-      <footer style="padding: 14px; text-align: center; font-size: 12px; color: #9a97a8; background: #08080f;">
+      <footer style="padding: 14px; text-align: center; font-size: 12px; color: #6b6760; background: #f8f7f4;">
         <span style="margin-right: 8px;">© 2026 索克家居 · i-home.life</span>
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color: #9a97a8; text-decoration: none;">滇ICP备2026015233号-2</a>
       </footer>

@@ -9,6 +9,7 @@
 Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + webapp(Vite+React，`webapp/`，2026-08-08 起替代旧 `web/` 静态多页，构建产物 `webapp/dist/` 由 Nginx root 服务) + 管理控制台(`console-src/`，React+Vite+TSX，构建至 `webapp/dist/console/`)。
 所有路由在 `app/main.py` 无条件 `include_router` 加载。
 WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-2」并链接 `https://beian.miit.gov.cn/`（见 `webapp/src/components/Shell.jsx` Footer），新增页面不得移除。
+根目录 `DESIGN.md` 是「设计版 CLAUDE.md」（Google design.md 格式：YAML front matter 机器可读 token + Markdown 正文设计理念），AI 编写/修改前端 UI 前必读；`npx @google/design.md lint DESIGN.md` 由 CI design-lint job 门禁校验（0 errors）。token 与 Flutter `suoke_theme.dart` / 控制台 `tokens.ts`+`tokens.css` / webapp `tokens.css` 三端对齐，改 token 须三端同步。
 
 ## Agent 分类约定（v1.6.0）
 
@@ -73,6 +74,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 | React Web 控制台 (console-src) | `.claude/guides/web-console.md` |
 | MCP / Agent / A2A 开发 | `.claude/guides/mcp-agent.md` |
 | 测试编写规范 | `.claude/guides/testing.md` |
+| 前端 UI / 视觉身份（webapp / console / Flutter 通用） | 根目录 `DESIGN.md` |
 | 版本号升级 | `.claude/templates/version-bump.md` |
 | 新增 API 模板 | `.claude/templates/new-api.md` |
 

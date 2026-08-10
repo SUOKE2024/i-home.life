@@ -29,6 +29,29 @@
   font-family: var(--font-mono);
 }
 
+/* C 端 pastel 特性卡（consumer-feature-card，DESIGN.md「C 端组件」：暖米底 + 圆角 + 深墨文字） */
+.feature-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 10px;
+  border: none;
+  background: var(--feature-peach);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-standard),
+    filter var(--dur-base) var(--ease-standard);
+}
+.feature-card .ico { color: var(--accent-text); }
+.feature-card:hover { filter: brightness(0.97); }
+.feature-card:active { transform: scale(0.97); }
+
 /* Badge */
 .badge {
   display: inline-flex;
@@ -265,6 +288,10 @@
 
 .table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
+}
+/* C 端浅色：表格 hover 换深色（白色底在浅底不可见） */
+[data-theme='light'] .table tr:hover td {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 /* Stat */

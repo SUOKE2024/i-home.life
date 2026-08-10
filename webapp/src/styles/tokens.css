@@ -40,9 +40,10 @@
   /* 尺寸 */
   --sidenav-w: 232px;
   --topbar-h: 60px;
-  --radius: 12px;
+  /* C 端柔和圆润（DESIGN.md「C 端形状」：收敛为 8/16/20 三档，卡片比 B 端圆润） */
+  --radius: 16px;
   --radius-sm: 8px;
-  --radius-lg: 16px;
+  --radius-lg: 20px;
   --radius-xl: 24px;
 
   /* 间距（对齐 Flutter SuokeDesignTokens spacing 8pt 基线） */
@@ -58,4 +59,27 @@
   --dur-slow: 320ms;
   --ease-standard: cubic-bezier(0.33, 0, 0.2, 1);
   --ease-emphasized: cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+
+/* ── C 端浅色暖底（Consumer，业主端默认；DESIGN.md「C 端浅色暖底」章节）──
+ * 值对齐 DESIGN.md consumer-* token：米白画布 + 白卡 + 深墨文字 + 暗金单强调。
+ * 品牌色/语义色跨主题恒定（金色按钮底仍 #C9973B + 深墨字）；
+ * 金色文字在浅底上用深金变体 #8A6415（AA 4.99:1），对齐 Airbnb「单强调色加深」处理。
+ */
+[data-theme='light'] {
+  --bg-deep: #f8f7f4;   /* canvas-warm */
+  --bg: #f8f7f4;
+  --bg-elev: #ffffff;   /* surface-warm */
+  --bg-elev-2: #f0eee8; /* surface-warm-2 */
+  --border: #e8e5de;    /* border-warm */
+  --border-strong: #d4d0c8;
+
+  --text: #1a1814;      /* ink-warm */
+  --text-sub: #6b6760;  /* ink-sub-warm */
+  --text-dim: #706c66;  /* ink-muted-warm（AA 4.79:1）*/
+
+  --accent-text: #8a6415; /* 深金：金色文字在浅底的加深变体（AA 4.99:1）*/
+
+  /* C 端 pastel 特性卡底（consumer-feature-card，借鉴 Notion 特性卡） */
+  --feature-peach: #f5efe0;
 }

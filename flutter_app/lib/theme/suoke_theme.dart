@@ -179,6 +179,10 @@ class SuokeDesignTokens {
   static Color textSub(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? textSecondary : lightTextSecondary;
 
+  /// 弱文字颜色（浅色下用 AA 值 lightTextMuted）
+  static Color textMutedClr(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? textMuted : lightTextMuted;
+
   /// 边框色
   static Color borderClr(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? border : lightBorder;

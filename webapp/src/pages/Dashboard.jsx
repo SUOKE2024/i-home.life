@@ -106,17 +106,12 @@ export default function DashboardPage() {
           )}
         </Card>
 
-        {/* 快捷入口 */}
+        {/* 快捷入口（consumer-feature-card：pastel 暖米特性卡，DESIGN.md「C 端组件」） */}
         <Card title="快捷入口" icon={<TrendingUp size={16} className="ico" />} sub="QUICK ACCESS">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
             {QUICK_LINKS.map(({ to, label, icon: Icon }) => (
-              <button
-                key={to}
-                className="btn btn--ghost"
-                onClick={() => nav(to)}
-                style={{ flexDirection: 'column', gap: 8, padding: '16px 10px', height: 'auto' }}
-              >
-                <Icon size={22} className="amber-text" />
+              <button key={to} className="feature-card" onClick={() => nav(to)}>
+                <Icon size={22} className="ico" />
                 <span>{label}</span>
               </button>
             ))}

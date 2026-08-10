@@ -11,8 +11,14 @@ void main() {
     await tester.pumpWidget(const IHomeApp());
     // 等待 AuthGate 异步检查完成，进入 LoginPage
     await tester.pumpAndSettle();
-    // LoginPage 显示品牌标题
-    expect(find.text('i-home.life'), findsOneWidget);
+    // LoginPage 显示品牌 LOGO（DESIGN.md C 端消费风：品牌资产优先，替代纯文本品牌区）
+    final logoFinder = find.byWidgetPredicate(
+      (w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName == 'assets/images/suoke-logo.png',
+    );
+    expect(logoFinder, findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

@@ -2,6 +2,25 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased]
+
+### 新增：DESIGN.md 设计系统规范（借鉴 Google design.md）+ C 端浅色消费风（借鉴 Airbnb/Notion）
+
+根目录 `DESIGN.md` 采用 Google Labs `design.md` 格式（YAML front matter 机器可读 token + Markdown 正文设计理念），
+作为「设计版 CLAUDE.md」约束 AI 前端产出，全链路落地：
+
+- **规范层**：`DESIGN.md` 定义双端双身份 —— B 端（控制台/工长）= 深色工程台（深墨画布 + 暗金单强调色），
+  C 端（业主 WebApp / 业主移动端）= 暖色家居消费体验（米白暖底 + 暗金单强调 + 摄影驱动 + 柔和圆润）。
+  借鉴 Airbnb「单强调色纪律 / 摄影驱动 / 圆润形状」与 Notion「pastel 特性卡 / 8px 按钮 12px 卡片几何」，
+  **只借模式不借色板**（主色恒为暗金 #C9973B）。token 全部提炼自三端真实体系，零臆造。
+- **CI 门禁**：`.github/workflows/ci.yml` 新增 `design-lint` job（`npx @google/design.md lint DESIGN.md`，
+  errors 退出码 1 即失败），与后端 flake8 同级门禁。
+- **CLAUDE.md**：项目定位补充「设计版 CLAUDE.md」说明 + 分端规则索引新增「前端 UI / 视觉身份」行。
+- **webapp（C 端）**：默认浅色暖底（`[data-theme='light']` 变体，值取 light 主题）+ 卡片圆角 12→16px（C 端圆润）+
+  pastel 特性卡（`.feature-card`，Dashboard 快捷入口）+ 浅色残留清理（滚动条/表格 hover/theme-color/备案兜底）。
+- **Flutter（C 端）**：默认主题 `system → light`（用户可切回深色/跟随系统）+ 登录页品牌区改用 `suoke-logo.png`
+  （替代纯文本品牌区）+ 首页 AIChatPage / 施工页浅色适配（深色常量 → theme-aware `text/textSub/borderClr/textMutedClr`）。
+
 ## [1.12.0] — 2026-08-10
 
 ### 新增：智能体全景/全量/全链路系统性打磨（基于 2026 技术前沿）

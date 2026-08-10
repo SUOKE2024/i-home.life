@@ -129,9 +129,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.engineering, size: 64, color: SuokeDesignTokens.textSecondary),
+            Icon(Icons.engineering, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('暂无施工任务', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+            Text('暂无施工任务', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _loadTasks,
@@ -151,11 +151,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
           final task = _tasks[index];
           final status = task.status;
           final statusColor = {
-            ConstructionStatus.pending: SuokeDesignTokens.textSecondary,
+            ConstructionStatus.pending: SuokeDesignTokens.textSub(context),
             ConstructionStatus.inProgress: Colors.blue,
             ConstructionStatus.completed: Colors.green,
             ConstructionStatus.delayed: Colors.red,
-          }[status] ?? SuokeDesignTokens.textSecondary;
+          }[status] ?? SuokeDesignTokens.textSub(context);
 
           return Card(
             child: ExpansionTile(
@@ -182,11 +182,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (task.assignee != null)
-                        Text('负责人：${task.assignee}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                        Text('负责人：${task.assignee}', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                       if (task.startDate != null)
-                        Text('开始：${task.startDate}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                        Text('开始：${task.startDate}', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                       if (task.endDate != null)
-                        Text('结束：${task.endDate}', style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                        Text('结束：${task.endDate}', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                     ],
                   ),
                 ),
@@ -204,9 +204,9 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.schedule, size: 64, color: SuokeDesignTokens.textSecondary),
+            Icon(Icons.schedule, size: 64, color: SuokeDesignTokens.textSub(context)),
             const SizedBox(height: 16),
-            const Text('生成施工 Gantt 排期', style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+            Text('生成施工 Gantt 排期', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _generatePlan,
@@ -237,7 +237,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
                     style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('面积：${_plan!['total_area']}㎡ · 档次：${_plan!['tier']}',
-                    style: const TextStyle(color: SuokeDesignTokens.textSecondary)),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context))),
               ],
             ),
           ),
@@ -559,7 +559,7 @@ class _ToggleChip extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+              color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
             ),
             const SizedBox(width: 4),
             Text(
@@ -567,7 +567,7 @@ class _ToggleChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSecondary,
+                color: isSelected ? SuokeDesignTokens.accent : SuokeDesignTokens.textSub(context),
               ),
             ),
           ],

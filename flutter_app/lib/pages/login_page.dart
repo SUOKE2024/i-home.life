@@ -347,23 +347,22 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 品牌 LOGO（DESIGN.md C 端消费风：品牌资产优先；透明底 LOGO 跨主题可用）
                 Semantics(
                   header: true,
-                  child: const Text(
-                    'i-home.life',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: SuokeDesignTokens.accent,
-                      letterSpacing: 2,
-                    ),
+                  label: '索克家居',
+                  child: Image.asset(
+                    'assets/images/suoke-logo.png',
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.contain,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                const SizedBox(height: 12),
+                Text(
                   '索克家居 · AI 智能装修平台',
                   style: TextStyle(
-                    color: SuokeDesignTokens.textSecondary,
+                    color: SuokeDesignTokens.textSub(context),
                     fontSize: 14,
                   ),
                 ),

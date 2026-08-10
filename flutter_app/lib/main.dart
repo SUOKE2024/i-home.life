@@ -34,8 +34,9 @@ void main() {
 }
 
 /// 主题状态管理 — 支持手动切换暗/亮/自动主题
+/// C 端默认浅色暖底（DESIGN.md「C 端浅色暖底」：业主端默认浅色；用户可切回深色/跟随系统）
 class ThemeState extends ChangeNotifier {
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.light;
   static const _themeKey = 'settings_theme_mode';
 
   ThemeMode get mode => _mode;
@@ -48,7 +49,7 @@ class ThemeState extends ChangeNotifier {
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final v = prefs.getString(_themeKey) ?? 'system';
+      final v = prefs.getString(_themeKey) ?? 'light';
       _mode = v == 'light'
           ? ThemeMode.light
           : v == 'dark'
