@@ -54,13 +54,21 @@ _shared_processors: list[Any] = [
 ]
 
 
-def configure_logging(debug: bool = False) -> None:
+def configure_logging(debug: bool = False, log_level: str = "") -> None:
     """配置全局结构化 JSON 日志。
 
     Args:
         debug: True 时使用 DEBUG 级别，否则 WARNING（与原有配置保持一致）。
+        log_level: 显式日志级别（DEBUG/INFO/WARNING/ERROR），优先于 debug。
+            用于生产在默认 WARNING 下按需放行编排/Agent 链路的 INFO 事件日志。
     """
-    level = logging.DEBUG if debug else logging.WARNING
+    if log_level:
+        _level_name = log_level.strip().upper()
+        level = getattr(logging, _level_name, None)
+        if not isinstance(level, int):
+            level = logging.WARNING
+    else:
+        level = logging.DEBUG if debug else logging.WARNING
 
     structlog.configure(
         processors=_shared_processors

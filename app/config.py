@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
+    # v1.12.x：显式日志级别（DEBUG/INFO/WARNING/ERROR，空=按 debug 推断）。
+    # 生产默认 WARNING 会吞掉编排/Agent 链路的 INFO 事件日志；
+    # 排查编排问题时在 .env 设 LOG_LEVEL=INFO 即可观察全链路。
+    log_level: str = ""
     # v1.2.1 P0-1/P1-7：PASETO 严格模式 flag。True=无论 debug 都硬校验密钥（生产默认）；
     # False=回滚旧行为（仅 not debug 校验，密钥不足时 \x00 填充，紧急回滚用）
     paseto_strict_mode: bool = True

@@ -11,6 +11,10 @@
     - llm_request_total{model}: LLM API 请求总数（Counter）
     - llm_request_duration_seconds{model}: LLM API 耗时（Histogram）
     - ws_connections: WebSocket 当前连接数（Gauge）
+    - agent_orchestration_total{engine, status}: 多智能体编排请求数（Counter，v1.12.x）
+    - agent_orchestration_duration_seconds: 编排请求耗时（Histogram，v1.12.x）
+    - agent_orchestration_task_total{agent, status}: 编排子任务结果数（Counter，v1.12.x）
+    - agent_trace_persisted_total{agent, status}: Agent 执行轨迹落库数（Counter，v1.12.x）
 """
 from fastapi import Response
 from prometheus_client import (
@@ -118,6 +122,31 @@ cache_hit_rate = Gauge(
     "cache_hit_rate",
     "Cache hit rate (hits / (hits + misses))",
     ["key_prefix"],
+)
+
+# ── 多智能体编排指标（v1.12.x 新增，对齐 2026 Agent 可观测性 MELT+P）──
+# 编排请求/子任务/耗时的 Prometheus 可观测性（与 agent_traces 表互为补充：
+# 表承载明细可回溯，指标承载总量/耗时分布可告警）
+agent_orchestration_total = Counter(
+    "agent_orchestration_total",
+    "Multi-agent orchestration requests",
+    ["engine", "status"],  # engine: orchestration_pipeline / rule_single；status: success / failed
+)
+agent_orchestration_duration_seconds = Histogram(
+    "agent_orchestration_duration_seconds",
+    "Multi-agent orchestration duration in seconds",
+    ["engine"],
+    buckets=(0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 180, 300),
+)
+agent_orchestration_task_total = Counter(
+    "agent_orchestration_task_total",
+    "Orchestration subtask results by agent",
+    ["agent", "status"],  # status: success / failed / skipped
+)
+agent_trace_persisted_total = Counter(
+    "agent_trace_persisted_total",
+    "Agent execution traces persisted to agent_traces",
+    ["agent", "status"],  # status: success / fallback / error
 )
 
 

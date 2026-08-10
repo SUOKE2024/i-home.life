@@ -158,7 +158,7 @@ def _is_uuid(s: str) -> bool:
 async def lifespan(app: FastAPI):
     global _tracing_shutdown
     await init_db()
-    configure_logging(debug=settings.debug)
+    configure_logging(debug=settings.debug, log_level=settings.log_level)
     # 注册慢查询日志中间件（v1.1.27）— SQLAlchemy 事件监听
     register_slow_query_logging(engine)
     # 启动 Prometheus 指标采样后台任务（DB 连接池 + Redis 状态）

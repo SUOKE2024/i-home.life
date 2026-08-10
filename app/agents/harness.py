@@ -354,6 +354,13 @@ class AgentRuntime:
                     await self._maybe_extract_case(trace, kwargs)
                     # v1.12.x: 轨迹落库（受 agent_trace_persist_enabled + 采样率门控）
                     await self._persist_trace(trace, kwargs, agent)
+                    logger.info(
+                        "harness_run_success: agent=%s latency_ms=%.1f workflow_id=%s "
+                        "tokens=%d fallback=%s",
+                        agent.agent_name, trace.latency_ms or 0.0,
+                        trace.workflow_id or kwargs.get("workflow_id", ""),
+                        trace.total_tokens or 0, trace.fallback_used,
+                    )
                     return {"reply": reply, "trace": trace.to_dict()}
 
                 except asyncio.TimeoutError:
@@ -372,6 +379,11 @@ class AgentRuntime:
             trace.fallback_reason = "all_retries_exhausted"
             fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
             await self._persist_trace(trace, kwargs, agent)
+            logger.info(
+                "harness_run_fallback: agent=%s reason=%s latency_ms=%.1f workflow_id=%s",
+                agent.agent_name, trace.fallback_reason, trace.latency_ms or 0.0,
+                trace.workflow_id or kwargs.get("workflow_id", ""),
+            )
             return fallback_result
 
         except Exception as e:
@@ -385,6 +397,11 @@ class AgentRuntime:
             )
             fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
             await self._persist_trace(trace, kwargs, agent)
+            logger.info(
+                "harness_run_fallback: agent=%s reason=%s latency_ms=%.1f workflow_id=%s",
+                agent.agent_name, trace.fallback_reason, trace.latency_ms or 0.0,
+                trace.workflow_id or kwargs.get("workflow_id", ""),
+            )
             return fallback_result
 
     def _apply_fallback(
@@ -485,8 +502,21 @@ class AgentRuntime:
             db.add(record)
             if db.in_transaction():
                 await db.commit()
+            from app.metrics import agent_trace_persisted_total
+            agent_trace_persisted_total.labels(
+                agent=trace.agent_name, status=trace.status.value,
+            ).inc()
+            logger.info(
+                "harness_trace_persisted: agent=%s status=%s workflow_id=%s latency_ms=%.1f",
+                trace.agent_name, trace.status.value,
+                trace.workflow_id or kwargs.get("workflow_id", ""),
+                trace.latency_ms or 0.0,
+            )
         except Exception as e:
-            logger.debug("harness._persist_trace: 轨迹落库失败（不影响主流程）: %s", e)
+            logger.warning(
+                "harness_trace_persist_failed: agent=%s error=%s（不影响主流程）",
+                trace.agent_name, e,
+            )
 
     # ── 追踪管理 ──
 

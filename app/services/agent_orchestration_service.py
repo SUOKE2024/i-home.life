@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 
 from app.config import get_settings
+from app.metrics import agent_orchestration_task_total
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +167,10 @@ async def decompose_request(
         try:
             tasks = await _llm_decompose(message, db, user_id, project_id)
             if tasks:
+                logger.info(
+                    "orchestration.decompose: LLM 分解成功 task_count=%d user_id=%s",
+                    len(tasks), user_id or "",
+                )
                 return tasks
         except Exception as e:
             logger.warning("orchestration.decompose: LLM 分解失败，降级规则分解: %s", e)
@@ -334,6 +340,7 @@ async def run_workflow(
         if deps_failed:
             task.status = "skipped"
             status_by_id[task.task_id] = "skipped"
+            agent_orchestration_task_total.labels(agent=task.agent_name, status="skipped").inc()
             results.append(AgentTaskResult(
                 task_id=task.task_id, agent_id=task.agent_name,
                 status="skipped", result="", reasoning="前置任务未成功，已跳过",
@@ -344,6 +351,7 @@ async def run_workflow(
         if agent_cls is None:
             task.status = "failed"
             status_by_id[task.task_id] = "failed"
+            agent_orchestration_task_total.labels(agent=task.agent_name, status="failed").inc()
             results.append(AgentTaskResult(
                 task_id=task.task_id, agent_id=task.agent_name,
                 status="failed", result="", reasoning=f"Agent {task.agent_name} 未注册",
@@ -353,6 +361,11 @@ async def run_workflow(
         task.status = "running"
         status_by_id[task.task_id] = "running"
         agent = agent_cls()
+        _t0 = time.monotonic()
+        logger.info(
+            "orchestration.task_start: workflow_id=%s task_id=%s agent=%s deps=%s",
+            workflow_id, task.task_id, task.agent_name, task.dependencies,
+        )
         try:
             reply = await harness.run(
                 agent,
@@ -374,6 +387,15 @@ async def run_workflow(
         finally:
             await agent.close()
         status_by_id[task.task_id] = task.status
+        logger.info(
+            "orchestration.task_end: workflow_id=%s task_id=%s agent=%s status=%s "
+            "duration_ms=%.1f error=%s",
+            workflow_id, task.task_id, task.agent_name, task.status,
+            (time.monotonic() - _t0) * 1000, task.error[:200] if task.error else "",
+        )
+        agent_orchestration_task_total.labels(
+            agent=task.agent_name, status=task.status,
+        ).inc()
 
         results.append(AgentTaskResult(
             task_id=task.task_id,

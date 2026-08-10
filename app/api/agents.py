@@ -2356,6 +2356,13 @@ async def orchestrate_agent(
         if current_user.role != "admin" and project.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
 
+    import time as _time
+    _t0 = _time.time()
+    logger.info(
+        "orchestrate_start: user_id=%s message=%r project_id=%s session_id=%s",
+        current_user.id, data.message[:120], data.project_id or "", data.session_id or "",
+    )
+
     # 会话持久化（best-effort，失败不阻断编排）
     session_id = None
     try:
@@ -2379,6 +2386,17 @@ async def orchestrate_agent(
             data.message, db=db, user_id=current_user.id,
             project_id=data.project_id or "",
         )
+    except Exception as e:
+        from app.metrics import agent_orchestration_total, agent_orchestration_duration_seconds
+        logger.error(
+            "orchestrate_failed: user_id=%s message=%r error=%s error_type=%s duration_ms=%.1f",
+            current_user.id, data.message[:120], str(e), type(e).__name__,
+            (_time.time() - _t0) * 1000,
+            exc_info=True,
+        )
+        agent_orchestration_total.labels(engine="orchestration_pipeline", status="failed").inc()
+        agent_orchestration_duration_seconds.labels(engine="orchestration_pipeline").observe(_time.time() - _t0)
+        raise
     finally:
         await orch.close()
 
@@ -2390,6 +2408,23 @@ async def orchestrate_agent(
             )
         except Exception:
             pass
+
+    _results = result.get("results") or []
+    _engine = result.get("engine", "orchestration_pipeline")
+    logger.info(
+        "orchestrate_complete: user_id=%s workflow_id=%s engine=%s summary=%s "
+        "task_statuses=%s task_agents=%s duration_ms=%.1f",
+        current_user.id, result.get("workflow_id", ""), _engine,
+        result.get("summary", ""),
+        [r.get("status") for r in _results],
+        [r.get("agent_id") for r in _results],
+        (_time.time() - _t0) * 1000,
+    )
+    from app.metrics import agent_orchestration_total, agent_orchestration_duration_seconds
+    agent_orchestration_total.labels(
+        engine=_engine, status="success" if result.get("success_count", 0) > 0 else "failed",
+    ).inc()
+    agent_orchestration_duration_seconds.labels(engine=_engine).observe(_time.time() - _t0)
 
     return AgentResponse(
         agent_type="orchestrator",

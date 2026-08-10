@@ -316,7 +316,16 @@ class OrchestratorAgent(BaseAgent):
         )
 
         workflow_id = str(uuid.uuid4())[:12]
+        logger.info(
+            "orchestrator.plan_start: workflow_id=%s pipeline_enabled=%s message=%r user_id=%s project_id=%s",
+            workflow_id, pipeline_enabled, message[:120], user_id or "", project_id or "",
+        )
         tasks = await decompose_request(message, db=db, user_id=user_id, project_id=project_id)
+        logger.info(
+            "orchestrator.decomposed: workflow_id=%s task_count=%d tasks=%s",
+            workflow_id, len(tasks),
+            [{"agent": t.agent_name, "deps": t.dependencies} for t in tasks],
+        )
         ok, dag_error = validate_dag(tasks)
         if not ok:
             # DAG 非法 → 降级为单任务（用第一个任务的 agent 兜底）
@@ -329,6 +338,8 @@ class OrchestratorAgent(BaseAgent):
                 agent_name="concierge",
                 description=message,
             )]
+        else:
+            logger.info("orchestrator.dag_ok: workflow_id=%s task_count=%d", workflow_id, len(tasks))
 
         results = await run_workflow(
             tasks, db=db, user_id=user_id, project_id=project_id,
@@ -342,4 +353,11 @@ class OrchestratorAgent(BaseAgent):
                 "编排未启用（agent_orchestration_pipeline_enabled=False），"
                 "已按规则单任务处理"
             )
+        logger.info(
+            "orchestrator.plan_complete: workflow_id=%s engine=%s summary=%s "
+            "success=%d failed=%d skipped=%d",
+            workflow_id, aggregated["engine"], aggregated["summary"],
+            aggregated["success_count"], aggregated["failed_count"],
+            aggregated["skipped_count"],
+        )
         return aggregated
