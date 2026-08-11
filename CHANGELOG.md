@@ -59,6 +59,25 @@
 - 验证：test_ifc_h_ifc_extension + test_v1_3_0_compliance + test_ifc_export 回归 +
   flake8 / mypy 0 issues
 
+### 新增：A2 灰度 flag 第三梯队默认开启（治理/编排类 5 项，2026-08-11）
+
+开启 5 个零 LLM 成本 / 低风险内部 flag（默认值 False→True，均可在 `.env.production`
+置 false 回滚）：
+- **`otel_genai_semconv_enabled`**：AgentTrace._meta 写入 traceparent/tracestate/
+  baggage，span 按 gen_ai.* 语义约定标注（对齐 MCP SEP-414 / OTel GenAI）
+- **`smart_protocol_compliance_enabled`**：智能家居设备补协议兼容矩阵
+  （Matter/OneConnect/GB-T 46456 物模型，纯内部矩阵）
+- **`memory_conflict_gate_enabled`**：save_memory 新旧值冲突返回 conflict 标记
+  不静默覆盖（记忆防漂移/投毒治理）
+- **`lifecycle_orchestration_enabled`**：项目全链路事件编排默认启用——5 处业务点
+  发射事件（PROJECT_CREATED/BOM_GENERATED/MATERIAL_DELIVERED/INSPECTION_PASSED/
+  CHANGE_ORDER_APPROVED）触发跨模块规则（自动建预算/采购建议/任务推进）
+- **`voice_agent_orchestration_enabled`**：语音智能体编排默认启用（一句话启动
+  后台 Agent 任务 + 多意图并行 + 任务生命周期控制，长任务不阻塞语音对话）
+- 验证：test_protocol_compliance / test_memory_conflict_gate / test_otel_genai_semconv /
+  test_lifecycle_chain / test_voice_orchestrate + test_mcp 回归 +
+  flake8 / mypy 0 issues
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习

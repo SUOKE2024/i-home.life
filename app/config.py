@@ -226,7 +226,8 @@ class Settings(BaseSettings):
     # - 一句话启动后台 Agent 任务（长任务不阻塞语音对话）
     # - 连接词切分多意图并行编排（"同时/另外/再帮我"）
     # - 语音任务生命周期控制（"任务进度"/"取消任务"）
-    voice_agent_orchestration_enabled: bool = False
+    # v1.13.2 起默认开启（内部编排，长任务异步不阻塞语音对话；关闭零回归）。
+    voice_agent_orchestration_enabled: bool = True
     # v1.2.8 讨论式方案交互：LLM 生成多方案 + 语音调整修订
     # v1.3.x 默认开启（console 已接通 /design/proposals + revise UI；LLM 不可用时自动降级确定性单方案）
     design_proposal_llm_enabled: bool = True
@@ -642,7 +643,8 @@ class Settings(BaseSettings):
     # （自动建预算 / 自动采购建议 / 任务就绪推进 / 后继任务链推进 / 预算更新）。
     # 关闭时发射函数 no-op，零回归；procurement_service 保留原直接 task-ready 逻辑。
     # 状态机校验与 accept 端点独立于此 flag（属 bugfix，不受 flag 控制）。
-    lifecycle_orchestration_enabled: bool = False
+    # v1.13.2 起默认开启（5 处业务事件接线，跨模块编排；关闭零回归）。
+    lifecycle_orchestration_enabled: bool = True
 
     # ── 验收报告标准清单比对（quality_service.generate_acceptance_report）──
     # True=完整比对标准验收清单 + 实际 QualityIssue；False=仅汇总 issue（回退）
@@ -707,7 +709,8 @@ class Settings(BaseSettings):
     # 启用后 AgentTrace._meta 写入 traceparent/tracestate/baggage，
     # span 按 gen_ai.system/model/tool.name/usage.* 语义约定标注。
     # 关闭时保持原 AgentTrace 结构（零回归）。
-    otel_genai_semconv_enabled: bool = False
+    # v1.13.2 起默认开启（埋点对齐 2026 OTel GenAI 语义约定，关闭零回归）。
+    otel_genai_semconv_enabled: bool = True
 
     # ── 高 GB/Z 185 智能体身份码/ACDL 预研（元数据预埋，不硬接）──
     # 启用后 /api/agents/identity/{name} 可查询 28 位 AID 身份码 + ACDL 能力描述；
@@ -718,12 +721,14 @@ class Settings(BaseSettings):
     # ── 中 Matter/GB-T 46456 智能家居协议兼容矩阵校验 ──
     # 启用后 smart_home 设备补协议兼容矩阵（Matter/OneConnect/GB-T 46456 物模型）；
     # 关闭时保持原协议判断（零回归）。
-    smart_protocol_compliance_enabled: bool = False
+    # v1.13.2 起默认开启（纯内部协议矩阵，无外部依赖；关闭零回归）。
+    smart_protocol_compliance_enabled: bool = True
 
     # ── 中 商业运营 Agent 记忆冲突门控（防记忆漂移/投毒）──
     # 启用后 save_memory 检测新旧值冲突时返回 conflict 标记，不静默覆盖；
     # 关闭时保持原 upsert 行为（零回归）。
-    memory_conflict_gate_enabled: bool = False
+    # v1.13.2 起默认开启（记忆防漂移治理，无 LLM 成本；关闭零回归）。
+    memory_conflict_gate_enabled: bool = True
 
 
 @lru_cache
