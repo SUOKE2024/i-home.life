@@ -568,8 +568,9 @@ class Settings(BaseSettings):
     # 启用后 ifc_export 用 floorplan 真实坐标放置构件，附加 Pset_WallCommon 等
     ifc_real_placement_enabled: bool = True
     # v1.3.0 P4: H-IFC 扩展（湖北 BIM 应用导则：视点/漫游/地理位置数据字段）
-    # 启用后 IfcSite 附加 RefLatitude/RefLongitude + Pset_HIFCExtension，默认关闭灰度
-    ifc_h_ifc_extension_enabled: bool = False
+    # 启用后 IfcSite 附加 RefLatitude/RefLongitude + Pset_HIFCExtension。
+    # v1.13.2 起默认开启（纯内部实现，附加失败仅 warning 不阻断导出；关闭即回退无扩展）。
+    ifc_h_ifc_extension_enabled: bool = True
 
     # ── S5: 施工图自动生成（模型即图纸，floorplan 变 → 图纸重生成）──
     # 启用后 /api/construction-drawing/* 端点可用，生成 SVG 平/立/剖面图

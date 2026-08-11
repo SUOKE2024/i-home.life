@@ -57,8 +57,8 @@ def test_new_feature_flags_defaults():
     # AI 渲染契约（默认启用 strict，real 默认关闭）
     assert s.ai_render_contract_strict is True
     assert s.ai_render_backend_type == "controlnet"
-    # P4 灰度 flag（默认关闭）
-    assert s.ifc_h_ifc_extension_enabled is False
+    # P4 灰度 flag（H-IFC v1.13.2 起默认开启；MEP 叠加仍需 PDF/SVG 引擎保持关闭）
+    assert s.ifc_h_ifc_extension_enabled is True
     assert s.construction_drawing_mep_enabled is False
 
 

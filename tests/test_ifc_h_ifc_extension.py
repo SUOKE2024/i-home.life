@@ -132,13 +132,13 @@ def test_validate_placement_range_does_not_raise_on_dirty_data():
 # === 配置 flag ===
 
 
-def test_ifc_h_ifc_extension_flag_default_off():
-    """ifc_h_ifc_extension_enabled 默认关闭（灰度）"""
-    assert get_settings().ifc_h_ifc_extension_enabled is False
+def test_ifc_h_ifc_extension_flag_default_on():
+    """ifc_h_ifc_extension_enabled v1.13.2 起默认开启（H-IFC 元数据为纯内部实现）"""
+    assert get_settings().ifc_h_ifc_extension_enabled is True
 
 
 def test_construction_drawing_mep_flag_default_off():
-    """construction_drawing_mep_enabled 默认关闭（灰度）"""
+    """construction_drawing_mep_enabled 默认关闭（需 PDF/SVG 引擎，灰度）"""
     assert get_settings().construction_drawing_mep_enabled is False
 
 

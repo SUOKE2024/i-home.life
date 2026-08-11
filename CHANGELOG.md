@@ -48,6 +48,17 @@
 - 验证：test_agent_case 59 用例全通过（覆盖率 99%）+ 受影响相关模块回归 +
   flake8 / mypy 0 issues
 
+### 新增：A2 灰度 flag D 类默认开启（H-IFC 湖北标准扩展，2026-08-11）
+
+- **`ifc_h_ifc_extension_enabled`**：H-IFC 扩展默认开启——IFC 导出时 IfcSite
+  附加 RefLatitude/RefLongitude + Pset_HIFCExtension（视点/漫游/地理位置元数据）。
+  纯内部实现（`build_h_ifc_extension_metadata` + `_attach_pset_h_ifc_extension`，
+  无外部 API），附加失败仅 warning 不阻断导出；关闭即回退无扩展零回归
+- 测试：默认断言修正（default_off → default_on）+ test_v1_3_0_compliance 同步；
+  `construction_drawing_mep_enabled` 仍默认关闭（需 PDF/SVG 引擎，未动）
+- 验证：test_ifc_h_ifc_extension + test_v1_3_0_compliance + test_ifc_export 回归 +
+  flake8 / mypy 0 issues
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习
