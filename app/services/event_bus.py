@@ -125,6 +125,16 @@ class EventBus:
             total += len(handlers)
         return total
 
+    def clear(self) -> None:
+        """清空全部 handler。
+
+        测试隔离用：EventBus 为全局单例，模块级 fixture 注册的编排规则若不清空，
+        会残留并污染后续测试（如 PROJECT_CREATED 自动建预算导致其他测试 409）。
+        生产不受影响：正式注册仅在应用启动时执行一次。
+        """
+        self._handlers = {event_type: [] for event_type in EventType}
+        self._global_handlers = []
+
 
 # Singleton accessor
 def get_event_bus() -> EventBus:

@@ -86,7 +86,7 @@ from app.models.health_monitor import HealthMonitor, AirQualityRecord
 from app.models.elderly_adaptation import ElderlyAdaptationScheme
 from app.models.partial_renovation import PartialRenovationPlan
 from app.models.escrow_trustee import EscrowTrusteeAccount
-from app.models.eco_material import MaterialEcoCert
+from app.models.eco_material import MaterialEcoCert, MaterialBoardTrace
 
 # v1.10.x 全链路诊断系统 — 指标快照 / 全链路 Trace / 告警 / 建议 / RUM
 from app.models.diagnostics import (
@@ -230,6 +230,7 @@ __all__ = [
     "PartialRenovationPlan",
     "EscrowTrusteeAccount",
     "MaterialEcoCert",
+    "MaterialBoardTrace",
     # v1.10.x 全链路诊断系统
     "DiagnosticMetricSnapshot",
     "DiagnosticTrace",

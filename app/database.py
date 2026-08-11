@@ -39,7 +39,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
 # v1.2.x: 新增 ar_scan_sessions.floorplan_id (AR 测量会话关联户型方案)
-_SCHEMA_MIGRATION_VERSION = 7  # v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
+_SCHEMA_MIGRATION_VERSION = 8  # v8: 空间即导航 floor_plans.room_status 逐房间状态; v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
 
 
 class Base(DeclarativeBase):
@@ -775,6 +775,18 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                     logging.getLogger("ihome").info(
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
                     )
+
+        # ── 空间即导航：floor_plans.room_status（户型图逐房间状态）──
+        _fp_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "floor_plans")
+        )
+        if _fp_cols is not None and "room_status" not in _fp_cols:
+            await conn.execute(text(
+                "ALTER TABLE floor_plans ADD COLUMN room_status TEXT NOT NULL DEFAULT '{}'"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE floor_plans ADD COLUMN room_status"
+            )
 
         # ── 标记本次迁移版本，下次启动可跳过 ──
         # v1.1.12 生产修复：根据 _has_schema_migrations 标志决定是否创建表，

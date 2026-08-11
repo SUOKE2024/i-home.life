@@ -29,7 +29,10 @@ class AIChatPage extends StatefulWidget {
   final String? projectId;
   final ProjectContext? projectContext;
 
-  const AIChatPage({super.key, this.projectId, this.projectContext});
+  /// 预填输入框文案（来自「家的生命线」首页主动卡片等入口）
+  final String? prefillText;
+
+  const AIChatPage({super.key, this.projectId, this.projectContext, this.prefillText});
 
   @override
   State<AIChatPage> createState() => _AIChatPageState();
@@ -60,6 +63,10 @@ class _AIChatPageState extends State<AIChatPage> {
   @override
   void initState() {
     super.initState();
+    // 预填输入框（不自动发送，等待用户确认）
+    if (widget.prefillText != null && widget.prefillText!.trim().isNotEmpty) {
+      _msgCtrl.text = widget.prefillText!.trim();
+    }
     _connectWebSocket();
     _restoreSessionId();
     // LBS 闭环：预取 GPS 坐标（异步缓存，失败/拒绝授权不阻塞对话，

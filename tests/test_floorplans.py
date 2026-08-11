@@ -143,3 +143,47 @@ async def test_delete_floorplan(client: AsyncClient):
     list_resp = await client.get(f"/api/floorplans/project/{project_id}", headers=headers)
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_floorplan_room_status(client: AsyncClient):
+    """空间即导航：户型图逐房间状态字段 创建/列表/PATCH 更新"""
+    token = await _register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    project_id = await _create_project(client, headers)
+
+    # 创建时携带 room_status
+    resp = await client.post(
+        "/api/floorplans",
+        json={
+            "project_id": project_id,
+            "name": "两室一厅",
+            "data": (
+                '{"walls":[],"rooms":['
+                '{"name":"客厅","room_type":"living_room","area":30.0},'
+                '{"name":"主卧","room_type":"bedroom","area":18.0}]}'
+            ),
+            "wall_height": 2.8,
+            "total_area": 80.0,
+            "room_count": 2,
+            "room_status": {"客厅": "in_progress", "主卧": "not_started"},
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["room_status"] == {"客厅": "in_progress", "主卧": "not_started"}
+
+    # 列表接口返回 room_status（供首页「空间状态」逐房间渲染）
+    list_resp = await client.get(f"/api/floorplans/project/{project_id}", headers=headers)
+    assert list_resp.status_code == 200
+    assert list_resp.json()[0]["room_status"] == {"客厅": "in_progress", "主卧": "not_started"}
+
+    # PATCH 部分更新房间状态
+    patch_resp = await client.patch(
+        f"/api/floorplans/{data['id']}",
+        json={"room_status": {"客厅": "completed", "主卧": "attention"}},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["room_status"] == {"客厅": "completed", "主卧": "attention"}

@@ -42,7 +42,7 @@ from app.api import (
     kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
     kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
     smart_home, scene_automation, procurement_enhanced, appliance, structural,
-    dashboard,
+    dashboard, feed,
 )
 from app.api import identity, products, tasks, points
 from app.api import notifications
@@ -466,6 +466,7 @@ api_router.include_router(procurement.router)   # /api/procurement/*
 api_router.include_router(construction.router)  # /api/construction/*
 api_router.include_router(settlements.router)   # /api/settlements/*
 api_router.include_router(floorplans.router)    # /api/floorplans/*
+api_router.include_router(feed.router)          # /api/feed/* (首页 A2UI 主动卡片流)
 api_router.include_router(voice.router)         # /api/voice/*
 api_router.include_router(voice_realtime.router)  # /api/voice/* (实时语音)
 api_router.include_router(voice_orchestrate.router)  # /api/voice/orchestrate/* (语音智能体编排)

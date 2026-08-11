@@ -4,6 +4,44 @@
 
 ## [Unreleased]
 
+### 新增：「空间即导航」户型图逐房间状态 + A2UI 8 类卡片并入首页 feed（2026-08-11）
+- **后端**：`FloorPlan.room_status` 逐房间状态字段（Text JSON，`{"客厅": "in_progress"}`，
+  取值 not_started/in_progress/completed/attention）——模型/Schema/Service 全链路，列表与详情接口均返回，
+  PATCH 可部分更新；迁移 chain 补齐（database.py 版本 7→8 幂等 ALTER + alembic `a7b8c9d0e1f2`）
+- **Feed API**：新增 `GET /api/feed/{project_id}`，`home_feed_service` 将项目现有业务数据组合为
+  A2UI 8 类主动卡片（alert_card←progress_alerts / design_plan←户型 / construction_progress←里程碑 /
+  budget_breakdown←预算 / procurement_order←订单 / qa_report←质检 / settlement_summary←结算 /
+  material_card←材料），附 `source_note` 诚实标注
+- **移动端**：`home_page.dart` 激活户型「户型图逐房间」网格（rooms 几何 + room_status 着色）、
+  非激活户型房间状态摘要；「管家主动卡片」用 `A2UIRenderer` 渲染 A2UI 卡片，预警列表保留为回退
+- **webapp**：新增 `A2UICard.jsx`（8 类卡片 web 渲染器）；Dashboard 空间状态户型图逐房间 +
+  管家主动卡片并入 A2UI feed；api.js 增 getFloorplan/getFeedCards
+- **测试**：后端 +4（room_status 创建/列表/PATCH + feed 空/组合/权限），Flutter +1（户型图逐房间 + A2UI feed），
+  全量验证见落地报告 `docs/reports/lifeline-design-landing-20260811.md`
+- **基线校准**：`test_baseline.json` 2151/2/4 → **2155/2/4**（新增 4 测试后 venv 全量权威核验
+  2161 collected = 2155 passed + 2 skipped + 4 xfailed，16:37 EXIT_CODE=0；系统 python 无
+  ifcopenshell 会多 skip 8 个 IFC 测试，全量须用 `.venv/bin/python`）；CLAUDE.md 路由 74→75、
+  include_router 77→78、pytest 基线同步
+- **修复（预存在）全量串行测试隔离 bug**：`test_lifecycle_chain.py` 模块级 fixture 调用 `register_all_rules()`
+  将 `PROJECT_CREATED → 自动建预算` handler 注册到全局 EventBus 单例且永不注销，污染后续所有项目创建
+  （security/settlements/websocket 等「建项目再建预算」的测试全量串行下 409「该项目已有预算」、单测通过、
+  两次全量复现）。修复：`EventBus.clear()` + 该模块结束清空 handler
+
+### 落地：「家的生命线」双重重构执行（2026-08-11）
+- **P0 移动端空间首页**：`home_page.dart` 从「纯聊天」重构为「家的生命线」——
+  项目卡片（切换/阶段状态）+ 7 节点生命线时间轴（量房→设计→预算→施工→质检→结算→入住，
+  按项目状态/户型/里程碑诚实推断）+ 施工健康分环（按未解决预警严重度估算）+ 空间状态（户型方案）+
+  Ambient 主动卡片流（进度预警 + Agent 归因 footer「Health OS 自动生成」）+「对话 AI 管家」次入口；
+  聊天新增 `prefillText` 预填支持
+- **P1 webapp bento 工作台**：`Dashboard.jsx` 重构为三栏 bento（空间 / 生命线+主动流 / 健康&信任），
+  api.js 新增 getFloorplans/getProgressAlerts/getMilestones；pages.css 新增 bento/lifeline/feed-card 样式族
+- **P2 缺陷修复**：`MaterialBoardTrace` 补注册 `app/models/__init__.py` `__all__`（128/128 对齐文档）；
+  `agent_traces` 补幂等建表迁移 `c0d1e2f3a4b5`（此前依赖运行时 create_all，空库 upgrade head 缺表），
+  本地库应用后 schema drift 0 缺失；`test_baseline.json` 校准 2139/10/4 → **2151/2/4**；
+  README/CLAUDE.md console 页面 64→66、pytest 基线同步
+- **验证**：Flutter analyze 0 + 96 tests（含新增首页测试）；webapp build ✓；test_agent_trace_persist 5 passed；
+  alembic 空库 upgrade→downgrade -1→upgrade 往返幂等 ✓；flake8/mypy 0
+
 ### 修复：全景全链路评估报告落地（2026-08-11）
 - **文档数据校准**（评估报告遗留项）：CODE_WIKI v7.1 陈旧计数修正——
   路由模块 34→74（main.py 77 处 include_router）、Agent 9→26（21 执行型 +

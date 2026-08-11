@@ -117,6 +117,24 @@ export async function getProject(projectId) {
   return request(`/api/projects/${encodeURIComponent(projectId)}`)
 }
 
+// 家的生命线：空间 / 预警 / 里程碑（健康分由预警严重度在前端估算）
+export async function getFloorplans(projectId) {
+  return request(`/api/floorplans/project/${projectId}`)
+}
+export async function getFloorplan(planId) {
+  return request(`/api/floorplans/${planId}`)
+}
+export async function getProgressAlerts(projectId) {
+  return request(`/api/construction/progress-alerts/${projectId}`)
+}
+export async function getMilestones(projectId) {
+  return request(`/api/construction/milestones/${projectId}`)
+}
+// 首页 Feed：A2UI 8 类主动卡片（按项目现有数据组合，诚实标注）
+export async function getFeedCards(projectId) {
+  return request(`/api/feed/${projectId}`)
+}
+
 export async function createProject(data) {
   return request('/api/projects', { method: 'POST', body: JSON.stringify(data) })
 }

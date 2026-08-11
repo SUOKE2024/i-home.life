@@ -51,8 +51,16 @@ def _enable_lifecycle(monkeypatch):
 
 @pytest.fixture(scope="module", autouse=True)
 def _register_rules():
-    """模块级注册编排规则一次（event_bus 单例，避免重复注册）"""
+    """模块级注册编排规则一次（event_bus 单例，避免重复注册）；模块结束清空 handler。
+
+    2026-08-11 根因定位修复：EventBus 为全局单例，若不清空，PROJECT_CREATED → 自动建预算
+    handler 会残留并污染后续所有测试（全量串行下 security/settlements/websocket 等项目创建后
+    再建预算的测试全部 409「该项目已有预算」——单测通过、全量失败、二次复现）。
+    """
+    from app.services.event_bus import get_event_bus
     register_all_rules()
+    yield
+    get_event_bus().clear()
 
 
 # ====================================================================

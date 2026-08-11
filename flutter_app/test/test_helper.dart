@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ihome_app/services/api.dart';
+import 'package:ihome_app/services/avatar_controller.dart';
 import 'package:ihome_app/services/project_context.dart';
 
 /// 初始化测试环境：mock SharedPreferences + 清理 ApiClient 单例状态。
@@ -64,10 +65,13 @@ http.Response jsonResponse(dynamic data, {int status = 200}) {
   );
 }
 
-/// 创建测试用 MaterialApp，包含 [ProjectContext] Provider。
+/// 创建测试用 MaterialApp，包含 [ProjectContext] + [AvatarController] Provider。
 Widget createTestApp(Widget home, {ProjectContext? projectContext}) {
   return ChangeNotifierProvider<ProjectContext>(
     create: (_) => projectContext ?? ProjectContext(),
-    child: MaterialApp(home: home),
+    child: ChangeNotifierProvider<AvatarController>(
+      create: (_) => AvatarController()..initialize(),
+      child: MaterialApp(home: home),
+    ),
   );
 }
