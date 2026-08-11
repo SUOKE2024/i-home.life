@@ -16,6 +16,23 @@
 - **冗余清理**：删除未跟踪的 `.DS_Store`（根目录 + goai-agent-infra/）
 - 验证：eval 相关回归 90 passed；全量 pytest 见条目尾部（2139 基线零回退）
 
+### 新增：A2 灰度 flag 第一梯队默认开启（2026-08-11）
+
+依据 A2 灰度 flag 开启可行性评估（33 个默认 False flag 分四类：16 可安全开启 /
+7 前端调试 / 8 需外部凭据 / 2 需业务确认），本批开启 4 个无外部依赖、实现完整、
+测试齐备的 flag（默认值 False→True，均可在 `.env.production` 置 false 回滚）：
+
+- **`business_ops_orchestrator_enabled`**：Orchestrator 每日运营简报默认启用
+  （FC 定时触发器 `/api/admin/daily-briefing`）；子 Agent（growth/finance）未启用
+  时 best-effort 降级标注，不阻断
+- **`procurement_demand_driven_enabled`**：以销定产默认启用
+  （`drive_procurement_from_bom` 从 BOM 反向驱动采购优先级，复用 generate_from_bom 基座零回归）
+- **`ai_content_labeling_enabled`**：AI 生成内容标识默认启用（合规能力，关闭零回归）
+- **`gbz185_agent_card_enabled`**：GB/Z 185 智能体身份卡默认启用（只读查询，无外部依赖）
+- 测试：`drive_procurement_from_bom` 补齐 3 用例（此前无覆盖）；
+  orchestrator 默认断言重构（显式关闭降级 + 默认开启聚合不崩）
+- 验证：相关 6 模块回归全通过；flake8 / mypy 0 issues
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习

@@ -1,9 +1,10 @@
 """v1.6.0 平台商业运营 Agent 测试 — Growth/Marketing/CompetitorResearch/FinanceRecon + Orchestrator 日报
 
 验证维度（对应 CLAUDE.md「Goal-Driven Execution — 加功能先写验收用例」）：
-1. feature flag 默认关闭：各 Agent 方法返回 enabled=False（不触发 LLM/DB，诚实降级）
-2. feature flag 开启后（monkeypatch）：返回含 data_source 的结构，DB 不可用时降级
-3. Orchestrator.generate_daily_briefing flag 关闭返回 enabled=False
+1. 商业运营子 Agent feature flag 默认关闭：各 Agent 方法返回 enabled=False（不触发 LLM/DB，诚实降级）
+2. Orchestrator 默认开启（v1.13.2 起 business_ops_orchestrator_enabled=True），db=None 时 best-effort 聚合不崩；
+   显式关闭时返回 enabled=False
+3. feature flag 开启后（monkeypatch）：返回含 data_source 的结构，DB 不可用时降级
 4. /api/admin/daily-briefing 端点未授权 401
 """
 
@@ -62,13 +63,33 @@ async def test_finance_recon_agent_disabled_by_default():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_daily_briefing_disabled_by_default():
-    """business_ops_orchestrator_enabled=False 时返回 enabled=False"""
+async def test_orchestrator_daily_briefing_disabled_when_flag_off(monkeypatch):
+    """business_ops_orchestrator_enabled=False 时返回 enabled=False（显式关闭降级）"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "business_ops_orchestrator_enabled", False)
+
     orch = OrchestratorAgent()
     try:
         result = await orch.generate_daily_briefing(db=None)
         assert result["enabled"] is False
         assert "business_ops_orchestrator_enabled" in result["note"]
+    finally:
+        await orch.close()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_daily_briefing_enabled_by_default():
+    """v1.13.2 起 business_ops_orchestrator_enabled 默认 True；db=None 时 best-effort 聚合不崩"""
+    orch = OrchestratorAgent()
+    try:
+        result = await orch.generate_daily_briefing(db=None)
+        assert result["enabled"] is True
+        assert "sections" in result
+        # 子 Agent 默认未启用 → 各 section 诚实标注 enabled=False，不阻断简报
+        assert "growth_weekly" in result["sections"]
+        assert "finance_recon" in result["sections"]
+        assert result["sections"]["growth_weekly"].get("enabled") is False
+        assert result["sections"]["finance_recon"].get("enabled") is False
     finally:
         await orch.close()
 

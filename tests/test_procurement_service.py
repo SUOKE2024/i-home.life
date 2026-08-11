@@ -5,13 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     User, Project, MaterialCategory, Material,
-    Supplier, Quotation, ProcurementOrder, OrderLine,
+    Supplier, Quotation, ProcurementOrder, OrderLine, BOMItem,
 )
 from app.services.procurement_service import (
     compare_suppliers,
     verify_delivery,
     get_material_availability,
     create_order,
+    drive_procurement_from_bom,
 )
 
 
@@ -385,3 +386,56 @@ async def test_create_order_no_budget_does_not_fail(
     })
     assert order.total_amount == 200.0
     assert order.status == "draft"
+
+
+# ── P3 以销定产 drive_procurement_from_bom（procurement_demand_driven_enabled）──
+
+
+@pytest.mark.asyncio
+async def test_drive_procurement_from_bom_disabled(db_session: AsyncSession, monkeypatch):
+    """flag 关闭时返回 enabled=False 诚实降级，不触发 generate_from_bom"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "procurement_demand_driven_enabled", False)
+    result = await drive_procurement_from_bom(db_session, "nonexistent-project")
+    assert result["enabled"] is False
+    assert "procurement_demand_driven_enabled" in result["note"]
+
+
+@pytest.mark.asyncio
+async def test_drive_procurement_from_bom_enabled_priority(
+    db_session: AsyncSession, test_project, test_material, test_suppliers, monkeypatch
+):
+    """flag 开启时从 BOM 生成采购订单并标注需求优先级（按金额排序）"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "procurement_demand_driven_enabled", True)
+
+    bom_item = BOMItem(
+        project_id=test_project.id,
+        material_id=test_material.id,
+        quantity=10.0,
+        unit_price=198.0,
+        total_price=1980.0,
+        note="测试以销定产",
+        version=1,
+    )
+    db_session.add(bom_item)
+    await db_session.commit()
+
+    result = await drive_procurement_from_bom(db_session, test_project.id)
+    assert result["enabled"] is True
+    assert result["demand_driven"] is True
+    assert result["total_bom_items"] == 1
+    assert result["generated_orders"] >= 1
+    assert all(o.get("demand_priority") in ("high", "medium", "low") for o in result["orders"])
+    assert all(o.get("demand_note") for o in result["orders"])
+
+
+@pytest.mark.asyncio
+async def test_drive_procurement_from_bom_no_bom_raises(
+    db_session: AsyncSession, test_project, monkeypatch
+):
+    """flag 开启但项目无 BOM 时复用 generate_from_bom 的诚实报错"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "procurement_demand_driven_enabled", True)
+    with pytest.raises(ValueError, match="没有 BOM"):
+        await drive_procurement_from_bom(db_session, test_project.id)

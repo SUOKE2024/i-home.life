@@ -673,12 +673,14 @@ class Settings(BaseSettings):
     # ── P2 主动 Orchestrator 定时调度 + 运营日报 ──
     # 启用后 OrchestratorAgent.generate_daily_briefing 生成每日运营简报；
     # FC 定时触发器调用 /api/admin/daily-briefing 端点（无 K8s/Cron）。
-    business_ops_orchestrator_enabled: bool = False
+    # v1.13.2 起默认开启（内部能力，子 Agent 未启用时 best-effort 降级标注）。
+    business_ops_orchestrator_enabled: bool = True
 
     # ── P3 供应链以销定产（designer BOM → procurement 反向驱动）──
     # 启用后 procurement_service.drive_procurement_from_bom 从 BOM 反向驱动采购建议；
     # 关闭时 procurement 保留原直接 task-ready 逻辑。
-    procurement_demand_driven_enabled: bool = False
+    # v1.13.2 起默认开启（复用 generate_from_bom 基座，零回归）。
+    procurement_demand_driven_enabled: bool = True
 
     # ════════════════════════════════════════════════════════════════
     # v1.9.0 前沿研究 2026 第二轮落地（docs/superpowers/specs/2026-08-05-frontier-research.md）
@@ -688,7 +690,8 @@ class Settings(BaseSettings):
     # ── P0 AI 生成内容标识（《人工智能生成合成内容标识办法》合规）──
     # 启用后 AI 渲染/效果图/报告输出管道补显式标识 + 元数据隐式标识（水印字段预埋）；
     # 关闭时保持原输出不变（零回归）。
-    ai_content_labeling_enabled: bool = False
+    # v1.13.2 起默认开启（合规能力，关闭即回退零回归）。
+    ai_content_labeling_enabled: bool = True
 
     # ── 高 MCP 安全硬化（2026 MCP 工具投毒/SSRF 防御）──
     # 启用后 agent_tool_registry 执行工具时：description 防投毒校验、URL 抓取
@@ -707,7 +710,8 @@ class Settings(BaseSettings):
     # ── 高 GB/Z 185 智能体身份码/ACDL 预研（元数据预埋，不硬接）──
     # 启用后 /api/agents/identity/{name} 可查询 28 位 AID 身份码 + ACDL 能力描述；
     # 关闭时端点返回 404（零回归）。
-    gbz185_agent_card_enabled: bool = False
+    # v1.13.2 起默认开启（身份卡为只读查询，无外部依赖）。
+    gbz185_agent_card_enabled: bool = True
 
     # ── 中 Matter/GB-T 46456 智能家居协议兼容矩阵校验 ──
     # 启用后 smart_home 设备补协议兼容矩阵（Matter/OneConnect/GB-T 46456 物模型）；

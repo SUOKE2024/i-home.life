@@ -17,8 +17,8 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 
 - **执行型 Agent**（面向用户交付）：designer/budget/procurement/construction/qa_inspector/settlement/concierge 等 21 个，覆盖家装交付链路。
 - **商业运营 Agent**（平台自身运营，借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」）：growth/marketing/competitor_research/finance_recon，受各自 `xxx_agent_enabled` flag 灰度，默认 False。
-- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `https://i-home.life/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron；2026-08-08 域名切换后触发器目标 URL 须为域名 443，不再用 `http://118.31.223.213:8081`）。
-- **以销定产**：`procurement_demand_driven_enabled`（默认 False）开启后 `procurement_service.drive_procurement_from_bom` 从 designer BOM 反向驱动采购优先级（紧急/常规/可缓），借鉴义乌「以销定产」模式。
+- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `https://i-home.life/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron；2026-08-08 域名切换后触发器目标 URL 须为域名 443，不再用 `http://118.31.223.213:8081`）。v1.13.2 起该 flag 默认 True（子 Agent 未启用时 best-effort 降级标注）。
+- **以销定产**：`procurement_demand_driven_enabled`（默认 True，v1.13.2 起）开启后 `procurement_service.drive_procurement_from_bom` 从 designer BOM 反向驱动采购优先级（紧急/常规/可缓），借鉴义乌「以销定产」模式。
 
 商业运营 Agent 数据源诚实标注（GrowthAgent 基于 `agent_feedbacks` 表，非全量调用日志；FinanceRecon 基于 `payment/escrow` 内部表，无 Stripe 对接），禁止伪装实时数据。
 
