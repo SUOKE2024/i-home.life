@@ -106,12 +106,12 @@
 .btn--primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-bright));
   border-color: transparent;
-  color: #1a1206;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 .btn--primary:hover {
-  color: #1a1206;
+  color: var(--on-accent);
   filter: brightness(1.08);
 }
 

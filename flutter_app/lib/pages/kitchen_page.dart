@@ -681,7 +681,7 @@ class _KitchenPageState extends State<KitchenPage>
                   width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: SuokeDesignTokens.textMuted,
+                    color: SuokeDesignTokens.textMutedClr(context),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

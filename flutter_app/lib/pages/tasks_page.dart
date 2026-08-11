@@ -131,14 +131,14 @@ class _TasksPageState extends State<TasksPage>
   Color _statusColor(String status) {
     switch (status) {
       case 'pending':
-        return SuokeDesignTokens.textSecondary;
+        return SuokeDesignTokens.textSub(context);
       case 'claimed':
       case 'in_progress':
         return SuokeDesignTokens.info;
       case 'completed':
         return _priorityLow;
       default:
-        return SuokeDesignTokens.textSecondary;
+        return SuokeDesignTokens.textSub(context);
     }
   }
 
@@ -188,8 +188,8 @@ class _TasksPageState extends State<TasksPage>
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
-              backgroundColor: SuokeDesignTokens.cardBg,
-              title: const Text('创建任务', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+              backgroundColor: SuokeDesignTokens.card(ctx),
+              title: Text('创建任务', style: TextStyle(color: SuokeDesignTokens.text(ctx))),
               content: SingleChildScrollView(
                 child: Form(
                   key: formKey,
@@ -197,50 +197,50 @@ class _TasksPageState extends State<TasksPage>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextFormField(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: '标题',
-                          labelStyle: TextStyle(color: SuokeDesignTokens.textSecondary),
+                          labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: SuokeDesignTokens.border),
+                            borderSide: BorderSide(color: SuokeDesignTokens.borderClr(ctx)),
                           ),
-                          focusedBorder: UnderlineInputBorder(
+                          focusedBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: SuokeDesignTokens.accent),
                           ),
                         ),
-                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                        style: TextStyle(color: SuokeDesignTokens.text(ctx)),
                         validator: (v) =>
                             (v == null || v.isEmpty) ? '请输入标题' : null,
                         onSaved: (v) => title = v ?? '',
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: '描述',
-                          labelStyle: TextStyle(color: SuokeDesignTokens.textSecondary),
+                          labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: SuokeDesignTokens.border),
+                            borderSide: BorderSide(color: SuokeDesignTokens.borderClr(ctx)),
                           ),
-                          focusedBorder: UnderlineInputBorder(
+                          focusedBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: SuokeDesignTokens.accent),
                           ),
                         ),
-                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                        style: TextStyle(color: SuokeDesignTokens.text(ctx)),
                         maxLines: 2,
                         onSaved: (v) => description = v ?? '',
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: '负责人',
-                          labelStyle: TextStyle(color: SuokeDesignTokens.textSecondary),
+                          labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: SuokeDesignTokens.border),
+                            borderSide: BorderSide(color: SuokeDesignTokens.borderClr(ctx)),
                           ),
-                          focusedBorder: UnderlineInputBorder(
+                          focusedBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: SuokeDesignTokens.accent),
                           ),
                         ),
-                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                        style: TextStyle(color: SuokeDesignTokens.text(ctx)),
                         validator: (v) =>
                             (v == null || v.isEmpty) ? '请输入负责人' : null,
                         onSaved: (v) => assignee = v ?? '',
@@ -248,18 +248,18 @@ class _TasksPageState extends State<TasksPage>
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: priorityLabel,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: '优先级',
-                          labelStyle: TextStyle(color: SuokeDesignTokens.textSecondary),
+                          labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                           enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(color: SuokeDesignTokens.border),
+                            borderSide: BorderSide(color: SuokeDesignTokens.borderClr(ctx)),
                           ),
-                          focusedBorder: UnderlineInputBorder(
+                          focusedBorder: const UnderlineInputBorder(
                             borderSide: BorderSide(color: SuokeDesignTokens.accent),
                           ),
                         ),
-                        dropdownColor: SuokeDesignTokens.cardBg,
-                        style: const TextStyle(color: SuokeDesignTokens.textPrimary),
+                        dropdownColor: SuokeDesignTokens.card(ctx),
+                        style: TextStyle(color: SuokeDesignTokens.text(ctx)),
                         items: const [
                           DropdownMenuItem(value: '高', child: Text('高')),
                           DropdownMenuItem(value: '中', child: Text('中')),
@@ -296,11 +296,11 @@ class _TasksPageState extends State<TasksPage>
                           }
                         },
                         child: InputDecorator(
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: '截止日期',
-                            labelStyle: TextStyle(color: SuokeDesignTokens.textSecondary),
+                            labelStyle: TextStyle(color: SuokeDesignTokens.textSub(ctx)),
                             enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: SuokeDesignTokens.border),
+                              borderSide: BorderSide(color: SuokeDesignTokens.borderClr(ctx)),
                             ),
                           ),
                           child: Text(
@@ -308,7 +308,7 @@ class _TasksPageState extends State<TasksPage>
                                 ? '选择日期'
                                 : '${deadline!.year}-${deadline!.month.toString().padLeft(2, '0')}-${deadline!.day.toString().padLeft(2, '0')}',
                             style: TextStyle(
-                              color: deadline == null ? SuokeDesignTokens.textSecondary : SuokeDesignTokens.textPrimary,
+                              color: deadline == null ? SuokeDesignTokens.textSub(ctx) : SuokeDesignTokens.text(ctx),
                             ),
                           ),
                         ),
@@ -414,18 +414,18 @@ class _TasksPageState extends State<TasksPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SuokeDesignTokens.bgDeep,
+      backgroundColor: SuokeDesignTokens.bg(context),
       appBar: AppBar(
-        backgroundColor: SuokeDesignTokens.bgDeep,
+        backgroundColor: SuokeDesignTokens.bg(context),
         title: Semantics(
           header: true,
-          child: const Text('任务管理', style: TextStyle(color: SuokeDesignTokens.textPrimary)),
+          child: Text('任务管理', style: TextStyle(color: SuokeDesignTokens.text(context))),
         ),
-        iconTheme: const IconThemeData(color: SuokeDesignTokens.textPrimary),
+        iconTheme: IconThemeData(color: SuokeDesignTokens.text(context)),
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,
-          unselectedLabelColor: SuokeDesignTokens.textSecondary,
+          unselectedLabelColor: SuokeDesignTokens.textSub(context),
           indicatorColor: SuokeDesignTokens.accent,
           tabs: const [
             Tab(text: '任务看板'),
@@ -472,7 +472,7 @@ class _TasksPageState extends State<TasksPage>
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildKanbanColumn('待办', todoTasks, SuokeDesignTokens.textSecondary),
+            _buildKanbanColumn('待办', todoTasks, SuokeDesignTokens.textSub(context)),
             const SizedBox(width: 12),
             _buildKanbanColumn('进行中', doingTasks, SuokeDesignTokens.info),
             const SizedBox(width: 12),
@@ -493,9 +493,9 @@ class _TasksPageState extends State<TasksPage>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: SuokeDesignTokens.cardBg,
+              color: SuokeDesignTokens.card(context),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: SuokeDesignTokens.border),
+              border: Border.all(color: SuokeDesignTokens.borderClr(context)),
             ),
             child: Row(
               children: [
@@ -509,19 +509,19 @@ class _TasksPageState extends State<TasksPage>
                 ),
                 const SizedBox(width: 8),
                 Text(title,
-                    style: const TextStyle(
-                        color: SuokeDesignTokens.textPrimary, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: SuokeDesignTokens.text(context), fontWeight: FontWeight.bold)),
                 const Spacer(),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: SuokeDesignTokens.border,
+                    color: SuokeDesignTokens.borderClr(context),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '${tasks.length}',
-                    style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                   ),
                 ),
               ],
@@ -531,8 +531,8 @@ class _TasksPageState extends State<TasksPage>
           if (tasks.isEmpty)
             Container(
               padding: const EdgeInsets.all(16),
-              child: const Center(
-                child: Text('暂无任务', style: TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 13)),
+              child: Center(
+                child: Text('暂无任务', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
               ),
             )
           else
@@ -561,9 +561,9 @@ class _TasksPageState extends State<TasksPage>
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBg,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: SuokeDesignTokens.border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,8 +587,8 @@ class _TasksPageState extends State<TasksPage>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(title,
-                    style: const TextStyle(
-                        color: SuokeDesignTokens.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        color: SuokeDesignTokens.text(context), fontSize: 14, fontWeight: FontWeight.w600),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis),
               ),
@@ -598,11 +598,11 @@ class _TasksPageState extends State<TasksPage>
           // 负责人
           Row(
             children: [
-              const Icon(Icons.person_outline, size: 14, color: SuokeDesignTokens.textSecondary),
+              Icon(Icons.person_outline, size: 14, color: SuokeDesignTokens.textSub(context)),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(assignee,
-                    style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 12),
+                    style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
                     overflow: TextOverflow.ellipsis),
               ),
             ],
@@ -613,12 +613,12 @@ class _TasksPageState extends State<TasksPage>
             children: [
               Icon(Icons.event_outlined,
                   size: 14,
-                  color: deadline == null ? SuokeDesignTokens.textSecondary : _priorityMid),
+                  color: deadline == null ? SuokeDesignTokens.textSub(context) : _priorityMid),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(_formatDeadline(deadline),
                     style: TextStyle(
-                        color: deadline == null ? SuokeDesignTokens.textSecondary : _priorityMid,
+                        color: deadline == null ? SuokeDesignTokens.textSub(context) : _priorityMid,
                         fontSize: 12),
                     overflow: TextOverflow.ellipsis),
               ),
@@ -631,9 +631,9 @@ class _TasksPageState extends State<TasksPage>
             runSpacing: 4,
             children: [
               if (taskType != null && taskType.isNotEmpty)
-                _buildTag(taskType, SuokeDesignTokens.border),
+                _buildTag(taskType, SuokeDesignTokens.borderClr(context)),
               if (claimRole != null && claimRole.isNotEmpty)
-                _buildTag(claimRole, SuokeDesignTokens.border),
+                _buildTag(claimRole, SuokeDesignTokens.borderClr(context)),
             ],
           ),
           const SizedBox(height: 8),
@@ -669,12 +669,12 @@ class _TasksPageState extends State<TasksPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: SuokeDesignTokens.bgDeep,
+        color: SuokeDesignTokens.borderClr(context),
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: color),
       ),
       child: Text(text,
-          style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 11)),
+          style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
     );
   }
 
@@ -715,11 +715,11 @@ class _TasksPageState extends State<TasksPage>
             onRefresh: _loadTasks,
             child: filtered.isEmpty
                 ? ListView(
-                    children: const [
-                      SizedBox(height: 120),
+                    children: [
+                      const SizedBox(height: 120),
                       Center(
                         child: Text('暂无符合条件的任务',
-                            style: TextStyle(color: SuokeDesignTokens.textSecondary)),
+                            style: TextStyle(color: SuokeDesignTokens.textSub(context))),
                       ),
                     ],
                   )
@@ -740,7 +740,7 @@ class _TasksPageState extends State<TasksPage>
   Widget _buildFilterBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      color: SuokeDesignTokens.bgDeep,
+      color: SuokeDesignTokens.bg(context),
       child: Row(
         children: [
           // 状态筛选
@@ -748,16 +748,16 @@ class _TasksPageState extends State<TasksPage>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: SuokeDesignTokens.cardBg,
+                color: SuokeDesignTokens.card(context),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: SuokeDesignTokens.border),
+                border: Border.all(color: SuokeDesignTokens.borderClr(context)),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _filterStatus,
-                  dropdownColor: SuokeDesignTokens.cardBg,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 13),
-                  icon: const Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
+                  icon: Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSub(context)),
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('全部状态')),
                     DropdownMenuItem(value: 'pending', child: Text('待办')),
@@ -779,16 +779,16 @@ class _TasksPageState extends State<TasksPage>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: SuokeDesignTokens.cardBg,
+                color: SuokeDesignTokens.card(context),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: SuokeDesignTokens.border),
+                border: Border.all(color: SuokeDesignTokens.borderClr(context)),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _filterPriority,
-                  dropdownColor: SuokeDesignTokens.cardBg,
-                  style: const TextStyle(color: SuokeDesignTokens.textPrimary, fontSize: 13),
-                  icon: const Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSecondary),
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 13),
+                  icon: Icon(Icons.arrow_drop_down, color: SuokeDesignTokens.textSub(context)),
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('全部优先级')),
                     DropdownMenuItem(value: '高', child: Text('高优先级')),
@@ -853,9 +853,9 @@ class _TasksPageState extends State<TasksPage>
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: SuokeDesignTokens.cardBg,
+        color: SuokeDesignTokens.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: SuokeDesignTokens.border),
+        border: Border.all(color: SuokeDesignTokens.borderClr(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -877,8 +877,8 @@ class _TasksPageState extends State<TasksPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
-                            color: SuokeDesignTokens.textPrimary,
+                        style: TextStyle(
+                            color: SuokeDesignTokens.text(context),
                             fontSize: 15,
                             fontWeight: FontWeight.w600),
                         maxLines: 1,
@@ -886,23 +886,23 @@ class _TasksPageState extends State<TasksPage>
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.person_outline,
-                            size: 13, color: SuokeDesignTokens.textSecondary),
+                        Icon(Icons.person_outline,
+                            size: 13, color: SuokeDesignTokens.textSub(context)),
                         const SizedBox(width: 3),
                         Text(assignee,
-                            style: const TextStyle(
-                                color: SuokeDesignTokens.textSecondary, fontSize: 12)),
+                            style: TextStyle(
+                                color: SuokeDesignTokens.textSub(context), fontSize: 12)),
                         const SizedBox(width: 12),
                         Icon(Icons.event_outlined,
                             size: 13,
                             color:
-                                deadline == null ? SuokeDesignTokens.textSecondary : _priorityMid),
+                                deadline == null ? SuokeDesignTokens.textSub(context) : _priorityMid),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(_formatDeadline(deadline),
                               style: TextStyle(
                                   color: deadline == null
-                                      ? SuokeDesignTokens.textSecondary
+                                      ? SuokeDesignTokens.textSub(context)
                                       : _priorityMid,
                                   fontSize: 12),
                               overflow: TextOverflow.ellipsis),
@@ -947,12 +947,12 @@ class _TasksPageState extends State<TasksPage>
               if (createdAt != null)
                 Text('创建于 ${_formatCreated(createdAt)}',
                     style:
-                        const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: 11)),
+                        TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 11)),
               const Spacer(),
               // 状态操作菜单
               PopupMenuButton<String>(
-                color: SuokeDesignTokens.cardBg,
-                icon: const Icon(Icons.more_vert, color: SuokeDesignTokens.textSecondary, size: 18),
+                color: SuokeDesignTokens.card(context),
+                icon: Icon(Icons.more_vert, color: SuokeDesignTokens.textSub(context), size: 18),
                 itemBuilder: (_) {
                   final items = <PopupMenuEntry<String>>[];
                   if (status == 'pending') {

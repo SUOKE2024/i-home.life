@@ -17,7 +17,7 @@ export function Logo({ size = 34, withText = false }) {
           justifyContent: 'center',
           fontWeight: 800,
           fontSize: size * 0.42,
-          color: '#1a1206',
+          color: 'var(--on-accent)',
           fontFamily: 'var(--font-sans)',
         }}
       >

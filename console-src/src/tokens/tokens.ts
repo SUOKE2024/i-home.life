@@ -23,10 +23,12 @@ export const tokens = {
   border: '#1E1E32',
   borderActive: '#2A2A45',
 
-  // ── Text（对齐 suoke_theme.dart:37-43，textMuted 已 WCAG AA 升级）──
+  // ── Text（对齐 suoke_theme.dart:37-43）──
   textPrimary: '#E8E6E1',
   textSecondary: '#8A8894',
-  textMuted: '#6B6978',
+  // 弱文字 AA 升级（对齐 DESIGN.md text-muted #807E8D / Flutter textMuted：
+  // 原 #6B6978 仅 2.9:1 → #807E8D 4.93:1，达 WCAG AA，与 webapp --text-dim 一致）
+  textMuted: '#807E8D',
 
   // ── Brand（对齐 suoke_theme.dart:46-52）──
   accent: '#C9973B',

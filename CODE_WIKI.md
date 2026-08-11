@@ -2,9 +2,9 @@
 
 # i-home.life（索克家居）Code Wiki
 
-> **版本**：v7.1
-> **最后更新**：2026-08-09
-> **项目状态**：v1.13.1（工具纪律迭代：ISCE 串行修复 + 成本追踪 + 负反馈双向学习，2129 passed）· 自进化管线（v1.10.2 引入）· 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）· 智能体系统性打磨（v1.12.0 全链路可观测性/编排/评估/成本）
+> **版本**：v7.2
+> **最后更新**：2026-08-11
+> **项目状态**：v1.13.1（工具纪律迭代：ISCE 串行修复 + 成本追踪 + 负反馈双向学习，2139 passed）· 自进化管线（v1.10.2 引入）· 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）· 智能体系统性打磨（v1.12.0 全链路可观测性/编排/评估/成本）· DESIGN.md 设计系统规范（token 三端对齐）
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 
@@ -120,7 +120,7 @@
 /Users/netsong/Developer/i-home.life/
 │
 ├── app/                              # 后端应用 (FastAPI)
-│   ├── api/                          # 34 个路由模块 (321 端点)
+│   ├── api/                          # 74 个路由模块 (321+ 端点，main.py 77 处 include_router)
 │   │   ├── auth.py                   # 认证 (register/login/me + WebAuthn/Passkey 注册/登录/凭证管理)
 │   │   ├── projects.py               # 项目管理
 │   │   ├── materials.py              # 物料 + BOM + Excel导出
@@ -140,7 +140,7 @@
 │   │   ├── surveys.py                # AR 测量数据
 │   │   ├── layouts.py                # 智能布局动线分析
 │   │   └── ...                       # 其他路由模块
-│   ├── agents/                       # 9 个 AI Agent
+│   ├── agents/                       # 26 个 AI Agent（21 执行型 + 4 商业运营 + 1 Orchestrator）
 │   │   ├── orchestrator.py           # 总控 (意图路由 + fallback_classify)
 │   │   ├── designer.py               # 设计 (9套布局 + 修改意图识别)
 │   │   ├── budget.py                 # 预算分析
@@ -150,9 +150,9 @@
 │   │   ├── qa_inspector.py           # 质检 (验收报告 + 缺陷识别 + 设计比对)
 │   │   ├── concierge.py              # 客服 (FAQ 知识库 + 咨询分类 + 升级规则)
 │   │   └── base.py                   # BaseAgent
-│   ├── models/                       # 72 张数据表 (SQLAlchemy 2.0 async)
+│   ├── models/                       # 128 张数据表 (SQLAlchemy 2.0 async)
 │   ├── schemas/                      # Pydantic 验证
-│   ├── services/                     # 业务逻辑层
+│   ├── services/                     # 105 个业务逻辑模块（80 个 *_service.py + 25 个工具/支撑模块）
 │   │   ├── voice_realtime_service.py # Qwen-Audio-3.0-Realtime WS 会话封装（场景画像 + FunctionCall + 讨论式方案事件）
 │   │   ├── design_proposal_service.py # 讨论式方案交互（LLM 生成多方案 + 增量修订 + fallback，v1.2.8）
 │   │   ├── webauthn_service.py       # FIDO2/WebAuthn/Passkey 服务 (feature flag + 原子挑战消费, v1.1.28)
@@ -194,7 +194,7 @@
 │   ├── bench-matepad.sh              # MatePad 性能验收脚本
 │   └── seed.py                       # 种子数据 (225 SKU)
 │
-├── tests/                            # 测试套件 (455 pass / 1 fail / 9 skipped, v1.0.5)
+├── tests/                            # 测试套件 (2139 pass / 10 skipped / 4 xfailed, v1.13.1)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
 │   ├── test_webauthn.py              # WebAuthn/Passkey 全链路 (含安全增强, v1.1.28)
@@ -236,7 +236,7 @@
 | §2 市场与竞品分析 | 6 款竞品功能对比 | 23 维 × 7 产品热力图 |
 | §3 产品定位 | 一句话定位 + 平台支持 + 目标用户 | 设备优先级矩阵 |
 | §4 多平台多角色适配 | 四端分离架构 + 端-平台覆盖矩阵 | 5 端 × 6 平台覆盖表 |
-| §5 AI 智能体架构 | 9 个 Agent 定义 + 协作机制 + 自主权分级 | Mermaid 流程图 |
+| §5 AI 智能体架构 | 26 个 Agent 定义 + 协作机制 + 自主权分级 | Mermaid 流程图 |
 | §6 用户画像与场景 | 用户旅程 + 3 个典型场景 | 端到端流程 Mermaid 图 |
 | §7 功能需求 | 40 项功能需求详情 | F1—F40 功能矩阵表 |
 | §8 系统架构 | 分层架构图 + 技术决策表 | 12 项技术决策 |
@@ -550,6 +550,8 @@ BudgetLine   SettlementLine  BOMItem          Inspection         OrderLine
 | **结算 Agent** Settlement | 结算执行者 | 合同价 + 变更 + 采购 + 验收 → 自动结算 → 异常标记 → 生成对账单 | ✅ 已实现 |
 | **客服 Agent** Concierge | 客服接待者 | 7×24 多模态对话（文本+语音+图片）→ 知识问答 → 复杂问题升级 | ✅ 已实现 |
 
+> 上表为核心 8 Agent。完整清单 26 个：21 执行型（另含 kitchen/bathroom/mep/appliance/furniture/door-window/files/products/identity/notifications/takeoff/ifc-export/admin/content-publisher 等）+ 4 商业运营（growth/marketing/competitor-research/finance-recon）+ 1 Orchestrator。详见 `app/agents/`。
+
 ### 8.2 Agent 自主权分级
 
 | 级别 | 描述 | 示例 |
@@ -597,7 +599,7 @@ pip install -r requirements.txt
 # 4. 启动服务
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. 运行测试 (163 pass / 9 skipped)
+# 5. 运行测试 (基线 2139 pass / 10 skipped / 4 xfailed)
 python -m pytest tests/ -v
 
 # 6. 运行全链路 Demo

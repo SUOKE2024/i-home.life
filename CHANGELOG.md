@@ -2,6 +2,20 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased]
+
+### 修复：全景全链路评估报告落地（2026-08-11）
+- **文档数据校准**（评估报告遗留项）：CODE_WIKI v7.1 陈旧计数修正——
+  路由模块 34→74（main.py 77 处 include_router）、Agent 9→26（21 执行型 +
+  4 商业运营 + 1 Orchestrator）、数据表 72→128、测试基线 2129→2139；
+  CLAUDE.md / README 同步（Service 103→105、ORM 模型 127→128、console 页面 63→64）
+- **回滚脚本补全**：`scripts/rollback.sh` 新增 v1.12.0 回滚清单
+  （agent_trace_persist / agent_orchestration_pipeline / llm_response_cache /
+  cost_tiered_routing，默认 true 灰度开启后回滚置 false）——v1.12.0 此前无回滚
+  方案，违反「生产改动配套回滚」硬约束
+- **冗余清理**：删除未跟踪的 `.DS_Store`（根目录 + goai-agent-infra/）
+- 验证：eval 相关回归 90 passed；全量 pytest 见条目尾部（2139 基线零回退）
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习

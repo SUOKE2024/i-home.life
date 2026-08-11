@@ -1189,7 +1189,7 @@ class _AIChatPageState extends State<AIChatPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(label,
-                  style: const TextStyle(color: SuokeDesignTokens.textSecondary, fontSize: SuokeDesignTokens.fontSizeXs)),
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: SuokeDesignTokens.fontSizeXs)),
             ),
           ),
           Expanded(child: Divider(color: borderColor)),

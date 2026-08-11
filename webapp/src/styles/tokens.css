@@ -1,10 +1,10 @@
 /* ── 索克家居 WebApp 设计令牌 ── */
 :root {
-  /* 背景 / 表面 */
+  /* 背景 / 表面（对齐 DESIGN.md surface1/surface2，原 #14141f/#1a1a28 为历史漂移值） */
   --bg-deep: #08080f;
   --bg: #0d0d16;
-  --bg-elev: #14141f;
-  --bg-elev-2: #1a1a28;
+  --bg-elev: #12121d;
+  --bg-elev-2: #1a1a2a;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.16);
 
@@ -19,6 +19,8 @@
   --accent-bright: #e0aa4a;
   --accent-dim: rgba(201, 151, 59, 0.16);
   --accent-text: #e0b35e;
+  /* 金色按钮/文字上的深墨前景色（跨主题恒定，对齐 DESIGN.md on-accent / console --on-accent / Flutter onPrimary） */
+  --on-accent: #08080f;
 
   /* 语义色 */
   --green: #4ac9a3;

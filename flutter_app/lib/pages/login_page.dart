@@ -451,25 +451,25 @@ class _LoginPageState extends State<LoginPage> {
 
                 // ── 生物识别分隔（仅设备支持时显示） ──
                 if (_biometricsSupported)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Row(
                       children: [
                         Expanded(
-                          child: Divider(color: SuokeDesignTokens.border),
+                          child: Divider(color: SuokeDesignTokens.borderClr(context)),
                         ),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             '或使用 Passkey',
                             style: TextStyle(
                               fontSize: 10,
-                              color: SuokeDesignTokens.textMuted,
+                              color: SuokeDesignTokens.textMutedClr(context),
                             ),
                           ),
                         ),
                         Expanded(
-                          child: Divider(color: SuokeDesignTokens.border),
+                          child: Divider(color: SuokeDesignTokens.borderClr(context)),
                         ),
                       ],
                     ),

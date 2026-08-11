@@ -40,6 +40,7 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.10.0 — 全链路诊断（diagnostics_enabled / RUM / 慢查询治理）"
             echo "  v1.10.1 — EverMind 自进化管线（agent_case_extraction / skill_distillation / skill_evolution）"
             echo "  v1.10.2 — 自进化边界测试补全（无新 flag，复用 v1.10.1 回滚清单）"
+            echo "  v1.12.0 — 智能体系统性打磨（轨迹持久化 / 编排管线 / LLM 响应缓存 / 分级路由）"
             echo "  v1.13.0 — 工具纪律（tool_argument_validation / parallel_tool_calls）"
             exit 0
             ;;
@@ -147,6 +148,17 @@ case "$VERSION" in
             "AGENT_CASE_EXTRACTION_ENABLED=false"
             "AGENT_SKILL_DISTILLATION_ENABLED=false"
             "AGENT_SKILL_EVOLUTION_ENABLED=false"
+        )
+        ;;
+    v1.12.0)
+        # v1.12.0 智能体系统性打磨（默认 true，灰度开启后回滚置 false）
+        # 轨迹持久化关闭 = 零落库零开销；编排管线关闭 = 维持单意图分类路由；
+        # LLM 响应缓存关闭 = 每次重复调用；分级路由关闭 = 统一全价模型
+        ROLLBACK_FLAGS=(
+            "AGENT_TRACE_PERSIST_ENABLED=false"
+            "AGENT_ORCHESTRATION_PIPELINE_ENABLED=false"
+            "LLM_RESPONSE_CACHE_ENABLED=false"
+            "COST_TIERED_ROUTING_ENABLED=false"
         )
         ;;
     v1.13.0)

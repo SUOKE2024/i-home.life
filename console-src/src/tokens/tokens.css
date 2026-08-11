@@ -18,7 +18,8 @@
   /* Text */
   --text-primary: #e8e6e1;
   --text-secondary: #8a8894;
-  --text-muted: #6b6978;
+  /* 弱文字（AA：原 #6b6978 仅 2.9:1 → #807e8d 4.93:1，对齐 DESIGN.md text-muted / Flutter textMuted / webapp --text-dim） */
+  --text-muted: #807e8d;
 
   /* Brand */
   --accent: #c9973b;
@@ -106,7 +107,8 @@
 
   --text-primary: #1a1814;
   --text-secondary: #6b6760;
-  --text-muted: #9e9a94;
+  /* 浅色弱文字（AA：原 #9e9a94 仅 2.63:1 → #706c66 4.79:1，对齐 DESIGN.md ink-muted-warm / Flutter lightTextMuted） */
+  --text-muted: #706c66;
 
   --bubble-user: #f5efe0;
   --bubble-agent: #f0eee8;
