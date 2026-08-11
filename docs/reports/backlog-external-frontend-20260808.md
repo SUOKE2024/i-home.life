@@ -4,6 +4,9 @@
 > 无法在纯代码层面闭环，需配置外部凭据或另行排期。已完成项见 CHANGELOG「全景评估修复（2026-08-08）」。
 > **2026-08-09 更新**：B1（Agent 治理 8 页）+ C（单端独缺 7 页）已全部补齐并验证
 > （console 63 页 / Flutter 55 页），详见 CHANGELOG「前端缺口补齐（2026-08-09）」。
+> **2026-08-11 更新**：A2 灰度评估已执行——33 个默认 False flag 分四类评估，
+> **A 类 16 个「无外部依赖可安全开启」已全部默认开启（v1.13.2）**，详见
+> CHANGELOG「A2 灰度 flag 第一/二/三/四梯队 + D 类」。本节 A2 表仅剩需外部凭据项。
 
 ## A. 外部依赖接入（需第三方 API key / SDK，接入后删除诚实标注）
 
@@ -24,7 +27,15 @@
 真实设备控制 → 打通 `scene_automation_service.check_sensor_triggers` 的
 `action_status="pending"` → 改为真实执行。接入后更新 ecosystem_integrations 表 auth_status。
 
-### A2. 其他外部依赖型能力（默认 flag=False，需配置后启用）
+### A2. 外部依赖型能力（需配置后启用；无外部依赖项已于 v1.13.2 全部开启）
+
+**已开启（v1.13.2，A2 灰度评估 A 类 16 个 + D 类 1 个）**：
+商业运营 5（growth/marketing/competitor_research/finance_recon/business_ops_orchestrator）/
+以销定产 / 自进化三层（case_extraction/skill_distillation/skill_evolution）/
+治理类（ai_content_labeling/gbz185/protocol_compliance/memory_conflict_gate/otel_genai_semconv）/
+lifecycle_orchestration / voice_agent_orchestration / ifc_h_ifc_extension_enabled
+
+**剩余需外部凭据**：
 
 | 能力 | 需配置 | flag |
 |---|---|---|
@@ -34,10 +45,11 @@
 | 空间感知（户型/承重/管线识别） | 视觉模型 | spatial_perception_enabled |
 | 空间推理（设计错误规避） | 规则引擎数据 | spatial_reasoning_enabled |
 | 空间交互（设计→施工→采购协同） | 多角色链路 | spatial_interaction_enabled |
-| IFC H-IFC 扩展 | 领域标准库 | ifc_h_ifc_extension_enabled |
 | 施工图 MEP 叠加 | PDF/SVG 引擎 | construction_drawing_mep_enabled |
-| 商业运营 4 Agent + 编排器 | 无外部依赖，仅需灰度开 flag | growth/marketing/competitor_research/finance_recon/business_ops_orchestrator |
-| 以销定产 | 无外部依赖，仅需灰度开 flag | procurement_demand_driven_enabled |
+
+**B 类（前端/调试开关，按产品节奏）**：console_v2_enabled / voice_floating_widget_enabled /
+workbench_adaptive_suggestions_enabled / tracing_enabled / diagnostics_enabled + rum /
+slow_query_explain_enabled / voice_audio_prompt_enabled
 
 ## B. 前端缺口页（后端有 API、两端均无独立页面）✅ 已全部补齐（2026-08-09）
 
@@ -96,8 +108,9 @@
 ## D. 建议排期
 
 1. **P0**：A1 生态桥接（需商务/凭据决策，打通 sensor 触发 → 设备控制闭环）
-2. **P1**：B1 Agent 治理页（Web console，v1.9.0 GB/Z 185 身份卡需配套展示）
-3. **P2**：B2/B3/B4 + C 单端补齐（随版本迭代排期）
-4. **P3**：A2 灰度 flag 按需开启（无代码工作，运营决策）
+2. **P1**：B1 Agent 治理页（Web console，v1.9.0 GB/Z 185 身份卡需配套展示）✅ 已完成（2026-08-09）
+3. **P2**：B2/B3/B4 + C 单端补齐（随版本迭代排期）✅ C 已完成（2026-08-09）；B2/B3/B4 保留
+4. **P3**：A2 灰度 flag 按需开启（无代码工作，运营决策）✅ **已完成（2026-08-11）**——
+   A 类 16 个 + D 类 1 个已默认开启（v1.13.2）；剩余 C 类 7 项需外部凭据、B 类 7 项按产品节奏
 
 > 备注：`app/api/analytics.py` collect_events 为"仅接收不持久化"预留端点（设计如此，勿当 bug）。
