@@ -40,6 +40,7 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.10.0 — 全链路诊断（diagnostics_enabled / RUM / 慢查询治理）"
             echo "  v1.10.1 — EverMind 自进化管线（agent_case_extraction / skill_distillation / skill_evolution）"
             echo "  v1.10.2 — 自进化边界测试补全（无新 flag，复用 v1.10.1 回滚清单）"
+            echo "  v1.13.0 — 工具纪律（tool_argument_validation / parallel_tool_calls）"
             exit 0
             ;;
         --help|-h)
@@ -146,6 +147,14 @@ case "$VERSION" in
             "AGENT_CASE_EXTRACTION_ENABLED=false"
             "AGENT_SKILL_DISTILLATION_ENABLED=false"
             "AGENT_SKILL_EVOLUTION_ENABLED=false"
+        )
+        ;;
+    v1.13.0)
+        # v1.13.0 工具纪律（默认 true，灰度开启后回滚置 false）
+        # 参数契约校验关闭 = 恢复原样透传；并行关闭 = 恢复串行（均零回归）
+        ROLLBACK_FLAGS=(
+            "TOOL_ARGUMENT_VALIDATION_ENABLED=false"
+            "PARALLEL_TOOL_CALLS_ENABLED=false"
         )
         ;;
     *)

@@ -44,6 +44,25 @@ REGISTERED_AGENT_NAMES: list[str] = [
     "TakeoffAgent", "IfcExportAgent",
 ]
 
+
+def _resolve_agent_cls(harness, agent_name: str):
+    """按请求名解析 Agent 类：兼容类名（KitchenAgent/QAInspectorAgent）与小写注册名（kitchen）。
+
+    v1.13.x 逐项审计修复：Agent Card 暴露类名（REGISTERED_AGENT_NAMES），
+    但 harness 注册表 key 为小写 agent_name —— 此前客户端按 Card 传类名
+    一律查不到（10 个已注册 Agent 也被误判「未注册」）。
+    类名映射基于注册类的 __name__（agent_name 属性），避免 camel→snake 转换
+    边界 case（如 QAInspectorAgent → qa_inspector 而非 q_a_inspector）。
+    """
+    registry = harness._agent_registry
+    cls = registry.get(agent_name)
+    if cls:
+        return cls
+    name_to_key = {cls_.__name__: key for key, cls_ in registry.items()}
+    key = name_to_key.get(agent_name)
+    return registry.get(key) if key else None
+
+
 _AGENT_DESCRIPTIONS: dict[str, str] = {
     "OrchestratorAgent": "全流程编排，跨 Agent 协同调度",
     "DesignerAgent": "室内设计方案生成，3套平面布局",
@@ -235,7 +254,7 @@ async def send_task(
     await db.refresh(db_task)
 
     harness = get_harness()
-    agent_cls = harness._agent_registry.get(request.agent_name)
+    agent_cls = _resolve_agent_cls(harness, request.agent_name)
     if not agent_cls:
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = f"Agent '{request.agent_name}' 未注册"

@@ -22,5 +22,8 @@ class IfcExportAgent(BaseAgent):
             "- IFC 2×3：兼容性最广，Revit/ArchiCAD/Navisworks/VectorWorks 均支持\n"
             "- IFC 4：支持更丰富几何表达（NURBS）、材质 PBR 属性，新版本 BIM 软件推荐\n"
             "- IFC 4.3：新增道路/铁路/桥梁等基础设施扩展（住宅装修不常用）\n\n"
-            "请用中文回复，帮助用户选择正确的 IFC 版本和导出配置。"
+            "请用中文回复，帮助用户选择正确的 IFC 版本和导出配置。\n\n"
+            "能力边界：本 Agent 提供咨询与操作指引。真实 IFC 导出、构件校验由应用内"
+            "BIM 导出功能完成；你不得声称已执行未发生的操作（如「已导出 IFC 文件」），"
+            "应诚实说明并引导用户前往 BIM 导出入口。"
         )

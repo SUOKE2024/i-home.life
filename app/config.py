@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.12.0"
+    app_version: str = "1.13.1"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -159,6 +159,19 @@ class Settings(BaseSettings):
     # True=工具 handler 查真实 DB（需 db session）；False=回滚到硬编码 mock（紧急回滚用）
     tool_real_data_enabled: bool = True
     agent_function_call_max_rounds: int = 5            # 单次对话最大工具调用轮数
+    # v1.13.0（2026 前沿对齐）：执行前按工具 parameters 契约校验 LLM 参数类型。
+    # True=类型不匹配直接返回校验错误（防幻觉参数到达 DB/外部 API）；
+    # False=原样透传（零回归，紧急回滚用）。
+    tool_argument_validation_enabled: bool = True
+    # v1.13.0（2026 前沿对齐）：同一轮多个 tool_calls 并行执行（asyncio.gather）。
+    # 2026 工具调用指南：并行工具调用可 5x 提速（多个 200ms 数据源 → 总耗时 ≈ 最大单个）。
+    # True=并行；False=串行（紧急回滚用）。
+    parallel_tool_calls_enabled: bool = True
+    # v1.13.0（2026 前沿对齐）：Agent loop token 预算（早停规则）。
+    # 单次 think_with_tools 累计 tool_calls 参数 + 工具结果上下文超过该值时
+    # 提前终止循环并强制生成最终回复，防止长任务上下文爆炸（max_rounds 之外的第二道闸）。
+    agent_function_call_max_tool_tokens: int = 12000
+
     # MCP 工具服务器地址 (留空则仅使用内置工具)
     agent_mcp_server_url: str = ""
     # v1.8.0 Agent 三档安全 posture（借鉴 YC QM）：strict / auto / dangerous

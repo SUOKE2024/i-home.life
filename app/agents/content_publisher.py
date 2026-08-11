@@ -212,7 +212,7 @@ class ContentPublisherAgent(BaseAgent):
             return (
                 "🛒 **产品发布**\n\n"
                 "请提供产品 ID 和目标项目 ID，\n"
-                "我将通过 WebSocket 推送产品卡片到项目聊天室。\n\n"
+                "我为您生成产品发布卡片内容，实际发布请在项目聊天室操作。\n\n"
                 "示例：`发布产品 #abc123 到项目 #xyz789`"
             )
 

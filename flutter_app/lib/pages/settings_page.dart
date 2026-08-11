@@ -270,7 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           leading: Icon(Icons.info_outline, color: SuokeDesignTokens.textSub(context)),
           title: Text('版本', style: TextStyle(color: SuokeDesignTokens.text(context))),
-          trailing: Text('1.12.0', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+          trailing: Text('1.13.1', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         ),
         Divider(color: SuokeDesignTokens.textSub(context), height: 1),
         ListTile(

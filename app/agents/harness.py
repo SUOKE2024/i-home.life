@@ -146,6 +146,11 @@ class AgentTrace:
     fallback_reason: str = ""
     retry_count: int = 0
 
+    # v1.13.0（2026 前沿对齐：Agent loop 早停可观测性）
+    # token 预算触顶提前终止（token_budget_hit=True），供评估区分
+    # 正常完成 vs 预算早停（早停率高说明工具结果上下文过大需优化）。
+    token_budget_hit: bool = False
+
     # 延迟
     latency_ms: float = 0.0
     first_token_latency_ms: float = 0.0
@@ -186,6 +191,7 @@ class AgentTrace:
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,
             "retry_count": self.retry_count,
+            "token_budget_hit": self.token_budget_hit,
             "latency_ms": round(self.latency_ms, 2),
             "first_token_latency_ms": round(self.first_token_latency_ms, 2),
             "error_message": self.error_message,
@@ -341,6 +347,13 @@ class AgentRuntime:
                         trace.tool_calls = result.get("tool_calls", [])
                         trace.tool_call_count = len(trace.tool_calls)
                         trace.tool_call_rounds = result.get("rounds", 0)
+                        # v1.13.0: token 预算早停可观测性
+                        trace.token_budget_hit = bool(result.get("token_budget_hit", False))
+                        # v1.13.1: LLM usage 成本追踪（累计各轮 token）
+                        _usage = result.get("usage") or {}
+                        trace.prompt_tokens = int(_usage.get("prompt_tokens", 0) or 0)
+                        trace.completion_tokens = int(_usage.get("completion_tokens", 0) or 0)
+                        trace.total_tokens = int(_usage.get("total_tokens", 0) or 0)
                     else:
                         reply = await asyncio.wait_for(
                             agent.think(user_message, **agent_kwargs),
@@ -491,6 +504,7 @@ class AgentRuntime:
                 total_tokens=trace.total_tokens,
                 tool_call_count=trace.tool_call_count,
                 tool_call_rounds=trace.tool_call_rounds,
+                token_budget_hit=trace.token_budget_hit,
                 fallback_used=trace.fallback_used,
                 fallback_reason=trace.fallback_reason or "",
                 retry_count=trace.retry_count,
@@ -687,6 +701,9 @@ def get_harness() -> AgentRuntime:
             ProcurementAgent, ConstructionAgent, SettlementAgent,
             QAInspectorAgent, ConciergeAgent, ContentPublisherAgent,
             AdminAgent,
+            KitchenAgent, BathroomAgent, MepAgent, ApplianceAgent,
+            FurnitureAgent, DoorWindowAgent, FilesAgent, ProductsAgent,
+            IdentityAgent, NotificationsAgent, TakeoffAgent, IfcExportAgent,
         )
         _harness.register_agent("orchestrator", OrchestratorAgent)
         _harness.register_agent("designer", DesignerAgent)
@@ -698,4 +715,19 @@ def get_harness() -> AgentRuntime:
         _harness.register_agent("concierge", ConciergeAgent)
         _harness.register_agent("content_publisher", ContentPublisherAgent)
         _harness.register_agent("admin", AdminAgent)
+        # v1.13.x 逐项审计修复：补齐 12 个专用 Agent 注册
+        # （此前 a2a.py Agent Card 声称 22 个 Agent，harness 仅注册 10 个 →
+        #  A2A 任务与 IM 群聊对 12 个专用 Agent 均返回「未注册」/规则占位）
+        _harness.register_agent("kitchen", KitchenAgent)
+        _harness.register_agent("bathroom", BathroomAgent)
+        _harness.register_agent("mep", MepAgent)
+        _harness.register_agent("appliance", ApplianceAgent)
+        _harness.register_agent("furniture", FurnitureAgent)
+        _harness.register_agent("door_window", DoorWindowAgent)
+        _harness.register_agent("files", FilesAgent)
+        _harness.register_agent("products", ProductsAgent)
+        _harness.register_agent("identity", IdentityAgent)
+        _harness.register_agent("notifications", NotificationsAgent)
+        _harness.register_agent("takeoff", TakeoffAgent)
+        _harness.register_agent("ifc_export", IfcExportAgent)
     return _harness

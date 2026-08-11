@@ -102,8 +102,52 @@ async def test_drift_ok_agent(db_session):
     await _seed_traces(db_session, "designer", 10, 10, 0)
     drift = await detect_agent_drift(db_session, window_days=7)
     designer = [d for d in drift if d["agent_name"] == "designer"]
-    assert len(designer) == 3  # success_rate / fallback_rate / avg_latency
+    # success_rate / fallback_rate / avg_latency / token_budget_hit_rate（v1.13.1）
+    assert len(designer) == 4
     assert all(d["status"] == "ok" for d in designer)
+
+
+async def test_drift_token_budget_hit_rate_critical(db_session):
+    """token 预算早停率高 → critical（v1.13.1：早停率 > 20% 需优化工具结果上下文）。"""
+    from datetime import datetime, timezone
+    # 10 条轨迹，6 条预算早停（60% > 上限 20%）
+    for i in range(10):
+        db_session.add(AgentTraceRecord(
+            id=f"budget_stop_{i}",
+            agent_name="budget",
+            status="success",
+            fallback_used=False,
+            token_budget_hit=(i < 6),
+            latency_ms=1000.0,
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+    drift = await detect_agent_drift(db_session, window_days=7)
+    budget = [d for d in drift if d["agent_name"] == "budget"]
+    budget_hit = next(d for d in budget if d["metric"] == "token_budget_hit_rate")
+    # 60% vs 目标 20%，差距 >10% → critical
+    assert budget_hit["status"] == "critical"
+    assert budget_hit["current"] == 60.0
+
+
+async def test_drift_token_budget_hit_rate_ok(db_session):
+    """token 预算早停率低 → ok（v1.13.1）。"""
+    from datetime import datetime, timezone
+    for i in range(10):
+        db_session.add(AgentTraceRecord(
+            id=f"designer_ok_{i}",
+            agent_name="designer",
+            status="success",
+            fallback_used=False,
+            token_budget_hit=(i < 1),  # 10% ≤ 20%
+            latency_ms=1000.0,
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+    drift = await detect_agent_drift(db_session, window_days=7)
+    designer = [d for d in drift if d["agent_name"] == "designer"]
+    budget_hit = next(d for d in designer if d["metric"] == "token_budget_hit_rate")
+    assert budget_hit["status"] == "ok"
 
 
 async def test_drift_critical_on_low_success(db_session):

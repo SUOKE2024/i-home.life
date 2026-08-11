@@ -33,7 +33,7 @@ class GrowthAgent(BaseAgent):
 1. 统计各 Agent 的用户反馈分布（like/dislike/评分）
 2. 识别高满意度与低满意度 Agent，输出优化建议
 3. 生成平台功能使用率周报
-4. 零使用或零反馈的 Agent 预警（淘汰候选）
+4. 识别低反馈 Agent 并给出优化建议（基于 agent_feedbacks，数据源限制见下方标注）
 
 数据源诚实标注：统计基于 agent_feedbacks 表；调用次数需解析 chat_messages.auto_reply_meta，
 本期周报先给反馈分布，未覆盖无反馈但有调用的场景。"""

@@ -84,6 +84,9 @@ QUALITY_TARGETS: dict[str, float] = {
     "faithfulness_min": 60.0,          # 忠实性维度得分下限
     "completeness_min": 60.0,          # 完整性维度得分下限
     "sufficiency_min": 60.0,           # 充分性维度得分下限
+    # v1.13.0（2026 前沿对齐）：
+    "tool_selection_accuracy_min": 60.0,  # 工具选择准确率下限（确定性基线参考）
+    "token_budget_hit_rate_max": 20.0,    # token 预算早停率上限（%）（>20% 说明工具结果过大）
 }
 
 
@@ -100,6 +103,7 @@ class IHomeEvalReport:
     dimension_scores: dict[str, float] = field(default_factory=dict)
     per_agent_scores: dict[str, dict] = field(default_factory=dict)  # v1.12.x per-agent 评分
     quality_targets: dict[str, float] = field(default_factory=dict)  # v1.12.x 量化目标
+    tool_accuracy: dict = field(default_factory=dict)  # v1.13.x 工具选择准确率报告
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -113,6 +117,7 @@ class IHomeEvalReport:
             "dimension_scores": self.dimension_scores,
             "per_agent_scores": self.per_agent_scores,
             "quality_targets": self.quality_targets,
+            "tool_accuracy": self.tool_accuracy,
             "dimension_benchmarks": DIMENSION_BENCHMARKS,
             "notes": self.notes,
         }
@@ -157,6 +162,13 @@ class IHomeEvalRunner:
         report.dimension_scores = self._compute_dimension_scores(traces, report.metrics)
         report.per_agent_scores = self._compute_per_agent_scores(traces)
         report.quality_targets = dict(QUALITY_TARGETS)
+        # v1.13.x：工具选择准确率基线报告（确定性，诚实标注非 LLM）
+        try:
+            from app.eval.tool_accuracy import get_tool_accuracy_report
+            report.tool_accuracy = get_tool_accuracy_report()
+        except Exception as e:
+            logger.warning("ihome_eval: tool_accuracy 报告生成失败: %s", e)
+            report.tool_accuracy = {"error": str(e)}
         report.finished_at = time.time()
         return report
 
@@ -221,12 +233,24 @@ class IHomeEvalRunner:
         return scores
 
     def _tool_call_score(self, traces: list[dict]) -> float:
-        """工具调用准确性：有 tool_call 且 status=success 的比例"""
+        """工具调用准确性：有 tool_call 且 status=success 的比例。
+
+        v1.13.0 增强（对齐 2026 Tool-Selection Accuracy）：
+        与确定性基线 get_tool_accuracy_report() 交叉验证——当轨迹样本不足时
+        以基线准确率作为 TOOL_CALL_ACCURACY 的最低可接受参考。
+        """
         if not traces:
             return 0.0
         with_tools = [t for t in traces if t.get("tool_call_count", 0) > 0]
         if not with_tools:
-            return 100.0  # 无工具调用不扣分
+            # 无工具调用轨迹：以确定性基线准确率作为代理（诚实标注）
+            try:
+                from app.eval.tool_accuracy import get_tool_accuracy_report
+                report = get_tool_accuracy_report()
+                return float(report["metrics"]["accuracy"])
+            except Exception as e:
+                logger.debug("tool_accuracy_report 失败: %s", e)
+                return 100.0  # 无工具调用不扣分
         ok = sum(1 for t in with_tools if t.get("status") == "success")
         return round(ok / len(with_tools) * 100, 2)
 
@@ -261,9 +285,15 @@ class IHomeEvalRunner:
     def _compute_per_agent_scores(self, traces: list[dict]) -> dict[str, dict]:
         """按 agent_name 分组计算成功率/降级率/平均延迟/样本量。
 
+        v1.13.0 增强（对齐 2026 per-agent 评估）：新增工具调用维度——
+        avg_tool_calls（平均工具调用数）、tool_success_rate（工具执行成功率）、
+        token_budget_hit_rate（预算早停率，过高说明工具结果上下文过大需优化）。
+
         Returns:
             {"designer": {"sample_size": n, "success_rate": .., "fallback_rate": ..,
-                          "avg_latency_ms": .., "meets_targets": bool}, ...}
+                          "avg_latency_ms": .., "avg_tool_calls": ..,
+                          "tool_success_rate": .., "token_budget_hit_rate": ..,
+                          "meets_targets": bool}, ...}
         """
         per_agent: dict[str, list[dict]] = {}
         for t in traces:
@@ -278,15 +308,32 @@ class IHomeEvalRunner:
             avg_latency = sum(t.get("latency_ms", 0) for t in group) / total
             success_rate = round(success / total * 100, 2)
             fallback_rate = round(fallback / total * 100, 2)
+            # v1.13.0 工具维度
+            avg_tool_calls = round(
+                sum(t.get("tool_call_count", 0) for t in group) / total, 2
+            )
+            tool_runs = [t for t in group if t.get("tool_call_count", 0) > 0]
+            tool_success_rate = round(
+                sum(1 for t in tool_runs if t.get("status") == "success")
+                / max(len(tool_runs), 1) * 100, 2
+            )
+            budget_hit_rate = round(
+                sum(1 for t in group if t.get("token_budget_hit"))
+                / total * 100, 2
+            )
             meets = (
                 success_rate >= QUALITY_TARGETS["success_rate_min"]
                 and fallback_rate <= QUALITY_TARGETS["fallback_rate_max"]
+                and budget_hit_rate <= QUALITY_TARGETS.get("token_budget_hit_rate_max", 100.0)
             )
             scores[name] = {
                 "sample_size": total,
                 "success_rate": success_rate,
                 "fallback_rate": fallback_rate,
                 "avg_latency_ms": round(avg_latency, 2),
+                "avg_tool_calls": avg_tool_calls,
+                "tool_success_rate": tool_success_rate,
+                "token_budget_hit_rate": budget_hit_rate,
                 "meets_targets": meets,
             }
         return scores
@@ -404,6 +451,10 @@ async def detect_agent_drift(
     - 低于目标值且差距 ≥10% → critical
     样本量不足（< min_samples）的 Agent 标记 insufficient_samples（不判定）。
 
+    v1.13.1 增强（对齐 2026 per-agent 漂移评估）：新增 token_budget_hit_rate
+    指标（预算早停率）——早停率 > token_budget_hit_rate_max（20%）说明工具结果
+    上下文过大需优化，纳入漂移判定（诚实降级：不判定采样不足）。
+
     Returns:
         [{"agent_name", "sample_size", "metric", "current", "target",
           "status": ok|warn|critical|insufficient_samples}]
@@ -419,6 +470,7 @@ async def detect_agent_drift(
             func.count().label("cnt"),
             func.sum(case((AgentTraceRecord.status == "success", 1), else_=0)).label("success_cnt"),
             func.sum(case((AgentTraceRecord.fallback_used.is_(True), 1), else_=0)).label("fallback_cnt"),
+            func.sum(case((AgentTraceRecord.token_budget_hit.is_(True), 1), else_=0)).label("budget_hit_cnt"),
             func.avg(AgentTraceRecord.latency_ms).label("avg_latency"),
         )
         .where(AgentTraceRecord.created_at >= cutoff)
@@ -428,10 +480,11 @@ async def detect_agent_drift(
     rows = result.all()
 
     drift: list[dict] = []
-    for name, cnt, success_cnt, fallback_cnt, avg_latency in rows:
+    for name, cnt, success_cnt, fallback_cnt, budget_hit_cnt, avg_latency in rows:
         total = int(cnt)
         success_cnt = int(success_cnt or 0)
         fallback_cnt = int(fallback_cnt or 0)
+        budget_hit_cnt = int(budget_hit_cnt or 0)
         avg_latency = float(avg_latency or 0.0)
         if total < min_samples:
             drift.append({
@@ -443,6 +496,7 @@ async def detect_agent_drift(
             continue
         success_rate = round(success_cnt / total * 100, 2)
         fallback_rate = round(fallback_cnt / total * 100, 2)
+        budget_hit_rate = round(budget_hit_cnt / total * 100, 2)
 
         def _judge(metric: str, current: float, target: float, inverse: bool = False) -> None:
             """inverse=True 时 current 越低越好（如降级率）。"""
@@ -464,4 +518,8 @@ async def detect_agent_drift(
         _judge("success_rate", success_rate, QUALITY_TARGETS["success_rate_min"])
         _judge("fallback_rate", fallback_rate, QUALITY_TARGETS["fallback_rate_max"], inverse=True)
         _judge("avg_latency_ms", round(avg_latency, 2), QUALITY_TARGETS["avg_latency_ms_max"], inverse=True)
+        _judge(
+            "token_budget_hit_rate", budget_hit_rate,
+            QUALITY_TARGETS.get("token_budget_hit_rate_max", 20.0), inverse=True,
+        )
     return drift

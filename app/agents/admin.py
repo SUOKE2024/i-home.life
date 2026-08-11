@@ -11,6 +11,10 @@ class AdminAgent(BaseAgent):
     """平台管理 Agent — 用户管理、角色权限、平台统计。
 
     支持 FunctionCall 工具调用，自动识别管理意图并执行对应操作。
+    v1.13.0（审计修复）：tools 从 tool_registry 拉取（category=admin），
+    与内置工具统一契约（required 显式声明 + use-example 描述），
+    避免内联 schema 与 registry 双源不一致（原内联工具若被 think_with_tools
+    路径选中会返回「工具不存在」——广告了不可执行的工具，违反诚实降级）。
     """
 
     agent_name = "admin"
@@ -29,121 +33,11 @@ class AdminAgent(BaseAgent):
 
 请用中文回复，语气专业但不生硬。回复格式为 Markdown。"""
 
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "list_users",
-                "description": "列出平台用户列表，可按角色筛选",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "role": {
-                            "type": "string",
-                            "enum": ["homeowner", "designer", "contractor", "supplier", "admin"],
-                            "description": "按角色筛选用户"
-                        },
-                        "is_active": {
-                            "type": "boolean",
-                            "description": "按激活状态筛选"
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "返回数量，默认20",
-                            "default": 20
-                        }
-                    }
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "update_user_role",
-                "description": "修改指定用户的角色",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_id": {
-                            "type": "string",
-                            "description": "用户 ID"
-                        },
-                        "role": {
-                            "type": "string",
-                            "enum": ["homeowner", "designer", "contractor", "supplier", "admin"],
-                            "description": "新角色"
-                        },
-                        "sub_role": {
-                            "type": "string",
-                            "description": "子角色（可选）"
-                        }
-                    },
-                    "required": ["user_id", "role"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "update_user_status",
-                "description": "启用或禁用用户",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_id": {
-                            "type": "string",
-                            "description": "用户 ID"
-                        },
-                        "is_active": {
-                            "type": "boolean",
-                            "description": "true=启用, false=禁用"
-                        }
-                    },
-                    "required": ["user_id", "is_active"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_platform_stats",
-                "description": "获取平台统计数据（项目数、用户数等）",
-                "parameters": {
-                    "type": "object",
-                    "properties": {}
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_role_permissions",
-                "description": "查看指定角色的权限列表",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "role": {
-                            "type": "string",
-                            "enum": ["homeowner", "designer", "contractor", "supplier", "admin"],
-                            "description": "角色名称"
-                        }
-                    },
-                    "required": ["role"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "list_pending_verifications",
-                "description": "查看待审核的实名认证申请",
-                "parameters": {
-                    "type": "object",
-                    "properties": {}
-                }
-            }
-        }
-    ]
+    # v1.13.0：工具 schema 统一从 registry 拉取（单源契约）
+    @property
+    def tools(self) -> list[dict]:
+        from app.services.agent_tool_registry import tool_registry
+        return tool_registry.get_admin_openai_schemas()
 
     def classify_intent(self, message: str) -> dict:
         """基于关键词的意图分类（mock 模式兜底）"""

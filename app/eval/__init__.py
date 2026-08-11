@@ -12,6 +12,12 @@ from app.eval.ihome_eval import (
     detect_agent_drift,
     run_ihome_eval,
 )
+from app.eval.tool_accuracy import (
+    TOOL_SELECTION_DATASET,
+    classify_tool_by_keywords,
+    evaluate_tool_selection,
+    get_tool_accuracy_report,
+)
 
 __all__ = [
     "DIMENSION_BENCHMARKS",
@@ -21,4 +27,8 @@ __all__ = [
     "QUALITY_TARGETS",
     "detect_agent_drift",
     "run_ihome_eval",
+    "TOOL_SELECTION_DATASET",
+    "classify_tool_by_keywords",
+    "evaluate_tool_selection",
+    "get_tool_accuracy_report",
 ]

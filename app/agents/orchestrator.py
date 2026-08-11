@@ -19,7 +19,7 @@ class OrchestratorAgent(BaseAgent):
 1. 理解用户的装修需求意图（设计、预算、采购、施工、质检、结算、客服）
 2. 将复杂需求分解为可执行的子任务
 3. 根据任务类型路由到合适的专业 Agent
-4. 监控全局项目状态，在关键节点提醒用户
+4. 说明项目关键节点与提醒机制，引导用户查看项目状态
 
 可用 Agent：
 - designer: 设计 Agent，负责平面布局、3D 建模、效果图
@@ -312,7 +312,7 @@ class OrchestratorAgent(BaseAgent):
         pipeline_enabled = _settings.agent_orchestration_pipeline_enabled
 
         from app.services.agent_orchestration_service import (
-            AgentTask, decompose_request, validate_dag, run_workflow, aggregate_results,
+            _rule_decompose, decompose_request, validate_dag, run_workflow, aggregate_results,
         )
 
         workflow_id = str(uuid.uuid4())[:12]
@@ -328,16 +328,12 @@ class OrchestratorAgent(BaseAgent):
         )
         ok, dag_error = validate_dag(tasks)
         if not ok:
-            # DAG 非法 → 降级为单任务（用第一个任务的 agent 兜底）
+            # DAG 非法 → 规则分解兜底（保留原始意图路由，而非硬编码客服）
             logger.warning(
-                "orchestrator.plan_and_delegate: DAG 校验失败(%s)，降级单任务",
+                "orchestrator.plan_and_delegate: DAG 校验失败(%s)，降级规则分解",
                 dag_error,
             )
-            tasks = [AgentTask(
-                task_id=str(uuid.uuid4())[:12],
-                agent_name="concierge",
-                description=message,
-            )]
+            tasks = _rule_decompose(message)
         else:
             logger.info("orchestrator.dag_ok: workflow_id=%s task_count=%d", workflow_id, len(tasks))
 

@@ -223,7 +223,7 @@ async def test_l4_preference_hint_with_feedback(db_session):
         user.id, "designer", db_session, max_examples=3
     )
     assert hint != ""
-    assert "过往满意回复" in hint
+    assert "过往满意" in hint
     assert "90㎡" in hint
     assert "现代简约" in hint
 
@@ -264,8 +264,12 @@ async def test_l4_preference_hint_filters_by_agent(db_session):
 
 
 @pytest.mark.asyncio
-async def test_l4_preference_hint_ignores_dislike(db_session):
-    """feedback_type=dislike 的反馈不被纳入 few-shot 示例"""
+async def test_l4_preference_hint_uses_dislike(db_session):
+    """feedback_type=dislike 的反馈纳入负向 few-shot 示例（v1.13.1 双向利用）。
+
+    2026 前沿：偏好学习双向利用正负反馈——dislike 作为「应避免」提示，
+    防止 LLM 仅学正向导致风格漂移。
+    """
     from app.agents.base import BaseAgent
     from app.models.user import User
     from app.models.agent_feedback import AgentFeedback
@@ -286,4 +290,40 @@ async def test_l4_preference_hint_ignores_dislike(db_session):
     hint = await BaseAgent.get_user_preference_hint(
         user.id, "designer", db_session, max_examples=3
     )
-    assert hint == ""
+    assert hint != ""
+    assert "不满意的回复" in hint
+    assert "避免" in hint
+    assert "差评回复内容" in hint
+
+
+@pytest.mark.asyncio
+async def test_l4_preference_hint_dual_feedback(db_session):
+    """like + dislike 同时存在时，提示同时含正向示例与负向提示。"""
+    from app.agents.base import BaseAgent
+    from app.models.user import User
+    from app.models.agent_feedback import AgentFeedback
+
+    user = User(phone="13900006024", name="L4双向用户", hashed_password="x")
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    db_session.add(AgentFeedback(
+        user_id=user.id, agent_name="designer",
+        message_hash=_hash("正向需求"),
+        user_message="正向需求", agent_reply="满意回复内容",
+        feedback_type="like",
+    ))
+    db_session.add(AgentFeedback(
+        user_id=user.id, agent_name="designer",
+        message_hash=_hash("负向需求"),
+        user_message="负向需求", agent_reply="差评回复内容",
+        feedback_type="dislike",
+    ))
+    await db_session.commit()
+
+    hint = await BaseAgent.get_user_preference_hint(
+        user.id, "designer", db_session, max_examples=3
+    )
+    assert "满意回复" in hint
+    assert "不满意的回复" in hint

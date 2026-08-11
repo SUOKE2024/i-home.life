@@ -59,6 +59,10 @@ class AgentTraceRecord(Base):
     tool_call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_call_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # v1.13.0（2026 前沿对齐：Agent loop 早停可观测性）
+    # token 预算触顶提前终止标记，供离线评估区分正常完成 vs 预算早停。
+    token_budget_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     fallback_used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     fallback_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

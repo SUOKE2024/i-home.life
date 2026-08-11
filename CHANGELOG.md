@@ -2,8 +2,141 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [Unreleased]
+## [1.13.1] — 2026-08-11
 
+### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习
+
+基于 2026 生产级 Agent 前沿（SQLAlchemy async 并发约束 / TokenMix 成本追踪 /
+偏好学习双向利用）对 v1.13.0 工具纪律层的第二轮迭代打磨：
+
+#### 修复并行工具调用真实回归（诚实降级优先）
+- **问题**：共享 AsyncSession 下同一轮多个 tool_calls 并行执行（asyncio.gather）
+  触发 SQLAlchemy ISCE 冲突（"This session is provisioning a new connection;
+  concurrent operations are not permitted"），工具 handler 的 DB 查询全部失败
+  并**静默降级 fallback（真实数据失效）**
+- **修复**（`BaseAgent._execute_tool_calls`）：有 db（DB 查询工具）→ 串行执行保证
+  真实数据正确性（SQLite 单连接/StaticPool 下并行本就不提速）；无 db（纯计算/
+  外部 API 工具如 search_poi）→ 并行 gather（真正提速场景）
+
+#### 全链路成本追踪（LLM usage 落库）
+- `_chat_single_provider` 提取 LLM 响应 `usage`（prompt/completion/total tokens，
+  此前 AgentTrace token 字段恒 0）→ `think_with_tools` 多轮累计 →
+  harness `AgentTrace` 落 `agent_traces` 表（per-agent 成本/效率评估闭环）
+- 模块级 `_accumulate_usage` 辅助函数（复用 + 控制复杂度）
+
+#### 负反馈双向利用（L4 偏好学习增强）
+- `BaseAgent.get_user_preference_hint` 从「仅 like 正向示例」升级为
+  **like 正向 + dislike 负向**双向注入（2026：偏好学习防风格漂移）：
+  dislike 反馈作为「应避免」提示，防止 LLM 仅学正向导致重蹈覆辙
+
+#### 漂移检测纳入早停指标 + 工具准确率报告 API
+- `detect_agent_drift` 新增 `token_budget_hit_rate` 指标（早停率 > 20% →
+  warn/critical，说明工具结果上下文过大需优化）
+- `GET /api/eval/tool-accuracy`（新增）：工具选择准确率基线报告（56 条中文用例
+  × per_tool / per_failure_mode / 混淆矩阵，诚实标注非 LLM）
+- `IHomeEvalReport` 新增 `tool_accuracy` 字段，评估报告闭环可见工具选择基线
+
+#### 修复工具 handler 隐式参数注入的存量 bug（全链路集成测试暴露）
+- **问题**：`ToolRegistry.execute` 自 v1.4.0 起向 handler 注入 `_agent_id` /
+  `_model_source` 隐式上下文（决策可还原审计），但 17 个 `_tool_*` handler 签名
+  只有 `_db/_project_id/_user_id` → 真实执行路径抛
+  `got an unexpected keyword argument '_agent_id'` TypeError
+  （此前测试 mock 掉 execute 或未覆盖真实执行，未暴露）
+- **修复**：全部 17 个 handler 签名补齐 `_agent_id: str = ""` /
+  `_model_source: str = ""`（沿用 `_apply_argument_security` 过滤私有参数约定，
+  不暴露给 LLM schema）；`_admin_guide_reply` 为同步 helper 无需修改
+
+#### Agent 逐项审计 + 编排链路优化（第三轮，2026-08-11）
+- **A2A/IM 链路断裂修复**：`harness.get_harness()` 注册表补齐 12 个专用 Agent
+  （kitchen/bathroom/mep/appliance/furniture/door_window/files/products/identity/
+  notifications/takeoff/ifc_export）。此前 a2a.py Agent Card 声称 22 个 Agent 但
+  harness 仅注册 10 个 → A2A 任务与 IM 群聊对 12 个专用 Agent 返回「未注册」/规则占位
+- **A2A 解析归一化**：新增 `_resolve_agent_cls` 兼容类名（KitchenAgent/QAInspectorAgent）
+  与小写注册名（kitchen）——修复 Agent Card 暴露类名但 harness 注册 key 为小写名、
+  客户端按 Card 传类名一律查不到（10 个已注册 Agent 也被误判「未注册」）；类名映射基于
+  注册类 `__name__`，规避 camel→snake 边界 case（QAInspectorAgent → qa_inspector）
+- **能力边界诚实声明**：12 个零实现专用 Agent 的 system_prompt 追加能力边界
+  （咨询引导 + 不声称执行未发生的操作）；修正 9 处局部声称缺口（budget BOM 统计 /
+  construction 周报推送 / procurement 询价订单物流 / settlement 导出 / marketing A/B /
+  growth 零使用预警 / concierge 多模态 / orchestrator 项目监控 / content_publisher WS 推送）
+- **编排覆盖补齐**：`agent_orchestration_service` 注册表 + `_INTENT_TO_AGENT` 映射补
+  5 个专用 Agent（files/products/identity/notifications/ifc_export），意图不再收敛 concierge；
+  `plan_and_delegate` DAG 校验失败降级由硬编码 concierge 改为规则分解（保留原始意图路由）
+- 验证：新增 `test_agent_registry_complete.py`（6）+ `test_agent_orchestration.py`（+4）
+  相关回归 63 passed / 23 passed / flake8 0 issues / mypy 0 issues
+
+### 验证
+- 新增测试 10 个（基线实测 2127 → 2137）：ISCE 回归（有 db 串行 / 无 db 并行，2）/
+  usage 累计贯通 harness（1）/ dislike 双向学习（1，`test_cad_import.py`）/
+  早停指标 drift（2，`test_eval_upgrade.py`）/ tool-accuracy API（2，`test_eval.py`）/
+  **全链路集成（2）**：LLM 决策 → 工具真实执行（结构化结果断言）→ 汇总回复闭环
+  （有 db 串行路径延伸验证，`test_agent_tool_discipline.py` 收集 35 项）
+- 第三轮审计新增 10 测试（Agent 注册完整性 6 + 编排覆盖 4），累计 20 个
+- 门禁：flake8 0 issues / mypy 0 issues
+- 全量 pytest 基线（见 `scripts/test_baseline.json`）无回退
+
+## [1.13.0] — 2026-08-11
+
+### 新增：全链路工具纪律 + 工具选择准确率评估（基于 2026 技术前沿）
+
+基于 2026 生产级 Agent 工具调用前沿（TokenMix Function Calling Guide / MLflow Tool Use
+Best Practices / AI VOID 12-metric framework / zylos.ai 并行工具执行）对 Agent 工具层
+系统性打磨，全链路闭环（工具契约 → 执行校验 → 并行调用 → 预算早停 → 评估量化）：
+
+#### 工具契约纪律（AgentTool 显式 required + use-example 描述）
+- `AgentTool` 新增 `required` 字段（`app/services/agent_tool_registry.py`）：
+  `to_openai_schema` 仅声明真正必填参数。修复原「全部参数强制必填」缺陷——可选参数
+  标 required 会诱导 LLM 幻觉填充（TokenMix：required 声明直接影响工具选择准确率）。
+  缺省 = 全部必填（保持旧行为，不静默放宽契约）
+- 内置工具（11 用户 + 6 管理）全部显式声明 required（如 `get_budget` 仅 `area` 必填）
+  + description 统一追加「示例：」引导（2026：工具描述是最高优先级 prompt，
+  use-example 教模型怎么用）
+- 6 个管理工具（list_users/update_user_role/update_user_status/get_platform_stats/
+  get_role_permissions/list_pending_verifications）从 admin.py 内联迁入 registry
+  （category=admin）：修复原内联工具若被 think_with_tools 路径选中会返回「工具不存在」
+  （广告了不可执行的工具，违反诚实降级）；handler 返回诚实引导（`source=admin_api_guide`，
+  AI 不做平台管理写操作——治理红线）；默认对通用可见列表隐藏（渐进披露 + 安全隔离），
+  AdminAgent 经 `get_admin_openai_schemas()` 显式拉取（单源契约）
+
+#### 执行前 typed schema 校验（拦截幻觉参数）
+- `ToolRegistry.execute` 执行前按工具 parameters 契约校验 LLM 参数类型：
+  number/integer/string/boolean/array/object 类型不匹配或未知参数名 → 直接返回
+  校验错误（防幻觉参数到达数据库/外部 API）。受 `tool_argument_validation_enabled`
+  （默认 True）门控，关闭则原样透传（零回归）
+
+#### 并行工具调用 + token 预算早停（Agent loop 提速与防爆炸）
+- `BaseAgent.think_with_tools` 同一轮多个 tool_calls 并行执行（asyncio.gather）：
+  多个独立数据源调用 5x 提速（5×200ms 串行 1000ms → 并行 ≈ 200ms）。
+  受 `parallel_tool_calls_enabled`（默认 True）门控，关闭则串行（零回归）
+- Agent loop token 预算早停（第二道闸，max_rounds 之外）：
+  `agent_function_call_max_tool_tokens`（默认 12000）累计 tool_calls 参数 + 工具结果
+  上下文估算 token，超限提前终止并强制总结（`token_budget_hit=True` 返回给 harness）
+- `AgentTrace` / `agent_traces` 表新增 `token_budget_hit` 列（早停可观测性，
+  alembic `b0c1d2e3f4a5` 幂等迁移 + 空库/真实库双路径验证），per-agent 评估可区分
+  正常完成 vs 预算早停
+
+#### 工具选择准确率评估（≥50 用例，2026 标准）
+- 新增 `app/eval/tool_accuracy.py`：`TOOL_SELECTION_DATASET` 56 条中文用例
+  （覆盖 11 个用户内置工具 × normal/boundary/confusable/negative 四类失败模式），
+  `classify_tool_by_keywords` 确定性基线分类器（诚实标注非 LLM）、
+  `evaluate_tool_selection`（准确率 + per_tool + per_failure_mode + confusion 混淆矩阵）、
+  `get_tool_accuracy_report`（可序列化报告，供 CI/ihome_eval 复用）
+- `IHomeEval` TOOL_CALL_ACCURACY 维度增强：无工具轨迹时以确定性基线准确率为代理
+  （诚实标注）；`QUALITY_TARGETS` 新增 `tool_selection_accuracy_min`（60.0）+
+  `token_budget_hit_rate_max`（20.0）；`per_agent_scores` 新增 avg_tool_calls /
+  tool_success_rate / token_budget_hit_rate 维度
+
+### 验证
+- 新增测试 30 个（`tests/test_agent_tool_discipline.py`）：required 契约 / use-example /
+  参数类型校验（含 flag 关闭透传）/ 并行执行 / 串行回退 / token 预算早停 / harness
+  传播 / 数据集规模与覆盖 / 基线报告 / per-agent 工具维度 / admin 工具注册与隐藏
+- 门禁：flake8 0 issues / mypy 0 issues（353 文件）/ alembic upgrade→downgrade→upgrade
+  幂等验证通过（空库 skip + 真实库加列双路径）
+- 全量 pytest 基线（见 `scripts/test_baseline.json`）无回退
+- 版本全链路 1.12.0 → 1.13.0（config/.env×4/MCP/Flutter 1.13.0+41/console 1.13.0.0/
+  webapp 1.13.0/CI×4/schema-compare/deploy-production.sh/测试断言×3）
+
+## [Unreleased] — 2026-08-09
 ### 新增：DESIGN.md 设计系统规范（借鉴 Google design.md）+ C 端浅色消费风（借鉴 Airbnb/Notion）
 
 根目录 `DESIGN.md` 采用 Google Labs `design.md` 格式（YAML front matter 机器可读 token + Markdown 正文设计理念），

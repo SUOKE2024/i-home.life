@@ -1,7 +1,7 @@
 {
   "name": "ihome-life-webapp",
   "private": true,
-  "version": "1.11.0",
+  "version": "1.13.1",
   "type": "module",
   "description": "索克家居 i-home.life Web App — AI 驱动的全链路智能家居建造平台",
   "scripts": {

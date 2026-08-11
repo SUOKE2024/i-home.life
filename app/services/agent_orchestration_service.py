@@ -71,12 +71,18 @@ class AgentTaskResult:
 
 
 def _agent_registry() -> dict[str, type]:
-    """惰性构建 agent_name → class 注册表（延迟 import 防循环依赖）。"""
+    """惰性构建 agent_name → class 注册表（延迟 import 防循环依赖）。
+
+    v1.13.x 逐项审计：补齐 files/products/identity/notifications/ifc_export
+    5 个专用 Agent（此前这些意图在编排中收敛到 concierge 客服）。
+    """
     from app.agents import (  # noqa: F401
         DesignerAgent, BudgetAgent, ProcurementAgent, ConstructionAgent,
         QAInspectorAgent, SettlementAgent, ConciergeAgent,
         KitchenAgent, BathroomAgent, MepAgent, ApplianceAgent,
         FurnitureAgent, DoorWindowAgent, TakeoffAgent,
+        FilesAgent, ProductsAgent, IdentityAgent, NotificationsAgent,
+        IfcExportAgent,
     )
     return {
         "designer": DesignerAgent,
@@ -93,6 +99,11 @@ def _agent_registry() -> dict[str, type]:
         "furniture": FurnitureAgent,
         "door_window": DoorWindowAgent,
         "takeoff": TakeoffAgent,
+        "files": FilesAgent,
+        "products": ProductsAgent,
+        "identity": IdentityAgent,
+        "notifications": NotificationsAgent,
+        "ifc_export": IfcExportAgent,
     }
 
 
@@ -136,6 +147,11 @@ _INTENT_TO_AGENT = {
     "furniture": "furniture",
     "door_window": "door_window",
     "takeoff": "takeoff",
+    "files": "files",
+    "products": "products",
+    "identity": "identity",
+    "notifications": "notifications",
+    "ifc_export": "ifc_export",
 }
 
 

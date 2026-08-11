@@ -76,6 +76,29 @@ async def test_eval_report_structure(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
+async def test_tool_accuracy_endpoint(client: AsyncClient, auth_headers: dict):
+    """工具选择准确率基线报告端点（v1.13.x）"""
+    resp = await client.get("/api/eval/tool-accuracy", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["report_type"] == "tool_selection_accuracy"
+    assert data["dataset_size"] >= 50
+    assert "accuracy" in data["metrics"]
+    assert "per_tool" in data
+    assert "per_failure_mode" in data
+    assert "confusion" in data
+    # 诚实标注：基线非 LLM
+    assert any("基线" in n or "LLM" in n for n in data["notes"])
+
+
+@pytest.mark.asyncio
+async def test_tool_accuracy_requires_auth(client: AsyncClient):
+    """未认证请求 tool-accuracy 返回 401"""
+    resp = await client.get("/api/eval/tool-accuracy")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_dimensions_each_has_id_and_benchmark(client: AsyncClient, auth_headers: dict):
     """每个评估维度都有 id、name 和 benchmark"""
     resp = await client.get("/api/eval/dimensions", headers=auth_headers)

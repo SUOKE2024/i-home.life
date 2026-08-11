@@ -1,7 +1,9 @@
 
+import asyncio
 import json
 import logging
 import time
+from typing import Any
 
 import httpx
 
@@ -67,6 +69,18 @@ PROVIDER_REGISTRY = {
 # _chat 失败时按此顺序降级：主供应商 → qwen → glm → doubao
 # 受 settings.llm_fallback_enabled feature flag 控制
 DEFAULT_FALLBACK_CHAIN = ["qwen", "glm", "doubao"]
+
+
+def _accumulate_usage(total_usage: dict, result: str | dict) -> None:
+    """v1.13.1（2026 成本追踪）：累计单轮 LLM usage 到 total_usage。
+
+    with_tools 返回 dict（含 usage 字段）时累加；普通 str 响应跳过。
+    """
+    if isinstance(result, dict):
+        usage = result.get("usage") or {}
+        total_usage["prompt_tokens"] += int(usage.get("prompt_tokens", 0) or 0)
+        total_usage["completion_tokens"] += int(usage.get("completion_tokens", 0) or 0)
+        total_usage["total_tokens"] += int(usage.get("total_tokens", 0) or 0)
 
 
 class BaseAgent:
@@ -331,6 +345,14 @@ class BaseAgent:
 
                 if with_tools:
                     result = {"content": content, "tool_calls": []}
+                    # v1.13.1（2026 成本追踪）：提取 LLM usage（token 统计），
+                    # 供 harness AgentTrace 落库 / 成本优化评估（此前恒 0）。
+                    usage = data.get("usage") or {}
+                    result["usage"] = {
+                        "prompt_tokens": int(usage.get("prompt_tokens", 0) or 0),
+                        "completion_tokens": int(usage.get("completion_tokens", 0) or 0),
+                        "total_tokens": int(usage.get("total_tokens", 0) or 0),
+                    }
                     tool_calls = msg.get("tool_calls", [])
                     for tc in tool_calls:
                         func = tc.get("function", {})
@@ -511,6 +533,39 @@ class BaseAgent:
         async for chunk in self._chat_stream(messages):
             yield chunk
 
+    # v1.13.0: 并行执行同一轮工具调用（受 parallel_tool_calls_enabled 门控）
+    async def _execute_tool_calls(
+        self, tool_calls: list[dict], db, project_id: str,
+    ) -> list[Any]:
+        """执行同一轮的多个 tool_calls。并行（gather）或串行，保持结果顺序。
+
+        v1.13.1 修复（真实回归）：共享 AsyncSession 下并行执行会触发 SQLAlchemy
+        ISCE 冲突（"This session is provisioning a new connection; concurrent
+        operations are not permitted"），工具 handler 的 DB 查询全部失败并静默
+        降级 fallback（真实数据失效）。修复策略（诚实降级优先）：
+        - 有 db（DB 查询工具）：串行执行，保证真实数据正确性（SQLite 单连接/
+          StaticPool 下并行本就不提速）
+        - 无 db（纯计算/外部 API 工具如 search_poi）：并行 gather（真正提速场景）
+        """
+        from app.services.agent_tool_registry import tool_registry
+
+        if settings.parallel_tool_calls_enabled and len(tool_calls) > 1 and db is None:
+            return await asyncio.gather(*[
+                tool_registry.execute(
+                    tc["name"], tc["arguments"],
+                    _db=None, _project_id=project_id,
+                    _agent_id=self.agent_name, _model_source=self.provider,
+                ) for tc in tool_calls
+            ])
+        results = []
+        for tc in tool_calls:
+            results.append(await tool_registry.execute(
+                tc["name"], tc["arguments"],
+                _db=db, _project_id=project_id,
+                _agent_id=self.agent_name, _model_source=self.provider,
+            ))
+        return results
+
     async def think_with_tools(
         self, user_message: str, context: str = "", max_rounds: int | None = None,
         db=None, project_id: str = "", user_id: str = "",
@@ -562,9 +617,17 @@ class BaseAgent:
 
         tool_calls_history = []
         rounds = 0
+        # v1.13.0（2026 前沿对齐）：Agent loop token 预算（早停规则，第二道闸）。
+        # 累计 tool_calls 参数 + 工具结果上下文估算 token，超限提前终止循环，
+        # 防止长任务上下文爆炸（max_rounds 之外）。
+        est_tokens_used = 0
+        max_tool_tokens = getattr(settings, "agent_function_call_max_tool_tokens", 12000)
+        # v1.13.1（2026 成本追踪）：累计各轮 LLM usage，随返回透传 harness 落库。
+        total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
         for _round in range(max_rounds):
             result = await self._chat(messages, with_tools=True)
+            _accumulate_usage(total_usage, result)
             tool_calls = result.get("tool_calls", []) if isinstance(result, dict) else []
 
             if not tool_calls:
@@ -574,6 +637,8 @@ class BaseAgent:
                     "final_reply": reply,
                     "tool_calls": tool_calls_history,
                     "rounds": rounds,
+                    "token_budget_hit": False,
+                    "usage": total_usage,
                 }
 
             # 执行工具调用
@@ -599,17 +664,13 @@ class BaseAgent:
                     "tool_calls": [_tool_call_msg(tc) for tc in tool_calls],
                 })
 
-            from app.services.agent_tool_registry import tool_registry
+            # v1.13.0（2026 前沿对齐）：同一轮多个 tool_calls 并行执行。
+            # 2026 工具调用指南（zylos.ai）：并行执行多个独立数据源调用，
+            # 5 个 200ms 数据源串行 1000ms → 并行 ≈ 200ms（5x 提速）。
+            # 受 parallel_tool_calls_enabled 门控；关闭则回退串行（零回归）。
+            exec_results = await self._execute_tool_calls(tool_calls, db, project_id)
 
-            for tc in tool_calls:
-                # v1.1.31 FP-1: 注入隐式上下文 _db / _project_id，让工具 handler
-                # 查真实 DB（受 settings.tool_real_data_enabled 控制）
-                # v1.4.0: 透传 _agent_id / _model_source 供审计可还原（借鉴 YC QM）
-                exec_result = await tool_registry.execute(
-                    tc["name"], tc["arguments"],
-                    _db=db, _project_id=project_id,
-                    _agent_id=self.agent_name, _model_source=self.provider,
-                )
+            for tc, exec_result in zip(tool_calls, exec_results):
                 tool_calls_history.append({
                     "tool": tc["name"],
                     "arguments": tc["arguments"],
@@ -620,17 +681,43 @@ class BaseAgent:
                     "tool_call_id": tc["id"],
                     "content": json.dumps(exec_result, ensure_ascii=False),
                 })
+                # token 预算累计（估算：参数 JSON + 结果 JSON 的字符数 ≈ token 数）
+                est_tokens_used += len(
+                    json.dumps(tc["arguments"], ensure_ascii=False)
+                ) + len(json.dumps(exec_result, ensure_ascii=False))
+                if est_tokens_used >= max_tool_tokens:
+                    logger.info(
+                        "%s.think_with_tools: token 预算触顶 (est=%d >= %d)，提前终止",
+                        self.agent_name, est_tokens_used, max_tool_tokens,
+                    )
+                    messages.append({
+                        "role": "user",
+                        "content": "请根据以上工具调用结果给出最终回复。（注意：上下文已接近预算，请直接总结，不要再调用工具。）",
+                    })
+                    final_reply = await self._chat(messages)
+                    _accumulate_usage(total_usage, final_reply)
+                    final_reply = await self._rebuttal_check(messages, final_reply)
+                    return {
+                        "final_reply": final_reply,
+                        "tool_calls": tool_calls_history,
+                        "rounds": rounds + 1,
+                        "token_budget_hit": True,
+                        "usage": total_usage,
+                    }
 
             rounds += 1
 
         # 达到最大轮数仍未完成，强制生成最终回复
         messages.append({"role": "user", "content": "请根据以上工具调用结果给出最终回复。"})
         final_reply = await self._chat(messages)
+        _accumulate_usage(total_usage, final_reply)
         final_reply = await self._rebuttal_check(messages, final_reply)
         return {
             "final_reply": final_reply,
             "tool_calls": tool_calls_history,
             "rounds": rounds,
+            "token_budget_hit": False,
+            "usage": total_usage,
         }
 
     async def _rebuttal_check(self, messages: list[dict], reply: str) -> str:
@@ -672,50 +759,71 @@ class BaseAgent:
     async def get_user_preference_hint(
         user_id: str, agent_name: str, db=None, max_examples: int = 3
     ) -> str:
-        """查询用户对该 agent 的历史正向反馈，构造 few-shot 示例提示。
+        """查询用户对该 agent 的历史反馈，构造 few-shot 示例提示。
 
         当 settings.agent_learning_enabled=True 时，由 chat 端点调用并拼接到
         user_message 前，让 LLM 参考用户过往满意回复的风格/内容偏好。
+
+        v1.13.1 增强（2026 前沿：偏好学习双向利用正负反馈）：
+        - like 反馈 → 正向示例（继续参考的风格/内容）
+        - dislike 反馈 → 负向示例（应避免的风格/内容，如用户明确表达不满的回复）
+        避免 LLM 仅学正向导致风格漂移，负向提示防止重蹈覆辙。
 
         Args:
             user_id: 用户 ID
             agent_name: Agent 名称（designer/budget/...）
             db: 异步数据库会话；为 None 时返回空字符串（兼容无 DB 场景）
-            max_examples: 最大示例数
+            max_examples: 最大示例数（like/dislike 各取 max_examples 条）
 
         Returns:
-            few-shot 示例字符串；无正向反馈或未启用学习时返回空字符串
+            few-shot 示例字符串；无任何反馈或未启用学习时返回空字符串
         """
         if not settings.agent_learning_enabled or db is None:
             return ""
         try:
             from sqlalchemy import select, desc
             from app.models.agent_feedback import AgentFeedback
-            stmt = (
-                select(AgentFeedback)
-                .where(
-                    AgentFeedback.user_id == user_id,
-                    AgentFeedback.agent_name == agent_name,
-                    AgentFeedback.feedback_type == "like",
+
+            async def _fetch(feedback_type: str) -> list:
+                stmt = (
+                    select(AgentFeedback)
+                    .where(
+                        AgentFeedback.user_id == user_id,
+                        AgentFeedback.agent_name == agent_name,
+                        AgentFeedback.feedback_type == feedback_type,
+                    )
+                    .order_by(desc(AgentFeedback.created_at))
+                    .limit(max_examples)
                 )
-                .order_by(desc(AgentFeedback.created_at))
-                .limit(max_examples)
-            )
-            result = await db.execute(stmt)
-            rows = result.scalars().all()
-            if not rows:
+                result = await db.execute(stmt)
+                return list(result.scalars().all())
+
+            likes = await _fetch("like")
+            dislikes = await _fetch("dislike")
+            if not likes and not dislikes:
                 return ""
-            examples = []
-            for r in rows:
-                # 截断避免 prompt 过长
-                um = r.user_message[:200]
-                ar = r.agent_reply[:400]
-                examples.append(f"用户: {um}\n优质回复: {ar}")
-            return (
-                "以下是该用户过往满意回复示例，请参考其风格与内容偏好：\n\n"
-                + "\n\n---\n\n".join(examples)
-                + "\n\n---\n\n"
-            )
+            blocks: list[str] = []
+            if likes:
+                examples = []
+                for r in likes:
+                    um = r.user_message[:200]
+                    ar = r.agent_reply[:400]
+                    examples.append(f"用户: {um}\n满意回复: {ar}")
+                blocks.append(
+                    "以下是该用户过往满意的回复示例，请参考其风格与内容偏好：\n\n"
+                    + "\n\n---\n\n".join(examples)
+                )
+            if dislikes:
+                examples = []
+                for r in dislikes:
+                    um = r.user_message[:200]
+                    ar = r.agent_reply[:400]
+                    examples.append(f"用户: {um}\n不满意的回复（请避免类似风格）: {ar}")
+                blocks.append(
+                    "以下是该用户过往不满意的回复示例，请避免相同的问题或风格：\n\n"
+                    + "\n\n---\n\n".join(examples)
+                )
+            return "\n\n---\n\n".join(blocks) + "\n\n---\n\n"
         except Exception as e:
             logger.warning("BaseAgent.get_user_preference_hint 失败: %s", e)
             return ""

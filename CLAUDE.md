@@ -39,6 +39,15 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **成本优化**：`BaseAgent._chat` 确定性响应缓存（`llm_response_cache_enabled` 默认 True，`with_tools=True` 不缓存）；`cost_tiered_routing_enabled` 默认 True（economy 档 Agent 优先 qwen/glm）；Orchestrator `cost_tier="economy"`。
 - **治理安全**：OWASP Agentic Skills Top 10 对照审计 `run_governance_audit`（`app/services/agent_governance_audit.py`，只读确定性，`GET /api/admin/agent-governance-audit` 管理员调用）。`mcp_security_hardening_enabled` 默认 True（工具描述防投毒 + SSRF 拦截 + 输出敏感字段清洗）。
 
+## Agent 工具纪律（v1.13.0，基于 2026 工具调用前沿）
+
+- **契约纪律**：`AgentTool` 显式 `required`（仅声明真正必填参数，可选参数标 required 诱导 LLM 幻觉填充）；工具描述统一含「示例：」use-example（工具描述是最高优先级 prompt）。内置工具 11 个 + 管理工具 6 个（`category="admin"` 默认对通用可见列表隐藏，仅 `AdminAgent` 经 `get_admin_openai_schemas()` 显式拉取——渐进披露 + 治理红线）。
+- **执行前校验**：`ToolRegistry.execute` 按 parameters 契约校验参数类型（number/string/boolean 等 + 未知参数名拒绝），`tool_argument_validation_enabled` 默认 True，防幻觉参数到达 DB/外部 API。
+- **并行执行 + 预算早停**：`think_with_tools` 同一轮 tool_calls 并行（`parallel_tool_calls_enabled` 默认 True，5x 提速）；`agent_function_call_max_tool_tokens` 累计上下文触顶提前终止（`token_budget_hit` 落 `agent_traces` 表，per-agent 评估可观测）。**v1.13.1 并发约束**：有 db（DB 查询工具）必须串行——共享 AsyncSession 并行触发 SQLAlchemy ISCE 冲突致 DB 查询静默降级 fallback（真实数据失效）；仅无 db（纯计算/外部 API）场景并行。
+- **成本追踪**：`_chat_single_provider` 提取 LLM `usage` → `think_with_tools` 多轮累计 → `agent_traces` 落库（prompt/completion/total tokens，供 per-agent 成本/效率评估）。
+- **L4 双向学习**：`get_user_preference_hint` 同时注入 like 正向示例 + dislike 负向提示（防风格漂移）。
+- **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
@@ -55,7 +64,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 103 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。127 ORM 模型 + 74 路由已够复杂（`app/api/` 磁盘实为 74 个路由模块，main.py 77 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2087 passed 不得回退（collect 2101 = 2087 passed + 10 skipped + 4 xfailed）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2139 passed 不得回退（collect 2153 = 2139 passed + 10 skipped + 4 xfailed；本机未装 ifcopenshell 致 8 个 IFC 测试 skip，装后为 2147 passed + 2 skipped）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

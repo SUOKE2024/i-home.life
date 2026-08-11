@@ -2,10 +2,28 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.11.0 · 时区统一全量收尾 + 智能体全链路记忆闭环（对外展示时间戳统一 +08:00）
+> v1.13.1 · 工具纪律迭代（ISCE 串行修复/成本追踪/负反馈双向学习 + 契约校验/并行调用/预算早停）
 > 核心能力：63 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 103 Service + 127 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-11 · v1.13.1 工具纪律迭代（ISCE 回归修复 + 成本追踪 + 负反馈双向学习）
+
+- **修复并行工具调用真实回归**：共享 AsyncSession 并行触发 SQLAlchemy ISCE 冲突致 DB 查询静默降级 fallback → 有 db 串行（保真实数据）/ 无 db 并行（外部 API 提速）
+- **全链路成本追踪**：LLM `usage` 提取 → think_with_tools 多轮累计 → `agent_traces` 落库（此前 token 字段恒 0）
+- **负反馈双向学习**：L4 偏好学习从仅 like 升级为 like 正向 + dislike 负向双向注入（防风格漂移）
+- **评估增强**：`detect_agent_drift` 纳入 `token_budget_hit_rate` 早停指标 + 新增 `GET /api/eval/tool-accuracy` 工具选择准确率报告
+- **修复存量 bug（全链路集成测试暴露）**：17 个 `_tool_*` handler 补齐 `_agent_id`/`_model_source` 签名（v1.4.0 注入隐式参数但 handler 未同步，真实执行抛 TypeError）
+- **Agent 逐项审计**：A2A/IM 链路断裂修复（harness 注册补齐 12 个专用 Agent + 类名/小写名解析归一化）+ 12 个 Agent 能力边界诚实声明 + 9 处局部声称缺口修正 + 编排覆盖补齐 5 个 Agent（files/products/identity/notifications/ifc_export）+ DAG 失败降级保留意图路由
+- 验证：新增 22 测试（含 2 项全链路集成 + Agent 注册完整性 6 + 编排覆盖 4）+ flake8/mypy 0 issues + 全量 pytest 零回退
+
+### 2026-08-11 · v1.13.0 全链路工具纪律 + 工具选择准确率评估（基于 2026 技术前沿）
+
+- **工具契约纪律**：`AgentTool` 新增显式 `required`（修复可选参数被强制必填致 LLM 幻觉填充）+ 工具描述统一 use-example（2026：工具描述是最高优先级 prompt）；6 个管理工具迁入 registry（修复原内联工具被选中会返回"工具不存在"的诚实降级缺口），默认对通用列表隐藏（治理红线）
+- **执行前 typed schema 校验**：`ToolRegistry.execute` 按契约校验参数类型，类型不匹配/未知参数直接拦截（防幻觉参数到达 DB/外部 API），受 `tool_argument_validation_enabled` 门控
+- **并行工具调用 + token 预算早停**：同一轮多个 tool_calls asyncio.gather 并行（5x 提速）+ `agent_function_call_max_tool_tokens` 预算触顶提前终止（`token_budget_hit` 落库可观测）
+- **工具选择准确率评估**：`app/eval/tool_accuracy.py` 56 条中文用例数据集（11 工具 × 4 类失败模式）+ 确定性基线报告 + `QUALITY_TARGETS` 新增 tool_selection_accuracy_min / token_budget_hit_rate_max + per-agent 工具维度指标
+- 验证：新增 30 测试 + flake8/mypy 0 issues + alembic 双路径幂等 + 全量 pytest 零回退
 
 ### 2026-08-09 · 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）
 

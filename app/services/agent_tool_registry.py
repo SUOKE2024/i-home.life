@@ -37,12 +37,18 @@ class AgentTool:
         parameters: dict,
         handler: Callable[..., Coroutine[Any, Any, Any]] | Callable[..., Any],
         category: str = "general",
+        required: list[str] | None = None,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.handler = handler
         self.category = category
+        # v1.13.0（2026 前沿对齐）：显式 required 列表，替代把全部参数标为必填。
+        # 2026 工具调用指南（TokenMix/MLflow）：required 只声明真正必需的参数，
+        # 可选参数标 required 会诱导 LLM 幻觉填充，降低工具选择准确率。
+        # 缺省 = 全部参数必填（保持与旧行为一致，避免静默放宽契约）。
+        self.required = required if required is not None else list(self.parameters.keys())
 
     def to_openai_schema(self) -> dict:
         """转换为 OpenAI FunctionCall 兼容的 schema"""
@@ -54,7 +60,7 @@ class AgentTool:
                 "parameters": {
                     "type": "object",
                     "properties": self.parameters,
-                    "required": list(self.parameters.keys()),
+                    "required": self.required,
                 },
             },
         }
@@ -111,6 +117,7 @@ _QA_STATUS_MAP = {
 async def _tool_get_budget(
     project_id: str = "", area: float = 0, style: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """查询装修预算"""
     effective_pid = project_id or _project_id
@@ -196,6 +203,7 @@ async def _tool_get_budget(
 async def _tool_get_design_layout(
     area: float = 100, style: str = "modern", rooms: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """获取装修设计方案"""
     layouts = {
@@ -249,6 +257,7 @@ async def _tool_get_design_layout(
 async def _tool_search_materials(
     category: str = "", keyword: str = "", budget_range: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """搜索装修物料"""
     # v1.1.31 FP-1: 真实 DB 查询 Material 表
@@ -333,6 +342,7 @@ async def _tool_search_materials(
 
 async def _tool_get_progress(
     project_id: str = "", _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """查询施工进度"""
     effective_pid = project_id or _project_id
@@ -435,6 +445,7 @@ async def _tool_get_progress(
 async def _tool_run_qa_inspection(
     project_id: str = "", phase: str = "", categories: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """执行质检"""
     effective_pid = project_id or _project_id
@@ -524,6 +535,7 @@ async def _tool_search_poi(
     city: str = "",
     radius: int = 3000,
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """搜索周边/指定城市 POI（建材市场、小区、家电卖场等）
 
@@ -550,6 +562,7 @@ async def _tool_search_poi(
 async def _tool_launch_agent_task(
     command: str,
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """启动后台 Agent 任务（语音编排）"""
     if not settings.voice_agent_orchestration_enabled:
@@ -584,6 +597,7 @@ async def _tool_launch_agent_task(
 async def _tool_get_voice_tasks(
     task_ref: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """查询语音任务进度/列表"""
     if not settings.voice_agent_orchestration_enabled:
@@ -606,6 +620,7 @@ async def _tool_get_voice_tasks(
 async def _tool_cancel_agent_task(
     task_ref: str = "",
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """取消运行中的语音任务"""
     if not settings.voice_agent_orchestration_enabled:
@@ -629,6 +644,7 @@ async def _tool_cancel_agent_task(
 async def _tool_generate_design_proposals(
     requirement: str,
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """生成 2-3 套设计方案（讨论式交互入口）
 
@@ -651,6 +667,7 @@ async def _tool_update_design_proposal(
     proposal_id: str,
     change: str,
     _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
 ) -> dict:
     """修订指定设计方案（讨论式交互调整）
 
@@ -672,122 +689,316 @@ async def _tool_update_design_proposal(
     }
 
 
+# ── 管理 Agent 工具（v1.13.0 审计修复）──
+# 原 admin.py 内联 6 个工具未注册 registry：LLM 若在 think_with_tools 路径
+# 选择调用会返回「工具不存在」（广告了不可执行的工具，违反诚实降级）。
+# 现注册进 registry（category=admin），handler 返回诚实降级引导（引导走管理 API）。
+# 默认对通用工具列表隐藏（_visible_tools 过滤），仅 AdminAgent 按 category 拉取。
+
+_ADMIN_ROLE_ENUM = ["homeowner", "designer", "contractor", "supplier", "admin"]
+
+
+def _admin_guide_reply(api_hint: str, operation: str) -> dict:
+    """管理工具统一诚实降级回复：引导走管理 API（不伪装真实执行）。"""
+    return {
+        "source": "admin_api_guide",
+        "executed": False,
+        "message": f"{operation}：请通过管理 API 执行（{api_hint}）。"
+                   "AI Agent 不做平台管理写操作（治理红线），仅提供引导。",
+    }
+
+
+async def _tool_admin_list_users(
+    role: str = "", is_active: bool | None = None, limit: int = 20,
+    _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """列出平台用户列表（管理 Agent）"""
+    return _admin_guide_reply("GET /api/admin/users", "用户列表查询")
+
+
+async def _tool_admin_update_user_role(
+    user_id: str = "", role: str = "", sub_role: str = "",
+    _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """修改指定用户的角色（管理 Agent）"""
+    return _admin_guide_reply("PUT /api/admin/users/{id}/role", "用户角色修改")
+
+
+async def _tool_admin_update_user_status(
+    user_id: str = "", is_active: bool = False,
+    _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """启用或禁用用户（管理 Agent）"""
+    return _admin_guide_reply("PUT /api/admin/users/{id}/status", "用户状态变更")
+
+
+async def _tool_admin_get_platform_stats(
+    _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """获取平台统计数据（管理 Agent）"""
+    return _admin_guide_reply("GET /api/admin/stats", "平台统计查询")
+
+
+async def _tool_admin_get_role_permissions(
+    role: str = "", _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """查看指定角色的权限列表（管理 Agent）"""
+    return _admin_guide_reply("GET /api/admin/roles/{role}/permissions", "角色权限查询")
+
+
+async def _tool_admin_list_pending_verifications(
+    _db=None, _project_id: str = "", _user_id: str = "",
+    _agent_id: str = "", _model_source: str = "",
+) -> dict:
+    """查看待审核的实名认证申请（管理 Agent）"""
+    return _admin_guide_reply("GET /api/identity/pending", "实名认证待审核列表查询")
+
+
 # ── 工具注册表 ──
 
 BUILTIN_TOOLS: list[AgentTool] = [
     AgentTool(
         name="get_budget",
-        description="查询装修预算。根据面积和风格返回经济型/舒适型/品质型/豪华型四档预算估算，包含硬装、定制柜体、软装、管理费的详细分项。",
+        description=(
+            "查询装修预算。根据面积和风格返回经济型/舒适型/品质型/豪华型四档预算估算，"
+            "包含硬装、定制柜体、软装、管理费的详细分项。"
+            "示例：用户问「100平简约风预算多少」时传 area=100, style=modern。"
+        ),
         parameters={
             "area": {"type": "number", "description": "房屋面积（平方米）"},
             "style": {"type": "string", "description": "装修风格：modern/nordic/japanese/luxury/chinese"},
             "project_id": {"type": "string", "description": "项目ID（可选）"},
         },
+        required=["area"],
         handler=_tool_get_budget,
         category="budget",
     ),
     AgentTool(
         name="get_design_layout",
-        description="获取装修设计方案。根据面积和风格返回配色方案、设计特点、房间规划和预估工期。",
+        description=(
+            "获取装修设计方案。根据面积和风格返回配色方案、设计特点、房间规划和预估工期。"
+            "示例：用户问「120平北欧风设计」时传 area=120, style=nordic。"
+        ),
         parameters={
             "area": {"type": "number", "description": "房屋面积（平方米）"},
             "style": {"type": "string", "description": "装修风格：modern/nordic/japanese/luxury/chinese"},
             "rooms": {"type": "string", "description": "房间列表，逗号分隔（如：客厅,卧室,厨房）"},
         },
+        required=["area"],
         handler=_tool_get_design_layout,
         category="design",
     ),
     AgentTool(
         name="search_materials",
-        description="搜索装修物料。按类别和关键词搜索瓷砖、地板、涂料等材料，返回价格、规格和评分。",
+        description=(
+            "搜索装修物料。按类别和关键词搜索瓷砖、地板、涂料等材料，返回价格、规格和评分。"
+            "示例：用户问「有没有便宜的瓷砖」时传 category=瓷砖；「立邦乳胶漆多少钱」时传 keyword=立邦。"
+        ),
         parameters={
             "category": {"type": "string", "description": "物料类别：瓷砖/地板/涂料"},
             "keyword": {"type": "string", "description": "搜索关键词"},
             "budget_range": {"type": "string", "description": "预算范围（可选）"},
         },
+        required=[],
         handler=_tool_search_materials,
         category="procurement",
     ),
     AgentTool(
         name="get_construction_progress",
-        description="查询施工进度。返回项目整体进度、各阶段完成情况和预估剩余天数。",
+        description=(
+            "查询施工进度。返回项目整体进度、各阶段完成情况和预估剩余天数。"
+            "示例：用户问「我家装修到哪了」时传 project_id。"
+        ),
         parameters={
             "project_id": {"type": "string", "description": "项目ID"},
         },
+        required=[],
         handler=_tool_get_progress,
         category="construction",
     ),
     AgentTool(
         name="run_qa_inspection",
-        description="执行质量检测。对指定阶段进行质检，返回各检测项的状态和合格率。",
+        description=(
+            "执行质量检测。对指定阶段进行质检，返回各检测项的状态和合格率。"
+            "示例：用户问「水电验收结果」时传 phase=water_electricity。"
+        ),
         parameters={
             "project_id": {"type": "string", "description": "项目ID"},
             "phase": {"type": "string", "description": "检测阶段：waterproof/electric/tile/paint"},
             "categories": {"type": "string", "description": "检测类别，逗号分隔"},
         },
+        required=[],
         handler=_tool_run_qa_inspection,
         category="qa",
     ),
     # ── LBS 真实 POI 搜索（真实高德数据，amap_api_key 配置后生效）──
     AgentTool(
         name="search_poi",
-        description="搜索周边或指定城市的 POI（建材市场、五金店、家电卖场、小区楼盘等）。当用户询问「附近哪里有建材市场/五金店」「周边小区」等位置相关问题时使用。",
+        description=(
+            "搜索周边或指定城市的 POI（建材市场、五金店、家电卖场、小区楼盘等）。"
+            "当用户询问「附近哪里有建材市场/五金店」「周边小区」等位置相关问题时使用。"
+            "示例：用户问「我家附近哪里买建材」时传 keywords=建材市场, location=113.26,23.13。"
+        ),
         parameters={
             "keywords": {"type": "string", "description": "搜索关键词（如：建材市场/五金/家电卖场/小区）"},
             "location": {"type": "string", "description": "中心点经纬度 \"lng,lat\"（可选，提供时搜索周边）"},
             "city": {"type": "string", "description": "城市名（可选，未提供 location 时按城市搜索）"},
             "radius": {"type": "number", "description": "周边搜索半径（米），默认 3000"},
         },
+        required=["keywords"],
         handler=_tool_search_poi,
         category="location",
     ),
     # ── 语音智能体编排（voice_agent_orchestration_enabled 门控）──
     AgentTool(
         name="launch_agent_task",
-        description="启动一个后台 Agent 任务异步执行（不阻塞当前对话）。当用户要求「顺便/同时」处理另一件事、或任务预计耗时较长时使用。启动后用户可随时查询进度或取消。",
+        description=(
+            "启动一个后台 Agent 任务异步执行（不阻塞当前对话）。"
+            "当用户要求「顺便/同时」处理另一件事、或任务预计耗时较长时使用。"
+            "启动后用户可随时查询进度或取消。"
+            "示例：用户说「顺便做一份100平的预算」时传 command=做一份100平的预算。"
+        ),
         parameters={
             "command": {"type": "string", "description": "要执行的任务指令原文（如「做一份100平的预算」）"},
         },
+        required=["command"],
         handler=_tool_launch_agent_task,
         category="orchestration",
     ),
     AgentTool(
         name="get_voice_tasks",
-        description="查询语音后台任务的进度和结果。当用户问「任务做得怎么样了/任务列表」时使用。",
+        description=(
+            "查询语音后台任务的进度和结果。当用户问「任务做得怎么样了/任务列表」时使用。"
+            "示例：用户问「刚才那个预算任务怎么样了」时传 task_ref=1。"
+        ),
         parameters={
             "task_ref": {"type": "string", "description": "任务序号或ID（可选，留空返回最近任务列表）"},
         },
+        required=[],
         handler=_tool_get_voice_tasks,
         category="orchestration",
     ),
     AgentTool(
         name="cancel_agent_task",
-        description="取消一个正在运行的语音后台任务。当用户说「取消任务/别做了」时使用。",
+        description=(
+            "取消一个正在运行的语音后台任务。当用户说「取消任务/别做了」时使用。"
+            "示例：用户说「取消1号任务」时传 task_ref=1。"
+        ),
         parameters={
             "task_ref": {"type": "string", "description": "任务序号或ID（可选，留空取消最近一个）"},
         },
+        required=[],
         handler=_tool_cancel_agent_task,
         category="orchestration",
     ),
     # ── 讨论式方案交互（design_proposal_llm_enabled 门控）──
     AgentTool(
         name="generate_design_proposals",
-        description="生成 2-3 套差异化设计方案供用户对比。当用户说「帮我设计厨房/客厅/卫生间」时调用。返回多套方案的布局/面积/预算/亮点。",
+        description=(
+            "生成 2-3 套差异化设计方案供用户对比。当用户说「帮我设计厨房/客厅/卫生间」时调用。"
+            "返回多套方案的布局/面积/预算/亮点。"
+            "示例：用户说「帮我设计一个现代风格的厨房」时传 requirement=帮我设计一个现代风格的厨房。"
+        ),
         parameters={
             "requirement": {"type": "string", "description": "用户的设计需求原文（如「帮我设计一个现代风格的厨房」）"},
         },
+        required=["requirement"],
         handler=_tool_generate_design_proposals,
         category="design_proposal",
     ),
     AgentTool(
         name="update_design_proposal",
-        description="修订指定设计方案。当用户对已有方案提出调整（如「方案B加中岛」「方案A改成开放式」）时调用，仅修改指定方案，其余不变。",
+        description=(
+            "修订指定设计方案。当用户对已有方案提出调整（如「方案B加中岛」「方案A改成开放式」）时调用，"
+            "仅修改指定方案，其余不变。"
+            "示例：用户说「方案B加中岛」时传 proposal_id=B, change=加中岛。"
+        ),
         parameters={
             "proposal_id": {"type": "string", "description": "要修订的方案ID：A/B/C"},
             "change": {"type": "string", "description": "用户的调整指令原文（如「加中岛」）"},
         },
+        required=["proposal_id", "change"],
         handler=_tool_update_design_proposal,
         category="design_proposal",
+    ),
+    # ── 管理 Agent（v1.13.0 审计修复：注册进 registry，诚实降级引导）──
+    AgentTool(
+        name="list_users",
+        description=(
+            "列出平台用户列表，可按角色筛选。"
+            "示例：用户问「看看所有设计师」时传 role=designer。"
+        ),
+        parameters={
+            "role": {"type": "string", "enum": _ADMIN_ROLE_ENUM, "description": "按角色筛选用户"},
+            "is_active": {"type": "boolean", "description": "按激活状态筛选"},
+            "limit": {"type": "integer", "description": "返回数量，默认20"},
+        },
+        required=[],
+        handler=_tool_admin_list_users,
+        category="admin",
+    ),
+    AgentTool(
+        name="update_user_role",
+        description=(
+            "修改指定用户的角色。"
+            "示例：用户说「把用户13800138000设为designer」时传 user_id, role=designer。"
+        ),
+        parameters={
+            "user_id": {"type": "string", "description": "用户 ID"},
+            "role": {"type": "string", "enum": _ADMIN_ROLE_ENUM, "description": "新角色"},
+            "sub_role": {"type": "string", "description": "子角色（可选）"},
+        },
+        required=["user_id", "role"],
+        handler=_tool_admin_update_user_role,
+        category="admin",
+    ),
+    AgentTool(
+        name="update_user_status",
+        description=(
+            "启用或禁用用户。"
+            "示例：用户说「禁用用户13800138000」时传 user_id, is_active=false。"
+        ),
+        parameters={
+            "user_id": {"type": "string", "description": "用户 ID"},
+            "is_active": {"type": "boolean", "description": "true=启用, false=禁用"},
+        },
+        required=["user_id", "is_active"],
+        handler=_tool_admin_update_user_status,
+        category="admin",
+    ),
+    AgentTool(
+        name="get_platform_stats",
+        description="获取平台统计数据（项目数、用户数等）。示例：用户问「平台数据概况」时调用。",
+        parameters={},
+        required=[],
+        handler=_tool_admin_get_platform_stats,
+        category="admin",
+    ),
+    AgentTool(
+        name="get_role_permissions",
+        description=(
+            "查看指定角色的权限列表。"
+            "示例：用户问「designer角色有哪些权限」时传 role=designer。"
+        ),
+        parameters={
+            "role": {"type": "string", "enum": _ADMIN_ROLE_ENUM, "description": "角色名称"},
+        },
+        required=["role"],
+        handler=_tool_admin_get_role_permissions,
+        category="admin",
+    ),
+    AgentTool(
+        name="list_pending_verifications",
+        description="查看待审核的实名认证申请。示例：用户问「有哪些待审核认证」时调用。",
+        parameters={},
+        required=[],
+        handler=_tool_admin_list_pending_verifications,
+        category="admin",
     ),
 ]
 
@@ -845,6 +1056,7 @@ class ToolRegistry:
         """flag 感知工具列表：
         - voice_agent_orchestration_enabled=False 时隐藏 orchestration 类别
         - design_proposal_llm_enabled=False 时隐藏 design_proposal 类别
+        - admin 类别默认隐藏（管理写操作治理红线，仅 AdminAgent 按 category 显式拉取）
         避免 MCP manifest / Qwen Realtime 广告不可执行的工具（诚实降级）。
         执行路径由 handler 二次门控。"""
         tools = list(self._tools.values())
@@ -852,6 +1064,7 @@ class ToolRegistry:
             tools = [t for t in tools if t.category != "orchestration"]
         if not settings.design_proposal_llm_enabled:
             tools = [t for t in tools if t.category != "design_proposal"]
+        tools = [t for t in tools if t.category != "admin"]
         return tools
 
     def list_tools(self, category: str | None = None) -> list[AgentTool]:
@@ -867,8 +1080,97 @@ class ToolRegistry:
         """获取指定类别的工具 OpenAI schemas"""
         return [t.to_openai_schema() for t in self.list_tools(category)]
 
+    def get_admin_openai_schemas(self) -> list[dict]:
+        """获取管理类工具 schemas（仅 AdminAgent 显式拉取，绕过可见性过滤）。
+
+        v1.13.0 审计修复：admin 工具默认对通用列表隐藏（治理红线），
+        AdminAgent 通过本方法显式获取其专属工具集。
+        """
+        return [
+            t.to_openai_schema()
+            for t in self._tools.values() if t.category == "admin"
+        ]
+
     def get_qwen_schemas(self) -> list[dict]:
         return [t.to_qwen_schema() for t in self._visible_tools()]
+
+    @staticmethod
+    def _validate_arguments(tool: AgentTool, arguments: dict) -> str | None:
+        """v1.13.0（2026 前沿对齐）：按工具 parameters 契约校验参数类型。
+
+        校验规则：
+        - 只校验 LLM 传入的参数（缺失参数由 handler 默认值兜底，不视为错误）
+        - number 接受 int/float；integer 仅接受 int；string 接受 str；
+          boolean 接受 bool；array 接受 list；object 接受 dict
+        - 未知参数名也校验（strict schema：幻觉出的参数名直接拒绝，
+          防止 LLM 编造工具未声明的参数到达 handler）
+        返回错误描述字符串；校验通过返回 None。
+        """
+        for key, value in arguments.items():
+            if key not in tool.parameters:
+                return f"未知参数 {key}（工具 {tool.name} 未声明）"
+            spec = tool.parameters[key]
+            param_type = spec.get("type")
+            if param_type == "number":
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    return f"{key}=期望 number，实际 {type(value).__name__}"
+            elif param_type == "integer":
+                if not isinstance(value, int) or isinstance(value, bool):
+                    return f"{key}=期望 integer，实际 {type(value).__name__}"
+            elif param_type == "string":
+                if not isinstance(value, str):
+                    return f"{key}=期望 string，实际 {type(value).__name__}"
+            elif param_type == "boolean":
+                if not isinstance(value, bool):
+                    return f"{key}=期望 boolean，实际 {type(value).__name__}"
+            elif param_type == "array":
+                if not isinstance(value, list):
+                    return f"{key}=期望 array，实际 {type(value).__name__}"
+            elif param_type == "object":
+                if not isinstance(value, dict):
+                    return f"{key}=期望 object，实际 {type(value).__name__}"
+        return None
+
+    @staticmethod
+    async def _check_strict_posture(
+        name: str, arguments: dict, posture: str,
+        _db=None, _user_id: str = "", _agent_id: str = "",
+        _project_id: str = "", _scope: str = "", _trace_id: str = "",
+    ) -> dict | None:
+        """v1.8.0 posture 检查（strict 模式拦截高危工具，借鉴 YC QM）。
+
+        返回需人工批准的拦截结果 dict；放行返回 None。
+        """
+        if posture != "strict" or _db is None or not _user_id:
+            return None
+        high_risk = [
+            t.strip() for t in (settings.agent_strict_high_risk_tools or "").split(",")
+            if t.strip()
+        ]
+        # 高危清单空 = strict 模式所有工具都需批准
+        needs_approval = (not high_risk) or (name in high_risk)
+        if not needs_approval:
+            return None
+        try:
+            from app.services.agent_approval_service import create_approval
+            approval = await create_approval(
+                db=_db, user_id=_user_id, agent_name=_agent_id or "unknown",
+                tool_name=name, arguments=arguments,
+                project_id=_project_id or None,
+                scope=_scope or "personal", trace_id=_trace_id or None,
+            )
+            logger.info(
+                "tool_strict_blocked: tool=%s approval_id=%s", name, approval.approval_id,
+            )
+            return {
+                "error": "needs_approval",
+                "approval_id": approval.approval_id,
+                "message": f"此操作（{name}）需人工批准，请通过 /api/agents/approvals/{approval.approval_id}/approve 批准后执行",
+            }
+        except Exception as e:
+            logger.warning("tool_approval_create_failed: %s", e)
+            # 审批创建失败 → 安全失败（拒绝执行）
+            return {"error": f"approval_create_failed: {e}"}
 
     async def execute(
         self, name: str, arguments: dict,
@@ -904,36 +1206,24 @@ class ToolRegistry:
             return {"error": f"工具不存在: {name}"}
         logger.info(f"tool_execute: {name}, args={arguments}")
 
+        # v1.13.0（2026 前沿对齐：typed schema 执行前校验）：
+        # 按工具 parameters 契约校验 LLM 幻觉参数的类型（number/string/boolean/integer）。
+        # 类型不匹配 → 返回校验错误而非透传执行（防幻觉参数到达数据库/外部 API）。
+        # 受 tool_argument_validation_enabled 门控；关闭则原样透传（零回归）。
+        if settings.tool_argument_validation_enabled:
+            validation_error = self._validate_arguments(tool, arguments)
+            if validation_error:
+                return {"error": f"参数校验失败: {validation_error}"}
+
         # v1.8.0 posture 检查（strict 模式拦截高危工具，借鉴 YC QM）
         posture = _posture or settings.agent_security_posture
-        if posture == "strict" and _db is not None and _user_id:
-            high_risk = [
-                t.strip() for t in (settings.agent_strict_high_risk_tools or "").split(",")
-                if t.strip()
-            ]
-            # 高危清单空 = strict 模式所有工具都需批准
-            needs_approval = (not high_risk) or (name in high_risk)
-            if needs_approval:
-                try:
-                    from app.services.agent_approval_service import create_approval
-                    approval = await create_approval(
-                        db=_db, user_id=_user_id, agent_name=_agent_id or "unknown",
-                        tool_name=name, arguments=arguments,
-                        project_id=_project_id or None,
-                        scope=_scope or "personal", trace_id=_trace_id or None,
-                    )
-                    logger.info(
-                        "tool_strict_blocked: tool=%s approval_id=%s", name, approval.approval_id,
-                    )
-                    return {
-                        "error": "needs_approval",
-                        "approval_id": approval.approval_id,
-                        "message": f"此操作（{name}）需人工批准，请通过 /api/agents/approvals/{approval.approval_id}/approve 批准后执行",
-                    }
-                except Exception as e:
-                    logger.warning("tool_approval_create_failed: %s", e)
-                    # 审批创建失败 → 安全失败（拒绝执行）
-                    return {"error": f"approval_create_failed: {e}"}
+        approval_block = await self._check_strict_posture(
+            name=name, arguments=arguments, posture=posture,
+            _db=_db, _user_id=_user_id, _agent_id=_agent_id,
+            _project_id=_project_id, _scope=_scope, _trace_id=_trace_id,
+        )
+        if approval_block is not None:
+            return approval_block
 
         # v1.4.x Agent 动作审计（借鉴 YC QM 的"可还原"）：best-effort 记录
         # 工具调用（谁、何时、对哪个项目、调了什么），失败不阻断主流程。

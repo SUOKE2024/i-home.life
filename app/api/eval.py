@@ -41,6 +41,8 @@ class EvalReportResponse(BaseModel):
     # v1.12.x：per-agent 评分 + 量化目标基线
     per_agent_scores: dict = {}
     quality_targets: dict = {}
+    # v1.13.x：工具选择准确率基线报告（确定性，诚实标注非 LLM）
+    tool_accuracy: dict = {}
     notes: list[str] = []
 
 
@@ -106,6 +108,24 @@ async def run_eval(
         current_user.id, request.baseline, report.sample_size,
     )
     return EvalReportResponse(**report.to_dict())
+
+
+@router.get("/tool-accuracy")
+async def get_tool_accuracy(current_user: User = Depends(get_current_user)):
+    """工具选择准确率基线报告（v1.13.x，2026 Tool-Selection Accuracy）。
+
+    基于 TOOL_SELECTION_DATASET（≥50 条中文用例，11 工具 × 4 类失败模式）
+    用确定性关键词分类器计算准确率 + per_tool / per_failure_mode / 混淆矩阵。
+    诚实标注：基线非 LLM，用于建立工具选择最低可接受线。
+    """
+    from app.eval.tool_accuracy import get_tool_accuracy_report
+
+    report = get_tool_accuracy_report()
+    logger.info(
+        "eval_tool_accuracy: user=%s accuracy=%s sample=%d",
+        current_user.id, report["metrics"]["accuracy"], report["metrics"]["sample_size"],
+    )
+    return report
 
 
 @router.get("/drift")

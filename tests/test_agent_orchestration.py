@@ -98,6 +98,42 @@ def test_rule_decompose_general_message():
     assert tasks[0].agent_name == "concierge"
 
 
+# ── v1.13.x 逐项审计：编排注册表补齐新 Agent ──
+
+
+def test_orchestration_registry_includes_new_agents():
+    """编排注册表含 5 个新补齐的专用 Agent（此前收敛到 concierge）。"""
+    from app.services.agent_orchestration_service import _agent_registry
+
+    registry = _agent_registry()
+    for name in ("files", "products", "identity", "notifications", "ifc_export"):
+        assert name in registry, f"{name} 未加入编排注册表"
+
+
+def test_rule_decompose_new_agents_not_concierge():
+    """新 Agent 意图不再收敛到 concierge（编排覆盖全量）。"""
+    cases = [
+        ("帮我把合同文件上传一下", "files"),
+        ("实名认证状态帮我查一下", "identity"),
+        ("我要导出一份IFC模型", "ifc_export"),
+        ("通知设置在哪", "notifications"),
+    ]
+    for msg, expect in cases:
+        tasks = _rule_decompose(msg)
+        assert len(tasks) == 1
+        assert tasks[0].agent_name == expect, f"{msg} 应派发 {expect}，实际 {tasks[0].agent_name}"
+
+
+async def test_run_workflow_dispatches_new_agents(db_session):
+    """run_workflow 可派发到新补齐的专用 Agent（files）。"""
+    tasks = [_task("t1", agent="files")]
+    results = await run_workflow(
+        tasks, db=db_session, user_id="u_orch_files", workflow_id="wf_files",
+    )
+    assert len(results) == 1
+    assert results[0].status == "success"
+
+
 # ── LLM 分解失败诚实降级 ──
 
 
@@ -219,6 +255,35 @@ async def test_plan_and_delegate_rule_path(monkeypatch, db_session):
     rows = (await db_session.execute(select(AgentTraceRecord))).scalars().all()
     assert len(rows) == 1
     assert rows[0].workflow_id == result["workflow_id"]
+
+
+async def test_plan_and_delegate_dag_failure_falls_back_to_rule(monkeypatch, db_session):
+    """LLM 分解出坏 DAG（环）→ 规则分解兜底保留意图（而非硬编码客服）。
+
+    v1.13.x 逐项审计：DAG 非法原硬编码 concierge 丢失意图路由，
+    改为规则分解后「90平米预算」仍派发 budget。
+    """
+    from app.services import agent_orchestration_service as orc
+
+    monkeypatch.setattr(get_settings(), "agent_orchestration_pipeline_enabled", True)
+
+    async def _bad_llm_decompose(message, db=None, user_id="", project_id=""):
+        # 构造环：A 依赖 B，B 依赖 A
+        return [
+            orc.AgentTask(task_id="a", agent_name="budget", description="预算", dependencies=["b"]),
+            orc.AgentTask(task_id="b", agent_name="concierge", description="客服", dependencies=["a"]),
+        ]
+
+    monkeypatch.setattr(orc, "_llm_decompose", _bad_llm_decompose)
+    agent = OrchestratorAgent()
+    try:
+        result = await agent.plan_and_delegate(
+            "90平米装修预算多少", db=db_session, user_id="u_orch_5",
+        )
+    finally:
+        await agent.close()
+    assert result["success_count"] == 1
+    assert result["results"][0]["agent_id"] == "budget"
 
 
 # ── API：POST /agents/orchestrate ──
