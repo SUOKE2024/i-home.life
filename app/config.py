@@ -653,26 +653,27 @@ class Settings(BaseSettings):
     # ════════════════════════════════════════════════════════════════
     # v1.6.0 平台商业运营 Agent（借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」模式）
     # 平台自身获客/增长/营销/竞品/财务对账，区别于面向用户交付的执行型 Agent。
-    # 默认 False 灰度，验证后开启（遵循长线技术决策 feature flag 约束）。
+    # v1.13.2 起默认全 True（A2 评估 A 类：实现完整 + 测试齐备，best-effort 降级；
+    # 关闭即回退 enabled=False 诚实标注）。
     # ════════════════════════════════════════════════════════════════
 
     # ── P0 功能使用率周报 + Agent 调用统计（GrowthAgent）──
     # 启用后 GrowthAgent.generate_weekly_report 基于 agent_feedbacks 表生成周报；
     # 关闭时返回 enabled=False 提示。
-    growth_agent_enabled: bool = False
+    growth_agent_enabled: bool = True
 
     # ── P1 多渠道推广素材生成（MarketingAgent）──
     # 启用后 MarketingAgent.generate_content 生成小红书/抖音/朋友圈素材草稿；
     # 诚实标注 AI 生成草稿需人工审核。
-    marketing_agent_enabled: bool = False
+    marketing_agent_enabled: bool = True
 
     # ── P1 竞品调研（CompetitorResearchAgent）──
     # 启用后基于 LLM 公开知识生成竞品调研简报；诚实标注非实时数据。
-    competitor_research_agent_enabled: bool = False
+    competitor_research_agent_enabled: bool = True
 
     # ── P1 平台财务对账（FinanceReconAgent，区别于 settlement 工程结算）──
     # 启用后基于 payment/escrow 表统计平台抽成收入；无 Stripe/广告平台对接时诚实标注。
-    finance_recon_agent_enabled: bool = False
+    finance_recon_agent_enabled: bool = True
 
     # ── P2 主动 Orchestrator 定时调度 + 运营日报 ──
     # 启用后 OrchestratorAgent.generate_daily_briefing 生成每日运营简报；

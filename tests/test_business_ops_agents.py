@@ -1,8 +1,9 @@
 """v1.6.0 平台商业运营 Agent 测试 — Growth/Marketing/CompetitorResearch/FinanceRecon + Orchestrator 日报
 
 验证维度（对应 CLAUDE.md「Goal-Driven Execution — 加功能先写验收用例」）：
-1. 商业运营子 Agent feature flag 默认关闭：各 Agent 方法返回 enabled=False（不触发 LLM/DB，诚实降级）
-2. Orchestrator 默认开启（v1.13.2 起 business_ops_orchestrator_enabled=True），db=None 时 best-effort 聚合不崩；
+1. 商业运营子 Agent v1.13.2 起默认开启（growth/marketing/competitor/finance 默认 True）；
+   显式关闭（monkeypatch False）时各 Agent 方法返回 enabled=False（不触发 LLM/DB，诚实降级）
+2. Orchestrator 默认开启（business_ops_orchestrator_enabled=True），db=None 时 best-effort 聚合不崩；
    显式关闭时返回 enabled=False
 3. feature flag 开启后（monkeypatch）：返回含 data_source 的结构，DB 不可用时降级
 4. /api/admin/daily-briefing 端点未授权 401
@@ -18,11 +19,14 @@ from app.agents.marketing import MarketingAgent
 from app.agents.orchestrator import OrchestratorAgent
 
 
-# ── feature flag 默认关闭（不触发 LLM/DB，诚实返回 enabled=False）──
+# ── feature flag 显式关闭（不触发 LLM/DB，诚实返回 enabled=False）──
 
 
 @pytest.mark.asyncio
-async def test_growth_agent_disabled_by_default():
+async def test_growth_agent_disabled_when_flag_off(monkeypatch):
+    from app.agents import growth as growth_mod
+    monkeypatch.setattr(growth_mod.settings, "growth_agent_enabled", False)
+
     agent = GrowthAgent()
     try:
         result = await agent.generate_weekly_report(db=None, days=7)
@@ -33,7 +37,10 @@ async def test_growth_agent_disabled_by_default():
 
 
 @pytest.mark.asyncio
-async def test_marketing_agent_disabled_by_default():
+async def test_marketing_agent_disabled_when_flag_off(monkeypatch):
+    from app.agents import marketing as marketing_mod
+    monkeypatch.setattr(marketing_mod.settings, "marketing_agent_enabled", False)
+
     agent = MarketingAgent()
     try:
         result = await agent.generate_content(case_summary="90㎡ 现代简约", channel="xiaohongshu")
@@ -43,7 +50,10 @@ async def test_marketing_agent_disabled_by_default():
 
 
 @pytest.mark.asyncio
-async def test_competitor_research_agent_disabled_by_default():
+async def test_competitor_research_agent_disabled_when_flag_off(monkeypatch):
+    from app.agents import competitor_research as comp_mod
+    monkeypatch.setattr(comp_mod.settings, "competitor_research_agent_enabled", False)
+
     agent = CompetitorResearchAgent()
     try:
         result = await agent.generate_research_brief(competitor_name="酷家乐")
@@ -53,7 +63,10 @@ async def test_competitor_research_agent_disabled_by_default():
 
 
 @pytest.mark.asyncio
-async def test_finance_recon_agent_disabled_by_default():
+async def test_finance_recon_agent_disabled_when_flag_off(monkeypatch):
+    from app.agents import finance_recon as fin_mod
+    monkeypatch.setattr(fin_mod.settings, "finance_recon_agent_enabled", False)
+
     agent = FinanceReconAgent()
     try:
         result = await agent.generate_recon_report(db=None, days=30)
@@ -79,17 +92,19 @@ async def test_orchestrator_daily_briefing_disabled_when_flag_off(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_orchestrator_daily_briefing_enabled_by_default():
-    """v1.13.2 起 business_ops_orchestrator_enabled 默认 True；db=None 时 best-effort 聚合不崩"""
+    """v1.13.2 起 orchestrator 默认 True；db=None 时各 section best-effort 降级不阻断简报"""
     orch = OrchestratorAgent()
     try:
         result = await orch.generate_daily_briefing(db=None)
         assert result["enabled"] is True
         assert "sections" in result
-        # 子 Agent 默认未启用 → 各 section 诚实标注 enabled=False，不阻断简报
+        # 子 Agent 默认开启 → db=None 时 enabled=True + data_source 诚实降级标注
         assert "growth_weekly" in result["sections"]
         assert "finance_recon" in result["sections"]
-        assert result["sections"]["growth_weekly"].get("enabled") is False
-        assert result["sections"]["finance_recon"].get("enabled") is False
+        assert result["sections"]["growth_weekly"].get("enabled") is True
+        assert result["sections"]["finance_recon"].get("enabled") is True
+        assert "data_source" in result["sections"]["growth_weekly"]
+        assert "data_source" in result["sections"]["finance_recon"]
     finally:
         await orch.close()
 

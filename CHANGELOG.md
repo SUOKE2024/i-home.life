@@ -78,6 +78,20 @@
   test_lifecycle_chain / test_voice_orchestrate + test_mcp 回归 +
   flake8 / mypy 0 issues
 
+### 新增：A2 灰度 flag 第四梯队默认开启（商业运营子 Agent 4 项，2026-08-11）
+
+A 类 16 个至此全部默认开启。商业运营子 Agent 默认 False→True
+（配合已开启的 `business_ops_orchestrator_enabled`，FC 每日简报将真实聚合）：
+- **`growth_agent_enabled`**：Growth 周报（基于 agent_feedbacks，查询失败 best-effort 降级）
+- **`marketing_agent_enabled`**：多渠道推广素材生成（小红书/抖音/朋友圈草稿，诚实标注 AI 生成需人工审核）
+- **`competitor_research_agent_enabled`**：竞品调研简报（LLM 公开知识，诚实标注非实时）
+- **`finance_recon_agent_enabled`**：平台财务对账（payment/escrow 内部表，无 Stripe 对接诚实标注）
+- **成本说明**：orchestrator 每日简报（FC 定时 1 次/日）将真实调用 growth+finance LLM；
+  marketing/competitor 按运营调用触发（非每日）。关闭即回退 enabled=False 零成本
+- 测试：4 个 disabled_by_default 断言重构为显式 monkeypatch 关闭降级；
+  orchestrator 默认聚合断言更新（子 Agent 开启后 db=None 降级为 enabled=True + data_source）
+- 验证：test_business_ops_agents + test_agent_chain 回归 + flake8 / mypy 0 issues
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习
