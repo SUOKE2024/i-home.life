@@ -21,7 +21,7 @@ void main() {
     await tester.pumpWidget(createTestApp(const LoginPage()));
     await tester.pumpAndSettle();
 
-    expect(find.text('i-home.life'), findsOneWidget);
+    // 品牌标题与副标题（v1.13 文案：i-home.life → AI 智能装修平台）
     expect(find.text('索克家居 · AI 智能装修平台'), findsOneWidget);
     expect(find.text('手机号'), findsOneWidget);
     expect(find.text('密码'), findsOneWidget);

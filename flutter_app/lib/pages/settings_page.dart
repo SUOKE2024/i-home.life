@@ -5,6 +5,7 @@ import 'dart:async';  // unawaited
 import '../main.dart' show AuthGate, ThemeState;
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../widgets/user_avatar.dart';
 
 /// 用户设置页面
 /// 对应 Web 端 settings.html
@@ -162,16 +163,25 @@ class _SettingsPageState extends State<SettingsPage> {
     return _sectionCard(
       title: '个人资料',
       children: [
-        // 头像 + 昵称
+        // 头像 + 昵称（2026 手绘头像体系：点击打开选择器 → 宫格/相册/随机）
         Center(
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 36,
-                backgroundColor: SuokeDesignTokens.accent.withValues(alpha: 0.2),
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: SuokeDesignTokens.accent, fontSize: 28, fontWeight: FontWeight.w700),
+              Semantics(
+                button: true,
+                label: '更换头像',
+                child: GestureDetector(
+                  onTap: () => showUserAvatarPicker(context),
+                  child: Column(
+                    children: [
+                      const UserAvatar(size: 72),
+                      const SizedBox(height: 6),
+                      Text('点击更换头像',
+                          style: TextStyle(
+                              color: SuokeDesignTokens.textMutedClr(context),
+                              fontSize: 11)),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),

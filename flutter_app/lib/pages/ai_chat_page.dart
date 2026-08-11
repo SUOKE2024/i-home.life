@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +11,6 @@ import '../models/chat_message.dart';
 import '../theme/suoke_theme.dart';
 import '../services/agent_router.dart';
 import '../services/api.dart';
-import '../image_helper.dart';
 import '../services/project_context.dart';
 import '../services/sse_service.dart';
 import '../services/sensor_service.dart';
@@ -21,6 +19,7 @@ import '../services/voice_realtime_service.dart';
 import '../services/websocket_service.dart';
 import '../widgets/chat_message_card.dart';
 import '../widgets/emoji_picker.dart';
+import '../widgets/user_avatar.dart';
 import '../widgets/voice_task_panel.dart';
 import '../services/a2ui_renderer.dart';
 import 'ar_scan_page.dart';
@@ -53,12 +52,6 @@ class _AIChatPageState extends State<AIChatPage> {
   final List<String> _activeThinkingSteps = [];
   String _currentProcessingAgent = 'master';
 
-  // ── 头像状态 ──
-  static const _customAvatarKey = 'custom_avatar_path';
-  static const _avatarCount = 109;
-  String? _avatarAssetPath;
-  String? _customAvatarPath;
-
   StreamSubscription<SseEvent>? _sseSub;
   VoidCallback? _wsUnsubscribe;
 
@@ -67,7 +60,6 @@ class _AIChatPageState extends State<AIChatPage> {
   @override
   void initState() {
     super.initState();
-    _initAvatar();
     _connectWebSocket();
     _restoreSessionId();
     // LBS 闭环：预取 GPS 坐标（异步缓存，失败/拒绝授权不阻塞对话，
@@ -939,90 +931,25 @@ class _AIChatPageState extends State<AIChatPage> {
     );
   }
 
-  /// 用户头像：点击打开设置，长按从相册更换
+  /// 用户头像：点击进入设置，长按打开头像选择器（宫格/相册/随机）
   Widget _buildAvatar() {
     return Semantics(
       button: true,
-      label: '用户头像，双击进入设置，长按更换头像',
+      label: '用户头像，点击进入设置，长按更换头像',
       child: GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const SettingsPage()),
-        );
-      },
-      onLongPress: _pickCustomAvatar,
-      child: Container(
-        width: 36,
-        height: 36,
-        margin: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: SuokeDesignTokens.borderClr(context), width: 1.5),
-        ),
-        child: ClipOval(
-          child: _customAvatarPath != null
-              ? buildLocalImage(
-                  _customAvatarPath!,
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                  errorWidget: _buildAvatarFallback(),
-                )
-              : _avatarAssetPath != null
-                  ? Image.asset(
-                      _avatarAssetPath!,
-                      width: 36,
-                      height: 36,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _buildAvatarFallback(),
-                    )
-                  : _buildAvatarFallback(),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsPage()),
+          );
+        },
+        onLongPress: () => showUserAvatarPicker(context),
+        child: const Padding(
+          padding: EdgeInsets.only(left: 4, right: 12),
+          child: UserAvatar(),
         ),
       ),
-      ),
     );
-  }
-
-  /// 头像加载失败 / 等待中 fallback
-  Widget _buildAvatarFallback() {
-    return Container(
-      color: SuokeDesignTokens.accent.withValues(alpha: 0.2),
-      child: const Icon(Icons.person, size: 20, color: SuokeDesignTokens.accent),
-    );
-  }
-
-  /// 从相册自定义头像
-  Future<void> _pickCustomAvatar() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 256,
-      maxHeight: 256,
-    );
-    if (picked == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_customAvatarKey, picked.path);
-    setState(() {
-      _customAvatarPath = picked.path;
-      _avatarAssetPath = null;
-    });
-  }
-
-  /// 初始化头像：已有自定义则加载，否则随机选一个
-  Future<void> _initAvatar() async {
-    final prefs = await SharedPreferences.getInstance();
-    final customPath = prefs.getString(_customAvatarKey);
-    if (customPath != null) {
-      setState(() => _customAvatarPath = customPath);
-      return;
-    }
-    // 每次登录随机加载
-    final index = Random().nextInt(_avatarCount) + 1;
-    setState(() {
-      _avatarAssetPath = 'assets/images/avatars/hand-drawn-profiles/$index.webp';
-    });
   }
 
   Widget _buildProjectDropdown(ProjectContext pc, String currentTitle) {

@@ -1,28 +1,20 @@
 import React from 'react'
 import { RefreshCw } from 'lucide-react'
 
-/* Logo — 品牌标记 */
+/* Logo — 品牌标记（使用真实 LOGO 图片 /logo.png，跨端同一视觉） */
 export function Logo({ size = 34, withText = false }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-      <span
+      <img
+        src="/logo.png"
+        alt="索克家居"
         style={{
           width: size,
           height: size,
           minWidth: size,
-          borderRadius: 10,
-          background: 'linear-gradient(135deg, #c9973b, #e0aa4a)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 800,
-          fontSize: size * 0.42,
-          color: 'var(--on-accent)',
-          fontFamily: 'var(--font-sans)',
+          objectFit: 'contain',
         }}
-      >
-        索
-      </span>
+      />
       {withText && (
         <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <b style={{ fontSize: 15, letterSpacing: 0.5, color: 'var(--text)', whiteSpace: 'nowrap' }}>

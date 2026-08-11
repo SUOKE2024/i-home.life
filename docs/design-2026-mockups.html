@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 · 2026 原创设计方案 — 家的生命线</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ── 设计令牌（原创 2026 暖境语言：保留品牌暗金，重构构图与材质）── */
+  :root {
+    --canvas: #F5F2EB;          /* 暖纸画布 */
+    --surface: #FFFFFF;
+    --surface-2: #EFEAE0;
+    --surface-3: #E7E1D3;
+    --ink: #1C1915;
+    --ink-2: #6B645A;
+    --ink-3: #978F82;
+    --line: rgba(28,25,21,.10);
+    --line-strong: rgba(28,25,21,.16);
+    --gold: #C9973B;
+    --gold-bright: #E0AA4A;
+    --gold-deep: #8A6415;
+    --gold-soft: rgba(201,151,59,.14);
+    --gold-glow: rgba(201,151,59,.32);
+    --sage: #4A8F66;
+    --sage-soft: rgba(74,143,102,.14);
+    --terra: #C2643C;
+    --terra-soft: rgba(194,100,60,.13);
+    --blue: #5479B8;
+    --blue-soft: rgba(84,121,184,.13);
+    --rust: #B34A3A;
+    --rust-soft: rgba(179,74,58,.13);
+
+    /* 深色工程台（B 端保留，材质升级） */
+    --d-bg: #0B0B12;
+    --d-surface: #13131D;
+    --d-surface-2: #1B1B29;
+    --d-line: rgba(255,255,255,.08);
+    --d-text: #ECEAE4;
+    --d-sub: #8B8794;
+    --d-dim: #6E6A78;
+
+    --radius-lg: 24px;
+    --radius: 20px;
+    --radius-sm: 14px;
+    --radius-xs: 10px;
+    --pill: 999px;
+    --shadow-soft: 0 20px 48px rgba(28,25,21,.10), 0 2px 8px rgba(28,25,21,.05);
+    --shadow-lift: 0 8px 24px rgba(28,25,21,.12);
+    --serif: 'Noto Serif SC', 'Songti SC', serif;
+    --sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--canvas);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 80px;
+  }
+
+  ::selection { background: var(--gold-soft); }
+
+  /* ── 顶栏 ── */
+  .masthead {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; gap: 20px;
+    padding: 16px 32px;
+    background: rgba(245,242,235,.86);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand b { font-family: var(--serif); font-size: 20px; font-weight: 900; letter-spacing: .02em; }
+  .brand b em { font-style: normal; color: var(--gold-deep); }
+  .brand small { font-size: 12px; color: var(--ink-3); letter-spacing: .08em; }
+  .masthead nav { display: flex; gap: 6px; margin-left: auto; }
+  .seg { display: flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--pill); }
+  .seg button {
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    color: var(--ink-2); background: none; border: 0; cursor: pointer;
+    padding: 7px 16px; border-radius: var(--pill);
+    transition: all .18s var(--ease, cubic-bezier(.33,0,.2,1));
+  }
+  .seg button.on { background: var(--ink); color: #F5F2EB; }
+  .seg button:not(.on):hover { color: var(--ink); }
+
+  /* ── 概念条 ── */
+  .concept {
+    max-width: 1280px; margin: 0 auto; padding: 44px 32px 8px;
+  }
+  .concept h1 { font-family: var(--serif); font-size: clamp(26px, 3.4vw, 40px); font-weight: 900; letter-spacing: .01em; }
+  .concept h1 .dim { color: var(--ink-3); }
+  .concept .thesis { margin-top: 10px; max-width: 720px; color: var(--ink-2); font-size: 15px; line-height: 1.85; }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: var(--pill);
+    background: var(--surface); border: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-2); font-weight: 500;
+  }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); display: inline-block; }
+  .pill i.sage { background: var(--sage); }
+  .pill i.terra { background: var(--terra); }
+  .pill i.blue { background: var(--blue); }
+
+  .section-head { max-width: 1280px; margin: 44px auto 0; padding: 0 32px; display: flex; align-items: baseline; gap: 14px; }
+  .section-head h2 { font-family: var(--serif); font-size: 22px; font-weight: 700; }
+  .section-head span { font-size: 13px; color: var(--ink-3); }
+
+  .board { max-width: 1280px; margin: 0 auto; padding: 20px 32px 0; display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .board[data-mode="mobile"] .web-card { display: none; }
+  .board[data-mode="web"] .phone-card { display: none; }
+
+  /* ── 手机外壳 ── */
+  .phone-card { width: 384px; }
+  .phone-cap { display: flex; align-items: baseline; gap: 10px; padding: 10px 6px 14px; }
+  .phone-cap b { font-size: 14px; font-weight: 700; }
+  .phone-cap .tag { font-size: 11px; color: var(--gold-deep); background: var(--gold-soft); padding: 3px 10px; border-radius: var(--pill); font-weight: 500; }
+  .phone-cap .cap { font-size: 12px; color: var(--ink-3); }
+  .phone {
+    width: 384px; height: 816px; position: relative;
+    background: #14110C;
+    border-radius: 56px; padding: 12px;
+    box-shadow: var(--shadow-soft), inset 0 0 0 2px rgba(255,255,255,.06);
+  }
+  .phone-screen {
+    width: 100%; height: 100%;
+    border-radius: 46px; overflow: hidden;
+    background: var(--canvas);
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+  .island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 116px; height: 30px; background: #14110C; border-radius: var(--pill); z-index: 30; }
+  .statusbar { display: flex; justify-content: space-between; align-items: center; padding: 18px 26px 4px; font-size: 13px; font-weight: 600; }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; }
+
+  /* 通用手机排版 */
+  .appbar { display: flex; align-items: center; gap: 10px; padding: 12px 20px 4px; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--gold-bright); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+  .avatar.gold { background: var(--gold); color: #14110C; }
+  .app-title { flex: 1; min-width: 0; }
+  .app-title b { display: block; font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-title small { display: block; font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+  .iconbtn { width: 38px; height: 38px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); display: grid; place-items: center; cursor: pointer; position: relative; flex: none; }
+  .iconbtn .dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; background: var(--terra); border-radius: 50%; border: 1.5px solid var(--surface); }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 12px 20px 8px; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  .tabbar { display: flex; padding: 10px 22px 18px; gap: 4px; background: var(--canvas); }
+  .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; cursor: pointer; font-size: 10.5px; color: var(--ink-3); font-weight: 500; padding: 4px 0; border-radius: 14px; font-family: var(--sans); }
+  .tabbar button.on { color: var(--gold-deep); }
+  .tabbar button .bar { width: 22px; height: 3px; border-radius: 2px; background: transparent; transition: all .2s; }
+  .tabbar button.on .bar { background: var(--gold); }
+
+  /* 生命线 */
+  .pulse { padding: 16px 20px 2px; }
+  .pulse-track { display: flex; align-items: center; position: relative; }
+  .pulse-track .rail { position: absolute; left: 14px; right: 14px; top: 50%; height: 2px; background: var(--line-strong); }
+  .pulse-track .rail .fill { height: 100%; width: 57%; background: linear-gradient(90deg, var(--gold-deep), var(--gold)); border-radius: 2px; }
+  .node { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 2px solid var(--line-strong); display: grid; place-items: center; font-size: 11px; color: var(--ink-3); font-weight: 700; flex: none; }
+  .node.done { border-color: var(--gold); background: var(--gold-soft); color: var(--gold-deep); }
+  .node.now { border-color: var(--gold); background: var(--gold); color: #14110C; box-shadow: 0 0 0 6px var(--gold-soft); animation: nodepulse 2.2s infinite; }
+  .node.next { border-style: dashed; }
+  @keyframes nodepulse { 0%,100% { box-shadow: 0 0 0 4px var(--gold-soft);} 50% { box-shadow: 0 0 0 9px rgba(201,151,59,.18);} }
+  .pulse-labels { display: flex; justify-content: space-between; margin-top: 8px; padding: 0 2px; }
+  .pulse-labels span { font-size: 9.5px; color: var(--ink-3); }
+  .pulse-labels span.on { color: var(--gold-deep); font-weight: 700; }
+
+  /* 户型图 */
+  .fp-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px 14px 10px; margin: 14px 20px 0; }
+  .fp-head { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 10px; }
+  .fp-head b { font-size: 13px; }
+  .fp-head .fp-live { font-size: 11px; color: var(--gold-deep); background: var(--gold-soft); padding: 3px 10px; border-radius: var(--pill); font-weight: 600; }
+  .fp-svg { width: 100%; display: block; }
+  .fp-room { cursor: pointer; transition: filter .15s; }
+  .fp-room:hover { filter: brightness(.96); }
+  .fp-room.sel { stroke: var(--gold); stroke-width: 2.5; }
+  .fp-label { pointer-events: none; }
+  .fp-label text { font-family: var(--sans); }
+  .fp-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 8px 4px 2px; }
+  .fp-legend span { font-size: 10px; color: var(--ink-3); display: inline-flex; align-items: center; gap: 5px; }
+  .fp-legend i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+
+  /* 房间详情浮层（点击户型房间出现） */
+  .room-sheet {
+    position: absolute; left: 12px; right: 12px; bottom: 74px; z-index: 20;
+    background: rgba(255,255,255,.94); backdrop-filter: blur(20px);
+    border: 1px solid var(--line); border-radius: 24px;
+    padding: 14px; box-shadow: var(--shadow-lift);
+    transform: translateY(16px); opacity: 0; pointer-events: none;
+    transition: all .25s cubic-bezier(.05,.7,.1,1);
+  }
+  .room-sheet.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  .room-sheet .rs-top { display: flex; gap: 10px; align-items: center; }
+  .room-sheet img { width: 74px; height: 56px; object-fit: cover; border-radius: 12px; }
+  .room-sheet b { font-size: 13.5px; }
+  .room-sheet .rs-meta { font-size: 11px; color: var(--ink-3); margin-top: 2px; line-height: 1.5; }
+  .room-sheet .bar { height: 5px; border-radius: 3px; background: var(--surface-2); margin-top: 10px; overflow: hidden; }
+  .room-sheet .bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg,var(--gold-deep),var(--gold)); }
+  .room-sheet .rs-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+  /* 管家球 */
+  .orb-wrap { display: flex; align-items: center; gap: 12px; margin: 14px 20px 4px; padding: 12px 14px; background: var(--ink); color: #F5F2EB; border-radius: var(--radius-lg); }
+  .orb { position: relative; width: 46px; height: 46px; flex: none; }
+  .orb .core { position: absolute; inset: 6px; border-radius: 50%; background: radial-gradient(circle at 32% 30%, var(--gold-bright), var(--gold) 60%, #8a5d1c); display: grid; place-items: center; }
+  .orb .ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--gold-bright); opacity: .5; animation: ring 2.4s ease-out infinite; }
+  .orb .ring:nth-child(2) { animation-delay: .8s; }
+  .orb .ring:nth-child(3) { animation-delay: 1.6s; }
+  @keyframes ring { 0% { transform: scale(.7); opacity: .6;} 100% { transform: scale(1.35); opacity: 0;} }
+  .orb-text { flex: 1; }
+  .orb-text b { display: block; font-size: 13px; font-weight: 700; }
+  .orb-text small { display: block; font-size: 11px; color: rgba(245,242,235,.62); margin-top: 2px; }
+  .orb-mic { width: 34px; height: 34px; border-radius: 50%; background: var(--gold); display: grid; place-items: center; flex: none; }
+
+  /* 卡片通用（移动端）*/
+  .mcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 14px; }
+  .mcard + .mcard { margin-top: 10px; }
+  .agent { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-3); margin-top: 8px; }
+  .agent i { width: 16px; height: 16px; border-radius: 6px; display: grid; place-items: center; font-size: 9px; font-style: normal; color: #fff; font-weight: 700; }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 11px; padding: 6px 12px; border-radius: var(--pill); background: var(--surface-2); color: var(--ink-2); font-weight: 500; }
+
+  .btn { font-family: var(--sans); font-size: 12.5px; font-weight: 700; border: 0; cursor: pointer; padding: 10px 14px; border-radius: 12px; }
+  .btn.gold { background: var(--gold); color: #14110C; }
+  .btn.ghost { background: var(--surface-2); color: var(--ink-2); }
+  .btn.block { width: 100%; }
+
+  /* 对话/管家屏 */
+  .greet { padding: 18px 20px 6px; }
+  .greet b { font-family: var(--serif); font-size: 21px; font-weight: 700; }
+  .greet p { font-size: 12px; color: var(--ink-3); margin-top: 4px; line-height: 1.6; }
+  .agent-ava { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; flex: none; }
+
+  .card-row { display: flex; gap: 10px; }
+  .card-row .agent-ava { margin-top: 2px; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-body .who { font-size: 10.5px; color: var(--ink-3); font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .card-body h4 { font-size: 13.5px; font-weight: 700; margin-top: 3px; line-height: 1.5; }
+  .card-body p { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.65; }
+  .card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; gap: 8px; }
+  .card-foot .ago { font-size: 10.5px; color: var(--ink-3); }
+  .card-foot .acts { display: flex; gap: 6px; }
+  .tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--pill); }
+  .tag.terra { color: var(--terra); background: var(--terra-soft); }
+  .tag.sage { color: var(--sage); background: var(--sage-soft); }
+  .tag.blue { color: var(--blue); background: var(--blue-soft); }
+  .tag.gold { color: var(--gold-deep); background: var(--gold-soft); }
+
+  .voicebar { display: flex; align-items: center; gap: 10px; margin: 12px 20px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--pill); box-shadow: var(--shadow-lift); }
+  .voicebar .vb-orb { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; flex: none; }
+  .voicebar .vb-orb.speaking { animation: micbounce 1.6s infinite; }
+  @keyframes micbounce { 0%,100% { transform: scale(1);} 50% { transform: scale(1.08);} }
+  .voicebar .vb-hint { flex: 1; font-size: 12px; color: var(--ink-3); }
+  .wave { display: flex; align-items: center; gap: 2.5px; height: 20px; }
+  .wave i { width: 2.5px; background: var(--gold); border-radius: 2px; animation: wave 1s ease-in-out infinite; }
+  .wave i:nth-child(1){height:6px}.wave i:nth-child(2){height:14px;animation-delay:.12s}.wave i:nth-child(3){height:9px;animation-delay:.24s}.wave i:nth-child(4){height:17px;animation-delay:.36s}.wave i:nth-child(5){height:11px;animation-delay:.48s}.wave i:nth-child(6){height:15px;animation-delay:.6s}.wave i:nth-child(7){height:7px;animation-delay:.72s}
+  @keyframes wave { 0%,100% { transform: scaleY(.6);} 50% { transform: scaleY(1);} }
+
+  /* 生命线屏 */
+  .health-wrap { display: flex; gap: 12px; padding: 16px 20px 2px; }
+  .health-ring { width: 108px; height: 108px; flex: none; position: relative; }
+  .health-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .health-ring .track { stroke: var(--surface-3); }
+  .health-ring .prog { stroke: var(--gold); stroke-linecap: round; transition: stroke-dashoffset 1.1s cubic-bezier(.2,.7,.2,1); }
+  .health-ring .ring-label { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  .health-ring .ring-label b { font-size: 24px; font-weight: 800; font-family: var(--serif); }
+  .health-ring .ring-label small { font-size: 9.5px; color: var(--ink-3); margin-top: -2px; }
+  .health-side { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+  .health-side b { font-size: 13px; }
+  .health-side .mini-stat { font-size: 11px; color: var(--ink-2); display: flex; justify-content: space-between; align-items: center; }
+  .health-side .mini-stat .mv { font-weight: 700; color: var(--ink); font-family: var(--mono); }
+  .health-side .up { color: var(--sage); font-weight: 700; font-size: 11px; }
+
+  .step-track { display: flex; gap: 8px; margin-top: 12px; }
+  .step { flex: 1; text-align: center; }
+  .step .st-dot { width: 34px; height: 34px; margin: 0 auto; border-radius: 12px; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--ink-3); }
+  .step.done .st-dot { background: var(--sage-soft); color: var(--sage); }
+  .step.now .st-dot { background: var(--gold); color: #14110C; box-shadow: 0 0 0 6px var(--gold-soft); }
+  .step small { display: block; font-size: 9.5px; color: var(--ink-3); margin-top: 5px; }
+  .step.now small { color: var(--gold-deep); font-weight: 700; }
+
+  .log-img { width: 100%; height: 128px; object-fit: cover; border-radius: 16px; margin-top: 12px; display: block; }
+  .log-img.small { height: 84px; margin-top: 0; border-radius: 12px; }
+
+  /* ── Web 浏览器外壳 ── */
+  .web-card { width: 100%; }
+  .browser {
+    width: 100%;
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 20px; overflow: hidden;
+    box-shadow: var(--shadow-soft);
+  }
+  .browser-bar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .dots { display: flex; gap: 7px; }
+  .dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-3); }
+  .dots i:nth-child(1){ background:#F0716B; } .dots i:nth-child(2){ background:#F2B24C; } .dots i:nth-child(3){ background:#7BC47F; }
+  .urlbar { flex: 1; max-width: 460px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--pill); padding: 7px 16px; font-size: 12px; color: var(--ink-3); }
+  .browser-view { background: var(--canvas); }
+
+  /* Web C 端工作台 */
+  .web-top { display: flex; align-items: center; gap: 22px; padding: 14px 26px; background: rgba(245,242,235,.9); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+  .web-logo { font-family: var(--serif); font-size: 18px; font-weight: 900; }
+  .web-logo em { font-style: normal; color: var(--gold-deep); }
+  .web-nav { display: flex; gap: 4px; }
+  .web-nav a { font-size: 13.5px; color: var(--ink-2); text-decoration: none; padding: 8px 14px; border-radius: 10px; font-weight: 500; }
+  .web-nav a.on { color: var(--ink); background: var(--surface-2); font-weight: 700; }
+  .web-top .spacer { flex: 1; }
+  .web-search { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--pill); padding: 8px 16px; font-size: 12.5px; color: var(--ink-3); min-width: 220px; }
+  .web-orb { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 32% 30%, var(--gold-bright), var(--gold) 62%, #8a5d1c); display: grid; place-items: center; cursor: pointer; }
+
+  .cockpit { display: grid; grid-template-columns: 280px 1fr 300px; gap: 18px; padding: 22px 26px 0; }
+  .wcol { display: flex; flex-direction: column; gap: 14px; }
+  .wcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px; }
+  .wcard h3 { font-size: 12px; font-weight: 700; color: var(--ink-3); letter-spacing: .06em; display: flex; align-items: center; gap: 8px; }
+  .wcard h3 .more { margin-left: auto; color: var(--gold-deep); font-size: 11px; cursor: pointer; }
+  .proj { display: flex; gap: 12px; align-items: center; }
+  .proj .p-avatar { width: 46px; height: 46px; border-radius: 16px; background: var(--gold-soft); display: grid; place-items: center; }
+  .proj b { font-size: 14px; display: block; }
+  .proj small { font-size: 11px; color: var(--ink-3); }
+  .wbar { height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
+  .wbar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg,var(--gold-deep),var(--gold)); }
+  .team { display: flex; flex-direction: column; gap: 10px; }
+  .team .row { display: flex; align-items: center; gap: 10px; }
+  .team .t-ava { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 12px; font-weight: 700; }
+  .team b { font-size: 12.5px; display: block; }
+  .team small { font-size: 10.5px; color: var(--ink-3); }
+
+  .kpi { display: flex; flex-direction: column; gap: 12px; }
+  .kpi .row { display: flex; align-items: baseline; justify-content: space-between; }
+  .kpi .lab { font-size: 11.5px; color: var(--ink-3); }
+  .kpi .val { font-size: 20px; font-weight: 800; font-family: var(--serif); }
+  .kpi .val small { font-size: 11px; color: var(--ink-3); font-weight: 500; }
+  .kpi .row + .row { padding-top: 12px; border-top: 1px solid var(--line); }
+  .escrow { display: flex; flex-direction: column; gap: 8px; }
+  .escrow .row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .escrow .st { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+  .escrow .st.ok { background: var(--sage-soft); color: var(--sage); }
+  .escrow .st.wait { background: var(--gold-soft); color: var(--gold-deep); }
+  .escrow .row b { flex: 1; font-weight: 500; }
+  .escrow .amt { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+
+  .feed-card { display: flex; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+  .feed-card + .feed-card { margin-top: 10px; }
+
+  .bento { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .bento .wide { grid-column: 1 / -1; }
+  .mini-chart { display: flex; align-items: flex-end; gap: 6px; height: 72px; padding-top: 8px; }
+  .mini-chart i { flex: 1; border-radius: 4px 4px 0 0; background: var(--surface-3); position: relative; }
+  .mini-chart i.g { background: linear-gradient(180deg, var(--gold-bright), var(--gold)); }
+  .mini-chart i.lab { background: var(--gold-soft); }
+  .legend2 { display: flex; gap: 14px; margin-top: 8px; font-size: 10.5px; color: var(--ink-3); }
+  .legend2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 4px; }
+
+  .pill2 { font-size: 11px; padding: 4px 10px; border-radius: var(--pill); font-weight: 600; }
+
+  /* ── B 端深色工程台 ── */
+  .browser.dark { background: var(--d-surface); border-color: var(--d-line); }
+  .browser.dark .browser-bar { background: var(--d-surface); border-color: var(--d-line); }
+  .browser.dark .urlbar { background: var(--d-surface-2); border-color: var(--d-line); color: var(--d-sub); }
+  .browser.dark .browser-view { background: var(--d-bg); color: var(--d-text); }
+  .d-top { display: flex; align-items: center; gap: 20px; padding: 13px 26px; background: var(--d-surface); border-bottom: 1px solid var(--d-line); }
+  .d-logo { font-family: var(--serif); font-weight: 900; font-size: 16px; }
+  .d-logo em { font-style: normal; color: var(--gold); }
+  .d-nav a { color: var(--d-sub); font-size: 12.5px; text-decoration: none; padding: 7px 12px; border-radius: 8px; }
+  .d-nav a.on { color: var(--d-text); background: var(--d-surface-2); }
+  .d-top .spacer { flex: 1; }
+  .d-status { font-size: 11px; color: var(--sage); background: rgba(74,158,110,.14); padding: 5px 12px; border-radius: var(--pill); }
+  .d-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 320px; gap: 14px; padding: 20px 26px; }
+  .d-card { background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 16px; padding: 16px; }
+  .d-card h3 { font-size: 11px; font-weight: 700; color: var(--d-dim); letter-spacing: .08em; display: flex; gap: 8px; align-items: center; }
+  .d-card h3 .n { color: var(--gold); font-family: var(--mono); }
+  .d-card h3 .more { margin-left: auto; color: var(--d-dim); font-size: 10px; }
+  .d-mono { font-family: var(--mono); }
+  .d-crew { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .d-crew .row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .d-crew .ava { width: 30px; height: 30px; border-radius: 9px; background: var(--d-surface-2); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--gold); }
+  .d-crew b { flex: 1; font-weight: 500; }
+  .d-crew .st { font-size: 10.5px; padding: 3px 9px; border-radius: var(--pill); }
+  .st.on { color: var(--sage); background: rgba(74,158,110,.14); }
+  .st.off { color: var(--d-dim); background: var(--d-surface-2); }
+  .d-checklist { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .d-checklist .row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .d-checklist .ck { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--d-line); flex: none; display: grid; place-items: center; font-size: 10px; }
+  .d-checklist .ck.pass { background: rgba(74,158,110,.18); border-color: var(--sage); color: var(--sage); }
+  .d-checklist .ck.fail { background: rgba(179,74,58,.18); border-color: #D2695A; color: #E28A7D; }
+  .d-checklist b { flex: 1; font-weight: 500; }
+  .d-checklist .v { font-family: var(--mono); font-size: 11px; color: var(--d-sub); }
+  .d-agents { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .d-agents .row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 7px; border-radius: 10px; background: var(--d-surface-2); }
+  .d-agents .st { font-size: 10px; color: var(--sage); }
+  .d-agents .cnt { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--d-sub); }
+  .d-audit { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .d-audit .row { display: flex; gap: 10px; font-size: 11px; color: var(--d-sub); line-height: 1.6; }
+  .d-audit .t { color: var(--d-dim); font-family: var(--mono); font-size: 10px; flex: none; padding-top: 2px; }
+  .d-audit .tag { font-size: 9.5px; padding: 1px 7px; background: var(--d-surface-2); color: var(--d-sub); border-radius: var(--pill); }
+  .d-minichart { display: flex; align-items: flex-end; gap: 5px; height: 56px; margin-top: 12px; }
+  .d-minichart i { flex: 1; border-radius: 3px 3px 0 0; background: var(--d-surface-2); }
+  .d-minichart i.g { background: linear-gradient(180deg,#E0AA4A,var(--gold)); }
+
+  footer.note { max-width: 1280px; margin: 48px auto 0; padding: 24px 32px; color: var(--ink-3); font-size: 12px; line-height: 1.9; }
+
+  @media (max-width: 900px) {
+    .masthead { padding: 12px 18px; flex-wrap: wrap; }
+    .masthead nav { margin-left: 0; }
+    .board { justify-content: center; padding: 16px 14px 0; }
+    .concept, .section-head { padding-left: 18px; padding-right: 18px; }
+    .cockpit { grid-template-columns: 1fr; }
+    .d-grid { grid-template-columns: 1fr; }
+    .phone { transform-origin: top center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="brand"><b>索克家居 <em>· 2026 原创设计</em></b><small>家的生命线 · LIFELINE CONCEPT</small></div>
+  <nav class="seg" id="modeSeg">
+    <button data-mode="all" class="on">全部</button>
+    <button data-mode="mobile">移动端</button>
+    <button data-mode="web">Web 端</button>
+  </nav>
+</header>
+
+<div class="concept">
+  <h1>从「App 页面」到「家的生命线」<span class="dim">— 空间智能 × 时间叙事的双重重构</span></h1>
+  <p class="thesis">
+    2026 年行业从「单品智能」跃迁到「空间智能」，装修存量焕新成为主流，透明化与信任成为竞争核心。索克拥有 25 个智能体、
+    A2UI 卡片协议、实时语音、AR 量房、资金托管与施工健康分 —— 但现有界面仍以「功能列表」呈现。本方案提出三个原创设计命题：
+    ① <b>空间即导航</b>：户型图取代图标网格，家的状态一眼可知；② <b>生命线叙事</b>：装修全周期时间轴 + 施工健康分，把"装修到哪一步了"变成主界面；
+    ③ <b>Ambient 管家</b>：AI 从"聊天标签页"升级为主动卡片流，每个建议都标注由哪个智能体产生、依据什么 —— 可解释、可追溯、可信任。
+  </p>
+  <div class="pill-row">
+    <span class="pill"><i></i>空间即导航 · 户型即首页</span>
+    <span class="pill"><i class="sage"></i>生命线 · 全周期时间叙事</span>
+    <span class="pill"><i class="terra"></i>Ambient 管家 · 主动卡片 + Agent 归因</span>
+    <span class="pill"><i class="blue"></i>信任资产 · 节点放款 / 材料溯源</span>
+    <span class="pill">暖境语言 · 低刺激暖纸 + 暗金单强调</span>
+  </div>
+</div>
+
+<section id="mobile" data-mode="all">
+  <div class="section-head"><h2>移动端 · C 端业主</h2><span>Flutter · 空间首页 / Ambient 管家 / 生命线</span></div>
+  <div class="board">
+
+    <!-- ── 屏 1：空间首页 ── -->
+    <div class="phone-card">
+      <div class="phone-cap"><b>① 空间首页</b><span class="tag">核心创新</span><span class="cap">户型即导航</span></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span class="right">▂▄▆ ●</span></div>
+          <div class="appbar">
+            <div class="avatar gold">王</div>
+            <div class="app-title"><b>云栖玫瑰园 · 3-1202</b><small>硬装施工 · 第 46 天</small></div>
+            <div class="iconbtn"><span style="font-size:15px">◌</span><span class="dot"></span></div>
+          </div>
+
+          <div class="pulse">
+            <div class="pulse-track">
+              <div class="rail"><div class="fill"></div></div>
+              <div class="node done">✓</div><div class="node done">✓</div><div class="node done">✓</div>
+              <div class="node now">4</div><div class="node next">5</div><div class="node">6</div><div class="node">7</div>
+            </div>
+            <div class="pulse-labels">
+              <span>量房</span><span>设计</span><span>预算</span><span class="on">施工</span><span>质检</span><span>结算</span><span>入住</span>
+            </div>
+          </div>
+
+          <div class="fp-card">
+            <div class="fp-head"><b>家的实时状态</b><span class="fp-live">● 4 个空间正在施工</span></div>
+            <svg class="fp-svg" viewBox="0 0 344 252" fill="none">
+              <rect x="4" y="4" width="336" height="244" rx="16" stroke="#E7E1D3" stroke-width="1.5"/>
+              <!-- 玄关 -->
+              <rect class="fp-room" id="r-玄关" x="14" y="14" width="78" height="58" rx="10" fill="#F3ECD9"/>
+              <rect class="fp-room" id="r-玄关" x="14" y="14" width="78" height="58" rx="10" fill="transparent"/>
+              <text x="53" y="40" text-anchor="middle" class="fp-label" font-size="12" font-weight="700" fill="#1C1915">玄关</text>
+              <text x="53" y="56" text-anchor="middle" class="fp-label" font-size="9" fill="#978F82">木工</text>
+              <!-- 厨房 -->
+              <rect class="fp-room" x="14" y="82" width="78" height="78" rx="10" fill="#E4F1E8"/>
+              <text x="53" y="116" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">厨房</text>
+              <text x="53" y="132" text-anchor="middle" font-size="9" fill="#4A8F66">已验收</text>
+              <!-- 卫浴 -->
+              <rect class="fp-room" id="r-卫浴" x="14" y="170" width="78" height="68" rx="10" fill="#F8E3DB" stroke="#C2643C" stroke-width="1.5"/>
+              <text x="53" y="200" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">卫浴</text>
+              <text x="53" y="216" text-anchor="middle" font-size="9" fill="#C2643C">防水 · 待验收</text>
+              <!-- 主卧 -->
+              <rect class="fp-room" x="102" y="14" width="112" height="94" rx="10" fill="#F3ECD9"/>
+              <text x="158" y="56" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">主卧</text>
+              <text x="158" y="72" text-anchor="middle" font-size="9" fill="#978F82">木工 62%</text>
+              <!-- 儿童房 -->
+              <rect class="fp-room" x="102" y="118" width="112" height="64" rx="10" fill="#E9EEF7"/>
+              <text x="158" y="146" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">儿童房</text>
+              <text x="158" y="162" text-anchor="middle" font-size="9" fill="#5479B8">油工 · 明日</text>
+              <!-- 次卧 -->
+              <rect class="fp-room" x="102" y="192" width="112" height="46" rx="10" fill="#E9EEF7"/>
+              <text x="158" y="215" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">次卧</text>
+              <text x="158" y="231" text-anchor="middle" font-size="9" fill="#5479B8">油工 12%</text>
+              <!-- 客厅 -->
+              <rect class="fp-room" id="r-客厅" x="224" y="14" width="106" height="126" rx="10" fill="#F0E4C8"/>
+              <text x="277" y="72" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">客厅</text>
+              <text x="277" y="88" text-anchor="middle" font-size="9" fill="#8A6415">瓦工 68%</text>
+              <!-- 阳台 -->
+              <rect class="fp-room" x="224" y="150" width="106" height="88" rx="10" fill="#EFEBE2"/>
+              <text x="277" y="190" text-anchor="middle" font-size="12" font-weight="700" fill="#1C1915">阳台</text>
+              <text x="277" y="206" text-anchor="middle" font-size="9" fill="#978F82">未开始</text>
+            </svg>
+            <div class="fp-legend">
+              <span><i style="background:var(--gold)"></i>施工中</span>
+              <span><i style="background:var(--sage)"></i>已验收</span>
+              <span><i style="background:var(--blue)"></i>即将开始</span>
+              <span><i style="background:var(--terra)"></i>需关注</span>
+            </div>
+          </div>
+
+          <div class="orb-wrap">
+            <div class="orb"><div class="ring"></div><div class="ring"></div><div class="ring"></div><div class="core"><span style="font-size:16px">✦</span></div></div>
+            <div class="orb-text"><b>管家今晚 21:00 自动巡检</b><small>卫浴防水养护提醒 · 已调度质检验收智能体</small></div>
+            <div class="orb-mic"><span style="font-size:14px;color:#14110C">▣</span></div>
+          </div>
+
+          <div class="room-sheet" id="roomSheet">
+            <div class="rs-top">
+              <img id="rsImg" alt="房间效果图" src="">
+              <div style="flex:1">
+                <b id="rsName">卫浴</b>
+                <span class="tag terra" id="rsTag" style="margin-left:6px">防水 · 待验收</span>
+                <div class="rs-meta" id="rsMeta">AI 质检已巡检 14 项 · 建议预约明日 9:00 验收</div>
+                <div class="bar"><i style="width:84%"></i></div>
+              </div>
+            </div>
+            <div class="rs-actions">
+              <button class="btn gold" style="flex:1">预约验收</button>
+              <button class="btn ghost" style="flex:1">查看日志</button>
+            </div>
+          </div>
+
+          <div class="tabbar">
+            <button class="on"><span style="font-size:16px">◧</span>家<span class="bar"></span></button>
+            <button><span style="font-size:16px">⇣</span>生命线<span class="bar"></span></button>
+            <button><span style="font-size:16px">✦</span>管家<span class="bar"></span></button>
+            <button><span style="font-size:16px">◉</span>我的<span class="bar"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 屏 2：Ambient 管家 ── -->
+    <div class="phone-card">
+      <div class="phone-cap"><b>② Ambient 管家</b><span class="tag">主动卡片流</span><span class="cap">Agent 归因透明</span></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span class="right">▂▄▆ ●</span></div>
+          <div class="appbar">
+            <div class="avatar gold">✦</div>
+            <div class="app-title"><b>管家</b><small>已接通 8 个专业智能体 · 轮值: 质检 / 采购 / 预算</small></div>
+            <div class="iconbtn"><span style="font-size:14px">⋯</span></div>
+          </div>
+          <div class="scroll">
+            <div class="greet">
+              <b>晚上好，王先生</b>
+              <p>按你最近浏览的「现代北欧风」，设计师新出了 2 套玄关方案，已放进待你确认的列表。</p>
+            </div>
+
+            <div class="mcard" style="border-color:rgba(194,100,60,.4);background:linear-gradient(180deg,#FFF8F3,#FFFFFF)">
+              <div class="card-row">
+                <div class="agent-ava" style="background:var(--terra)">检</div>
+                <div class="card-body">
+                  <div class="who"><span class="tag terra">待你到场</span>质检验收智能体 · 明日 9:00</div>
+                  <h4>卫浴防水验收 · 还剩 12 小时</h4>
+                  <p>已按 GB 50210-2018 自动生成 14 项验收清单，预计 45 分钟，需要你到场双确认。</p>
+                  <div class="card-foot">
+                    <div class="acts"><button class="btn gold" style="padding:8px 14px">确认验收</button><button class="btn ghost" style="padding:8px 14px">改期</button></div>
+                    <span class="ago">2 分钟前</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mcard">
+              <div class="card-row">
+                <div class="agent-ava" style="background:var(--blue)">采</div>
+                <div class="card-body">
+                  <div class="who"><span class="tag blue">已到货</span>采购智能体</div>
+                  <h4>主材到货 · 客厅瓷砖 32 箱</h4>
+                  <p>东鹏 750×1500 暖灰柔光砖，扫码可看批次与质检报告，可预约周末送货。</p>
+                  <div class="card-foot"><button class="btn ghost" style="padding:8px 14px">预约送货</button><span class="ago">38 分钟前</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mcard">
+              <div class="card-row">
+                <div class="agent-ava" style="background:var(--terra)">预</div>
+                <div class="card-body">
+                  <div class="who"><span class="tag terra">偏差预警</span>预算智能体</div>
+                  <h4>浴室防水预算偏差 +4.7%</h4>
+                  <p>因防水涂料升级为双组份，超出 ¥1,280。已比价 3 家供应商，最低方案 +¥860。</p>
+                  <div class="card-foot"><button class="btn ghost" style="padding:8px 14px">查看明细</button><span class="ago">1 小时前</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mcard">
+              <div class="card-row">
+                <div class="agent-ava" style="background:var(--sage)">设</div>
+                <div class="card-body">
+                  <div class="who"><span class="tag sage">新提案</span>设计智能体 · 已学习你的偏好</div>
+                  <h4>玄关方案 2 选 1 · 现代北欧</h4>
+                  <p>A 悬浮鞋柜 + 换鞋凳；B 一体式储物 + 落尘区。两者均已做过 0.9m 通道校验。</p>
+                  <div class="card-foot"><button class="btn gold" style="padding:8px 14px">看方案</button><span class="ago">2 小时前</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:0 20px">
+            <div class="voicebar">
+              <div class="vb-orb speaking"><span style="font-size:14px;color:var(--gold-bright)">◉</span></div>
+              <div class="vb-hint">按住说话 · 或点问：</div>
+              <div class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="chip-row" style="margin:10px 2px 0;gap:6px">
+              <span class="chip">查施工进度</span><span class="chip">预约验收</span><span class="chip">问预算</span><span class="chip">今晚开灯场景</span>
+            </div>
+          </div>
+          <div class="tabbar">
+            <button><span style="font-size:16px">◧</span>家<span class="bar"></span></button>
+            <button><span style="font-size:16px">⇣</span>生命线<span class="bar"></span></button>
+            <button class="on"><span style="font-size:16px">✦</span>管家<span class="bar"></span></button>
+            <button><span style="font-size:16px">◉</span>我的<span class="bar"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 屏 3：生命线 ── -->
+    <div class="phone-card">
+      <div class="phone-cap"><b>③ 生命线</b><span class="tag">进度叙事</span><span class="cap">健康分 + 子工序</span></div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="island"></div>
+          <div class="statusbar"><span>9:41</span><span class="right">▂▄▆ ●</span></div>
+          <div class="appbar">
+            <div class="avatar gold">王</div>
+            <div class="app-title"><b>家的生命线</b><small>硬装施工 · 第 46 天 / 预计 96 天</small></div>
+            <div class="iconbtn"><span style="font-size:15px">↻</span></div>
+          </div>
+          <div class="scroll">
+            <div class="health-wrap">
+              <div class="health-ring">
+                <svg viewBox="0 0 108 108">
+                  <circle class="track" cx="54" cy="54" r="47" stroke-width="11" fill="none"/>
+                  <circle class="prog" id="healthRing" cx="54" cy="54" r="47" stroke-width="11" fill="none" stroke-dasharray="295.3" stroke-dashoffset="295.3"/>
+                </svg>
+                <div class="ring-label"><b>86</b><small>施工健康分</small></div>
+              </div>
+              <div class="health-side">
+                <b>整体进度 68%</b>
+                <div class="mini-stat"><span>预计工期</span><span class="mv">96 天</span></div>
+                <div class="mini-stat"><span>已用 / 剩余</span><span class="mv">46 / 50 天</span></div>
+                <div class="mini-stat"><span>健康趋势</span><span class="up">▲ 较上周 +3</span></div>
+              </div>
+            </div>
+
+            <div class="mcard" style="margin-top:12px">
+              <h4 style="font-size:12.5px;color:var(--ink-3);font-weight:700">当前节点 · 硬装施工</h4>
+              <div class="step-track">
+                <div class="step done"><div class="st-dot">✓</div><small>水电</small></div>
+                <div class="step now"><div class="st-dot">3</div><small>瓦工</small></div>
+                <div class="step"><div class="st-dot">4</div><small>木工</small></div>
+                <div class="step"><div class="st-dot">5</div><small>油工</small></div>
+              </div>
+              <div class="wbar" style="margin-top:14px"><i style="width:68%"></i></div>
+              <div class="agent" style="margin-top:10px"><i style="background:var(--gold)">施</i>施工智能体 · 今日派工 5 人 · 到场 5 人</div>
+            </div>
+
+            <div class="mcard">
+              <h4 style="font-size:13px">今日施工日志</h4>
+              <img class="log-img" src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=%E8%A3%85%E4%BF%AE%E6%96%BD%E5%B7%A5%E7%8E%B0%E5%9C%BA%20%E5%B8%88%E5%82%85%E9%93%BA%E8%B4%B4%E5%9C%B0%E7%A0%96%20%E8%87%AA%E7%84%B6%E5%85%89%20%E7%9C%9F%E5%AE%9E%E7%85%A7%E7%89%87&image_size=landscape_4_3" alt="施工现场">
+              <div class="card-row" style="margin-top:12px">
+                <div class="card-body">
+                  <h4>客厅地砖铺贴 24㎡</h4>
+                  <p>瓦工 张师傅 · 已完成 68%，平整度抽检 3 处均 ≤2mm。</p>
+                  <div class="card-foot"><button class="btn gold" style="padding:8px 14px">确认今日日志</button><span class="ago">18:32</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mcard" style="border-style:dashed;border-color:var(--line-strong)">
+              <h4 style="font-size:13px">明日计划</h4>
+              <div class="card-row" style="margin-top:8px">
+                <div class="agent-ava" style="background:var(--terra)">验</div>
+                <div class="card-body">
+                  <p><b>9:00 · 卫浴防水验收</b>（需业主到场，已发提醒）</p>
+                </div>
+              </div>
+              <div class="card-row" style="margin-top:10px">
+                <div class="agent-ava" style="background:var(--blue)">送</div>
+                <div class="card-body"><p><b>14:00 · 客厅瓷砖送货</b>（32 箱，货梯已预约）</p></div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <button><span style="font-size:16px">◧</span>家<span class="bar"></span></button>
+            <button class="on"><span style="font-size:16px">⇣</span>生命线<span class="bar"></span></button>
+            <button><span style="font-size:16px">✦</span>管家<span class="bar"></span></button>
+            <button><span style="font-size:16px">◉</span>我的<span class="bar"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="web" data-mode="all">
+  <div class="section-head"><h2>Web 端</h2><span>C 端业主工作台（暖境）/ B 端控制台（工程台 2.0）</span></div>
+  <div class="board">
+
+    <!-- ── Web C 端：业主工作台 ── -->
+    <div class="web-card">
+      <div class="phone-cap"><b>④ 业主工作台 · Cockpit</b><span class="tag">空间 + 时间 + 信任</span><span class="cap">Bento 布局 · 三栏：空间 / 主动流 / 信任资产</span></div>
+      <div class="browser">
+        <div class="browser-bar">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="urlbar">app.i-home.life / 工作台</div>
+        </div>
+        <div class="browser-view">
+          <div class="web-top">
+            <div class="web-logo">索克家居<em> · Suoke</em></div>
+            <div class="web-nav">
+              <a class="on">工作台</a><a>项目</a><a>预算</a><a>施工</a><a>质检</a><a>结算</a><a>智家</a>
+            </div>
+            <div class="spacer"></div>
+            <div class="web-search">⌕ 问 AI 管家：如「卫生间防水验收标准」</div>
+            <div class="web-orb"><span style="color:#14110C;font-size:15px">✦</span></div>
+          </div>
+          <div class="cockpit">
+            <div class="wcol">
+              <div class="wcard">
+                <h3>当前项目 <span class="more">全部项目 →</span></h3>
+                <div class="proj" style="margin-top:12px">
+                  <div class="p-avatar"><span style="font-size:18px">◧</span></div>
+                  <div style="flex:1"><b>云栖玫瑰园 3-1202</b><small>三室两厅 · 硬装施工 · 第 46 天</small></div>
+                </div>
+                <div class="wbar"><i style="width:68%"></i></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:6px"><span>整体进度 68%</span><span>预计 96 天</span></div>
+              </div>
+              <div class="wcard">
+                <h3>空间实时状态</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+                  <span class="pill2" style="background:var(--gold-soft);color:var(--gold-deep)">客厅 · 瓦工 68%</span>
+                  <span class="pill2" style="background:var(--gold-soft);color:var(--gold-deep)">主卧 · 木工 62%</span>
+                  <span class="pill2" style="background:var(--terra-soft);color:var(--terra)">卫浴 · 待验收</span>
+                  <span class="pill2" style="background:var(--blue-soft);color:var(--blue)">儿童房 · 油工 明日</span>
+                  <span class="pill2" style="background:var(--sage-soft);color:var(--sage)">厨房 · 已验收</span>
+                </div>
+              </div>
+              <div class="wcard">
+                <h3>项目团队</h3>
+                <div class="team" style="margin-top:10px">
+                  <div class="row"><div class="t-ava" style="background:#5479B8">设</div><div style="flex:1"><b>林设计 · 深化设计师</b><small>本周处理 2 个变更</small></div><span class="pill2" style="background:var(--sage-soft);color:var(--sage)">在线</span></div>
+                  <div class="row"><div class="t-ava" style="background:#C97A3B">工</div><div style="flex:1"><b>李工长 · 现场负责人</b><small>今日派工 5 人 · 到场 5 人</small></div><span class="pill2" style="background:var(--sage-soft);color:var(--sage)">在场</span></div>
+                  <div class="row"><div class="t-ava" style="background:#4A8F66">监</div><div style="flex:1"><b>赵监理 · 验收监理</b><small>本周巡检 6 次 · 0 重大项</small></div><span class="pill2" style="background:var(--surface-2);color:var(--ink-2)">离线</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="wcol">
+              <div class="wcard">
+                <h3>家的生命线</h3>
+                <div class="pulse-track" style="margin-top:14px">
+                  <div class="rail"><div class="fill" style="width:57%"></div></div>
+                  <div class="node done">✓</div><div class="node done">✓</div><div class="node done">✓</div>
+                  <div class="node now">4</div><div class="node next">5</div><div class="node">6</div><div class="node">7</div>
+                </div>
+                <div class="pulse-labels"><span>量房</span><span>设计</span><span>预算</span><span class="on">施工</span><span>质检</span><span>结算</span><span>入住</span></div>
+              </div>
+
+              <div class="wcard">
+                <h3>管家主动卡片 <span class="more">全部 →</span></h3>
+                <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+                  <div class="feed-card">
+                    <div class="agent-ava" style="background:var(--terra)">检</div>
+                    <div class="card-body"><div class="who"><span class="tag terra">待你到场</span>质检验收 · 明日 9:00</div><h4>卫浴防水验收 · 剩 12h</h4><div class="card-foot"><button class="btn gold" style="padding:7px 12px;font-size:11.5px">确认验收</button></div></div>
+                  </div>
+                  <div class="feed-card">
+                    <div class="agent-ava" style="background:var(--blue)">采</div>
+                    <div class="card-body"><div class="who"><span class="tag blue">已到货</span>采购智能体</div><h4>客厅瓷砖 32 箱已到 · 可预约送货</h4></div>
+                  </div>
+                  <div class="feed-card">
+                    <div class="agent-ava" style="background:var(--terra)">预</div>
+                    <div class="card-body"><div class="who"><span class="tag terra">偏差预警</span>预算智能体</div><h4>浴室防水 +4.7%（+¥1,280）· 已比价</h4></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bento">
+                <div class="wcard">
+                  <h3>预算执行率</h3>
+                  <div class="kpi" style="gap:6px">
+                    <div class="row"><span class="val" style="font-size:22px">96.2%</span></div>
+                    <div class="mini-chart" style="height:56px">
+                      <i style="height:40%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:66%"></i><i class="g" style="height:78%"></i><i class="g" style="height:88%"></i><i class="g lab" style="height:82%"></i>
+                    </div>
+                    <div class="legend2"><span><i style="background:var(--gold)"></i>已发生</span><span><i style="background:var(--gold-soft)"></i>本周</span></div>
+                  </div>
+                </div>
+                <div class="wcard">
+                  <h3>资金托管</h3>
+                  <div class="escrow" style="margin-top:12px">
+                    <div class="row"><div class="st ok">✓</div><b>节点 4 · 泥瓦工程</b><span class="amt">¥68,000</span></div>
+                    <div class="row"><div class="st ok">✓</div><b>节点 3 · 水电工程</b><span class="amt">¥52,000</span></div>
+                    <div class="row"><div class="st wait">…</div><b>节点 5 · 木工验收后</b><span class="amt">¥41,500</span></div>
+                    <div class="agent" style="margin-top:6px"><i style="background:var(--sage)">托</i>资金托管智能体 · 托管余额 ¥315,000 · 利息归业主</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="wcol">
+              <div class="wcard">
+                <h3>健康 & 信任</h3>
+                <div class="kpi" style="margin-top:8px">
+                  <div class="row"><span class="lab">施工健康分</span><span class="val">86 <small>/100</small></span></div>
+                  <div class="row"><span class="lab">本节点待办</span><span class="val">3</span></div>
+                  <div class="row"><span class="lab">下一验收节点</span><span class="val" style="font-size:15px">12h 后</span></div>
+                  <div class="row"><span class="lab">变更待审</span><span class="val">2</span></div>
+                </div>
+              </div>
+              <div class="wcard">
+                <h3>质检流水（HMAC 溯源）</h3>
+                <div class="escrow" style="margin-top:12px">
+                  <div class="row"><div class="st ok">✓</div><b>瓦工平整度 ≤2mm</b><span class="amt">14:02</span></div>
+                  <div class="row"><div class="st ok">✓</div><b>防水闭水 48h</b><span class="amt">昨 09:00</span></div>
+                  <div class="row"><div class="st wait">!</div><b>浴室预留插座位置</b><span class="amt" style="color:var(--terra)">整改中</span></div>
+                </div>
+                <div class="agent" style="margin-top:6px"><i style="background:var(--gold)">审</i>审计完整性 · 每条记录 HMAC-SHA256 签名，字段级 PII 脱敏</div>
+              </div>
+              <div class="wcard">
+                <h3>材料溯源</h3>
+                <div style="margin-top:10px;display:flex;align-items:center;gap:12px">
+                  <div style="width:64px;height:64px;border-radius:16px;background:var(--surface-2);display:grid;place-items:center;border:1px dashed var(--line-strong)">
+                    <span style="font-size:26px;color:var(--ink-3)">▦</span>
+                  </div>
+                  <div style="flex:1;font-size:12px;color:var(--ink-2);line-height:1.7">
+                    <b style="color:var(--ink)">东鹏 750×1500 暖灰柔光砖</b><br>批次 B-2407 · ENF 环保 · 扫码验真
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Web B 端：工长控制台 ── -->
+    <div class="web-card">
+      <div class="phone-cap"><b>⑤ 工长控制台 · 工程台 2.0</b><span class="tag">B 端深色升级</span><span class="cap">Bento 数字化 · Agent 治理 · 审计可还原</span></div>
+      <div class="browser dark">
+        <div class="browser-bar">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="urlbar" style="color:var(--d-dim)">console.i-home.life / 工地看板</div>
+        </div>
+        <div class="browser-view">
+          <div class="d-top">
+            <div class="d-logo">索克<em>控制台</em></div>
+            <div class="d-nav">
+              <a class="on">工地看板</a><a>派工</a><a>质检</a><a>结算</a><a>材料</a><a>变更</a><a>Agent 治理</a>
+            </div>
+            <div class="spacer"></div>
+            <div class="d-status">● 巡检正常 · 3 工地在线</div>
+            <div style="width:34px;height:34px;border-radius:10px;background:var(--gold);display:grid;place-items:center;font-weight:700;color:#0B0B12">李</div>
+          </div>
+          <div class="d-grid">
+            <div class="d-card">
+              <h3>今日派工 <span class="n">CREW</span><span class="more">排班表 →</span></h3>
+              <div class="d-crew">
+                <div class="row"><div class="ava">张</div><b>张建军 · 瓦工</b><span class="st on">在场</span></div>
+                <div class="row"><div class="ava">陈</div><b>陈伟 · 电工</b><span class="st on">在场</span></div>
+                <div class="row"><div class="ava">刘</div><b>刘洋 · 木工</b><span class="st on">到场 1/2</span></div>
+                <div class="row"><div class="ava">王</div><b>王敏 · 油工</b><span class="st off">明日</span></div>
+              </div>
+            </div>
+            <div class="d-card">
+              <h3>质检清单 <span class="n">QC</span><span class="more">明细 →</span></h3>
+              <div class="d-checklist">
+                <div class="row"><div class="ck pass">✓</div><b>客厅地砖平整度</b><span class="v">≤2mm</span></div>
+                <div class="row"><div class="ck pass">✓</div><b>防水闭水 48h</b><span class="v">合格</span></div>
+                <div class="row"><div class="ck fail">!</div><b>浴室预留插座位置</b><span class="v">整改中</span></div>
+                <div class="row"><div class="ck">○</div><b>卫生间蓄水试验</b><span class="v">明日</span></div>
+              </div>
+            </div>
+            <div class="d-card">
+              <h3>健康分趋势 <span class="n">H-OS</span></h3>
+              <div style="display:flex;gap:12px;align-items:center;margin-top:10px">
+                <div style="font-family:var(--serif);font-size:34px;font-weight:800;color:var(--gold)">86</div>
+                <div style="flex:1">
+                  <div class="d-minichart">
+                    <i style="height:45%"></i><i style="height:58%"></i><i style="height:52%"></i><i style="height:70%"></i><i class="g" style="height:82%"></i><i class="g" style="height:88%"></i><i class="g" style="height:92%"></i>
+                  </div>
+                  <div style="font-size:10.5px;color:var(--d-dim);margin-top:6px">5 级预警规则引擎 · 今日 0 条 SEVERE</div>
+                </div>
+              </div>
+            </div>
+            <div class="d-card">
+              <h3>Agent 轮值 <span class="n">AGENTS</span><span class="more">治理台 →</span></h3>
+              <div class="d-agents">
+                <div class="row"><span class="st">●</span><b>总控编排</b><span class="cnt">24 任务</span></div>
+                <div class="row"><span class="st">●</span><b>质检验收</b><span class="cnt">6 巡检</span></div>
+                <div class="row"><span class="st">●</span><b>预算核算</b><span class="cnt">3 偏差</span></div>
+                <div class="row"><span class="st" style="color:var(--d-dim)">○</span><b>采购比价</b><span class="cnt">待命</span></div>
+              </div>
+            </div>
+            <div class="d-card" style="grid-column:span 3">
+              <h3>审计轨迹 · 决策可还原 <span class="n">AUDIT</span><span class="more">完整日志 →</span></h3>
+              <div class="d-audit" style="flex-direction:row;gap:14px;margin-top:12px">
+                <div class="row" style="flex:1"><span class="t">14:02</span><div><b style="color:var(--d-text)">质检 Agent 自动巡检客厅</b><br>工具: inspect.wall_level · 结果 ≤2mm 通过<br><span class="tag">trace#a81f · scope=项目 · HMAC ✓</span></div></div>
+                <div class="row" style="flex:1"><span class="t">13:40</span><div><b style="color:var(--d-text)">预算 Agent 触发偏差预警</b><br>防水涂料升级 +¥1,280 · 已比价 3 家<br><span class="tag">trace#b92e · 参数已 typed 校验 ✓</span></div></div>
+                <div class="row" style="flex:1"><span class="t">11:15</span><div><b style="color:var(--d-text)">总控编排调度采购/质检</b><br>DAG 无环 · 并行 2 工具 · token 预算 68%<br><span class="tag">trace#c37d · 早停未触发 ✓</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<footer class="note">
+  说明：以上为 2026 原创设计模拟稿（非 DESIGN.md v2.6 的实现稿）。所有数据为演示样例，卡片内容与后端 25 智能体 / A2UI 8 类卡片 / Health OS 健康分 / 资金托管 / HMAC 审计等真实能力一一对应。
+  设计语言「暖境」：保留品牌暗金为唯一交互色（浅底文字用深金 #8A6415），画布改用低刺激暖纸 #F5F2EB（对齐 2026 off-white / low-stimulus 趋势），标题引入 Noto Serif SC 衬线带来住居人文感，圆角收敛为 12 / 20 / 24 三档。
+</footer>
+
+<script>
+  // 模式切换
+  const seg = document.getElementById('modeSeg');
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    document.querySelectorAll('.board').forEach(el => el.dataset.mode = b.dataset.mode);
+    document.querySelectorAll('#mobile,#web').forEach(el => el.dataset.mode = b.dataset.mode);
+  });
+
+  // 户型房间点击 → 底部浮层
+  const ROOMS = {
+    'r-卫浴': { name: '卫浴', tag: '防水 · 待验收', cls: 'terra', meta: 'AI 质检已巡检 14 项 · 建议预约明日 9:00 验收', img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=%E5%8D%AB%E6%B5%B4%E9%97%B4%E6%95%88%E6%9E%9C%E5%9B%BE%20%E5%8F%B0%E7%81%B0%E8%89%B2%E5%A3%81%E5%A3%81%E5%90%89%20%E6%9F%94%E5%92%8C%E7%81%AF%E5%85%89%20%E9%AB%98%E6%B8%85%E6%B8%B2%E6%9F%93&image_size=landscape_4_3' },
+    'r-客厅': { name: '客厅', tag: '瓦工施工 68%', cls: 'gold', meta: '今日铺贴 24㎡ · 平整度抽检 3 处均 ≤2mm', img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=%E7%8E%B0%E4%BB%A3%E5%8C%97%E6%AC%A7%E9%A3%8E%E5%AE%A2%E5%8E%85%E6%95%88%E6%9E%9C%E5%9B%BE%20%E6%B8%A9%E6%9A%96%E8%83%A1%E6%A1%83%E6%9C%A8%20%E7%B1%B3%E7%99%BD%E6%B2%99%E5%8F%91%20%E9%BB%84%E6%98%8F%E9%87%91%E8%89%B2%E5%85%89%E7%BA%BF%20%E9%AB%98%E6%B8%85%E5%AE%A4%E5%86%85%E6%B8%B2%E6%9F%93&image_size=landscape_4_3' },
+    'r-玄关': { name: '玄关', tag: '木工 · 进行中', cls: 'gold', meta: '悬浮鞋柜安装中 · 预计本周完成', img: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=%E7%8E%B0%E4%BB%A3%E5%8C%97%E6%AC%A7%E9%A3%8E%E7%8E%84%E5%85%B3%E8%AE%BE%E8%AE%A1%20%E6%82%AC%E6%B5%AE%E9%9E%8B%E6%9F%9C%20%E6%8F%9B%E9%9E%8B%E5%87%B3%20%E9%AB%98%E6%B8%85%E6%B8%B2%E6%9F%93&image_size=landscape_4_3' }
+  };
+  const sheet = document.getElementById('roomSheet');
+  document.querySelectorAll('.fp-room').forEach(rect => {
+    rect.addEventListener('click', () => {
+      const room = ROOMS[rect.id]; if (!room) return;
+      document.querySelectorAll('.fp-room').forEach(r => r.classList.remove('sel'));
+      rect.classList.add('sel');
+      document.getElementById('rsName').textContent = room.name;
+      const t = document.getElementById('rsTag');
+      t.textContent = room.tag;
+      t.className = 'tag ' + room.cls;
+      document.getElementById('rsMeta').textContent = room.meta;
+      document.getElementById('rsImg').src = room.img;
+      sheet.classList.add('show');
+    });
+  });
+  document.querySelectorAll('.fp-room').forEach(r => r.classList.add('fp-room'));
+
+  // 健康环动画
+  const ring = document.getElementById('healthRing');
+  if (ring) {
+    requestAnimationFrame(() => setTimeout(() => { ring.style.strokeDashoffset = 295.3 * (1 - 0.86); }, 300));
+  }
+</script>
+</body>
+</html>

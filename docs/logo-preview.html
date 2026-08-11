@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>索克家居 2026 品牌资产 · LOGO 与手绘头像</title>
+<style>
+  :root {
+    --warm: #F5F2EB; --ink: #1C1915; --gold: #C9973B; --gold-soft: rgba(201,151,59,.14);
+    --line: rgba(28,25,21,.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--warm); color: var(--ink); padding: 40px 28px 60px; }
+  h1 { font-size: 22px; font-weight: 700; }
+  .sub { color: #6B645A; font-size: 13px; margin-top: 6px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; margin-top: 28px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 26px; }
+  .card h2 { font-size: 14px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card h2 small { font-weight: 400; color: #978F82; font-size: 11px; }
+  .stage { display: flex; align-items: center; justify-content: center; gap: 26px; padding: 28px; border-radius: 16px; }
+  .stage.light { background: var(--warm); border: 1px solid var(--line); }
+  .stage.dark { background: #0B0B12; border: 1px solid rgba(255,255,255,.08); }
+  .stage img { display: block; }
+  .cap { text-align: center; font-size: 11px; color: #978F82; margin-top: 10px; }
+  .avatars { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 12px; }
+  .avatars img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); background: #EFEAE0; }
+  .badge { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 999px; background: var(--gold-soft); color: #8A6415; font-weight: 600; margin-top: 14px; }
+  .note { margin-top: 28px; color: #6B645A; font-size: 12px; line-height: 1.9; max-width: 720px; }
+</style>
+</head>
+<body>
+  <h1>索克家居 · 2026 暖境品牌资产</h1>
+  <div class="sub">新 LOGO（墨色徽章 + 暗金屋顶 + 宋体字标）+ 110 张手绘头像 · 部分预览</div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>LOGO · 暖纸浅底 <small>C 端默认</small></h2>
+      <div class="stage light"><img src="../flutter_app/assets/images/suoke-logo.png" width="140" alt="索克 LOGO"></div>
+      <div class="cap">登录页 80px 显示 · 透明底</div>
+    </div>
+    <div class="card">
+      <h2>LOGO · 工程暗底 <small>B 端 / 深色主题</small></h2>
+      <div class="stage dark"><img src="../flutter_app/assets/images/suoke-logo.png" width="140" alt="索克 LOGO 暗底"></div>
+      <div class="cap">跨主题恒定 · 徽章自带墨底</div>
+    </div>
+    <div class="card">
+      <h2>尺寸族 <small>128 / 256 / 512 / 1024</small></h2>
+      <div class="stage" style="flex-wrap:wrap;background:var(--warm);border:1px solid var(--line)">
+        <img src="../flutter_app/assets/images/suoke-logo-128.png" width="64" alt="128">
+        <img src="../flutter_app/assets/images/suoke-logo-256.png" width="84" alt="256">
+        <img src="../flutter_app/assets/images/suoke-logo-512.png" width="104" alt="512">
+        <img src="../flutter_app/assets/images/suoke-logo-1024.png" width="124" alt="1024">
+      </div>
+      <div class="cap">suoke-logo.png 主文件 = 1024 母版</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:22px">
+    <h2>手绘头像 <small>assets/images/avatars/hand-drawn-profiles/1..110.webp · 随机载入 / 宫格选择 / 相册自定义</small></h2>
+    <div class="avatars" id="av"></div>
+    <span class="badge">共 110 张 · 每次启动随机一张</span>
+  </div>
+
+  <div class="note">
+    说明：LOGO 为程序化生成的 2026 暖境标识（墨色圆角徽章 + 暗金屋顶符号 + 宋体「索克」字标 + SUOKE HOME 字距副标），
+    透明底跨亮/暗主题；头像为既有 110 张手绘资产，已接入统一 AvatarController（启动随机、宫格固定、相册上传优先级最高）。
+  </div>
+
+<script>
+  const box = document.getElementById('av');
+  [3, 7, 12, 21, 34, 45, 58, 66, 73, 82, 91, 105].forEach(i => {
+    const img = document.createElement('img');
+    img.src = `../flutter_app/assets/images/avatars/hand-drawn-profiles/${i}.webp`;
+    img.alt = `头像 ${i}`;
+    box.appendChild(img);
+  });
+</script>
+</body>
+</html>

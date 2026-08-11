@@ -6,6 +6,7 @@ import 'http_overrides_stub.dart'
     if (dart.library.io) 'http_overrides_native.dart';
 import 'theme/suoke_theme.dart';
 import 'services/api.dart';
+import 'services/avatar_controller.dart';
 import 'services/feature_flags_service.dart';
 import 'services/notification_service.dart';
 import 'services/performance_service.dart';
@@ -90,14 +91,18 @@ class IHomeApp extends StatelessWidget {
         builder: (context, themeState, _) {
           return ChangeNotifierProvider(
             create: (_) => ProjectContext(),
-            child: MaterialApp(
-              title: '索克家居',
-              debugShowCheckedModeBanner: false,
-              navigatorKey: globalNavigatorKey,
-              theme: SuokeTheme.light(),
-              darkTheme: SuokeTheme.dark(),
-              themeMode: themeState.mode,
-              home: const AuthGate(),
+            child: ChangeNotifierProvider(
+              // 2026 头像体系：启动随机载入手绘头像；用户可宫格选择 / 相册自定义
+              create: (_) => AvatarController()..initialize(),
+              child: MaterialApp(
+                title: '索克家居',
+                debugShowCheckedModeBanner: false,
+                navigatorKey: globalNavigatorKey,
+                theme: SuokeTheme.light(),
+                darkTheme: SuokeTheme.dark(),
+                themeMode: themeState.mode,
+                home: const AuthGate(),
+              ),
             ),
           );
         },
