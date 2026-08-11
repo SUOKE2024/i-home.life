@@ -53,7 +53,7 @@
 - **P0 Case 提取**（`agent_case_extraction_enabled`）: `AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），新增 `AgentCase` 模型 + alembic 迁移
 - **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）: 同主题 Case ≥3 条聚类 → LLM 蒸馏为 Skill → `BaseAgent._inject_evolution_context` 执行前检索注入同类 Case/Skill
 - **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）: `record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）+ WHERE×WHY 病理归因 + z≥1.96 显著性检验（HarnessBank Gated Screening）
-- 三层独立 feature flag 灰度，默认全 False（关闭则 Agent 维持无记忆无进化静态行为）
+- 三层独立 feature flag 灰度，v1.13.2 起默认全 True（59 用例 + 覆盖率 99% 验证；关闭即回退无记忆无进化静态行为）
 
 ### 2026-08-03 · v1.7.0 需求-实现验证遗留项 Wave 2
 

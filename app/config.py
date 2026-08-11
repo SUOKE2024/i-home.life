@@ -186,13 +186,14 @@ class Settings(BaseSettings):
     # v1.8.0 Agent Skill 资产化总开关（scope-owned 可授权共享的 Agent 能力）。
     agent_skill_enabled: bool = True
     # v1.10.1 自进化管线（借鉴 EverMind EverOS Agent Memory + HarnessBank + SkillCorpus）：
-    # 三层独立灰度，默认全 False（诚实降级：关闭则 Agent 维持无记忆无进化静态行为）。
+    # 三层独立灰度。v1.13.2 起默认全 True（经 59 用例 + 覆盖率 99% + verify 脚本 66 项验证，
+    # best-effort 失败不影响主流程；关闭即回退无记忆无进化静态行为）。
     # P0: 从 AgentTrace 自动提取结构化 Case（task_intent + approach + quality_score）
-    agent_case_extraction_enabled: bool = False
+    agent_case_extraction_enabled: bool = True
     # P1: Case 聚类蒸馏为 Skill + Agent 执行前检索注入同类 Case/Skill
-    agent_skill_distillation_enabled: bool = False
+    agent_skill_distillation_enabled: bool = True
     # P1: Skill 随成败进化（三维质控 Utility/Robustness/Safety + WHERE×WHY 诊断归因）
-    agent_skill_evolution_enabled: bool = False
+    agent_skill_evolution_enabled: bool = True
 
     # ── MCP Server 暴露（v1.1.12 新增）──
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具

@@ -33,6 +33,21 @@
   orchestrator 默认断言重构（显式关闭降级 + 默认开启聚合不崩）
 - 验证：相关 6 模块回归全通过；flake8 / mypy 0 issues
 
+### 新增：A2 灰度 flag 第二梯队默认开启（Agent 自进化三层，2026-08-11）
+
+承接第一梯队，开启自进化管线三层（均可在 `.env.production` 置 false 回滚）：
+- **`agent_case_extraction_enabled`**：P0 Case 提取默认启用——每次 Agent 执行
+  best-effort 从 AgentTrace 提取结构化 Case（LLM 提取，失败/无 db 不影响主流程）
+- **`agent_skill_distillation_enabled`**：P1 Skill 蒸馏 + 检索注入默认启用——
+  同主题 Case ≥3 条聚类蒸馏，`BaseAgent.think` 执行前注入同类 Case/Skill
+- **`agent_skill_evolution_enabled`**：P1 Skill 进化默认启用——回写成败计数 +
+  三维质控 + WHERE×WHY 诊断归因（z≥1.96 显著性检验）
+- **成本说明**：开启后每次 Agent 执行产生 Case 提取 LLM 调用 + 注入 token 开销；
+  Skill 蒸馏/进化仅在同主题 Case ≥3 或 Skill 使用后触发（低频）。关闭即恢复
+  无记忆无进化静态行为（零成本）
+- 验证：test_agent_case 59 用例全通过（覆盖率 99%）+ 受影响相关模块回归 +
+  flake8 / mypy 0 issues
+
 ## [1.13.1] — 2026-08-11
 
 ### 修复：并行工具调用 ISCE 回归 + 全链路成本追踪 + 负反馈双向学习
