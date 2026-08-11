@@ -47,6 +47,18 @@ lifecycle_orchestration / voice_agent_orchestration / ifc_h_ifc_extension_enable
 | 空间交互（设计→施工→采购协同） | 多角色链路 | spatial_interaction_enabled |
 | 施工图 MEP 叠加 | PDF/SVG 引擎 | construction_drawing_mep_enabled |
 
+**C 类接入指引（2026-08-11 梳理，配置后置 flag=true 并回归验证）**：
+
+| flag | 配置项 | 代码接入点 | 验证方法 | 成本 |
+|---|---|---|---|---|
+| real_embedding_enabled | `embedding_api_key`（留空复用 deepseek_api_key）+ `vector_db_url`（Milvus/PGVector/Chroma） | embedding_service.py（False 时跳过真实 embedding） | AgenticRAG 知识检索返回真实向量命中 | embedding API token + 向量库存储 |
+| real_ai_render_enabled | `ai_render_backend_url`（本地 ControlNet/ComfyUI 或云 API） | ai_render_service.py L167/240/342（flag+URL 双条件） | AI 渲染返回真实图非 mock（L0 链路） | GPU 推理 |
+| dspy_enabled | `pip install dspy` | dspy_optimizer.py（False 时优雅降级返回原始提示词） | prompt 优化/签名编译生效 | 优化期 LLM 调用 |
+| spatial_perception_enabled | 视觉模型（户型/承重/管线识别 API） | ai_render_service.py L705 视觉能力标识 | 户型图 → 结构分析链路 | 视觉模型推理 |
+| spatial_reasoning_enabled | 规则引擎数据 | 空间推理服务 | 设计错误规避触发 | 低（本地规则） |
+| spatial_interaction_enabled | 多角色链路数据 | 空间协同服务 | 设计→施工→采购指令贯通 | 低 |
+| construction_drawing_mep_enabled | PDF/SVG 渲染引擎 | construction_drawing_service.py L724（MEP 管线标注叠加） | 施工图含给排水/电气管线走向 | 低（本地渲染） |
+
 **B 类（前端/调试开关，按产品节奏）**：console_v2_enabled / voice_floating_widget_enabled /
 workbench_adaptive_suggestions_enabled / tracing_enabled / diagnostics_enabled + rum /
 slow_query_explain_enabled / voice_audio_prompt_enabled
