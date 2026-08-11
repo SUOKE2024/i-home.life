@@ -44,6 +44,8 @@ import DeliveryPage from './pages/DeliveryPage';
 import ElderlyAdaptationPage from './pages/ElderlyAdaptationPage';
 import PartialRenovationPage from './pages/PartialRenovationPage';
 import EscrowPage from './pages/EscrowPage';
+import EnergyPage from './pages/EnergyPage';
+import PaymentsPage from './pages/PaymentsPage';
 import EcoMaterialsPage from './pages/EcoMaterialsPage';
 import SolutionFirstPage from './pages/SolutionFirstPage';
 import EcosystemPage from './pages/EcosystemPage';
@@ -115,6 +117,8 @@ export default function App() {
           <Route path="/elderly-adaptation" element={<ElderlyAdaptationPage />} />
           <Route path="/partial-renovation" element={<PartialRenovationPage />} />
           <Route path="/escrow" element={<EscrowPage />} />
+          <Route path="/energy" element={<EnergyPage />} />
+          <Route path="/payments" element={<PaymentsPage />} />
           <Route path="/eco-materials" element={<EcoMaterialsPage />} />
           <Route path="/solution-first" element={<SolutionFirstPage />} />
           <Route path="/ecosystem" element={<EcosystemPage />} />

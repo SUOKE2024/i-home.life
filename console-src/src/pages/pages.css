@@ -1827,3 +1827,155 @@
   margin-top: 14px;
   flex-wrap: wrap;
 }
+
+/* ════════════════════════════════════════════
+   通用组件（EnergyPage / PaymentsPage，v1.13.x 前端缺口补齐）
+   ════════════════════════════════════════════ */
+.wb-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.wb-grid--2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+@media (max-width: 640px) {
+  .wb-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wb-stat-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 12px);
+  padding: 14px 16px;
+}
+.wb-stat-card__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.wb-stat-card__value {
+  font-size: var(--font-size-lg, 18px);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.wb-card {
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card, 12px);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.wb-card__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.wb-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.wb-list-row:last-of-type {
+  border-bottom: none;
+}
+.wb-list-row__main {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+.wb-list-row__sub {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.wb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+.wb-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.wb-table td {
+  padding: 9px 10px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.wb-table tr:last-child td {
+  border-bottom: none;
+}
+
+.wb-alert {
+  background: rgba(201, 74, 74, 0.12);
+  color: var(--danger, #c94a4a);
+  border: 1px solid rgba(201, 74, 74, 0.3);
+  border-radius: var(--radius-input, 8px);
+  padding: 10px 12px;
+  font-size: var(--font-size-sm);
+  margin-bottom: 12px;
+}
+
+.wb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wb-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-input, 8px);
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+.wb-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.wb-btn--sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.wb-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.wb-input {
+  height: 32px;
+  padding: 0 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input, 8px);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  outline: none;
+}
+.wb-input--sm {
+  width: 110px;
+  height: 28px;
+  font-size: 12px;
+}

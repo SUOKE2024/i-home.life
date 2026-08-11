@@ -97,6 +97,14 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '方案对比', path: '/budget-compare', emoji: '📊' },
       { label: '模板库', path: '/budget-templates', emoji: '📚' },
       { label: '结算', path: '/settlement', agent: 'settlement' },
+      { label: '支付', path: '/payments', emoji: '💳' },
+      { label: '资金托管', path: '/escrow', emoji: '🛡' },
+    ],
+  },
+  {
+    title: '物联监测',
+    items: [
+      { label: '能耗监测', path: '/energy', emoji: '⚡' },
     ],
   },
   {

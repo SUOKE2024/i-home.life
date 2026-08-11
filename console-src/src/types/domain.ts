@@ -768,6 +768,113 @@ export interface MepRoomStandard {
   available?: string[];
 }
 
+// ── 能耗监测（对齐 app/schemas/energy_monitor.py）──
+// 端点：GET /api/energy/records/project/{projectId}、/api/energy/report/{schemeId}
+export interface EnergyMonitorItem {
+  id: string;
+  project_id: string;
+  scheme_id: string;
+  period: string; // daily / weekly / monthly
+  total_consumption_kwh: number;
+  device_breakdown: Record<string, number> | null;
+  peak_power_w: number;
+  avg_power_w: number;
+  standby_consumption_kwh: number;
+  estimated_cost: number;
+  carbon_footprint_kg: number;
+  recorded_at: string;
+  created_at: string;
+}
+
+export interface EnergySavingTip {
+  id: string;
+  scheme_id: string;
+  tip_type: string;
+  device_type: string | null;
+  device_name: string | null;
+  current_consumption: number | null;
+  potential_saving_pct: number | null;
+  suggestion: string;
+  priority: string; // high / medium / low
+  status: string;
+  created_at: string;
+}
+
+export interface EnergyReport {
+  scheme_id: string;
+  period: string;
+  total_consumption_kwh: number;
+  estimated_cost: number;
+  carbon_footprint_kg: number;
+  peak_power_w: number;
+  avg_power_w: number;
+  standby_consumption_kwh: number;
+  standby_ratio: number;
+  trend: Array<{ recorded_at: string; total_consumption_kwh: number; estimated_cost: number }>;
+  device_ranking: Array<{ device_name: string; consumption_kwh: number; percentage: number }>;
+  tips: EnergySavingTip[];
+  generated_at: string;
+}
+
+// ── 支付管理（对齐 app/schemas/payment.py）──
+// 端点：/api/payments/project/{projectId}、schedule、final-settlement、confirm/refund/fail/invoice
+export interface PaymentItem {
+  id: string;
+  project_id: string;
+  settlement_id: string | null;
+  milestone_code: string;
+  stage_code: string | null;
+  stage_order: number;
+  due_at: string | null;
+  amount: number;
+  payment_method: string;
+  status: string; // pending / paid / failed / refunded / disputed
+  transaction_id: string | null;
+  payer: string | null;
+  payee: string | null;
+  evidence_url: string | null;
+  note: string | null;
+  invoice_no: string | null;
+  invoice_url: string | null;
+  invoiced_at: string | null;
+  paid_at: string | null;
+  refunded_at: string | null;
+  refund_amount: number;
+  refund_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentScheduleNode {
+  stage_code: string;
+  stage_order: number;
+  milestone_code: string;
+  total_amount: number;
+  paid_amount: number;
+  pending_amount: number;
+  refunded_amount: number;
+  failed_amount: number;
+  payment_count: number;
+  due_at: string | null;
+  status: string; // pending / partial / paid / overdue
+}
+
+export interface FinalSettlementReport {
+  project_id: string;
+  total_contract_amount: number;
+  total_paid: number;
+  total_pending: number;
+  total_refunded: number;
+  total_failed: number;
+  total_disputed: number;
+  paid_ratio: number;
+  invoice_count: number;
+  invoiced_amount: number;
+  milestone_summary: Array<Record<string, unknown>>;
+  payment_count: number;
+  generated_at: string;
+}
+
 // ── VR 全景图（对齐 app/schemas/vr_panorama.py:VRPanoramaListItem）──
 // 端点：GET /api/vr/panoramas/project/{projectId}
 export interface VRPanoramaListItem {

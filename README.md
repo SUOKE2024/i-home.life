@@ -15,7 +15,8 @@
 - **评估增强**：`detect_agent_drift` 纳入 `token_budget_hit_rate` 早停指标 + 新增 `GET /api/eval/tool-accuracy` 工具选择准确率报告
 - **修复存量 bug（全链路集成测试暴露）**：17 个 `_tool_*` handler 补齐 `_agent_id`/`_model_source` 签名（v1.4.0 注入隐式参数但 handler 未同步，真实执行抛 TypeError）
 - **Agent 逐项审计**：A2A/IM 链路断裂修复（harness 注册补齐 12 个专用 Agent + 类名/小写名解析归一化）+ 12 个 Agent 能力边界诚实声明 + 9 处局部声称缺口修正 + 编排覆盖补齐 5 个 Agent（files/products/identity/notifications/ifc_export）+ DAG 失败降级保留意图路由
-- 验证：新增 22 测试（含 2 项全链路集成 + Agent 注册完整性 6 + 编排覆盖 4）+ flake8/mypy 0 issues + 全量 pytest 零回退
+- **前端缺口补齐（console +2 页）**：EnergyPage 能耗监测（报告/设备排行/节能建议采纳）+ PaymentsPage 支付管理（结算摘要/进度节点/确认/退款/开票/失败），api-client 10 方法 + 路由/导航/样式
+- 验证：新增 22 测试 + console build 0 错误 + flake8/mypy 0 issues + 全量 pytest 零回退
 
 ### 2026-08-11 · v1.13.0 全链路工具纪律 + 工具选择准确率评估（基于 2026 技术前沿）
 

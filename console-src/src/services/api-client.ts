@@ -1981,6 +1981,109 @@ export class ApiClient {
   ): Promise<ApiResult<T>> {
     return this.request<T>(`/api/surveys/ar/points/${encodeURIComponent(sessionId)}`);
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  能耗监测（app/api/energy.py，前缀 /api/energy）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 项目能耗记录（GET /api/energy/records/project/{project_id}） */
+  async listEnergyRecords<T = import('../types/domain').EnergyMonitorItem[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/energy/records/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 方案能耗报告（GET /api/energy/report/{scheme_id}，含趋势/设备排行/节能建议） */
+  async getEnergyReport<T = import('../types/domain').EnergyReport>(
+    schemeId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/energy/report/${encodeURIComponent(schemeId)}`);
+  }
+
+  /** 方案节能建议（GET /api/energy/tips/{scheme_id}） */
+  async listEnergyTips<T = import('../types/domain').EnergySavingTip[]>(
+    schemeId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/energy/tips/${encodeURIComponent(schemeId)}`);
+  }
+
+  /** 采纳节能建议（PATCH /api/energy/tips/{tip_id}/apply） */
+  async applyEnergyTip<T = import('../types/domain').EnergySavingTip>(
+    tipId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/energy/tips/${encodeURIComponent(tipId)}/apply`, {
+      method: 'PATCH',
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  支付管理（app/api/payments.py，前缀 /api/payments）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 项目支付列表（GET /api/payments/project/{project_id}） */
+  async listPayments<T = import('../types/domain').PaymentItem[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/project/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 支付进度节点（GET /api/payments/schedule/{project_id}） */
+  async getPaymentSchedule<T = import('../types/domain').PaymentScheduleNode[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/schedule/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 最终结算报告（GET /api/payments/final-settlement/{project_id}） */
+  async getFinalSettlement<T = import('../types/domain').FinalSettlementReport>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/final-settlement/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 确认支付（POST /api/payments/{payment_id}/confirm） */
+  async confirmPayment<T = import('../types/domain').PaymentItem>(
+    paymentId: string,
+    data: { transaction_id?: string; evidence_url?: string; payer?: string; payee?: string; note?: string } = {},
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/${encodeURIComponent(paymentId)}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 退款（POST /api/payments/{payment_id}/refund） */
+  async refundPayment<T = import('../types/domain').PaymentItem>(
+    paymentId: string,
+    data: { refund_amount: number; refund_reason?: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/${encodeURIComponent(paymentId)}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 开具发票（POST /api/payments/{payment_id}/invoice） */
+  async invoicePayment<T = import('../types/domain').PaymentItem>(
+    paymentId: string,
+    data: { invoice_url?: string; payer?: string; payee?: string; note?: string } = {},
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/${encodeURIComponent(paymentId)}/invoice`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 支付标记失败（POST /api/payments/{payment_id}/fail） */
+  async failPayment<T = import('../types/domain').PaymentItem>(
+    paymentId: string,
+    data: { reason?: string; note?: string } = {},
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/payments/${encodeURIComponent(paymentId)}/fail`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 /**

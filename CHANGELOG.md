@@ -65,6 +65,19 @@
 - 验证：新增 `test_agent_registry_complete.py`（6）+ `test_agent_orchestration.py`（+4）
   相关回归 63 passed / 23 passed / flake8 0 issues / mypy 0 issues
 
+#### 前端缺口补齐（第四轮，2026-08-11，console 管理控制台）
+- **EnergyPage（能耗监测）**：新页 /energy——项目选择 → 报告摘要卡（总能耗/电费/碳排/
+  待机占比）+ 设备能耗排行 + 节能建议（采纳 PATCH）+ 能耗记录表。对接
+  `/api/energy/records/project`、`/report/{schemeId}`、`/tips/{schemeId}`、`/tips/{id}/apply`
+- **PaymentsPage（支付管理）**：新页 /payments——最终结算摘要 + 支付进度节点 + 支付记录
+  表（确认/退款/开票/标记失败 4 操作）。对接 `/api/payments` 全套（project/schedule/
+  final-settlement/confirm/refund/invoice/fail）
+- 配套：api-client.ts 新增 10 方法 + domain.ts 补 5 类型（EnergyMonitorItem/EnergySavingTip/
+  EnergyReport/PaymentItem/PaymentScheduleNode/FinalSettlementReport）+ App.tsx 路由 ×2 +
+  SideNav 财务组补「支付/资金托管」+ 新「物联监测」组 + pages.css 通用组件类
+  （wb-grid/stat-card/card/table/list-row/alert/btn/input）
+- 验证：console `npm run build`（tsc --noEmit + vite）0 错误
+
 ### 验证
 - 新增测试 10 个（基线实测 2127 → 2137）：ISCE 回归（有 db 串行 / 无 db 并行，2）/
   usage 累计贯通 harness（1）/ dislike 双向学习（1，`test_cad_import.py`）/
