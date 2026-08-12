@@ -137,8 +137,9 @@ for at, msg in agents:
 # 5. Materials
 print("\n[5] 物料库")
 s, d = api("GET", "/materials/categories", token=TOKEN)
+detail = d.get("detail", str(d)[:200]) if isinstance(d, dict) else str(d)[:200]
 check("GET /materials/categories -> 200", s == 200,
-      f"HTTP {s} => {d.get('detail', str(d)[:200])}")
+      f"HTTP {s} => {detail}")
 
 # 5b. Materials list (需要认证)
 s, _ = api("GET", "/materials?limit=5", token=TOKEN)
@@ -150,30 +151,31 @@ s, _ = api("GET", "/materials?limit=5")
 check("GET /materials (no auth) -> 401/403", s in (401, 403),
       f"HTTP {s}")
 
-# 6. Web 静态资源（Flutter SPA 架构）
-print("\n[6] Web 静态资源 (Flutter SPA)")
+# 6. Web 静态资源（webapp Vite+React SPA 架构，2026-08-08 起替代旧 Flutter SPA）
+print("\n[6] Web 静态资源 (webapp SPA)")
 WEB_HOST = os.environ.get("API_HOST", "https://i-home.life")
-# v1.2.0+: 项目已迁移到 Flutter SPA，旧 HTML 页面不存在（nginx 返回 410）
-# 仅检查 Flutter SPA 核心资源 + PWA 文件
-flutter_assets = {
-    "/index.html":          200,   # Flutter 入口
-    "/main.dart.js":        200,   # Flutter JS 产物（Flutter 3.x+ 使用 main.dart.js）
-    "/flutter.js":          200,   # Flutter 加载器
-    "/manifest.json":       200,   # PWA 清单
-    "/sw.js":               200,   # Service Worker
-    "/version.json":        200,   # 构建版本
-    "/favicon.png":         200,   # 网站图标
-    "/flutter_service_worker.js": 200,  # Flutter 的 PWA Service Worker
+# v1.13.0+: 项目已迁移到 webapp(Vite+React)，构建产物 webapp/dist/ 由 Nginx root 服务；
+# 旧 Flutter SPA 产物（main.dart.js/flutter.js/flutter_service_worker.js）已不存在
+web_assets = {
+    "/index.html":  200,   # webapp 入口
+    "/version.json": 200,  # 构建版本
+    "/favicon.png": 200,   # 网站图标
+    "/logo.png":    200,   # LOGO
+    "/robots.txt":  200,   # 爬虫
+    "/sitemap.xml": 200,   # 站点地图
+    # Vite 构建产物目录：Nginx 默认禁止目录列表返回 403（目录存在），404 则目录缺失
+    "/assets/":     403,
 }
 
-for path, expected_status in flutter_assets.items():
+for path, expected_status in web_assets.items():
     try:
         r = urllib.request.urlopen(f"{WEB_HOST}{path}", timeout=5)
         ok = r.status == expected_status
         detail = f"HTTP {r.status}" if not ok else ""
     except urllib.error.HTTPError as e:
-        ok = False
-        detail = f"HTTP {e.code}"
+        # 预期非 2xx（如 /assets/ 目录被 Nginx 拒绝列表返回 403）时也应判通过
+        ok = e.code == expected_status
+        detail = f"HTTP {e.code}" if not ok else ""
     except Exception as ex:
         ok = False
         detail = str(ex)[:100]

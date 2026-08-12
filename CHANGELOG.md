@@ -4,6 +4,42 @@
 
 ## [Unreleased]
 
+### 修复：生产 DELETE /projects 500（FK 级联删除）+ E2E 脚本过时（2026-08-11）
+- **修复（生产 bug）DELETE /projects/:id 500**：`lifecycle_orchestration_enabled=True` 时项目创建经
+  EventBus 自动建预算（`budgets.project_id` FK → projects.id，无 ON DELETE CASCADE），而
+  `delete_project` 仅删 projects 行，生产 PostgreSQL 严格 FK 约束报 500（SQLite 测试默认不强制
+  FK 未暴露）。修复：`project_service._cascade_delete_related` 基于 SQLAlchemy metadata 反射，
+  沿 FK 依赖链递归级联删除全部关联数据（含二级子表如 budget_lines→budgets、agent_messages→
+  agent_sessions），再删项目本体
+- **回归测试**：`test_projects.py` 新增 `test_delete_project_cascades_related_data_with_fk`——
+  启用 SQLite FK 约束（PRAGMA foreign_keys=ON）模拟生产，验证删除 204 成功且预算/预算行/户型级联清空
+- **修复（脚本）E2E 验证脚本过时/缺陷**：`scripts/e2e_test.py`——① `GET /materials/categories`
+  返回 list，脚本按 dict 调 `.get()` 崩溃（isinstance 兼容修复）；② 第 6 步仍检查旧 Flutter SPA
+  产物（main.dart.js/flutter.js/sw.js/flutter_service_worker.js 已 404），改为检查 webapp
+  Vite+React 实际产物（index.html/version.json/favicon.png/logo.png/robots.txt/sitemap.xml/
+  assets/ 目录）；③ `urlopen` 抛 `HTTPError` 时未匹配 `e.code == expected_status`，预期非 2xx
+  （如 `/assets/` 目录 Nginx 拒绝列表 403）误判 FAIL——except 分支补状态码比对
+- **基线校准**：`test_baseline.json` 2155/2/4 → **2156/2/4**（新增 1 FK 回归测试后 venv 全量
+  权威核验 2162 collected = 2156 passed + 2 skipped + 4 xfailed，23:29 EXIT_CODE=0）；
+  CLAUDE.md pytest 基线同步
+- **验证（2026-08-12 部署后）**：`deploy-remote.sh backend` 推送修复至生产并重启，远程确认
+  `_cascade_delete_related` 生效；生产 E2E 脚本修复后 **29/29 通过（100%）**，`[8] 清理
+  DELETE /projects/:id -> 200/204`（修复前 500）；UAT 全链路 30/30；test_projects 28 passed；
+  相关模块回归 123 passed；flake8/mypy 0 issues；部署检查清单见
+  `docs/reports/delete-project-500-deploy-checklist-20260812.md`
+
+### 新增：登录页一键演示登录 + 演示项目种子数据（2026-08-11）
+- **webapp 登录页**：新增「一键体验演示」区块——业主（张先生）/设计师/管理员三个演示账号
+  点击即登录（无需输入），并标注「演示数据 · 密码 123456」；api.js 增 `DEMO_ACCOUNTS` +
+  `demoLogin()`，登录成功 toast 提示所用演示账号
+- **演示种子数据**：新增 `scripts/seed_demo_data.py`（幂等：同名项目存在即跳过，`--clear` 可清理），
+  为业主演示账号 13800138000 注入完整家装链路演示项目「云栖雅苑 · 智能整装」：
+  项目(施工中) + 户型(6 房间逐房间状态) + 预算(9 明细) + 施工任务(7 阶段带前置依赖) +
+  里程碑(5) + 进度预警(3) + 质检(问题 2 + 评估 1) + 采购订单(2 含明细) + 结算(4 明细) +
+  智能家居方案(3 含设备)——全部写入真实业务表、由现有 API 原样读出，符合「诚实降级」约定
+- **部署**：`deploy-remote.sh seed` 命令顺带执行演示数据注入；已部署至生产并验证
+  i-home.life 与 118.31.223.213:8081 两端（一键演示登录可用、演示项目 feed 9 卡片）
+
 ### 新增：「空间即导航」户型图逐房间状态 + A2UI 8 类卡片并入首页 feed（2026-08-11）
 - **后端**：`FloorPlan.room_status` 逐房间状态字段（Text JSON，`{"客厅": "in_progress"}`，
   取值 not_started/in_progress/completed/attention）——模型/Schema/Service 全链路，列表与详情接口均返回，

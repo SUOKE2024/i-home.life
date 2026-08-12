@@ -608,3 +608,79 @@ async def test_lightweight_migration_adds_project_collect_columns(db_session):
         cols_after = await conn.run_sync(_cols)
         for col in collect_columns:
             assert col in cols_after, f"迁移后应存在列 {col}"
+
+
+# ====================================================================
+# 生产 FK 约束下删除项目级联清理（回归：DELETE /projects 500）
+# ====================================================================
+# 背景：v1.13.2 lifecycle_orchestration_enabled=True 时项目创建经 EventBus
+# 自动建预算（budgets.project_id FK → projects.id），delete_project 仅删
+# projects 行，生产 PostgreSQL 严格 FK 约束报 500（SQLite 测试默认不强制
+# FK 未暴露）。修复：_cascade_delete_related 按 FK 依赖逆序级联删除关联数据。
+# 本测试启用 SQLite FK 约束模拟生产，验证删除项目成功且关联数据已清空。
+
+
+@pytest.mark.asyncio
+async def test_delete_project_cascades_related_data_with_fk(
+    client: AsyncClient, db_session
+):
+    """FK 约束下删除项目应 204 成功并级联清理预算/预算行/户型等关联数据"""
+    from sqlalchemy import event as sa_event, text
+    from app.database import engine
+    from app.models.budget import Budget, BudgetLine
+    from app.models.floorplan import FloorPlan
+
+    # 启用 SQLite FK 约束，模拟生产 PostgreSQL（测试结束移除，避免污染其他用例）
+    @sa_event.listens_for(engine.sync_engine, "connect")
+    def _fk_on(dbapi_conn, rec):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
+    try:
+        token = await _register_and_get_token(client, phone="13900003010")
+        headers = _headers(token)
+        project_id = await _create_project(client, headers, "FK级联删除项目")
+
+        # 创建关联数据（模拟 EventBus 自动建预算 + 户型 + 预算行）
+        budget = Budget(
+            project_id=project_id, total_estimated=0, total_actual=0, status="draft"
+        )
+        db_session.add(budget)
+        await db_session.flush()
+        db_session.add(BudgetLine(budget_id=budget.id, category="材料", name="测试"))
+        db_session.add(FloorPlan(project_id=project_id, name="户型", data="{}"))
+        await db_session.commit()
+
+        # 删除项目应成功（回归：此前生产 PostgreSQL 下报 500）
+        resp = await client.delete(f"/api/projects/{project_id}", headers=headers)
+        assert resp.status_code == 204
+
+        # 项目自身已删除
+        r = await db_session.execute(
+            text("SELECT COUNT(*) FROM projects WHERE id = :p"), {"p": project_id}
+        )
+        assert r.scalar() == 0
+
+        # 直接关联表已级联清理
+        r = await db_session.execute(
+            text("SELECT COUNT(*) FROM budgets WHERE project_id = :p"), {"p": project_id}
+        )
+        assert r.scalar() == 0
+        r = await db_session.execute(
+            text("SELECT COUNT(*) FROM floor_plans WHERE project_id = :p"), {"p": project_id}
+        )
+        assert r.scalar() == 0
+
+        # 二级关联（预算行）经 budget join 已级联清理
+        r = await db_session.execute(
+            text(
+                "SELECT COUNT(*) FROM budget_lines bl "
+                "JOIN budgets b ON bl.budget_id = b.id "
+                "WHERE b.project_id = :p"
+            ),
+            {"p": project_id},
+        )
+        assert r.scalar() == 0
+    finally:
+        sa_event.remove(engine.sync_engine, "connect", _fk_on)

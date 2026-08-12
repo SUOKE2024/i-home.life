@@ -278,6 +278,57 @@ async def delete_project(db: AsyncSession, project_id: str) -> bool:
     project = result.scalar_one_or_none()
     if not project:
         return False
+    # 生产 PostgreSQL 严格 FK 约束：先按 FK 依赖逆序级联删除全部关联数据
+    # （含二级子表如 budget_lines→budgets→projects、agent_messages→agent_sessions→projects），
+    # 否则 DELETE 违反外键报 500（SQLite 测试默认不强制 FK 未暴露此问题）。
+    await _cascade_delete_related(db, project_id)
     await db.delete(project)
     await db.commit()
     return True
+
+
+async def _cascade_delete_related(db: AsyncSession, project_id: str) -> None:
+    """递归删除项目全部关联数据。
+
+    从 projects 出发，沿 FK 依赖链（子表 → 父表）逆序删除：
+    1. 收集所有直接引用 projects.id 的表（如 budgets/floor_plans/settlements/...）
+    2. 对每张关联表再收集引用它的子表（如 budget_lines→budgets、agent_messages→agent_sessions）
+    3. 按依赖深度从最深子表开始删除，避免 FK 违反。
+    不删除 projects 自身（由调用方处理）。
+    """
+    from sqlalchemy import delete
+    from app.database import Base
+
+    # 表名 → 该表的所有 FK 引用（child_table, child_fk_col, parent_pk_col）
+    fk_index: dict[str, list[tuple[str, str, str]]] = {}
+    for table in Base.metadata.sorted_tables:
+        for fk in table.foreign_keys:
+            parent_name = fk.column.table.name
+            fk_index.setdefault(parent_name, []).append(
+                (table.name, fk.parent.name, fk.column.name)
+            )
+
+    async def _delete_children(table_name: str, parent_ids: list[str]) -> None:
+        """删除引用指定父表行的全部子表行（先递归孙表，再删本子表）。"""
+        if not parent_ids:
+            return
+        for child_name, child_fk_col, _parent_pk in fk_index.get(table_name, []):
+            child_table = Base.metadata.tables.get(child_name)
+            if child_table is None or child_fk_col not in child_table.c:
+                continue
+            child_pk = next(iter(child_table.primary_key.columns)).name
+            child_ids = (
+                await db.execute(
+                    select(child_table.c[child_pk]).where(
+                        child_table.c[child_fk_col].in_(parent_ids)
+                    )
+                )
+            ).scalars().all()
+            child_id_list = list(child_ids)
+            # 先递归删除孙表行，避免子表删除时孙表 FK 违反
+            await _delete_children(child_name, child_id_list)
+            await db.execute(
+                delete(child_table).where(child_table.c[child_pk].in_(child_id_list))
+            )
+
+    await _delete_children("projects", [project_id])
