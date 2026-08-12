@@ -9,6 +9,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.schemas.procurement import (
     SupplierCreate,
+    SupplierUpdate,
     SupplierResponse,
     SupplierVerifyRequest,
     QuotationCreate,
@@ -134,6 +135,33 @@ async def set_supplier_verified(
 ):
     """平台管理员授予/撤销供应商认证，未认证供应商在展厅标注 pending 水印。"""
     supplier = await procurement_service.set_supplier_verified(db, supplier_id, data.is_verified)
+    if not supplier:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="供应商不存在")
+    return SupplierResponse.model_validate(supplier)
+
+
+@router.patch(
+    "/suppliers/{supplier_id}",
+    response_model=SupplierResponse,
+    summary="更新供应商元数据",
+    description="管理员更新供应商信息（含实景展厅全景 showroom_panorama_id，设计 4.2 验厂漫游）。",
+    response_description="更新后的供应商信息",
+    responses={
+        200: {"description": "更新成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无管理员权限"},
+        404: {"description": "供应商不存在"},
+    },
+)
+async def update_supplier(
+    supplier_id: str,
+    data: SupplierUpdate,
+    current_user: User = Depends(require_user_write),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员更新供应商元数据（含实景展厅全景绑定，实现供应商线上验厂漫游）。"""
+    payload = data.model_dump(exclude_none=True)
+    supplier = await procurement_service.update_supplier(db, supplier_id, payload)
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="供应商不存在")
     return SupplierResponse.model_validate(supplier)

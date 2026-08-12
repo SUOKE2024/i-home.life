@@ -277,6 +277,11 @@ export async function getVRScenes(projectId) {
   return request(`/api/vr/scenes/project/${encodeURIComponent(projectId)}`)
 }
 
+/** 供应商列表（M4 供应商实景展厅，设计 4.2） */
+export async function listSuppliers() {
+  return request('/api/procurement/suppliers')
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */
@@ -430,8 +435,7 @@ export async function getDiagnosticsRum(hours = 24) {
  * 前端 RUM（Core Web Vitals）上报 — 公开端点，后端按 diagnostics_rum_enabled 门控落库。
  * 每页仅上报一次（约 4 条事件），失败静默。
  */
-export function reportWebVitals(metrics = {}) {
-  try {
+export function reportWebVitals(metrics = {}) {  try {
     const events = Object.entries(metrics)
       .filter(([, v]) => typeof v === 'number' && v >= 0)
       .map(([metric, value]) => ({

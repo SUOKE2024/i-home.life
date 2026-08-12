@@ -65,6 +65,24 @@ async def set_supplier_verified(db: AsyncSession, supplier_id: str, is_verified:
     return supplier
 
 
+async def update_supplier(db: AsyncSession, supplier_id: str, data: dict) -> Supplier | None:
+    """更新供应商元数据（设计 4.2 实景展厅：管理员设置 showroom_panorama_id 等）。
+
+    返回 None 表示供应商不存在或已删除。
+    """
+    result = await db.execute(
+        select(Supplier).where(Supplier.id == supplier_id, Supplier.deleted_at.is_(None))
+    )
+    supplier = result.scalar_one_or_none()
+    if not supplier:
+        return None
+    for key, value in data.items():
+        setattr(supplier, key, value)
+    await db.commit()
+    await db.refresh(supplier)
+    return supplier
+
+
 async def create_quotation(db: AsyncSession, data: dict) -> Quotation:
     total = data["quantity"] * data["unit_price"]
     quotation = Quotation(**data, total_price=total)

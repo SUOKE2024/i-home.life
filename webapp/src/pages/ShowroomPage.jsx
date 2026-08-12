@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { X, Package, BadgeCheck } from 'lucide-react'
+import { X, Package, BadgeCheck, Store, Clock } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
-import { listProjects, getVRPanoramas, getMaterial, getMaterialCert, addBomItem } from '../lib/api'
+import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers } from '../lib/api'
 
 const STATUS_LABELS = {
   queued: ['排队中', 'amber'], rendering: ['渲染中', 'sky'],
@@ -11,21 +11,23 @@ const STATUS_LABELS = {
 }
 
 /**
- * ShowroomPage — 供应链智能展厅（M4 最小原型，2026-08-12）
+ * ShowroomPage — 供应链智能展厅（M4，2026-08-12）
  *
  * 设计 4.2：把「供应商/材料库」变成可漫游的 3D 展厅
- * - 展厅 = 项目 VRPanorama（复用 PanoramaViewer 漫游），展品即热点（material_id）
- * - 点击展品 → Material 详情（价格/品牌/规格 + 环保认证 MaterialEcoCert）
- * - 一键加入 BOM（复用 POST /api/materials/bom 链路）
- * 数据诚实：Supplier.is_verified 字段模型不存在，不伪造认证状态（待模型落地后补）
+ * - 材料展厅 = 项目 VRPanorama（复用 PanoramaViewer 漫游），展品即热点（material_id）
+ * - 供应商实景展厅 = 供应商 showroom_panorama_id（车间/样品间 360°）→ 线上验厂漫游
+ * - 认证状态诚实标注：is_verified ? 已认证徽标 : pending 水印（平台授予，非自报）
+ * - 点击展品 → Material 详情（价格/品牌/规格 + 环保认证 MaterialEcoCert）→ 加入 BOM
  */
 export default function ShowroomPage() {
+  const [tab, setTab] = useState('material') // material / supplier
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [panoramas, setPanoramas] = useState([])
+  const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [viewing, setViewing] = useState(null) // { pano, initialView }
+  const [viewing, setViewing] = useState(null) // { pano, initialView, title }
   const [exhibit, setExhibit] = useState(null) // 展品面板数据
 
   const load = useCallback(async (projectId) => {
@@ -47,9 +49,10 @@ export default function ShowroomPage() {
 
   useEffect(() => {
     ;(async () => {
-      const r = await listProjects()
-      const list = r.isSuccess && Array.isArray(r.data) ? r.data : []
+      const [pr, su] = await Promise.all([listProjects(), listSuppliers()])
+      const list = pr.isSuccess && Array.isArray(pr.data) ? pr.data : []
       setProjects(list)
+      setSuppliers(su.isSuccess && Array.isArray(su.data) ? su.data : [])
       const target = list[0]?.id || ''
       setSelectedId(target)
       load(target)
@@ -63,7 +66,13 @@ export default function ShowroomPage() {
     load(id)
   }
 
-  const openViewer = (pano) => {
+  const switchTab = (t) => {
+    setTab(t)
+    setViewing(null)
+    setExhibit(null)
+  }
+
+  const openViewer = (pano, title) => {
     let initialView = null
     if (pano.initial_view && typeof pano.initial_view === 'object') {
       initialView = {
@@ -72,8 +81,19 @@ export default function ShowroomPage() {
         fov: pano.initial_view.fov ?? 75,
       }
     }
-    setViewing({ pano, initialView })
+    setViewing({ pano, initialView, title: title || pano.room_name })
     setExhibit(null)
+  }
+
+  /** 供应商在线验厂：showroom_panorama_id → 全景详情 → 漫游 */
+  const openSupplierShowroom = async (s) => {
+    if (!s.showroom_panorama_id) return
+    const r = await getVRPanorama(s.showroom_panorama_id)
+    if (!r.isSuccess || !r.data) {
+      alert(`${s.name}：实景展厅全景加载失败（${r.error || '不存在'}）`)
+      return
+    }
+    openViewer(r.data, `${s.name} · 实景展厅`)
   }
 
   /** 点击展品热点 → 加载材料详情 + 环保认证 */
@@ -117,63 +137,157 @@ export default function ShowroomPage() {
       <div className="page-head">
         <div>
           <h2>智能展厅</h2>
-          <div className="desc">材料展厅 3D 漫游 · 展品即热点 · 一键加入采购清单</div>
+          <div className="desc">材料展厅 3D 漫游 · 展品即热点 · 供应商实景展厅 · 一键加入采购清单</div>
         </div>
-        <select
-          className="select"
-          value={selectedId}
-          onChange={(e) => switchProject(e.target.value)}
-          style={{ width: 240 }}
-        >
-          {projects.map((pr) => (
-            <option key={pr.id} value={pr.id}>{pr.name || pr.id}</option>
-          ))}
-        </select>
+        {tab === 'material' ? (
+          <select
+            className="select"
+            value={selectedId}
+            onChange={(e) => switchProject(e.target.value)}
+            style={{ width: 240 }}
+          >
+            {projects.map((pr) => (
+              <option key={pr.id} value={pr.id}>{pr.name || pr.id}</option>
+            ))}
+          </select>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+            共 {suppliers.length} 家供应商 · 认证状态平台授予
+          </span>
+        )}
       </div>
 
-      {loading && <Spinner label="正在加载展厅…" />}
-      {!loading && error && <ErrorBox message={error} onRetry={() => load(selectedId)} />}
-      {!loading && !error && panoramas.length === 0 && (
-        <Empty message="暂无展厅全景，可让 AI 管家协助生成" />
-      )}
-      {!loading && !error && panoramas.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-          {panoramas.map((p) => {
-            const st = STATUS_LABELS[p.status] || ['未知', 'sky']
-            const rendered = !!p.image_url
-            return (
-              <div key={p.id} className="card" style={{ overflow: 'hidden', padding: 0 }}>
-                <div style={{
-                  height: 150, background: 'var(--border)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)',
-                }}
-                >
-                  {p.thumbnail_url ? (
-                    <img src={p.thumbnail_url} alt={p.room_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <Package size={40} />
-                  )}
-                </div>
-                <div style={{ padding: 10 }}>
-                  <div style={{ fontWeight: 600 }}>{p.room_name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                    <span className={`badge badge--${st[1]}`}>{st[0]}</span>
-                    {' '}· 展品热点 {p.hotspots?.filter((h) => h.material_id).length || 0} 个
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button
+          className={tab === 'material' ? 'btn btn-primary' : 'btn'}
+          style={{ fontSize: 13 }}
+          onClick={() => switchTab('material')}
+        >
+          <Package size={15} style={{ verticalAlign: -2, marginRight: 4 }} />材料展厅
+        </button>
+        <button
+          className={tab === 'supplier' ? 'btn btn-primary' : 'btn'}
+          style={{ fontSize: 13 }}
+          onClick={() => switchTab('supplier')}
+        >
+          <Store size={15} style={{ verticalAlign: -2, marginRight: 4 }} />供应商实景展厅
+        </button>
+      </div>
+
+      {tab === 'supplier' ? (
+        <>
+          {suppliers.length === 0 && <Empty message="暂无供应商名录，可联系平台入驻" />}
+          {suppliers.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+              {suppliers.map((s) => (
+                <div key={s.id} className="card" style={{ overflow: 'hidden', padding: 0 }}>
+                  <div style={{
+                    height: 96, background: s.is_verified ? 'rgba(34, 197, 94, 0.08)' : 'var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: s.is_verified ? 'var(--success, #22c55e)' : 'var(--text-dim)',
+                    position: 'relative',
+                  }}
+                  >
+                    <Store size={36} />
+                    {!s.is_verified && (
+                      <span style={{
+                        position: 'absolute', top: 8, right: 8, fontSize: 10, padding: '2px 6px',
+                        borderRadius: 4, background: 'rgba(251, 191, 36, 0.15)',
+                        color: '#b45309', letterSpacing: 1,
+                      }}
+                      >
+                        PENDING
+                      </span>
+                    )}
                   </div>
-                  {rendered && (
-                    <button
-                      className="btn btn-primary"
-                      style={{ width: '100%', marginTop: 8, fontSize: 13 }}
-                      onClick={() => openViewer(p)}
-                    >
-                      进入展厅
-                    </button>
-                  )}
+                  <div style={{ padding: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                      {s.name}
+                      {s.is_verified && <BadgeCheck size={15} color="var(--success, #22c55e)" />}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                      {s.category || '-'} · 评分 {Number(s.rating || 0).toFixed(1)}
+                    </div>
+                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                      {s.is_verified ? (
+                        <span style={{ color: 'var(--success, #22c55e)' }}>✓ 已认证</span>
+                      ) : (
+                        <span style={{ color: '#b45309' }}>
+                          <Clock size={12} style={{ verticalAlign: -2 }} /> 认证审核中
+                        </span>
+                      )}
+                    </div>
+                    {s.showroom_panorama_id ? (
+                      <button
+                        className="btn btn-primary"
+                        style={{ width: '100%', marginTop: 8, fontSize: 13 }}
+                        onClick={() => openSupplierShowroom(s)}
+                      >
+                        在线验厂 · 进入实景展厅
+                      </button>
+                    ) : (
+                      <div style={{
+                        width: '100%', marginTop: 8, padding: '7px 0', textAlign: 'center',
+                        fontSize: 12, color: 'var(--text-dim)', border: '1px dashed var(--border)',
+                        borderRadius: 6,
+                      }}
+                      >
+                        暂无实景展厅（待上传车间/样品间全景）
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {loading && <Spinner label="正在加载展厅…" />}
+          {!loading && error && <ErrorBox message={error} onRetry={() => load(selectedId)} />}
+          {!loading && !error && panoramas.length === 0 && (
+            <Empty message="暂无展厅全景，可让 AI 管家协助生成" />
+          )}
+          {!loading && !error && panoramas.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+              {panoramas.map((p) => {
+                const st = STATUS_LABELS[p.status] || ['未知', 'sky']
+                const rendered = !!p.image_url
+                return (
+                  <div key={p.id} className="card" style={{ overflow: 'hidden', padding: 0 }}>
+                    <div style={{
+                      height: 150, background: 'var(--border)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)',
+                    }}
+                    >
+                      {p.thumbnail_url ? (
+                        <img src={p.thumbnail_url} alt={p.room_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <Package size={40} />
+                      )}
+                    </div>
+                    <div style={{ padding: 10 }}>
+                      <div style={{ fontWeight: 600 }}>{p.room_name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                        <span className={`badge badge--${st[1]}`}>{st[0]}</span>
+                        {' '}· 展品热点 {p.hotspots?.filter((h) => h.material_id).length || 0} 个
+                      </div>
+                      {rendered && (
+                        <button
+                          className="btn btn-primary"
+                          style={{ width: '100%', marginTop: 8, fontSize: 13 }}
+                          onClick={() => openViewer(p)}
+                        >
+                          进入展厅
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {viewing && (
@@ -183,7 +297,7 @@ export default function ShowroomPage() {
         }}
         >
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', color: '#fff' }}>
-            <b style={{ flex: 1 }}>{viewing.pano.room_name} · 材料展厅</b>
+            <b style={{ flex: 1 }}>{viewing.title}</b>
             <button
               className="icon-btn"
               style={{ color: '#fff', background: 'rgba(255,255,255,0.12)' }}

@@ -364,3 +364,59 @@ async def test_verify_nonexistent_supplier(client: AsyncClient):
         headers=admin_headers,
     )
     assert resp.status_code == 404, resp.text
+
+
+# ── M4：供应商实景展厅（showroom_panorama_id，设计 4.2）──
+
+
+@pytest.mark.asyncio
+async def test_admin_set_supplier_showroom_panorama(client: AsyncClient):
+    """管理员绑定供应商实景展厅全景，Response/列表透传"""
+    token, headers = await _register_and_login(client, "13900000096")
+    supplier_id = await _create_supplier(client, headers, "实景展厅供应商", "tiles")
+    admin_headers = await _register_admin(client, "13900000097")
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}",
+        json={"showroom_panorama_id": "pano-showroom-001"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["showroom_panorama_id"] == "pano-showroom-001"
+
+    resp = await client.get("/api/procurement/suppliers", params={"category": "tiles"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    match = [s for s in resp.json() if s["id"] == supplier_id]
+    assert match and match[0]["showroom_panorama_id"] == "pano-showroom-001"
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_update_supplier(client: AsyncClient):
+    """非管理员无权更新供应商（含实景展厅绑定）"""
+    token, headers = await _register_and_login(client, "13900000098")
+    supplier_id = await _create_supplier(client, headers, "权限更新供应商", "tiles")
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}",
+        json={"showroom_panorama_id": "pano-x"},
+        headers=headers,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_create_supplier_with_showroom_panorama(client: AsyncClient):
+    """创建供应商时可带实景展厅全景（透传）"""
+    token, headers = await _register_and_login(client, "13900000099")
+    resp = await client.post(
+        "/api/procurement/suppliers",
+        json={
+            "name": "带展厅供应商",
+            "category": "flooring",
+            "rating": 4.0,
+            "showroom_panorama_id": "pano-create-001",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["showroom_panorama_id"] == "pano-create-001"

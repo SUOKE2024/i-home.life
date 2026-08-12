@@ -20,6 +20,10 @@ class Supplier(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     # 入驻认证状态（设计 4.2）：平台授予，非自报；供应商实景展厅按此标注 pending 水印
     is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 实景展厅全景（设计 4.2）：供应商车间/样品间 360° 漫游，关联 VRPanorama
+    showroom_panorama_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("vr_panoramas.id"), nullable=True, index=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

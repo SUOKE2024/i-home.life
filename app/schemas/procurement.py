@@ -10,6 +10,19 @@ class SupplierCreate(BaseModel):
     address: str | None = None
     category: str = Field(min_length=1, max_length=50)
     rating: float = Field(default=3.0, ge=0, le=5)
+    showroom_panorama_id: str | None = None
+
+
+class SupplierUpdate(BaseModel):
+    """供应商元数据更新（设计 4.2 实景展厅：管理员设置展厅全景等）"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    contact_name: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    category: str | None = Field(default=None, min_length=1, max_length=50)
+    rating: float | None = Field(default=None, ge=0, le=5)
+    showroom_panorama_id: str | None = None
 
 
 class SupplierResponse(BaseModel):
@@ -23,6 +36,8 @@ class SupplierResponse(BaseModel):
     is_active: bool
     # 入驻认证状态（设计 4.2）：平台授予，非自报，默认 False
     is_verified: bool = False
+    # 实景展厅全景（设计 4.2）：无实景内容恒 NULL，前端诚实标注
+    showroom_panorama_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
