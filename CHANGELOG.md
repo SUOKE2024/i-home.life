@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 前端缺口补齐 B2/B3/B4（全景评估报告执行，2026-08-13）
+- **B3 管理后台**（console）：新增 AdminPage（平台统计 + 用户管理含角色/启停用 + 审计日志）、
+  NotificationsPage（设备推送令牌注册/列表/注销）、FilesPage（项目附件上传 ≤20MB/下载/删除）；
+  api-client +11 方法、domain +6 类型、SideNav「管理后台」分组
+- **B2 物联监测**（console，与既有 EnergyPage 同族）：新增 HealthMonitorPage（健康报告：
+  汇总/空气质量 AQI/近期预警/建议）、ConstructionDrawingPage（全套施工图 SVG 渲染：
+  平面/立面/剖面/MEP 叠加）、SensorsPage（传感器能力声明 + 数据流向诚实标注）；
+  api-client +4 方法、domain +4 类型、SideNav 物联监测分组扩展
+- **B4 供应链边缘**（Flutter）：新增 CameraScanPage（拍照/相册 → 多模态 AI 识别 → 确认上架，
+  fallback 诚实标注）、ProductBatchPage（xlsx/csv 批量上传 + 失败明细 + AI 文案任务轮询）、
+  LocationPage（POI 搜索 + 地理编码）、VoiceRealtimePage（语音 WS 文本交互 + REST 快捷指令）；
+  api.dart +productBatchUpload；project_detail_page 新增「供应链边缘」入口
+- **后端小修**：`RegisterDeviceRequest.user_id` 由必填改为可选（端点从 token 推导用户，
+  必填字段误导前端）；analytics 为「仅接收不持久化」公共端点，无管理页价值，诚实标注跳过
+- **验证**：console build 0 错误（137 模块）+ notifications/admin 15 tests passed；
+  flutter analyze 0 issue + flutter test 100 passed
+
 ### 质检智能体视觉感知实现（qa_inspector，2026-08-12）
 - **验收报告视觉化**（[qa_inspector.py](app/agents/qa_inspector.py)）：`generate_acceptance_report` 新增可选 `images`（现场照片）——受 `real_cv_quality_enabled` 门控走多模态视觉 LLM 缺陷识别，真实 CV 结果以 `vision_defects` 汇入报告并并入整改建议（`source="vision_llm"` 来源标注），`engine/source/cv_mode/is_placeholder` 如实更新；无视觉 key/失败降级保持 mock 并 `note` 诚实标注，不阻断报告生成
 - **诊断数据可视化看图**：`include_chart=True` 时 `render_acceptance_chart`（Pillow 确定性渲染分项合格率 + 缺陷类别分布 PNG，真实数据、零视觉依赖）+ `_analyze_chart_with_vision` 让视觉模型"看图"输出结构化诊断（`chart_analysis`：summary/key_risks/recommendations）；视觉解读不可用 → `chart_analysis=None` + `chart_analysis_note` 诚实标注，图表本身仍返回（禁止伪装真实解读）

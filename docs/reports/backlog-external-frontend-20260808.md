@@ -7,6 +7,11 @@
 > **2026-08-11 更新**：A2 灰度评估已执行——33 个默认 False flag 分四类评估，
 > **A 类 16 个「无外部依赖可安全开启」已全部默认开启（v1.13.2）**，详见
 > CHANGELOG「A2 灰度 flag 第一/二/三/四梯队 + D 类」。本节 A2 表仅剩需外部凭据项。
+> **2026-08-13 更新**：B2（物联监测 3 页 console：HealthMonitor/施工图/Sensors，Energy 既有）+
+> B3（管理后台 3 页 console：Admin/Notifications/Files，Payments 既有）+
+> B4（供应链边缘 4 页 Flutter：CameraScan/ProductBatch/Location/VoiceRealtime）已全部补齐并验证，
+> 详见 CHANGELOG「前端缺口补齐 B2/B3/B4」。B2 中 analytics 为「仅接收不持久化」公共端点，
+> 无管理页价值，诚实标注跳过。
 
 ## A. 外部依赖接入（需第三方 API key / SDK，接入后删除诚实标注）
 
@@ -82,33 +87,33 @@ slow_query_explain_enabled / voice_audio_prompt_enabled
 | harness_api | /api/harness | Agent 测试 Harness |
 | eval | /api/eval | Suoke-Eval1 评估 |
 
-### B2. 物联监测类（5 个，建议 Flutter 移动端补）
+### B2. 物联监测类（5 个）✅ 已补齐（2026-08-13，console）
 
-| 后端模块 | 路径 | 说明 |
-|---|---|---|
-| energy | /api/energy | 能耗监测（A1） |
-| sensor_snapshot | /api/sensors | 传感器快照（A5，已与 sensor 触发闭环打通） |
-| health-monitor | /api/health-monitor | 施工健康巡检（A2） |
-| construction_drawing | /api/construction-drawing | 施工图（v1.2.0） |
-| analytics | /api/analytics | 前端埋点采集（公开端点，无管理页） |
+| 后端模块 | 路径 | 说明 | 状态 |
+|---|---|---|---|
+| energy | /api/energy | 能耗监测（A1） | ✅ EnergyPage 既有（console） |
+| sensor_snapshot | /api/sensors | 传感器快照（A5，已与 sensor 触发闭环打通） | ✅ SensorsPage（能力声明 + 数据流向诚实标注） |
+| health-monitor | /api/health-monitor | 施工健康巡检（A2） | ✅ HealthMonitorPage |
+| construction_drawing | /api/construction-drawing | 施工图（v1.2.0） | ✅ ConstructionDrawingPage（SVG 渲染） |
+| analytics | /api/analytics | 前端埋点采集（公开端点，无管理页） | ⏭ 跳过（仅接收不持久化，无管理页价值） |
 
-### B3. 管理后台类（4 个，建议 Web console 管理端补）
+### B3. 管理后台类（4 个）✅ 已补齐（2026-08-13，Web console）
 
-| 后端模块 | 路径 | 说明 |
-|---|---|---|
-| admin | /api/admin | 用户管理/审核（Flutter settings 仅角色图标） |
-| notifications | /api/notifications | 通知（Flutter 仅 services 层推送初始化） |
-| files | /api/files | 文件管理 |
-| payments | /api/payments | 支付（api.dart 已有 10 个封装方法） |
+| 后端模块 | 路径 | 说明 | 状态 |
+|---|---|---|---|
+| admin | /api/admin | 用户管理/审核（Flutter settings 仅角色图标） | ✅ AdminPage（统计/用户/审计日志） |
+| notifications | /api/notifications | 通知（Flutter 仅 services 层推送初始化） | ✅ NotificationsPage |
+| files | /api/files | 文件管理 | ✅ FilesPage |
+| payments | /api/payments | 支付（api.dart 已有 10 个封装方法） | ✅ PaymentsPage 既有（console） |
 
-### B4. 供应链边缘类（4 个，Flutter 端补页面）
+### B4. 供应链边缘类（4 个）✅ 已补齐（2026-08-13，Flutter）
 
-| 后端模块 | 路径 | 说明 |
-|---|---|---|
-| camera_scan | /api/products/camera | 拍照上架（api.dart 已有方法，无页面调用点） |
-| product_batch | /api/products/batch | 批量上传（api.dart 已有方法） |
-| location | /api/location | 位置服务 |
-| voice_realtime | /api/voice/* | 实时语音（Flutter 有 services 层 voice_realtime_service） |
+| 后端模块 | 路径 | 说明 | 状态 |
+|---|---|---|---|
+| camera_scan | /api/products/camera | 拍照上架（api.dart 已有方法，无页面调用点） | ✅ CameraScanPage |
+| product_batch | /api/products/batch | 批量上传（api.dart 已有方法） | ✅ ProductBatchPage |
+| location | /api/location | 位置服务 | ✅ LocationPage |
+| voice_realtime | /api/voice/* | 实时语音（Flutter 有 services 层 voice_realtime_service） | ✅ VoiceRealtimePage |
 
 ## C. 单端独缺（对方端已覆盖，补齐成本低）
 
@@ -121,8 +126,9 @@ slow_query_explain_enabled / voice_audio_prompt_enabled
 
 1. **P0**：A1 生态桥接（需商务/凭据决策，打通 sensor 触发 → 设备控制闭环）
 2. **P1**：B1 Agent 治理页（Web console，v1.9.0 GB/Z 185 身份卡需配套展示）✅ 已完成（2026-08-09）
-3. **P2**：B2/B3/B4 + C 单端补齐（随版本迭代排期）✅ C 已完成（2026-08-09）；B2/B3/B4 保留
-4. **P3**：A2 灰度 flag 按需开启（无代码工作，运营决策）✅ **已完成（2026-08-11）**——
+3. **P2**：B2/B3/B4 + C 单端补齐 ✅ **全部完成（2026-08-13）**——B2 物联监测 3 页（Energy 既有）、
+   B3 管理后台 3 页（Payments 既有）、B4 供应链边缘 4 页 Flutter；analytics 跳过（仅接收不持久化）
+4. **P3**：A2 灰度 flag 按需开启 ✅ **已完成（2026-08-11）**——
    A 类 16 个 + D 类 1 个已默认开启（v1.13.2）；剩余 C 类 7 项需外部凭据、B 类 7 项按产品节奏
 
 > 备注：`app/api/analytics.py` collect_events 为"仅接收不持久化"预留端点（设计如此，勿当 bug）。
