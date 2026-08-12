@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { X, Package, BadgeCheck, Store, Clock } from 'lucide-react'
+import { X, Package, BadgeCheck, Store, Clock, HardHat } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
-import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers } from '../lib/api'
+import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews } from '../lib/api'
 
 const STATUS_LABELS = {
   queued: ['排队中', 'amber'], rendering: ['渲染中', 'sky'],
@@ -16,19 +16,22 @@ const STATUS_LABELS = {
  * 设计 4.2：把「供应商/材料库」变成可漫游的 3D 展厅
  * - 材料展厅 = 项目 VRPanorama（复用 PanoramaViewer 漫游），展品即热点（material_id）
  * - 供应商实景展厅 = 供应商 showroom_panorama_id（车间/样品间 360°）→ 线上验厂漫游
+ * - 服务商作品集展厅 = 工程队 showcase_panorama_id（已交付项目 VRPanorama 实景）→ 漫游后发起接单
  * - 认证状态诚实标注：is_verified ? 已认证徽标 : pending 水印（平台授予，非自报）
  * - 点击展品 → Material 详情（价格/品牌/规格 + 环保认证 MaterialEcoCert）→ 加入 BOM
  */
 export default function ShowroomPage() {
-  const [tab, setTab] = useState('material') // material / supplier
+  const [tab, setTab] = useState('material') // material / supplier / crew
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [panoramas, setPanoramas] = useState([])
   const [suppliers, setSuppliers] = useState([])
+  const [crews, setCrews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [viewing, setViewing] = useState(null) // { pano, initialView, title }
   const [exhibit, setExhibit] = useState(null) // 展品面板数据
+  const [crewMatch, setCrewMatch] = useState(null) // 接单匹配结果面板
 
   const load = useCallback(async (projectId) => {
     if (!projectId) {
@@ -49,10 +52,11 @@ export default function ShowroomPage() {
 
   useEffect(() => {
     ;(async () => {
-      const [pr, su] = await Promise.all([listProjects(), listSuppliers()])
+      const [pr, su, cr] = await Promise.all([listProjects(), listSuppliers(), listCrews()])
       const list = pr.isSuccess && Array.isArray(pr.data) ? pr.data : []
       setProjects(list)
       setSuppliers(su.isSuccess && Array.isArray(su.data) ? su.data : [])
+      setCrews(cr.isSuccess && Array.isArray(cr.data) ? cr.data : [])
       const target = list[0]?.id || ''
       setSelectedId(target)
       load(target)
@@ -63,6 +67,7 @@ export default function ShowroomPage() {
     setSelectedId(id)
     setViewing(null)
     setExhibit(null)
+    setCrewMatch(null)
     load(id)
   }
 
@@ -70,6 +75,7 @@ export default function ShowroomPage() {
     setTab(t)
     setViewing(null)
     setExhibit(null)
+    setCrewMatch(null)
   }
 
   const openViewer = (pano, title) => {
@@ -94,6 +100,40 @@ export default function ShowroomPage() {
       return
     }
     openViewer(r.data, `${s.name} · 实景展厅`)
+  }
+
+  /** 服务商作品集漫游：showcase_panorama_id → 全景详情 → 漫游 */
+  const openCrewShowcase = async (c) => {
+    if (!c.showcase_panorama_id) return
+    const r = await getVRPanorama(c.showcase_panorama_id)
+    if (!r.isSuccess || !r.data) {
+      alert(`${c.name}：作品集全景加载失败（${r.error || '不存在'}）`)
+      return
+    }
+    openViewer(r.data, `${c.name} · 作品集`)
+  }
+
+  /** 发起接单：对当前项目跑工程队匹配（复用 /api/crews/match 链路） */
+  const initiateMatch = async (c) => {
+    if (!selectedId) {
+      alert('请先选择项目')
+      return
+    }
+    setCrewMatch({ loading: true, crew: c })
+    const r = await matchCrews({ project_id: selectedId, top_n: 20 })
+    if (!r.isSuccess) {
+      setCrewMatch({ loading: false, crew: c, error: r.error || '匹配失败' })
+      return
+    }
+    const list = Array.isArray(r.data) ? r.data : []
+    const mine = list.find((m) => m.crew_id === c.id)
+    setCrewMatch({
+      loading: false,
+      crew: c,
+      mine: mine || null,
+      top: list.slice(0, 3),
+      total: list.length,
+    })
   }
 
   /** 点击展品热点 → 加载材料详情 + 环保认证 */
@@ -137,7 +177,7 @@ export default function ShowroomPage() {
       <div className="page-head">
         <div>
           <h2>智能展厅</h2>
-          <div className="desc">材料展厅 3D 漫游 · 展品即热点 · 供应商实景展厅 · 一键加入采购清单</div>
+          <div className="desc">材料展厅 3D 漫游 · 供应商实景展厅 · 服务商作品集 · 展品即热点</div>
         </div>
         {tab === 'material' ? (
           <select
@@ -150,9 +190,13 @@ export default function ShowroomPage() {
               <option key={pr.id} value={pr.id}>{pr.name || pr.id}</option>
             ))}
           </select>
-        ) : (
+        ) : tab === 'supplier' ? (
           <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
             共 {suppliers.length} 家供应商 · 认证状态平台授予
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+            共 {crews.length} 支工程队 · 作品集平台授予 · 审核通过可被匹配
           </span>
         )}
       </div>
@@ -172,9 +216,97 @@ export default function ShowroomPage() {
         >
           <Store size={15} style={{ verticalAlign: -2, marginRight: 4 }} />供应商实景展厅
         </button>
+        <button
+          className={tab === 'crew' ? 'btn btn-primary' : 'btn'}
+          style={{ fontSize: 13 }}
+          onClick={() => switchTab('crew')}
+        >
+          <HardHat size={15} style={{ verticalAlign: -2, marginRight: 4 }} />服务商作品集
+        </button>
       </div>
 
-      {tab === 'supplier' ? (
+      {tab === 'crew' ? (
+        <>
+          {crews.length === 0 && <Empty message="暂无服务商名录，可联系平台入驻" />}
+          {crews.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+              {crews.map((c) => {
+                const approved = c.review_status === 'approved'
+                return (
+                  <div key={c.id} className="card" style={{ overflow: 'hidden', padding: 0 }}>
+                    <div style={{
+                      height: 88, background: approved ? 'rgba(34, 197, 94, 0.08)' : 'var(--border)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: approved ? 'var(--success, #22c55e)' : 'var(--text-dim)',
+                      position: 'relative',
+                    }}
+                    >
+                      <HardHat size={34} />
+                      {!approved && (
+                        <span style={{
+                          position: 'absolute', top: 8, right: 8, fontSize: 10, padding: '2px 6px',
+                          borderRadius: 4, background: 'rgba(251, 191, 36, 0.15)',
+                          color: '#b45309', letterSpacing: 1,
+                        }}
+                        >
+                          REVIEWING
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ padding: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                        {c.name}
+                        {approved && <BadgeCheck size={15} color="var(--success, #22c55e)" />}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                        资质 {c.qualification || '-'} 级 · 评分 {Number(c.rating || 0).toFixed(1)} · 案例 {c.completed_projects || 0} 个 · ¥{c.daily_rate || 0}/天
+                      </div>
+                      {Array.isArray(c.specialties) && c.specialties.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                          {c.specialties.map((sp) => (
+                            <span key={sp} className="badge badge--sky">{sp}</span>
+                          ))}
+                        </div>
+                      )}
+                      {!approved && (
+                        <div style={{ fontSize: 12, marginTop: 6, color: '#b45309' }}>
+                          <Clock size={12} style={{ verticalAlign: -2 }} /> 入驻审核中，通过后方可接单
+                        </div>
+                      )}
+                      {c.showcase_panorama_id ? (
+                        <button
+                          className="btn btn-primary"
+                          style={{ width: '100%', marginTop: 8, fontSize: 13 }}
+                          onClick={() => openCrewShowcase(c)}
+                        >
+                          进入作品集漫游
+                        </button>
+                      ) : (
+                        <div style={{
+                          width: '100%', marginTop: 8, padding: '7px 0', textAlign: 'center',
+                          fontSize: 12, color: 'var(--text-dim)', border: '1px dashed var(--border)',
+                          borderRadius: 6,
+                        }}
+                        >
+                          暂无作品集全景（待上传已交付项目实景）
+                        </div>
+                      )}
+                      <button
+                        className="btn"
+                        style={{ width: '100%', marginTop: 6, fontSize: 13 }}
+                        disabled={!approved}
+                        onClick={() => initiateMatch(c)}
+                      >
+                        {approved ? '发起接单' : '审核中不可接单'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      ) : tab === 'supplier' ? (
         <>
           {suppliers.length === 0 && <Empty message="暂无供应商名录，可联系平台入驻" />}
           {suppliers.length > 0 && (
@@ -389,6 +521,88 @@ export default function ShowroomPage() {
             >
               拖拽环视 · 滚轮缩放 · 点击展品热点查看详情
             </div>
+          </div>
+        </div>
+      )}
+
+      {crewMatch && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 55, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', background: 'rgba(10,12,16,0.55)',
+        }}
+        >
+          <div style={{
+            width: 420, maxWidth: '92vw', background: 'var(--card)',
+            border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong>{crewMatch.crew.name} · 发起接单</strong>
+              <button
+                className="ghost"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                onClick={() => setCrewMatch(null)}
+                aria-label="关闭"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {crewMatch.loading ? (
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 12 }}>
+                正在匹配当前项目工程队…
+              </div>
+            ) : crewMatch.error ? (
+              <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{crewMatch.error}</div>
+            ) : (
+              <>
+                {crewMatch.mine ? (
+                  <div style={{
+                    marginTop: 12, padding: 10, borderRadius: 8,
+                    background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.25)',
+                  }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>
+                      匹配评分 {Number(crewMatch.mine.match_score || 0).toFixed(0)} / 100
+                    </div>
+                    {crewMatch.mine.recommendation && (
+                      <div style={{ fontSize: 12, marginTop: 4, color: 'var(--text-dim)' }}>
+                        {crewMatch.mine.recommendation}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, marginTop: 12, color: 'var(--text-dim)' }}>
+                    该工程队未进入本项目的匹配结果（可能不符地域/专长条件）
+                  </div>
+                )}
+                {crewMatch.top && crewMatch.top.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 6 }}>
+                      当前项目推荐工程队 Top {crewMatch.top.length}（共 {crewMatch.total} 支）
+                    </div>
+                    {crewMatch.top.map((m) => (
+                      <div
+                        key={m.id}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '6px 8px', marginBottom: 4, borderRadius: 6,
+                          background: 'var(--bg, #f6f7f9)',
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>
+                          {m.crew?.name || m.crew_id}
+                          {m.crew?.qualification ? `（资质 ${m.crew.qualification}）` : ''}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--success, #22c55e)' }}>
+                          {Number(m.match_score || 0).toFixed(0)} 分
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

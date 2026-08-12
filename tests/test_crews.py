@@ -309,3 +309,56 @@ async def test_rejected_crew_resubmit_back_to_pending(
         select(ConstructionCrew).where(ConstructionCrew.id == crew_id)
     )
     assert result.scalar_one().review_status == "pending"
+
+
+# ── M4：服务商作品集展厅（showcase_panorama_id，设计 4.3）──
+
+
+@pytest.mark.asyncio
+async def test_admin_set_crew_showcase_panorama(client: AsyncClient, auth_headers: dict):
+    """管理员绑定服务商作品集代表作全景，Response/列表透传"""
+    crew_id = await _create_crew(client, auth_headers, "作品集展厅队")
+    admin_headers = await _register_admin(client)
+
+    resp = await client.patch(
+        f"/api/crews/{crew_id}",
+        json={"showcase_panorama_id": "pano-showcase-001"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["showcase_panorama_id"] == "pano-showcase-001"
+
+    resp = await client.get("/api/crews", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    match = [c for c in resp.json() if c["id"] == crew_id]
+    assert match and match[0]["showcase_panorama_id"] == "pano-showcase-001"
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_update_crew(client: AsyncClient, auth_headers: dict):
+    """非管理员无权更新工程队（含作品集绑定）"""
+    crew_id = await _create_crew(client, auth_headers, "权限作品集队")
+    resp = await client.patch(
+        f"/api/crews/{crew_id}",
+        json={"showcase_panorama_id": "pano-x"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_create_crew_with_showcase_panorama(client: AsyncClient, auth_headers: dict):
+    """创建工程队时可带作品集代表作全景（透传）"""
+    resp = await client.post(
+        "/api/crews",
+        json={
+            "name": "带作品集工程队",
+            "leader": "王工",
+            "city": "北京",
+            "specialties": ["mep"],
+            "showcase_panorama_id": "pano-create-001",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["showcase_panorama_id"] == "pano-create-001"

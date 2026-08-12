@@ -21,6 +21,23 @@ class ConstructionCrewCreate(BaseModel):
     license_no: str | None = None
     license_type: str | None = None
     insurance_no: str | None = None
+    # 设计 4.3 作品集代表作全景（平台授予，非自报）
+    showcase_panorama_id: str | None = None
+
+
+class ConstructionCrewUpdate(BaseModel):
+    """工程队元数据更新（设计 4.3：管理员绑定作品集代表作全景等）"""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    leader: str | None = Field(default=None, min_length=1, max_length=100)
+    qualification: str | None = None
+    rating: float | None = Field(default=None, ge=0, le=5)
+    completed_projects: int | None = Field(default=None, ge=0)
+    avg_duration: int | None = Field(default=None, ge=1)
+    daily_rate: int | None = Field(default=None, ge=0)
+    status: str | None = None
+    introduction: str | None = None
+    showcase_panorama_id: str | None = None
 
 
 class ConstructionCrewResponse(BaseModel):
@@ -45,6 +62,8 @@ class ConstructionCrewResponse(BaseModel):
     license_no: str | None = None
     license_type: str | None = None
     insurance_no: str | None = None
+    # 作品集代表作全景（设计 4.3）：无作品集实景恒 None，前端诚实标注
+    showcase_panorama_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

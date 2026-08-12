@@ -45,6 +45,10 @@ class ConstructionCrew(Base):
     # 在岗状态：available / busy / offline
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="available")
     introduction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 作品集代表作全景（设计 4.3 服务商智能展厅）：已交付项目 VRPanorama 实景，关联 vr_panoramas.id
+    showcase_panorama_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("vr_panoramas.id"), nullable=True, index=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

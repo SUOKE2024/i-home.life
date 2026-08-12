@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.construction_crew import ConstructionCrew, CrewMatch
 from app.schemas.construction_crew import (
     ConstructionCrewCreate,
+    ConstructionCrewUpdate,
     ConstructionCrewResponse,
     CrewMatchRequest,
     CrewMatchResponse,
@@ -61,6 +62,7 @@ def _crew_to_response(crew: ConstructionCrew) -> ConstructionCrewResponse:
         daily_rate=crew.daily_rate,
         status=crew.status,
         introduction=crew.introduction,
+        showcase_panorama_id=crew.showcase_panorama_id,
         created_at=crew.created_at,
         updated_at=crew.updated_at,
     )
@@ -124,6 +126,20 @@ async def get_crew(
     db: AsyncSession = Depends(get_db),
 ):
     crew = await crew_service.get_crew(db, crew_id)
+    if not crew:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    return _crew_to_response(crew)
+
+
+@router.patch("/{crew_id}", response_model=ConstructionCrewResponse)
+async def update_crew(
+    crew_id: str,
+    data: ConstructionCrewUpdate,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """管理员更新工程队元数据（设计 4.3：绑定作品集代表作全景 showcase_panorama_id 等）。"""
+    crew = await crew_service.update_crew(db, crew_id, data.model_dump(exclude_none=True))
     if not crew:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
     return _crew_to_response(crew)

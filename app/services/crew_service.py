@@ -97,6 +97,21 @@ async def create_crew(db: AsyncSession, data: dict) -> ConstructionCrew:
     return crew
 
 
+async def update_crew(db: AsyncSession, crew_id: str, data: dict) -> ConstructionCrew | None:
+    """更新工程队元数据（设计 4.3：管理员绑定作品集代表作全景等）。
+
+    返回 None 表示工程队不存在。
+    """
+    crew = await get_crew(db, crew_id)
+    if not crew:
+        return None
+    for key, value in data.items():
+        setattr(crew, key, value)
+    await db.commit()
+    await db.refresh(crew)
+    return crew
+
+
 async def submit_crew_review(
     db: AsyncSession,
     crew_id: str,

@@ -282,6 +282,21 @@ export async function listSuppliers() {
   return request('/api/procurement/suppliers')
 }
 
+// ── M4 服务商作品集展厅（设计 4.3）──
+
+/** 工程队列表（服务商作品集） */
+export async function listCrews() {
+  return request('/api/crews')
+}
+
+/** 工程队匹配（用户漫游后发起接单） */
+export async function matchCrews(data) {
+  return request('/api/crews/match', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */
