@@ -131,6 +131,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: '管理后台',
+    items: [
+      { label: '管理后台', path: '/admin', emoji: '🛠' },
+      { label: '通知', path: '/notifications', emoji: '🔔' },
+      { label: '文件', path: '/files', emoji: '📁' },
+    ],
+  },
+  {
     title: 'Agent 治理',
     items: [
       { label: '身份卡', path: '/agent-identity', emoji: '🪪' },

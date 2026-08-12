@@ -68,6 +68,9 @@ import PointsPage from './pages/PointsPage';
 import AIImagePage from './pages/AIImagePage';
 import IdentityPage from './pages/IdentityPage';
 import SurveysPage from './pages/SurveysPage';
+import AdminPage from './pages/AdminPage';
+import NotificationsPage from './pages/NotificationsPage';
+import FilesPage from './pages/FilesPage';
 
 export default function App() {
   const location = useLocation();
@@ -143,6 +146,9 @@ export default function App() {
           <Route path="/ai-image" element={<AIImagePage />} />
           <Route path="/identity" element={<IdentityPage />} />
           <Route path="/surveys" element={<SurveysPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/files" element={<FilesPage />} />
           {/* 真 404：取代此前静默回退到 Workbench 的反直觉行为 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

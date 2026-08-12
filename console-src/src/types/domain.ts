@@ -2563,3 +2563,63 @@ export interface ARAccuracyReport {
   recommendations: string[];
   points: MeasurementPoint[];
 }
+
+// ── 管理后台（对齐 app/api/admin.py）──
+
+/** GET /api/admin/stats 平台统计（PlatformStatsResponse） */
+export interface PlatformStats {
+  total_projects: number;
+  total_users: number;
+  active_projects: number;
+  pending_verifications: number;
+  total_materials: number;
+  total_suppliers: number;
+  weekly_new_users: number;
+}
+
+/** GET /api/admin/audit-logs 审计日志条目 */
+export interface AuditLogItem {
+  id: string;
+  user_id: string | null;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  details: string | null;
+  request_ip: string | null;
+  user_agent: string | null;
+  created_at: string | null;
+}
+
+/** GET /api/admin/audit-logs 分页响应 */
+export interface AuditLogPage {
+  items: AuditLogItem[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+// ── 通知（对齐 app/api/notifications.py + app/schemas/notification.py）──
+
+/** GET /api/notifications/devices 设备推送令牌（DeviceTokenResponse） */
+export interface DeviceToken {
+  id: string;
+  user_id: string;
+  device_token: string;
+  platform: string; // ios / android / harmonyos
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── 文件（对齐 app/api/files.py + app/schemas/file_attachment.py）──
+
+/** GET /api/files/project/{project_id} 项目附件（FileAttachmentListItem） */
+export interface ProjectFileItem {
+  id: string;
+  project_id: string;
+  filename: string;
+  content_type: string;
+  file_size: number;
+  category: string;
+  created_at: string;
+}

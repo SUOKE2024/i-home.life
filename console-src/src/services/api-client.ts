@@ -2084,6 +2084,161 @@ export class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  管理后台（app/api/admin.py，前缀 /api/admin；非管理员返回 403）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 用户列表（GET /api/admin/users；支持 role / is_active 筛选 + 分页） */
+  async listUsers<T = import('../types/domain').User[]>(
+    params: { role?: string; is_active?: boolean; limit?: number; offset?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.role) qs.set('role', params.role);
+    if (params.is_active !== undefined) qs.set('is_active', String(params.is_active));
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    if (params.offset !== undefined) qs.set('offset', String(params.offset));
+    const s = qs.toString();
+    return this.request<T>(`/api/admin/users${s ? `?${s}` : ''}`);
+  }
+
+  /** 修改用户角色（PUT /api/admin/users/{user_id}/role） */
+  async updateUserRole<T = import('../types/domain').User>(
+    userId: string,
+    data: { role: string; sub_role?: string | null },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 启用/禁用用户（PUT /api/admin/users/{user_id}/status） */
+  async updateUserStatus<T = import('../types/domain').User>(
+    userId: string,
+    data: { is_active: boolean },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/admin/users/${encodeURIComponent(userId)}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 平台统计（GET /api/admin/stats） */
+  async getPlatformStats<T = import('../types/domain').PlatformStats>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/admin/stats');
+  }
+
+  /** 审计日志（GET /api/admin/audit-logs；支持过滤 + 分页） */
+  async listAuditLogs<T = import('../types/domain').AuditLogPage>(
+    params: { user_id?: string; action?: string; resource_type?: string; limit?: number; skip?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.user_id) qs.set('user_id', params.user_id);
+    if (params.action) qs.set('action', params.action);
+    if (params.resource_type) qs.set('resource_type', params.resource_type);
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    if (params.skip !== undefined) qs.set('skip', String(params.skip));
+    const s = qs.toString();
+    return this.request<T>(`/api/admin/audit-logs${s ? `?${s}` : ''}`);
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  通知（app/api/notifications.py，前缀 /api/notifications）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 设备推送令牌列表（GET /api/notifications/devices） */
+  async listNotificationDevices<T = import('../types/domain').DeviceToken[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/notifications/devices');
+  }
+
+  /** 注册设备令牌（POST /api/notifications/register-device；platform ∈ ios|android|harmonyos） */
+  async registerNotificationDevice<T = import('../types/domain').DeviceToken>(
+    data: { device_token: string; platform: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/notifications/register-device', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 注销设备令牌（DELETE /api/notifications/devices/{device_id}） */
+  async unregisterNotificationDevice(deviceId: string): Promise<ApiResult<unknown>> {
+    return this.request(`/api/notifications/devices/${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  文件（app/api/files.py，前缀 /api/files）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 项目附件列表（GET /api/files/project/{project_id}） */
+  async listProjectFiles<T = import('../types/domain').ProjectFileItem[]>(
+    projectId: string,
+    params: { category?: string; skip?: number; limit?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.category) qs.set('category', params.category);
+    if (params.skip !== undefined) qs.set('skip', String(params.skip));
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    const s = qs.toString();
+    return this.request<T>(
+      `/api/files/project/${encodeURIComponent(projectId)}${s ? `?${s}` : ''}`,
+    );
+  }
+
+  /** 上传项目附件（POST /api/files/upload，multipart） */
+  async uploadProjectFile<T = import('../types/domain').ProjectFileItem>(
+    projectId: string,
+    file: File,
+    category = 'other',
+  ): Promise<ApiResult<T>> {
+    return this.uploadFile<T>('/api/files/upload', file, { project_id: projectId, category });
+  }
+
+  /** 下载项目附件（GET /api/files/download/{attachment_id}，返回 blob） */
+  async downloadProjectFile(
+    attachmentId: string,
+  ): Promise<{ isSuccess: boolean; status: number; blob?: Blob; filename?: string; error?: string }> {
+    const token = this.getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const res = await fetch(this.buildUrl(`/api/files/download/${encodeURIComponent(attachmentId)}`), {
+        method: 'GET',
+        headers,
+      });
+      if (res.status === 401) {
+        this.clearToken();
+        if (this.onUnauthorized) this.onUnauthorized();
+        else window.location.href = '/login.html?redirect=/console/';
+        return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
+      }
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => undefined);
+        return { isSuccess: false, status: res.status, error: errorBody?.detail ?? `HTTP ${res.status}` };
+      }
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const match = /filename="?([^";]+)"?/.exec(disposition);
+      const filename = match ? match[1] : undefined;
+      return { isSuccess: true, status: res.status, blob: await res.blob(), filename };
+    } catch (err) {
+      return {
+        isSuccess: false,
+        status: 0,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /** 删除项目附件（DELETE /api/files/{attachment_id}） */
+  async deleteProjectFile(attachmentId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/files/${encodeURIComponent(attachmentId)}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 /**
