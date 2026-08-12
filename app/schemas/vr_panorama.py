@@ -44,6 +44,7 @@ class VRPanoramaCreate(BaseModel):
     floorplan_id: str | None = None
     room_name: str = Field(..., max_length=100)
     panorama_type: str = Field(default="equirectangular")
+    content_source: str = Field(default="actual", description="内容来源: actual(实景) / effect(AI 效果图)")
     resolution: str = Field(default="4K")
     fov: float = Field(default=360.0, ge=10.0, le=360.0)
     initial_view: InitialViewSpec | None = None
@@ -64,6 +65,7 @@ class VRPanoramaResponse(BaseModel):
     floorplan_id: str | None
     room_name: str
     panorama_type: str
+    content_source: str = "actual"
     image_url: str | None
     splat_url: str | None = None
     thumbnail_url: str | None
@@ -88,6 +90,7 @@ class VRPanoramaListItem(BaseModel):
     project_id: str
     room_name: str
     panorama_type: str
+    content_source: str = "actual"
     image_url: str | None
     splat_url: str | None = None
     thumbnail_url: str | None
@@ -99,6 +102,18 @@ class VRPanoramaListItem(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EffectRenderPublishRequest(BaseModel):
+    """把 AI 效果图发布为效果图漫游全景（设计 4.1）。
+
+    image_url 为 ai_render 2D 效果图产物 URL（普通 2D 图，非等距柱状），
+    落库时 content_source=effect，前端 2D 平面预览并诚实标注「效果图预览 · 非实景」。
+    """
+
+    project_id: str
+    room_name: str = Field(..., max_length=100)
+    image_url: str = Field(..., max_length=1000)
 
 
 class HotspotCreate(BaseModel):

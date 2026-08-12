@@ -323,6 +323,16 @@ export async function getCrewBenefits(crewId) {
   return request(`/api/crews/${encodeURIComponent(crewId)}/benefits`)
 }
 
+// ── 设计 4.1 效果图漫游：AI 效果图发布为效果图全景（content_source=effect）──
+
+/** 把 AI 效果图发布为效果图漫游全景（2D 平面预览，诚实标注非实景） */
+export async function publishEffectRender(data) {
+  return request('/api/vr/panoramas/from-effect-render', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */

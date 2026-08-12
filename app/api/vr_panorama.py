@@ -12,6 +12,7 @@ from app.schemas.vr_panorama import (
     VRPanoramaUpdate,
     VRPanoramaResponse,
     VRPanoramaListItem,
+    EffectRenderPublishRequest,
     HotspotCreate,
     RenderPanoramaRequest,
     VRSceneCreate,
@@ -46,6 +47,36 @@ async def create_panorama(
     return resp
 
 
+@router.post(
+    "/panoramas/from-effect-render",
+    response_model=VRPanoramaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def publish_effect_render(
+    body: EffectRenderPublishRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """把 AI 效果图发布为效果图漫游全景（设计 4.1「先看后装」）。
+
+    image_url 为 ai_render 2D 效果图产物（普通 2D 图，非等距柱状）；
+    落库 content_source=effect，前端 2D 平面预览并诚实标注「效果图预览 · 非实景」，
+    不伪造 360° 沉浸感（2D→3D .spz 内容管线待 GPU 立项，M3 余项）。
+    """
+    await verify_project_access(project_id=body.project_id, current_user=user, db=db)
+    panorama = await vr_panorama_service.publish_effect_render(
+        db,
+        project_id=body.project_id,
+        room_name=body.room_name,
+        image_url=body.image_url,
+    )
+    resp = VRPanoramaResponse.model_validate(panorama)
+    await ws_manager.broadcast_to_project(
+        panorama.project_id, "vr.panorama.created", resp.model_dump()
+    )
+    return resp
+
+
 @router.get("/panoramas/project/{project_id}", response_model=list[VRPanoramaListItem])
 async def list_panoramas(
     project_id: str,
@@ -62,6 +93,7 @@ async def list_panoramas(
             project_id=p.project_id,
             room_name=p.room_name,
             panorama_type=p.panorama_type,
+            content_source=p.content_source,
             image_url=p.image_url,
             splat_url=p.splat_url,
             thumbnail_url=p.thumbnail_url,

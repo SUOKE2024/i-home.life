@@ -154,7 +154,13 @@ export default function VirtualTourPage() {
                     </span>
                   </div>
                   <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
-                    {p.panorama_type === 'equirectangular' ? '球面全景' : p.panorama_type || '-'} · {p.resolution} · {p.hotspots?.length ?? 0} 热点
+                    {p.content_source === 'effect' ? (
+                      <span style={{ color: '#b45309' }}>AI 效果图 · 2D 平面预览（非 360° 实景）</span>
+                    ) : (
+                      <>
+                        {p.panorama_type === 'equirectangular' ? '球面全景' : p.panorama_type || '-'} · {p.resolution} · {p.hotspots?.length ?? 0} 热点
+                      </>
+                    )}
                   </div>
                   <div style={{ marginTop: 10 }}>
                     <button
@@ -163,7 +169,7 @@ export default function VirtualTourPage() {
                       disabled={!rendered}
                       onClick={() => openViewer(p)}
                     >
-                      {rendered ? '进入 360° 全景' : '等待渲染'}
+                      {rendered ? (p.content_source === 'effect' ? '效果图预览' : '进入 360° 全景') : '等待渲染'}
                     </button>
                   </div>
                 </div>
@@ -182,7 +188,7 @@ export default function VirtualTourPage() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', color: '#fff' }}>
-            <b style={{ flex: 1 }}>{viewing.pano.room_name} · 360° 全景</b>
+            <b style={{ flex: 1 }}>{viewing.pano.room_name} · {viewing.pano.content_source === 'effect' ? '效果图预览' : '360° 全景'}</b>
             <button
               className="icon-btn"
               style={{ color: '#fff', background: 'rgba(255,255,255,0.12)' }}
@@ -193,7 +199,24 @@ export default function VirtualTourPage() {
             </button>
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
-            {viewing.pano.splat_url && !viewing.gsFailed ? (
+            {viewing.pano.content_source === 'effect' ? (
+              // 设计 4.1：AI 效果图为 2D 平面图（非等距柱状），平面预览 + 诚实标注，不伪造 360° 沉浸感
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img
+                  src={viewing.pano.image_url}
+                  alt={viewing.pano.room_name}
+                  style={{ maxWidth: '94%', maxHeight: '92%', objectFit: 'contain', borderRadius: 8 }}
+                />
+                <div style={{
+                  position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
+                  background: 'rgba(251,191,36,0.92)', color: '#5b3a00',
+                  fontSize: 12, padding: '4px 12px', borderRadius: 999, fontWeight: 600,
+                }}
+                >
+                  效果图预览 · AI 生成非实景（2D→3D 漫游待 GPU 内容管线）
+                </div>
+              </div>
+            ) : viewing.pano.splat_url && !viewing.gsFailed ? (
               // M3：3DGS 漫游（Spark），失败/无 WebGL2 → 降级贴图全景
               <GaussianViewer
                 splatUrl={viewing.pano.splat_url}

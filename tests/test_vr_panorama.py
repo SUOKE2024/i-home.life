@@ -15,6 +15,7 @@
 - GET    /api/vr/scenes/{scene_id}                       (场景详情)
 - PATCH  /api/vr/scenes/{scene_id}                       (更新场景)
 - DELETE /api/vr/scenes/{scene_id}                       (删除场景)
+- POST   /api/vr/panoramas/from-effect-render            (AI 效果图发布为效果图漫游，设计 4.1)
 """
 import pytest
 from httpx import AsyncClient
@@ -326,6 +327,90 @@ async def test_vr_cross_user_access_blocked(client: AsyncClient):
 
     resp = await client.get(
         f"/api/vr/panoramas/{panorama_a['id']}",
+        headers=headers_b,
+    )
+    assert resp.status_code == 403
+
+
+# ── 设计 4.1 效果图漫游：AI 效果图发布（content_source=effect）──
+
+
+@pytest.mark.asyncio
+async def test_publish_effect_render(client: AsyncClient):
+    """发布 AI 效果图为效果图漫游：content_source=effect + status=completed + image_url 透传"""
+    headers = await _auth_headers(client, "13960060012")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/vr/panoramas/from-effect-render",
+        json={
+            "project_id": project_id,
+            "room_name": "客厅效果图",
+            "image_url": "https://cdn.example.com/effect/living-room.png",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["content_source"] == "effect"
+    assert data["image_url"] == "https://cdn.example.com/effect/living-room.png"
+    assert data["thumbnail_url"] == "https://cdn.example.com/effect/living-room.png"
+    assert data["status"] == "completed"  # 效果图已是成品，无需排队渲染
+
+
+@pytest.mark.asyncio
+async def test_publish_effect_render_appears_in_list(client: AsyncClient):
+    """效果图全景出现在项目列表中且 content_source 透传（前端据此走 2D 平面预览）"""
+    headers = await _auth_headers(client, "13960060013")
+    project_id = await _create_project(client, headers)
+    await _create_panorama(client, headers, project_id, "实景客厅")
+
+    resp = await client.post(
+        "/api/vr/panoramas/from-effect-render",
+        json={
+            "project_id": project_id,
+            "room_name": "效果图主卧",
+            "image_url": "https://cdn.example.com/effect/bedroom.png",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    resp = await client.get(f"/api/vr/panoramas/project/{project_id}", headers=headers)
+    assert resp.status_code == 200, resp.text
+    items = resp.json()
+    assert len(items) == 2
+    effect = next((p for p in items if p["content_source"] == "effect"), None)
+    assert effect is not None
+    assert effect["room_name"] == "效果图主卧"
+    # 实景全景默认 content_source=actual（诚实区分，前端不误当 360°）
+    actual = next((p for p in items if p["room_name"] == "实景客厅"), None)
+    assert actual is not None and actual["content_source"] == "actual"
+
+
+@pytest.mark.asyncio
+async def test_create_panorama_default_content_source_actual(client: AsyncClient):
+    """普通全景创建默认 content_source=actual（既有行为不回退）"""
+    headers = await _auth_headers(client, "13960060014")
+    project_id = await _create_project(client, headers)
+    created = await _create_panorama(client, headers, project_id, "默认实景")
+    assert created["content_source"] == "actual"
+
+
+@pytest.mark.asyncio
+async def test_publish_effect_render_cross_user_blocked(client: AsyncClient):
+    """效果图发布跨项目成员访问被拒（verify_project_access 403）"""
+    headers_a = await _auth_headers(client, "13960060015")
+    headers_b = await _auth_headers(client, "13960060016")
+    project_id_a = await _create_project(client, headers_a)
+
+    resp = await client.post(
+        "/api/vr/panoramas/from-effect-render",
+        json={
+            "project_id": project_id_a,
+            "room_name": "越权效果图",
+            "image_url": "https://cdn.example.com/effect/blocked.png",
+        },
         headers=headers_b,
     )
     assert resp.status_code == 403

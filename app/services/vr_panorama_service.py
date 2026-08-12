@@ -35,6 +35,35 @@ async def create_panorama(db: AsyncSession, data: dict) -> VRPanorama:
     return panorama
 
 
+async def publish_effect_render(
+    db: AsyncSession,
+    project_id: str,
+    room_name: str,
+    image_url: str,
+) -> VRPanorama:
+    """发布 AI 效果图为效果图漫游全景（设计 4.1「先看后装」）。
+
+    content_source=effect 诚实标注：效果图为 2D 平面图（非 360° 等距柱状），
+    前端采用 2D 平面预览并标注「效果图预览 · 非实景」，不伪造沉浸感；
+    2D→3D（.spz）内容管线仍待 GPU 立项（M3 余项）。
+    status 直接 completed（效果图已是成品，无需排队渲染）。
+    """
+    panorama = VRPanorama(
+        project_id=project_id,
+        room_name=room_name,
+        panorama_type="equirectangular",  # 投影类型兼容默认值；前端按 content_source=effect 走 2D 预览
+        content_source="effect",
+        image_url=image_url,
+        thumbnail_url=image_url,
+        status="completed",
+        completed_at=datetime.now(timezone.utc),
+    )
+    db.add(panorama)
+    await db.commit()
+    await db.refresh(panorama)
+    return panorama
+
+
 async def get_panorama(db: AsyncSession, panorama_id: str) -> VRPanorama | None:
     result = await db.execute(select(VRPanorama).where(VRPanorama.id == panorama_id))
     return result.scalar_one_or_none()

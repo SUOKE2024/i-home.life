@@ -29,6 +29,9 @@ class VRPanorama(Base):
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     panorama_type: Mapped[str] = mapped_column(String(30), nullable=False, default="equirectangular")
     # panorama_type: equirectangular (等距柱状) / cubemap (立方体贴图) / gaussian (3DGS, M3)
+    content_source: Mapped[str] = mapped_column(String(20), nullable=False, default="actual")
+    # content_source: actual (实拍实景) / effect (AI 效果图，设计 4.1 效果图漫游) —
+    # effect 为 2D 平面效果图（非 360°），前端 2D 平面预览并诚实标注，不伪造沉浸感
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     splat_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     # splat_url: 3DGS 场景资源（.spz/.ply），Spark 渲染，M3 内容入口（2026-08-12）
