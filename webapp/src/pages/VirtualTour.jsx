@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { X, Rotate3D } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
+import GaussianViewer from '../components/GaussianViewer'
 import DeviceCommandPanel from '../components/DeviceCommandPanel'
 import SceneTriggerOverlay from '../components/SceneTriggerOverlay'
 import useDeviceOverlay from '../hooks/useDeviceOverlay'
@@ -192,20 +193,38 @@ export default function VirtualTourPage() {
             </button>
           </div>
           <div style={{ flex: 1, position: 'relative' }}>
-            <PanoramaViewer
-              imageUrl={viewing.pano.image_url}
-              hotspots={viewing.pano.hotspots || []}
-              devices={devices}
-              initialView={viewing.initialView}
-              onHotspotClick={(hs) => {
-                const target =
-                  (hs.target_panorama_id && panoramas.find((x) => x.id === hs.target_panorama_id)) || null
-                if (target && target.image_url) openViewer(target)
-                else if (hs.url) window.open(hs.url, '_blank', 'noopener')
-                else alert(`${hs.label}：${hs.target_panorama_id ? '目标全景未渲染' : hs.type === 'info' ? '信息热点' : '暂无可跳转目标'}`)
-              }}
-              onDeviceClick={(d) => setSelectedDevice(d)}
-            />
+            {viewing.pano.splat_url && !viewing.gsFailed ? (
+              // M3：3DGS 漫游（Spark），失败/无 WebGL2 → 降级贴图全景
+              <GaussianViewer
+                splatUrl={viewing.pano.splat_url}
+                devices={devices}
+                hotspots={viewing.pano.hotspots || []}
+                initialView={viewing.initialView}
+                onDeviceClick={(d) => setSelectedDevice(d)}
+                onHotspotClick={(hs) => {
+                  const target =
+                    (hs.target_panorama_id && panoramas.find((x) => x.id === hs.target_panorama_id)) || null
+                  if (target && (target.splat_url || target.image_url)) openViewer(target)
+                  else alert(`${hs.label}：${hs.target_panorama_id ? '目标场景未渲染' : '暂无可跳转目标'}`)
+                }}
+                onFallback={() => setViewing((v) => (v ? { ...v, gsFailed: true } : v))}
+              />
+            ) : (
+              <PanoramaViewer
+                imageUrl={viewing.pano.image_url}
+                hotspots={viewing.pano.hotspots || []}
+                devices={devices}
+                initialView={viewing.initialView}
+                onHotspotClick={(hs) => {
+                  const target =
+                    (hs.target_panorama_id && panoramas.find((x) => x.id === hs.target_panorama_id)) || null
+                  if (target && target.image_url) openViewer(target)
+                  else if (hs.url) window.open(hs.url, '_blank', 'noopener')
+                  else alert(`${hs.label}：${hs.target_panorama_id ? '目标全景未渲染' : hs.type === 'info' ? '信息热点' : '暂无可跳转目标'}`)
+                }}
+                onDeviceClick={(d) => setSelectedDevice(d)}
+              />
+            )}
             {selectedDevice && (
               <DeviceCommandPanel
                 device={selectedDevice}

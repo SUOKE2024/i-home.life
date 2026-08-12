@@ -21,16 +21,16 @@ const isLowEndDevice = () => {
   return mobile || cores <= 4 || mem <= 4
 }
 
-// 设备类型 → 图标（P0 设备热点）
-const DEVICE_ICONS = {
+// 设备类型 → 图标（P0 设备热点，导出供 GaussianViewer 复用）
+export const DEVICE_ICONS = {
   light: '💡', switch: '🔘', socket: '🔌', curtain: '🪟', speaker: '🔊',
   sensor: '📡', camera: '📷', lock: '🔒', thermostat: '🌡',
   air_purifier: '🌀', robot_vacuum: '🤖',
 }
 const deviceIcon = (type) => DEVICE_ICONS[type] || '⚙️'
 
-/** 设备 Sprite 着色：激活（触发中闪烁/联动高亮）橙 / 在线绿 / 离线灰 */
-const paintDeviceSprite = (canvas, device) => {
+/** 设备 Sprite 着色：激活（触发中闪烁/联动高亮）橙 / 在线绿 / 离线灰（导出供 GaussianViewer 复用） */
+export const paintDeviceSprite = (canvas, device) => {
   const ctx = canvas.getContext('2d')
   const online = device.status === 'online' || device.status === 'installed'
   const color = device.activating

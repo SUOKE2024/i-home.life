@@ -298,8 +298,9 @@ async def execute_scene(scene_id, trigger_source, db, user):
 - ✅ **state 补齐（2026-08-12 评估后）**：`SmartDevice` 新增 `state` JSON 列（迁移 `d1e2f3a4b5c6`）——生态桥真机执行成功（`send_command` 返回 ok）时写入（turn_on→power、set_brightness→brightness、open/close→position 等动作语义映射），pending 不写（诚实不伪造）；device-command 响应 / `smart.device.state` WS 事件 / device-overlay 均返回 `state`；`DeviceCommandPanel` 展示状态实时值。另修复 `useDeviceOverlay` 字段名不一致缺陷（后端 snake_case → 前端契约 camelCase，此前 `device.deviceId`/`sceneIds` 为 undefined，设备命令无法下发）
 - ✅ **联动动画增强（2026-08-12）**：设备热点「触发中闪烁」+「场景联动高亮」已落地——`useDeviceOverlay` 管理激活/高亮状态（命令下发或场景触发后 2.5s 动画窗口），`PanoramaViewer` 设备 Sprite 激活橙色 + 脉冲放大动画（rAF 驱动，适配按需渲染省电路径）；新增 `SceneTriggerOverlay` 浮层展示最近场景执行结果（action_status 诚实标注 + 动作成功计数）
 - ✅ **WS 推送接入（2026-08-12）**：`StateSyncHook` 落地为 `useProjectSocket`（`/ws/{project_id}?token=` PASETO 认证，心跳 ping/pong 保活，断线指数退避重连）+ `useDeviceOverlay` 订阅 `smart.device.state`（真机状态实时更新 + 热点闪烁）与 `scene.triggered`（联动高亮 + SceneTriggerOverlay 浮层）；**降级纪律**：WS 未连接时自动退回 30s 轮询兜底，推送恢复即停止轮询。Nginx `/ws/`（Upgrade 反代）与 Vite dev proxy 均已就绪
+- ✅ **M3 组件基石（2026-08-12 落地）**：`GaussianViewer.jsx`——`@sparkjsdev/spark` v2.1.0（动态导入独立 chunk，gzip 1.75MB 按需加载）+ `SparkRenderer`/`SplatMesh` 渲染 .spz/.ply + WebGL2 检测 + **双轨降级**（无 WebGL2 / Spark 加载失败 / 资源 20s 超时 → `onFallback` 回退 PanoramaViewer 贴图全景）+ 设备 Sprite 锚点叠加（复用 P0 yaw/pitch 换算）+ **场景热点跳转**（★ Sprite，房间间漫游，复用 P0 热点机制）+ 按需渲染省电；`VirtualTour` 接入（`pano.splat_url` 存在即 GS 渲染）；后端 `VRPanorama.splat_url` 列（迁移 `a1b2c3d4e5f7`）为 3DGS 内容入口，`VRPanoramaCreate/Update/Response/ListItem` schema 透传。内容管线（实景采集/LiDAR→.spz、Kairos AI 生成）待后续立项
 - ✅ **可观测性增强（2026-08-12）**：执行管线全状态流转日志——`device_command_received/rejected/context/bridge_dispatch/executed`、`scene_execute_start/devices/action_dispatch/action_skipped/action_rejected/action_bridge/action_result/done(含 status_summary)`，命令下发（connect→send_command→result）与 pending→success/failed 流转全程可排查
-- ⏳ **M3（Spark/GS 集成）**：待立项（开源库调研见第 3 部分）
+- ⏳ **M3 余项**：3DGS 内容管线（采集/AI 生成 → .spz，见第 4 部分 4.1 效果图漫游管线）
 - ⏳ **M4（智能展厅）**：待立项（模块研究见第 4 部分）
 
 ---

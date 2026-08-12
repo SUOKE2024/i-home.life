@@ -28,8 +28,10 @@ class VRPanorama(Base):
     floorplan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True, index=True)
     room_name: Mapped[str] = mapped_column(String(100), nullable=False)
     panorama_type: Mapped[str] = mapped_column(String(30), nullable=False, default="equirectangular")
-    # panorama_type: equirectangular (等距柱状) / cubemap (立方体贴图)
+    # panorama_type: equirectangular (等距柱状) / cubemap (立方体贴图) / gaussian (3DGS, M3)
     image_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    splat_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    # splat_url: 3DGS 场景资源（.spz/.ply），Spark 渲染，M3 内容入口（2026-08-12）
     thumbnail_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     resolution: Mapped[str] = mapped_column(String(10), nullable=False, default="4K")
     # resolution: 4K / 8K

@@ -47,12 +47,14 @@ class VRPanoramaCreate(BaseModel):
     fov: float = Field(default=360.0, ge=10.0, le=360.0)
     initial_view: InitialViewSpec | None = None
     render_quality: str = Field(default="standard")
+    splat_url: str | None = Field(default=None, description="3DGS 场景资源（.spz/.ply，M3）")
 
 
 class VRPanoramaUpdate(BaseModel):
     image_url: str | None = None
     thumbnail_url: str | None = None
     status: str | None = None
+    splat_url: str | None = None
 
 
 class VRPanoramaResponse(BaseModel):
@@ -62,6 +64,7 @@ class VRPanoramaResponse(BaseModel):
     room_name: str
     panorama_type: str
     image_url: str | None
+    splat_url: str | None = None
     thumbnail_url: str | None
     resolution: str
     fov: float
@@ -85,6 +88,7 @@ class VRPanoramaListItem(BaseModel):
     room_name: str
     panorama_type: str
     image_url: str | None
+    splat_url: str | None = None
     thumbnail_url: str | None
     resolution: str
     # initial_view / hotspots 在 ORM 是 JSON 字符串,这里透传为解析后的 dict/list
