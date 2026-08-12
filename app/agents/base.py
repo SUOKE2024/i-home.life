@@ -608,10 +608,11 @@ class BaseAgent:
         record_skill_outcome，激活 P1 Skill 进化数据层
         （此前该函数生产路径零调用，success/fail_count 恒 0）。
 
-        确定性判定（无额外 LLM 成本）：reply 非空、非 [mock] 前缀、非降级占位
-        → success=True；无法判定（mock/空/降级）→ 跳过不计数，防污染。
-        v1.13.3 起只记成功不记失败（success=False 需 LLM 判定或更复杂信号，
-        写遗留清单）。
+        确定性判定（无额外 LLM 成本）：
+        - reply 非空、非 [mock] 前缀、非降级占位 → success=True（Skill 正常产出）
+        - reply 为 [mock] / 降级占位 → success=False（注入 Skill 后仍降级，
+          Skill 未产生价值，v1.13.5 闭环「只记成功不记失败」遗留）
+        - 空 reply（异常路径）→ 跳过不计数，防污染
         """
         try:
             skill_id = getattr(self, "_injected_skill_id", None)
@@ -627,13 +628,15 @@ class BaseAgent:
                     self.agent_name, skill_id,
                 )
                 return
+            from app.services.agent_skill_evolution_service import record_skill_outcome
             if reply.startswith("[mock]") or reply.startswith("Agent 暂时无法响应"):
+                # v1.13.5: 注入 Skill 后仍降级 → 确定性记失败，激活失败数据层
+                await record_skill_outcome(db, skill_id=skill_id, success=False)
                 logger.debug(
-                    "evolution.outcome.skip_mock: agent=%s skill_id=%s reply=%r",
+                    "evolution.outcome.record_fail: agent=%s skill_id=%s reply=%r",
                     self.agent_name, skill_id, reply[:40],
                 )
                 return
-            from app.services.agent_skill_evolution_service import record_skill_outcome
             await record_skill_outcome(db, skill_id=skill_id, success=True)
             logger.debug(
                 "evolution.outcome.record: agent=%s skill_id=%s success=True",

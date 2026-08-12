@@ -373,6 +373,63 @@ async def test_record_skill_outcome_flag_off(db_session, monkeypatch):
     assert skill.success_count == 0  # flag 关闭不计数
 
 
+# ── _maybe_record_skill_outcome hook（v1.13.5 闭环「只记成功不记失败」遗留）──
+
+
+@pytest.mark.asyncio
+async def test_skill_outcome_hook_mock_marks_fail(db_session, monkeypatch):
+    """注入 Skill 后仍降级到 [mock] → 确定性记失败（无需 LLM 成本）"""
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+    skill = AgentSkill(
+        id="skf1", name="fail_skill", owner_scope="personal", owner_id="u1",
+        agent_name="designer", system_prompt="test", created_by="u1",
+    )
+    db_session.add(skill)
+    await db_session.flush()
+
+    from app.agents.base import BaseAgent
+
+    agent = BaseAgent()
+    agent._injected_skill_id = "skf1"
+    await agent._maybe_record_skill_outcome("[mock] designer 响应：API key 未配置", db_session)
+    await agent.close()
+    assert skill.fail_count == 1, "mock 降级应计失败"
+    assert skill.success_count == 0
+
+
+@pytest.mark.asyncio
+async def test_skill_outcome_hook_normal_marks_success(db_session, monkeypatch):
+    """注入 Skill 后正常产出 → success=True"""
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+    skill = AgentSkill(
+        id="sks1", name="ok_skill", owner_scope="personal", owner_id="u1",
+        agent_name="designer", system_prompt="test", created_by="u1",
+    )
+    db_session.add(skill)
+    await db_session.flush()
+
+    from app.agents.base import BaseAgent
+
+    agent = BaseAgent()
+    agent._injected_skill_id = "sks1"
+    await agent._maybe_record_skill_outcome("已为您完成客厅方案设计，布局如下…", db_session)
+    await agent.close()
+    assert skill.success_count == 1
+    assert skill.fail_count == 0
+
+
+@pytest.mark.asyncio
+async def test_skill_outcome_hook_no_skill_skips(db_session, monkeypatch):
+    """未注入 Skill 时不计数（无 _injected_skill_id）"""
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+
+    from app.agents.base import BaseAgent
+
+    agent = BaseAgent()
+    await agent._maybe_record_skill_outcome("[mock] x", db_session)  # 无注入 → 跳过不抛错
+    await agent.close()
+
+
 # ── evaluate_skill_quality ──
 
 
