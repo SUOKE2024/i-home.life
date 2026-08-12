@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
-import { login, register } from '../lib/api'
+import { login, register, demoLogin, DEMO_ACCOUNTS } from '../lib/api'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -13,6 +13,17 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [demoPhone, setDemoPhone] = useState(null)
+
+  const afterAuth = (r, action, accountLabel) => {
+    if (r.isSuccess && r.data) {
+      setAuth(r.data.user || { phone })
+      toast(action === 'demo' ? `已通过演示账号登录（${accountLabel}）` : action === 'login' ? '登录成功' : '注册成功', 'success')
+      navigate('/')
+    } else {
+      setErr(r.error || '操作失败，请重试')
+    }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -29,13 +40,18 @@ export default function LoginPage() {
     const r =
       mode === 'login' ? await login(phone, password) : await register(phone, name, password)
     setBusy(false)
-    if (r.isSuccess && r.data) {
-      setAuth(r.data.user || { phone })
-      toast(mode === 'login' ? '登录成功' : '注册成功', 'success')
-      navigate('/')
-    } else {
-      setErr(r.error || '操作失败，请重试')
-    }
+    afterAuth(r, mode)
+  }
+
+  // 一键演示登录：点击演示账号直接登录（无需输入）
+  const demoSubmit = async (account) => {
+    setErr(null)
+    setBusy(true)
+    setDemoPhone(account.phone)
+    const r = await demoLogin(account.phone)
+    setBusy(false)
+    setDemoPhone(null)
+    afterAuth(r, 'demo', account.label)
   }
 
   return (
@@ -108,6 +124,29 @@ export default function LoginPage() {
         </form>
 
         {err && <div className="auth-err">{err}</div>}
+
+        {/* 一键演示登录：无需注册，点击即体验 */}
+        <div className="auth-demo">
+          <div className="auth-demo-label">
+            <span>无账号？一键体验演示</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>演示数据 · 密码 123456</span>
+          </div>
+          <div className="auth-demo-list">
+            {DEMO_ACCOUNTS.map((a) => (
+              <button
+                key={a.phone}
+                type="button"
+                className="auth-demo-item"
+                disabled={busy}
+                onClick={() => demoSubmit(a)}
+              >
+                <b>{a.label}</b>
+                <span className="auth-demo-hint">{a.hint}</span>
+                <span className="auth-demo-go">{demoPhone === a.phone ? '登录中…' : '进入 →'}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 备案号 Footer（公开可见，工信部合规：链接至备案管理系统） */}

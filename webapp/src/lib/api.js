@@ -98,6 +98,21 @@ export async function logout() {
 }
 
 // ──────────────────────────────────────────────────────────────
+// 演示账号（对齐 scripts/seed.py 体验账户 / 123456）
+// ──────────────────────────────────────────────────────────────
+
+export const DEMO_ACCOUNTS = [
+  { phone: '13800138000', label: '业主 · 张先生', hint: '完整演示项目（推荐）', role: 'homeowner' },
+  { phone: '13900139000', label: '设计师 · 李设计师', hint: 'AI 设计工作台', role: 'designer' },
+  { phone: '13500135000', label: '管理员', hint: '平台全功能', role: 'admin' },
+]
+
+/** 一键演示登录：用指定演示账号直接换取 PASETO Token */
+export async function demoLogin(phone = DEMO_ACCOUNTS[0].phone) {
+  return login(phone, '123456')
+}
+
+// ──────────────────────────────────────────────────────────────
 // 聚合看板
 // ──────────────────────────────────────────────────────────────
 

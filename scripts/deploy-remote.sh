@@ -171,7 +171,7 @@ REMOTE_SCRIPT
 
   seed)
     echo -e "${GREEN}🌱 重新加载种子数据...${NC}"
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && PYTHONPATH=. python scripts/seed.py 2>&1 | tail -5"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && PYTHONPATH=. python scripts/seed.py 2>&1 | tail -2 && PYTHONPATH=. python scripts/seed_demo_data.py 2>&1 | tail -2"
     ;;
 
   *)
