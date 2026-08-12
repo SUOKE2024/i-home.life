@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 评估框架：LLM 工具分类抽样评估 + EvalPage 反馈展示（v1.13.5 维度，2026-08-13）
+- **LLM 工具分类抽样评估**（[tool_accuracy.py](app/eval/tool_accuracy.py)）：`classify_tool_by_llm`
+  （复用 BaseAgent._chat 多 LLM fallback + 11 工具语义 catalog + `_parse_llm_tool_reply`
+  容错解析 none/markdown）+ `evaluate_llm_tool_selection`（抽样 TOOL_SELECTION_DATASET →
+  LLM 分类 → 与确定性基线对比 delta_vs_baseline）
+- **端点**：`GET /api/eval/tool-accuracy/llm-sample`（管理员；受 `tool_llm_sampling_enabled`
+  门控默认 False——每次抽样 = N 次 LLM 调用成本控制，关闭 503 诚实降级）
+- **真实验证**：8 条抽样 LLM **75%** vs 基线 **100%**（delta -25%），LLM 混淆设计类三重工具
+  （layout/proposals）——证明「LLM 分类不显著高于基线不值得引入成本」，生产路由维持关键词基线
+- **EvalPage 前端**（[EvalPage.tsx](console-src/src/pages/EvalPage.tsx)）：展示 report
+  `feedback_metrics`（overall like 率状态徽章 + per-agent 列表，样本不足诚实标注）
+- **测试**：test_eval +4（回复解析/注入分类器/门控 503/端点 200）；31 passed；flake8/mypy 0
+
 ### 评估框架：feedback 纳入评估报告（v1.13.5 维度，2026-08-13）
 - **闭环 v1.13.4 遗留「feedback 纳入 report（drift 已含）」**：`IHomeEvalReport` 新增
   `feedback_metrics` 字段（[ihome_eval.py](app/eval/ihome_eval.py)）——复用 `detect_feedback_drift`
@@ -14,7 +27,7 @@
 - **测试**：test_eval +1（预置 20% like 率 → per_agent/overall 均 critical）；27 passed；
   flake8/mypy 0
 - **遗留（诚实标注）**：`/api/eval/run`（admin 触发）未挂载 feedback（需 db 透传，暂保持）；
-  LLM 工具分类抽样评估仍未接入（确定性基线 100% 已足够，LLM 抽样留待成本评估）
+  LLM 工具分类抽样评估已于同日接入（见上条目）
 
 ### 测试基线校准 2293→2304（2026-08-13）
 - **全量回归**（`run_full_tests_with_retry.py`，1256s）：**2304 passed / 0 failed / 0 errors /
