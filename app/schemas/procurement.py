@@ -21,9 +21,17 @@ class SupplierResponse(BaseModel):
     category: str
     rating: float
     is_active: bool
+    # 入驻认证状态（设计 4.2）：平台授予，非自报，默认 False
+    is_verified: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SupplierVerifyRequest(BaseModel):
+    """供应商认证状态变更请求（仅平台管理员可操作）"""
+
+    is_verified: bool = True
 
 
 class QuotationCreate(BaseModel):

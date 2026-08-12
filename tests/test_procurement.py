@@ -289,3 +289,78 @@ async def test_recommend_suppliers_source_mock_template(client: AsyncClient):
     assert data["source"] == "mock_template"
     assert "模板" in data["source_note"]
     assert data["suppliers"]
+
+
+# ── M4：供应商入驻认证状态（Supplier.is_verified，设计 4.2）──
+
+
+async def _register_admin(client: AsyncClient, phone: str = "13900000090") -> dict:
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "平台管理员", "password": "test123456", "role": "admin"},
+    )
+    assert resp.status_code == 201, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.mark.asyncio
+async def test_supplier_is_verified_default_false(client: AsyncClient):
+    """创建供应商默认未认证（False），列表响应透传 is_verified"""
+    token, headers = await _register_and_login(client, "13900000091")
+    supplier_id = await _create_supplier(client, headers, "认证测试供应商", "tiles")
+
+    resp = await client.get("/api/procurement/suppliers", params={"category": "tiles"}, headers=headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    match = [s for s in data if s["id"] == supplier_id]
+    assert match and match[0]["is_verified"] is False
+
+
+@pytest.mark.asyncio
+async def test_admin_verify_supplier(client: AsyncClient):
+    """管理员授予/撤销供应商认证"""
+    token, headers = await _register_and_login(client, "13900000092")
+    supplier_id = await _create_supplier(client, headers, "认证授予供应商", "tiles")
+    admin_headers = await _register_admin(client, "13900000093")
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}/verify",
+        json={"is_verified": True},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["is_verified"] is True
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}/verify",
+        json={"is_verified": False},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["is_verified"] is False
+
+
+@pytest.mark.asyncio
+async def test_non_admin_cannot_verify_supplier(client: AsyncClient):
+    """非管理员无权授予认证（403）"""
+    token, headers = await _register_and_login(client, "13900000094")
+    supplier_id = await _create_supplier(client, headers, "权限测试供应商", "tiles")
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}/verify",
+        json={"is_verified": True},
+        headers=headers,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_verify_nonexistent_supplier(client: AsyncClient):
+    """认证不存在的供应商返回 404"""
+    admin_headers = await _register_admin(client, "13900000095")
+    resp = await client.patch(
+        "/api/procurement/suppliers/no-such-supplier/verify",
+        json={"is_verified": True},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 404, resp.text

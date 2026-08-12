@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.schemas.procurement import (
     SupplierCreate,
     SupplierResponse,
+    SupplierVerifyRequest,
     QuotationCreate,
     QuotationResponse,
     OrderCreate,
@@ -20,6 +21,7 @@ from app.schemas.procurement import (
 )
 from app.auth import get_current_user
 from app.config import get_settings
+from app.rbac import require_user_write
 from app.services import procurement_service, project_service
 from app.agents.procurement import ProcurementAgent
 from app.ws import ws_manager
@@ -108,6 +110,32 @@ async def create_supplier(
     db: AsyncSession = Depends(get_db),
 ):
     supplier = await procurement_service.create_supplier(db, data.model_dump())
+    return SupplierResponse.model_validate(supplier)
+
+
+@router.patch(
+    "/suppliers/{supplier_id}/verify",
+    response_model=SupplierResponse,
+    summary="设置供应商入驻认证状态",
+    description="平台管理员授予/撤销供应商认证（设计 4.2：认证状态平台授予，非供应商自报）。",
+    response_description="更新后的供应商信息",
+    responses={
+        200: {"description": "更新成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无管理员权限"},
+        404: {"description": "供应商不存在"},
+    },
+)
+async def set_supplier_verified(
+    supplier_id: str,
+    data: SupplierVerifyRequest,
+    current_user: User = Depends(require_user_write),
+    db: AsyncSession = Depends(get_db),
+):
+    """平台管理员授予/撤销供应商认证，未认证供应商在展厅标注 pending 水印。"""
+    supplier = await procurement_service.set_supplier_verified(db, supplier_id, data.is_verified)
+    if not supplier:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="供应商不存在")
     return SupplierResponse.model_validate(supplier)
 
 

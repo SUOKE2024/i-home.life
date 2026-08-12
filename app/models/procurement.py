@@ -18,6 +18,8 @@ class Supplier(Base):
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     rating: Mapped[float] = mapped_column(Float, nullable=False, default=3.0)
     is_active: Mapped[bool] = mapped_column(default=True)
+    # 入驻认证状态（设计 4.2）：平台授予，非自报；供应商实景展厅按此标注 pending 水印
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
