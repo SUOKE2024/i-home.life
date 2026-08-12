@@ -38,6 +38,8 @@ class ConstructionCrewUpdate(BaseModel):
     status: str | None = None
     introduction: str | None = None
     showcase_panorama_id: str | None = None
+    # 付费展厅商业闭环：权益归属账号（管理员平台绑定，非工程队自报）
+    owner_id: str | None = None
 
 
 class ConstructionCrewResponse(BaseModel):
@@ -64,6 +66,9 @@ class ConstructionCrewResponse(BaseModel):
     insurance_no: str | None = None
     # 作品集代表作全景（设计 4.3）：无作品集实景恒 None，前端诚实标注
     showcase_panorama_id: str | None = None
+    # 付费展厅商业闭环：权益归属账号 + 置顶标志（平台授予）
+    owner_id: str | None = None
+    featured: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -136,3 +141,27 @@ class CrewPortfolioResponse(BaseModel):
     crew_id: str
     crew_name: str
     projects: list[CrewPortfolioProject] = []
+
+
+# ── 设计 4.3 付费展厅商业闭环：权益兑换 ──
+
+
+class CrewBenefitRequest(BaseModel):
+    """兑换服务商展厅权益（商品须为 vip 类且 benefit_type 指向 showroom_featured/vr_photo）"""
+
+    item_id: str
+
+
+class CrewBenefitResponse(BaseModel):
+    """服务商展厅权益兑换记录"""
+
+    id: str
+    crew_id: str
+    user_id: str
+    benefit_type: str
+    points_spent: int
+    expires_at: datetime | None = None
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

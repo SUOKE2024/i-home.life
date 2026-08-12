@@ -1,7 +1,7 @@
 """construction_crews 补 showcase_panorama_id 列（M4 服务商作品集展厅）
 
-Revision ID: d4e5f6a7b8c9
-Revises: c3d4e5f6a7b8
+Revision ID: d4f6a7b8c9d0
+Revises: c3e5f6a7b8c9
 Create Date: 2026-08-12
 
 背景：设计文档 4.3 服务商智能展厅——把「工程队/装企口碑」变成可漫游的作品集。
@@ -17,8 +17,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "d4e5f6a7b8c9"
-down_revision: Union[str, None] = "c3d4e5f6a7b8"
+revision: str = "d4f6a7b8c9d0"
+down_revision: Union[str, None] = "c3e5f6a7b8c9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

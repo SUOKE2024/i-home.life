@@ -91,6 +91,9 @@ class PointsMallItem(Base):
     discount_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     discount_max: Mapped[float | None] = mapped_column(Float, nullable=True)  # 最大折扣金额
 
+    # 权益类细分（设计 4.3 服务商付费展厅）：vip 类商品指向 showroom_featured / vr_photo
+    benefit_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
     # 有效期（天）
     validity_days: Mapped[int] = mapped_column(Integer, nullable=False, default=365)
 

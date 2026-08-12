@@ -2,15 +2,17 @@
 
 import json
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.construction_crew import ConstructionCrew, CrewMatch
+from app.models.construction_crew import ConstructionCrew, CrewMatch, CrewBenefit
 from app.models.construction import ConstructionTask
+from app.models.points import PointsMallItem
 from app.models.quality import QualityAssessment
 from app.models.project import Project
+from app.services import points_service
 
 
 # ── 匹配状态机 ──
@@ -59,6 +61,14 @@ class CrewReviewError(Exception):
         super().__init__(message)
 
 
+class CrewBenefitError(Exception):
+    """服务商展厅权益兑换错误"""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
+
+
 def _assert_match_transition(match: CrewMatch, action: str, target: str) -> None:
     """校验匹配状态机"""
     allowed = MATCH_TRANSITIONS.get(match.status, set())
@@ -73,18 +83,54 @@ async def get_crew(db: AsyncSession, crew_id: str) -> ConstructionCrew | None:
     return result.scalar_one_or_none()
 
 
+async def _sync_expired_benefits(db: AsyncSession) -> None:
+    """权益过期同步（设计 4.3 付费展厅）：
+    将已到期的 active 权益标 expired；若某工程队不再持有 active 置顶权益则取消 featured。
+    数据纪律：featured 仅由 active 置顶权益驱动，平台授予非自报。
+    """
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(CrewBenefit).where(
+            CrewBenefit.status == "active",
+            CrewBenefit.expires_at.is_not(None),
+            CrewBenefit.expires_at < now,
+        )
+    )
+    expired = list(result.scalars().all())
+    if not expired:
+        return
+    affected_crew_ids = {b.crew_id for b in expired}
+    for benefit in expired:
+        benefit.status = "expired"
+    # 涉及工程队：若已无 active 置顶权益，取消 featured
+    for crew_id in affected_crew_ids:
+        still_active = await db.execute(
+            select(CrewBenefit).where(
+                CrewBenefit.crew_id == crew_id,
+                CrewBenefit.benefit_type == "showroom_featured",
+                CrewBenefit.status == "active",
+            )
+        )
+        crew = await get_crew(db, crew_id)
+        if crew and still_active.scalar_one_or_none() is None:
+            crew.featured = False
+    await db.flush()
+
+
 async def list_crews(
     db: AsyncSession,
     city: str | None = None,
     status: str | None = None,
     limit: int = 50,
 ) -> list[ConstructionCrew]:
+    await _sync_expired_benefits(db)
     stmt = select(ConstructionCrew)
     if city:
         stmt = stmt.where(ConstructionCrew.city == city)
     if status:
         stmt = stmt.where(ConstructionCrew.status == status)
-    stmt = stmt.order_by(ConstructionCrew.rating.desc()).limit(limit)
+    # 付费展厅：置顶（featured）优先展示，再按评分降序
+    stmt = stmt.order_by(desc(ConstructionCrew.featured), ConstructionCrew.rating.desc()).limit(limit)
     result = await db.execute(stmt)
     return list(result.scalars().all())
 
@@ -445,3 +491,83 @@ async def get_crew_portfolio(db: AsyncSession, crew_id: str) -> dict | None:
         "crew_name": crew.name,
         "projects": projects,
     }
+
+
+# ── 设计 4.3 付费展厅商业闭环：权益兑换 ──
+
+BENEFIT_TYPES = ("showroom_featured", "vr_photo")
+
+
+async def redeem_crew_benefit(
+    db: AsyncSession,
+    crew_id: str,
+    user_id: str,
+    item_id: str,
+) -> CrewBenefit | None:
+    """兑换服务商展厅权益（设计 4.3 付费展厅）。
+
+    流程：校验商品为展厅权益（vip 类 + benefit_type 合法）→ 防重复兑换 →
+    复用 points_service.redeem_item 扣减积分/生成 redemption 记录 →
+    落 crew_benefits 权益记录；showroom_featured 兑换成功即置 crew.featured=True
+    （平台授予，由权益生效驱动）。
+    返回 None 表示工程队不存在；失败抛 CrewBenefitError。
+    """
+    crew = await get_crew(db, crew_id)
+    if not crew:
+        return None
+
+    result = await db.execute(
+        select(PointsMallItem).where(
+            PointsMallItem.id == item_id,
+            PointsMallItem.is_active.is_(True),
+        )
+    )
+    item = result.scalar_one_or_none()
+    if not item or item.benefit_type not in BENEFIT_TYPES:
+        raise CrewBenefitError("该商品不是展厅权益商品（需要 vip 类权益商品）")
+
+    # 防重复兑换：同工程队同权益已有 active 记录则拒绝
+    existing = await db.execute(
+        select(CrewBenefit).where(
+            CrewBenefit.crew_id == crew_id,
+            CrewBenefit.benefit_type == item.benefit_type,
+            CrewBenefit.status == "active",
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise CrewBenefitError("该权益已生效，请勿重复兑换")
+
+    # 积分扣减 + redemption 记录（与后续权益落库同一事务，flush 后由本函数 commit）
+    redeem_result = await points_service.redeem_item(db, user_id, item_id)
+    if not redeem_result.get("success"):
+        raise CrewBenefitError(redeem_result.get("error", "积分兑换失败"))
+
+    expires_at = None
+    if item.validity_days:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=item.validity_days)
+
+    benefit = CrewBenefit(
+        crew_id=crew_id,
+        user_id=user_id,
+        benefit_type=item.benefit_type,
+        points_spent=redeem_result["points_spent"],
+        expires_at=expires_at,
+        status="active",
+    )
+    db.add(benefit)
+    if item.benefit_type == "showroom_featured":
+        crew.featured = True
+
+    await db.commit()
+    await db.refresh(benefit)
+    return benefit
+
+
+async def list_crew_benefits(db: AsyncSession, crew_id: str) -> list[CrewBenefit]:
+    """工程队权益兑换记录（按时间倒序）"""
+    result = await db.execute(
+        select(CrewBenefit)
+        .where(CrewBenefit.crew_id == crew_id)
+        .order_by(desc(CrewBenefit.created_at))
+    )
+    return list(result.scalars().all())

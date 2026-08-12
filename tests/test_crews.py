@@ -473,3 +473,207 @@ async def test_crew_portfolio_with_hired_project(
     assert len(project["assessments"]) == 1
     assert project["assessments"][0]["verdict"] == "pass"
     assert project["assessments"][0]["phase_label"] == "水电阶段"
+
+
+# ── M4 设计 4.3 付费展厅商业闭环：权益兑换 ──
+
+
+async def _register_user(client: AsyncClient, name: str = "服务商业主") -> tuple[dict, str]:
+    """注册普通用户并返回 auth headers + 手机号"""
+    phone = f"138{str(uuid.uuid4().int)[:8]}"
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": name, "password": "test123456"},
+    )
+    assert resp.status_code == 201, f"注册用户失败: {resp.json()}"
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}, phone
+
+
+async def _create_benefit_item(db_session, benefit_type: str, name: str, points: int):
+    from app.models.points import PointsMallItem
+
+    item = PointsMallItem(
+        name=name,
+        category="vip",
+        points_required=points,
+        stock=-1,
+        is_active=True,
+        validity_days=30,
+        benefit_type=benefit_type,
+    )
+    db_session.add(item)
+    await db_session.commit()
+    await db_session.refresh(item)
+    return item
+
+
+async def _fund_user(db_session, user_id: str, amount: int):
+    from app.services.points_service import earn_points
+
+    await earn_points(db_session, user_id, source="test_action", amount=amount)
+    await db_session.commit()
+
+
+async def _get_user_id(db_session, phone: str) -> str:
+    from app.models.user import User
+
+    result = await db_session.execute(select(User).where(User.phone == phone))
+    return result.scalar_one().id
+
+
+@pytest.mark.asyncio
+async def test_admin_bind_crew_owner(client: AsyncClient, auth_headers: dict, db_session):
+    """管理员平台绑定权益归属账号 owner_id，Response 透传"""
+    crew_id = await _create_crew(client, auth_headers, "权益归属队")
+    _, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    admin_headers = await _register_admin(client)
+
+    resp = await client.patch(
+        f"/api/crews/{crew_id}",
+        json={"owner_id": owner_id},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["owner_id"] == owner_id
+    assert resp.json()["featured"] is False  # 无权益恒 False（平台授予非自报）
+
+
+@pytest.mark.asyncio
+async def test_redeem_showroom_featured_benefit(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """权益归属账号兑换「作品集置顶」：积分扣减 + crew.featured=True + 权益记录落库 + 列表置顶"""
+    crew_id = await _create_crew(client, auth_headers, "付费置顶队")
+    owner_headers, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    await client.patch(f"/api/crews/{crew_id}", json={"owner_id": owner_id}, headers=await _register_admin(client))
+
+    item = await _create_benefit_item(db_session, "showroom_featured", "作品集置顶 · 30 天", 2000)
+    await _fund_user(db_session, owner_id, 10000)
+
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=owner_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["benefit_type"] == "showroom_featured"
+    assert data["points_spent"] == 2000
+    assert data["status"] == "active"
+
+    # 工程队置顶（平台授予由权益驱动）
+    resp = await client.get(f"/api/crews/{crew_id}", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["featured"] is True
+
+    # 积分扣减（10000 - 2000）
+    resp = await client.get("/api/points/account", headers=owner_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["balance"] == 8000
+
+    # 权益记录
+    resp = await client.get(f"/api/crews/{crew_id}/benefits", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert len(resp.json()) == 1
+    assert resp.json()[0]["benefit_type"] == "showroom_featured"
+
+    # 列表置顶：featured 工程队排在最前
+    resp = await client.get("/api/crews", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["id"] == crew_id
+
+
+@pytest.mark.asyncio
+async def test_redeem_benefit_requires_owner(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """非权益归属账号（非 admin）兑换展厅权益返回 403（防止替他人买置顶）"""
+    crew_id = await _create_crew(client, auth_headers, "权限权益队")
+    owner_headers, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    await client.patch(f"/api/crews/{crew_id}", json={"owner_id": owner_id}, headers=await _register_admin(client))
+
+    stranger_headers, _ = await _register_user(client, "无关用户")
+    item = await _create_benefit_item(db_session, "showroom_featured", "置顶权益", 100)
+
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=stranger_headers,
+    )
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_redeem_non_benefit_item_rejected(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """普通商城商品（无 benefit_type）不可作为展厅权益兑换 → 400"""
+    crew_id = await _create_crew(client, auth_headers, "非权益队")
+    owner_headers, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    await client.patch(f"/api/crews/{crew_id}", json={"owner_id": owner_id}, headers=await _register_admin(client))
+
+    item = await _create_benefit_item(db_session, "showroom_featured", "普通商品", 100)
+    item.benefit_type = None
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=owner_headers,
+    )
+    assert resp.status_code == 400, resp.text
+    assert "展厅权益商品" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_redeem_duplicate_benefit_rejected(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """同工程队同权益重复兑换 → 400（防重复扣积分）"""
+    crew_id = await _create_crew(client, auth_headers, "重复权益队")
+    owner_headers, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    await client.patch(f"/api/crews/{crew_id}", json={"owner_id": owner_id}, headers=await _register_admin(client))
+
+    item = await _create_benefit_item(db_session, "showroom_featured", "置顶权益", 100)
+    await _fund_user(db_session, owner_id, 1000)
+
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=owner_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=owner_headers,
+    )
+    assert resp.status_code == 400, resp.text
+    assert "已生效" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_redeem_benefit_insufficient_points(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """积分不足兑换权益 → 400（复用积分扣减校验）"""
+    crew_id = await _create_crew(client, auth_headers, "低分权益队")
+    owner_headers, phone = await _register_user(client)
+    owner_id = await _get_user_id(db_session, phone)
+    await client.patch(f"/api/crews/{crew_id}", json={"owner_id": owner_id}, headers=await _register_admin(client))
+
+    item = await _create_benefit_item(db_session, "vr_photo", "VR 实拍权益 · 3 套", 5000)
+    await _fund_user(db_session, owner_id, 100)
+
+    resp = await client.post(
+        f"/api/crews/{crew_id}/benefits/redeem",
+        json={"item_id": item.id},
+        headers=owner_headers,
+    )
+    assert resp.status_code == 400, resp.text
+    assert "积分不足" in resp.json()["detail"]

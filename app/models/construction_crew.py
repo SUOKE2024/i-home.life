@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Float, Integer, Text
+from sqlalchemy import String, DateTime, ForeignKey, func, Float, Integer, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -50,8 +50,33 @@ class ConstructionCrew(Base):
         String(36), ForeignKey("vr_panoramas.id"), nullable=True, index=True
     )
 
+    # 付费展厅商业闭环（设计 4.3）：权益归属用户（兑换置顶/VR 实拍权益的平台账号）
+    owner_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
+    # 作品集置顶标志——平台授予（权益生效驱动），非工程队自报，无权益恒 False
+    featured: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CrewBenefit(Base):
+    """服务商展厅权益兑换记录（设计 4.3 商业模式：付费展厅/作品集置顶/VR 实拍）"""
+    __tablename__ = "crew_benefits"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    crew_id: Mapped[str] = mapped_column(String(36), ForeignKey("construction_crews.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    benefit_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    # showroom_featured(作品集置顶) / vr_photo(VR 实拍权益)
+    points_spent: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    # active / expired / refunded
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    crew = relationship("ConstructionCrew")
 
 
 class CrewMatch(Base):

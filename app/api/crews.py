@@ -19,6 +19,8 @@ from app.schemas.construction_crew import (
     CrewMatchRequest,
     CrewMatchResponse,
     CrewPortfolioResponse,
+    CrewBenefitRequest,
+    CrewBenefitResponse,
 )
 from app.auth import get_current_user
 from app.rbac import require_admin, verify_project_access
@@ -64,6 +66,8 @@ def _crew_to_response(crew: ConstructionCrew) -> ConstructionCrewResponse:
         status=crew.status,
         introduction=crew.introduction,
         showcase_panorama_id=crew.showcase_panorama_id,
+        owner_id=crew.owner_id,
+        featured=crew.featured,
         created_at=crew.created_at,
         updated_at=crew.updated_at,
     )
@@ -271,3 +275,46 @@ async def update_match_status(
     resp = _match_to_response(refreshed)
     await ws_manager.broadcast_to_project(refreshed.project_id, "crew.status_changed", resp.model_dump())
     return resp
+
+
+# ── 设计 4.3 付费展厅商业闭环：权益兑换 ──
+
+
+@router.post("/{crew_id}/benefits/redeem", response_model=CrewBenefitResponse)
+async def redeem_crew_benefit(
+    crew_id: str,
+    data: CrewBenefitRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """兑换服务商展厅权益（积分购买作品集置顶/VR 实拍）。
+
+    平台授予纪律：仅权益归属账号（crew.owner_id，管理员平台绑定）或管理员可兑换，
+    防止任意用户为他人工程队购买置顶。
+    """
+    crew = await crew_service.get_crew(db, crew_id)
+    if not crew:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    if crew.owner_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅工程队权益归属账号或管理员可兑换展厅权益",
+        )
+    try:
+        benefit = await crew_service.redeem_crew_benefit(db, crew_id, current_user.id, data.item_id)
+    except crew_service.CrewBenefitError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
+    if not benefit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    return benefit
+
+
+@router.get("/{crew_id}/benefits", response_model=list[CrewBenefitResponse])
+async def list_crew_benefits(
+    crew_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """工程队展厅权益兑换记录（按时间倒序）"""
+    benefits = await crew_service.list_crew_benefits(db, crew_id)
+    return [CrewBenefitResponse.model_validate(b) for b in benefits]

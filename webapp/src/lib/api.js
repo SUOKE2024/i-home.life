@@ -302,6 +302,27 @@ export async function getCrewPortfolio(crewId) {
   return request(`/api/crews/${encodeURIComponent(crewId)}/portfolio`)
 }
 
+// ── M4 服务商付费展厅：积分商城权益兑换（设计 4.3）──
+
+/** 积分商城商品列表（category=vip 为展厅权益商品） */
+export async function getMallItems(category) {
+  const q = category ? `?category=${encodeURIComponent(category)}` : ''
+  return request(`/api/points/mall${q}`)
+}
+
+/** 兑换服务商展厅权益（作品集置顶 / VR 实拍） */
+export async function redeemCrewBenefit(crewId, itemId) {
+  return request(`/api/crews/${encodeURIComponent(crewId)}/benefits/redeem`, {
+    method: 'POST',
+    body: JSON.stringify({ item_id: itemId }),
+  })
+}
+
+/** 工程队展厅权益兑换记录 */
+export async function getCrewBenefits(crewId) {
+  return request(`/api/crews/${encodeURIComponent(crewId)}/benefits`)
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */

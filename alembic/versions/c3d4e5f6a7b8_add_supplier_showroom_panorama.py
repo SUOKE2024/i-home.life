@@ -1,7 +1,7 @@
 """suppliers 补 showroom_panorama_id 列（M4 供应商实景展厅）
 
-Revision ID: c3d4e5f6a7b8
-Revises: b2c3d4e5f6a7
+Revision ID: c3e5f6a7b8c9
+Revises: b2d4e5f6a7b8
 Create Date: 2026-08-12
 
 背景：设计文档 4.2 供应商实景展厅（车间/样品间）→ 采购商线上漫游验厂。
@@ -16,8 +16,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "c3d4e5f6a7b8"
-down_revision: Union[str, None] = "b2c3d4e5f6a7"
+revision: str = "c3e5f6a7b8c9"
+down_revision: Union[str, None] = "b2d4e5f6a7b8"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

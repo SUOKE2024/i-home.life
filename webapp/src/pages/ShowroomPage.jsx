@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { X, Package, BadgeCheck, Store, Clock, HardHat } from 'lucide-react'
+import { X, Package, BadgeCheck, Store, Clock, HardHat, Crown, Sparkles } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
-import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews, getCrewPortfolio } from '../lib/api'
+import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews, getCrewPortfolio, getMallItems, redeemCrewBenefit, getCrewBenefits } from '../lib/api'
 
 const STATUS_LABELS = {
   queued: ['排队中', 'amber'], rendering: ['渲染中', 'sky'],
@@ -33,6 +33,7 @@ export default function ShowroomPage() {
   const [exhibit, setExhibit] = useState(null) // 展品面板数据
   const [crewMatch, setCrewMatch] = useState(null) // 接单匹配结果面板
   const [portfolio, setPortfolio] = useState(null) // 施工进度/质检时间线面板
+  const [benefits, setBenefits] = useState(null) // 展厅权益面板 { crew, items, records, loading }
 
   const load = useCallback(async (projectId) => {
     if (!projectId) {
@@ -137,6 +138,15 @@ export default function ShowroomPage() {
     })
   }
 
+  /** 当前登录用户 id（来自登录时落库的 user_info），用于判断是否权益归属账号 */
+  const getMyUserId = () => {
+    try {
+      return JSON.parse(localStorage.getItem('user_info') || '{}').id || null
+    } catch {
+      return null
+    }
+  }
+
   /** 装修过程透明：拉取工程队作品集（施工进度 + 质检时间线，设计 4.3） */
   const openPortfolio = async (c) => {
     setPortfolio({ loading: true, crew: c })
@@ -146,6 +156,38 @@ export default function ShowroomPage() {
       return
     }
     setPortfolio({ loading: false, crew: c, data: r.data })
+  }
+
+  /** 展厅权益面板：积分商城 vip 商品 + 工程队已有权益（设计 4.3 付费展厅） */
+  const openBenefits = async (c) => {
+    setBenefits({ loading: true, crew: c, items: [], records: [], error: null })
+    const [m, b] = await Promise.all([getMallItems('vip'), getCrewBenefits(c.id)])
+    setBenefits({
+      loading: false,
+      crew: c,
+      items: m.isSuccess && Array.isArray(m.data) ? m.data.filter((i) => i.benefit_type) : [],
+      records: b.isSuccess && Array.isArray(b.data) ? b.data : [],
+      error: !m.isSuccess ? (m.error || '权益商品加载失败') : null,
+    })
+  }
+
+  /** 兑换展厅权益（积分扣减，仅归属账号可操作） */
+  const redeemBenefit = async (c, itemId) => {
+    setBenefits((s) => ({ ...s, busy: itemId }))
+    const r = await redeemCrewBenefit(c.id, itemId)
+    if (!r.isSuccess) {
+      setBenefits((s) => ({ ...s, busy: null, error: r.error || '兑换失败' }))
+      return
+    }
+    // 刷新权益记录 + 工程队列表（置顶标志可能变化）
+    const [b, cr] = await Promise.all([getCrewBenefits(c.id), listCrews()])
+    setBenefits((s) => ({
+      ...s,
+      busy: null,
+      error: null,
+      records: b.isSuccess && Array.isArray(b.data) ? b.data : s.records,
+    }))
+    if (cr.isSuccess && Array.isArray(cr.data)) setCrews(cr.data)
   }
 
   const VERDICT_LABEL = {
@@ -259,6 +301,16 @@ export default function ShowroomPage() {
                     }}
                     >
                       <HardHat size={34} />
+                      {c.featured && (
+                        <span style={{
+                          position: 'absolute', top: 8, left: 8, fontSize: 10, padding: '2px 6px',
+                          borderRadius: 4, background: 'rgba(251, 191, 36, 0.18)',
+                          color: '#b45309', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
+                        }}
+                        >
+                          <Crown size={11} /> 置顶
+                        </span>
+                      )}
                       {!approved && (
                         <span style={{
                           position: 'absolute', top: 8, right: 8, fontSize: 10, padding: '2px 6px',
@@ -322,6 +374,13 @@ export default function ShowroomPage() {
                         onClick={() => openPortfolio(c)}
                       >
                         装修过程透明 · 施工进度/质检时间线
+                      </button>
+                      <button
+                        className="ghost"
+                        style={{ width: '100%', marginTop: 4, fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#b45309' }}
+                        onClick={() => openBenefits(c)}
+                      >
+                        <Crown size={12} style={{ verticalAlign: -2 }} /> 展厅权益 · 置顶/VR 实拍
                       </button>
                     </div>
                   </div>
@@ -715,6 +774,108 @@ export default function ShowroomPage() {
                       )}
                     </div>
                   ))
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      {benefits && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 57, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', background: 'rgba(10,12,16,0.55)',
+        }}
+        >
+          <div style={{
+            width: 520, maxWidth: '94vw', maxHeight: '86vh', overflowY: 'auto',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Crown size={15} color="#b45309" />{benefits.crew.name} · 展厅权益
+              </strong>
+              <button
+                className="ghost"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                onClick={() => setBenefits(null)}
+                aria-label="关闭"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {benefits.loading ? (
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 12 }}>
+                正在加载权益商品与兑换记录…
+              </div>
+            ) : (
+              <>
+                {benefits.error && (
+                  <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{benefits.error}</div>
+                )}
+                {benefits.records.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>已有权益</div>
+                    {benefits.records.map((b) => (
+                      <div key={b.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        fontSize: 13, padding: '6px 10px', borderRadius: 6,
+                        background: 'var(--bg, #f6f7f9)', marginBottom: 4,
+                      }}
+                      >
+                        <span>
+                          {b.benefit_type === 'showroom_featured' ? '作品集置顶' : 'VR 实拍权益'}
+                          <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>-{b.points_spent} 积分</span>
+                        </span>
+                        <span style={{ fontSize: 12, color: b.status === 'active' ? 'var(--success, #22c55e)' : 'var(--text-dim)' }}>
+                          {b.status === 'active' ? (b.expires_at ? `有效至 ${new Date(b.expires_at).toLocaleDateString()}` : '生效中') : b.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {benefits.items.length > 0 ? (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>积分兑换 · 平台授予非自报</div>
+                    {benefits.items.map((item) => (
+                      <div key={item.id} style={{
+                        padding: 10, borderRadius: 8, border: '1px solid var(--border)',
+                        marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      }}
+                      >
+                        <div style={{ fontSize: 13 }}>
+                          <div style={{ fontWeight: 600 }}>{item.name}</div>
+                          {item.description && (
+                            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{item.description}</div>
+                          )}
+                          <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                            <Sparkles size={11} style={{ verticalAlign: -2 }} /> {item.points_required} 积分
+                          </div>
+                        </div>
+                        {benefits.crew.owner_id === getMyUserId() ? (
+                          <button
+                            className="btn btn-primary"
+                            style={{ fontSize: 12, flexShrink: 0 }}
+                            disabled={benefits.busy === item.id}
+                            onClick={() => redeemBenefit(benefits.crew, item.id)}
+                          >
+                            {benefits.busy === item.id ? '兑换中…' : '兑换'}
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>
+                            仅归属账号可兑换
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  !benefits.error && (
+                    <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 12 }}>
+                      暂无展厅权益商品（平台配置 vip 类商品后开放兑换）
+                    </div>
+                  )
                 )}
               </>
             )}
