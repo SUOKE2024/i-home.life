@@ -96,11 +96,14 @@ async def get_report(
 async def run_eval(
     request: EvalRunRequest,
     current_user: User = Depends(require_admin),
+    db=Depends(get_db),
 ):
     """触发一次评估运行（管理员权限）。
 
     可选将报告落盘到 ``output_path``（如 ``reports/ihome_eval_report.json``），
     供 CI 周末 job 生成趋势图。
+    v1.13.5：报告挂载 ``feedback_metrics`` 用户反馈满意度维度（与 /report 对齐，
+    闭环「/api/eval/run 未挂载 feedback」遗留）。
     """
     if not settings.eval_enabled:
         return EvalReportResponse(
@@ -114,6 +117,12 @@ async def run_eval(
         baseline=request.baseline,
         output_path=request.output_path,
     )
+    try:
+        from app.eval.ihome_eval import compute_feedback_metrics
+        report.feedback_metrics = await compute_feedback_metrics(db)
+    except Exception as e:
+        logger.warning("eval_feedback_metrics_failed: %s", e)
+        report.feedback_metrics = {"error": str(e)}
     logger.info(
         "eval_run_triggered: user=%s baseline=%s sample_size=%d",
         current_user.id, request.baseline, report.sample_size,

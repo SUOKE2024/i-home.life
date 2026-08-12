@@ -220,6 +220,45 @@ async def test_eval_report_feedback_metrics(client: AsyncClient, db_session):
     assert fb["overall"] is not None and fb["overall"]["status"] == "critical"
 
 
+@pytest.mark.asyncio
+async def test_eval_run_feedback_metrics(client: AsyncClient, db_session):
+    """v1.13.5：POST /api/eval/run 挂载 feedback_metrics（与 /report 对齐，
+    闭环「/api/eval/run 未挂载 feedback」遗留）"""
+    import uuid
+    from datetime import datetime, timezone
+
+    from app.models.agent_feedback import AgentFeedback
+    from app.models.user import User
+
+    user = User(phone=f"16{str(uuid.uuid4().int)[:9]}", name="运行反馈用户")
+    db_session.add(user)
+    await db_session.flush()
+    for i in range(5):
+        db_session.add(AgentFeedback(
+            user_id=user.id, agent_name="concierge", message_hash=f"x{i}",
+            feedback_type="dislike" if i < 3 else "like",
+            user_message="msg", agent_reply="reply",
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+
+    headers = await _register_admin(client)
+    resp = await client.post(
+        "/api/eval/run",
+        json={"baseline": "full_system"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, f"eval/run 应返回 200: {resp.status_code} {resp.text[:200]}"
+    data = resp.json()
+    fb = data.get("feedback_metrics")
+    assert fb is not None, "eval/run 报告应包含 feedback_metrics（v1.13.5）"
+    assert fb["agent_count"] >= 1
+    concierge = fb["per_agent"].get("concierge")
+    assert concierge is not None, f"per_agent 缺少 concierge: {fb['per_agent']}"
+    assert concierge["like_rate"] == 40.0  # 2/5 like = 40% < 70%
+    assert concierge["status"] == "critical"
+
+
 # ── LLM 工具分类抽样评估（v1.13.5）──
 
 
