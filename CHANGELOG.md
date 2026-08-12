@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### 测试基线校准 2293→2304（2026-08-13）
+- **全量回归**（`run_full_tests_with_retry.py`，1256s）：**2304 passed / 0 failed / 0 errors /
+  2 skipped / 4 xfailed / exit=0**，无需重试——覆盖本轮全部改动（notification schema 可选
+  user_id、MEP flag 翻转、QA 视觉化测试、B2/B3/B4 前端）
+- **校准**：`scripts/test_baseline.json` 2293/2/4 → **2304/2/4**（updated_at 2026-08-13），
+  CLAUDE.md 同步（pytest 基线 2293→2304、collect 2299→2310）；门禁 passed>=2304 生效
+- 2304-2293=+11：test_qa_inspector_concierge +3 + test_construction_drawing +2 +
+  test_ifc_h_ifc_extension +1 + 其余为校准期后既有新增（外部会话），全量核对自洽
+
 ### C 类灰度 flag 关闭：施工图 MEP 叠加默认开启（v1.13.5 维度，2026-08-13）
 - **评估结论**（主代理亲自 Read 核验）：backlog C 类表标注「需 PDF/SVG 渲染引擎」**已过时**——
   `generate_mep_overlay_svg` 为纯 Python SVG 字符串生成（从 floorplan 几何派生，厨/卫湿区
