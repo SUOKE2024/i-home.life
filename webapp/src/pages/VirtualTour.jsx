@@ -80,7 +80,7 @@ export default function VirtualTourPage() {
       <div className="page-head">
         <div>
           <h2>VR 全景</h2>
-          <div className="desc">360° 全景看房 · 拖拽环视 / 滚轮缩放 / 点击热点跳转</div>
+          <div className="desc">全景看房 · 拖拽环视 / 滚轮缩放 / 点击热点跳转（AI 效果图为 2D 平面预览）</div>
         </div>
         <select
           className="select"
@@ -260,9 +260,15 @@ export default function VirtualTourPage() {
               />
             )}
             <SceneTriggerOverlay flash={sceneFlash} />
-            <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
-              拖拽环视 · 滚轮缩放 · 点击 ★ 热点跳转 · 点击 💡 设备控制
-            </div>
+            {viewing.pano.content_source === 'effect' ? (
+              <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                静态效果图预览 · 无 360° 交互（实景 360° 漫游查看 actual 全景）
+              </div>
+            ) : (
+              <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
+                拖拽环视 · 滚轮缩放 · 点击 ★ 热点跳转 · 点击 💡 设备控制
+              </div>
+            )}
           </div>
         </div>
       )}
