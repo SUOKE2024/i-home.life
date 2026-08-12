@@ -93,3 +93,46 @@ class CrewMatchRequest(BaseModel):
     budget_daily_rate_max: int | None = None
     expected_duration_days: int | None = None
     top_n: int = Field(default=5, ge=1, le=20)
+
+
+# ── 设计 4.3 装修过程透明：工程队作品集聚合 ──
+
+
+class CrewTaskPhase(BaseModel):
+    """项目施工任务按阶段分布"""
+
+    phase: str
+    phase_label: str
+    total: int
+    completed: int
+    in_progress: int
+    pending: int
+
+
+class CrewProjectAssessment(BaseModel):
+    """项目质检评估摘要"""
+
+    phase: str
+    phase_label: str
+    verdict: str
+    score: float
+    assessor: str | None = None
+    summary: str | None = None
+    assessed_at: datetime | None = None
+
+
+class CrewPortfolioProject(BaseModel):
+    """工程队已雇佣项目的施工进度 + 质检摘要"""
+
+    project_id: str
+    name: str
+    task_phases: list[CrewTaskPhase] = []
+    assessments: list[CrewProjectAssessment] = []
+
+
+class CrewPortfolioResponse(BaseModel):
+    """工程队作品集（设计 4.3：展厅展示施工进度 + 质检时间线）"""
+
+    crew_id: str
+    crew_name: str
+    projects: list[CrewPortfolioProject] = []

@@ -362,3 +362,114 @@ async def test_create_crew_with_showcase_panorama(client: AsyncClient, auth_head
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["showcase_panorama_id"] == "pano-create-001"
+
+
+# ── M4 设计 4.3 装修过程透明：工程队作品集聚合（施工进度 + 质检时间线）──
+
+
+@pytest.mark.asyncio
+async def test_crew_portfolio_not_found(client: AsyncClient, auth_headers: dict):
+    """作品集聚合：不存在的工程队返回 404"""
+    resp = await client.get("/api/crews/no-such-crew/portfolio", headers=auth_headers)
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_crew_portfolio_empty(client: AsyncClient, auth_headers: dict):
+    """作品集聚合：无已雇佣项目时 projects 为空列表（诚实标注）"""
+    crew_id = await _create_crew(client, auth_headers, "无项目作品集队")
+    resp = await client.get(f"/api/crews/{crew_id}/portfolio", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["crew_id"] == crew_id
+    assert data["projects"] == []
+
+
+@pytest.mark.asyncio
+async def test_crew_portfolio_with_hired_project(
+    client: AsyncClient, auth_headers: dict, db_session,
+):
+    """作品集聚合：已雇佣项目的施工任务阶段分布 + 质检时间线"""
+    project_id = await _create_project(client, auth_headers)
+    crew_id = await _create_crew(client, auth_headers, "有项目作品集队")
+    await client.post(f"/api/crews/{crew_id}/submit", json=CREW_MATERIALS, headers=auth_headers)
+
+    admin_headers = await _register_admin(client)
+    resp = await client.post(
+        f"/api/crews/{crew_id}/review",
+        json={"action": "approve", "note": "审核通过"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    # 匹配 → 入围 → 雇佣（状态机：pending → shortlisted → hired）
+    resp = await client.post(
+        "/api/crews/match",
+        json={"project_id": project_id, "city": "北京", "district": "朝阳区", "top_n": 5},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    matches = resp.json()
+    mine = next((m for m in matches if m["crew"] and m["crew"]["id"] == crew_id), None)
+    assert mine, "approve 后工程队应出现在匹配中"
+    for status in ("shortlisted", "hired"):
+        resp = await client.post(
+            f"/api/crews/matches/{mine['id']}/status?new_status={status}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+    resp = await client.get(f"/api/crews/matches/{project_id}", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    assert any(m["id"] == mine["id"] and m["status"] == "hired" for m in resp.json()), "match 应已 hired"
+
+    # 施工任务（水电阶段 2 项，1 项完成）
+    task_ids = []
+    for name in ("水管铺设", "电路改造"):
+        resp = await client.post(
+            "/api/construction/tasks",
+            json={"project_id": project_id, "name": name, "phase": "water_electricity"},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 201, resp.text
+        task_ids.append(resp.json()["id"])
+    for status_val in ("in_progress", "completed"):
+        resp = await client.patch(
+            f"/api/construction/tasks/{task_ids[0]}/status?status_val={status_val}",
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+    # 质检评估（水电阶段通过）
+    resp = await client.post(
+        "/api/construction/quality-assessments",
+        json={
+            "project_id": project_id,
+            "phase": "water_electricity",
+            "total_items": 10,
+            "passed": 9,
+            "failed": 1,
+            "score": 90.0,
+            "verdict": "pass",
+            "assessor": "测试质检员",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    resp = await client.get(f"/api/crews/{crew_id}/portfolio", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["crew_name"] == "有项目作品集队"
+    assert len(data["projects"]) == 1
+    project = data["projects"][0]
+    assert project["project_id"] == project_id
+    assert len(project["task_phases"]) == 1
+    phase = project["task_phases"][0]
+    assert phase["phase"] == "water_electricity"
+    assert phase["phase_label"] == "水电阶段"
+    assert phase["total"] == 2
+    assert phase["completed"] == 1
+    assert phase["pending"] == 1
+    assert len(project["assessments"]) == 1
+    assert project["assessments"][0]["verdict"] == "pass"
+    assert project["assessments"][0]["phase_label"] == "水电阶段"

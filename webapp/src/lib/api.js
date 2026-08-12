@@ -297,6 +297,11 @@ export async function matchCrews(data) {
   })
 }
 
+/** 工程队作品集聚合（施工进度 + 质检时间线，设计 4.3） */
+export async function getCrewPortfolio(crewId) {
+  return request(`/api/crews/${encodeURIComponent(crewId)}/portfolio`)
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */

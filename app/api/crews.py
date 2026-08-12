@@ -18,6 +18,7 @@ from app.schemas.construction_crew import (
     ConstructionCrewResponse,
     CrewMatchRequest,
     CrewMatchResponse,
+    CrewPortfolioResponse,
 )
 from app.auth import get_current_user
 from app.rbac import require_admin, verify_project_access
@@ -143,6 +144,23 @@ async def update_crew(
     if not crew:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
     return _crew_to_response(crew)
+
+
+@router.get("/{crew_id}/portfolio", response_model=CrewPortfolioResponse)
+async def get_crew_portfolio(
+    crew_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """工程队作品集聚合（设计 4.3 装修过程透明）。
+
+    已雇佣（CrewMatch.status=hired）项目的施工任务阶段分布 + 质检评估摘要，
+    供服务商作品集展厅展示「装修过程透明」时间线。
+    """
+    portfolio = await crew_service.get_crew_portfolio(db, crew_id)
+    if not portfolio:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="工程队不存在")
+    return portfolio
 
 
 @router.post("/{crew_id}/submit", response_model=ConstructionCrewResponse)

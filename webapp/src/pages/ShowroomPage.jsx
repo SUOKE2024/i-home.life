@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { X, Package, BadgeCheck, Store, Clock, HardHat } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
-import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews } from '../lib/api'
+import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews, getCrewPortfolio } from '../lib/api'
 
 const STATUS_LABELS = {
   queued: ['排队中', 'amber'], rendering: ['渲染中', 'sky'],
@@ -32,6 +32,7 @@ export default function ShowroomPage() {
   const [viewing, setViewing] = useState(null) // { pano, initialView, title }
   const [exhibit, setExhibit] = useState(null) // 展品面板数据
   const [crewMatch, setCrewMatch] = useState(null) // 接单匹配结果面板
+  const [portfolio, setPortfolio] = useState(null) // 施工进度/质检时间线面板
 
   const load = useCallback(async (projectId) => {
     if (!projectId) {
@@ -134,6 +135,22 @@ export default function ShowroomPage() {
       top: list.slice(0, 3),
       total: list.length,
     })
+  }
+
+  /** 装修过程透明：拉取工程队作品集（施工进度 + 质检时间线，设计 4.3） */
+  const openPortfolio = async (c) => {
+    setPortfolio({ loading: true, crew: c })
+    const r = await getCrewPortfolio(c.id)
+    if (!r.isSuccess) {
+      setPortfolio({ loading: false, crew: c, error: r.error || '作品集加载失败' })
+      return
+    }
+    setPortfolio({ loading: false, crew: c, data: r.data })
+  }
+
+  const VERDICT_LABEL = {
+    excellent: ['优秀', 'green'], pass: ['通过', 'green'], conditional_pass: ['有条件通过', 'amber'],
+    fail: ['不合格', 'red'], pending: ['待评估', 'amber'],
   }
 
   /** 点击展品热点 → 加载材料详情 + 环保认证 */
@@ -298,6 +315,13 @@ export default function ShowroomPage() {
                         onClick={() => initiateMatch(c)}
                       >
                         {approved ? '发起接单' : '审核中不可接单'}
+                      </button>
+                      <button
+                        className="ghost"
+                        style={{ width: '100%', marginTop: 4, fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer' }}
+                        onClick={() => openPortfolio(c)}
+                      >
+                        装修过程透明 · 施工进度/质检时间线
                       </button>
                     </div>
                   </div>
@@ -600,6 +624,97 @@ export default function ShowroomPage() {
                       </div>
                     ))}
                   </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {portfolio && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 56, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', background: 'rgba(10,12,16,0.55)',
+        }}
+        >
+          <div style={{
+            width: 520, maxWidth: '94vw', maxHeight: '86vh', overflowY: 'auto',
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <strong>{portfolio.crew.name} · 装修过程透明</strong>
+              <button
+                className="ghost"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+                onClick={() => setPortfolio(null)}
+                aria-label="关闭"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {portfolio.loading ? (
+              <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 12 }}>
+                正在加载施工进度与质检记录…
+              </div>
+            ) : portfolio.error ? (
+              <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{portfolio.error}</div>
+            ) : (
+              <>
+                {!portfolio.data.projects || portfolio.data.projects.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 12 }}>
+                    暂无已雇佣项目的施工记录（诚实标注，无数据不伪造）
+                  </div>
+                ) : (
+                  portfolio.data.projects.map((p) => (
+                    <div key={p.project_id} style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--bg, #f6f7f9)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
+                      {p.task_phases && p.task_phases.length > 0 ? (
+                        <div style={{ marginTop: 8 }}>
+                          {p.task_phases.map((ph) => {
+                            const done = ph.total > 0 ? Math.round((ph.completed / ph.total) * 100) : 0
+                            return (
+                              <div key={ph.phase} style={{ marginBottom: 6 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
+                                  <span>{ph.phase_label} · {ph.completed}/{ph.total} 项</span>
+                                  <span style={{ color: 'var(--text-dim)' }}>
+                                    {ph.in_progress > 0 ? `${ph.in_progress} 进行中 · ` : ''}{done}%
+                                  </span>
+                                </div>
+                                <div style={{ height: 6, borderRadius: 3, background: 'var(--border)' }}>
+                                  <div style={{
+                                    width: `${done}%`, height: 6, borderRadius: 3,
+                                    background: done === 100 ? 'var(--success, #22c55e)' : 'var(--primary, #2563eb)',
+                                  }}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>暂无施工任务记录</div>
+                      )}
+                      {p.assessments && p.assessments.length > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 4 }}>质检时间线</div>
+                          {p.assessments.map((a, i) => {
+                            const v = VERDICT_LABEL[a.verdict] || ['未知', 'sky']
+                            return (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 3 }}>
+                                <span className={`badge badge--${v[1]}`}>{v[0]}</span>
+                                <span>{a.phase_label} · 得分 {Number(a.score || 0).toFixed(1)}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {(!p.assessments || p.assessments.length === 0) && p.task_phases && p.task_phases.length > 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>暂无质检评估记录</div>
+                      )}
+                    </div>
+                  ))
                 )}
               </>
             )}

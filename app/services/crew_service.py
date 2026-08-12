@@ -1,12 +1,16 @@
 """工程队服务 — F36 档案 CRUD + 智能匹配"""
 
 import json
+from collections import Counter
 from datetime import datetime, timezone
 
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.construction_crew import ConstructionCrew, CrewMatch
+from app.models.construction import ConstructionTask
+from app.models.quality import QualityAssessment
+from app.models.project import Project
 
 
 # ── 匹配状态机 ──
@@ -352,3 +356,92 @@ async def update_match_status(
     await db.commit()
     await db.refresh(match)
     return match
+
+
+# ── 施工阶段中文映射（对齐 app/services/agent_tool_registry.py::_PHASE_CN）──
+PHASE_CN = {
+    "preparation": "准备阶段", "demolition": "拆改阶段",
+    "water_electricity": "水电阶段", "electrical": "电气阶段",
+    "waterproof": "防水阶段", "masonry": "泥瓦阶段",
+    "mep": "机电阶段", "carpentry": "木工阶段",
+    "painting": "油漆阶段", "installation": "安装阶段",
+    "completion": "竣工阶段", "inspection": "验收阶段",
+}
+
+
+async def get_crew_portfolio(db: AsyncSession, crew_id: str) -> dict | None:
+    """工程队作品集聚合（设计 4.3 装修过程透明）。
+
+    取该工程队已雇佣（CrewMatch.status=hired）的项目，
+    聚合每个项目的施工任务阶段分布（ConstructionTask）+ 质检评估摘要（QualityAssessment）。
+    返回 None 表示工程队不存在；无 hired 项目时 projects 为空列表（诚实标注）。
+    """
+    crew = await get_crew(db, crew_id)
+    if not crew:
+        return None
+
+    matches = await db.execute(
+        select(CrewMatch).where(CrewMatch.crew_id == crew_id, CrewMatch.status == "hired")
+    )
+    hired = list(matches.scalars().all())
+
+    projects: list[dict] = []
+    for match in hired:
+        project_result = await db.execute(
+            select(Project).where(Project.id == match.project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project:
+            continue
+
+        tasks_result = await db.execute(
+            select(ConstructionTask)
+            .where(ConstructionTask.project_id == match.project_id, ConstructionTask.deleted_at.is_(None))
+        )
+        tasks = list(tasks_result.scalars().all())
+
+        # 阶段分布：每阶段任务总数 + 完成/进行中/待办
+        phase_tasks: dict[str, list[str]] = {}
+        for t in tasks:
+            phase_tasks.setdefault(t.phase, []).append(t.status)
+        task_phases = []
+        for phase, statuses in phase_tasks.items():
+            counts = Counter(statuses)
+            task_phases.append({
+                "phase": phase,
+                "phase_label": PHASE_CN.get(phase, phase),
+                "total": len(statuses),
+                "completed": counts.get("completed", 0),
+                "in_progress": counts.get("in_progress", 0),
+                "pending": counts.get("pending", 0),
+            })
+        task_phases.sort(key=lambda p: list(PHASE_CN).index(p["phase"]) if p["phase"] in PHASE_CN else 99)
+
+        assessments_result = await db.execute(
+            select(QualityAssessment).where(QualityAssessment.project_id == match.project_id)
+        )
+        assessments = [
+            {
+                "phase": a.phase,
+                "phase_label": PHASE_CN.get(a.phase, a.phase),
+                "verdict": a.verdict,
+                "score": a.score,
+                "assessor": a.assessor,
+                "summary": a.summary,
+                "assessed_at": a.assessed_at,
+            }
+            for a in assessments_result.scalars().all()
+        ]
+
+        projects.append({
+            "project_id": project.id,
+            "name": project.name,
+            "task_phases": task_phases,
+            "assessments": assessments,
+        })
+
+    return {
+        "crew_id": crew.id,
+        "crew_name": crew.name,
+        "projects": projects,
+    }
