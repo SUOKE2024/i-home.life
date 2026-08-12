@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+### C 类灰度 flag 关闭：施工图 MEP 叠加默认开启（v1.13.5 维度，2026-08-13）
+- **评估结论**（主代理亲自 Read 核验）：backlog C 类表标注「需 PDF/SVG 渲染引擎」**已过时**——
+  `generate_mep_overlay_svg` 为纯 Python SVG 字符串生成（从 floorplan 几何派生，厨/卫湿区
+  按房间名规则标注），零外部依赖；SVG 内含「占位示意」诚实标注，不伪装真实 MEP 模型数据
+- **翻转**：`construction_drawing_mep_enabled` 默认 False→True；`GET /api/construction-drawing/
+  {id}/all` 现返回 `mep_overlay_svg`（此前恒为空串）
+- **测试断言重构**（A2 教训：默认值翻转必查）：test_v1_3_0_compliance + test_ifc_h_ifc_extension
+  断言改 True（新增 False monkeypatch 用例保留「关闭降级」语义）；test_construction_drawing +2
+  （启用时 SVG 含占位标注/给水点、关闭时空串）
+- **遗留（诚实标注）**：MEP 为规则派生示意（非真实 MEP 模型管线坐标）；`spatial_*`×3 无实现
+  不可开启（仅 config 定义 + ai_render 能力标识，无服务文件）；real_embedding/real_ai_render/
+  dspy 需外部凭据；B 类 7 项按产品节奏
+- **验证**：57 passed（construction_drawing 18 + compliance 16 + ifc_h 23）；flake8/mypy 0
+
 ### 前端缺口补齐 B2/B3/B4（全景评估报告执行，2026-08-13）
 - **B3 管理后台**（console）：新增 AdminPage（平台统计 + 用户管理含角色/启停用 + 审计日志）、
   NotificationsPage（设备推送令牌注册/列表/注销）、FilesPage（项目附件上传 ≤20MB/下载/删除）；

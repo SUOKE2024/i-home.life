@@ -50,7 +50,7 @@ lifecycle_orchestration / voice_agent_orchestration / ifc_h_ifc_extension_enable
 | 空间感知（户型/承重/管线识别） | 视觉模型 | spatial_perception_enabled |
 | 空间推理（设计错误规避） | 规则引擎数据 | spatial_reasoning_enabled |
 | 空间交互（设计→施工→采购协同） | 多角色链路 | spatial_interaction_enabled |
-| 施工图 MEP 叠加 | PDF/SVG 引擎 | construction_drawing_mep_enabled |
+| 施工图 MEP 叠加 | ~~PDF/SVG 引擎~~ 纯 Python SVG（v1.13.5 已默认开启） | construction_drawing_mep_enabled |
 
 **C 类接入指引（2026-08-11 梳理，配置后置 flag=true 并回归验证）**：
 
@@ -62,7 +62,7 @@ lifecycle_orchestration / voice_agent_orchestration / ifc_h_ifc_extension_enable
 | spatial_perception_enabled | 视觉模型（户型/承重/管线识别 API） | ai_render_service.py L705 视觉能力标识 | 户型图 → 结构分析链路 | 视觉模型推理 |
 | spatial_reasoning_enabled | 规则引擎数据 | 空间推理服务 | 设计错误规避触发 | 低（本地规则） |
 | spatial_interaction_enabled | 多角色链路数据 | 空间协同服务 | 设计→施工→采购指令贯通 | 低 |
-| construction_drawing_mep_enabled | PDF/SVG 渲染引擎 | construction_drawing_service.py L724（MEP 管线标注叠加） | 施工图含给排水/电气管线走向 | 低（本地渲染） |
+| construction_drawing_mep_enabled | ~~PDF/SVG 渲染引擎~~ 实际为零外部依赖（SVG 纯 Python 生成，规则派生 + 占位示意诚实标注） | construction_drawing_service.py L724（MEP 管线标注叠加） | 施工图含给排水/电气管线走向 | 低（本地渲染） | ✅ v1.13.5 默认开启（2026-08-13） |
 
 **B 类（前端/调试开关，按产品节奏）**：console_v2_enabled / voice_floating_widget_enabled /
 workbench_adaptive_suggestions_enabled / tracing_enabled / diagnostics_enabled + rum /

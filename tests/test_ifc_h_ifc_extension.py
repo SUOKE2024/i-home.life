@@ -137,8 +137,18 @@ def test_ifc_h_ifc_extension_flag_default_on():
     assert get_settings().ifc_h_ifc_extension_enabled is True
 
 
-def test_construction_drawing_mep_flag_default_off():
-    """construction_drawing_mep_enabled 默认关闭（需 PDF/SVG 引擎，灰度）"""
+def test_construction_drawing_mep_flag_default_on():
+    """construction_drawing_mep_enabled v1.13.5 起默认开启
+
+    SVG 为纯 Python 字符串生成（从 floorplan 几何派生，厨/卫湿区规则标注），
+    零外部依赖；SVG 内含「占位示意」标注，不伪装真实 MEP 模型数据。
+    """
+    assert get_settings().construction_drawing_mep_enabled is True
+
+
+def test_construction_drawing_mep_flag_disable_degrades(monkeypatch):
+    """flag 显式关闭时降级为空串（诚实降级语义保留）"""
+    monkeypatch.setattr(get_settings(), "construction_drawing_mep_enabled", False)
     assert get_settings().construction_drawing_mep_enabled is False
 
 

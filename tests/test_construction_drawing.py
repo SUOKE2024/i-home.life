@@ -289,3 +289,72 @@ async def test_export_invalid_drawing_type(client: AsyncClient):
         headers=headers,
     )
     assert resp.status_code == 422
+
+
+# ── MEP 水电图叠加（v1.13.5 起默认开启）──
+
+
+@pytest.mark.asyncio
+async def test_all_drawings_mep_overlay_enabled(client: AsyncClient):
+    """construction_drawing_mep_enabled=True（默认）时 /all 返回 MEP 叠加 SVG
+
+    从 floorplan 几何派生（纯 Python，零外部依赖）；厨/卫湿区规则标注，
+    SVG 内含「占位示意」诚实标注，不伪装真实 MEP 模型数据。
+    """
+    from app.config import get_settings
+    assert get_settings().construction_drawing_mep_enabled is True
+
+    headers = await _auth_headers(client, "13900031015")
+    project_id = await _create_project(client, headers)
+    # 户型含厨房（湿区）以触发给水/燃气标注
+    floorplan_data = json.dumps({
+        "walls": [
+            {"name": "W1", "start": {"x": 0, "y": 0}, "end": {"x": 5000, "y": 0}, "thickness": 240},
+            {"name": "W2", "start": {"x": 0, "y": 0}, "end": {"x": 0, "y": 4000}, "thickness": 240},
+        ],
+        "doors": [{"name": "M1", "width": 900, "height": 2100, "position": {"x": 1000, "y": 0}}],
+        "windows": [{"name": "C1", "width": 1500, "height": 1500, "position": {"x": 3000, "y": 0}}],
+        "rooms": [
+            {"name": "厨房", "area": 8.0, "type": "kitchen", "center": {"x": 2000, "y": 1500}},
+        ],
+    })
+    resp = await client.post(
+        "/api/floorplans",
+        json={
+            "project_id": project_id, "name": "户型MEP", "data": floorplan_data,
+            "wall_height": 2.8, "total_area": 60.0, "room_count": 1,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/all",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    mep_svg = data.get("mep_overlay_svg", "")
+    assert mep_svg, "construction_drawing_mep_enabled=True 时 mep_overlay_svg 不应为空"
+    assert "<svg" in mep_svg
+    # 诚实标注：MEP 叠加为规则派生占位示意（不伪装真实 MEP 模型数据）
+    assert "占位示意" in mep_svg
+    assert "给水" in mep_svg
+
+
+@pytest.mark.asyncio
+async def test_all_drawings_mep_overlay_disabled(client: AsyncClient, monkeypatch):
+    """construction_drawing_mep_enabled=False 时 /all 返回空串（诚实降级）"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "construction_drawing_mep_enabled", False)
+
+    headers = await _auth_headers(client, "13900031016")
+    project_id = await _create_project(client, headers)
+    await _create_floorplan(client, headers, project_id)
+
+    resp = await client.get(
+        f"/api/construction-drawing/{project_id}/all",
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json().get("mep_overlay_svg", "") == ""

@@ -586,8 +586,10 @@ class Settings(BaseSettings):
     # ── S5: 施工图自动生成（模型即图纸，floorplan 变 → 图纸重生成）──
     # 启用后 /api/construction-drawing/* 端点可用，生成 SVG 平/立/剖面图
     construction_drawing_enabled: bool = True
-    # v1.3.0 P4: 施工图 MEP 图示占位（给排水/电气管线走向标注）
-    construction_drawing_mep_enabled: bool = False
+    # v1.3.0 P4: 施工图 MEP 图示（给排水/电气管线走向标注，规则派生 + 占位示意诚实标注）
+    # v1.13.5 起默认开启：SVG 为纯 Python 字符串生成，零外部依赖（从 floorplan 几何派生，
+    # 厨/卫湿区按房间名规则标注，SVG 内含「占位示意」标注，不伪装真实 MEP 模型数据）
+    construction_drawing_mep_enabled: bool = True
 
     # ════════════════════════════════════════════════════════════════
     # v1.5.0 需求补充落地（PRD v3.1 F41-F47, 2026-08-03 行业调研）
