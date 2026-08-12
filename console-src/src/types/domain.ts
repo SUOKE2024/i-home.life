@@ -2623,3 +2623,67 @@ export interface ProjectFileItem {
   category: string;
   created_at: string;
 }
+
+// ── 物联监测（对齐 app/api/health.py / construction_drawing.py / sensor_snapshot.py）──
+
+/** GET /api/health-monitor/report/{project_id} 健康监测报告（HealthReportResponse） */
+export interface HealthAlertItem {
+  monitor_type: string;
+  alert_level: string;
+  alert_message: string | null;
+  value: Record<string, unknown>;
+  recorded_at: string;
+}
+
+/** 空气质量记录（AirQualityRecordResponse） */
+export interface AirQualityRecord {
+  id: string;
+  project_id: string;
+  scheme_id: string;
+  room_name: string;
+  pm25: number;
+  pm10: number;
+  co2: number;
+  tvoc: number;
+  formaldehyde: number;
+  temperature: number;
+  humidity: number;
+  aqi_index: number;
+  aqi_level: string;
+  recorded_at: string;
+  created_at: string;
+}
+
+/** 健康监测报告 */
+export interface HealthReport {
+  project_id: string;
+  generated_at: string;
+  summary: string;
+  total_records: number;
+  alert_records: number;
+  sleep_avg_score: number | null;
+  latest_air_quality: AirQualityRecord | null;
+  recent_alerts: HealthAlertItem[];
+  recommendations: string[];
+}
+
+/** GET /api/construction-drawing/{project_id}/all 全套施工图（SVG 文本） */
+export interface ConstructionDrawingBundle {
+  project_id: string;
+  floorplan_id: string;
+  floorplan_name: string;
+  floor_plan_svg: string;
+  elevation_svgs: { wall_name: string; svg: string }[];
+  drawing_version: string;
+  element_count: number;
+  mep_overlay_svg: string;
+  section_svg: string;
+}
+
+/** GET /api/sensors/capabilities 传感器能力声明（SensorCapabilityResponse） */
+export interface SensorCapabilities {
+  supported_sensors: string[];
+  upload_endpoint: string;
+  sampling_rate_hz: number;
+  auto_trigger_enabled: boolean;
+}

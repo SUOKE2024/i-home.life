@@ -2239,6 +2239,46 @@ export class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  物联监测（app/api/health.py / construction_drawing.py / sensor_snapshot.py）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 健康监测报告（GET /api/health-monitor/report/{project_id}） */
+  async getHealthReport<T = import('../types/domain').HealthReport>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/health-monitor/report/${encodeURIComponent(projectId)}`);
+  }
+
+  /** 健康监测记录列表（GET /api/health-monitor/records/project/{project_id}） */
+  async listHealthRecords<T = unknown[]>(
+    projectId: string,
+    params: { monitor_type?: string; limit?: number } = {},
+  ): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params.monitor_type) qs.set('monitor_type', params.monitor_type);
+    if (params.limit !== undefined) qs.set('limit', String(params.limit));
+    const s = qs.toString();
+    return this.request<T>(
+      `/api/health-monitor/records/project/${encodeURIComponent(projectId)}${s ? `?${s}` : ''}`,
+    );
+  }
+
+  /** 全套施工图（GET /api/construction-drawing/{project_id}/all；flag 关闭返回 503） */
+  async getConstructionDrawings<T = import('../types/domain').ConstructionDrawingBundle>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(
+      `/api/construction-drawing/${encodeURIComponent(projectId)}/all`,
+    );
+  }
+
+  /** 传感器能力声明（GET /api/sensors/capabilities） */
+  async getSensorCapabilities<T = import('../types/domain').SensorCapabilities>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/sensors/capabilities');
+  }
 }
 
 /**

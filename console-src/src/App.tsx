@@ -71,6 +71,9 @@ import SurveysPage from './pages/SurveysPage';
 import AdminPage from './pages/AdminPage';
 import NotificationsPage from './pages/NotificationsPage';
 import FilesPage from './pages/FilesPage';
+import HealthMonitorPage from './pages/HealthMonitorPage';
+import ConstructionDrawingPage from './pages/ConstructionDrawingPage';
+import SensorsPage from './pages/SensorsPage';
 
 export default function App() {
   const location = useLocation();
@@ -149,6 +152,9 @@ export default function App() {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/files" element={<FilesPage />} />
+          <Route path="/health-monitor" element={<HealthMonitorPage />} />
+          <Route path="/construction-drawing" element={<ConstructionDrawingPage />} />
+          <Route path="/sensors" element={<SensorsPage />} />
           {/* 真 404：取代此前静默回退到 Workbench 的反直觉行为 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

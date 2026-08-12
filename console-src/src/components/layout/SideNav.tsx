@@ -105,6 +105,9 @@ const NAV_GROUPS: NavGroup[] = [
     title: '物联监测',
     items: [
       { label: '能耗监测', path: '/energy', emoji: '⚡' },
+      { label: '健康监测', path: '/health-monitor', emoji: '🩺' },
+      { label: '传感器', path: '/sensors', emoji: '📡' },
+      { label: '施工图', path: '/construction-drawing', emoji: '📐' },
     ],
   },
   {
