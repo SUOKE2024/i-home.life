@@ -199,6 +199,9 @@ class Settings(BaseSettings):
     # Case 按 quality 降序从末尾丢弃/截断），防 context rot（上下文腐烂：噪音淹没关键事实
     # 致注意力预算耗尽）。0 或负数 = 不限制（保持旧行为全量注入）。
     context_injection_budget_chars: int = 4000
+    # v1.13.5: 自进化注入 token 预算（0 = 关闭，用字符预算；>0 时按估算 token 截断，
+    # 估算系数 len//2——中文≈1字/token 与英文≈4字符/token 的中间值，闭环字符估算遗留）
+    context_injection_budget_tokens: int = 0
 
     # ── MCP Server 暴露（v1.1.12 新增）──
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具

@@ -46,6 +46,9 @@ _NON_GOAL_DIRECTED_PATTERNS = (
 # 长轨迹压缩阈值（字符数）
 _COMPRESS_THRESHOLD = 2000
 
+# v1.13.5: token 估算换算系数（len//2——中文≈1字/token 与英文≈4字符/token 的中间值）
+TOKEN_ESTIMATE_DIVISOR = 2
+
 
 def _is_goal_directed(user_message: str) -> bool:
     """判定是否目标导向对话（闲聊/简单 Q&A 不入 Case）。
@@ -322,14 +325,20 @@ async def search_cases(
     return cases
 
 
-def build_case_context(cases: list[AgentCase], max_chars: int | None = None) -> str:
+def build_case_context(cases: list[AgentCase], max_chars: int | None = None, max_tokens: int | None = None) -> str:
     """将检索到的 Case 构建为上下文注入文本。
 
     max_chars（v1.13.5 Context Engineering）：注入预算上限（字符数）。
     - None = 不限制（旧行为全量注入）
     - 超预算：从末尾 Case 开始丢弃（cases 已按 quality 降序，低优先级先裁）并标注
       省略条数；预算过小连一条 Case 都放不下时返回 ""（诚实降级，不注入残片噪音）
+
+    max_tokens（v1.13.5 token 估算，闭环字符估算遗留）：按估算 token 预算截断，
+    换算系数 TOKEN_ESTIMATE_DIVISOR（len//2——中文≈1字/token 与英文≈4字符/token
+    的中间值）。max_tokens 优先于 max_chars。
     """
+    if max_tokens is not None and max_tokens > 0:
+        max_chars = max_tokens * TOKEN_ESTIMATE_DIVISOR
     if not cases:
         return ""
     header = "[历史经验 Case —— 借鉴 EverOS Agent Memory，同类任务历史执行记录]"

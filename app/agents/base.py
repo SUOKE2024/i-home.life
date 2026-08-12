@@ -448,13 +448,19 @@ class BaseAgent:
             )
             case_ctx = build_case_context(cases)
             budget = settings.context_injection_budget_chars
-            if budget > 0:
+            budget_tokens = settings.context_injection_budget_tokens
+            if budget > 0 or budget_tokens > 0:
                 # v1.13.5（2026 Context Engineering 前沿对齐）：注入预算控制。
                 # Skill 蒸馏知识高密度全量优先，Case 用剩余预算——超限从末尾 Case
                 # 开始丢弃（cases 已按 quality 降序），防 context rot 淹没关键事实。
+                # max_tokens（token 估算，估算系数 len//2）优先于 max_chars。
                 if skill and skill.system_prompt:
                     budget -= len(f"[进化 Skill: {skill.name}]\n{skill.system_prompt}")
-                case_ctx = build_case_context(cases, max_chars=budget)
+                case_ctx = build_case_context(
+                    cases,
+                    max_chars=budget if budget > 0 else None,
+                    max_tokens=budget_tokens if budget_tokens > 0 else None,
+                )
             if case_ctx:
                 messages.append({"role": "system", "content": case_ctx})
                 logger.debug(

@@ -569,8 +569,9 @@ async def test_think_stream_records_skill_outcome(client, db_session, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_skill_outcome_skips_mock_reply(client, db_session, monkeypatch):
-    """反馈闭环：mock/降级回复不计数（防污染进化数据层）"""
+async def test_skill_outcome_records_fail_on_mock_reply(client, db_session, monkeypatch):
+    """反馈闭环（v1.13.5）：注入 Skill 后 mock/降级回复计失败，激活失败数据层；
+    空 reply（异常路径）跳过不计数，防污染。"""
     import uuid
     from sqlalchemy import select
 
@@ -608,8 +609,9 @@ async def test_skill_outcome_skips_mock_reply(client, db_session, monkeypatch):
     skill = (await db_session.execute(
         select(AgentSkill).where(AgentSkill.id == skill_id)
     )).scalars().first()
-    assert skill.success_count == 0, f"mock 不应计数: {skill.success_count}"
-    assert skill.fail_count == 0
+    assert skill.success_count == 0, f"mock 不应计成功: {skill.success_count}"
+    # mock + 降级占位各记 1 次失败；空 reply（异常路径）跳过
+    assert skill.fail_count == 2, f"mock/降级应各记失败: {skill.fail_count}"
 
 
 @pytest.mark.asyncio

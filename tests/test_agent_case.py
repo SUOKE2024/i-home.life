@@ -24,7 +24,7 @@ from app.models.agent_case import AgentCase
 from app.models.agent_skill import AgentSkill, STATUS_DRAFT, STATUS_ACTIVE, STATUS_ARCHIVED
 from app.services.agent_case_service import (
     _is_goal_directed, _compress_trajectory, extract_case_from_trace,
-    search_cases, build_case_context, _parse_case_json,
+    search_cases, build_case_context, _parse_case_json, TOKEN_ESTIMATE_DIVISOR,
 )
 from app.services.agent_skill_evolution_service import (
     record_skill_outcome, evaluate_skill_quality, diagnose_credit_skill_patch,
@@ -338,6 +338,39 @@ def test_build_case_context_budget_too_small_returns_empty():
     )
     # 预算小到连头部结构都放不下 → 不注入残片（诚实降级）
     assert build_case_context([case], max_chars=10) == ""
+
+
+def test_build_case_context_max_tokens_truncates():
+    # v1.13.5 token 预算：max_tokens 按估算系数换算为字符上限（len//2）
+    case = AgentCase(
+        id="c1", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅", approach='[{"step":1,"attempted":"选材","result":"OK"}]',
+        outcome="success", quality_score=0.8, created_by="u1",
+    )
+    # 换算后字符预算过小 → 不注入残片（与 max_chars 行为一致）
+    assert build_case_context([case], max_tokens=1) == ""
+    # 换算等价性：max_tokens=N 与 max_chars=N*DIVISOR 严格等价
+    full = build_case_context([case])
+    n = len(full) // TOKEN_ESTIMATE_DIVISOR
+    assert build_case_context([case], max_tokens=n) == build_case_context(
+        [case], max_chars=n * TOKEN_ESTIMATE_DIVISOR
+    )
+    # max_tokens 足够 → 全量注入
+    assert build_case_context([case], max_tokens=10**6) == full
+
+
+def test_build_case_context_max_tokens_overrides_chars():
+    # v1.13.5：max_tokens 优先于 max_chars（token 预算是更精确的上下文控制面）
+    case = AgentCase(
+        id="c1", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅", approach='[{"step":1,"attempted":"选材","result":"OK"}]',
+        outcome="success", quality_score=0.8, created_by="u1",
+    )
+    # 同时传超小 max_chars + 超大 max_tokens → 按 max_tokens 全量注入
+    full = build_case_context([case])
+    assert build_case_context([case], max_chars=1, max_tokens=10**6) == full
+    # 同时传超大 max_chars + 超小 max_tokens → 按 max_tokens 截断为空
+    assert build_case_context([case], max_chars=10**6, max_tokens=1) == ""
 
 
 # ── record_skill_outcome ──
