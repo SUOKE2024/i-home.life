@@ -23,6 +23,8 @@
 - [9. 运行方式](#9-运行方式)
 - [10. 开发路线图](#10-开发路线图)
 - [11. 约定与规范](#11-约定与规范)
+- [12. 版本发布归档](#12-版本发布归档)
+- [13. 排障知识库](#13-排障知识库)
 
 ---
 
@@ -774,6 +776,37 @@ __pycache__/, *.py[cod], *.egg-info/, .eggs/, dist/, build/, .venv/, venv/
 - 资源清理：`datetime.utcnow()` 清零、SQLite 孤儿文件清零、`data/` 仅业务库
 
 > 归档确认：2026-08-09 · 详见 `docs/reports/archive-confirmation-v1.11.0.md`
+
+### 12.2 生产级联删除修复（2026-08-12 部署）
+
+> **主题**：DELETE /projects 500（FK 级联）+ health_monitor 巡检报错 + E2E 脚本修复
+> **涉及提交**：`a00d7d9` / `53d0a74` / `0ee7139` / `4d8392d`（均为 2026-08-11/12 主分支 HEAD 连续提交）
+> **验证**：全量 pytest 2156 passed / 2 skipped / 4 xfailed；生产 E2E 29/29；部署检查清单见 `docs/reports/delete-project-500-deploy-checklist-20260812.md`
+
+| 提交 | 关键改动点 |
+|------|-----------|
+| `a00d7d9` | `project_service._cascade_delete_related`（metadata 反射 + FK 递归级联删除）；回归测试 `test_delete_project_cascades_related_data_with_fk`；E2E 脚本 3 处修复（list 兼容 / webapp 资源检查 / HTTPError 状态码比对）；基线 2155→2156 |
+| `53d0a74` | `health_monitor._trigger_alerts` 去重改 `limit(1)+scalar()`（防 `MultipleResultsFound`）；回归测试 `test_health_monitor_patrol.py` 3 用例；修复方案 + 团队技术分享文档 |
+| `0ee7139` | webapp 一键演示登录 + `seed_demo_data.py` 演示项目种子（关联前两提交的演示数据功能） |
+| `4d8392d` | 通用 FK 级联删除排障指南归档 |
+
+**架构要点**：
+- 级联删除范式：应用层基于 `Base.metadata` 反射 FK 依赖图，递归「先孙表后子表」删除，新表自动纳入、无 DB 迁移
+- 环境差异教训：SQLite 默认不强制 FK → 「本地过、生产 500」优先怀疑 FK 约束
+- 存在性判断纪律：无唯一约束的查询禁止 `scalar_one_or_none()`，用 `limit(1)+scalar()`
+
+> 归档确认：2026-08-12 · 总结报告见 `docs/reports/session-summary-20260812.md`
+
+---
+
+## 13. 排障知识库
+
+| 主题 | 文档 | 场景 |
+|------|------|------|
+| FK 级联删除通用排查 | [fk-cascade-delete-troubleshooting-guide-20260812.md](docs/reports/fk-cascade-delete-troubleshooting-guide-20260812.md) | 「本地过、生产 500」的 FK 类问题：识别 → 定位 → 复现 → 修复 → 测试 → 部署 |
+| FK 级联删除团队分享 | [tech-share-fk-cascade-delete-20260812.md](docs/reports/tech-share-fk-cascade-delete-20260812.md) | 组会分享版：两个真实事故 + 修法 + Q&A |
+| health_monitor 巡检报错修复方案 | [health-monitor-patrol-fix-plan-20260812.md](docs/reports/health-monitor-patrol-fix-plan-20260812.md) | `MultipleResultsFound` 排查 + 修复 + 生产数据处置建议 |
+| DELETE /projects 500 部署检查清单 | [delete-project-500-deploy-checklist-20260812.md](docs/reports/delete-project-500-deploy-checklist-20260812.md) | 生产部署前/后核验清单（含回滚方案） |
 
 ---
 
