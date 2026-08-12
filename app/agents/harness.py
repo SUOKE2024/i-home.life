@@ -336,6 +336,12 @@ class AgentRuntime:
             # v1.12.x: workflow_id 为 harness 级元数据（trace 落库用），
             # 不向 agent.think/think_with_tools 透传（签名不含该参数）
             agent_kwargs = {k: v for k, v in kwargs.items() if k != "workflow_id"}
+            # v1.10.x 全链路记忆：标记 harness 上下文中（BaseAgent 内建 Case 沉淀 hook
+            # 检测到该标记即跳过，由本方法统一提取，避免同一次执行沉淀两条 Case）
+            try:
+                agent._harness_trace = trace
+            except Exception:
+                pass
             for attempt in range(self.config.max_retries + 1):
                 try:
                     if hasattr(agent, "think_with_tools") and agent.tools:
@@ -457,8 +463,13 @@ class AgentRuntime:
             return
         try:
             from app.services.agent_case_service import extract_case_from_trace
+            # v1.10.x 空间感知：项目上下文的执行沉淀为 project scope（对齐用户长期记忆
+            # agent_memories 的 project scope 语义，同一用户不同项目经验互不污染）
+            project_id = kwargs.get("project_id") or ""
+            scope = "project" if project_id else "personal"
+            owner_id = project_id or user_id
             await extract_case_from_trace(
-                trace, db, owner_id=user_id, scope="personal", created_by=user_id,
+                trace, db, owner_id=owner_id, scope=scope, created_by=user_id,
             )
             if db.in_transaction():
                 await db.commit()

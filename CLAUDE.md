@@ -25,7 +25,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 ## Agent 自进化管线（v1.10.2，借鉴 EverMind EverOS + SkillCorpus + HarnessBank）
 
 三层独立 feature flag 灰度，v1.13.2 起默认全 True（经 59 用例 + 覆盖率 99% + verify 脚本 66 项验证；关闭即回退无记忆无进化静态行为）：
-- **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。
+- **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。v1.13.2 后全链路闭环：主链路端点直连 `think/think_with_tools` 时由 BaseAgent 内建 hook（`_maybe_persist_execution_case`）用最小 AgentTrace 补沉淀；harness.run 设 `agent._harness_trace` 标记 + `extract_case_from_trace` trace_id 去重防双提取；Case/Skill 提取与注入支持 project scope（空间感知，owner_id=project_id）+ recency 排序键（时间感知，`search_cases` created_at / `get_skill_for_injection` updated_at）。
 - **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：同主题 Case ≥3 条聚类蒸馏为 Skill（`distill_skill_from_cases`，生成前查重合并避免冗余——SkillCorpus 策展）；`BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文。
 - **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。
 - 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
@@ -64,7 +64,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 105 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。128 ORM 模型 + 75 路由已够复杂（`app/api/` 磁盘实为 75 个路由模块，main.py 78 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2156 passed 不得回退（collect 2162 = 2156 passed + 2 skipped + 4 xfailed；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2169 passed 不得回退（collect 2175 = 2169 passed + 2 skipped + 4 xfailed；2026-08-12 全量并发另出现 2 个 setup 级瞬时 flaky——test_door_window_waterproof/test_auth 各 1，单跑通过，与本次改动无关；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

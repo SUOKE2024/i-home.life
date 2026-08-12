@@ -139,7 +139,8 @@
 │   │   ├── payments.py               # 支付管理
 │   │   ├── chat.py                   # 三方协作 IM
 │   │   ├── crews.py                  # 工程队匹配
-│   │   ├── surveys.py                # AR 测量数据
+│   │   ├── surveys.py                # Survey 测量记录
+│   │   ├── ar_scan.py                # F1 AR 空间测量（会话生命周期/墙面特征/校准点/精度，前缀 /surveys/ar/*）
 │   │   ├── layouts.py                # 智能布局动线分析
 │   │   └── ...                       # 其他路由模块
 │   ├── agents/                       # 26 个 AI Agent（21 执行型 + 4 商业运营 + 1 Orchestrator）
@@ -640,7 +641,8 @@ Phase 1: 设计核心 + AI 基础 (2026-08 ~ 2026-12) ✅ 后端完成
 └── iPadOS Alpha 测试 (Flutter 框架级适配)
 
 Phase 2: AR + 预算 + 厨卫 (2026-12 ~ 2027-03) ✅ 后端完成
-├── LiDAR/RoomPlan 集成 (surveys 表已建，前端待实现)
+├── LiDAR/RoomPlan 集成 ✅（Flutter ARScanPage 原生扫描 + 降级链；webapp ARScan 引导页）
+├── VR 全景全链路 ✅（后端 /api/vr/* + webapp Three.js 360° 查看器 + Flutter 360° 预览）
 ├── 预算+结算 Agent ✅
 ├── 厨卫设计器 + 电器点位规划 (数据层就绪)
 ├── Android+鸿蒙平板适配 (ohos 配置完成)
@@ -807,6 +809,9 @@ __pycache__/, *.py[cod], *.egg-info/, .eggs/, dist/, build/, .venv/, venv/
 | FK 级联删除团队分享 | [tech-share-fk-cascade-delete-20260812.md](docs/reports/tech-share-fk-cascade-delete-20260812.md) | 组会分享版：两个真实事故 + 修法 + Q&A |
 | health_monitor 巡检报错修复方案 | [health-monitor-patrol-fix-plan-20260812.md](docs/reports/health-monitor-patrol-fix-plan-20260812.md) | `MultipleResultsFound` 排查 + 修复 + 生产数据处置建议 |
 | DELETE /projects 500 部署检查清单 | [delete-project-500-deploy-checklist-20260812.md](docs/reports/delete-project-500-deploy-checklist-20260812.md) | 生产部署前/后核验清单（含回滚方案） |
+| Qwen 音色修复与生产部署手册 | [qwen-voice-fix-deploy.md](docs/ops/qwen-voice-fix-deploy.md) | `Unsupported voice: 'cherry'` 报错根因 + 修复（longanxiaoxin）+ 部署/验证/回滚流程 |
+| Agent LLM Fallback 链优化与密钥配置 | [agent-llm-fallback-optimization-20260812.md](docs/ops/agent-llm-fallback-optimization-20260812.md) | `QWEN_API_KEY` 缺失致 mock 降级 + 无 key provider 抛错触发 fallback 的代码/配置/测试改动 |
+| Agent LLM Fallback 运维操作手册 | [agent-llm-fallback-ops-manual-20260812.md](docs/ops/agent-llm-fallback-ops-manual-20260812.md) | 运维视角：降级链验证步骤（含脚本）、故障排查（API key 为空/供应商失败/全部失败）、密钥配置与回滚 |
 
 ---
 

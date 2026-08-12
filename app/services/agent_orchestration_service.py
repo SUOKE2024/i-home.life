@@ -173,15 +173,18 @@ def _rule_decompose(message: str) -> list[AgentTask]:
 
 async def decompose_request(
     message: str, db=None, user_id: str = "", project_id: str = "",
+    user_context: str = "",
 ) -> list[AgentTask]:
     """用户需求 → 结构化子任务列表。
 
     LLM 优先（返回 JSON 数组），任何失败诚实降级为规则单任务分解。
+    v1.10.x 全链路记忆：user_context（时间/空间感知 + 长期记忆注入块）
+    随需求注入分解 prompt，使编排器感知用户偏好/当前时间位置。
     """
     settings = get_settings()
     if settings.agent_orchestration_pipeline_enabled:
         try:
-            tasks = await _llm_decompose(message, db, user_id, project_id)
+            tasks = await _llm_decompose(message, db, user_id, project_id, user_context)
             if tasks:
                 logger.info(
                     "orchestration.decompose: LLM 分解成功 task_count=%d user_id=%s",
@@ -195,6 +198,7 @@ async def decompose_request(
 
 async def _llm_decompose(
     message: str, db=None, user_id: str = "", project_id: str = "",
+    user_context: str = "",
 ) -> list[AgentTask] | None:
     """LLM 分解：将复杂需求拆为多 Agent 子任务（JSON 结构输出）。
 
@@ -205,10 +209,15 @@ async def _llm_decompose(
     from app.agents.orchestrator import OrchestratorAgent
     agent = OrchestratorAgent()
     try:
+        user_ctx_block = (
+            f"\n用户上下文（偏好/时间/位置，供理解需求）：\n{user_context}"
+            if user_context else ""
+        )
         prompt = (
             "你是装修项目总控。请把以下用户需求拆解为可并行/串行执行的子任务，"
             "每个子任务指派给最合适的专业 Agent。\n"
             f"用户需求：{message}\n"
+            f"{user_ctx_block}\n"
             "可选 Agent 及职责：\n"
             "- designer: 设计/布局/方案\n- budget: 预算/报价\n- procurement: 采购/物料\n"
             "- construction: 施工/进度\n- qa_inspector: 质检/验收\n- settlement: 结算/付款\n"

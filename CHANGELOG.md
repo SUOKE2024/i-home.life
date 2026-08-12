@@ -4,6 +4,107 @@
 
 ## [Unreleased]
 
+### 增强：生产同步 + 种子边界测试 + 完整测试报告（2026-08-12）
+- **生产应用确认**：seed_demo_data.py（3 项目 + 预算修正 + 逐项日志）md5 与本地一致
+  （7e5550b0）；生产云栖雅苑预算 ¥106,214/¥57,294（乳胶漆 4 桶）；webapp dist
+  index-D_HC91Ub.js 含 dashboard.project-load 性能日志——预算计算逻辑与性能监控均已上线生产
+- **seed 边界场景测试（test_demo_seed.py +4 → 10 用例）**：① 极端数据量性能哨兵——1000 行
+  预算明细 `_seed_budget` 耗时 <5s 且金额 ¥1,000,000 正确 ② 空预算明细不崩溃生成 0 总额
+  ③ 超大数量×单价（1e6×1e6=1e12）浮点不溢出 ④ 引用不存在物料抛 RuntimeError（诚实报错）
+- **完整测试报告**：`docs/reports/demo-login-perf-seed-test-report-20260812.md`——预算核对明细
+  （¥106,214 逐项构成表）、性能日志（init/switch 实测摘录）、边界测试（14 用例全过）与生产应用矩阵
+- **验证**：test_demo_seed 10 passed + test_demo_login_boundary 4 passed；flake8 0 issues
+
+### 增强：预算真实性约束修复 + Dashboard 切换性能日志 + 登录边界测试（2026-08-12）
+- **预算/任务真实性约束修复（seed_demo_data.py）**：预算明细从「数量+单价」改为显式单位
+  `(类别/名称/数量/单位/单价/实际花费)`，修正自动推断单位导致的计价错误——净味乳胶漆按
+  「桶」计（18L/桶≈90㎡，126㎡ 全屋墙面约 320㎡ → 4 桶，原 320 桶严重失真）；智能马桶+
+  恒温花洒按「套」且单卫 1 套（原 2 套）；项目 1 预算总额由 ¥326,754 修正为 **¥106,214**
+  （126㎡ 整装+家电的合理区间）。施工任务 phase/status 全链路复核（前置依赖链、状态机合法值）
+- **Dashboard 项目切换性能监控日志（webapp/src/pages/Dashboard.jsx）**：`load` 函数内为每个
+  API 请求单独计时（`apiMs`：overview/projects/floorplans/progress_alerts/milestones/feed/
+  floorplan_detail），切换完成输出 `console.info('[perf] dashboard.project-load', {trigger:
+  init|switch, projectId, totalMs, apiMs})`；浏览器实测每次加载/切换均输出、trigger 正确区分、
+  切换耗时 106-571ms、各 API 毫秒级
+- **演示登录边界测试**：新增 `tests/test_demo_login_boundary.py` 4 用例——① 密码错误 401 且无
+  Token 副作用 ② 网络超时（慢认证 + asyncio.wait_for 模拟前端 fetch 超时语义 → TimeoutError）
+  ③ 并发登录（8 并发全部 200、Token 互不相同；测试库 SQLite 单连接故关闭 audit 写规避锁）
+  ④ 认证限流（10 次/分钟/IP：前 10 次 200、第 11 次 429 + Retry-After）
+- **测试**：test_demo_seed.py 完整性测试补充预算单位真实性断言（乳胶漆=桶×4、马桶=1 套）；
+  两文件 10 passed；flake8/mypy 0 issues；webapp build 通过；全景验证 44/44
+- **预算逐项日志（seed_demo_data.py）**：`_seed_budget` 核心循环新增 `budget_line_created`
+  逐项日志（category/name/qty/unit/unit_price/amount/actual），可精确核对总额构成——
+  实测 ¥106,214 = 地砖16,236 + 乳胶漆2,720 + 吊顶4,370 + 台面9,860 + 马桶花洒5,660 +
+  水电21,168 + 衣柜30,720 + 无主灯2,680 + 空调12,800；实际花费 ¥57,294 同样可逐项核对
+- **边界测试日志确认（网络超时/并发）**：跑 test_demo_login_boundary 查看实时日志——
+  超时场景服务端记录 `server_error`（请求被中断）+ 客户端 TimeoutError；并发场景 8 请求
+  全部 200、日志见 `slow_request` warning（SQLite 单连接锁等待的环境特性，生产 PG 无此问题），
+  异常处理链路（中断记录/锁等待告警/会话隔离）均生效
+
+### 增强：AR/VR/XR 全景全量全链路修复与完善（2026-08-12）
+- **AR API 拆分独立模块**：`app/api/ar_scan.py`（前缀 `/surveys/ar/*` 保持兼容，`main.py` 注册）
+  自 `surveys.py` 拆分——F1 AR 空间测量会话生命周期 / 墙面特征 / 测量校准点 / 精度报告路由独立成册；
+  surveys.py 仅保留 Survey 测量记录本体（surgical 迁移，路径与响应不变，存量客户端零影响）
+- **三端契约统一（状态枚举 / 热点坐标 / 转场类型）**：
+  - 前端状态标签对齐后端事实标准——全景 `queued/rendering/completed/failed`、场景 `active/archived`
+    （Flutter `vr_panorama_page.dart`、console `VRPanoramaPage.tsx`、webapp `VirtualTour.jsx` 三端统一映射）
+  - 热点位置统一球面坐标 `{yaw, pitch}`（与后端 `HotspotPosition` / 全景查看器对齐），
+    Flutter 表单由笛卡尔 x/y/z 改 yaw/pitch，列表按 yaw/pitch 展示（兼容读取旧 x/y/z 数据）
+  - 转场类型收敛 `fade/warp/none`：后端 Schema `Literal` 校验落地，Flutter dropdown 移除
+    dissolve/slide 等非法值（测试仅 fade/warp，零回归）
+- **webapp（C 端）补齐 AR/VR 全链路**：
+  - 新增 `components/PanoramaViewer.jsx` —— Three.js 360° 等距柱状全景查看器
+    （拖拽环视 / 滚轮 FOV 缩放 / yaw-pitch 热点 Sprite + Raycaster 点击跳转 / initialView 初始视角）
+  - 新增 `pages/VirtualTour.jsx` —— VR 全景列表（状态徽标 / 缩略图 / 未渲染占位）+ 全屏查看器模态
+  - 新增 `pages/ARScan.jsx` —— AR 量房引导页（设备能力检测 → 推荐方法 + 降级链可视化 → Web 端限制说明）
+  - `api.js` 新增 `getVRPanoramas/getVRPanorama/getVRScenes/arDeviceCapability`；
+    `App.jsx` 路由 `/virtual-tour` `/ar-scan`（React.lazy 懒加载 three.js，首屏 bundle 不膨胀）；
+    `Shell.jsx` 侧边导航 + PAGE_TITLES；`Dashboard.jsx` 快捷入口挂 VR 全景 / AR 量房
+- **Flutter 补 360° 预览**：`vr_panorama_page.dart` 详情对话框新增 `PanoramaPreview`
+  （等距柱状投影水平拖拽平移环视，移动端轻量预览）
+- **webapp 查看器低配设备性能优化**：`PanoramaViewer.jsx`——按设备能力降级
+  （`low-power` 渲染器 / 低配像素比 1 / 几何分段 48×32→32×16 / 按需渲染静止 600ms 停帧省电省 GPU）
+- **迁移指南**：`docs/reports/migration-ar-vr-contract-20260812.md`——三端契约统一 + AR 拆分
+  的迁移动作清单、新旧数据对照、回滚方案
+- **清理冗余**：Flutter 场景卡移除对不存在的 `thumbnail_url` 字段读取（VRScene 无此列）；
+  webapp 未用 import 清理
+- **依赖**：webapp 新增 `three`（按路由懒加载，首屏 bundle 不膨胀）
+- **测试**：AR/VR 后端测试 40 用例回归通过（test_ar_scan 20 + test_vr_panorama 10 + test_visual_layer 10）
+
+### 增强：本地项目库重建 3 模拟项目 + 全景全量全链路验证（2026-08-12）
+- **seed_demo_data.py 多项目化**：单项目升级为 3 个模拟项目（覆盖不同生命周期阶段）——
+  ① 云栖雅苑 · 智能整装（126㎡·昆明西山·施工中，全链路完整：预算9/施工7任务/里程碑5/预警3/质检/采购2/结算/智能家居3方案）
+  ② 滇池湖畔 · 现代简约（88㎡·昆明西山·采购阶段：预算8/施工4任务/预警1/质检1/采购2/智能家居2方案，无结算属阶段合理）
+  ③ 翠湖名邸 · 原木奶油风（110㎡·昆明五华·设计阶段：户型/预算草案/智能家居规划1方案，无施工/采购/结算）
+- **新增 `--clear-all-projects`**：清空全库所有用户的项目（含全部关联数据，破坏性操作，本地运维用）；
+  幂等注入 + `--clear` 清理演示项目逻辑保留
+- **本地执行**：清空项目库（1 项目 + 26 行关联）→ 注入 3 模拟项目（业主 13800138000）
+- **验证脚本**：新增 `scripts/verify_demo_projects.py`——演示账号登录 + 逐项目 13 个功能模块
+  端点（项目详情/户型/预算/施工/预警/里程碑/质检/采购/结算/智能家居/feed/overview/材料）校验
+  状态码与数据量，输出 Markdown 报告；适配后端限流（60/min）做 0.3s 节流；
+  无结算项目 API 404 视为合理（等价 0 行）、设备数取 `device_count` 字段
+- **验证结果**：本地全景验证 **44/44 通过**；浏览器实测 Dashboard 3 项目切换正常且各渲染
+  对应阶段数据（云栖雅苑 健康分 80 / 6 房间施工中；滇池湖畔 98 / 2 房间已完成；
+  翠湖名邸 100 / 6 房间全未开始，0 预警）
+- **测试**：`test_demo_seed.py` 适配 3 项目——幂等断言升级为 3 个项目各仅 1 个；
+  基础物料/供应商扩展到 12 材料 4 供应商（覆盖 3 项目全部引用）；6 passed（23.75s）
+
+### 增强：演示环境本地化 + 种子注入日志 + 演示登录测试（2026-08-12）
+- **seed_demo_data.py 注入日志**：全程关键节点结构化日志（`seed_demo_start / init_db_done /
+  demo_owner_found / project_created / floor_plan_created / budget_seed_start|done /
+  construction_task_created / milestone_created / progress_alert_created / quality_issue_created /
+  quality_assessment_created / procurement_order_created / order_line_created / settlement_seed_done /
+  smart_home_scheme_created / smart_device_created / seed_demo_commit_done / seed_demo_clear_done`），
+  含时间戳与关键 ID/金额，便于排查数据写入问题
+- **demo-start.sh**：本地一键演示环境顺带注入演示项目（幂等），登录即可看到完整 Dashboard
+- **本地 Dashboard 渲染验证**：启动本地后端 + Vite dev，浏览器以演示账号「业主 · 张先生」一键登录，
+  核验 Dashboard 六区块（项目概览/空间状态户型图/生命线/管家主动卡片/健康分环/资金节点）全部真实数据渲染
+- **单元测试**：新增 `tests/test_demo_seed.py` 6 用例——① 演示账号一键登录返回 PASETO Token + /me 会话
+  ② 错误密码 401 ③ 种子幂等性（二次执行跳过、项目仅 1 个）④ 种子完整性（各业务域行数/金额与常量一致）
+  ⑤ 清理（clear_demo_project 全量删除 + 二次清理幂等）⑥ 种子与首页 feed 联通（8 类卡片共 9 张）。
+  测试用最小基础数据集替代 init_db 全量目录种子（与生产二次部署行为一致），规避 ~40s/次耗时
+- **验证**：test_demo_seed 6 passed + auth/home_feed/projects 回归 56 passed；flake8/mypy 0 issues
+
 ### 修复：生产 DELETE /projects 500（FK 级联删除）+ E2E 脚本过时（2026-08-11）
 - **修复（生产 bug）DELETE /projects/:id 500**：`lifecycle_orchestration_enabled=True` 时项目创建经
   EventBus 自动建预算（`budgets.project_id` FK → projects.id，无 ON DELETE CASCADE），而
@@ -27,6 +128,43 @@
   DELETE /projects/:id -> 200/204`（修复前 500）；UAT 全链路 30/30；test_projects 28 passed；
   相关模块回归 123 passed；flake8/mypy 0 issues；部署检查清单见
   `docs/reports/delete-project-500-deploy-checklist-20260812.md`
+
+### 修复：智能体全景全量全链路记忆 + 时间/空间感知闭环（2026-08-12）
+- **诊断结论**：用户长期记忆（agent_memories）已闭环 20 端点，但自进化经验（agent_cases/agent_skills）
+  三层存在 6 个断点——主链路端点直连 `think/think_with_tools` 未传 db/user_id → 自进化注入恒 no-op
+  （读侧断）；主链路不走 harness.run → 无 Case 沉淀（写侧断）；Case/Skill 检索恒 personal scope 不感知
+  project_id（空间感知断）；Case/Skill 检索无 recency（时间感知断）；a2a harness.run 未传 db/user_id/
+  project_id（轨迹+Case 双失）；`/design/proposals`+`/revise`、`/orchestrate` 无提取无注入（端点断）
+- **读侧注入全开**：`/chat`、`/chat/stream` 及 16 个专用端点全部 think/think_with_tools 调用补传
+  `db/user_id/project_id` → `_inject_evolution_context`（Case+Skill 检索注入）真实生效
+- **写侧 Case 沉淀闭环**：BaseAgent 新增 `_maybe_persist_execution_case` 内建 hook（think/think_with_tools
+  三处 return 点），端点直连路径用最小 AgentTrace 走同一 `_maybe_extract_case` 提取；harness.run 设置
+  `agent._harness_trace` 标记避免双提取 + `extract_case_from_trace` trace_id 去重双保险
+- **空间感知**：`_inject_evolution_context`/`_maybe_extract_case` 支持 project_id → project scope
+  提取与注入（owner_id=project_id，对齐用户记忆 project scope；同一用户不同项目经验互不污染）
+- **时间感知**：`search_cases` 排序新增 `created_at desc` recency 键、`get_skill_for_injection` 新增
+  `updated_at desc`（同质量/热度时近期经验优先，陈旧高分不再永久压制新经验）
+- **端点补齐**：`/design/proposals`+`{id}/revise` 接入 `_extract_and_inject_agent_context`（提取+注入）；
+  `/orchestrate` 接入提取 + `user_context` 透传编排分解（`plan_and_delegate`/`decompose_request`/
+  `_llm_decompose` 新增参数）；a2a `harness.run` 补传 db/user_id/project_id
+- **测试闭环**：test_agent_case 新增 7 用例（project scope 提取/注入、recency 排序、内建 hook 沉淀、
+  harness 上下文跳过、trace_id 去重）+ test_agent_orchestration 新增 3 用例（orchestrate/design-proposals/
+  revise 写侧记忆可查）；相关回归 366 passed、flake8/mypy 0 issues
+- **排查日志（v2 追加）**：`_maybe_persist_execution_case` 与 `_inject_evolution_context` 加详细日志——
+  `evolution.inject.start/case_hit/case_miss/skill_hit/skill_miss/failed`（开关/空间维度 owner_id/命中数/
+  注入长度）+ `evolution.persist.start/done/skip/skip_harness/failed`（trace_id/scope/消息与回复长度/跳过原因），
+  排查时开启 DEBUG 后 grep "evolution\." 可全链路断点定位（v3 起日志级别已降为 DEBUG 防生产刷屏）
+- **mock 请求全链路验证（v2 追加）**：test_agent_chain 新增 `test_project_scope_case_persist_and_inject_chain`——
+  注册用户+创建归属项目+预置 project scope Case/Skill → POST /api/agents/kitchen 带 project_id →
+  断言 ① 注入块含【历史经验 Case】+【进化 Skill】（读侧 project scope 命中）② 新 Case 以 scope=project/
+  owner_id=project_id 沉淀（写侧内建 hook 生效）；运行实录日志见上 evolution.* 输出
+- **日志降级 DEBUG（v3 追加）**：全部 `evolution.*` 日志（inject.start/case_hit/case_miss/skill_hit/
+  skill_miss/failed + persist.start/done/skip/skip_harness/failed）由 INFO/WARNING 降为 DEBUG，
+  避免生产日志刷屏；排查时 `--log-cli-level=DEBUG` 或生产开启 debug 后 grep "evolution\." 即可
+- **flaky 自动重试脚本（v3 新增）**：`scripts/run_full_tests_with_retry.py`——全量首跑（-n auto）失败后
+  对失败用例【串行】单独重试（默认 2 次，避免 xdist worker 崩溃级联），解析 FAILED 行 + INTERNALERROR
+  crashitem；`--wait-clean` 支持先等低负载窗口（无其他 pytest 进程 + 负载<阈值）再跑，用于安排干净
+  环境全量回归；退出码 0=含重试全部通过 / 1=仍有失败（疑似真回归）
 
 ### 新增：登录页一键演示登录 + 演示项目种子数据（2026-08-11）
 - **webapp 登录页**：新增「一键体验演示」区块——业主（张先生）/设计师/管理员三个演示账号

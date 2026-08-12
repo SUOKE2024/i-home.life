@@ -267,7 +267,7 @@ async def test_plan_and_delegate_dag_failure_falls_back_to_rule(monkeypatch, db_
 
     monkeypatch.setattr(get_settings(), "agent_orchestration_pipeline_enabled", True)
 
-    async def _bad_llm_decompose(message, db=None, user_id="", project_id=""):
+    async def _bad_llm_decompose(message, db=None, user_id="", project_id="", user_context=""):
         # 构造环：A 依赖 B，B 依赖 A
         return [
             orc.AgentTask(task_id="a", agent_name="budget", description="预算", dependencies=["b"]),
@@ -345,3 +345,78 @@ async def test_orchestrate_project_not_found(client: AsyncClient):
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.10.x 全景全量全链路记忆（2026-08-12）
+# 覆盖：编排入口写侧记忆提取闭环 + design/proposals 端点记忆闭环
+# ════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_orchestrate_extracts_memory(client: AsyncClient):
+    """编排端点写侧闭环：用户消息偏好/城市 → 长期记忆可查"""
+    token = await _register(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/agents/orchestrate",
+        json={"message": "我在北京，喜欢原木风，帮我算120平装修预算"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    mem = await client.get("/api/agents/memory", headers=headers)
+    assert mem.status_code == 200
+    items = mem.json()["items"]
+    values = [m.get("value") for m in items]
+    assert any("北京" in v for v in values), f"应提取城市记忆，实际: {values}"
+
+
+@pytest.mark.asyncio
+async def test_design_proposals_endpoint_extracts_memory(client: AsyncClient, monkeypatch):
+    """design/proposals 写侧闭环：需求偏好 → 长期记忆可查（不再断裂）"""
+    monkeypatch.setattr(get_settings(), "design_proposal_llm_enabled", False)
+    token = await _register(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/agents/design/proposals",
+        json={"requirement": "我喜欢极简风，帮我设计一个厨房"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["source"] == "fallback"
+
+    mem = await client.get("/api/agents/memory", headers=headers)
+    assert mem.status_code == 200
+    items = mem.json()["items"]
+    values = [m.get("value") for m in items]
+    assert any("极简风" in v for v in values), f"应提取偏好记忆，实际: {values}"
+
+
+@pytest.mark.asyncio
+async def test_design_proposals_revise_endpoint_extracts_memory(client: AsyncClient, monkeypatch):
+    """design/proposals/{id}/revise 写侧闭环：修订指令偏好 → 长期记忆可查"""
+    monkeypatch.setattr(get_settings(), "design_proposal_llm_enabled", False)
+    token = await _register(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 先生成方案（fallback 单方案），再修订
+    gen = await client.post(
+        "/api/agents/design/proposals",
+        json={"requirement": "设计厨房"},
+        headers=headers,
+    )
+    assert gen.status_code == 200
+    proposal_id = gen.json()["proposals"][0]["proposal_id"]
+
+    rev = await client.post(
+        f"/api/agents/design/proposals/{proposal_id}/revise",
+        json={"change": "我喜欢白色的台面"},
+        headers=headers,
+    )
+    assert rev.status_code == 200
+
+    mem = await client.get("/api/agents/memory", headers=headers)
+    assert mem.status_code == 200
+    values = [m.get("value") for m in mem.json()["items"]]
+    assert any("白色" in v for v in values), f"应提取修订偏好记忆，实际: {values}"

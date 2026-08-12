@@ -301,7 +301,7 @@ class TestLLMFallback:
         assert "doubao" in DEFAULT_FALLBACK_CHAIN
 
     def test_chat_fallback_on_no_key(self):
-        """无 API Key 时返回 mock 响应（不触发 fallback）"""
+        """无 API Key 时抛 ConnectionError 触发 fallback（v1.13.2）"""
         from app.agents.base import BaseAgent
 
         class TestAgent(BaseAgent):
@@ -310,12 +310,30 @@ class TestLLMFallback:
             provider = "deepseek"
 
         agent = TestAgent()
-        # 无 API key 时返回 mock，不抛异常
+        # v1.13.2 优化：单供应商无 key 不再返回 mock（会中断降级链），
+        # 而是抛 ConnectionError，由 _chat 循环继续 fallback 到下一供应商。
+        import asyncio
+        with pytest.raises(ConnectionError):
+            asyncio.get_event_loop().run_until_complete(
+                agent._chat_single_provider("deepseek", [{"role": "user", "content": "hi"}])
+            )
+
+    def test_chat_all_no_key_returns_mock(self):
+        """整条 fallback 链全部无 API Key 时，_chat 兜底返回 mock 而非异常"""
+        from app.agents.base import BaseAgent
+
+        class TestAgent(BaseAgent):
+            agent_name = "test"
+            system_prompt = "test"
+            provider = "deepseek"
+
+        agent = TestAgent()
         import asyncio
         result = asyncio.get_event_loop().run_until_complete(
-            agent._chat_single_provider("deepseek", [{"role": "user", "content": "hi"}])
+            agent._chat([{"role": "user", "content": "hi"}])
         )
-        assert "[mock]" in result or isinstance(result, str)
+        assert isinstance(result, str)
+        assert "[mock]" in result
 
 
 # ════════════════════════════════════════════════════════════════

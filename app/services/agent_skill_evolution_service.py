@@ -447,7 +447,8 @@ async def get_skill_for_injection(
                 AgentSkill.deleted_at.is_(None),
             )
         )
-        .order_by(AgentSkill.utility_score.desc())
+        # v1.10.x 时间感知：utility 相同时近期更新的 Skill 优先（recency 排序键）
+        .order_by(AgentSkill.utility_score.desc(), AgentSkill.updated_at.desc())
         .limit(1)
     )
     result = await db.execute(stmt)

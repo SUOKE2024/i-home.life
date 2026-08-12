@@ -668,7 +668,8 @@ async def chat_with_agent(  # noqa: C901
                 ):
                     # 产品管理操作
                     reply = await cp_agent.think(
-                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
                     )
                 else:
                     # 内容发布引导
@@ -680,7 +681,10 @@ async def chat_with_agent(  # noqa: C901
         if intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                raw_reply = await des_agent.think(data.message, user_ctx)
+                raw_reply = await des_agent.think(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 # DesignerAgent 的 system_prompt 要求 LLM 输出 JSON，
                 # 提取其中的 reply 字段作为用户友好回复
                 reply = _extract_reply_from_llm_json(raw_reply)
@@ -704,7 +708,10 @@ async def chat_with_agent(  # noqa: C901
             bud_agent = BudgetAgent()
             try:
                 # FunctionCall: LLM 可调用 get_budget 工具查询结构化预算数据
-                result = await bud_agent.think_with_tools(data.message, user_ctx)
+                result = await bud_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = result["final_reply"]
                 return await _finalize("budget", reply, suggestions_map["budget"])
             finally:
@@ -714,7 +721,10 @@ async def chat_with_agent(  # noqa: C901
             proc_agent = ProcurementAgent()
             try:
                 # FunctionCall: LLM 可调用 search_materials 工具搜索物料
-                result = await proc_agent.think_with_tools(data.message, user_ctx)
+                result = await proc_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = result["final_reply"]
                 return await _finalize("procurement", reply, suggestions_map["procurement"])
             finally:
@@ -724,7 +734,10 @@ async def chat_with_agent(  # noqa: C901
             cons_agent = ConstructionAgent()
             try:
                 # FunctionCall: LLM 可调用 get_construction_progress 查询施工进度
-                result = await cons_agent.think_with_tools(data.message, user_ctx)
+                result = await cons_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = result["final_reply"]
                 return await _finalize("construction", reply, suggestions_map["construction"])
             finally:
@@ -733,7 +746,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("settlement",):
             sett_agent = SettlementAgent()
             try:
-                reply = await sett_agent.think(data.message, user_ctx)
+                reply = await sett_agent.think(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("settlement", reply, ["查看结算明细", "确认结算", "导出报表"])
             finally:
                 await sett_agent.close()
@@ -742,7 +758,10 @@ async def chat_with_agent(  # noqa: C901
             qa_agent = QAInspectorAgent()
             try:
                 # FunctionCall: LLM 可调用 run_qa_inspection 执行质量检测
-                result = await qa_agent.think_with_tools(data.message, user_ctx)
+                result = await qa_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = result["final_reply"]
                 return await _finalize("qa_inspector", reply, suggestions_map["qa_inspector"])
             finally:
@@ -759,7 +778,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
             admin_agent = AdminAgent()
             try:
-                reply = await admin_agent.think(data.message, user_ctx)
+                reply = await admin_agent.think(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 suggestions = ["查看用户列表", "修改用户角色", "平台统计", "审核认证"]
                 return await _finalize("admin", reply, suggestions)
             finally:
@@ -929,7 +951,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("takeoff",):
             takeoff_agent = TakeoffAgent()
             try:
-                reply = await takeoff_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await takeoff_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("takeoff", reply, suggestions_map["takeoff"])
             finally:
                 await takeoff_agent.close()
@@ -954,7 +979,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("kitchen",):
             kitchen_agent = KitchenAgent()
             try:
-                reply = await kitchen_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await kitchen_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("kitchen", reply, suggestions_map["kitchen"])
             finally:
                 await kitchen_agent.close()
@@ -962,7 +990,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("bathroom",):
             bathroom_agent = BathroomAgent()
             try:
-                reply = await bathroom_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await bathroom_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("bathroom", reply, suggestions_map["bathroom"])
             finally:
                 await bathroom_agent.close()
@@ -970,7 +1001,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("mep",):
             mep_agent = MepAgent()
             try:
-                reply = await mep_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await mep_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("mep", reply, suggestions_map["mep"])
             finally:
                 await mep_agent.close()
@@ -978,7 +1012,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("appliance",):
             appliance_agent = ApplianceAgent()
             try:
-                reply = await appliance_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await appliance_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("appliance", reply, suggestions_map["appliance"])
             finally:
                 await appliance_agent.close()
@@ -986,7 +1023,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("furniture",):
             furniture_agent = FurnitureAgent()
             try:
-                reply = await furniture_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await furniture_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("furniture", reply, suggestions_map["furniture"])
             finally:
                 await furniture_agent.close()
@@ -994,7 +1034,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("door_window",):
             door_window_agent = DoorWindowAgent()
             try:
-                reply = await door_window_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await door_window_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("door_window", reply, suggestions_map["door_window"])
             finally:
                 await door_window_agent.close()
@@ -1002,7 +1045,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("files",):
             files_agent = FilesAgent()
             try:
-                reply = await files_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await files_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("files", reply, suggestions_map["files"])
             finally:
                 await files_agent.close()
@@ -1010,7 +1056,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("products",):
             products_agent = ProductsAgent()
             try:
-                reply = await products_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await products_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("products", reply, suggestions_map["products"])
             finally:
                 await products_agent.close()
@@ -1018,7 +1067,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("identity",):
             identity_agent = IdentityAgent()
             try:
-                reply = await identity_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await identity_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("identity", reply, suggestions_map["identity"])
             finally:
                 await identity_agent.close()
@@ -1026,7 +1078,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("notifications",):
             notifications_agent = NotificationsAgent()
             try:
-                reply = await notifications_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await notifications_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("notifications", reply, suggestions_map["notifications"])
             finally:
                 await notifications_agent.close()
@@ -1034,7 +1089,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("ifc_export",):
             ifc_export_agent = IfcExportAgent()
             try:
-                reply = await ifc_export_agent.think(data.message, f"用户: {current_user.name}")
+                reply = await ifc_export_agent.think(
+                    data.message, f"用户: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("ifc_export", reply, suggestions_map["ifc_export"])
             finally:
                 await ifc_export_agent.close()
@@ -1182,7 +1240,8 @@ async def chat_stream(  # noqa: C901
                     kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
                 ):
                     reply = await cp_agent.think(
-                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx
+                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
                     )
                 else:
                     reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
@@ -1191,7 +1250,10 @@ async def chat_stream(  # noqa: C901
         elif intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                raw_reply = await des_agent.think(data.message, user_ctx)
+                raw_reply = await des_agent.think(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
                 reply = _extract_reply_from_llm_json(raw_reply)
                 if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
@@ -1208,21 +1270,30 @@ async def chat_stream(  # noqa: C901
             # 与 /chat 对齐：FunctionCall 工具调用（get_budget）后流式推送最终回复
             bud_agent = BudgetAgent()
             try:
-                _tool_result = await bud_agent.think_with_tools(data.message, user_ctx)
+                _tool_result = await bud_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = _tool_result["final_reply"]
             finally:
                 await bud_agent.close()
         elif intent in ("procurement",):
             proc_agent = ProcurementAgent()
             try:
-                _tool_result = await proc_agent.think_with_tools(data.message, user_ctx)
+                _tool_result = await proc_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = _tool_result["final_reply"]
             finally:
                 await proc_agent.close()
         elif intent in ("construction",):
             cons_agent = ConstructionAgent()
             try:
-                _tool_result = await cons_agent.think_with_tools(data.message, user_ctx)
+                _tool_result = await cons_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = _tool_result["final_reply"]
             finally:
                 await cons_agent.close()
@@ -1233,7 +1304,10 @@ async def chat_stream(  # noqa: C901
         elif intent in ("qa_inspector",):
             qa_agent = QAInspectorAgent()
             try:
-                _tool_result = await qa_agent.think_with_tools(data.message, user_ctx)
+                _tool_result = await qa_agent.think_with_tools(
+                    data.message, user_ctx,
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 reply = _tool_result["final_reply"]
             finally:
                 await qa_agent.close()
@@ -1618,6 +1692,7 @@ class DesignProposalReviseRequest(BaseModel):
 async def generate_design_proposals(
     data: DesignProposalRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """生成 2-3 套差异化设计方案（讨论式交互入口）
 
@@ -1626,8 +1701,13 @@ async def generate_design_proposals(
     """
     from app.services.design_proposal_service import generate_proposals
 
+    # v1.10.x 全链路记忆：提取用户需求偏好入长期记忆 + 注入时间/空间/记忆上下文
+    user_ctx = await _extract_and_inject_agent_context(
+        db, current_user, data.requirement, "",
+    )
+    requirement = f"{user_ctx}\n{data.requirement}" if user_ctx else data.requirement
     session_id = data.session_id or f"proposal_{current_user.id}"
-    result = await generate_proposals(data.requirement, session_id)
+    result = await generate_proposals(requirement, session_id)
     return {
         "proposals": [p.model_dump() for p in result.proposals],
         "session_id": result.session_id,
@@ -1640,6 +1720,7 @@ async def revise_design_proposal(
     proposal_id: str,
     data: DesignProposalReviseRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """修订指定设计方案（讨论式交互调整）
 
@@ -1648,8 +1729,13 @@ async def revise_design_proposal(
     """
     from app.services.design_proposal_service import revise_proposal
 
+    # v1.10.x 全链路记忆：提取用户调整指令偏好入长期记忆 + 注入时间/空间/记忆上下文
+    user_ctx = await _extract_and_inject_agent_context(
+        db, current_user, data.change, "",
+    )
+    change = f"{user_ctx}\n{data.change}" if user_ctx else data.change
     session_id = data.session_id or f"proposal_{current_user.id}"
-    revised = await revise_proposal(proposal_id, data.change, session_id)
+    revised = await revise_proposal(proposal_id, change, session_id)
     if revised is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1677,7 +1763,10 @@ async def analyze_budget(
             project_id=data.project_id, location=data.location,
         )
         agent_logger.info("agent_budget_ctx_ready", ctx_len=len(user_ctx))
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         agent_logger.info("agent_budget_reply", reply_len=len(reply), reply_preview=reply[:80])
         return BudgetAnalysisResponse(
             summary=reply,
@@ -1701,7 +1790,10 @@ async def analyze_procurement(
             db, current_user, data.message, f"采购经理: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return ProcurementAnalysisResponse(
             purchase_plan=reply,
             supplier_recommendation=reply,
@@ -1724,7 +1816,10 @@ async def plan_construction(
             db, current_user, data.message, f"工长: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return ConstructionPlanResponse(
             phases=reply,
             schedule=reply,
@@ -1843,7 +1938,10 @@ async def kitchen_design_agent(
             project_id=data.project_id, location=data.location,
         )
         agent_logger.info("agent_kitchen_ctx_ready", ctx_len=len(user_ctx))
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         agent_logger.info("agent_kitchen_reply", reply_len=len(reply), reply_preview=reply[:80])
         return SimpleAgentResponse(
             agent_type="kitchen",
@@ -1867,7 +1965,10 @@ async def bathroom_design_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="bathroom",
             reply=reply,
@@ -1890,7 +1991,10 @@ async def mep_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="mep",
             reply=reply,
@@ -1913,7 +2017,10 @@ async def appliance_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="appliance",
             reply=reply,
@@ -1936,7 +2043,10 @@ async def furniture_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="furniture",
             reply=reply,
@@ -1959,7 +2069,10 @@ async def door_window_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="door-window",
             reply=reply,
@@ -1982,7 +2095,10 @@ async def files_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="files",
             reply=reply,
@@ -2005,7 +2121,10 @@ async def products_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="products",
             reply=reply,
@@ -2033,7 +2152,10 @@ async def identity_agent(
             db, current_user, data.message, f"管理员: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="identity",
             reply=reply,
@@ -2056,7 +2178,10 @@ async def notifications_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="notifications",
             reply=reply,
@@ -2079,7 +2204,10 @@ async def takeoff_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="takeoff",
             reply=reply,
@@ -2102,7 +2230,10 @@ async def ifc_export_agent(
             db, current_user, data.message, f"用户: {current_user.name}",
             project_id=data.project_id, location=data.location,
         )
-        reply = await agent.think(data.message, user_ctx)
+        reply = await agent.think(
+            data.message, user_ctx,
+            db=db, user_id=current_user.id, project_id=data.project_id,
+        )
         return SimpleAgentResponse(
             agent_type="ifc-export",
             reply=reply,
@@ -2363,6 +2494,13 @@ async def orchestrate_agent(
         current_user.id, data.message[:120], data.project_id or "", data.session_id or "",
     )
 
+    # v1.10.x 全链路记忆：提取用户需求偏好入长期记忆 + 构建时间/空间/记忆上下文
+    # （project_id 非空时按 project scope 提取，build_agent_context 注入 project 记忆）
+    user_ctx = await _extract_and_inject_agent_context(
+        db, current_user, data.message, "",
+        project_id=data.project_id,
+    )
+
     # 会话持久化（best-effort，失败不阻断编排）
     session_id = None
     try:
@@ -2385,6 +2523,7 @@ async def orchestrate_agent(
         result = await orch.plan_and_delegate(
             data.message, db=db, user_id=current_user.id,
             project_id=data.project_id or "",
+            user_context=user_ctx,
         )
     except Exception as e:
         from app.metrics import agent_orchestration_total, agent_orchestration_duration_seconds

@@ -878,3 +878,228 @@ async def test_diagnose_credit_before_rate_max(db_session, monkeypatch):
         before_success_rate=1.0, after_success_rate=1.0, sample_size=20,
     )
     assert result["z_score"] == 0.0
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.10.x 全景全量全链路记忆 + 时间/空间感知（2026-08-12）
+# 覆盖：项目空间感知（Case/Skill 提取与注入）+ 时间感知（recency 排序）
+#      + BaseAgent 内建 Case 沉淀 hook + trace_id 防双提取
+# ════════════════════════════════════════════════════════════════
+
+
+def _mock_case_json(task_intent: str = "设计客厅方案") -> str:
+    return json.dumps({
+        "task_intent": task_intent,
+        "approach": [{"step": 1, "attempted": "获取材料清单", "tool": "get_material_list",
+                      "result": "成功", "revised": False}],
+        "outcome": "success",
+        "quality_score": 0.8,
+    })
+
+
+@pytest.mark.asyncio
+async def test_search_cases_recency_newer_first(db_session, monkeypatch):
+    """时间感知：quality/热度相同时，近期 Case 优先（recency 排序键）"""
+    from datetime import datetime, timezone
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    old = AgentCase(
+        id="case_old", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅方案", approach="[]", outcome="success", quality_score=0.8,
+        created_by="u1", created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    new = AgentCase(
+        id="case_new", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅方案", approach="[]", outcome="success", quality_score=0.8,
+        created_by="u1", created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+    )
+    db_session.add_all([old, new])
+    await db_session.flush()
+
+    results = await search_cases(
+        db_session, task_intent="设计客厅方案", owner_id="u1",
+    )
+    assert [c.id for c in results] == ["case_new", "case_old"]
+
+
+@pytest.mark.asyncio
+async def test_harness_extract_case_project_scope(db_session, monkeypatch):
+    """空间感知（写侧）：项目上下文执行沉淀为 project scope Case"""
+    from app.agents.harness import AgentRuntime, AgentTrace, AgentRunStatus
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+
+    async def fake_chat(self, messages, **kwargs):
+        return _mock_case_json()
+
+    with patch("app.agents.base.BaseAgent._chat", fake_chat):
+        with patch("app.agents.base.BaseAgent.close", new_callable=AsyncMock):
+            runtime = AgentRuntime()
+            trace = AgentTrace(
+                agent_name="designer", user_message="帮我设计客厅方案",
+                user_message_truncated="帮我设计客厅方案",
+                response="好的，已生成方案",
+                response_truncated="好的，已生成方案",
+            )
+            trace.finish(AgentRunStatus.SUCCESS)
+            await runtime._maybe_extract_case(
+                trace, {"db": db_session, "user_id": "u1", "project_id": "p1"},
+            )
+
+    from sqlalchemy import select
+    rows = (await db_session.execute(select(AgentCase))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].scope == "project"
+    assert rows[0].owner_id == "p1"
+    assert rows[0].created_by == "u1"
+
+
+@pytest.mark.asyncio
+async def test_baseagent_think_persists_execution_case(db_session, monkeypatch):
+    """全链路写侧：端点直连 think（db+user_id）→ Case 沉淀（内建 hook）"""
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+    # 屏蔽无关链路，聚焦 Case 沉淀 hook
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    async def fake_chat(self, messages, **kwargs):
+        return _mock_case_json()
+
+    from app.agents.base import BaseAgent
+    with patch("app.agents.base.BaseAgent._chat", fake_chat):
+        with patch("app.agents.base.BaseAgent.close", new_callable=AsyncMock):
+            agent = BaseAgent()
+            agent.agent_name = "designer"
+            agent.system_prompt = "你是设计师"
+            reply = await agent.think(
+                "帮我设计客厅方案", db=db_session, user_id="u1",
+            )
+            await agent.close()
+
+    assert reply == _mock_case_json()
+    from sqlalchemy import select
+    rows = (await db_session.execute(select(AgentCase))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].scope == "personal"
+    assert rows[0].owner_id == "u1"
+    assert rows[0].agent_name == "designer"
+
+
+@pytest.mark.asyncio
+async def test_baseagent_think_skips_case_in_harness_context(db_session, monkeypatch):
+    """harness.run 上下文（_harness_trace 标记）→ 内建 hook 跳过，避免双提取"""
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+
+    from app.agents.harness import AgentRuntime
+    fake_harness = AgentRuntime()
+    mock_extract = AsyncMock()
+    fake_harness._maybe_extract_case = mock_extract
+    monkeypatch.setattr("app.agents.harness.get_harness", lambda: fake_harness)
+
+    async def fake_chat(self, messages, **kwargs):
+        return "mock reply"
+
+    from app.agents.base import BaseAgent
+    with patch("app.agents.base.BaseAgent._chat", fake_chat):
+        agent = BaseAgent()
+        agent.agent_name = "designer"
+        agent._harness_trace = "T1"  # 模拟 harness.run 已标记
+        reply = await agent.think(
+            "帮我设计客厅方案", db=db_session, user_id="u1",
+        )
+        await agent.close()
+
+    assert reply == "mock reply"
+    mock_extract.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_extract_case_trace_id_dedup(db_session, monkeypatch):
+    """防双提取：同一 trace_id 重复提交 → 第二次跳过"""
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+
+    async def fake_chat(self, messages, **kwargs):
+        return _mock_case_json()
+
+    with patch("app.agents.base.BaseAgent._chat", fake_chat):
+        with patch("app.agents.base.BaseAgent.close", new_callable=AsyncMock):
+            trace = _make_trace_dict()  # trace_id="test_trace_001"
+            first = await extract_case_from_trace(
+                trace, db_session, owner_id="u1", created_by="u1",
+            )
+            second = await extract_case_from_trace(
+                trace, db_session, owner_id="u1", created_by="u1",
+            )
+
+    assert first is not None
+    assert second is None
+
+
+@pytest.mark.asyncio
+async def test_inject_evolution_context_project_scope(db_session, monkeypatch):
+    """空间感知（读侧）：project_id 非空 → 按 project scope 检索 Case/Skill"""
+    from app.agents.base import BaseAgent
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+
+    captured: dict = {}
+
+    async def fake_search(db, *, task_intent, owner_id, scope, **kwargs):
+        captured["case_owner"] = owner_id
+        captured["case_scope"] = scope
+        return []
+
+    async def fake_skill(db, *, agent_name, owner_id, scope, **kwargs):
+        captured["skill_owner"] = owner_id
+        captured["skill_scope"] = scope
+        return None
+
+    monkeypatch.setattr("app.services.agent_case_service.search_cases", fake_search)
+    monkeypatch.setattr(
+        "app.services.agent_skill_evolution_service.get_skill_for_injection", fake_skill,
+    )
+
+    agent = BaseAgent()
+    agent.agent_name = "designer"
+    messages: list = []
+    await agent._inject_evolution_context(
+        messages, "设计客厅方案", "u1", db_session, project_id="p1",
+    )
+    assert captured == {"case_owner": "p1", "case_scope": "project",
+                        "skill_owner": "p1", "skill_scope": "project"}
+
+    # 无 project_id → personal scope（owner_id=user_id）
+    captured.clear()
+    await agent._inject_evolution_context(
+        messages, "设计客厅方案", "u1", db_session,
+    )
+    assert captured == {"case_owner": "u1", "case_scope": "personal",
+                        "skill_owner": "u1", "skill_scope": "personal"}
+
+
+@pytest.mark.asyncio
+async def test_get_skill_for_injection_recency(db_session, monkeypatch):
+    """时间感知：utility 相同时，近期更新的 Skill 优先"""
+    from datetime import datetime, timezone
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    old = AgentSkill(
+        id="sk_old", name="old", owner_scope="personal", owner_id="u1",
+        agent_name="designer", system_prompt="p", status=STATUS_ACTIVE,
+        created_by="u1", utility_score=0.8,
+        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    new = AgentSkill(
+        id="sk_new", name="new", owner_scope="personal", owner_id="u1",
+        agent_name="designer", system_prompt="p", status=STATUS_ACTIVE,
+        created_by="u1", utility_score=0.8,
+        updated_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+    )
+    db_session.add_all([old, new])
+    await db_session.flush()
+
+    result = await get_skill_for_injection(
+        db_session, agent_name="designer", owner_id="u1",
+    )
+    assert result is not None
+    assert result.id == "sk_new"

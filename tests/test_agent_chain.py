@@ -60,7 +60,7 @@ async def test_kitchen_endpoint_extracts_and_injects_memory(
 
     captured: dict = {}
 
-    async def _spy_think(self, user_message, context="", db=None, project_id=""):
+    async def _spy_think(self, user_message, context="", db=None, project_id="", user_id=""):
         captured["context"] = context
         return "[mock] kitchen 响应"
 
@@ -236,7 +236,7 @@ async def test_specialized_endpoint_injects_lbs_poi(
 
     captured: dict = {}
 
-    async def _spy_think(self, user_message, context="", db=None, project_id=""):
+    async def _spy_think(self, user_message, context="", db=None, project_id="", user_id=""):
         captured["context"] = context
         return "[mock] kitchen 响应"
 
@@ -289,7 +289,7 @@ async def test_lbs_no_key_honest_degrade(
 
     captured: dict = {}
 
-    async def _spy_think(self, user_message, context="", db=None, project_id=""):
+    async def _spy_think(self, user_message, context="", db=None, project_id="", user_id=""):
         captured["context"] = context
         return "[mock] kitchen 响应"
 
@@ -313,3 +313,101 @@ async def test_lbs_no_key_honest_degrade(
     # 对「附近哪里」句式的位置类提取属另一机制，与本用例无关
     loc = [i for i in items if i["category"] == "location" and i["source"] == "lbs_geo"]
     assert not loc, f"无 key 不应落库 lbs_geo 城市记忆: {items}"
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.13.2 全链路验证：带 project_id 的 mock 请求（2026-08-12）
+# 验证新加的「Case 沉淀（写侧）+ 自进化注入（读侧）」在项目空间维度真实生效：
+#   ① 读侧：_inject_evolution_context 按 project scope 命中预置 Case+Skill 并注入
+#   ② 写侧：think 内建 hook（_maybe_persist_execution_case）沉淀 project scope 新 Case
+#   ③ 日志：evolution.inject.* / evolution.persist.*（--log-cli-level=INFO 可见）
+# ════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_project_scope_case_persist_and_inject_chain(
+    client: AsyncClient, db_session, monkeypatch,
+):
+    """带 project_id 的 mock 请求 → Case 沉淀 + 注入（项目空间维度）双闭环"""
+    import json
+    import uuid
+    from unittest.mock import patch
+
+    from sqlalchemy import select
+
+    from app.models.agent_case import AgentCase
+    from app.models.agent_skill import AgentSkill, STATUS_ACTIVE
+    from app.models.project import Project
+    from app.models.user import User
+
+    # 屏蔽无关链路，聚焦 Case 沉淀 + 注入
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_learning_enabled", False)
+
+    # 注册独立用户（唯一手机号，避免并发污染）并创建归属项目
+    phone = f"137{str(uuid.uuid4().int)[:8]}"
+    token = await _register(client, phone)
+    user = (await db_session.execute(
+        select(User).where(User.phone == phone)
+    )).scalars().first()
+    assert user is not None
+    project = Project(name="记忆验证项目", owner_id=user.id, project_type="full_renovation")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    project_id = project.id
+
+    # 预置 project scope 的 Case + Skill（读侧注入的检索目标）
+    seed_case = AgentCase(
+        id="seed_case_p", scope="project", owner_id=project_id, agent_name="kitchen",
+        task_intent="帮我设计厨房布局方案", approach="[]",
+        outcome="success", quality_score=0.9, created_by=user.id,
+    )
+    seed_skill = AgentSkill(
+        id="seed_skill_p", name="厨房动线技能", owner_scope="project", owner_id=project_id,
+        agent_name="kitchen", system_prompt="优先推荐 U 型厨房布局", status=STATUS_ACTIVE,
+        created_by=user.id, utility_score=0.9,
+    )
+    db_session.add_all([seed_case, seed_skill])
+    await db_session.commit()
+
+    # _chat spy：捕获注入到 messages 的上下文 + 返回合法 Case JSON 供写侧提取
+    captured_msgs: list[dict] = []
+
+    async def fake_chat(self, messages, **kwargs):
+        captured_msgs.extend(messages)
+        return json.dumps({
+            "task_intent": "设计厨房布局方案",
+            "approach": [{"step": 1, "attempted": "输出布局", "tool": "", "result": "OK", "revised": False}],
+            "outcome": "success",
+            "quality_score": 0.85,
+        })
+
+    headers = {"Authorization": f"Bearer {token}"}
+    with patch("app.agents.base.BaseAgent._chat", fake_chat):
+        resp = await client.post(
+            "/api/agents/kitchen",
+            headers=headers,
+            json={"message": "帮我设计厨房布局方案", "project_id": project_id},
+        )
+    assert resp.status_code == 200, resp.text
+
+    # ── ① 读侧验证：注入块含 project scope 的 [历史经验 Case + [进化 Skill ──
+    joined = "\n".join(
+        m.get("content", "") for m in captured_msgs if m.get("role") == "system"
+    )
+    assert "[历史经验 Case" in joined, f"未注入 Case 上下文: {joined!r}"
+    assert "帮我设计厨房布局方案" in joined, f"注入的 Case 非 project scope 命中: {joined!r}"
+    assert "[进化 Skill: 厨房动线技能]" in joined, f"未注入 Skill: {joined!r}"
+
+    # ── ② 写侧验证：think 内建 hook 沉淀了 project scope 新 Case ──
+    rows = (await db_session.execute(select(AgentCase))).scalars().all()
+    new_cases = [c for c in rows if c.id != "seed_case_p"]
+    assert len(new_cases) == 1, f"应沉淀 1 条新 Case，实际 {len(new_cases)}"
+    assert new_cases[0].scope == "project", f"新 Case scope 应为 project: {new_cases[0].scope}"
+    assert new_cases[0].owner_id == project_id, \
+        f"新 Case owner_id 应为 project_id: {new_cases[0].owner_id}"
+    assert new_cases[0].task_intent == "设计厨房布局方案"

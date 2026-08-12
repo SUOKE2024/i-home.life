@@ -295,11 +295,15 @@ class OrchestratorAgent(BaseAgent):
 
     async def plan_and_delegate(
         self, message: str, db=None, user_id: str = "", project_id: str = "",
+        user_context: str = "",
     ) -> dict:
         """复杂需求 → 任务分解 → 子 Agent 派发 → 结构化聚合（受 flag 门控）。
 
         链路：LLM 分解（规则兜底）→ DAG 循环检测 → harness 拓扑执行
         （每子任务自动落 agent_traces，workflow_id 贯穿）→ 聚合输出。
+
+        v1.10.x 全链路记忆：user_context（时间/空间感知 + 长期记忆注入块）
+        透传给任务分解，使编排器感知用户偏好/当前时间位置。
 
         诚实降级：
         - flag 关闭 → 仍按规则单任务执行（与原 classify 路由一致），
@@ -320,7 +324,10 @@ class OrchestratorAgent(BaseAgent):
             "orchestrator.plan_start: workflow_id=%s pipeline_enabled=%s message=%r user_id=%s project_id=%s",
             workflow_id, pipeline_enabled, message[:120], user_id or "", project_id or "",
         )
-        tasks = await decompose_request(message, db=db, user_id=user_id, project_id=project_id)
+        tasks = await decompose_request(
+            message, db=db, user_id=user_id, project_id=project_id,
+            user_context=user_context,
+        )
         logger.info(
             "orchestrator.decomposed: workflow_id=%s task_count=%d tasks=%s",
             workflow_id, len(tasks),

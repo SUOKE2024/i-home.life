@@ -185,6 +185,7 @@ class BaseAgent:
                 cache_key = None
 
         last_error = None
+        no_key_providers: list[str] = []
         for provider in chain:
             _provider_started = time.perf_counter()
             try:
@@ -200,6 +201,33 @@ class BaseAgent:
                     except Exception as e:
                         logger.debug("%s._chat: 缓存写入失败（忽略）: %s", self.agent_name, e)
                 return result
+            except ConnectionError as e:
+                # v1.13.2: 未配置 API key 的供应商抛 ConnectionError 跳过，
+                # 继续 fallback 到链内下一个供应商（不再中断降级链返回 mock）。
+                if "API key unset" in str(e):
+                    self._record_tier_usage(self.cost_tier, self.agent_name, provider, "no_key")
+                    no_key_providers.append(provider)
+                    if provider != chain[-1]:
+                        logger.warning(
+                            "%s._chat: 供应商 %s 未配置 API key，跳过降级 (error=%s)",
+                            self.agent_name, provider, e,
+                        )
+                    continue
+                last_error = e
+                _record_llm_span(
+                    self.agent_name, provider, _provider_started, "error",
+                    fallback=provider != chain[-1],
+                )
+                if provider != chain[-1]:
+                    logger.warning(
+                        "%s._chat: 供应商 %s 失败，降级到下一个 (error=%s)",
+                        self.agent_name, provider, e,
+                    )
+                else:
+                    logger.error(
+                        "%s._chat: 全部供应商失败 (last=%s, error=%s)",
+                        self.agent_name, provider, e,
+                    )
             except Exception as e:
                 last_error = e
                 _record_llm_span(
@@ -216,6 +244,17 @@ class BaseAgent:
                         "%s._chat: 全部供应商失败 (last=%s, error=%s)",
                         self.agent_name, provider, e,
                     )
+
+        # 整条链全部未配置 API key → 兜底返回 mock（诚实降级标注，不抛异常）
+        if no_key_providers and len(no_key_providers) == len(chain) and last_error is None:
+            logger.warning(
+                "%s._chat: 全部供应商未配置 API key，返回 mock 兜底 (providers=%s)",
+                self.agent_name, no_key_providers,
+            )
+            mock_text = f"[mock] {self.agent_name} 响应：API key 未配置"
+            if with_tools:
+                return {"content": mock_text, "tool_calls": []}
+            return mock_text
         raise last_error
 
     def _build_llm_cache_key(self, messages: list[dict]) -> str:
@@ -273,25 +312,14 @@ class BaseAgent:
         """单供应商 LLM 调用（_chat 的原始实现，v1.1.28 拆分以支持 fallback）。"""
         cfg = PROVIDER_REGISTRY[provider]
 
-        # 无 API Key 时返回 mock 响应，避免空 Authorization header 或 401 错误
+        # 无 API Key 时抛 ConnectionError，由 _chat 继续 fallback 到链内下一个供应商
+        # v1.13.2 优化：此前非 local 供应商直接返回 mock 会中断降级链（economy 档
+        # qwen 无 key 时返回假响应而非降级到 deepseek）。现统一为抛错跳过，
+        # 仅当整条链全部无 key 时由 _chat 兜底返回 mock（诚实降级标注）。
         if not cfg["api_key"]():
-            if provider == "local":
-                # v1.4.x: local 端点未配置（未设 LOCAL_LLM_API_KEY）视为不可用，
-                # 抛出后由 _chat 继续 fallback 到链内下一个供应商，
-                # 避免边缘盒子缺席时静默返回 mock。
-                raise ConnectionError("local LLM endpoint not configured (LOCAL_LLM_API_KEY unset)")
-            logger.warning(
-                "%s._chat: API key 为空，返回 mock 响应 (provider=%s)",
-                self.agent_name, provider,
+            raise ConnectionError(
+                f"{provider} LLM endpoint not configured (API key unset)"
             )
-            self._record_tier_usage(self.cost_tier, self.agent_name, provider, "mock")
-            mock_text = f"[mock] {self.agent_name} 响应：API key 未配置"
-            # v1.12.x 修复：mock 响应需与 with_tools 契约对齐——工具模式下返回
-            # 结构化 dict（content + 空 tool_calls），否则 think_with_tools 对
-            # str 调用 .get() 触发 AttributeError（未配置 API key 时崩溃）。
-            if with_tools:
-                return {"content": mock_text, "tool_calls": []}
-            return mock_text
 
         client = await self._get_client(provider)
 
@@ -378,33 +406,140 @@ class BaseAgent:
 
     async def _inject_evolution_context(
         self, messages: list[dict], user_message: str, user_id: str, db,
+        project_id: str = "",
     ) -> None:
         """v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）。
 
         检索同类 Case + Skill 注入上下文，flag 关闭则降级为无注入。
+        v1.10.x 空间感知：project_id 非空时按 project scope 检索（owner_id=project_id），
+        项目维度经验只注入该项目（与用户长期记忆 project scope 语义对齐）。
         best-effort：任何失败仅 log debug，不影响主流程。
+
+        v1.13.2 排查日志（evolution.inject.*）：打印开关/空间维度/检索命中/注入结果，
+        便于全链路断点排查（grep "evolution.inject"）。
         """
         if not settings.agent_skill_distillation_enabled or not user_id or db is None:
+            logger.debug(
+                "evolution.inject.skip: agent=%s enabled=%s user_id=%r db=%s",
+                self.agent_name, settings.agent_skill_distillation_enabled,
+                user_id, db is not None,
+            )
             return
         try:
             from app.services.agent_case_service import search_cases, build_case_context
             from app.services.agent_skill_evolution_service import get_skill_for_injection
+            if project_id:
+                scope, owner_id = "project", project_id
+            else:
+                scope, owner_id = "personal", user_id
+            logger.debug(
+                "evolution.inject.start: agent=%s scope=%s owner_id=%s user_id=%s "
+                "project_id=%s message=%r",
+                self.agent_name, scope, owner_id, user_id, project_id or "",
+                user_message[:80],
+            )
             cases = await search_cases(
-                db, task_intent=user_message, owner_id=user_id, scope="personal",
+                db, task_intent=user_message, owner_id=owner_id, scope=scope,
             )
             case_ctx = build_case_context(cases)
             if case_ctx:
                 messages.append({"role": "system", "content": case_ctx})
+                logger.debug(
+                    "evolution.inject.case_hit: agent=%s scope=%s owner_id=%s "
+                    "case_count=%d ctx_len=%d",
+                    self.agent_name, scope, owner_id, len(cases), len(case_ctx),
+                )
+            else:
+                logger.debug(
+                    "evolution.inject.case_miss: agent=%s scope=%s owner_id=%s case_count=0",
+                    self.agent_name, scope, owner_id,
+                )
             skill = await get_skill_for_injection(
-                db, agent_name=self.agent_name, owner_id=user_id, scope="personal",
+                db, agent_name=self.agent_name, owner_id=owner_id, scope=scope,
             )
             if skill and skill.system_prompt:
                 messages.append({
                     "role": "system",
                     "content": f"[进化 Skill: {skill.name}]\n{skill.system_prompt}",
                 })
+                logger.debug(
+                    "evolution.inject.skill_hit: agent=%s scope=%s owner_id=%s "
+                    "skill_id=%s skill=%s",
+                    self.agent_name, scope, owner_id, skill.id, skill.name,
+                )
+            else:
+                logger.debug(
+                    "evolution.inject.skill_miss: agent=%s scope=%s owner_id=%s",
+                    self.agent_name, scope, owner_id,
+                )
         except Exception as e:
-            logger.debug("%s: 自进化经验注入失败（降级）: %s", self.agent_name, e)
+            logger.debug(
+                "evolution.inject.failed: agent=%s scope=%s error=%s",
+                self.agent_name, project_id and "project" or "personal", e,
+            )
+
+    async def _maybe_persist_execution_case(
+        self, user_message: str, reply: Any, db, user_id: str, project_id: str = "",
+    ) -> None:
+        """v1.10.x 全链路记忆：端点直连 think 时的 Case 沉淀 hook。
+
+        主链路端点不经过 harness.run（无正式 trace），本 hook 用最小 AgentTrace
+        走同一 _maybe_extract_case 提取路径，保证「每次 Agent 执行 → Case 沉淀」全链路。
+        - harness.run 上下文（self._harness_trace 已标记）跳过，避免双提取
+        - best-effort：任何失败仅 log debug，不影响主流程（诚实降级）
+
+        v1.13.2 排查日志（evolution.persist.*）：打印触发条件/跳过原因/提交的 trace
+        与空间维度，配合 agent_case_service 的「已沉淀 Case」日志定位断点
+        （grep "evolution.persist"）。
+        """
+        if db is None or not user_id:
+            logger.debug(
+                "evolution.persist.skip: agent=%s db=%s user_id=%r",
+                self.agent_name, db is not None, user_id,
+            )
+            return
+        if getattr(self, "_harness_trace", None) is not None:
+            logger.debug(
+                "evolution.persist.skip_harness: agent=%s trace_id=%s 由 harness.run 统一提取",
+                self.agent_name, getattr(self, "_harness_trace", None),
+            )
+            return
+        try:
+            from app.agents.harness import AgentTrace, AgentRunStatus, get_harness
+            reply_text = reply if isinstance(reply, str) else (
+                json.dumps(reply, ensure_ascii=False)[:2000]
+            )
+            user_msg = user_message or ""
+            # to_dict 仅导出 *_truncated 字段（原始 user_message/response 不入 dict），
+            # 故显式填充截断字段供 _compress_trajectory 提取
+            trace = AgentTrace(
+                agent_name=self.agent_name or "base",
+                user_message=user_msg,
+                user_message_truncated=user_msg[:200],
+                response=reply_text,
+                response_truncated=reply_text[:800],
+                status=AgentRunStatus.SUCCESS,
+            )
+            logger.debug(
+                "evolution.persist.start: agent=%s trace_id=%s user_id=%s "
+                "project_id=%s scope=%s msg_len=%d reply_len=%d",
+                self.agent_name, trace.trace_id, user_id, project_id or "",
+                "project" if project_id else "personal",
+                len(user_msg), len(reply_text),
+            )
+            await get_harness()._maybe_extract_case(trace, {
+                "db": db, "user_id": user_id, "project_id": project_id,
+            })
+            logger.debug(
+                "evolution.persist.done: agent=%s trace_id=%s 已提交提取"
+                "（沉淀结果见 agent_case_service 日志）",
+                self.agent_name, trace.trace_id,
+            )
+        except Exception as e:
+            logger.debug(
+                "evolution.persist.failed: agent=%s error=%s",
+                self.agent_name, e,
+            )
 
     async def think(self, user_message: str, context: str = "", db=None, project_id: str = "",
                     user_id: str = "") -> str:
@@ -434,7 +569,7 @@ class BaseAgent:
                 logger.debug("%s.think: AgenticRAG 检索失败（降级到无 RAG）: %s", self.agent_name, e)
 
         # v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）
-        await self._inject_evolution_context(messages, user_message, user_id, db)
+        await self._inject_evolution_context(messages, user_message, user_id, db, project_id)
 
         if context:
             messages.append({"role": "assistant", "content": context})
@@ -462,6 +597,10 @@ class BaseAgent:
             except Exception as e:
                 logger.debug("%s.think: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
 
+        # v1.10.x 全链路记忆：端点直连 think 时补 Case 沉淀（best-effort）
+        await self._maybe_persist_execution_case(
+            user_message, reply, db, user_id, project_id,
+        )
         return reply
 
     async def _chat_stream(self, messages: list[dict]):
@@ -609,7 +748,7 @@ class BaseAgent:
                 logger.debug("%s.think_with_tools: AgenticRAG 检索失败: %s", self.agent_name, e)
 
         # v1.10.1: 自进化经验注入（借鉴 EverMind EverOS Agent Memory）
-        await self._inject_evolution_context(messages, user_message, user_id, db)
+        await self._inject_evolution_context(messages, user_message, user_id, db, project_id)
 
         if context:
             messages.append({"role": "assistant", "content": context})
@@ -633,6 +772,10 @@ class BaseAgent:
             if not tool_calls:
                 reply = result.get("content", "") if isinstance(result, dict) else result
                 reply = await self._rebuttal_check(messages, reply)
+                # v1.10.x 全链路记忆：Case 沉淀 hook（best-effort）
+                await self._maybe_persist_execution_case(
+                    user_message, reply, db, user_id, project_id,
+                )
                 return {
                     "final_reply": reply,
                     "tool_calls": tool_calls_history,
@@ -697,6 +840,10 @@ class BaseAgent:
                     final_reply = await self._chat(messages)
                     _accumulate_usage(total_usage, final_reply)
                     final_reply = await self._rebuttal_check(messages, final_reply)
+                    # v1.10.x 全链路记忆：Case 沉淀 hook（best-effort）
+                    await self._maybe_persist_execution_case(
+                        user_message, final_reply, db, user_id, project_id,
+                    )
                     return {
                         "final_reply": final_reply,
                         "tool_calls": tool_calls_history,
@@ -712,6 +859,10 @@ class BaseAgent:
         final_reply = await self._chat(messages)
         _accumulate_usage(total_usage, final_reply)
         final_reply = await self._rebuttal_check(messages, final_reply)
+        # v1.10.x 全链路记忆：Case 沉淀 hook（best-effort）
+        await self._maybe_persist_execution_case(
+            user_message, final_reply, db, user_id, project_id,
+        )
         return {
             "final_reply": final_reply,
             "tool_calls": tool_calls_history,

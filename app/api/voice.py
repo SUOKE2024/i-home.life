@@ -45,10 +45,10 @@ VOICE_INTENT_CLASSIFICATION_PROMPT = """你是一个智能家居平台的意图�
 # ── 关键词匹配规则（快速降级路径） ──────────────────────────
 
 _KEYWORD_INTENT_MAP: list[tuple[list[str], str]] = [
-    # 每项: (关键词列表, 意图)
+    # 价格/预算类关键词优先匹配：避免「装修预算」等复合语义句子被 design 的「装修」抢判
+    (["预算", "价格", "费用", "成本", "多少钱", "报价"], "budget"),
     (["设计", "布局", "方案", "户型", "画", "墙", "房间", "添加", "加一个", "新建", "建造", "装修"], "design"),
     (["测量", "丈量", "扫描", "激光", "LiDAR", "摄像头", "拍照测量", "量房", "测距", "面积"], "measurement"),
-    (["预算", "价格", "费用", "成本", "多少钱", "报价"], "budget"),
     (["采购", "买", "材料", "建材", "供应商"], "procurement"),
     (["施工", "进度", "验收", "质检", "工地", "工序"], "construction"),
     (["结算", "对账", "尾款", "付款", "账单", "发票"], "settlement"),
@@ -265,14 +265,17 @@ async def process_voice(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
 
     text = data.text
-    intent = _classify_by_keywords(text)
+    # v1.13.x 设备链路诊断修复：接通 _route_intent（LLM 语义分类优先，
+    # 关键词匹配降级），此前 process_voice 只走关键词分类，_route_intent 未被使用。
+    intent = await _route_intent(text)
 
-    # 辅助分类增强
-    from app.agents.orchestrator import OrchestratorAgent
-    classification = OrchestratorAgent.fallback_classify(text)
-    fallback_intent = classification.get("intent", "general")
-    if fallback_intent != "general":
-        intent = fallback_intent
+    # 关键词降级后仍未命中时，用 OrchestratorAgent.fallback_classify 兜底（意图集更全）
+    if intent == "general":
+        from app.agents.orchestrator import OrchestratorAgent
+        classification = OrchestratorAgent.fallback_classify(text)
+        fallback_intent = classification.get("intent", "general")
+        if fallback_intent != "general":
+            intent = fallback_intent
 
     reply, actions = _handle_intent(text, intent)
     return VoiceResponse(transcript=text, intent=intent, reply=reply, actions=actions)

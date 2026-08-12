@@ -276,6 +276,11 @@ async def send_task(
             agent=agent,
             user_message=request.message,
             trace=trace,
+            # v1.10.x 全链路记忆：透传 db/user_id/project_id →
+            # 轨迹落库（_persist_trace）+ Case 提取（_maybe_extract_case，项目空间感知）
+            db=db,
+            user_id=current_user.id,
+            project_id=request.project_id or "",
         )
         harness.finish_trace(trace, AgentRunStatus.SUCCESS)
         db_task.state = A2ATaskState.COMPLETED.value

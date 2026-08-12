@@ -3,9 +3,29 @@
 > **索克家居 · AI 智能装修平台**
 >
 > v1.13.1 · 工具纪律迭代（ISCE 串行修复/成本追踪/负反馈双向学习 + 契约校验/并行调用/预算早停）
-> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 105 Service + 128 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 105 Service + 129 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-12 · 设备链路全量诊断修复（摄像头/语音/传感器/穿戴/场景触发）
+
+- **传感器链路断链修复（P0 红线）**：`/api/sensors/snapshot` 移除硬编码假数据（temperature=加速度计z / humidity=0 / occupancy=True 伪装触发场景，违反诚实降级），真实落库到新表 `sensor_snapshots`（27 列，三轴传感器×4 组 + GPS + 环境量 temperature/humidity/light_lux）；Flutter 端 SensorService 采集后真实上报（此前只采集不上传）
+- **穿戴健康监测接入（断链修复）**：Flutter api.dart 补 6 个 health-monitor 方法（心率/血氧/跌倒/睡眠/活动量/空气质量），智能家居页新增「健康监测上报」入口
+- **场景触发真实闭环**：`_match_sensor_condition` 修复空匹配误触发（条件键全缺失时返回 False）；环境量由环境传感器真实上报时参与匹配；动作执行未接入生态桥接前诚实标注 `action_status=pending`
+- **语音 LLM 分类接通**：`/voice/process` 启用 `_route_intent`（LLM 语义分类优先 + 关键词降级），此前仅关键词匹配
+- **可观测性**：上传/匹配关键节点新增 `sensor_snapshot_received/raw/persisted`、`sensor_trigger_scan/match/hit`、`sensor_condition_pass/fail/result` 日志
+- **Migration**：`e2f3a4b5c6d7` 建表 + `f3a4b5c6d7e8` 补环境量列（均幂等），当前 head=f3a4b5c6d7e8，`check_schema_drift` 对齐
+- **边缘情况审查（补充）**：新增 12 个边缘测试（flag 关闭 503 / 无效时间戳回退 / temperature=0 合法值 / 空快照 / 匹配函数部分键·标量·范围·eq·空入参）；发现并修复 `sensor_snapshot_enabled` 未在 Settings 定义（flag 形同虚设）
+- 验证：新增 17 测试（含边缘）；相关模块 219 passed + flake8/mypy/flutter analyze 0 issues；实跑 temperature=30.5 快照触发「高温联动」场景成功（完整报告见 `docs/reports/sensor-device-link-20260812.md`）
+
+### 2026-08-12 · P0 工程落地：720° 漫游 × 设备热点联动（可行性报告 P0 路径）
+
+- **后端 3 新端点**：`POST /api/smart-home/devices/{id}/command`（设备命令，3D 场景/语音入口）、`POST /api/scene-automation/scenes/{id}/execute`（场景执行）、`GET /api/vr/projects/{id}/device-overlay`（3D 设备图层聚合：设备锚点 yaw/pitch + 关联场景 + 最近真实传感器快照）
+- **动作执行管线**：`scene_automation_service` 新增 `execute_device_command` / `execute_scene_actions`——与传感器自动触发共用执行语义（写 `SceneBehaviorLog` + 生态桥执行），未接真机 `action_status=pending` 诚实标注（`bridge_not_configured`），复用 `DEVICE_ACTION_WHITELIST` 白名单
+- **webapp 前端**：`PanoramaViewer` 新增 `devices` prop（设备 Sprite 状态色编码：在线绿/离线灰，轮询刷新不重建场景）；新增 `DeviceCommandPanel`（设备控制面板 + 一键场景 + pending 诚实提示）与 `useDeviceOverlay` hook（加载 + 30s 轮询 + 命令/场景触发）；`VirtualTour` 接入「漫游即控制」
+- **WS 广播**：`smart.device.state` / `scene.triggered` 事件类型（3D 场景实时刷新）
+- **执行管线可观测性**：`execute_device_command`/`execute_scene_actions` 新增全状态流转日志（`device_command_received/rejected/context/bridge_dispatch/executed`、`scene_execute_start/action_dispatch/bridge/result/done`），命令下发与 pending→success/failed 全程可排查
+- 验证：新增 8 测试（设备命令 pending 诚实标注/白名单 422/越权 403、场景执行 manual_trigger 落库、设备图层聚合含传感器上下文）；相关模块 53 passed + webapp build 0 errors + flake8/mypy 0 issues（方案见 `docs/reports/p0-vr-device-link-tech-design-20260812.md`）
 
 ### 2026-08-11 · 全景全链路评估报告落地（文档校准 + 回滚补全 + 冗余清理）
 
@@ -377,7 +397,8 @@ i-home.life/
 │   │   ├── floorplans.py    # 户型方案存储
 │   │   ├── voice.py         # 语音处理
 │   │   ├── files.py         # 文件上传/下载
-│   │   ├── surveys.py       # 测量 + F1 AR 空间测量 (扫描会话/降级策略/精度校验/墙面特征)
+│   │   ├── surveys.py       # Survey 测量记录
+│   │   ├── ar_scan.py       # F1 AR 空间测量 (扫描会话/降级策略/精度校验/墙面特征, /surveys/ar/*)
 │   │   ├── lighting.py      # F29/F30 灯光设计 (照度计算/色温规划/无主灯/AI 方案)
 │   │   ├── kitchen.py       # F16 厨房设计器 (橱柜参数化/动线分析/规范校验)
 │   │   ├── bathroom.py      # F17 卫生间设计器 (干湿分离/地漏坡度/防水/通风)
@@ -528,7 +549,8 @@ i-home.life/
 | load_bearing_walls / beams / columns / floor_slabs / foundation_types / structure_load_estimates / bay_compliances / quantity_calculations / quantity_line_items | F8/F9 土建结构 |
 | floor_plans | 户型方案 |
 | file_attachments | 工程文件 |
-| surveys | AR 空间测量 |
+| surveys | Survey 测量记录 |
+| ar_scan_sessions / ar_wall_features / ar_measurement_points | F1 AR 空间测量 |
 | orchestrator_tasks / task_candidates | Agent 编排任务 |
 | points_accounts / points_transactions / points_rules / points_mall_items / points_redemptions / points_rankings | 积分系统 |
 | identity_verifications | 身份认证 |

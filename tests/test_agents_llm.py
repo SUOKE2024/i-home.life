@@ -766,7 +766,7 @@ async def test_chat_designer_fallback_on_timeout(client: AsyncClient, monkeypatc
     # MOCK_MODE 已移除，始终走真实 LLM 路径
 
     # Mock DesignerAgent.think 返回 base.py 的友好错误消息
-    async def _mock_think(self, message, context=""):
+    async def _mock_think(self, message, context="", **kwargs):
         return "抱歉，AI 推理超时，请稍后重试或简化您的问题。(finish_reason=length)"
 
     monkeypatch.setattr(DesignerAgent, "think", _mock_think)
@@ -793,7 +793,7 @@ async def test_chat_designer_fallback_on_reasoning_leak(client: AsyncClient, mon
     """LLM 返回 reasoning_content（思维链）时，应 fallback 到 generate_layouts"""
     # MOCK_MODE 已移除，始终走真实 LLM 路径
 
-    async def _mock_think(self, message, context=""):
+    async def _mock_think(self, message, context="", **kwargs):
         return "我们需要理解用户需求：126平米三室两厅方案。应该生成3套不同方案。需要输出JSON格式。"
 
     monkeypatch.setattr(DesignerAgent, "think", _mock_think)

@@ -157,6 +157,17 @@ async def extract_case_from_trace(
     # 压缩轨迹
     trajectory = _compress_trajectory(trace_dict)
 
+    # v1.10.x 防双提取：同一 trace_id 已沉淀过 Case 则跳过（如 harness.run 与
+    # BaseAgent 内建 hook 边界异常时，避免同一次执行沉淀两条 Case）
+    trace_id = trace_dict.get("trace_id")
+    if trace_id:
+        existing = await db.execute(
+            select(AgentCase.id).where(AgentCase.trace_id == trace_id).limit(1)
+        )
+        if existing.scalar_one_or_none():
+            logger.debug("extract_case: trace_id=%s 已提取过，跳过", trace_id)
+            return None
+
     # LLM 提取 Case 结构
     case_data = await _llm_extract_case(trajectory, trace_dict.get("agent_name", "unknown"))
     if case_data is None:
@@ -289,7 +300,13 @@ async def search_cases(
     stmt = (
         select(AgentCase)
         .where(and_(*conditions))
-        .order_by(desc(AgentCase.quality_score), desc(AgentCase.retrieval_count))
+        # v1.10.x 时间感知：quality/热度相同时，近期经验优先（recency 排序键，
+        # 避免陈旧高分 Case 永久压制新沉淀的经验）
+        .order_by(
+            desc(AgentCase.quality_score),
+            desc(AgentCase.retrieval_count),
+            desc(AgentCase.created_at),
+        )
         .limit(limit)
     )
     result = await db.execute(stmt)
