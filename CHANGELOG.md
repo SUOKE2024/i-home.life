@@ -6,9 +6,11 @@
 
 ### 质检智能体视觉感知实现（qa_inspector，2026-08-12）
 - **验收报告视觉化**（[qa_inspector.py](app/agents/qa_inspector.py)）：`generate_acceptance_report` 新增可选 `images`（现场照片）——受 `real_cv_quality_enabled` 门控走多模态视觉 LLM 缺陷识别，真实 CV 结果以 `vision_defects` 汇入报告并并入整改建议（`source="vision_llm"` 来源标注），`engine/source/cv_mode/is_placeholder` 如实更新；无视觉 key/失败降级保持 mock 并 `note` 诚实标注，不阻断报告生成
-- **诊断数据可视化看图**：`include_chart=True` 时新增 `render_acceptance_chart`（Pillow 确定性渲染分项合格率 + 缺陷类别分布 PNG，真实数据、零视觉依赖）→ `analyze_acceptance_chart` 让视觉模型"看图"输出结构化诊断（`chart_analysis`：summary/key_risks/recommendations）；视觉解读不可用 → `chart_analysis=None` + `chart_analysis_note` 诚实标注，图表本身仍返回（禁止伪装真实解读）
+- **诊断数据可视化看图**：`include_chart=True` 时 `render_acceptance_chart`（Pillow 确定性渲染分项合格率 + 缺陷类别分布 PNG，真实数据、零视觉依赖）+ `_analyze_chart_with_vision` 让视觉模型"看图"输出结构化诊断（`chart_analysis`：summary/key_risks/recommendations）；视觉解读不可用 → `chart_analysis=None` + `chart_analysis_note` 诚实标注，图表本身仍返回（禁止伪装真实解读）
+- **后端闭环扩展**：`detect_defects` / `compare_with_design` 同样支持 `include_chart`——新增 `render_defect_chart`（缺陷类别 + 严重度分布）、`render_compare_chart`（规格/照片一致性计数 + 尺寸偏差），三个质检方法统一走 `_attach_chart` 公共管线（render + 视觉解读 + 诚实降级）
 - **API**：`AcceptanceReportRequest` 新增 `images` / `include_chart` 字段（[agents.py](app/api/agents.py)），`/api/agents/qa-inspector/acceptance-report` 透传
-- **测试**：`tests/test_qa_inspector_concierge.py` +5（视觉缺陷汇入/视觉降级/图表渲染+解读/解读降级/flag 关闭），40 passed；flake8/mypy 0 issues
+- **前端展示**（[webapp](webapp/src/pages/Quality.jsx)）：质检验收页新增「AI 验收报告」区块——项目选择后并行生成，展示分项统计 + 诊断图表（chart_b64 data URI 渲染）+ AI 诊断解读（summary/key_risks/recommendations）+ 诚实标注（note/cv_mode）；`webapp/src/lib/api.js` 新增 `generateAcceptanceReport`；未登录/服务不可用时诚实降级展示错误不阻断质量页；webapp build ✓（12.88s）
+- **测试**：`tests/test_qa_inspector_concierge.py` 43 passed（+8：视觉缺陷汇入/视觉降级/图表渲染+解读/解读降级/flag 关闭/缺陷图/比对图/缺陷图降级）；flake8/mypy 0 issues
 - **设计决策**：图表标签用 ASCII（phase/category code + 数字）避免中文字体文件不可移植；未新增 feature flag（复用 `real_cv_quality_enabled`，Simplicity First）；不 bump 版本仅 CHANGELOG [Unreleased]
 
 ### 性能优化：OpenAPI 启动预热（OBS-003 解决，2026-08-12）
