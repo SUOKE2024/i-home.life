@@ -10,7 +10,7 @@
 import logging
 import time
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.auth import get_current_user
@@ -135,6 +135,40 @@ async def get_tool_accuracy(current_user: User = Depends(get_current_user)):
     logger.info(
         "eval_tool_accuracy: user=%s accuracy=%s sample=%d",
         current_user.id, report["metrics"]["accuracy"], report["metrics"]["sample_size"],
+    )
+    return report
+
+
+@router.get("/tool-accuracy/llm-sample")
+async def get_llm_tool_accuracy_sample(
+    sample_size: int = Query(12, ge=1, le=30, description="LLM 抽样条数（成本 = 条数次 LLM 调用）"),
+    random_seed: int | None = Query(None, description="抽样随机种子（可复现）"),
+    current_user: User = Depends(require_admin),
+):
+    """LLM 工具分类抽样评估（管理员；v1.13.5 遗留闭合）。
+
+    从 TOOL_SELECTION_DATASET 抽样 sample_size 条，逐条调用 LLM 分类，
+    与确定性关键词基线（100%）对比——验证「LLM 分类必须显著高于基线
+    才有价值」：基线已 100%，LLM 低于基线即证明不值得引入成本。
+
+    受 ``settings.tool_llm_sampling_enabled`` 门控（默认 False，成本控制）；
+    关闭时返回 503 诚实降级。LLM 分类非确定性，结果仅供成本对比参考。
+    """
+    if not settings.tool_llm_sampling_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM 工具分类抽样评估未启用（tool_llm_sampling_enabled=False，成本控制）",
+        )
+    from app.eval.tool_accuracy import evaluate_llm_tool_selection
+
+    report = await evaluate_llm_tool_selection(
+        sample_size=sample_size,
+        random_seed=random_seed,
+    )
+    logger.info(
+        "eval_llm_tool_accuracy: user=%s sample=%d accuracy=%s baseline=%s",
+        current_user.id, report["sample_size"], report["accuracy"],
+        report["baseline_keyword_accuracy"],
     )
     return report
 

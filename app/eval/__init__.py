@@ -16,6 +16,8 @@ from app.eval.ihome_eval import (
 from app.eval.tool_accuracy import (
     TOOL_SELECTION_DATASET,
     classify_tool_by_keywords,
+    classify_tool_by_llm,
+    evaluate_llm_tool_selection,
     evaluate_tool_selection,
     get_tool_accuracy_report,
 )
@@ -31,6 +33,8 @@ __all__ = [
     "run_ihome_eval",
     "TOOL_SELECTION_DATASET",
     "classify_tool_by_keywords",
+    "classify_tool_by_llm",
+    "evaluate_llm_tool_selection",
     "evaluate_tool_selection",
     "get_tool_accuracy_report",
 ]

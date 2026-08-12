@@ -247,6 +247,184 @@ def get_tool_accuracy_report(classifier=None) -> dict:
         "confusion": result["confusion"],
         "notes": [
             "确定性关键词基线（非 LLM），用于建立工具选择最低可接受线",
-            "LLM 分类的抽样评估需在 notes 中诚实标注（本项目 LLM 分类经 think_with_tools 采样）",
+            "LLM 分类的抽样评估见 GET /api/eval/tool-accuracy/llm-sample（受 tool_llm_sampling_enabled 门控）",
+        ],
+    }
+
+
+# ════════════════════════════════════════════════════════════════
+# LLM 工具分类抽样评估（v1.13.5 遗留闭合）
+# ════════════════════════════════════════════════════════════════
+
+# 工具 → 中文语义描述（供 LLM 分类 prompt；对齐 TOOL_SELECTION_DATASET 覆盖的 11 工具）
+_TOOL_CATALOG: dict[str, str] = {
+    "get_budget": "查询装修预算、报价估算、装修费用",
+    "get_design_layout": "获取设计布局、户型布置、设计图建议",
+    "search_materials": "搜索物料、材料价格与推荐",
+    "get_construction_progress": "查询施工进度、工期、进行到哪一步",
+    "run_qa_inspection": "质检、验收、闭水试验、空鼓等检查",
+    "search_poi": "搜索周边 POI（建材市场、五金店、家电卖场等）",
+    "launch_agent_task": "后台任务编排（顺便、同时做多件事）",
+    "get_voice_tasks": "查询语音任务列表与进度",
+    "cancel_agent_task": "取消后台任务",
+    "generate_design_proposals": "生成多套设计方案",
+    "update_design_proposal": "修改/调整设计方案（方案A/B/C 修订）",
+}
+
+
+class _ToolClassifierAgent:
+    """LLM 工具分类器（抽样评估专用，非生产路由）。
+
+    复用 BaseAgent._chat（多 LLM fallback chain），system_prompt 限定为
+    工具路由分类；成本受 tool_llm_sampling_enabled 门控（默认关闭）。
+    """
+
+    def __init__(self):
+        from app.agents.base import BaseAgent
+
+        self._agent = BaseAgent()
+        self._agent.agent_name = "tool_classifier_eval"
+        self._agent.system_prompt = (
+            "你是一个工具路由分类器。根据用户查询选择最匹配的工具；"
+            "若用户查询与任何工具无关（闲聊、致谢等），返回 none。"
+        )
+
+    async def chat(self, query: str) -> str:
+        reply = await self._agent._chat([
+            {"role": "user", "content": _build_classifier_prompt(query)},
+        ])
+        # _chat 契约允许返回 dict（工具调用路径）；分类场景强制 str
+        return reply if isinstance(reply, str) else str(reply)
+
+    async def close(self) -> None:
+        await self._agent.close()
+
+
+def _build_classifier_prompt(query: str) -> str:
+    tools_desc = "\n".join(
+        f"- {tool}: {desc}" for tool, desc in _TOOL_CATALOG.items()
+    )
+    return (
+        f"以下是可用工具清单：\n{tools_desc}\n\n"
+        f"用户查询：{query}\n\n"
+        "请选择最匹配的工具名（只返回工具名本身，不要输出其他内容）；"
+        "若都不匹配返回 none。"
+    )
+
+
+def _parse_llm_tool_reply(reply: str) -> str | None:
+    """解析 LLM 分类回复 → 工具名 | None（none/无法归类）。"""
+    text = (reply or "").strip()
+    if not text:
+        return None
+    for line in text.splitlines():
+        token = line.strip().strip('`"\'，。;；')
+        if token.lower() == "none" or token == "null":
+            return None
+        if token in _TOOL_CATALOG:
+            return token
+    if text in _TOOL_CATALOG:
+        return text
+    return None
+
+
+async def classify_tool_by_llm(query: str, agent: _ToolClassifierAgent | None = None) -> str | None:
+    """LLM 工具分类器（抽样评估用）。
+
+    Args:
+        query: 用户查询原文
+        agent: 可注入的 _ToolClassifierAgent（测试用 mock）
+
+    Returns:
+        选中的工具名；None 表示「不调用工具」（LLM 直接回复）。
+
+    诚实标注：LLM 分类非确定性、有成本，仅用于对比确定性关键词基线，
+    不替代生产路由（生产仍走工具契约 + 关键词兜底）。
+    """
+    own = False
+    if agent is None:
+        agent = _ToolClassifierAgent()
+        own = True
+    try:
+        reply = await agent.chat(query)
+        return _parse_llm_tool_reply(reply)
+    finally:
+        if own:
+            await agent.close()
+
+
+async def evaluate_llm_tool_selection(
+    sample_size: int = 12,
+    random_seed: int | None = None,
+    classifier=None,
+) -> dict:
+    """LLM 工具分类抽样评估（v1.13.5 遗留闭合）。
+
+    从 TOOL_SELECTION_DATASET 随机抽样 sample_size 条，逐条 LLM 分类，
+    计算准确率并与确定性关键词基线（100%）对比——验证「LLM 分类必须显著
+    高于基线才有价值」：基线已 100%，LLM 若低于基线即证明不值得引入成本。
+
+    Args:
+        sample_size: 抽样条数（LLM 调用成本 = sample_size 次）
+        random_seed: 抽样随机种子（可复现；None 每次不同）
+        classifier: 可注入的异步分类器 f(query) -> tool|None（测试用）
+
+    Returns:
+        {report_type, sample_size, accuracy, baseline_keyword_accuracy,
+         delta_vs_baseline, per_failure_mode, confusion, notes}
+    """
+    import random
+
+    classifier = classifier or classify_tool_by_llm
+    dataset = list(TOOL_SELECTION_DATASET)
+    if random_seed is not None:
+        random.seed(random_seed)
+    sample = random.sample(dataset, min(sample_size, len(dataset)))
+
+    total = len(sample)
+    correct = 0
+    per_mode: dict[str, dict] = {}
+    confusion: list[dict] = []
+    for case in sample:
+        predicted = await classifier(case.query)
+        if case.failure_mode == "negative":
+            is_correct = predicted is None
+        else:
+            is_correct = predicted == case.expected_tool
+        if is_correct:
+            correct += 1
+        per_mode.setdefault(case.failure_mode, {"correct": 0, "total": 0})
+        per_mode[case.failure_mode]["total"] += 1
+        if is_correct:
+            per_mode[case.failure_mode]["correct"] += 1
+        if not is_correct:
+            confusion.append({
+                "query": case.query,
+                "expected": case.expected_tool,
+                "predicted": predicted,
+                "failure_mode": case.failure_mode,
+            })
+
+    baseline = get_tool_accuracy_report()["metrics"]["accuracy"]
+    llm_accuracy = round(correct / total * 100, 2)
+    return {
+        "report_type": "tool_selection_accuracy_llm_sample",
+        "sample_size": total,
+        "correct": correct,
+        "accuracy": llm_accuracy,
+        "baseline_keyword_accuracy": baseline,
+        "delta_vs_baseline": round(llm_accuracy - baseline, 2),
+        "per_failure_mode": {
+            mode: {
+                "correct": v["correct"],
+                "total": v["total"],
+                "accuracy": round(v["correct"] / v["total"] * 100, 2),
+            } for mode, v in per_mode.items()
+        },
+        "confusion": confusion,
+        "notes": [
+            "LLM 分类抽样评估（非确定性、有成本）：对比确定性关键词基线",
+            "基线已 100%，LLM 若低于基线即证明不值得引入成本（诚实标注）",
+            "抽样结果受模型/温度影响，重复运行可能不同；结果仅供成本对比参考",
         ],
     }

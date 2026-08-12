@@ -382,6 +382,10 @@ class Settings(BaseSettings):
     # 启用后 /api/eval/* 端点可用，AgentHarness.run_eval() 接入 ihome_eval 维度
     eval_enabled: bool = True
     eval_sample_rate: float = 0.1
+    # v1.13.5：LLM 工具分类抽样评估（对比确定性关键词基线，验证「LLM 是否显著
+    # 高于基线才有价值」）。默认关闭——每次抽样真实调用 LLM（成本/非确定性），
+    # 仅管理员按需开启做成本对比评估。
+    tool_llm_sampling_enabled: bool = False
 
     # ── Model Spec 宪法 + HC 硬约束（借鉴 suoke_model_spec）──
     # 启用后 DesignerAgent/BudgetAgent/ProcurementAgent 输出经 rebuttal_engine 校验

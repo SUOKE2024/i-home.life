@@ -218,3 +218,89 @@ async def test_eval_report_feedback_metrics(client: AsyncClient, db_session):
     assert designer["like_rate"] == 20.0  # 1/5 like = 20% < 70%
     assert designer["status"] == "critical"
     assert fb["overall"] is not None and fb["overall"]["status"] == "critical"
+
+
+# ── LLM 工具分类抽样评估（v1.13.5）──
+
+
+def test_parse_llm_tool_reply():
+    """LLM 分类回复解析：工具名 / none / markdown 包裹 / 无法归类"""
+    from app.eval.tool_accuracy import _parse_llm_tool_reply
+
+    assert _parse_llm_tool_reply("get_budget") == "get_budget"
+    assert _parse_llm_tool_reply("```\nget_budget\n```") == "get_budget"
+    assert _parse_llm_tool_reply("none") is None
+    assert _parse_llm_tool_reply("None") is None
+    assert _parse_llm_tool_reply("") is None
+    assert _parse_llm_tool_reply("我不确定") is None
+
+
+@pytest.mark.asyncio
+async def test_evaluate_llm_tool_selection_with_injected_classifier():
+    """注入确定性分类器 → 准确率计算正确 + 与关键词基线对比字段齐全"""
+    from app.eval.tool_accuracy import TOOL_SELECTION_DATASET, classify_tool_by_keywords, evaluate_llm_tool_selection
+
+    async def perfect_classifier(query: str) -> str | None:
+        # 按 dataset 期望返回（负面用例返回 None，其余按关键词分类器语义）
+        for case in TOOL_SELECTION_DATASET:
+            if case.query == query:
+                if case.failure_mode == "negative":
+                    return None
+                return classify_tool_by_keywords(query) or case.expected_tool
+        return None
+
+    report = await evaluate_llm_tool_selection(
+        sample_size=10, random_seed=42, classifier=perfect_classifier,
+    )
+    assert report["report_type"] == "tool_selection_accuracy_llm_sample"
+    assert report["sample_size"] == 10
+    assert report["accuracy"] == 100.0
+    assert report["baseline_keyword_accuracy"] == 100.0  # 确定性基线
+    assert report["delta_vs_baseline"] == 0.0
+    assert "per_failure_mode" in report
+    assert "confusion" in report
+    assert report["confusion"] == []
+    # 诚实标注：LLM 抽样非确定性
+    assert any("非确定性" in n for n in report["notes"])
+
+
+@pytest.mark.asyncio
+async def test_llm_tool_accuracy_endpoint_gated(client: AsyncClient, monkeypatch):
+    """tool_llm_sampling_enabled=False（默认）→ 503 诚实降级"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "tool_llm_sampling_enabled", False)
+
+    headers = await _register_admin(client)
+    resp = await client.get("/api/eval/tool-accuracy/llm-sample", headers=headers)
+    assert resp.status_code == 503
+    assert "未启用" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_llm_tool_accuracy_endpoint_enabled(client: AsyncClient, monkeypatch):
+    """flag 开启 + mock evaluate → 200 返回抽样报告结构"""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "tool_llm_sampling_enabled", True)
+
+    async def _fake_evaluate(sample_size=12, random_seed=None):
+        return {
+            "report_type": "tool_selection_accuracy_llm_sample",
+            "sample_size": sample_size,
+            "correct": sample_size,
+            "accuracy": 100.0,
+            "baseline_keyword_accuracy": 100.0,
+            "delta_vs_baseline": 0.0,
+            "per_failure_mode": {"normal": {"correct": 8, "total": 8, "accuracy": 100.0}},
+            "confusion": [],
+            "notes": ["mock"],
+        }
+
+    import app.eval.tool_accuracy as ta_mod
+    monkeypatch.setattr(ta_mod, "evaluate_llm_tool_selection", _fake_evaluate)
+
+    headers = await _register_admin(client)
+    resp = await client.get("/api/eval/tool-accuracy/llm-sample?sample_size=8&random_seed=1", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["report_type"] == "tool_selection_accuracy_llm_sample"
+    assert data["sample_size"] == 8
