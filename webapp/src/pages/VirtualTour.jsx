@@ -210,7 +210,8 @@ export default function VirtualTourPage() {
                 onFallback={() => setViewing((v) => (v ? { ...v, gsFailed: true } : v))}
               />
             ) : (
-              <PanoramaViewer
+              <div data-pv-status="active" style={{ width: '100%', height: '100%' }}>
+                <PanoramaViewer
                 imageUrl={viewing.pano.image_url}
                 hotspots={viewing.pano.hotspots || []}
                 devices={devices}
@@ -224,6 +225,7 @@ export default function VirtualTourPage() {
                 }}
                 onDeviceClick={(d) => setSelectedDevice(d)}
               />
+              </div>
             )}
             {selectedDevice && (
               <DeviceCommandPanel

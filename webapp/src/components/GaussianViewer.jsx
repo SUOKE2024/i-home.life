@@ -296,7 +296,10 @@ export default function GaussianViewer({
   }, [devices])
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div
+      data-gs-status={status}
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+    >
       <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
       {status === 'loading' && (
         <div style={{
