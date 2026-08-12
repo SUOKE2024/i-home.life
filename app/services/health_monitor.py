@@ -357,15 +357,19 @@ class HealthMonitor:
             )
 
             # 检查是否已有同类活跃预警（去重）
+            # 注意：progress_alerts 表对 (project_id, alert_type, status) 无唯一约束，
+            # 同组合可能存在多条 active 记录（如历史数据/并发巡检），
+            # scalar_one_or_none() 遇多条会抛 MultipleResultsFound（生产曾致巡检 500）。
+            # 此处只需「存在即跳过」，用 limit(1) 取首行判定。
             from sqlalchemy import select
             existing = await db.execute(
-                select(ProgressAlert).where(
+                select(ProgressAlert.id).where(
                     ProgressAlert.project_id == project.id,
                     ProgressAlert.alert_type == "health_check",
                     ProgressAlert.status == "active",
-                )
+                ).limit(1)
             )
-            if existing.scalar_one_or_none():
+            if existing.scalar() is not None:
                 continue
 
             alert = ProgressAlert(
