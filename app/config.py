@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.13.1"
+    app_version: str = "1.13.4"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -194,6 +194,11 @@ class Settings(BaseSettings):
     agent_skill_distillation_enabled: bool = True
     # P1: Skill 随成败进化（三维质控 Utility/Robustness/Safety + WHERE×WHY 诊断归因）
     agent_skill_evolution_enabled: bool = True
+    # v1.13.5（2026 Context Engineering 前沿对齐）：自进化注入上下文预算（字符数）。
+    # think 前注入的 Case/Skill 总上下文超预算时按优先级裁剪（Skill 蒸馏知识全量优先，
+    # Case 按 quality 降序从末尾丢弃/截断），防 context rot（上下文腐烂：噪音淹没关键事实
+    # 致注意力预算耗尽）。0 或负数 = 不限制（保持旧行为全量注入）。
+    context_injection_budget_chars: int = 4000
 
     # ── MCP Server 暴露（v1.1.12 新增）──
     # 启用后 /api/mcp/* 端点可用，外部 AI 客户端（Claude/Cursor/小艺）可调用 Agent 工具

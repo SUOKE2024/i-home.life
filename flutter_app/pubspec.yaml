@@ -1,7 +1,7 @@
 name: ihome_app
 description: "索克家居 · i-home.life"
 publish_to: 'none'
-version: 1.13.1+42
+version: 1.13.4+44
 
 # 版本治理说明（v1.3.0）：
 # - 鸿蒙端：Flutter-OH 3.35.7-ohos-0.0.3 / Dart 3.9.2（DevEco Studio 6.0.2 / OpenHarmony API 23+）
