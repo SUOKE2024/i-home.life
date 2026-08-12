@@ -503,6 +503,111 @@ def test_qa_acceptance_report_chart_without_vision_flag(monkeypatch):
     assert "视觉模型不可用" in report["chart_analysis_note"]
 
 
+def test_qa_detect_defects_chart(monkeypatch):
+    """后端闭环扩展：detect_defects 支持 include_chart → 缺陷分布图 + 视觉解读"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(qa_mod, "_fetch_image_bytes", lambda url: (b"fake-image", "image/jpeg"))
+
+    def _fake_vision(prompt, image_bytes, mime):
+        if "工艺缺陷识别诊断图表" in prompt:
+            return json.dumps({
+                "summary": "缺陷集中在空鼓与裂缝，建议优先整改。",
+                "key_risks": [{"phase": "hollow", "risk": "空鼓缺陷 1 项，高危"}],
+                "recommendations": ["拆除空鼓区域重新铺贴"],
+            })
+        return json.dumps({
+            "defects": [
+                {"category": "hollow", "description": "客厅瓷砖空鼓", "confidence": 0.9,
+                 "location_hint": "客厅", "suggestion": "拆除重铺"},
+                {"category": "crack", "description": "墙面裂缝", "confidence": 0.8,
+                 "location_hint": "墙角", "suggestion": "修补复检"},
+            ]
+        })
+
+    monkeypatch.setattr(qa_mod, "_call_vision_llm", _fake_vision)
+
+    agent = QAInspectorAgent()
+    result = agent.detect_defects({
+        "project_id": "P008",
+        "phase": "masonry",
+        "images": [{"url": "http://example.com/d.jpg", "type": "tile_surface"}],
+        "check_categories": ["hollow", "crack"],
+        "include_chart": True,
+    })
+
+    import base64 as b64
+
+    assert result["chart_mime"] == "image/png"
+    assert b64.b64decode(result["chart_b64"])[:8] == b"\x89PNG\r\n\x1a\n"
+    assert result["chart_analysis"]["summary"]
+    assert result["chart_analysis"]["key_risks"][0]["phase"] == "hollow"
+    assert result["chart_analysis_note"] is None
+
+
+def test_qa_compare_with_design_chart(monkeypatch):
+    """后端闭环扩展：compare_with_design 支持 include_chart → 比对一致性图 + 视觉解读"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(qa_mod, "_fetch_image_bytes", lambda url: (b"fake-image", "image/jpeg"))
+
+    def _fake_vision(prompt, image_bytes, mime):
+        if "图纸比对诊断图表" in prompt:
+            return json.dumps({
+                "summary": "整体一致，瓷砖缝隙偏差需关注。",
+                "key_risks": [{"phase": "tile_gap", "risk": "缝隙偏差 1.5mm"}],
+                "recommendations": ["调整瓷砖缝隙"],
+            })
+        return json.dumps({
+            "image_analysis": {"matches_design": False, "confidence": 0.7, "notes": "缝隙偏大"},
+            "spec_comparisons": [
+                {"spec_item": "tile_size", "design_value": "800x800", "actual_value": "约800x800", "consistent": True},
+            ],
+            "dimension_deviations": [
+                {"dimension": "tile_gap", "standard": "2mm", "measured_value": 3.5, "deviation": 1.5, "pass": False},
+            ],
+        })
+
+    monkeypatch.setattr(qa_mod, "_call_vision_llm", _fake_vision)
+
+    agent = QAInspectorAgent()
+    result = agent.compare_with_design({
+        "project_id": "P008",
+        "phase": "masonry",
+        "images": [{"url": "http://example.com/1.jpg", "type": "tile_surface"}],
+        "design_reference": {"specs": {"tile_size": "800x800"}},
+        "expected_dimensions": {"tile_gap": "2mm"},
+        "include_chart": True,
+    })
+
+    import base64 as b64
+
+    assert result["chart_mime"] == "image/png"
+    assert b64.b64decode(result["chart_b64"])[:8] == b"\x89PNG\r\n\x1a\n"
+    assert result["chart_analysis"]["key_risks"][0]["phase"] == "tile_gap"
+    assert result["chart_analysis_note"] is None
+
+
+def test_qa_detect_defects_chart_degrades(monkeypatch):
+    """缺陷图表解读降级：视觉不可用 → chart_analysis=None + 标注，图表仍返回"""
+    _vision_settings(monkeypatch, False)  # 关闭真实 CV → 走 mock 路径
+
+    agent = QAInspectorAgent()
+    result = agent.detect_defects({
+        "project_id": "P009",
+        "phase": "masonry",
+        "images": [{"url": "http://example.com/d.jpg", "type": "tile_surface"}],
+        "include_chart": True,
+    })
+
+    assert result["chart_b64"]
+    assert result["chart_analysis"] is None
+    assert result["chart_analysis_note"] is not None
+    assert "视觉模型不可用" in result["chart_analysis_note"]
+
+
 def test_qa_detect_intent():
     """质检意图识别"""
     assert QAInspectorAgent.detect_qa_intent("生成分项验收报告") == "acceptance"

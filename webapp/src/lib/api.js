@@ -196,6 +196,14 @@ export async function getQualityChecklist(phase) {
   return request(`/api/construction/quality-checklist/${encodeURIComponent(phase)}`)
 }
 
+// QA Inspector Agent：生成验收报告（可选 include_chart → chart_b64 诊断图表 + chart_analysis 视觉解读）
+export async function generateAcceptanceReport(payload) {
+  return request('/api/agents/qa-inspector/acceptance-report', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 // ──────────────────────────────────────────────────────────────
 // 采购
 // ──────────────────────────────────────────────────────────────
