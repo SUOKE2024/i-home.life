@@ -241,6 +241,19 @@ async def execute_scene(scene_id, trigger_source, db, user):
 - **集成要点**：`SplatMesh({ url })` 即 THREE.Object3D 子类，可 `scene.add` 并与 P0 设备 Sprite（yaw/pitch 换算）共存；加载失败/无 WebGL2 时按 3.2 降级链回退 PanoramaViewer。
 - **结论**：技术选型成立，M3 可立项（组件基石 = `GaussianViewer.jsx`：SparkRenderer + SplatMesh + WebGL2 检测 + 双轨降级 + 设备锚点叠加，待内容管线提供 .spz 资源）。
 
+### 3.4 内容管线预研（M3 余项，2026-08-12）
+
+**管线 A · 实景采集（真实房源/展厅）**：手机/LiDAR 多视角采集 → 3DGS 重建 → .ply/.spz → 前端 Spark 渲染。
+- 开源流水线：**GaussianScan-Recon**（2026-06 活跃，模块化：视频抽帧 → 深度估计 → Gaussian 建模 → 可视化导出，适合学习/落地）；量产可选 INRI 官方 CUDA 管线离线上云（前端只消费 .spz）。
+
+**管线 B · AI 生成（效果图「先看后装」）**：
+- **路径 B1（2D 效果图 → 3D 漫游）**：`ai_render`（ControlNet 效果图，既有）→ **MonoDiffSplat**（2026-05 活跃，单图/稀疏视图：DA3 深度 → 2DGS 训练 + See3D inpaint 多轮细化，输出 .ply）——这是设计 4.1「DepthForge 类 2D→3D 工具」的实际开源对应。
+- **路径 B2（文本 → 全屋 3D）**：**Kairos-HomeWorld**（2026-06-05 大晓机器人+港中文开源，四阶段：K-D 树户型生成 → 2D→3D 提升 → VLM 递归细化 → 表面中心可交互物体放置；配套 30 万中国户型 + 5000 全屋场景 + 5 万物体资产数据集）。产出为仿真场景（供具身智能训练），**接入需自建推理（GPU 算力投入）或观望托管 API**；设计 3.1 中「AI 生成层」定位不变。
+
+**选型建议**：近期先验证 B1（MonoDiffSplat 单图管线 → .ply → GaussianViewer，证明「2D 效果图可漫游」价值）；中期立项 Kairos 全屋生成（自建推理）；实景采集按需（GaussianScan-Recon / INRI 离线上云）。
+
+**落地路径（后续立项）**：内容管线服务（异步任务：效果图/采集 → 重建 → 转 .spz → 写 `VRPanorama.splat_url` → WS 通知）→ `VirtualTour`/`GaussianViewer` 自动渲染，与现有 `splat_url` 数据入口无缝衔接。
+
 ---
 
 ## 第 4 部分 · 效果图漫游体验 + 生态供应链/服务商智能展厅模块研究
