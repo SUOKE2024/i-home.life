@@ -46,7 +46,19 @@ echo "  🐍 安装 Python 依赖..."
 cd "$DEPLOY_DIR"
 python3 -m venv "$VENV_DIR" 2>/dev/null || true
 source "$VENV_DIR/bin/activate"
-pip install -q fastapi uvicorn sqlalchemy asyncpg aiosqlite passlib python-multipart openpyxl httpx 2>&1 | tail -1
+pip install -q fastapi uvicorn sqlalchemy asyncpg aiosqlite passlib python-multipart openpyxl httpx alembic 2>&1 | tail -1
+
+# 迁移前备份（DDL 不可逆；sqlite 自动复制，PG 提示手动 pg_dump）
+DB_URL=$(grep -E '^DATABASE_URL=' "$CONFIG_FILE" | cut -d= -f2-)
+if [[ "$DB_URL" == sqlite* ]]; then
+  DB_FILE=$(echo "$DB_URL" | sed 's|sqlite+aiosqlite:///||')
+  if [ -f "$DEPLOY_DIR/$DB_FILE" ]; then
+    sudo cp "$DEPLOY_DIR/$DB_FILE" "$DEPLOY_DIR/$DB_FILE.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  💾 SQLite 数据库已备份"
+  fi
+else
+  echo "  💾 PostgreSQL: 请先手动备份 (pg_dump -U ihome ihome > /tmp/ihome-$(date +%Y%m%d).sql)"
+fi
 
 # 初始化数据库
 echo "  🗄️  初始化数据库..."
@@ -59,6 +71,12 @@ async def setup():
     print('  ✅ 数据库表已创建')
 asyncio.run(setup())
 " 2>&1
+
+# 应用 alembic 迁移
+# ⚠️ create_all 只建缺失表，不给已有表加新列（v1.13.4 P0 新增列
+#    vr_panoramas.content_source / crews.owner_id/featured 等必须经迁移应用）
+echo "  🔄 应用 alembic 迁移..."
+PYTHONPATH=. python -m alembic upgrade head 2>&1 | tail -3
 
 # 种子数据
 echo "  🌱 加载种子数据..."
@@ -149,9 +167,17 @@ PLISTEOF
     echo "  ✅ launchd 已配置并启动"
   fi
 elif [[ "$OSTYPE" == "linux"* ]]; then
-  echo "  🐧 请手动配置 systemd:"
-  echo "     sudo cp scripts/ihome.service /etc/systemd/system/"
-  echo "     sudo systemctl enable --now ihome"
+  echo "  🐧 配置 systemd..."
+  if sudo systemctl list-unit-files 2>/dev/null | grep -q '^ihome.service'; then
+    sudo cp "$PROJECT_DIR/scripts/ihome.service" /etc/systemd/system/ihome.service
+    sudo systemctl daemon-reload
+    sudo systemctl restart ihome
+    echo "  ✅ ihome systemd 服务已重启（代码已加载）"
+  else
+    echo "  ⚠️  首次部署，请手动安装 systemd 服务:"
+    echo "     sudo cp scripts/ihome.service /etc/systemd/system/"
+    echo "     sudo systemctl enable --now ihome"
+  fi
 fi
 
 # HTTPS 提示
