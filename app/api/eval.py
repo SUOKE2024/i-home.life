@@ -43,6 +43,8 @@ class EvalReportResponse(BaseModel):
     quality_targets: dict = {}
     # v1.13.x：工具选择准确率基线报告（确定性，诚实标注非 LLM）
     tool_accuracy: dict = {}
+    # v1.13.5：用户反馈满意度维度（per-agent like 率 + overall）
+    feedback_metrics: dict = {}
     notes: list[str] = []
 
 
@@ -62,11 +64,14 @@ async def list_dimensions(current_user: User = Depends(get_current_user)):
 async def get_report(
     force_run: bool = Query(False, description="为空时是否立即运行一次轻量评估"),
     current_user: User = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """获取评估报告。
 
     默认从最近 harness 轨迹计算维度分数；``force_run=True`` 时强制重新运行。
     受 ``settings.eval_enabled`` feature flag 控制。
+    v1.13.5：报告新增 ``feedback_metrics`` 用户反馈满意度维度（复用 detect_feedback_drift，
+    per-agent like 率 + overall，样本不足诚实标注 insufficient_samples）。
     """
     if not settings.eval_enabled:
         return EvalReportResponse(
@@ -78,6 +83,12 @@ async def get_report(
         )
     runner = IHomeEvalRunner(baseline="full_system")
     report = runner.run()
+    try:
+        from app.eval.ihome_eval import compute_feedback_metrics
+        report.feedback_metrics = await compute_feedback_metrics(db)
+    except Exception as e:
+        logger.warning("eval_feedback_metrics_failed: %s", e)
+        report.feedback_metrics = {"error": str(e)}
     return EvalReportResponse(**report.to_dict())
 
 

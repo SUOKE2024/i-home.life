@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 评估框架：feedback 纳入评估报告（v1.13.5 维度，2026-08-13）
+- **闭环 v1.13.4 遗留「feedback 纳入 report（drift 已含）」**：`IHomeEvalReport` 新增
+  `feedback_metrics` 字段（[ihome_eval.py](app/eval/ihome_eval.py)）——复用 `detect_feedback_drift`
+  输出报告形态：`per_agent`（like_rate/samples/status/target）+ `overall`（聚合 like 率 +
+  判定，样本不足为 None 诚实标注不伪造）+ `agent_count`
+- **`GET /api/eval/report` 挂载**（[eval.py](app/api/eval.py)）：新增 db 依赖，报告返回
+  `feedback_metrics`；失败降级 `{"error": ...}` 不阻断报告（诚实降级）
+- **测试**：test_eval +1（预置 20% like 率 → per_agent/overall 均 critical）；27 passed；
+  flake8/mypy 0
+- **遗留（诚实标注）**：`/api/eval/run`（admin 触发）未挂载 feedback（需 db 透传，暂保持）；
+  LLM 工具分类抽样评估仍未接入（确定性基线 100% 已足够，LLM 抽样留待成本评估）
+
 ### 测试基线校准 2293→2304（2026-08-13）
 - **全量回归**（`run_full_tests_with_retry.py`，1256s）：**2304 passed / 0 failed / 0 errors /
   2 skipped / 4 xfailed / exit=0**，无需重试——覆盖本轮全部改动（notification schema 可选

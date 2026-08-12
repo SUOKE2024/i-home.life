@@ -9,6 +9,7 @@ from app.eval.ihome_eval import (
     IHomeEvalReport,
     IHomeEvalRunner,
     QUALITY_TARGETS,
+    compute_feedback_metrics,
     detect_agent_drift,
     run_ihome_eval,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "IHomeEvalReport",
     "IHomeEvalRunner",
     "QUALITY_TARGETS",
+    "compute_feedback_metrics",
     "detect_agent_drift",
     "run_ihome_eval",
     "TOOL_SELECTION_DATASET",

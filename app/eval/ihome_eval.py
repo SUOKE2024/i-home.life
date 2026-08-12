@@ -107,6 +107,7 @@ class IHomeEvalReport:
     per_agent_scores: dict[str, dict] = field(default_factory=dict)  # v1.12.x per-agent 评分
     quality_targets: dict[str, float] = field(default_factory=dict)  # v1.12.x 量化目标
     tool_accuracy: dict = field(default_factory=dict)  # v1.13.x 工具选择准确率报告
+    feedback_metrics: dict = field(default_factory=dict)  # v1.13.5 用户反馈满意度维度
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -121,6 +122,7 @@ class IHomeEvalReport:
             "per_agent_scores": self.per_agent_scores,
             "quality_targets": self.quality_targets,
             "tool_accuracy": self.tool_accuracy,
+            "feedback_metrics": self.feedback_metrics,
             "dimension_benchmarks": DIMENSION_BENCHMARKS,
             "notes": self.notes,
         }
@@ -587,3 +589,60 @@ async def detect_feedback_drift(
             "current": like_rate, "target": target,
         })
     return drift
+
+
+async def compute_feedback_metrics(
+    db, window_days: int = 7, min_samples: int = 5,
+) -> dict:
+    """评估报告反馈满意度维度（v1.13.5，闭环 v1.13.4 遗留「feedback 纳入 report」）。
+
+    复用 detect_feedback_drift（agent_feedbacks → per-agent like 率判定），
+    输出报告形态（供 /api/eval/report 直接挂载）：
+    {
+      "window_days": 7,
+      "min_samples": 5,
+      "agent_count": N,
+      "per_agent": {"concierge": {"like_rate": 66.67, "samples": 6,
+                                   "status": "warn", "target": 70.0}, ...},
+      "overall": {"like_rate": .., "samples": .., "status": ..} | None  # 样本不足时为 None
+    }
+
+    诚实标注：样本量 < min_samples 的 Agent 标记 insufficient_samples 不判定；
+    全库无反馈时 overall=None + agent_count=0（不伪造满意度）。
+    """
+    rows = await detect_feedback_drift(db, window_days=window_days, min_samples=min_samples)
+    per_agent: dict[str, dict] = {}
+    total_samples = 0
+    total_likes = 0
+    for r in rows:
+        if r.get("metric") != "feedback_like_rate":
+            continue
+        per_agent[r["agent_name"]] = {
+            "like_rate": r["current"],
+            "samples": r["sample_size"],
+            "status": r["status"],
+            "target": r["target"],
+        }
+        # overall 仅统计有判定样本的 Agent（insufficient_samples 不计入聚合）
+        if r["status"] != DRIFT_STATUS_INSUFFICIENT_SAMPLES:
+            total_samples += r["sample_size"]
+            total_likes += round(r["current"] / 100 * r["sample_size"])
+
+    overall = None
+    if total_samples >= min_samples:
+        like_rate = round(total_likes / total_samples * 100, 2)
+        target = QUALITY_TARGETS.get("feedback_like_rate_min", 70.0)
+        gap_pct = abs(like_rate - target) / max(target, 1e-9) * 100
+        if like_rate < target:
+            status = DRIFT_STATUS_CRITICAL if gap_pct >= 10 else DRIFT_STATUS_WARN
+        else:
+            status = DRIFT_STATUS_OK
+        overall = {"like_rate": like_rate, "samples": total_samples, "status": status}
+
+    return {
+        "window_days": window_days,
+        "min_samples": min_samples,
+        "agent_count": len(per_agent),
+        "per_agent": per_agent,
+        "overall": overall,
+    }

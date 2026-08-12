@@ -183,3 +183,38 @@ async def test_eval_drift_feedback_dimension(client: AsyncClient, db_session):
     assert concierge, f"feedback 维度缺少 concierge 记录: {data['feedback']['records']}"
     assert concierge[0]["current"] == 20.0  # 1/5 like = 20% < 70% → critical
     assert concierge[0]["status"] == "critical"
+
+
+@pytest.mark.asyncio
+async def test_eval_report_feedback_metrics(client: AsyncClient, db_session):
+    """v1.13.5：预置反馈 → /api/eval/report 含 feedback_metrics 满意度维度"""
+    import uuid
+    from datetime import datetime, timezone
+
+    from app.models.agent_feedback import AgentFeedback
+    from app.models.user import User
+
+    user = User(phone=f"15{str(uuid.uuid4().int)[:9]}", name="报告反馈用户")
+    db_session.add(user)
+    await db_session.flush()
+    for i in range(5):
+        db_session.add(AgentFeedback(
+            user_id=user.id, agent_name="designer", message_hash=f"r{i}",
+            feedback_type="dislike" if i < 4 else "like",
+            user_message="msg", agent_reply="reply",
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+
+    headers = await _register_admin(client)
+    resp = await client.get("/api/eval/report", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    fb = data.get("feedback_metrics")
+    assert fb is not None, "report 应包含 feedback_metrics（v1.13.5）"
+    assert fb["agent_count"] >= 1
+    designer = fb["per_agent"].get("designer")
+    assert designer is not None, f"per_agent 缺少 designer: {fb['per_agent']}"
+    assert designer["like_rate"] == 20.0  # 1/5 like = 20% < 70%
+    assert designer["status"] == "critical"
+    assert fb["overall"] is not None and fb["overall"]["status"] == "critical"
