@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, Wallet, HardHat, ShieldCheck, FileCheck2,
   ShoppingCart, Home, Bot, UserCircle, LogOut, Menu, Search, Bell, ChevronDown,
-  Activity, Rotate3D, ScanLine,
+  Activity, Rotate3D, ScanLine, Store,
 } from 'lucide-react'
 import { Logo, Avatar } from './ui'
 import { useApp } from '../lib/store'
@@ -19,6 +19,7 @@ const NAV = [
   { to: '/smart-home', label: '智能家居', icon: Home },
   { to: '/virtual-tour', label: 'VR 全景', icon: Rotate3D },
   { to: '/ar-scan', label: 'AR 量房', icon: ScanLine },
+  { to: '/showroom', label: '智能展厅', icon: Store },
 ]
 
 const PAGE_TITLES = {
@@ -32,6 +33,7 @@ const PAGE_TITLES = {
   '/smart-home': ['智能家居', 'SMART HOME'],
   '/virtual-tour': ['VR 全景', 'VIRTUAL TOUR'],
   '/ar-scan': ['AR 量房', 'AR SCAN'],
+  '/showroom': ['智能展厅', 'SMART SHOWROOM'],
   '/ai': ['AI 管家', 'AI CONCIERGE'],
   '/profile': ['我的', 'PROFILE'],
   '/diagnostics': ['全链路诊断', 'DIAGNOSTICS'],

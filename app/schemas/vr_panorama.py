@@ -16,7 +16,7 @@ class HotspotPosition(BaseModel):
 class HotspotSpec(BaseModel):
     """热点定义"""
 
-    type: str = Field(..., description="热点类型: panorama / floorplan / link / info")
+    type: str = Field(..., description="热点类型: panorama / floorplan / link / info / exhibit")
     # 兼容两种输入: 球面坐标 {yaw, pitch} (推荐,与前端一致) 或 笛卡尔 {x, y, z} (兼容旧数据)
     position: dict[str, Any] = Field(
         ...,
@@ -26,6 +26,7 @@ class HotspotSpec(BaseModel):
     target_panorama_id: str | None = None
     target_floorplan_id: str | None = None
     url: str | None = None
+    material_id: str | None = Field(default=None, description="展品热点关联材料 id（智能展厅，M4）")
 
 
 class InitialViewSpec(BaseModel):
@@ -109,6 +110,7 @@ class HotspotCreate(BaseModel):
     target_panorama_id: str | None = None
     target_floorplan_id: str | None = None
     url: str | None = None
+    material_id: str | None = None
 
 
 class RenderPanoramaRequest(BaseModel):

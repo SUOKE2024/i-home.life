@@ -300,8 +300,9 @@ async def execute_scene(scene_id, trigger_source, db, user):
 - ✅ **WS 推送接入（2026-08-12）**：`StateSyncHook` 落地为 `useProjectSocket`（`/ws/{project_id}?token=` PASETO 认证，心跳 ping/pong 保活，断线指数退避重连）+ `useDeviceOverlay` 订阅 `smart.device.state`（真机状态实时更新 + 热点闪烁）与 `scene.triggered`（联动高亮 + SceneTriggerOverlay 浮层）；**降级纪律**：WS 未连接时自动退回 30s 轮询兜底，推送恢复即停止轮询。Nginx `/ws/`（Upgrade 反代）与 Vite dev proxy 均已就绪
 - ✅ **M3 组件基石（2026-08-12 落地）**：`GaussianViewer.jsx`——`@sparkjsdev/spark` v2.1.0（动态导入独立 chunk，gzip 1.75MB 按需加载）+ `SparkRenderer`/`SplatMesh` 渲染 .spz/.ply + WebGL2 检测 + **双轨降级**（无 WebGL2 / Spark 加载失败 / 资源 20s 超时 → `onFallback` 回退 PanoramaViewer 贴图全景）+ 设备 Sprite 锚点叠加（复用 P0 yaw/pitch 换算）+ **场景热点跳转**（★ Sprite，房间间漫游，复用 P0 热点机制）+ 按需渲染省电；`VirtualTour` 接入（`pano.splat_url` 存在即 GS 渲染）；后端 `VRPanorama.splat_url` 列（迁移 `a1b2c3d4e5f7`）为 3DGS 内容入口，`VRPanoramaCreate/Update/Response/ListItem` schema 透传。内容管线（实景采集/LiDAR→.spz、Kairos AI 生成）待后续立项
 - ✅ **可观测性增强（2026-08-12）**：执行管线全状态流转日志——`device_command_received/rejected/context/bridge_dispatch/executed`、`scene_execute_start/devices/action_dispatch/action_skipped/action_rejected/action_bridge/action_result/done(含 status_summary)`，命令下发（connect→send_command→result）与 pending→success/failed 流转全程可排查
+- ✅ **M4 智能展厅最小原型（2026-08-12 落地）**：`ShowroomPage.jsx`（路由 /showroom + Shell 导航）——展厅 = 项目 VRPanorama（复用 PanoramaViewer 漫游），**展品即热点**（`HotspotCreate/Spec` 新增 `material_id`，type=exhibit）；点击展品 → Material 详情（价格/品牌/规格 + 环保认证 `/api/eco-materials/certs`）→ **一键加入 BOM**（复用 `POST /api/materials/bom` 链路）。**诚实标注**：设计 4.2 的 `Supplier.is_verified` 认证状态未落地（`Supplier` 模型无该字段，不伪造，待模型落地后补）
+- ⏳ **M4 余项**：供应商实景展厅（验厂漫游）、服务商作品集展厅（4.3）、`Supplier.is_verified` 认证状态模型
 - ⏳ **M3 余项**：3DGS 内容管线（采集/AI 生成 → .spz，见第 4 部分 4.1 效果图漫游管线）
-- ⏳ **M4（智能展厅）**：待立项（模块研究见第 4 部分）
 
 ---
 

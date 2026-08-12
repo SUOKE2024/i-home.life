@@ -18,6 +18,7 @@ import DiagnosticsPage from './pages/Diagnostics'
 // VR 全景页依赖 three.js，懒加载避免拖慢首屏 bundle
 const VirtualTourPage = lazy(() => import('./pages/VirtualTour'))
 const ARScanPage = lazy(() => import('./pages/ARScan'))
+const ShowroomPage = lazy(() => import('./pages/ShowroomPage'))
 
 function SuspenseFallback() {
   return <div className="page-loading mono">加载中…</div>
@@ -63,6 +64,14 @@ export default function App() {
             element={
               <Suspense fallback={<SuspenseFallback />}>
                 <ARScanPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/showroom"
+            element={
+              <Suspense fallback={<SuspenseFallback />}>
+                <ShowroomPage />
               </Suspense>
             }
           />

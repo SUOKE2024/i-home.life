@@ -169,6 +169,35 @@ async def test_add_and_list_hotspots(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_add_exhibit_hotspot_with_material(client: AsyncClient):
+    """M4 智能展厅：展品热点（type=exhibit + material_id）创建并透传返回"""
+    headers = await _auth_headers(client, "13960060018")
+    project_id = await _create_project(client, headers)
+    panorama = await _create_panorama(client, headers, project_id, "瓷砖展厅")
+
+    resp = await client.post(
+        f"/api/vr/panoramas/{panorama['id']}/hotspots",
+        json={
+            "type": "exhibit",
+            "position": {"yaw": 90.0, "pitch": -5.0},
+            "label": "岩板瓷砖",
+            "material_id": "mat-example-001",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await client.get(
+        f"/api/vr/panoramas/{panorama['id']}/hotspots", headers=headers,
+    )
+    hotspots = resp.json()
+    exhibit = next((h for h in hotspots if h.get("type") == "exhibit"), None)
+    assert exhibit is not None
+    assert exhibit["material_id"] == "mat-example-001"
+    assert exhibit["label"] == "岩板瓷砖"
+
+
+@pytest.mark.asyncio
 async def test_delete_hotspot(client: AsyncClient):
     """通过索引删除热点"""
     headers = await _auth_headers(client, "13960060007")

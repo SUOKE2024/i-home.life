@@ -246,6 +246,21 @@ export async function getMaterials() {
   return request('/api/materials')
 }
 
+export async function getMaterial(materialId) {
+  return request(`/api/materials/${encodeURIComponent(materialId)}`)
+}
+
+export async function getMaterialCert(materialId) {
+  return request(`/api/eco-materials/certs/${encodeURIComponent(materialId)}`)
+}
+
+export async function addBomItem(data) {
+  return request('/api/materials/bom', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 // ──────────────────────────────────────────────────────────────
 // VR 全景 / AR 量房（视觉表现层）
 // ──────────────────────────────────────────────────────────────
