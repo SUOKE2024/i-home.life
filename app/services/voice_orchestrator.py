@@ -58,6 +58,9 @@ class VoiceTaskRegistry:
     多实例扩展时应迁移到 Redis（复用 app/services/cache_service.py）。
     """
 
+    # v1.13.x P2-3: 每用户最多保留的任务数（超出清理已完成任务并释放协程引用）
+    MAX_RETAINED_TASKS = 30
+
     def __init__(self) -> None:
         self._tasks: dict[str, list[VoiceTask]] = {}  # user_id → [VoiceTask]
         self._lock = asyncio.Lock()
@@ -71,7 +74,10 @@ class VoiceTaskRegistry:
     ) -> VoiceTask:
         """注册并后台执行一个语音任务。"""
         async with self._lock:
-            seq = len(self._tasks.get(user_id, [])) + 1
+            existing = self._tasks.get(user_id, [])
+            # v1.13.x P2-3: seq 基于历史最大值单调递增（裁剪后 len 恒定，
+            # 原 len()+1 会产生重复 seq）；与 append 同一锁块防并发重复
+            seq = max((t.seq for t in existing), default=0) + 1
         task = VoiceTask(task_id=uuid.uuid4().hex[:8], seq=seq, intent=intent, command=command)
 
         async def _runner() -> None:
@@ -94,7 +100,15 @@ class VoiceTaskRegistry:
 
         task.asyncio_task = asyncio.create_task(_runner())
         async with self._lock:
-            self._tasks.setdefault(user_id, []).append(task)
+            tasks = self._tasks.setdefault(user_id, [])
+            tasks.append(task)
+            # v1.13.x P2-3: 超出保留上限时裁剪最旧的已完成任务并释放
+            # asyncio_task 引用（防长运行进程内存无界增长）
+            if len(tasks) > self.MAX_RETAINED_TASKS:
+                for t in tasks[: -self.MAX_RETAINED_TASKS]:
+                    if t.status != "running" and t.asyncio_task is not None:
+                        t.asyncio_task = None
+                del tasks[:-self.MAX_RETAINED_TASKS]
         logger.info("voice_task_launched: user=%s task=%s intent=%s", user_id, task.task_id, intent)
         return task
 

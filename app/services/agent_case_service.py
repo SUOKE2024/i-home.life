@@ -322,11 +322,23 @@ async def search_cases(
     return cases
 
 
-def build_case_context(cases: list[AgentCase]) -> str:
-    """将检索到的 Case 构建为上下文注入文本。"""
+def build_case_context(cases: list[AgentCase], max_chars: int | None = None) -> str:
+    """将检索到的 Case 构建为上下文注入文本。
+
+    max_chars（v1.13.5 Context Engineering）：注入预算上限（字符数）。
+    - None = 不限制（旧行为全量注入）
+    - 超预算：从末尾 Case 开始丢弃（cases 已按 quality 降序，低优先级先裁）并标注
+      省略条数；预算过小连一条 Case 都放不下时返回 ""（诚实降级，不注入残片噪音）
+    """
     if not cases:
         return ""
-    parts = ["[历史经验 Case —— 借鉴 EverOS Agent Memory，同类任务历史执行记录]"]
+    header = "[历史经验 Case —— 借鉴 EverOS Agent Memory，同类任务历史执行记录]"
+    footer = "[/历史经验 Case —— 优先采用高质量步骤，避免已记录的失败路径]"
+    if max_chars is not None and max_chars <= len(header):
+        return ""
+    parts = [header]
+    total = len(header)
+    injected = 0
     for i, case in enumerate(cases, 1):
         approach_steps = []
         try:
@@ -337,10 +349,23 @@ def build_case_context(cases: list[AgentCase]) -> str:
                 approach_steps.append(f"    {s.get('step', '?')}. {attempted} → {result}")
         except (json.JSONDecodeError, TypeError):
             approach_steps.append("    (步骤解析失败)")
-        parts.append(
+        block = (
             f"Case {i} [质量={case.quality_score:.1f}, 结果={case.outcome}]:\n"
             f"  意图: {case.task_intent}\n"
             f"  步骤:\n" + "\n".join(approach_steps)
         )
-    parts.append("[/历史经验 Case —— 优先采用高质量步骤，避免已记录的失败路径]")
+        if max_chars is not None and total + len(block) > max_chars:
+            break
+        parts.append(block)
+        total += len(block)
+        injected += 1
+    if injected < len(cases):
+        note = f"[其余 {len(cases) - injected} 条 Case 已按上下文预算省略]"
+        if max_chars is None or total + len(note) <= max_chars:
+            parts.append(note)
+            total += len(note)
+    if max_chars is not None and total + len(footer) > max_chars:
+        # 预算紧到连收尾都放不下 → 整块不注入（诚实降级）
+        return ""
+    parts.append(footer)
     return "\n".join(parts)

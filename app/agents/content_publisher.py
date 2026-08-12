@@ -236,8 +236,13 @@ class ContentPublisherAgent(BaseAgent):
 
     # ── LLM 模式：内容发布引导 ──
 
-    async def generate_content_publish_reply(self, message: str, user_name: str = "") -> str:
-        """LLM 模式：辅助供应商在聊天中发布产品/服务"""
+    async def generate_content_publish_reply(self, message: str, user_name: str = "",
+                                             db=None, user_id: str = "",
+                                             project_id: str = "") -> str:
+        """LLM 模式：辅助供应商在聊天中发布产品/服务
+
+        v1.13.3（全链路闭环补齐，断点 B）：补 db/user_id/project_id 透传 think。
+        """
         prompt = (
             f"""你是索克家居的内容发布助手。供应商 {user_name} 想要发布产品/服务。
 
@@ -254,7 +259,7 @@ class ContentPublisherAgent(BaseAgent):
 如果信息不完整，在 reply 中友好地询问缺失信息，并在 missing_fields 中列出。"""
         )
         try:
-            result = await self.think(prompt)
+            result = await self.think(prompt, db=db, user_id=user_id, project_id=project_id)
             return result
         except Exception:
             return (

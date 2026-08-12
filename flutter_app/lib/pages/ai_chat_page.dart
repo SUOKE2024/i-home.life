@@ -58,6 +58,10 @@ class _AIChatPageState extends State<AIChatPage> {
   StreamSubscription<SseEvent>? _sseSub;
   VoidCallback? _wsUnsubscribe;
 
+  // v1.13.x P1-4: 会话恢复 Future（initState 启动，_send 前等待），
+  // 防用户极快发送首条消息时 _currentSessionId 尚未恢复导致新会话孤儿化
+  Future<void>? _sessionRestoreFuture;
+
   static const _sessionKey = 'agent_session_id';
 
   @override
@@ -68,7 +72,8 @@ class _AIChatPageState extends State<AIChatPage> {
       _msgCtrl.text = widget.prefillText!.trim();
     }
     _connectWebSocket();
-    _restoreSessionId();
+    // v1.13.x P1-4: 记录恢复 Future，_send 前 await 防竞态
+    _sessionRestoreFuture = _restoreSessionId();
     // LBS 闭环：预取 GPS 坐标（异步缓存，失败/拒绝授权不阻塞对话，
     // 发送消息时通过 getCached() 同步读取），供空间感知/周边真实 POI 注入
     unawaited(LocationService.instance.prefetch());
@@ -91,6 +96,8 @@ class _AIChatPageState extends State<AIChatPage> {
     if (_currentSessionId == null) return;
     try {
       final result = await ApiClient().getAgentSession(_currentSessionId!);
+      // v1.13.x P1-3: dispose 后不再 setState（防 debug 断言崩溃）
+      if (!mounted) return;
       if (result.isSuccess && result.data != null) {
         final data = result.data as Map<String, dynamic>;
         final msgs = (data['messages'] as List<dynamic>?) ?? [];
@@ -302,6 +309,9 @@ class _AIChatPageState extends State<AIChatPage> {
   // ── 发送消息 ──
 
   Future<void> _send() async {
+    // v1.13.x P1-4: 等待会话恢复完成（SharedPreferences 读取很快，仅首次等待），
+    // 防首条消息早于 session 恢复发出 → 后端创建新会话孤儿化
+    await _sessionRestoreFuture;
     final text = _msgCtrl.text.trim();
     if (text.isEmpty || _isLoading) return;
     _msgCtrl.clear();
@@ -697,6 +707,10 @@ class _AIChatPageState extends State<AIChatPage> {
       'tasks': 'tasks', 'change_orders': 'change_orders',
       'crews': 'crews', 'points': 'points',
       'cad_import': 'cad_import', 'sketch_to_3d': 'sketch_to_3d',
+      // v1.13.x P2-4: 内容发布与商业运营 Agent（无独立前端展示，归属总控）
+      'content_publisher': 'master', 'growth': 'master',
+      'marketing': 'master', 'competitor_research': 'master',
+      'finance_recon': 'master',
     };
     return map[backendType] ?? backendType;
   }

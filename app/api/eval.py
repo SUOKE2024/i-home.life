@@ -138,15 +138,24 @@ async def get_drift(
 
     基于 agent_traces 持久化轨迹，对比 QUALITY_TARGETS 量化基线，
     返回 per-agent 成功率/降级率/平均延迟的状态（ok/warn/critical）。
+    v1.13.4（评估体系维度）：新增 feedback 维度——基于 agent_feedbacks 的
+    per-agent like 率漂移（用户满意度纳入质量门禁）。
     """
-    from app.eval.ihome_eval import detect_agent_drift, QUALITY_TARGETS
+    from app.eval.ihome_eval import (
+        detect_agent_drift, detect_feedback_drift, QUALITY_TARGETS,
+    )
 
     drift = await detect_agent_drift(db, window_days=window_days)
+    feedback_drift = await detect_feedback_drift(db, window_days=window_days)
     critical = [d for d in drift if d["status"] == "critical"]
     warn = [d for d in drift if d["status"] == "warn"]
+    fb_critical = [d for d in feedback_drift if d["status"] == "critical"]
+    fb_warn = [d for d in feedback_drift if d["status"] == "warn"]
     logger.info(
-        "eval_drift_checked: user=%s window_days=%d records=%d critical=%d warn=%d",
+        "eval_drift_checked: user=%s window_days=%d records=%d critical=%d warn=%d "
+        "feedback_records=%d fb_critical=%d fb_warn=%d",
         current_user.id, window_days, len(drift), len(critical), len(warn),
+        len(feedback_drift), len(fb_critical), len(fb_warn),
     )
     return {
         "window_days": window_days,
@@ -160,5 +169,18 @@ async def get_drift(
             "insufficient_samples": len(
                 [d for d in drift if d["status"] == "insufficient_samples"]
             ),
+        },
+        # v1.13.4：用户反馈满意度漂移（like 率，独立数据源 agent_feedbacks）
+        "feedback": {
+            "records": feedback_drift,
+            "summary": {
+                "total": len(feedback_drift),
+                "critical": len(fb_critical),
+                "warn": len(fb_warn),
+                "ok": len([d for d in feedback_drift if d["status"] == "ok"]),
+                "insufficient_samples": len(
+                    [d for d in feedback_drift if d["status"] == "insufficient_samples"]
+                ),
+            },
         },
     }

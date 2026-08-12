@@ -87,6 +87,9 @@ QUALITY_TARGETS: dict[str, float] = {
     # v1.13.0（2026 前沿对齐）：
     "tool_selection_accuracy_min": 60.0,  # 工具选择准确率下限（确定性基线参考）
     "token_budget_hit_rate_max": 20.0,    # token 预算早停率上限（%）（>20% 说明工具结果过大）
+    # v1.13.4（评估体系维度，2026 前沿：用户满意度纳入质量门禁）：
+    "feedback_like_rate_min": 70.0,   # 用户反馈 like 率下限（%）（like/(like+dislike)）
+    "feedback_min_samples": 5,        # 反馈漂移判定最小样本量（低于则不判定，诚实标注）
 }
 
 
@@ -439,6 +442,7 @@ def run_ihome_eval(
 DRIFT_STATUS_OK = "ok"
 DRIFT_STATUS_WARN = "warn"
 DRIFT_STATUS_CRITICAL = "critical"
+DRIFT_STATUS_INSUFFICIENT_SAMPLES = "insufficient_samples"
 
 
 async def detect_agent_drift(
@@ -522,4 +526,64 @@ async def detect_agent_drift(
             "token_budget_hit_rate", budget_hit_rate,
             QUALITY_TARGETS.get("token_budget_hit_rate_max", 20.0), inverse=True,
         )
+    return drift
+
+
+async def detect_feedback_drift(
+    db, window_days: int = 7, min_samples: int = 5,
+) -> list[dict]:
+    """基于 agent_feedbacks 的 per-agent 用户满意度漂移检测（v1.13.4 评估体系）。
+
+    用户反馈（like/dislike）是 Agent 质量的直接信号——此前 agent_feedbacks 只被
+    L4 偏好学习 + growth 周报消费，未纳入质量门禁/漂移判定。本函数对比当前窗口
+    per-agent like 率（like/(like+dislike)）与 QUALITY_TARGETS.feedback_like_rate_min：
+    - like_rate < 目标值但差距 <10% → warn
+    - like_rate < 目标值且差距 ≥10% → critical
+    - 样本量 < min_samples → insufficient_samples（不判定，诚实标注）
+
+    Returns:
+        [{"agent_name", "sample_size", "metric", "current", "target",
+          "status": ok|warn|critical|insufficient_samples}]
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import case, func, select
+    from app.models.agent_feedback import AgentFeedback
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    stmt = (
+        select(
+            AgentFeedback.agent_name,
+            func.count().label("cnt"),
+            func.sum(case((AgentFeedback.feedback_type == "like", 1), else_=0)).label("like_cnt"),
+        )
+        .where(AgentFeedback.created_at >= cutoff)
+        .group_by(AgentFeedback.agent_name)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    target = QUALITY_TARGETS.get("feedback_like_rate_min", 70.0)
+    drift: list[dict] = []
+    for name, cnt, like_cnt in rows:
+        total = int(cnt)
+        like_cnt = int(like_cnt or 0)
+        if total < min_samples:
+            drift.append({
+                "agent_name": name, "sample_size": total,
+                "status": DRIFT_STATUS_INSUFFICIENT_SAMPLES,
+                "metric": "feedback_sample_size", "current": total,
+                "target": min_samples,
+            })
+            continue
+        like_rate = round(like_cnt / total * 100, 2)
+        gap_pct = abs(like_rate - target) / max(target, 1e-9) * 100
+        if like_rate < target:
+            status = DRIFT_STATUS_CRITICAL if gap_pct >= 10 else DRIFT_STATUS_WARN
+        else:
+            status = DRIFT_STATUS_OK
+        drift.append({
+            "agent_name": name, "sample_size": total,
+            "status": status, "metric": "feedback_like_rate",
+            "current": like_rate, "target": target,
+        })
     return drift

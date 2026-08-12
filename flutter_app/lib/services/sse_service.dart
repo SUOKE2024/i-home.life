@@ -103,7 +103,8 @@ class SseService {
     http.StreamedResponse? response;
 
     try {
-      response = await client.send(request);
+      // v1.13.x P1-2: 请求超时兜底——服务端挂起不响应时避免加载态永久卡死
+      response = await client.send(request).timeout(const Duration(seconds: 15));
 
       if (response.statusCode >= 400) {
         final errorBody = await response.stream.bytesToString();
@@ -131,7 +132,8 @@ class SseService {
       // 跟踪是否已收到后端发送的 done 事件，避免重复发出
       bool receivedDone = false;
 
-      await for (final line in lineStream) {
+      // v1.13.x P1-2: 流内事件空闲超时兜底——后端断流不关闭时避免永久等待
+      await for (final line in lineStream.timeout(const Duration(seconds: 30))) {
         if (line.isEmpty) continue;
         if (!line.startsWith('data: ')) continue;
 
@@ -178,6 +180,16 @@ class SseService {
             yield SseEvent(
               type: SseEventType.thinking_step,
               content: data['content'] as String? ?? '',
+              agentType: data['agent_type'] as String?,
+              sessionId: sid,
+            );
+          } else if (msgType == 'error') {
+            // v1.13.x P0-4: 后端流内 error 事件（如 LLM 中途失败）显式解析为
+            // error 事件。原实现落入 else 被当作 token 文本追加进回复正文，
+            // 页面错误分支永不触发。
+            yield SseEvent(
+              type: SseEventType.error,
+              content: data['content'] as String? ?? 'Agent 生成回复失败',
               agentType: data['agent_type'] as String?,
               sessionId: sid,
             );

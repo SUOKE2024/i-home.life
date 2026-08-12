@@ -135,7 +135,9 @@ async def confirm_scan_product(
             prompt = _build_marketing_prompt(product)
             agent = ProcurementAgent()
             try:
-                reply = await agent.think(prompt)
+                reply = await agent.think(
+                    prompt, db=db, user_id=current_user.id,
+                )
                 desc, ai_tags = _parse_ai_response(reply)
             finally:
                 await agent.close()

@@ -23,7 +23,7 @@ try:
 except ImportError:  # httpx 为可选依赖，缺失时禁用真实后端调用
     httpx = None  # type: ignore
 
-from app.agents.base import BaseAgent
+from app.agents.base import BaseAgent, get_pref_hint_cached
 from app.config import get_settings
 from app.services.ai_content_labeling import annotate_output
 
@@ -140,8 +140,10 @@ class AIRenderService:
         """
         start = time.perf_counter()
 
-        preference_hint = await BaseAgent.get_user_preference_hint(
-            user_id, "designer", db
+        # v1.13.4（评估体系维度）：走缓存版偏好查询（与 /chat 端点一致）
+        preference_hint = await get_pref_hint_cached(
+            user_id, "designer", db,
+            max_examples=get_settings().agent_learning_max_examples,
         )
         hint_applied = bool(preference_hint)
 
@@ -211,8 +213,10 @@ class AIRenderService:
         """
         start = time.perf_counter()
 
-        preference_hint = await BaseAgent.get_user_preference_hint(
-            user_id, "designer", db
+        # v1.13.4（评估体系维度）：走缓存版偏好查询（与 /chat 端点一致）
+        preference_hint = await get_pref_hint_cached(
+            user_id, "designer", db,
+            max_examples=get_settings().agent_learning_max_examples,
         )
         hint_applied = bool(preference_hint)
 
@@ -302,8 +306,11 @@ class AIRenderService:
         """
         start = time.perf_counter()
 
-        preference_hint = await BaseAgent.get_user_preference_hint(
-            user_id, "designer", db
+        # v1.13.4（评估体系维度）：走缓存版偏好查询（与 /chat 端点一致，
+        # 避免每次渲染重复 DB 查询；TTL 由 pref_hint_cache_ttl 控制）
+        preference_hint = await get_pref_hint_cached(
+            user_id, "designer", db,
+            max_examples=get_settings().agent_learning_max_examples,
         )
         hint_applied = bool(preference_hint)
 

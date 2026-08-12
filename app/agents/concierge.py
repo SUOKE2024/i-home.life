@@ -349,18 +349,25 @@ class ConciergeAgent(BaseAgent):
             ),
         }
 
-    async def generate_response(self, user_message: str, context: str = "") -> str:
+    async def generate_response(self, user_message: str, context: str = "",
+                                db=None, user_id: str = "", project_id: str = "") -> str:
         """生成客服回复（调用 think）
 
         Args:
             user_message: 用户消息
             context: 对话上下文（可选）
+            db: 异步数据库会话（RAG/自进化注入用，可选）
+            user_id: 用户 ID（自进化注入/Case 沉淀用，可选）
+            project_id: 项目 ID（空间感知注入用，可选）
 
         Returns:
             客服回复文本
+
+        v1.13.3（全链路闭环补齐，断点 C）：补 db/user_id/project_id 透传 think。
         """
         try:
-            return await self.think(user_message, context)
+            return await self.think(user_message, context, db=db, user_id=user_id,
+                                    project_id=project_id)
         except Exception:
             # LLM 不可用时，使用 FAQ 知识库兜底
             faq_result = self.answer_faq(user_message)

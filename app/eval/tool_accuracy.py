@@ -117,18 +117,23 @@ TOOL_SELECTION_DATASET: list[ToolSelectionCase] = [
 # ════════════════════════════════════════════════════════════════
 
 # 工具 → 触发关键词（按优先级排序，先命中先返回）
+# v1.13.5（核心模块打磨）：重排关键词消歧——
+# ① 设计类三重工具（layout/proposals/update）按语义细分关键词，移除宽泛"方案"；
+# ② search_materials 移除"多少钱"（与 get_budget 冲突，物料价格用"价格"）；
+# ③ run_qa_inspection 增"质量"、get_construction_progress 增"阶段"（"水电阶段完成"）；
+# ④ search_poi "在哪"→"在哪里"（避免误命中"在哪个菜单"）。
 _TOOL_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
     ("cancel_agent_task", ("取消", "别做", "停掉", "终止任务")),
-    ("update_design_proposal", ("方案A", "方案B", "方案C", "方案", "改成", "加个", "改颜色")),
-    ("generate_design_proposals", ("设计一下", "几套方案", "帮我设计", "方案给我", "怎么设计", "怎么布置", "装修方案")),
+    ("update_design_proposal", ("方案A", "方案B", "方案C", "第三个方案", "改成", "加个", "改颜色")),
     ("get_voice_tasks", ("任务", "进度怎么样", "做完了吗", "任务列表")),
     ("launch_agent_task", ("顺便", "同时", "帮我做一份", "整理成文档")),
-    ("search_poi", ("附近", "周边", "哪里有", "在哪", "找找", "建材市场", "五金店", "家电卖场")),
-    ("run_qa_inspection", ("验收", "闭水试验", "空鼓", "质检", "质量隐患", "检查情况")),
-    ("get_construction_progress", ("进度", "到哪一步", "进行到", "延期", "工期")),
-    ("search_materials", ("瓷砖", "乳胶漆", "地板", "涂料", "马桶", "油漆", "价格", "多少钱", "物料", "材料")),
+    ("search_poi", ("附近", "周边", "哪里有", "在哪里", "找找", "建材市场", "五金店", "家电卖场")),
+    ("run_qa_inspection", ("验收", "闭水试验", "空鼓", "质检", "质量隐患", "检查情况", "质量")),
+    ("get_construction_progress", ("进度", "到哪一步", "进行到", "延期", "工期", "阶段")),
+    ("search_materials", ("瓷砖", "乳胶漆", "地板", "涂料", "马桶", "油漆", "价格", "物料", "材料")),
     ("get_budget", ("预算", "装修费用", "花多少钱", "多少钱", "费用")),
-    ("get_design_layout", ("设计", "布局", "布置", "风格")),
+    ("get_design_layout", ("设计一下", "怎么布置", "布局", "布置", "设计图", "户型图", "方案看看", "开放式")),
+    ("generate_design_proposals", ("几套方案", "帮我设计", "方案给我", "怎么设计", "装修方案", "设计一个")),
 ]
 
 
@@ -136,10 +141,12 @@ def classify_tool_by_keywords(query: str) -> str | None:
     """确定性关键词分类器（诚实标注：基线工具选择，非 LLM）。
 
     返回选中的工具名；无法归类返回 None（表示"不调用工具"，LLM 直接回复）。
+    v1.13.5：匹配时关键词同样归一化小写（修复"方案B"→lower 后与"方案B"
+    大小写不匹配的漏判）。
     """
     q = (query or "").lower()
     for tool, keywords in _TOOL_KEYWORDS:
-        if any(kw in q for kw in keywords):
+        if any(kw.lower() in q for kw in keywords):
             return tool
     return None
 
@@ -173,7 +180,13 @@ def evaluate_tool_selection(
 
     for case in cases:
         predicted = classifier(case.query)
-        is_correct = predicted == case.expected_tool
+        # v1.13.5（核心模块打磨）：negative 用例语义为「不应选工具」——
+        # predicted is None（不调用工具）计正确；expected_tool 字段保留
+        # 参考值（防误选陷阱）但不参与判定。
+        if case.failure_mode == "negative":
+            is_correct = predicted is None
+        else:
+            is_correct = predicted == case.expected_tool
         if is_correct:
             correct += 1
         per_tool.setdefault(case.expected_tool, {"correct": 0, "total": 0})

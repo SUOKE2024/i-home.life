@@ -45,6 +45,9 @@ class WebSocketService {
   // 已渲染消息 ID（防重复）
   final Set<String> _renderedIds = {};
 
+  // v1.13.x P2-4: 渲染标记上限（防单例长期驻留无界增长）
+  static const int _maxRenderedIds = 500;
+
   /// 当前是否已连接
   bool get isConnected => _ws != null && _ws!.readyState == WsState.open;
 
@@ -177,6 +180,10 @@ class WebSocketService {
   /// 标记消息已渲染。
   void markRendered(String messageId) {
     if (messageId.isNotEmpty) {
+      // v1.13.x P2-4: 防无界增长——超过上限时移除最旧的渲染标记
+      if (_renderedIds.length >= _maxRenderedIds) {
+        _renderedIds.remove(_renderedIds.first);
+      }
       _renderedIds.add(messageId);
     }
   }

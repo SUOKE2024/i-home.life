@@ -52,18 +52,10 @@ export default function DeviceCommandPanel({
     const r = await fn()
     if (r && r.isSuccess) {
       const d = r.data || {}
-      // 场景执行响应无顶层 action_status（在 actions[] 内）→ 按动作状态推导；
-      // 设备命令响应有顶层 action_status → 直接取用
-      let status = d.action_status
-      if (Array.isArray(d.actions) && d.actions.length > 0) {
-        const list = d.actions
-        status = list.every((a) => a.action_status === 'success')
-          ? 'success'
-          : list.some((a) => a.action_status === 'failed')
-            ? 'failed'
-            : 'pending'
-      }
-      setResult({ status: status || 'ok', note: d.note || null })
+      setResult({
+        status: d.action_status || 'ok',
+        note: d.note || null,
+      })
     } else {
       setResult({ status: 'failed', note: r?.error || '执行失败' })
     }

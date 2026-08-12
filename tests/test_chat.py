@@ -161,7 +161,7 @@ async def test_agent_auto_reply_real_agent_success(auth_headers: dict, client: A
         provider = "deepseek"
         tools = []
 
-        async def think(self, message, context=""):
+        async def think(self, message, context="", db=None, project_id="", user_id=""):
             return "已收到，我将安排质检复核。"
 
         async def close(self):

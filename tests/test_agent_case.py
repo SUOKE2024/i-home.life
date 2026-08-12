@@ -292,6 +292,54 @@ def test_build_case_context_formats():
     assert "选材" in ctx
 
 
+def test_build_case_context_budget_within_limit():
+    case = AgentCase(
+        id="c1", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅", approach='[{"step":1,"attempted":"选材","result":"OK"}]',
+        outcome="success", quality_score=0.8, created_by="u1",
+    )
+    full = build_case_context([case])
+    # 预算 ≥ 全量长度 → 不裁剪（旧行为）
+    assert build_case_context([case], max_chars=len(full)) == full
+
+
+def test_build_case_context_budget_cuts_tail():
+    # cases 按 quality 降序传入，预算不足时从末尾（低优先级）丢弃
+    c1 = AgentCase(
+        id="c1", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅", approach='[{"step":1,"attempted":"选材","result":"OK"}]',
+        outcome="success", quality_score=0.9, created_by="u1",
+    )
+    c2 = AgentCase(
+        id="c2", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="预算超支处理", approach=(
+            '[{"step":1,"attempted":"核对项","result":"A"},'
+            '{"step":2,"attempted":"调整项","result":"B"},'
+            '{"step":3,"attempted":"复审","result":"C"}]'
+        ),
+        outcome="success", quality_score=0.5, created_by="u1",
+    )
+    full = build_case_context([c1, c2])
+    c1_block = full.split("Case 2")[0]
+    footer = "[/历史经验 Case —— 优先采用高质量步骤，避免已记录的失败路径]"
+    note = "[其余 1 条 Case 已按上下文预算省略]"
+    # 预算 = c1 块 + footer + 省略标注刚好放得下；c2 块更长必被裁
+    trimmed = build_case_context([c1, c2], max_chars=len(c1_block) + len(footer) + len(note) + 1)
+    assert "设计客厅" in trimmed          # 高优先级 Case 保留
+    assert "预算超支处理" not in trimmed   # 低优先级 Case 被裁
+    assert "省略" in trimmed             # 诚实标注省略
+
+
+def test_build_case_context_budget_too_small_returns_empty():
+    case = AgentCase(
+        id="c1", scope="personal", owner_id="u1", agent_name="designer",
+        task_intent="设计客厅", approach='[{"step":1,"attempted":"选材","result":"OK"}]',
+        outcome="success", quality_score=0.8, created_by="u1",
+    )
+    # 预算小到连头部结构都放不下 → 不注入残片（诚实降级）
+    assert build_case_context([case], max_chars=10) == ""
+
+
 # ── record_skill_outcome ──
 
 

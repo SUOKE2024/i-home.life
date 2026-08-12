@@ -27,7 +27,8 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 三层独立 feature flag 灰度，v1.13.2 起默认全 True（经 59 用例 + 覆盖率 99% + verify 脚本 66 项验证；关闭即回退无记忆无进化静态行为）：
 - **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。v1.13.2 后全链路闭环：主链路端点直连 `think/think_with_tools` 时由 BaseAgent 内建 hook（`_maybe_persist_execution_case`）用最小 AgentTrace 补沉淀；harness.run 设 `agent._harness_trace` 标记 + `extract_case_from_trace` trace_id 去重防双提取；Case/Skill 提取与注入支持 project scope（空间感知，owner_id=project_id）+ recency 排序键（时间感知，`search_cases` created_at / `get_skill_for_injection` updated_at）。
 - **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：同主题 Case ≥3 条聚类蒸馏为 Skill（`distill_skill_from_cases`，生成前查重合并避免冗余——SkillCorpus 策展）；`BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文。
-- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。
+- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。v1.13.3 起 `record_skill_outcome` 由 BaseAgent 内建 hook `_maybe_record_skill_outcome` 在生产路径真实调用（此前仅 verify 脚本/测试调用，success/fail_count 恒 0 空转）：think/think_with_tools/think_stream 出口注入 Skill 后按确定性判定（reply 非空且非 [mock]/降级占位 → success=True）回写，P1 进化数据层激活；只记成功不记失败（success=False 需 LLM 信号，遗留）。
+- **v1.13.3 全链路闭环**（断点 A–I 全修）：think/think_with_tools/think_stream 与 classify_intent / concierge.generate_response / content_publisher.generate_content_publish_reply 均支持 db/user_id/project_id 透传；`think_stream` 补齐 RAG+进化注入+流后 Case 沉淀（此前流式路径三无）；语音（voice_realtime）、IM 群聊（chat_service harness.run）、产品文案（products/camera_scan/ai_copy）、Skill 实例化（agent_skills）、编排 LLM 分解（agent_orchestration_service `_llm_decompose`）全部纳入注入/沉淀闭环；`_inject_preference_hint` helper 供 /chat 与 /chat/stream 共用 L4 偏好注入。
 - 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
 - 用户指南见 `assets/guide/ai-self-evolution-guide.md`，隐私声明见 `assets/legal/agent-memory-privacy-notice.md`。
 
@@ -46,7 +47,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **并行执行 + 预算早停**：`think_with_tools` 同一轮 tool_calls 并行（`parallel_tool_calls_enabled` 默认 True，5x 提速）；`agent_function_call_max_tool_tokens` 累计上下文触顶提前终止（`token_budget_hit` 落 `agent_traces` 表，per-agent 评估可观测）。**v1.13.1 并发约束**：有 db（DB 查询工具）必须串行——共享 AsyncSession 并行触发 SQLAlchemy ISCE 冲突致 DB 查询静默降级 fallback（真实数据失效）；仅无 db（纯计算/外部 API）场景并行。
 - **成本追踪**：`_chat_single_provider` 提取 LLM `usage` → `think_with_tools` 多轮累计 → `agent_traces` 落库（prompt/completion/total tokens，供 per-agent 成本/效率评估）。
 - **L4 双向学习**：`get_user_preference_hint` 同时注入 like 正向示例 + dislike 负向提示（防风格漂移）。
-- **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。
+- **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。v1.13.5 关键词表消歧打磨后基线 75%→**100%（0 混淆）**：设计类三重工具关键词细分（移除宽泛"方案"）、search_materials 与 get_budget 去"多少钱"冲突、negative 用例按「不应选工具」（predicted None）度量、关键词匹配大小写归一化。
 
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
@@ -62,9 +63,9 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 ## 协作四原则（改编自 Karpathy LLM 编程四铁律）
 
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 105 Service，猜错代价高。
-2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。128 ORM 模型 + 75 路由已够复杂（`app/api/` 磁盘实为 75 个路由模块，main.py 78 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
+2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。128 ORM 模型 + 76 路由已够复杂（`app/api/` 磁盘实为 76 个路由模块，main.py 79 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2169 passed 不得回退（collect 2175 = 2169 passed + 2 skipped + 4 xfailed；2026-08-12 全量并发另出现 2 个 setup 级瞬时 flaky——test_door_window_waterproof/test_auth 各 1，单跑通过，与本次改动无关；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2293 passed 不得回退（collect 2299 = 2293 passed + 2 skipped + 4 xfailed，2026-08-12 全量校准；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

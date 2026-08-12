@@ -68,7 +68,10 @@ async def _run_batch_ai_copy(
                     prompt = _build_marketing_prompt(product)
 
                     try:
-                        reply = await agent.think(prompt)
+                        # v1.13.3（全链路闭环补齐，断点 G）：后台批量任务无用户
+                        # 上下文（user_id 留空），传 db 使 RAG 证据检索可用；
+                        # 自进化注入/Case 沉淀因无 user_id 自动跳过（诚实降级）
+                        reply = await agent.think(prompt, db=db)
                         desc, tags = _parse_ai_response(reply)
                     except Exception:
                         # LLM 不可用时生成默认文案

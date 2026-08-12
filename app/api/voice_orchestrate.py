@@ -146,12 +146,15 @@ async def _handle_task_control(
 
 
 async def _launch_segment_tasks(
-    user_id: str, user_name: str, segments: list[str]
+    user_id: str, user_name: str, segments: list[str], db=None,
 ) -> tuple[list[LaunchedTask], list[str]]:
     """多意图切分后的指令段 → 意图分类 → 并行启动后台 Agent 任务。
 
     general 意图段不启动任务，转为内联回复。供 REST 端点与
     realtime WebSocket 编排钩子复用。
+
+    v1.13.x P2-2: 新增 db 透传，使后台 Agent 任务享有 RAG/自进化注入
+    与 Case 沉淀（与文本/语音主链路 v1.13.3 闭环对齐）。
     """
     launched: list[LaunchedTask] = []
     inline_replies: list[str] = []
@@ -162,7 +165,7 @@ async def _launch_segment_tasks(
             continue
         task = await voice_task_registry.launch(
             user_id, intent, segment,
-            _route_voice_to_agent(segment, intent, user_name),
+            _route_voice_to_agent(segment, intent, user_name, db=db, user_id=user_id),
         )
         launched.append(LaunchedTask(
             task_id=task.task_id, seq=task.seq, intent=intent, command=segment,
@@ -221,7 +224,7 @@ async def orchestrate_voice(
     # 2. 多意图切分 → 并行启动后台 Agent 任务
     segments = split_multi_intent(text)
     launched, inline_replies = await _launch_segment_tasks(
-        current_user.id, current_user.name, segments,
+        current_user.id, current_user.name, segments, db=db,
     )
 
     # 3. 生成调度回执

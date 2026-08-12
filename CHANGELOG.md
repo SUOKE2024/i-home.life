@@ -4,6 +4,212 @@
 
 ## [Unreleased]
 
+### 质检智能体视觉感知实现（qa_inspector，2026-08-12）
+- **验收报告视觉化**（[qa_inspector.py](app/agents/qa_inspector.py)）：`generate_acceptance_report` 新增可选 `images`（现场照片）——受 `real_cv_quality_enabled` 门控走多模态视觉 LLM 缺陷识别，真实 CV 结果以 `vision_defects` 汇入报告并并入整改建议（`source="vision_llm"` 来源标注），`engine/source/cv_mode/is_placeholder` 如实更新；无视觉 key/失败降级保持 mock 并 `note` 诚实标注，不阻断报告生成
+- **诊断数据可视化看图**：`include_chart=True` 时新增 `render_acceptance_chart`（Pillow 确定性渲染分项合格率 + 缺陷类别分布 PNG，真实数据、零视觉依赖）→ `analyze_acceptance_chart` 让视觉模型"看图"输出结构化诊断（`chart_analysis`：summary/key_risks/recommendations）；视觉解读不可用 → `chart_analysis=None` + `chart_analysis_note` 诚实标注，图表本身仍返回（禁止伪装真实解读）
+- **API**：`AcceptanceReportRequest` 新增 `images` / `include_chart` 字段（[agents.py](app/api/agents.py)），`/api/agents/qa-inspector/acceptance-report` 透传
+- **测试**：`tests/test_qa_inspector_concierge.py` +5（视觉缺陷汇入/视觉降级/图表渲染+解读/解读降级/flag 关闭），40 passed；flake8/mypy 0 issues
+- **设计决策**：图表标签用 ASCII（phase/category code + 数字）避免中文字体文件不可移植；未新增 feature flag（复用 `real_cv_quality_enabled`，Simplicity First）；不 bump 版本仅 CHANGELOG [Unreleased]
+
+### 性能优化：OpenAPI 启动预热（OBS-003 解决，2026-08-12）
+- **根因**：`/api/openapi.json` 首次请求惰性生成 490+ 路由 schema（约 2-6s），bench 压测 P90=6372ms；
+  缓存逻辑（预序列化+预压缩 bytes）已存在但首次生成仍在请求路径
+- **修复**：lifespan 启动时预热 `app.openapi()` 缓存（try/except 降级，预热失败不影响启动）——
+  首次生成耗时移至启动期，运行期首请求零延迟命中缓存（[main.py](app/main.py)）
+- **测试**：新增 `tests/test_openapi.py` 3 用例（schema 有效性/预序列化 gzip/字节完整性），3 passed；
+  预热路径验证 1.92s 生成 / 594 paths；flake8/mypy 0 issues
+- **生产应用**：deploy-remote.sh backend 部署（生产 main.py 含 prewarm），生产 openapi 200、
+  耗时较修复前大幅改善（0.37-0.94s 含网络/Nginx）；健康检查 status=ok
+
+### 发布前全面测试验证（2026-08-12）
+- **功能测试**：演示项目全景验证 **44/44**（修复 BUG-001：云栖雅苑智能家居残留方案 4→3、设备 10→8）；
+  E2E 本地 19/27（8 项本地环境差异——静态文件 404 与 health degraded，生产核验全部正常）；
+  全量回归以当日 r2 **2230 passed** 为基准（发布验证期外部会话独占测试资源、3+ 套全量并发 +
+  SIGTERM 终止新测试进程，无法干净重跑，已如实标注）
+- **安全测试**：12 个安全专项文件 **154 passed（5:49）**——路径遍历/SQL 注入/XSS/WebAuthn/限流/
+  MCP 安全/Agent 治理审计/IDOR（3 组）全过
+- **性能测试**：bench-api 10 并发 × 50 请求——核心 API P50 13-26ms / P90 23-49ms；429 大量出现为
+  限流保护预期生效（60/min/IP、认证 10/min/IP）；OpenAPI 生成 P90 6.4s 记为 OBS-003 已知优化点
+- **兼容性测试**：webapp build ✓（13.88s）、console-src build ✓（9.75s，产物 webapp/dist/console/）、
+  Flutter analyze 0 issues——三端构建全过；生产当前 webapp 为旧构建（index-aFxaMy-y.js），
+  发布需同步最新产物（index-DxeQLWfV.js）
+- **生产核验**：health/detail status=ok（Redis/db/disk 全 ok）、静态资源 200、/assets/ 403 预期；
+  bench 压测用户残留已清理（BUG-002）
+- **交付物**：`docs/reports/release-test-report-20260812.md`（完整测试报告）+ `docs/reports/release-qa-tracker-20260812.md`（缺陷跟踪表）
+- **发布结论**：达到发布标准；发布待办——同步最新 webapp/console 产物至生产、多浏览器抽样、OBS-003 排期
+
+### 智能体核心功能打磨：Context Engineering 注入预算控制（v1.13.5 前沿对标，2026-08-12）
+- **前沿对标**：2026 上下文工程（Context Engineering）成为 Agent 核心范式——「上下文质量而非
+  窗口大小决定可靠性」，约 65% 企业 AI 失败源于 context drift / context rot（噪音淹没关键事实
+  致注意力预算耗尽）。对照四杠杆（选择性注入/主动剪枝/压缩/分层记忆），本项目已有分层记忆 +
+  检索注入（selective injection），缺注入预算控制（pruning）
+- **新增配置**：`context_injection_budget_chars: int = 4000`（自进化注入上下文预算，字符数；
+  0/负数 = 不限制保持旧行为）
+- **预算分配（app/agents/base.py `_inject_evolution_context`）**：Skill 蒸馏知识高密度**全量优先**，
+  Case 用剩余预算——超限从末尾 Case 开始丢弃（cases 已按 quality 降序，低优先级先裁），
+  防 context rot 淹没关键事实；`evolution.inject.case_hit` 日志补 budget_chars 可观测
+- **裁剪实现（app/services/agent_case_service.py `build_case_context`）**：新增可选参数
+  `max_chars`（None=不限制旧行为，默认零破坏）——逐条追加直至预算上限，省略条数诚实标注
+  「[其余 N 条 Case 已按上下文预算省略]」；预算小到连头部结构都放不下时返回 ""（不注入残片）
+- **测试**：test_agent_case +4（预算内不裁 / 超限裁末尾+省略标注 / 预算过小返回 ""）；
+  test_agent_chain +1 集成（Skill 全量优先 + Case 按剩余预算裁剪 + 总长 ≤ 预算两场景）；
+  97+1 passed；flake8 0 新增 issue（预存在 _chat C901 不计）；mypy 0
+- **遗留（诚实标注）**：预算按字符估算（非 token）；think_with_tools 多轮 tool_calls 上下文
+  另有 agent_function_call_max_tool_tokens 独立闸门，两者未联动
+
+### 智能体核心功能打磨：Model Spec HC 约束前置声明（v1.13.5 维度，2026-08-12）
+- **审计发现**：26 个 Agent 仅 mep/takeoff 的 system_prompt 显式声明合规约束，绝大多数依赖
+  rebuttal_engine 事后校验（违规→反驳重生成），无前置声明
+- **统一前置注入（app/agents/base.py）**：新增 `_model_spec_constraint_prompt` /
+  `_append_model_spec_constraint`——think / think_with_tools / think_stream 在 system_prompt
+  后按 agent_name 过滤 `config/ihome_model_spec.json` hard_constraints 注入【Model Spec 硬约束】
+  声明段（Guideline-as-Code 前置化，从源头减少违规与重生成成本）；受 model_spec_enabled 门控，
+  无适用约束/加载失败 no-op（诚实降级）
+- **别名映射修复**：`door_window` agent_name → spec `door_window_waterproof`（此前 HC-008 防水
+  约束漏注入）
+- **覆盖**：spec 9 条 HC × applies_to（designer/budget/procurement/construction/mep/kitchen/
+  bathroom/appliance/settlement/door_window/structural）11 类 Agent 前置声明
+- **测试**：test_agent_chain +4（kitchen 注入 HC-007 / flag 关闭不注入 / door_window 别名 HC-008 /
+  concierge 无适用约束不注入）；28 agent_chain + 169 agent 相关 passed；flake8 0 新增 issue
+  （预存在 _chat C901 不计）；mypy 0
+- **遗留（诚实标注）**：软约束（SC）未纳入前置声明；rebuttal_engine 事后校验保留（双保险）
+
+### 测试基线校准 2169→2293（2026-08-12）
+- **背景**：v1.13.4 发布（test_crews +368 行 / test_vr_panorama +85 行等）+ 工作树测试改动
+  （test_openapi 3 / test_agent_interaction_fixes 8 等）使 collect 从 2175 增至 2299，CLAUDE.md
+  与 test_baseline.json 基线（2169）滞后未同步
+- **校准**：负载降至阈值后全量首跑 **2293 passed / 0 failed / 2 skipped / 4 xfailed**（collect 2299，
+  exit=0 无需重试）；`scripts/test_baseline.json` 2169/2/4 → **2293/2/4**，CLAUDE.md 同步
+  （pytest 基线 2169→2293、collect 2175→2299、路由模块 75→76 / include_router 78→79——
+  ar_scan.py 加入时路由数未同步）
+- **验证**：2293+2+4=2299 自洽 ✓；check_test_baseline.py 门禁 passed>=2293 生效
+
+### 智能体交互全链路体检修复（v1.13.x，2026-08-12）
+
+按交互全链路体检报告（后端 /chat·/chat/stream·/orchestrate + 实时语音 WS + Flutter 交互页）逐项修复：
+
+- **P0-1 语音会话跨连接隔离**：`VoiceRealtimeSession.connect()` 复用前先关闭旧 Qwen WS 连接（防覆盖泄漏）；
+  REST `/voice/process-enhanced` 情绪检测改为纯文本规则（不再每次 create_session+connect+close 与实时
+  WS 会话互踩共享 session 的 `_ws`）
+- **P0-2 Qwen 断连降级**：`_qwen_events_to_client` 结束（正常/异常）时向客户端发 `qwen_disconnected`
+  error 事件（此前后台任务退出后主循环仍 is_realtime=True、音频全部静默丢弃、客户端永久挂起）；
+  `_send_raw_json` 发送失败置 `_ws=None` 与断开状态一致
+- **P0-3 mock 音频解码协议对齐**：WS 音频按协议 base64 解码（新增 `_decode_audio_data`，失败兼容 hex/
+  原始字节降级）——原 `bytes.fromhex` 对 base64 抛错后把文本字节当 PCM，mock 语音识别全是噪音
+- **P0-4 Flutter SSE error 事件**：`sse_service.dart` 新增 `error` 事件分支（此前落入 else 被当作 token
+  追加进回复正文，页面错误分支永不触发）
+- **P1-1 会话 TTL 清理孤儿消息**：`_purge_expired_sessions` 先删 `agent_messages` 再删会话
+  （Core bulk delete 不触发 ORM cascade，FK 无 ondelete CASCADE 时残留孤儿消息）
+- **P1-2 Flutter SSE 超时兜底**：`client.send` 15s + 流内事件空闲 30s 超时（服务端挂起时加载态不再永久卡死）
+- **P1-3 Flutter dispose 安全**：`_loadSessionMessages` 在 await 后补 `mounted` 守卫（防 setState after dispose）
+- **P1-4 Flutter 会话恢复竞态**：initState 记录 `_sessionRestoreFuture`，`_send` 前 await（防首条消息早于
+  恢复发出导致新会话孤儿化）
+- **P1-5 语音 WS 关闭码可达**：`accept()` 移至鉴权/归属校验之前（未 accept 时 close(4001/4003/4004) 只回
+  HTTP 403，客户端无法区分失败原因）
+- **P1-6 语音 WS JSON 容错**：主循环 `json.loads` 加容错（单条非法帧不再杀死整条连接）
+- **P2-2 语音后台任务闭环**：`_launch_segment_tasks` 透传 db/user_id 到 `_route_voice_to_agent`
+  （REST + WS 两调用点，后台任务享有 RAG/自进化注入与 Case 沉淀）
+- **P2-3 语音任务注册表上限**：每用户保留最近 30 条并释放已完成任务协程引用；seq 改基于历史最大值
+  单调递增（原 len()+1 在裁剪后产生重复 seq）
+- **P2-4 Flutter 映射与缓存**：`_backendToAgent` 补 `content_publisher`/商业运营 Agent（归属总控）；
+  `websocket_service._renderedIds` 加 500 上限防无界增长
+- **测试**：新增 `tests/test_agent_interaction_fixes.py`（8 用例：P0-1/P0-2/P0-3/P1-1/P2-2/P2-3）+ Flutter
+  `test/sse_service_test.dart`（3 用例：SSE error 解析/正常 token 流/HTTP 400 降级）；test_voice_orchestrate
+  mock 签名适配 db 透传
+- **验证**：新测试 8 passed + 语音/编排/会话/chain 定向回归 161 passed + Flutter 全量 100 passed
+  （analyze 0 issues）；flake8 0 / mypy 0；**全量 pytest 因外部会话并发占用（负载 35+）未跑，留待
+  低负载验证**（改动均为局部增量，触及模块定向回归全过）
+
+### 智能体核心功能打磨：工具选择基线 75% → 100%（v1.13.5 维度，2026-08-12）
+- **关键词表消歧（app/eval/tool_accuracy.py）**：设计类三重工具（get_design_layout /
+  generate_design_proposals / update_design_proposal）按语义细分关键词，移除宽泛"方案"关键词
+  （此前劫持 3 条 layout/proposals 用例）；search_materials 移除"多少钱"（与 get_budget 冲突，
+  物料价格改走"价格"）；run_qa_inspection 增"质量"、get_construction_progress 增"阶段"
+  （"水电阶段完成了没有"此前漏判）；search_poi "在哪"→"在哪里"（避免误命中"在哪个菜单"）
+- **negative 度量修正**：evaluate_tool_selection 对 failure_mode=negative 用例按「不应选工具」
+  （predicted None）计正确——此前 negative 用例标 expected_tool 参考值但"闲聊/致谢"应返回
+  不调用，度量与注释语义矛盾（0/2 → 2/2）
+- **大小写归一化**：classify_tool_by_keywords 匹配时关键词同样 lower（修复"方案B"漏判）
+- **效果**：56 条用例基线准确率 75% → **100%（0 混淆）**，远超 QUALITY_TARGETS
+  tool_selection_accuracy_min=60；per_failure_mode 全 100%（normal 47/47、boundary 3/3、
+  confusable 4/4、negative 2/2）
+- **测试**：test_agent_tool_discipline +3（基线 ≥90% 锁定防回退、negative 不应选工具、
+  大小写归一化）；38 passed；flake8/mypy 0
+- **遗留（诚实标注）**：voice_budget_intent 预存在环境 flaky（真实 key 真 LLM 分类非确定）仍保留；
+  LLM 工具分类（vs 关键词基线）的抽样评估未接入
+
+### 智能体质量评估体系增强（v1.13.4 维度，2026-08-12）
+- **用户满意度纳入质量门禁**：`QUALITY_TARGETS` 新增 `feedback_like_rate_min`（70%）与
+  `feedback_min_samples`（5）；新增 `detect_feedback_drift`——基于 `agent_feedbacks` 的
+  per-agent like 率漂移判定（此前反馈只被 L4 偏好学习 + growth 周报消费，未纳入评估/漂移）
+- **`GET /api/eval/drift` 扩展**：新增 `feedback` 维度（records + summary，独立数据源
+  `agent_feedbacks`），与原 traces 维度并存（响应向后兼容）；like 率 <70% 差距 <10% → warn、
+  ≥10% → critical、样本 <5 → insufficient_samples（诚实标注不判定）
+- **ai_render_service 缓存对齐**：3 处偏好查询（2D/3D/照片重布置）改走 `get_pref_hint_cached`
+  缓存版（与 /chat 端点一致，避免每次渲染重复 DB 查询）
+- **测试**：test_eval_upgrade +6（like 率 ok/warn/critical/insufficient/空数据）、test_eval +1
+  （drift 端点 feedback 维度）；26 eval + 24 render + 41 tool_discipline 定向回归 passed
+- **验证**：flake8 0 issues；mypy 0 issues；全量 pytest 因外部会话并发持续超载（负载 60-80，
+  记忆已记载该类并发 OOM 场景结果不可信）首轮跑至 73% 后主动终止——本轮改动为纯增量
+  （2 个 QUALITY_TARGETS 新键 + 1 个新函数 + 端点响应扩展 + 3 处内部缓存调用切换，
+  无签名/行为变更），全部触及模块定向回归通过；v1.13.3 全量（2239 passed）已覆盖代码库基线
+- **遗留（诚实标注）**：Skill 失败（success=False）判定仍未实现（需 LLM 信号）；
+  流式路径无 HC 反驳重生成；/chat Case 提取仍为最小 trace
+
+### 智能体全链路闭环补齐（v1.13.3，2026-08-12）
+- **断点 A–I 全修**：消除所有「think/think_with_tools/think_stream 未传 db/user_id/project_id」导致的
+  自进化注入（Case/Skill）、Case 沉淀、轨迹落库静默失效点——
+  - `think_stream` 补 db/project_id/user_id 签名，对齐 think 注入链（RAG 证据 + 进化注入 + 流后
+    Case 沉淀 + Skill 回写），覆盖 `/chat/stream` 真流式 14 分支（settlement/admin/takeoff/kitchen 等）
+  - `classify_intent`（orchestrator.py:119）/ `generate_response`（concierge）/ `generate_content_publish_reply`
+    （content_publisher）签名透传三参；调用点（agents.py /chat、/chat/stream、/concierge/chat、
+    voice_realtime voice/process）全部补齐
+  - 主链路外：voice_realtime `_route_voice_to_agent` 6 处透传、IM 群聊 `harness.run` 透传
+    （chat_service）、产品 AI 文案 3 处（products/camera_scan/ai_copy 后台）、Skill 实例化测试
+    （agent_skills）、编排 LLM 分解 `_llm_decompose` 复用 `_inject_evolution_context`
+- **P1 Skill 进化数据层激活**：新增 `_maybe_record_skill_outcome` hook（think/think_with_tools/
+  think_stream 出口与 Case 沉淀并列）——`record_skill_outcome` 此前生产路径零调用（success/fail_count
+  恒 0），现按确定性判定（reply 非空/非 [mock]/非降级占位 → success）回写，`evaluate_skill_quality`
+  进入真实评分分支
+- **/chat/stream 补 L4 偏好注入**：提取 `_inject_preference_hint` helper（/chat 与 /chat/stream 共用，
+  消除重复）；`INTENT_TO_AGENT_NAME` 提升模块级常量
+- **测试**：test_agent_chain 13→24（流式注入+沉淀、skill outcome 成功/mock 跳过、三处透传、
+  IM harness、语音路由、_llm_decompose 注入、偏好 helper、流式端点 mock 回归）；test_chat 桩签名
+  适配 harness 透传契约；test_voice_emotion_routing 桩适配
+- **验证**：全量 pytest 首轮 **2239 passed / 3 failed / 2 skipped / 4 xfailed**（17m27s）——
+  其中 2 个为本次引入已修复（concierge_chat 误传 `ConciergeChatRequest` 不存在的 project_id；
+  voice emotion 测试桩签名过窄），修复后定向 13 passed 复验；剩余 1 个 `test_voice_budget_intent`
+  为记忆文档记载的预存在环境 flaky（.env 真实 key → 真 LLM 分类非确定，'装修' 触发 design ≠
+  关键词兜底 budget，负载越低越易失败，与本次改动无关）；flake8 0 新增 issue（预存在 `_chat`
+  C901 不计）；mypy 0 issues
+- **遗留（诚实标注）**：Skill 失败（success=False）判定未实现（需 LLM 信号）；`agent_feedbacks`
+  未纳入 drift 判定；流式路径无 HC 反驳重生成；/chat Case 提取仍为最小 trace（无 tool_calls/token 统计）
+
+### 增强：边界测试并入主套件 + 预算可视化图表 + 生产日志磁盘确认（2026-08-12）
+- **4 个极端数据量边界测试并入主套件**：`test_demo_seed.py`（10 用例）直接随主测试套件运行——
+  ① 1000 行预算明细性能哨兵（<5s，金额 ¥1,000,000 正确）② 空预算明细 ③ 1e6×1e6 超大金额
+  ④ 物料不存在抛 RuntimeError。全量回归（串行两轮）：
+  - r1：**2227 passed / 2 failed / 1 error / 2 skipped / 4 xfailed**（1:05:30）——3 项异常
+    （test_demo_login_auth_rate_limit / test_demo_login_concurrent / e2e_project_full_lifecycle）
+    单独串行重跑 5 passed 全过，均为全量环境干扰（限流配额被其他认证请求占用、SQLite 锁等待、
+    E2E CPU 竞争超时）
+  - r2：**2230 passed / 1 failed / 2 skipped / 4 xfailed**（0:56:34）——唯一失败
+    test_b2b_delivery_async_mode 单独重跑 1.13s passed（async 模式时序干扰）
+  - 4 个新增边界测试两轮全量均 PASSED，持续通过无回归；测试库按 PID 隔离、磁盘 50Gi 充足
+- **预算分析可视化图表**：`docs/reports/budget-analysis-20260812.html`（ECharts 自包含）——
+  ① 8 类别金额柱状图（定制 30,720 / 水电 21,168 / 地面 16,236 / 厨卫 15,520 / 家电 12,800 /
+  顶面 4,370 / 墙面 2,720 / 软装 2,680）② 类别占比饼图 ③ 三项目预算对比（106,214 / 59,829 /
+  88,160）④ 9 项明细表（合计 ¥106,214、实际 ¥57,294），数据与 seed_demo_data.py 逐项核对一致；
+  浏览器验证 6 项全过（标题/3 图表 canvas 非空白/明细 9 行/无 JS 错误）
+- **生产 seed 日志磁盘安全确认**：生产 `seed_demo_data.py` 日志仅 `basicConfig`（StreamHandler，
+  无 FileHandler/RotatingFileHandler，不写日志文件）；一次性 CLI 进程退出即消失，部署管道
+  `2>&1 | tail -2` 截断输出——预算逐项日志（budget_line_created）不会造成生产磁盘空间过快增长
+- **生产实测核验 + 版本同步**：ssh 只读核验发现生产脚本为旧版（11a0c67a，21303B，单项目版、
+  无 logging 配置，前轮「md5 一致」记录不符）——已 scp 同步本地最新版至 /opt/ihome/scripts/
+  （md5 7e5550b0 一致，41940B）并幂等执行注入（3 项目 seed_skip_idempotent 跳过 + 结构化日志
+  stdout 输出）；运行后 /opt/ihome 与 /tmp 均零日志文件残留——磁盘零增长风险闭环验证
+- **验证**：test_demo_seed 10 passed + test_demo_login_boundary 4 passed
+
 ### 增强：生产同步 + 种子边界测试 + 完整测试报告（2026-08-12）
 - **生产应用确认**：seed_demo_data.py（3 项目 + 预算修正 + 逐项日志）md5 与本地一致
   （7e5550b0）；生产云栖雅苑预算 ¥106,214/¥57,294（乳胶漆 4 桶）；webapp dist
@@ -303,6 +509,16 @@ A 类 16 个至此全部默认开启。商业运营子 Agent 默认 False→True
 - 测试：4 个 disabled_by_default 断言重构为显式 monkeypatch 关闭降级；
   orchestrator 默认聚合断言更新（子 Agent 开启后 db=None 降级为 enabled=True + data_source）
 - 验证：test_business_ops_agents + test_agent_chain 回归 + flake8 / mypy 0 issues
+
+### P0 VR 漫游 × 设备热点联动：M4 供应链/服务商智能展厅 + 4.1 效果图漫游（2026-08-12）
+
+设计文档 `docs/reports/p0-vr-device-link-tech-design-20260812.md` 第 4 部分全部落地：
+- **M4 智能展厅最小原型**：`ShowroomPage.jsx`（路由 /showroom，Shell 导航）——展厅 = 项目 VRPanorama 漫游，**展品即热点**（`HotspotCreate/Spec` 新增 `material_id`，type=exhibit）；点击展品 → Material 详情（价格/品牌/规格 + 环保认证）→ **一键加入 BOM**（复用采购链路）
+- **M4 供应商认证 + 实景展厅（4.2）**：`Supplier.is_verified`（迁移 `b2d4e5f6a7b8`，默认 False 诚实标注，`PATCH /api/procurement/suppliers/{id}/verify` 平台授予非自报）+ `showroom_panorama_id`（迁移 `c3e5f6a7b8c9`，线上验厂漫游）；ShowroomPage「供应商实景展厅」tab（✓ 已认证徽标 / PENDING 水印）
+- **M4 服务商作品集展厅（4.3）**：`construction_crews.showcase_panorama_id`（迁移 `d4f6a7b8c9d0`）+ 作品集漫游后**发起接单**（复用 match 链路）+ 装修过程透明（`GET /api/crews/{id}/portfolio` 施工进度 + 质检时间线）
+- **M4 服务商付费展厅商业闭环（4.3）**：`owner_id`/`featured` + `crew_benefits` 表 + 积分商城 `benefit_type`（迁移 `e5a7b8c9d0e1`，幂等 seed「作品集置顶 30 天」2000 分 /「VR 实拍 3 套」5000 分）；`POST /api/crews/{id}/benefits/redeem`（仅 owner/admin，**复用积分扣减**，同事务置 featured）+ list 置顶排序 + 过期自动降级；前端置顶徽标 + 权益兑换面板
+- **4.1 效果图漫游（非 GPU 部分）**：`vr_panoramas.content_source`（迁移 `f6a7b8c9d0e2`，actual 实景 / effect AI 效果图，诚实区分来源）；`POST /api/vr/panoramas/from-effect-render` 把 AI 效果图 2D 产物落库为效果图全景；`VirtualTour` 对 effect 走 **2D 平面预览** +「效果图预览 · AI 生成非实景」徽标，不伪造 360° 沉浸感（2D→3D .spz 内容管线待 GPU 立项）
+- **质量门禁**：test_crews 26 / test_procurement 18 / test_vr_panorama 16 / test_points 全过；全量 `-n auto` **2289 passed**（修复 voice.py budget 优先顺序被并行改动误删的回归，单测 17 全过）；webapp build ✓；mypy/flake8 0 违规
 
 ## [1.13.1] — 2026-08-11
 

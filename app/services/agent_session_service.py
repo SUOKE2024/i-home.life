@@ -402,6 +402,13 @@ async def _purge_expired_sessions(db: AsyncSession) -> int:
     if not expired_ids:
         return 0
 
+    # v1.13.x P1-1: 先删关联消息再删会话——Core bulk delete 不触发 ORM
+    # cascade（"all, delete-orphan" 仅 ORM 层生效），且 FK 无 ondelete
+    # CASCADE，直接删会话会残留孤儿 agent_messages。
+    await db.execute(
+        delete(AgentMessage).where(AgentMessage.session_id.in_(expired_ids))
+    )
+
     # 按 ID 批量删除
     del_stmt = delete(AgentSession).where(AgentSession.id.in_(expired_ids))
     del_result = await db.execute(del_stmt)

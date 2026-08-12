@@ -96,7 +96,9 @@ async def create_product(
                 f"请生成50-150字的专业产品描述，突出卖点，并推荐3-5个标签。"
                 f"用JSON格式回复：{{\"description\": \"...\", \"tags\": [\"...\"]}}"
             )
-            ai_reply = await p_agent.think(prompt)
+            ai_reply = await p_agent.think(
+                prompt, db=db, user_id=current_user.id,
+            )
             # 尝试解析 AI 生成的 JSON
             if "```json" in ai_reply:
                 ai_reply = ai_reply.split("```json")[1].split("```")[0].strip()

@@ -85,7 +85,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   });
 
   const layers = [
-    { t: "658 条 API 路由", d: "73 个模块 · 121 ORM · 95 Service", c: C.primary },
+    { t: "75 个 API 路由模块", d: "129 ORM · 105 Service", c: C.primary },
     { t: "25 个 Agent 模块", d: "总控/设计/预算/采购/施工/质检/结算…", c: C.info },
     { t: "MCP 8 项 + A2A v1.0", d: "2026 双协议 · 11 个真实工具", c: C.success },
   ];
@@ -99,10 +99,10 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     s.addText(L.d, { x: x + 0.25, y: 4.6, w: 3.15, h: 0.6, fontSize: 10.5, color: "99C9FF", fontFace: FONT });
   });
 
-  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.8.0(生产运行)", {
+  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.13.5(生产运行)", {
     x: 0.9, y: 6.3, w: 11.5, h: 0.35, fontSize: 12, color: "66ADFF", fontFace: FONT,
   });
-  s.addText("2026 · 初赛 V3.2(基于真实能力全景 + 2026 技术对齐 + 前沿增量)", { x: 0.9, y: 6.7, w: 9, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
+  s.addText("2026 · 初赛 V4.1(基于真实能力全景 v1.13.5 + 2026 最新技术对齐 + 生产级 Agent 工程闭环)", { x: 0.9, y: 6.7, w: 9, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
 }
 
 // ════════════════════════════════════════════════════════
@@ -156,7 +156,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   // 底部定位
   addCard(s, MARGIN, 6.05, 12.1, 0.9, C.dark);
   s.addShape(pptx.ShapeType.rect, { x: MARGIN, y: 6.05, w: 0.1, h: 0.9, fill: { color: C.primary } });
-  s.addText("索克差异化定位:不做\"效果图工具\",而是家装全流程多 Agent 自主协同 + 标准 MCP/A2A 基础设施 —— 真实业务闭环(658 路由/121 模型/25 Agent/95 Service)+ 开放协议 + 可编排协同层(AgentTeams)", {
+  s.addText("索克差异化定位:不做\"效果图工具\",而是家装全流程多 Agent 自主协同 + 标准 MCP/A2A 基础设施 —— 真实业务闭环(75 路由模块/129 模型/25 Agent/105 Service)+ 开放协议 + 可编排协同层(AgentTeams)", {
     x: MARGIN + 0.3, y: 6.18, w: 11.5, h: 0.65, fontSize: 11.5, color: C.white, fontFace: FONT, valign: "mid",
   });
 }
@@ -224,12 +224,12 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
 {
   const s = pptx.addSlide();
   s.background = { color: C.white };
-  addHeader(s, "Capability Map", "索克家居能力全景:真实全流程自动化闭环(658 路由实测)");
+  addHeader(s, "Capability Map", "索克家居能力全景:真实全流程自动化闭环(75 路由模块实测)");
   addFooter(s, 4);
 
   const stages = [
     { t: "多模态输入", d: "AR 量房 / 草图转 3D / CAD / 拍照 / 语音双工 / 传感器", c: C.primary },
-    { t: "总控编排", d: "Orchestrator 39 意图 + AgentTeams Manager-Workers", c: C.dark },
+    { t: "总控编排", d: "Orchestrator 40 意图 + AgentTeams Manager-Workers", c: C.dark },
     { t: "设计域", d: "方案 + 11 类分空间设计器 + 施工图 + BIM/IFC + 渲染 L0-L3 + VR", c: C.primary600 },
     { t: "预算算量", d: "正向算量 / 分项报价 / 定额库(9 类×4 档)", c: C.info },
     { t: "采购·供应链", d: "供应商入驻审核 / 比价 / 担保支付 / 物流 / 拍照上架", c: C.info },
@@ -252,13 +252,13 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     }
   });
 
-  s.addText("* 诚实边界:质检真实 CV 已启用(`real_cv_quality_enabled=True`),不可用时诚实降级到规则 mock 并标注 `cv_mode=\"mock\"`;VR 渲染、AI 渲染 L1/L2 为标注降级;前沿功能(材料溯源 HENF / AI 工地监理 / 局改快装 / 米家生态+L1-L5 / 方案 LLM 深化 / BOM 版本+几何算量)均已实装(实测 658 路由/121 模型/1700+ 测试全绿)", {
+  s.addText("* 诚实边界:质检真实 CV 已启用(`real_cv_quality_enabled=True`),不可用时诚实降级到规则 mock 并标注 `cv_mode=\"mock\"`;VR 渲染、AI 渲染 L1/L2 为标注降级;前沿功能(材料溯源 HENF / AI 工地监理 / 局改快装 / 米家生态+L1-L5 / 方案 LLM 深化 / BOM 版本+几何算量)均已实装(实测 75 路由模块/129 模型/2169 测试基线全绿)", {
     x: MARGIN, y: 6.35, w: 12.1, h: 0.4, fontSize: 10.5, color: C.gray, fontFace: FONT, align: "center",
   });
 }
 
 // ════════════════════════════════════════════════════════
-// P5 2026 前沿功能实装(方案 V3.2 新增,诚实降级)
+// P5 2026 前沿功能实装(方案 V4.1 新增,诚实降级)
 // ════════════════════════════════════════════════════════
 {
   const s = pptx.addSlide();
@@ -287,7 +287,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   });
 
   addCard(s, MARGIN, 5.75, 12.1, 1.0, C.success50);
-  s.addText("诚实降级原则:所有前沿功能带 feature flag + 来源标注(db / rule_based / empirical / mock),禁用硬编码假数据 —— 呼应赛题\"不伪装能力\"与白皮书空间智能(实测 658 路由/121 模型/25 Agent/95 Service)", {
+  s.addText("诚实降级原则:所有前沿功能带 feature flag + 来源标注(db / rule_based / empirical / mock),禁用硬编码假数据 —— 呼应赛题\"不伪装能力\"与白皮书空间智能(实测 75 路由模块/129 模型/25 Agent/105 Service)", {
     x: MARGIN + 0.25, y: 5.9, w: 11.6, h: 0.7, fontSize: 11, color: C.success, fontFace: FONT, valign: "mid",
   });
 }
@@ -364,8 +364,8 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   // 赛题映射五要素
   s.addText("赛题五项能力映射到框架能力(8.1 核心核验点)", { x: MARGIN, y: 3.52, w: 8, h: 0.3, fontSize: 12.5, color: C.dark, fontFace: FONT, bold: true });
   const maps = [
-    { t: "角色编排", d: "24 Agent ↔ 9 角色(1 Leader + 8 Worker)" },
-    { t: "任务拆解", d: "39 意图 + Manager 路由 + 多意图并行" },
+    { t: "角色编排", d: "25 Agent ↔ 9 角色(1 Leader + 8 Worker)" },
+    { t: "任务拆解", d: "40 意图 + Manager 路由 + 多意图并行" },
     { t: "上下文传递", d: "Matrix + MinIO + 加密会话 + SSOT" },
     { t: "协同执行", d: "并行 + 失败隔离 + 凭证收敛" },
     { t: "状态追踪", d: "Harness Trace + OTel + 审计" },
@@ -690,9 +690,9 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   s.addText("部署环境(已在线)", { x: MARGIN + 0.25, y: 1.78, w: 5.4, h: 0.4, fontSize: 14.5, color: C.white, fontFace: FONT, bold: true });
   const deploys = [
     "开源 Hiclaw(controller / manager / dashboard / Element Web)",
-    "i-home.life v1.8.0(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
+    "i-home.life v1.13.5(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
     "家装团队 ihome-team:1 Leader + 5 Worker 全部 Running",
-    "演示数据:120 平三居 · 预算 ¥157,250 · 4 施工任务",
+    "演示数据:3 模拟项目(云栖雅苑 126㎡ 施工中 / 滇池湖畔 / 翠湖名邸),预算 ¥106,214 可逐项核对",
   ];
   deploys.forEach((dd, i) => {
     s.addText("•  " + dd, { x: MARGIN + 0.25, y: 2.25 + i * 0.42, w: 5.5, h: 0.36, fontSize: 10.5, color: "CCE4FF", fontFace: FONT });
@@ -752,7 +752,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   s.addText("仓库:github.com/SUOKE2024/i-home.life(已公开)", {
     x: MARGIN + 0.25, y: 5.75, w: 11.6, h: 0.35, fontSize: 13, color: C.primary600, fontFace: FONT, bold: true,
   });
-  s.addText("协议 Apache-2.0(与 AgentTeams 兼容)｜ 披露:LLM 商业 API(deepseek/qwen/glm/doubao)· 第三方依赖 · 数据授权边界 ｜ 已有项目基础:i-home.life(658 路由 / 121 模型 / 25 Agent / 95 Service)", {
+  s.addText("协议 Apache-2.0(与 AgentTeams 兼容)｜ 披露:LLM 商业 API(deepseek/qwen/glm/doubao)· 第三方依赖 · 数据授权边界 ｜ 已有项目基础:i-home.life(75 路由模块 / 129 模型 / 25 Agent / 105 Service)", {
     x: MARGIN + 0.25, y: 6.15, w: 11.6, h: 0.55, fontSize: 10.5, color: C.gray, fontFace: FONT,
   });
 }
@@ -767,7 +767,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   addFooter(s, 16);
 
   const phases = [
-    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V3.2)", c: C.success },
+    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V4.1)", c: C.success },
     { v: "V1.5 复赛", t: "完整闭环 Demo", d: "三场景可演示 + 评测集 + Trace 看板 + A2A 委托证据", c: C.primary },
     { v: "V2 决赛", t: "真实项目试点", d: "真实项目接入、Agent-as-a-Judge 评测、开源工程化", c: C.warning },
   ];

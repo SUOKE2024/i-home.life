@@ -159,6 +159,10 @@ class AcceptanceReportRequest(BaseModel):
     acceptance_date: str = ""
     phases: list[str] = []
     inspection_results: dict = {}
+    # 视觉感知增强层（可选）：现场照片（url/type/location/captured_at）→ 真实 CV 缺陷识别
+    images: list[dict] = []
+    # 诊断数据可视化看图：True 时返回 chart_b64（Pillow 渲染诊断图表）+ chart_analysis（视觉解读）
+    include_chart: bool = False
 
 
 class CompareDesignRequest(BaseModel):
@@ -338,6 +342,44 @@ AGENT_TYPE_TO_INTENT: dict[str, str] = {
     "voice": "voice",                         # voice agent（语音输入）
     # "orchestrator" 不在此表中 → 触发自动分类
 }
+
+
+# v1.13.3（全链路闭环补齐）：intent → agent_name 映射（L4 偏好注入用，
+# 与 chat_with_agent 各路由分支一致；提取为模块级常量供 /chat 与 /chat/stream 共用）
+INTENT_TO_AGENT_NAME: dict[str, str] = {
+    "design": "designer", "budget": "budget",
+    "procurement": "procurement", "construction": "construction",
+    "settlement": "settlement", "qa_inspector": "qa_inspector",
+    "concierge": "concierge", "content_publish": "content_publisher",
+    "admin": "admin",
+    # v1.1.21 新增
+    "kitchen": "kitchen", "bathroom": "bathroom", "mep": "mep",
+    "appliance": "appliance", "furniture": "furniture",
+    "door_window": "door_window", "files": "files",
+    "products": "products", "identity": "identity",
+    "notifications": "notifications", "takeoff": "takeoff",
+    "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
+    "hard_decoration": "hard_decoration", "points": "points",
+    "cad_import": "cad_import",
+}
+
+
+async def _inject_preference_hint(db, user_id: str, intent: str, user_ctx: str) -> str:
+    """v1.13.3: L4 偏好注入 helper（/chat 与 /chat/stream 共用）。
+
+    注入用户历史正向反馈（like 正向示例 + dislike 负向提示）作为 few-shot
+    提示，按 intent → agent_name 映射检索（agent_learning_enabled 门控，
+    关闭则原样返回）。
+    """
+    if not settings.agent_learning_enabled:
+        return user_ctx
+    from app.agents.base import get_pref_hint_cached
+    agent_name = INTENT_TO_AGENT_NAME.get(intent, "orchestrator")
+    hint = await get_pref_hint_cached(
+        user_id, agent_name, db,
+        max_examples=settings.agent_learning_max_examples,
+    )
+    return f"{hint}\n{user_ctx}" if hint else user_ctx
 
 
 def _extract_reply_from_llm_json(raw: str) -> str:
@@ -563,7 +605,10 @@ async def chat_with_agent(  # noqa: C901
         if explicit_intent:
             intent = explicit_intent
         else:
-            classification = await agent.classify_intent(data.message)
+            classification = await agent.classify_intent(
+                data.message, db=db, user_id=current_user.id,
+                project_id=data.project_id,
+            )
             intent = classification.get("intent", "general")
 
         # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
@@ -575,32 +620,12 @@ async def chat_with_agent(  # noqa: C901
             pass
 
         # L4 自适应学习：注入用户历史正向反馈作为 few-shot 示例提示
-        if settings.agent_learning_enabled:
-            from app.agents.base import get_pref_hint_cached
-            # intent → agent_name 映射（与下方路由分支一致）
-            intent_to_agent = {
-                "design": "designer", "budget": "budget",
-                "procurement": "procurement", "construction": "construction",
-                "settlement": "settlement", "qa_inspector": "qa_inspector",
-                "concierge": "concierge", "content_publish": "content_publisher",
-                "admin": "admin",
-                # v1.1.21 新增
-                "kitchen": "kitchen", "bathroom": "bathroom", "mep": "mep",
-                "appliance": "appliance", "furniture": "furniture",
-                "door_window": "door_window", "files": "files",
-                "products": "products", "identity": "identity",
-                "notifications": "notifications", "takeoff": "takeoff",
-                "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
-                "hard_decoration": "hard_decoration", "points": "points",
-                "cad_import": "cad_import",
-            }
-            agent_name_for_hint = intent_to_agent.get(intent, "orchestrator")
-            preference_hint = await get_pref_hint_cached(
-                current_user.id, agent_name_for_hint, db,
-                max_examples=settings.agent_learning_max_examples,
-            )
-            if preference_hint:
-                user_ctx = f"{preference_hint}\n{user_ctx}"
+        # v1.13.3: 提取为 _inject_preference_hint helper（/chat 与 /chat/stream 共用）
+        try:
+            user_ctx = await _inject_preference_hint(db, current_user.id, intent, user_ctx)
+        except Exception:
+            import structlog
+            structlog.get_logger("agent").debug("pref_hint_inject_failed", exc_info=True)
 
         # 时间/空间感知 + 长期记忆注入（跨会话智能）
         try:
@@ -673,7 +698,10 @@ async def chat_with_agent(  # noqa: C901
                     )
                 else:
                     # 内容发布引导
-                    reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
+                    reply = await cp_agent.generate_content_publish_reply(
+                        data.message, current_user.name,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
                 return await _finalize("content_publisher", reply, suggestions_map["content_publisher"])
             finally:
                 await cp_agent.close()
@@ -770,7 +798,10 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("concierge",):
             conc_agent = ConciergeAgent()
             try:
-                reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+                reply = await conc_agent.generate_response(
+                    data.message, f"业主: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
                 return await _finalize("concierge", reply, suggestions_map["concierge"])
             finally:
                 await conc_agent.close()
@@ -1214,7 +1245,10 @@ async def chat_stream(  # noqa: C901
         if explicit_intent:
             intent = explicit_intent
         else:
-            classification = await agent.classify_intent(data.message)
+            classification = await agent.classify_intent(
+                data.message, db=db, user_id=current_user.id,
+                project_id=data.project_id,
+            )
             intent = classification.get("intent", "general")
 
         # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
@@ -1224,6 +1258,15 @@ async def chat_stream(  # noqa: C901
             intent_cost_tier_total.labels(intent=intent, tier=tier).inc()
         except Exception:
             pass
+
+        # v1.13.3（全链路闭环补齐）：/chat/stream 补 L4 偏好注入（与 /chat 对齐）
+        try:
+            user_ctx = await _inject_preference_hint(db, current_user.id, intent, user_ctx)
+        except Exception:
+            import structlog
+            structlog.get_logger("agent").debug(
+                "stream_pref_hint_failed", exc_info=True,
+            )
 
         # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送
         stream_agent = None
@@ -1244,7 +1287,10 @@ async def chat_stream(  # noqa: C901
                         db=db, user_id=current_user.id, project_id=data.project_id,
                     )
                 else:
-                    reply = await cp_agent.generate_content_publish_reply(data.message, current_user.name)
+                    reply = await cp_agent.generate_content_publish_reply(
+                        data.message, current_user.name,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
             finally:
                 await cp_agent.close()
         elif intent in ("design",):
@@ -1314,7 +1360,10 @@ async def chat_stream(  # noqa: C901
         elif intent in ("concierge",):
             conc_agent = ConciergeAgent()
             try:
-                reply = await conc_agent.generate_response(data.message, f"业主: {current_user.name}")
+                reply = await conc_agent.generate_response(
+                    data.message, f"业主: {current_user.name}",
+                    db=db, user_id=current_user.id, project_id=data.project_id,
+                )
             finally:
                 await conc_agent.close()
         elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
@@ -1535,7 +1584,10 @@ async def chat_stream(  # noqa: C901
             if stream_agent is not None:
                 # 真流式：LLM 逐 token 产出，用户即时看到内容
                 try:
-                    async for chunk in stream_agent.think_stream(stream_msg, stream_ctx):
+                    async for chunk in stream_agent.think_stream(
+                        stream_msg, stream_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    ):
                         accumulated_text += chunk
                         yield f"data: {json.dumps({'event': 'token', 'content': chunk})}\n\n"
                 except asyncio.CancelledError:
@@ -2333,7 +2385,11 @@ async def concierge_chat(
             db, current_user, data.message, f"用户: {current_user.name}",
         )
         ctx = f"{user_ctx}\n{data.context}" if data.context else user_ctx
-        reply = await agent.generate_response(data.message, ctx)
+        # ConciergeChatRequest 无 project_id 字段 → 仅透传 db/user_id（诚实降级）
+        reply = await agent.generate_response(
+            data.message, ctx,
+            db=db, user_id=current_user.id,
+        )
         return {"agent_type": "concierge", "reply": reply}
     finally:
         await agent.close()

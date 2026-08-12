@@ -234,6 +234,14 @@ async def _llm_decompose(
             {"role": "system", "content": agent.system_prompt},
             {"role": "user", "content": prompt},
         ]
+        # v1.13.3（全链路闭环补齐，断点 I）：_llm_decompose 此前绕过 think
+        # 直连 _chat，签名收 db/user_id/project_id 却未用于注入。此处复用
+        # _inject_evolution_context（Case + Skill 注入），使任务分解同样享有
+        # 自进化经验；不做 Case 沉淀——子任务执行已由 harness 统一沉淀（避免重复）。
+        if db is not None and user_id:
+            await agent._inject_evolution_context(
+                messages, message, user_id, db, project_id,
+            )
         reply = await agent._chat(messages)
     except Exception as e:
         logger.warning("orchestration._llm_decompose: 调用失败: %s", e)

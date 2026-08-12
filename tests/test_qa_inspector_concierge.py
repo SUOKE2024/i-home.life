@@ -326,6 +326,183 @@ def test_qa_compare_with_design_real_cv(monkeypatch):
     assert result["verdict"] in ("consistent", "minor_deviation", "major_deviation")
 
 
+# === 视觉感知：验收报告视觉化 + 诊断数据可视化看图 ===
+
+
+def _vision_settings(monkeypatch, enabled: bool):
+    """获取并设置 real_cv_quality_enabled（模块级 settings 单例，teardown 自动还原）。"""
+    from app.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "real_cv_quality_enabled", enabled)
+    return settings
+
+
+def test_qa_acceptance_report_vision_defects(monkeypatch):
+    """验收报告视觉化：提供现场照片 + 真实 CV → 视觉缺陷汇入报告并如实标注来源"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(qa_mod, "_fetch_image_bytes", lambda url: (b"fake-image", "image/jpeg"))
+    monkeypatch.setattr(
+        qa_mod, "_call_vision_llm",
+        lambda prompt, image_bytes, mime: json.dumps({
+            "defects": [
+                {
+                    "category": "hollow",
+                    "description": "客厅东墙瓷砖空鼓",
+                    "confidence": 0.91,
+                    "location_hint": "客厅东侧",
+                    "suggestion": "拆除空鼓瓷砖重新铺贴",
+                }
+            ]
+        }),
+    )
+
+    agent = QAInspectorAgent()
+    report = agent.generate_acceptance_report({
+        "project_id": "P004",
+        "project_name": "视觉验收项目",
+        "phases": ["masonry"],
+        "inspection_results": {},
+        "images": [
+            {"url": "data:image/jpeg;base64,AAAA", "type": "tile_surface", "location": "客厅东墙"},
+        ],
+    })
+
+    # 真实 CV 缺陷汇入报告（结构化：类型/位置/置信度/建议）
+    assert report["vision_defect_count"] == 1
+    defect = report["vision_defects"][0]
+    assert defect["category"] == "hollow"
+    assert defect["confidence"] == 0.91
+    assert defect["rectification"] == "拆除空鼓瓷砖重新铺贴"
+    # 视觉缺陷并入整改建议且带来源标注（诚实，不伪装规则判定）
+    vision_sug = next(
+        (s for s in report["rectification_suggestions"] if s.get("source") == "vision_llm"),
+        None,
+    )
+    assert vision_sug is not None
+    assert "视觉" in vision_sug["issue"]
+    # 数据来源如实更新 + 诚实标注
+    assert report["source"] == "rule_engine+vision_llm"
+    assert report["engine"] == "mock_rule_engine+vision_llm"
+    assert report["is_placeholder"] is False
+    assert report["cv_mode"] == "real_vision_llm"
+    assert "视觉" in report["note"]
+    assert "视觉检出 1 项缺陷" in report["reply"]
+
+
+def test_qa_acceptance_report_vision_degrades_to_mock(monkeypatch):
+    """验收报告视觉化降级：有照片但视觉不可用 → 保持 mock + 诚实标注（不伪装视觉）"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(
+        qa_mod, "_fetch_image_bytes",
+        lambda url: (_ for _ in ()).throw(RuntimeError("vision api down")),
+    )
+
+    agent = QAInspectorAgent()
+    report = agent.generate_acceptance_report({
+        "project_id": "P004",
+        "project_name": "降级项目",
+        "phases": ["masonry"],
+        "inspection_results": {},
+        "images": [{"url": "http://example.com/d1.jpg", "type": "tile_surface"}],
+    })
+
+    assert report["vision_defect_count"] == 0
+    assert report["vision_defects"] == []
+    assert report["source"] == "mock"
+    assert report["is_placeholder"] is True
+    assert report["note"] is not None
+    assert "视觉模型不可用" in report["note"]
+
+
+def test_qa_acceptance_report_chart_render_and_analysis(monkeypatch):
+    """诊断数据可视化看图：include_chart=True → Pillow 渲染 PNG 图表 + 视觉模型"看图"解读"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(
+        qa_mod, "_call_vision_llm",
+        lambda prompt, image_bytes, mime: json.dumps({
+            "summary": "整体质量良好，泥瓦工程合格率偏低需重点关注。",
+            "key_risks": [{"phase": "masonry", "risk": "合格率 80%，存在空鼓风险"}],
+            "recommendations": ["对泥瓦工程复检空鼓与渗漏"],
+        }),
+    )
+
+    agent = QAInspectorAgent()
+    report = agent.generate_acceptance_report({
+        "project_id": "P005",
+        "project_name": "图表项目",
+        "phases": ["mep", "masonry"],
+        "inspection_results": {
+            "masonry": [
+                {"item": "瓷砖空鼓率", "result": "fail", "issues": ["客厅瓷砖空鼓超标"]},
+            ],
+        },
+        "include_chart": True,
+    })
+
+    # 图表为确定性渲染（真实数据 PNG），独立于视觉模型可用性
+    import base64 as b64
+
+    assert report["chart_mime"] == "image/png"
+    png = b64.b64decode(report["chart_b64"])
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    # 视觉模型"看图"解读（结构化）
+    assert report["chart_analysis"]["summary"]
+    assert report["chart_analysis"]["key_risks"][0]["phase"] == "masonry"
+    assert report["chart_analysis"]["recommendations"]
+    assert report["chart_analysis_note"] is None
+
+
+def test_qa_acceptance_report_chart_analysis_degrades(monkeypatch):
+    """图表解读降级：视觉模型不可用 → chart_analysis=None + 诚实标注，图表仍返回"""
+    from app.agents import qa_inspector as qa_mod
+
+    _vision_settings(monkeypatch, True)
+    monkeypatch.setattr(
+        qa_mod, "_call_vision_llm",
+        lambda prompt, image_bytes, mime: (_ for _ in ()).throw(RuntimeError("no vision key")),
+    )
+
+    agent = QAInspectorAgent()
+    report = agent.generate_acceptance_report({
+        "project_id": "P006",
+        "project_name": "解读降级项目",
+        "phases": ["mep"],
+        "inspection_results": {},
+        "include_chart": True,
+    })
+
+    assert report["chart_b64"]
+    assert report["chart_analysis"] is None
+    assert report["chart_analysis_note"] is not None
+    assert "视觉模型不可用" in report["chart_analysis_note"]
+
+
+def test_qa_acceptance_report_chart_without_vision_flag(monkeypatch):
+    """real_cv_quality_enabled=False：图表仍渲染（确定性真实数据），但不做 LLM 解读"""
+    _vision_settings(monkeypatch, False)
+
+    agent = QAInspectorAgent()
+    report = agent.generate_acceptance_report({
+        "project_id": "P007",
+        "project_name": "无视觉项目",
+        "phases": ["mep"],
+        "inspection_results": {},
+        "include_chart": True,
+    })
+
+    assert report["chart_b64"]
+    assert report["chart_analysis"] is None
+    assert report["chart_analysis_note"] is not None
+    assert "视觉模型不可用" in report["chart_analysis_note"]
+
+
 def test_qa_detect_intent():
     """质检意图识别"""
     assert QAInspectorAgent.detect_qa_intent("生成分项验收报告") == "acceptance"

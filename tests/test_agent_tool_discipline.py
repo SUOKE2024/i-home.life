@@ -486,6 +486,40 @@ def test_custom_classifier_evaluation():
     assert report["accuracy"] > 0  # oracle 至少命中部分预算/进度用例
 
 
+# ── v1.13.5 工具选择基线打磨（75% → 100%，2026-08-12）──
+
+
+def test_tool_accuracy_baseline_high():
+    """基线准确率 ≥ 90%（v1.13.5 关键词表消歧打磨后实测 100%，锁定防回退）。
+
+    打磨点：设计类三重工具（layout/proposals/update）关键词细分、search_materials
+    移除"多少钱"、negative 用例按「不应选工具」度量、关键词大小写归一化。
+    """
+    from app.eval.tool_accuracy import evaluate_tool_selection
+    report = evaluate_tool_selection()
+    assert report["accuracy"] >= 90.0, f"工具选择基线回退: {report['accuracy']}%"
+    assert report["confusion"] == [], f"不应有混淆: {report['confusion']}"
+
+
+def test_negative_cases_expect_no_tool():
+    """negative 用例（闲聊/致谢）不应选工具——classifier 返回 None 计正确。"""
+    from app.eval.tool_accuracy import (
+        TOOL_SELECTION_DATASET, classify_tool_by_keywords,
+    )
+    negative = [c for c in TOOL_SELECTION_DATASET if c.failure_mode == "negative"]
+    assert negative, "数据集应含 negative 用例"
+    for case in negative:
+        assert classify_tool_by_keywords(case.query) is None, \
+            f"闲聊不应选工具: {case.query!r}"
+
+
+def test_keyword_case_insensitive():
+    """关键词大小写归一化："方案B" lower 后仍命中 update_design_proposal。"""
+    from app.eval.tool_accuracy import classify_tool_by_keywords
+    assert classify_tool_by_keywords("把方案B的颜色换成浅色") == "update_design_proposal"
+    assert classify_tool_by_keywords("方案A改成开放式厨房") == "update_design_proposal"
+
+
 # ════════════════════════════════════════════════════════════════
 # 8. per-agent 评估新增工具维度指标
 # ════════════════════════════════════════════════════════════════

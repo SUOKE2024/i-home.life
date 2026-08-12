@@ -21,11 +21,6 @@
   python scripts/seed_demo_data.py               # 注入 3 个演示项目（幂等：已存在则跳过）
   python scripts/seed_demo_data.py --clear       # 清理本脚本创建的演示项目
   python scripts/seed_demo_data.py --clear-all-projects   # 清空全库所有用户的项目（破坏性）
-
-日志说明：本脚本为一次性 CLI 工具，日志仅经 basicConfig 输出到 stderr/stdout
-（无 FileHandler/RotatingFileHandler，不写日志文件）；运行结束进程即退出，
-部署脚本（deploy-remote.sh seed）以管道 `2>&1 | tail -2` 截断输出，不会造成
-磁盘空间累积。
 """
 
 import argparse

@@ -257,12 +257,19 @@ def _resolve_agent_class(agent_name: str):
         return None
 
 
-async def _call_agent_auto_reply(agent_name: str, user_message: str) -> tuple[str, dict]:
+async def _call_agent_auto_reply(
+    agent_name: str, user_message: str,
+    db=None, user_id: str = "", project_id: str = "",
+) -> tuple[str, dict]:
     """为群内 Agent 生成自动回复。
 
     优先级：真实 Agent（harness 调用处理文本）→ 规则路径 → 诚实降级占位。
     返回 (content, annotations)；annotations 含 generated_by/agent_mode，
     规则或降级路径额外携带 engine="rule_based"（占位再附 is_placeholder）。
+
+    v1.13.3（全链路闭环补齐，断点 F）：补 db/user_id/project_id 透传
+    harness.run，使 IM 群聊路径同样落轨迹 + 提取 Case（此前 kwargs 缺失
+    导致 _maybe_extract_case/_persist_trace 直接 return）。
     """
     agent_cls = _resolve_agent_class(agent_name)
     if agent_cls is None:
@@ -278,7 +285,9 @@ async def _call_agent_auto_reply(agent_name: str, user_message: str) -> tuple[st
     agent = agent_cls()
     try:
         from app.agents.harness import get_harness
-        result = await get_harness().run(agent, user_message)
+        result = await get_harness().run(
+            agent, user_message, db=db, user_id=user_id, project_id=project_id,
+        )
         reply = (result.get("reply") or "").strip()
         if result.get("fallback") or not reply or reply.startswith("[mock]"):
             # Agent 处理失败/超时/降级 → 诚实占位
@@ -319,9 +328,19 @@ async def generate_agent_auto_reply(
     members = parse_agent_members(room)
     if not members:
         return []
+    # v1.13.3（全链路闭环补齐，断点 F）：触发消息来自真实用户时归属其
+    # user_id（agent 机器人消息不归属个人 → 空串，诚实降级不注入不沉淀）
+    trigger_user_id = ""
+    if trigger_msg.sender_role != "agent" and not str(
+        trigger_msg.sender_id
+    ).startswith("agent:"):
+        trigger_user_id = str(trigger_msg.sender_id)
     replies: list[ChatMessage] = []
     for name in members:
-        content, annotations = await _call_agent_auto_reply(name, trigger_msg.content)
+        content, annotations = await _call_agent_auto_reply(
+            name, trigger_msg.content,
+            db=db, user_id=trigger_user_id, project_id=room.project_id,
+        )
         agent_user = await ensure_agent_user(db, name)
         msg = ChatMessage(
             project_id=room.project_id,

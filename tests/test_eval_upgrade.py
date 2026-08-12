@@ -168,3 +168,89 @@ async def test_drift_insufficient_samples(db_session):
     concierge = [d for d in drift if d["agent_name"] == "concierge"]
     assert len(concierge) == 1
     assert concierge[0]["status"] == "insufficient_samples"
+
+
+# ── v1.13.4 反馈满意度漂移（agent_feedbacks 纳入质量门禁）──
+
+
+async def _seed_feedback(db, agent: str, likes: int, dislikes: int) -> str:
+    """预置 feedback 记录（直接插入 User + AgentFeedback），返回 user_id"""
+    import uuid
+    from datetime import datetime, timezone
+
+    from app.models.agent_feedback import AgentFeedback
+    from app.models.user import User
+
+    user = User(phone=f"13{str(uuid.uuid4().int)[:9]}", name="评估测试用户")
+    db.add(user)
+    await db.flush()
+    for i in range(likes):
+        db.add(AgentFeedback(
+            user_id=user.id, agent_name=agent, message_hash=f"h_l_{i}",
+            feedback_type="like", user_message="msg", agent_reply="reply",
+            created_at=datetime.now(timezone.utc),
+        ))
+    for i in range(dislikes):
+        db.add(AgentFeedback(
+            user_id=user.id, agent_name=agent, message_hash=f"h_d_{i}",
+            feedback_type="dislike", user_message="msg", agent_reply="reply",
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db.commit()
+    return user.id
+
+
+async def test_feedback_drift_like_rate_ok(db_session):
+    """like 率 ≥ 目标（8/10=80% ≥ 70%）→ ok"""
+    from app.eval.ihome_eval import detect_feedback_drift
+
+    await _seed_feedback(db_session, "designer", likes=8, dislikes=2)
+    drift = await detect_feedback_drift(db_session, window_days=7)
+    designer = [d for d in drift if d["agent_name"] == "designer"]
+    assert len(designer) == 1
+    assert designer[0]["metric"] == "feedback_like_rate"
+    assert designer[0]["status"] == "ok"
+    assert designer[0]["current"] == 80.0
+
+
+async def test_feedback_drift_like_rate_warn(db_session):
+    """like 率略低于目标（8/12=66.67% < 70%，差距 <10%）→ warn"""
+    from app.eval.ihome_eval import detect_feedback_drift
+
+    await _seed_feedback(db_session, "budget", likes=8, dislikes=4)
+    drift = await detect_feedback_drift(db_session, window_days=7)
+    budget = [d for d in drift if d["agent_name"] == "budget"]
+    assert budget[0]["status"] == "warn"
+    assert budget[0]["current"] == 66.67
+
+
+async def test_feedback_drift_like_rate_critical(db_session):
+    """like 率严重低于目标（5/10=50%，差距 ≥10%）→ critical"""
+    from app.eval.ihome_eval import detect_feedback_drift
+
+    await _seed_feedback(db_session, "concierge", likes=5, dislikes=5)
+    drift = await detect_feedback_drift(db_session, window_days=7)
+    concierge = [d for d in drift if d["agent_name"] == "concierge"]
+    assert concierge[0]["status"] == "critical"
+    assert concierge[0]["current"] == 50.0
+
+
+async def test_feedback_drift_insufficient_samples(db_session):
+    """反馈样本量不足（2 < 5）→ insufficient_samples（诚实标注不判定）"""
+    from app.eval.ihome_eval import detect_feedback_drift
+
+    await _seed_feedback(db_session, "kitchen", likes=2, dislikes=0)
+    drift = await detect_feedback_drift(db_session, window_days=7, min_samples=5)
+    kitchen = [d for d in drift if d["agent_name"] == "kitchen"]
+    assert len(kitchen) == 1
+    assert kitchen[0]["status"] == "insufficient_samples"
+    assert kitchen[0]["metric"] == "feedback_sample_size"
+    assert kitchen[0]["current"] == 2
+
+
+async def test_feedback_drift_no_feedback_returns_empty(db_session):
+    """无反馈数据 → 空列表（诚实降级，不伪造）"""
+    from app.eval.ihome_eval import detect_feedback_drift
+
+    drift = await detect_feedback_drift(db_session, window_days=7)
+    assert drift == []

@@ -112,6 +112,15 @@ class VoiceRealtimeSession:
         注意：此方法在无 API Key 时返回 mock 模式。
         """
         # 记录使用的模型变体（flash / plus），便于排查情感感知相关问题
+        # v1.13.x P0-1: 复用连接防泄漏——同一 session 对象再次 connect() 前
+        # 先关闭旧连接，避免旧 Qwen WS 连接被静默覆盖泄漏
+        if self._ws is not None:
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
+
         is_plus = self.model.endswith("-plus")
         logger.info(
             f"voice_realtime: 连接开始 model={self.model} "
@@ -357,6 +366,9 @@ class VoiceRealtimeSession:
             await self._ws.send(json.dumps(msg, ensure_ascii=False))
         except Exception as e:
             logger.error(f"voice_realtime: send_raw_json 失败: {e}")
+            # v1.13.x P0-2: 发送失败说明连接已失效，置 None 使后续调用走 no-op
+            # 分支（与断开状态一致，避免音频被静默丢弃且无感知）
+            self._ws = None
 
     @staticmethod
     def _build_ws_url(base_url: str, model: str) -> str:

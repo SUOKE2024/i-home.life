@@ -175,7 +175,8 @@ async def test_voice_task_status_and_list(client: AsyncClient, orch_enabled):
 async def test_voice_cancel_running_task(client: AsyncClient, orch_enabled, monkeypatch):
     """语音取消运行中的任务"""
 
-    async def _slow_agent(text, intent, user_name, context="", emotion=None):
+    async def _slow_agent(text, intent, user_name, context="", emotion=None,
+                          db=None, user_id="", project_id=""):
         await asyncio.sleep(30)
         return "不应到达"
 
@@ -426,7 +427,8 @@ async def test_tool_get_and_cancel_voice_tasks(orch_tool_enabled, monkeypatch):
     from app.api import voice_realtime
     from app.services.agent_tool_registry import tool_registry
 
-    async def _slow_agent(text, intent, user_name, context="", emotion=None):
+    async def _slow_agent(text, intent, user_name, context="", emotion=None,
+                          db=None, user_id="", project_id=""):
         await asyncio.sleep(30)
         return "不应到达"
 

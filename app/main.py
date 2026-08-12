@@ -199,6 +199,19 @@ async def lifespan(app: FastAPI):
         health_monitor._db_factory = async_session
         interval = settings.health_os_check_interval_seconds
         await health_monitor.start(interval_seconds=interval)
+    # v1.13.1 OBS-003：启动时预热 OpenAPI schema 缓存——490 路由动态生成首次约 6s，
+    # 惰性生成使首个 /api/openapi.json 请求 P90 6.4s；启动预热后首请求零延迟命中缓存。
+    try:
+        global _openapi_json_bytes, _openapi_gzip_bytes
+        if _openapi_json_bytes is None:
+            import gzip
+            import json
+            schema = app.openapi()
+            _openapi_json_bytes = json.dumps(schema, ensure_ascii=False).encode("utf-8")
+            _openapi_gzip_bytes = gzip.compress(_openapi_json_bytes)
+            logger.info("openapi_schema_prewarmed bytes=%d", len(_openapi_json_bytes))
+    except Exception as e:  # pragma: no cover - 预热失败不影响启动（诚实降级）
+        logger.warning("openapi_prewarm_failed", error=str(e))
     yield
     # 应用关闭时清理
     # v1.10.x：取消诊断后台任务

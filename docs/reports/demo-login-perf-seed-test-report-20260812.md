@@ -94,3 +94,42 @@ Dashboard 每次加载/切换输出 `[perf] dashboard.project-load`（[Dashboard
 | 云栖雅苑预算 | ¥106,214 / ¥57,294 | ¥106,214 / ¥57,294（乳胶漆 4 桶） | ✅ 已应用 |
 | 演示项目数 | 3 | 3（云栖雅苑/滇池湖畔/翠湖名邸） | ✅ |
 | webapp dist（含性能日志） | index-D_HC91Ub.js | index-D_HC91Ub.js（含 dashboard.project-load） | ✅ 已部署 |
+
+---
+
+## 五、预算分析可视化图表
+
+`docs/reports/budget-analysis-20260812.html`（ECharts 5.5.0 自包含，浏览器直接打开）：
+
+- **按物料类别分组的柱状图**（8 类别金额）：定制 30,720 / 水电 21,168 / 地面 16,236 / 厨卫 15,520 / 家电 12,800 / 顶面 4,370 / 墙面 2,720 / 软装 2,680
+- **类别占比饼图**（按预估金额占比）
+- **三项目预算对比**：云栖雅苑 ¥106,214（施工中）/ 滇池湖畔 ¥59,829（采购阶段）/ 翠湖名邸 ¥88,160（设计阶段）
+- **9 项明细表**：合计 ¥106,214、实际花费 ¥57,294，与第一节核对表逐项一致
+
+浏览器验证 6 项全过：标题正确、3 图表 canvas 渲染非空白（24,234 / 11,254 / 22,383 像素）、明细 9 行、无 JS 错误。
+
+---
+
+## 六、全量回归复测（边界测试并入主套件后）
+
+4 个极端数据量边界测试并入 `test_demo_seed.py` 主套件后，全量 pytest 串行跑两轮：
+
+| 轮次 | 结果 | 环境异常项（单独重跑均通过） |
+|------|------|------------------------------|
+| r1（1:05:30） | **2227 passed** / 2 failed / 1 error / 2 skipped / 4 xfailed | test_demo_login_auth_rate_limit（限流配额被全量其他认证请求占用）、test_demo_login_concurrent（SQLite 锁等待）、test_e2e_project_full_lifecycle（CPU 竞争超时）——单独重跑 5 passed 全过 |
+| r2（0:56:34） | **2230 passed** / 1 failed / 2 skipped / 4 xfailed | test_b2b_delivery_async_mode（async 时序干扰）——单独重跑 1.13s passed |
+
+4 个新增边界测试两轮全量均 PASSED，**持续通过无回归**。
+
+---
+
+## 七、生产日志磁盘安全确认
+
+生产 `seed_demo_data.py` 日志配置复核：
+
+- 仅 `logging.basicConfig()` → **StreamHandler 输出到 stderr/stdout**（[seed_demo_data.py:325](file:///Users/netsong/Developer/i-home.life/scripts/seed_demo_data.py#L319-L329)）
+- **无 FileHandler / RotatingFileHandler，不写任何日志文件**
+- 一次性 CLI 进程退出即消失；部署管道 `2>&1 | tail -2` 截断输出
+- 预算逐项日志（`budget_line_created`）不落盘 → **不会造成生产磁盘空间过快增长**
+
+生产脚本 md5 与本地一致（7e5550b0），本地即生产逻辑。

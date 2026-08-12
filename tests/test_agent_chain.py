@@ -411,3 +411,581 @@ async def test_project_scope_case_persist_and_inject_chain(
     assert new_cases[0].owner_id == project_id, \
         f"新 Case owner_id 应为 project_id: {new_cases[0].owner_id}"
     assert new_cases[0].task_intent == "设计厨房布局方案"
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.13.3 全链路闭环补齐（2026-08-12）
+# 断点 A–I 修复验证：think_stream 签名+注入+沉淀 / 三处透传（classify_intent、
+# concierge、content_publish）/ Skill outcome 回写 / IM harness 透传 /
+# 语音路由透传 / _llm_decompose 注入 / preference hint helper
+# ════════════════════════════════════════════════════════════════
+
+
+async def _seed_project_scope_case_skill(db_session, user_id: str, project_id: str):
+    """预置 project scope 的 Case + Skill（读侧注入检索目标），返回 skill_id"""
+    from app.models.agent_case import AgentCase
+    from app.models.agent_skill import AgentSkill, STATUS_ACTIVE
+    import uuid
+
+    case_id = f"v1133_case_{uuid.uuid4().hex[:8]}"
+    skill_id = f"v1133_skill_{uuid.uuid4().hex[:8]}"
+    db_session.add_all([
+        AgentCase(
+            id=case_id, scope="project", owner_id=project_id, agent_name="kitchen",
+            task_intent="帮我设计厨房布局方案", approach="[]",
+            outcome="success", quality_score=0.9, created_by=user_id,
+        ),
+        AgentSkill(
+            id=skill_id, name="厨房动线技能v1133", owner_scope="project", owner_id=project_id,
+            agent_name="kitchen", system_prompt="优先推荐 U 型厨房布局", status=STATUS_ACTIVE,
+            created_by=user_id, utility_score=0.9,
+        ),
+    ])
+    await db_session.commit()
+    return skill_id
+
+
+@pytest.mark.asyncio
+async def test_stream_think_injects_and_persists(client, db_session, monkeypatch):
+    """断点 D：think_stream 补签名后，流式路径读侧注入 Case+Skill、
+    写侧沉淀 project scope 新 Case（与 think 对齐的全链路闭环）。"""
+    import json
+    import uuid
+    from unittest.mock import patch
+
+    from sqlalchemy import select
+
+    from app.agents.base import BaseAgent
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.models.agent_case import AgentCase
+    from app.models.project import Project
+    from app.models.user import User
+
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_learning_enabled", False)
+
+    phone = f"136{str(uuid.uuid4().int)[:8]}"
+    await _register(client, phone)
+    user = (await db_session.execute(
+        select(User).where(User.phone == phone)
+    )).scalars().first()
+    project = Project(name="流式记忆验证项目", owner_id=user.id, project_type="full_renovation")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    project_id = project.id
+    await _seed_project_scope_case_skill(db_session, user.id, project_id)
+
+    captured_msgs: list[dict] = []
+
+    async def fake_chat_stream(self, messages):
+        captured_msgs.extend(messages)
+        yield "这是第一段"
+        yield "流式回复"
+
+    async def fake_chat(self, messages, **kwargs):
+        return json.dumps({
+            "task_intent": "设计厨房布局方案",
+            "approach": [{"step": 1, "attempted": "输出布局", "tool": "", "result": "OK", "revised": False}],
+            "outcome": "success",
+            "quality_score": 0.85,
+        })
+
+    agent = KitchenAgent()
+    try:
+        with patch.object(BaseAgent, "_chat_stream", fake_chat_stream), \
+                patch.object(BaseAgent, "_chat", fake_chat):
+            chunks: list[str] = []
+            async for c in agent.think_stream(
+                "帮我设计厨房布局方案", db=db_session,
+                user_id=str(user.id), project_id=project_id,
+            ):
+                chunks.append(c)
+    finally:
+        await agent.close()
+
+    assert "".join(chunks) == "这是第一段流式回复"
+
+    # 读侧：注入 project scope Case + Skill
+    joined = "\n".join(
+        m.get("content", "") for m in captured_msgs if m.get("role") == "system"
+    )
+    assert "[历史经验 Case" in joined, f"流式未注入 Case: {joined!r}"
+    assert "[进化 Skill: 厨房动线技能v1133]" in joined, f"流式未注入 Skill: {joined!r}"
+
+    # 写侧：沉淀 project scope 新 Case
+    rows = (await db_session.execute(select(AgentCase))).scalars().all()
+    new_cases = [c for c in rows if not c.id.startswith("v1133_case_")]
+    assert len(new_cases) == 1, f"流式应沉淀 1 条新 Case，实际 {len(new_cases)}"
+    assert new_cases[0].scope == "project"
+    assert new_cases[0].owner_id == project_id
+
+
+@pytest.mark.asyncio
+async def test_think_stream_records_skill_outcome(client, db_session, monkeypatch):
+    """反馈闭环：think_stream 注入 Skill 且回复正常 → success_count +1（P1 数据层激活）"""
+    import uuid
+    from sqlalchemy import select
+
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.models.agent_skill import AgentSkill
+    from app.models.project import Project
+    from app.models.user import User
+
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_learning_enabled", False)
+
+    phone = f"135{str(uuid.uuid4().int)[:8]}"
+    await _register(client, phone)
+    user = (await db_session.execute(
+        select(User).where(User.phone == phone)
+    )).scalars().first()
+    project = Project(name="skill 回写项目", owner_id=user.id, project_type="full_renovation")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    skill_id = await _seed_project_scope_case_skill(db_session, user.id, project.id)
+
+    agent = KitchenAgent()
+    try:
+        await agent._inject_evolution_context(
+            [], "帮我设计厨房布局方案", str(user.id), db_session, project.id,
+        )
+        assert agent._injected_skill_id == skill_id, "注入未记录 skill_id"
+        await agent._maybe_record_skill_outcome("这是正常回复", db_session)
+    finally:
+        await agent.close()
+
+    skill = (await db_session.execute(
+        select(AgentSkill).where(AgentSkill.id == skill_id)
+    )).scalars().first()
+    assert skill.success_count == 1, f"success_count 应为 1: {skill.success_count}"
+    assert skill.fail_count == 0
+
+
+@pytest.mark.asyncio
+async def test_skill_outcome_skips_mock_reply(client, db_session, monkeypatch):
+    """反馈闭环：mock/降级回复不计数（防污染进化数据层）"""
+    import uuid
+    from sqlalchemy import select
+
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.models.agent_skill import AgentSkill
+    from app.models.project import Project
+    from app.models.user import User
+
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+
+    phone = f"134{str(uuid.uuid4().int)[:8]}"
+    await _register(client, phone)
+    user = (await db_session.execute(
+        select(User).where(User.phone == phone)
+    )).scalars().first()
+    project = Project(name="skill mock 项目", owner_id=user.id, project_type="full_renovation")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    skill_id = await _seed_project_scope_case_skill(db_session, user.id, project.id)
+
+    agent = KitchenAgent()
+    try:
+        await agent._inject_evolution_context(
+            [], "帮我设计厨房布局方案", str(user.id), db_session, project.id,
+        )
+        await agent._maybe_record_skill_outcome("[mock] kitchen 流式响应：API key 未配置", db_session)
+        await agent._maybe_record_skill_outcome("", db_session)
+        await agent._maybe_record_skill_outcome("Agent 暂时无法响应（服务降级）", db_session)
+    finally:
+        await agent.close()
+
+    skill = (await db_session.execute(
+        select(AgentSkill).where(AgentSkill.id == skill_id)
+    )).scalars().first()
+    assert skill.success_count == 0, f"mock 不应计数: {skill.success_count}"
+    assert skill.fail_count == 0
+
+
+@pytest.mark.asyncio
+async def test_inject_evolution_context_respects_budget(client, db_session, monkeypatch):
+    """Context Engineering（v1.13.5）：注入预算——Skill 蒸馏知识全量优先、
+    Case 用剩余预算裁剪（防 context rot），总注入不超过预算"""
+    import uuid
+    from sqlalchemy import select
+
+    from app.agents.kitchen_agent import KitchenAgent
+    from app.models.project import Project
+    from app.models.user import User
+
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+
+    phone = f"132{str(uuid.uuid4().int)[:8]}"
+    await _register(client, phone)
+    user = (await db_session.execute(
+        select(User).where(User.phone == phone)
+    )).scalars().first()
+    project = Project(name="预算裁剪项目", owner_id=user.id, project_type="full_renovation")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+    await _seed_project_scope_case_skill(db_session, user.id, project.id)
+
+    skill_block = "[进化 Skill: 厨房动线技能v1133]\n优先推荐 U 型厨房布局"
+
+    # 场景①：预算充足 → Case 全量注入，总长 ≤ 预算
+    monkeypatch.setattr(get_settings(), "context_injection_budget_chars", 500)
+    agent = KitchenAgent()
+    try:
+        messages: list[dict] = []
+        await agent._inject_evolution_context(
+            messages, "帮我设计厨房布局方案", str(user.id), db_session, project.id,
+        )
+    finally:
+        await agent.close()
+    injected = "\n".join(m.get("content", "") for m in messages)
+    assert "进化 Skill" in injected
+    assert "历史经验 Case" in injected
+    assert len(injected) <= 500, f"注入超预算: {len(injected)}"
+
+    # 场景②：预算只够 Skill（蒸馏知识高密度全量优先）→ Case 被预算裁剪
+    monkeypatch.setattr(get_settings(), "context_injection_budget_chars", len(skill_block) + 5)
+    agent2 = KitchenAgent()
+    try:
+        messages2: list[dict] = []
+        await agent2._inject_evolution_context(
+            messages2, "帮我设计厨房布局方案", str(user.id), db_session, project.id,
+        )
+    finally:
+        await agent2.close()
+    injected2 = "\n".join(m.get("content", "") for m in messages2)
+    assert "进化 Skill" in injected2, "Skill 蒸馏知识应全量优先注入"
+    assert "历史经验 Case" not in injected2, "Case 应被预算裁剪（剩余预算放不下头部）"
+    assert len(injected2) <= len(skill_block) + 5
+
+
+@pytest.mark.asyncio
+async def test_classify_intent_passes_context(db_session, monkeypatch):
+    """断点 A：classify_intent 透传 db/user_id/project_id 给 think"""
+    from app.agents.orchestrator import OrchestratorAgent
+
+    captured: dict = {}
+
+    async def _spy_think(self, message, context="", db=None, project_id="", user_id=""):
+        captured["db"] = db
+        captured["project_id"] = project_id
+        captured["user_id"] = user_id
+        return '{"intent": "general"}'
+
+    monkeypatch.setattr(OrchestratorAgent, "think", _spy_think)
+    agent = OrchestratorAgent()
+    try:
+        result = await agent.classify_intent(
+            "测试消息", db=db_session, user_id="u1", project_id="p1",
+        )
+    finally:
+        await agent.close()
+    assert result["intent"] == "general"
+    assert captured["db"] is db_session
+    assert captured["user_id"] == "u1"
+    assert captured["project_id"] == "p1"
+
+
+@pytest.mark.asyncio
+async def test_concierge_generate_response_passes_context(db_session, monkeypatch):
+    """断点 C：concierge.generate_response 透传 db/user_id/project_id 给 think"""
+    from app.agents.concierge import ConciergeAgent
+
+    captured: dict = {}
+
+    async def _spy_think(self, user_message, context="", db=None, project_id="", user_id=""):
+        captured["db"] = db
+        captured["project_id"] = project_id
+        captured["user_id"] = user_id
+        return "客服回复"
+
+    monkeypatch.setattr(ConciergeAgent, "think", _spy_think)
+    agent = ConciergeAgent()
+    try:
+        reply = await agent.generate_response(
+            "咨询", "上下文", db=db_session, user_id="u1", project_id="p1",
+        )
+    finally:
+        await agent.close()
+    assert reply == "客服回复"
+    assert captured["db"] is db_session
+    assert captured["user_id"] == "u1"
+    assert captured["project_id"] == "p1"
+
+
+@pytest.mark.asyncio
+async def test_content_publish_passes_context(db_session, monkeypatch):
+    """断点 B：generate_content_publish_reply 透传 db/user_id/project_id 给 think"""
+    from app.agents.content_publisher import ContentPublisherAgent
+
+    captured: dict = {}
+
+    async def _spy_think(self, prompt, context="", db=None, project_id="", user_id=""):
+        captured["db"] = db
+        captured["project_id"] = project_id
+        captured["user_id"] = user_id
+        return "发布引导"
+
+    monkeypatch.setattr(ContentPublisherAgent, "think", _spy_think)
+    agent = ContentPublisherAgent()
+    try:
+        reply = await agent.generate_content_publish_reply(
+            "我要发布瓷砖", "张三", db=db_session, user_id="u1", project_id="p1",
+        )
+    finally:
+        await agent.close()
+    assert reply == "发布引导"
+    assert captured["db"] is db_session
+    assert captured["user_id"] == "u1"
+    assert captured["project_id"] == "p1"
+
+
+@pytest.mark.asyncio
+async def test_im_auto_reply_passes_context(monkeypatch):
+    """断点 F：IM 群聊 harness.run 透传 db/user_id/project_id"""
+    from app.services import chat_service
+
+    class _DummyAgent:
+        agent_name = "designer"
+
+        async def close(self):
+            pass
+
+    captured: dict = {}
+
+    class _FakeHarness:
+        async def run(self, agent, msg, **kwargs):
+            captured.update(kwargs)
+            return {"reply": "ok"}
+
+    monkeypatch.setattr(chat_service, "_resolve_agent_class", lambda name: _DummyAgent)
+    monkeypatch.setattr(
+        "app.agents.harness.get_harness", lambda: _FakeHarness(),
+    )
+    content, annotations = await chat_service._call_agent_auto_reply(
+        "designer", "hello", db="db-x", user_id="u1", project_id="p1",
+    )
+    assert content == "ok"
+    assert captured == {"db": "db-x", "user_id": "u1", "project_id": "p1"}
+
+
+@pytest.mark.asyncio
+async def test_voice_route_passes_context(monkeypatch):
+    """断点 E：语音路由 _route_voice_to_agent 透传 db/user_id/project_id 给 think"""
+    from app.api import voice_realtime
+    from app.agents.designer import DesignerAgent
+
+    monkeypatch.setattr(get_settings(), "deepseek_api_key", "fake-key")
+    monkeypatch.setattr(get_settings(), "glm_api_key", "fake-key")
+
+    captured: dict = {}
+
+    async def _spy_think(self, user_message, context="", db=None, project_id="", user_id=""):
+        captured["db"] = db
+        captured["project_id"] = project_id
+        captured["user_id"] = user_id
+        return '{"reply": "语音设计回复"}'
+
+    monkeypatch.setattr(DesignerAgent, "think", _spy_think)
+    reply = await voice_realtime._route_voice_to_agent(
+        "帮我设计客厅", "design", "张三", db="db-x", user_id="u1", project_id="p1",
+    )
+    assert reply == "语音设计回复"
+    assert captured["db"] == "db-x"
+    assert captured["user_id"] == "u1"
+    assert captured["project_id"] == "p1"
+
+
+@pytest.mark.asyncio
+async def test_llm_decompose_injects_evolution(monkeypatch):
+    """断点 I：_llm_decompose 调用 _inject_evolution_context（db/user_id/project_id）"""
+    from app.agents.orchestrator import OrchestratorAgent
+    from app.services import agent_orchestration_service as orch_svc
+
+    calls: list[tuple] = []
+
+    async def _spy_inject(self, messages, user_message, user_id, db, project_id=""):
+        calls.append((user_message, user_id, project_id))
+
+    async def _spy_chat(self, messages, **kwargs):
+        return '{"tasks": [{"agent": "designer", "task": "设计客厅方案", "depends_on": []}]}'
+
+    monkeypatch.setattr(OrchestratorAgent, "_inject_evolution_context", _spy_inject)
+    monkeypatch.setattr(OrchestratorAgent, "_chat", _spy_chat)
+    tasks = await orch_svc._llm_decompose(
+        "帮我装修客厅", db="db-x", user_id="u1", project_id="p1",
+    )
+    assert tasks and len(tasks) == 1
+    assert tasks[0].agent_name == "designer"
+    assert calls and calls[0] == ("帮我装修客厅", "u1", "p1"), f"注入未透传: {calls}"
+
+
+@pytest.mark.asyncio
+async def test_inject_preference_hint_helper(client, auth_token, db_session, monkeypatch):
+    """/chat 与 /chat/stream 共用 helper：注入 like 正向示例 + 保留原上下文"""
+    from sqlalchemy import select
+
+    from app.api import agents as agents_api
+    from app.models.agent_feedback import AgentFeedback
+    from app.models.user import User
+
+    monkeypatch.setattr(get_settings(), "agent_learning_enabled", True)
+    user = (await db_session.execute(
+        select(User).order_by(User.created_at.desc()).limit(1)
+    )).scalars().first()
+    db_session.add(AgentFeedback(
+        user_id=user.id, agent_name="kitchen", message_hash="h1",
+        feedback_type="like", user_message="我喜欢简洁的回复",
+        agent_reply="简洁回复示例",
+    ))
+    await db_session.commit()
+
+    ctx = await agents_api._inject_preference_hint(
+        db_session, user.id, "kitchen", "base_ctx",
+    )
+    assert "base_ctx" in ctx, f"原上下文被覆盖: {ctx!r}"
+    assert "过往满意的回复示例" in ctx, f"未注入偏好示例: {ctx!r}"
+    assert "我喜欢简洁的回复" in ctx, f"未注入 like 示例内容: {ctx!r}"
+
+
+@pytest.mark.asyncio
+async def test_chat_stream_endpoint_mock_regression(client, auth_token, monkeypatch):
+    """断点 D 端点回归：/chat/stream 真流式路径（think_stream 新签名）mock 模式不崩溃"""
+    # mock 模式：无 API key（强制置空，避免 .env 真实 key 走真 LLM）
+    monkeypatch.setattr(get_settings(), "deepseek_api_key", "")
+    monkeypatch.setattr(get_settings(), "glm_api_key", "")
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", False)
+
+    resp = await client.post(
+        "/api/agents/chat/stream",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        json={"message": "帮我看看厨房方案", "agent_type": "kitchen"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert "[mock]" in resp.text, f"mock 流式内容缺失: {resp.text[:200]}"
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.13.5 核心功能打磨：Model Spec HC 约束前置声明
+# （输出前注入适用于本 Agent 的硬约束 → 减少事后反驳重生成成本）
+# ════════════════════════════════════════════════════════════════
+
+
+def _capture_messages(fake_chat_cases: list[dict]):
+    async def fake_chat(self, messages, **kwargs):
+        fake_chat_cases.extend(messages)
+        return "OK"
+    return fake_chat
+
+
+@pytest.mark.asyncio
+async def test_think_injects_model_spec_constraints(monkeypatch):
+    """think 注入适用于 KitchenAgent 的 HC 约束声明（HC-007 燃气安全适用 kitchen）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.kitchen_agent import KitchenAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", True)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_case_extraction_enabled", False)
+
+    captured: list[dict] = []
+    agent = KitchenAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("帮我设计厨房", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(
+        m.get("content", "") for m in captured if m.get("role") == "system"
+    )
+    assert "【Model Spec 硬约束" in joined, f"未注入 HC 约束声明: {joined!r}"
+    assert "HC-007" in joined, f"kitchen 应含 HC-007 燃气安全约束: {joined!r}"
+
+
+@pytest.mark.asyncio
+async def test_model_spec_constraint_disabled(monkeypatch):
+    """model_spec_enabled=False 时不注入约束声明（诚实降级）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.kitchen_agent import KitchenAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    captured: list[dict] = []
+    agent = KitchenAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("帮我设计厨房", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(m.get("content", "") for m in captured if m.get("role") == "system")
+    assert "【Model Spec 硬约束" not in joined
+
+
+@pytest.mark.asyncio
+async def test_door_window_alias_gets_hc008(monkeypatch):
+    """别名映射：door_window agent_name → spec applies_to door_window_waterproof（HC-008 防水）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.door_window_agent import DoorWindowAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", True)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    captured: list[dict] = []
+    agent = DoorWindowAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("门窗防水怎么做", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(m.get("content", "") for m in captured if m.get("role") == "system")
+    assert "HC-008" in joined, f"door_window 应经别名注入 HC-008 防水约束: {joined!r}"
+
+
+@pytest.mark.asyncio
+async def test_no_constraints_for_agent_without_spec(monkeypatch):
+    """spec 未覆盖的 Agent（concierge）不注入约束声明（无适用约束）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.concierge import ConciergeAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", True)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    captured: list[dict] = []
+    agent = ConciergeAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("咨询问题", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(m.get("content", "") for m in captured if m.get("role") == "system")
+    assert "【Model Spec 硬约束" not in joined

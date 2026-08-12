@@ -425,6 +425,8 @@ class BaseAgent:
                 user_id, db is not None,
             )
             return
+        # v1.13.3: 每次注入前重置，防陈旧 skill_id 误记 outcome
+        self._injected_skill_id = None
         try:
             from app.services.agent_case_service import search_cases, build_case_context
             from app.services.agent_skill_evolution_service import get_skill_for_injection
@@ -441,27 +443,38 @@ class BaseAgent:
             cases = await search_cases(
                 db, task_intent=user_message, owner_id=owner_id, scope=scope,
             )
+            skill = await get_skill_for_injection(
+                db, agent_name=self.agent_name, owner_id=owner_id, scope=scope,
+            )
             case_ctx = build_case_context(cases)
+            budget = settings.context_injection_budget_chars
+            if budget > 0:
+                # v1.13.5（2026 Context Engineering 前沿对齐）：注入预算控制。
+                # Skill 蒸馏知识高密度全量优先，Case 用剩余预算——超限从末尾 Case
+                # 开始丢弃（cases 已按 quality 降序），防 context rot 淹没关键事实。
+                if skill and skill.system_prompt:
+                    budget -= len(f"[进化 Skill: {skill.name}]\n{skill.system_prompt}")
+                case_ctx = build_case_context(cases, max_chars=budget)
             if case_ctx:
                 messages.append({"role": "system", "content": case_ctx})
                 logger.debug(
                     "evolution.inject.case_hit: agent=%s scope=%s owner_id=%s "
-                    "case_count=%d ctx_len=%d",
+                    "case_count=%d ctx_len=%d budget_chars=%s",
                     self.agent_name, scope, owner_id, len(cases), len(case_ctx),
+                    settings.context_injection_budget_chars,
                 )
             else:
                 logger.debug(
                     "evolution.inject.case_miss: agent=%s scope=%s owner_id=%s case_count=0",
                     self.agent_name, scope, owner_id,
                 )
-            skill = await get_skill_for_injection(
-                db, agent_name=self.agent_name, owner_id=owner_id, scope=scope,
-            )
             if skill and skill.system_prompt:
                 messages.append({
                     "role": "system",
                     "content": f"[进化 Skill: {skill.name}]\n{skill.system_prompt}",
                 })
+                # v1.13.3: 记录注入的 Skill，供 _maybe_record_skill_outcome 回写成败
+                self._injected_skill_id = skill.id
                 logger.debug(
                     "evolution.inject.skill_hit: agent=%s scope=%s owner_id=%s "
                     "skill_id=%s skill=%s",
@@ -541,6 +554,97 @@ class BaseAgent:
                 self.agent_name, e,
             )
 
+    # ── v1.13.5 核心功能打磨：Model Spec HC 约束前置声明 ──
+    # 与 rebuttal_engine 事后校验互补：输出前把适用于本 Agent 的硬约束注入
+    # system 上下文，从源头减少违规输出与重生成成本（Guideline-as-Code 前置化）。
+
+    _MODEL_SPEC_AGENT_ALIASES: dict[str, str] = {
+        "door_window": "door_window_waterproof",  # spec applies_to 与 agent_name 映射
+    }
+
+    def _model_spec_constraint_prompt(self) -> str:
+        """生成适用于本 Agent 的 HC 约束声明段。
+
+        按 agent_name 过滤 ihome_model_spec.json hard_constraints（含别名映射），
+        无适用约束或加载失败返回空串（诚实降级，不影响主流程）。
+        """
+        if not settings.model_spec_enabled:
+            return ""
+        try:
+            from pathlib import Path
+            spec = json.loads(
+                Path(settings.model_spec_path).read_text(encoding="utf-8")
+            )
+            spec_name = self._MODEL_SPEC_AGENT_ALIASES.get(
+                self.agent_name or "", self.agent_name or "",
+            )
+            hcs = [
+                hc for hc in spec.get("hard_constraints", [])
+                if spec_name in (hc.get("applies_to") or [])
+            ]
+            if not hcs:
+                return ""
+            lines = ["【Model Spec 硬约束（必须遵守，违反将触发合规校验与重生成）】"]
+            for hc in hcs:
+                lines.append(f"- {hc['id']} {hc['title']}：{hc['description']}")
+            return "\n".join(lines)
+        except Exception as e:
+            logger.debug(
+                "%s: Model Spec 约束声明加载失败（跳过）: %s", self.agent_name, e,
+            )
+            return ""
+
+    def _append_model_spec_constraint(self, messages: list[dict]) -> None:
+        """在 system_prompt 之后注入 HC 约束声明（无适用约束则 no-op）。"""
+        constraint = self._model_spec_constraint_prompt()
+        if constraint:
+            messages.append({"role": "system", "content": constraint})
+
+    async def _maybe_record_skill_outcome(self, reply: Any, db) -> None:
+        """v1.13.3: Skill 使用成败回写（best-effort）。
+
+        与 _maybe_persist_execution_case 并列的反馈闭环 hook：当本次执行注入过
+        进化 Skill（self._injected_skill_id 非空）时，把执行结果回写
+        record_skill_outcome，激活 P1 Skill 进化数据层
+        （此前该函数生产路径零调用，success/fail_count 恒 0）。
+
+        确定性判定（无额外 LLM 成本）：reply 非空、非 [mock] 前缀、非降级占位
+        → success=True；无法判定（mock/空/降级）→ 跳过不计数，防污染。
+        v1.13.3 起只记成功不记失败（success=False 需 LLM 判定或更复杂信号，
+        写遗留清单）。
+        """
+        try:
+            skill_id = getattr(self, "_injected_skill_id", None)
+            if not skill_id or db is None:
+                logger.debug(
+                    "evolution.outcome.skip: agent=%s skill_id=%r db=%s",
+                    self.agent_name, skill_id, db is not None,
+                )
+                return
+            if not isinstance(reply, str) or not reply.strip():
+                logger.debug(
+                    "evolution.outcome.skip_empty: agent=%s skill_id=%s",
+                    self.agent_name, skill_id,
+                )
+                return
+            if reply.startswith("[mock]") or reply.startswith("Agent 暂时无法响应"):
+                logger.debug(
+                    "evolution.outcome.skip_mock: agent=%s skill_id=%s reply=%r",
+                    self.agent_name, skill_id, reply[:40],
+                )
+                return
+            from app.services.agent_skill_evolution_service import record_skill_outcome
+            await record_skill_outcome(db, skill_id=skill_id, success=True)
+            logger.debug(
+                "evolution.outcome.record: agent=%s skill_id=%s success=True",
+                self.agent_name, skill_id,
+            )
+        except Exception as e:
+            logger.debug(
+                "evolution.outcome.failed: agent=%s error=%s",
+                self.agent_name, e,
+            )
+
     async def think(self, user_message: str, context: str = "", db=None, project_id: str = "",
                     user_id: str = "") -> str:
         """高层封装：自动拼接 system prompt + 上下文 → LLM 调用。
@@ -555,6 +659,8 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
+        self._append_model_spec_constraint(messages)
 
         # v1.1.28: AgenticRAG 证据注入
         evidence_context = ""
@@ -601,6 +707,8 @@ class BaseAgent:
         await self._maybe_persist_execution_case(
             user_message, reply, db, user_id, project_id,
         )
+        # v1.13.3: Skill 成败回写（best-effort，激活 P1 进化数据层）
+        await self._maybe_record_skill_outcome(reply, db)
         return reply
 
     async def _chat_stream(self, messages: list[dict]):
@@ -655,22 +763,65 @@ class BaseAgent:
             if piece:
                 yield piece
 
-    async def think_stream(self, user_message: str, context: str = ""):
+    async def think_stream(self, user_message: str, context: str = "", db=None,
+                           project_id: str = "", user_id: str = ""):
         """流式版 think()：拼接 system prompt + 上下文 → 逐 chunk 产出。
+
+        v1.13.3（全链路闭环补齐，断点 D）：补 db/project_id/user_id 签名，
+        与 think/think_with_tools 对齐注入链——
+        - AgenticRAG 证据检索（db 传入时）
+        - 自进化经验注入 _inject_evolution_context（Case + Skill）
+        - 流结束后 Case 沉淀 + Skill 成败回写（用累积全文）
+        流式路径无 Model Spec HC 反驳重生成（诚实标注：生成后才能校验，
+        流式下无法在输出前拦截，保持现状）。
 
         Usage::
 
-            async for chunk in agent.think_stream("帮我设计客厅"):
+            async for chunk in agent.think_stream("帮我设计客厅", db=db,
+                                                  user_id=uid, project_id=pid):
                 print(chunk, end="", flush=True)
         """
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
+        self._append_model_spec_constraint(messages)
+
+        # v1.13.3: AgenticRAG 证据注入（与 think 一致）
+        if settings.agentic_rag_enabled and db is not None:
+            try:
+                from app.services.agentic_rag import agentic_rag
+                evidence = await agentic_rag.retrieve(
+                    user_message, db=db, project_id=project_id,
+                )
+                evidence_context = agentic_rag.build_evidence_context(evidence)
+                if evidence_context:
+                    messages.append({"role": "system", "content": evidence_context})
+            except Exception as e:
+                logger.debug(
+                    "%s.think_stream: AgenticRAG 检索失败（降级到无 RAG）: %s",
+                    self.agent_name, e,
+                )
+
+        # v1.13.3: 自进化经验注入（与 think 一致）
+        await self._inject_evolution_context(
+            messages, user_message, user_id, db, project_id,
+        )
+
         if context:
             messages.append({"role": "assistant", "content": context})
         messages.append({"role": "user", "content": user_message})
+
+        # v1.13.3: 累积完整回复，流结束后用于 Case 沉淀 + Skill 成败回写
+        chunks: list[str] = []
         async for chunk in self._chat_stream(messages):
+            chunks.append(chunk)
             yield chunk
+        reply_text = "".join(chunks)
+        await self._maybe_persist_execution_case(
+            user_message, reply_text, db, user_id, project_id,
+        )
+        await self._maybe_record_skill_outcome(reply_text, db)
 
     # v1.13.0: 并行执行同一轮工具调用（受 parallel_tool_calls_enabled 门控）
     async def _execute_tool_calls(
@@ -735,6 +886,8 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
+        self._append_model_spec_constraint(messages)
 
         # v1.1.28: AgenticRAG 证据注入
         if settings.agentic_rag_enabled and db is not None:
@@ -776,6 +929,8 @@ class BaseAgent:
                 await self._maybe_persist_execution_case(
                     user_message, reply, db, user_id, project_id,
                 )
+                # v1.13.3: Skill 成败回写（best-effort）
+                await self._maybe_record_skill_outcome(reply, db)
                 return {
                     "final_reply": reply,
                     "tool_calls": tool_calls_history,
@@ -844,6 +999,8 @@ class BaseAgent:
                     await self._maybe_persist_execution_case(
                         user_message, final_reply, db, user_id, project_id,
                     )
+                    # v1.13.3: Skill 成败回写（best-effort）
+                    await self._maybe_record_skill_outcome(final_reply, db)
                     return {
                         "final_reply": final_reply,
                         "tool_calls": tool_calls_history,
@@ -863,6 +1020,8 @@ class BaseAgent:
         await self._maybe_persist_execution_case(
             user_message, final_reply, db, user_id, project_id,
         )
+        # v1.13.3: Skill 成败回写（best-effort）
+        await self._maybe_record_skill_outcome(final_reply, db)
         return {
             "final_reply": final_reply,
             "tool_calls": tool_calls_history,

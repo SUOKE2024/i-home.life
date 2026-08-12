@@ -116,14 +116,18 @@ class OrchestratorAgent(BaseAgent):
 请始终输出JSON格式的回复。"""
     )
 
-    async def classify_intent(self, message: str) -> dict:
+    async def classify_intent(self, message: str, db=None, user_id: str = "",
+                              project_id: str = "") -> dict:
         """用 LLM 分类用户意图
 
         LLM 调用失败时打印 warning 日志（避免静默降级），并回退到 fallback_classify
         规则分类，使意图路由至少与 /voice/process 行为一致。
+
+        v1.13.3（全链路闭环补齐，断点 A）：补 db/user_id/project_id 透传 think，
+        使意图分类 LLM 调用同样享有 RAG/进化注入/Case 沉淀。
         """
         try:
-            result = await self.think(message)
+            result = await self.think(message, db=db, user_id=user_id, project_id=project_id)
             result = result.strip()
             if "```json" in result:
                 start = result.find("```json") + 7

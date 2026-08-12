@@ -134,7 +134,7 @@ async def test_eval_drift_requires_admin(client: AsyncClient, auth_headers: dict
 
 @pytest.mark.asyncio
 async def test_eval_drift_admin_ok(client: AsyncClient):
-    """admin 可获取漂移检测结果（records + summary + quality_targets）"""
+    """admin 可获取漂移检测结果（records + summary + quality_targets + feedback）"""
     headers = await _register_admin(client)
     resp = await client.get("/api/eval/drift?window_days=7", headers=headers)
     assert resp.status_code == 200
@@ -144,3 +144,42 @@ async def test_eval_drift_admin_ok(client: AsyncClient):
     assert "quality_targets" in data
     assert data["quality_targets"]["success_rate_min"] == 95.0
     assert {"total", "critical", "warn", "ok", "insufficient_samples"} <= set(data["summary"].keys())
+    # v1.13.4：feedback 满意度漂移维度（独立数据源 agent_feedbacks）
+    assert "feedback" in data
+    assert "records" in data["feedback"]
+    assert {"total", "critical", "warn", "ok", "insufficient_samples"} <= set(
+        data["feedback"]["summary"].keys()
+    )
+    assert data["quality_targets"]["feedback_like_rate_min"] == 70.0
+
+
+@pytest.mark.asyncio
+async def test_eval_drift_feedback_dimension(client: AsyncClient, db_session):
+    """v1.13.4：预置低 like 率反馈 → drift 端点 feedback 维度报 warn/critical"""
+    import uuid
+    from datetime import datetime, timezone
+
+    from app.models.agent_feedback import AgentFeedback
+    from app.models.user import User
+
+    user = User(phone=f"14{str(uuid.uuid4().int)[:9]}", name="漂移反馈用户")
+    db_session.add(user)
+    await db_session.flush()
+    for i in range(5):
+        db_session.add(AgentFeedback(
+            user_id=user.id, agent_name="concierge", message_hash=f"h{i}",
+            feedback_type="dislike" if i < 4 else "like",
+            user_message="msg", agent_reply="reply",
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+
+    headers = await _register_admin(client)
+    resp = await client.get("/api/eval/drift?window_days=7", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    concierge = [d for d in data["feedback"]["records"]
+                 if d["agent_name"] == "concierge" and d["metric"] == "feedback_like_rate"]
+    assert concierge, f"feedback 维度缺少 concierge 记录: {data['feedback']['records']}"
+    assert concierge[0]["current"] == 20.0  # 1/5 like = 20% < 70% → critical
+    assert concierge[0]["status"] == "critical"

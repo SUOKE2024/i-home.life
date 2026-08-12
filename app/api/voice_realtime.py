@@ -10,6 +10,8 @@
 """
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import re
@@ -114,12 +116,14 @@ async def process_voice_enhanced(
     # 1. 情绪检测
     emotion = None
     if data.emotion_enabled and settings.voice_emotion_detection:
-        session = voice_session_manager.create_session(user_id=current_user.id, project_id=data.project_id)
-        try:
-            await session.connect()
-            emotion = await session._detect_emotion_from_text(text)
-        finally:
-            await session.close()
+        # v1.13.x P0-1: 情绪检测为纯文本规则（_detect_emotion_from_text），
+        # 无需建立 Qwen WS 连接。原实现每次请求 create_session+connect+close，
+        # 与实时 WS 会话共享同一 session 对象，connect() 覆盖 _ws 致实时连接
+        # 被替换泄漏、close() 置 None 致实时连接静默失效。
+        session = VoiceRealtimeSession(
+            user_id=current_user.id, project_id=data.project_id,
+        )
+        emotion = await session._detect_emotion_from_text(text)
 
     # 2. 意图分类
     intent = "general"
@@ -129,7 +133,11 @@ async def process_voice_enhanced(
         agent = OrchestratorAgent()
         try:
             # classify_intent 内部已对 LLM 失败做 fallback 到 fallback_classify
-            classification = await agent.classify_intent(text)
+            # v1.13.3（全链路闭环补齐，断点 A）：补 db/user_id/project_id 透传
+            classification = await agent.classify_intent(
+                text, db=db, user_id=current_user.id,
+                project_id=data.project_id or "",
+            )
         finally:
             await agent.close()
     intent = classification.get("intent", "general")
@@ -141,7 +149,11 @@ async def process_voice_enhanced(
 
     if intent != "general":
         try:
-            reply = await _route_voice_to_agent(text, intent, current_user.name, emotion=emotion)
+            # v1.13.3（全链路闭环补齐，断点 E）：补 db/user_id/project_id 透传
+            reply = await _route_voice_to_agent(
+                text, intent, current_user.name, emotion=emotion,
+                db=db, user_id=current_user.id, project_id=data.project_id or "",
+            )
         except Exception as e:
             logger.warning(f"route_voice_to_agent_failed: intent={intent}, error={e}")
             # 降级：硬编码工具调用 + 模板回复
@@ -205,6 +217,9 @@ async def _route_voice_to_agent(  # noqa: C901
     user_name: str,
     context: str = "",
     emotion: dict | None = None,
+    db=None,
+    user_id: str = "",
+    project_id: str = "",
 ) -> str:
     """将语音意图路由到专业 Agent 管道，获取 LLM 驱动的回复。
 
@@ -216,9 +231,16 @@ async def _route_voice_to_agent(  # noqa: C901
         intent: 意图分类结果
         user_name: 用户名（用于上下文）
         context: 可选的对话历史上下文
+        emotion: 情绪检测结果（可选）
+        db: 异步数据库会话（RAG/自进化注入用，可选）
+        user_id: 用户 ID（自进化注入/Case 沉淀用，可选）
+        project_id: 项目 ID（空间感知注入用，可选）
 
     Returns:
         LLM 生成的专业回复文本
+
+    v1.13.3（全链路闭环补齐，断点 E）：补 db/user_id/project_id 透传，
+    使语音路径享有与文本路径相同的注入/沉淀闭环。
     """
     from app.agents.designer import DesignerAgent
     from app.agents.budget import BudgetAgent
@@ -245,7 +267,8 @@ async def _route_voice_to_agent(  # noqa: C901
                 layouts = await agent.generate_layouts(text)
                 reply = layouts.get("reply", _get_enhanced_reply(text, intent, None))
             else:
-                raw_reply = await agent.think(text, user_ctx)
+                raw_reply = await agent.think(text, user_ctx, db=db, user_id=user_id,
+                                              project_id=project_id)
                 from app.api.agents import _extract_reply_from_llm_json
                 reply = _extract_reply_from_llm_json(raw_reply)
         finally:
@@ -259,7 +282,8 @@ async def _route_voice_to_agent(  # noqa: C901
             if mock_mode:
                 reply = _get_enhanced_reply(text, intent, None)
             else:
-                result = await agent.think_with_tools(text, user_ctx)
+                result = await agent.think_with_tools(text, user_ctx, db=db, user_id=user_id,
+                                                      project_id=project_id)
                 reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
         finally:
             await agent.close()
@@ -272,7 +296,8 @@ async def _route_voice_to_agent(  # noqa: C901
             if mock_mode:
                 reply = _get_enhanced_reply(text, intent, None)
             else:
-                result = await agent.think_with_tools(text, user_ctx)
+                result = await agent.think_with_tools(text, user_ctx, db=db, user_id=user_id,
+                                                      project_id=project_id)
                 reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
         finally:
             await agent.close()
@@ -285,7 +310,8 @@ async def _route_voice_to_agent(  # noqa: C901
             if mock_mode:
                 reply = _get_enhanced_reply(text, intent, None)
             else:
-                result = await agent.think_with_tools(text, user_ctx)
+                result = await agent.think_with_tools(text, user_ctx, db=db, user_id=user_id,
+                                                      project_id=project_id)
                 reply = result.get("final_reply", _get_enhanced_reply(text, intent, None))
         finally:
             await agent.close()
@@ -298,7 +324,8 @@ async def _route_voice_to_agent(  # noqa: C901
             if mock_mode:
                 reply = _get_enhanced_reply(text, intent, None)
             else:
-                reply = await agent.think(text, user_ctx)
+                reply = await agent.think(text, user_ctx, db=db, user_id=user_id,
+                                          project_id=project_id)
         finally:
             await agent.close()
         return reply
@@ -310,7 +337,8 @@ async def _route_voice_to_agent(  # noqa: C901
             if mock_mode:
                 reply = _get_enhanced_reply(text, intent, None)
             else:
-                reply = await agent.think(text, user_ctx)
+                reply = await agent.think(text, user_ctx, db=db, user_id=user_id,
+                                          project_id=project_id)
         finally:
             await agent.close()
         return reply
@@ -599,9 +627,41 @@ async def _qwen_events_to_client(  # noqa: C901
 
     except Exception as e:
         logger.info(f"qwen_events_to_client 结束: user={user_id}, reason={e}")
+    finally:
+        # v1.13.x P0-2: Qwen 连接断开（正常关闭或异常）时显式通知客户端。
+        # 原实现后台任务结束后主循环仍 is_realtime=True 且 _ws 失效，后续音频
+        # 全部静默丢弃，客户端永久挂起无感知。此处发送 error 事件供客户端
+        # 提示重连/降级。
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "code": "qwen_disconnected",
+                "message": "实时语音连接已断开，请重新连接",
+            })
+        except Exception:
+            pass
 
 
 # ── Mock 模式处理 ──
+
+
+def _decode_audio_data(audio_b64: str) -> bytes:
+    """解码 WS 音频输入数据（v1.13.x P0-3）。
+
+    协议约定 base64（见 WS 端点协议注释），历史实现误用 bytes.fromhex 致
+    base64 抛 ValueError 后 fallback 把文本字节当 PCM，mock 语音识别全是噪音。
+    现按协议 base64 解码，失败再兼容历史 hex 格式。
+    """
+    if not audio_b64:
+        return b""
+    try:
+        return base64.b64decode(audio_b64)
+    except (ValueError, TypeError, binascii.Error):
+        try:
+            return bytes.fromhex(audio_b64)
+        except (ValueError, TypeError):
+            return audio_b64.encode() if isinstance(audio_b64, str) else audio_b64
+
 
 async def _try_voice_orchestration(
     websocket: WebSocket,
@@ -646,9 +706,11 @@ async def _try_voice_orchestration(
     segments = split_multi_intent(text)
     if len(segments) < 2:
         return False
-    launched, inline_replies = await _launch_segment_tasks(
-        session.user_id, "user", segments,
-    )
+    # v1.13.x P2-2: 透传 db 使后台任务享有 RAG/自进化注入与 Case 沉淀
+    async with async_session() as db:
+        launched, inline_replies = await _launch_segment_tasks(
+            session.user_id, "user", segments, db=db,
+        )
     if not launched:
         return False
     reply = _format_launch_reply(launched, inline_replies)
@@ -768,6 +830,12 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
       {"type": "emotion_trend", "data": {...}}
       {"type": "error", "message": "..."}
     """
+    # v1.13.x P1-5: 先 accept() 再做鉴权/归属校验——未 accept 时 close(code)
+    # 无法作为 WS close frame 送达（Starlette 仅回 HTTP 403），自定义关闭码
+    # （4001 令牌无效 / 4003 越权 / 4004 项目不存在）全部丢失，客户端无法
+    # 区分失败原因。
+    await websocket.accept()
+
     # 认证
     token = websocket.query_params.get("token")
     if not token:
@@ -802,8 +870,6 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
             if user_role != "admin" and project.owner_id != user_id:
                 await websocket.close(code=4003, reason="无权访问此项目")
                 return
-
-    await websocket.accept()
 
     # 创建并连接会话
     session = voice_session_manager.create_session(user_id, project_id, scenario)
@@ -849,7 +915,22 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
 
         while True:
             raw = await websocket.receive_text()
-            msg = json.loads(raw)
+            # v1.13.x P1-6: 非法 JSON 帧容错——原实现 json.loads 抛异常直接进
+            # except Exception 杀死整条连接（恶意/损坏客户端单帧即可中断会话）。
+            try:
+                msg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(
+                    "voice_ws_invalid_json: user=%s msg=%r", user_id, str(raw)[:100],
+                )
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "无效消息格式（期望 JSON）",
+                    })
+                except Exception:
+                    pass
+                continue
             msg_type = msg.get("type", "")
 
             # ── 音频输入 ──
@@ -862,13 +943,7 @@ async def voice_realtime_websocket(websocket: WebSocket):  # noqa: C901
                     await session.send_input_audio_buffer_append(audio_b64)
                 else:
                     # Mock/降级模式
-                    try:
-                        audio_data = bytes.fromhex(audio_b64) if audio_b64 else b""
-                    except (ValueError, TypeError):
-                        audio_data = (
-                            audio_b64.encode()
-                            if isinstance(audio_b64, str) else audio_b64
-                        )
+                    audio_data = _decode_audio_data(audio_b64)
                     await _handle_mock_audio(websocket, session, audio_data, audio_format)
 
             # ── 音频结束标记 ──

@@ -316,7 +316,9 @@ async def instantiate_skill(
         raise HTTPException(status_code=404, detail="Skill 不存在或无权访问")
     try:
         # mock 模式（无 API key）下 think 会走降级，不阻塞
-        reply = await agent.think(payload.test_message)
+        reply = await agent.think(
+            payload.test_message, db=db, user_id=current_user.id,
+        )
         return {
             "skill_id": skill_id,
             "agent_name": agent.agent_name,

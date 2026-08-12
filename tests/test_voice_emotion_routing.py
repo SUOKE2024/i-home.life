@@ -104,7 +104,7 @@ class TestRouteVoiceWithEmotion:
             def __init__(self):
                 pass
 
-            async def think(self, text, user_ctx):
+            async def think(self, text, user_ctx, db=None, project_id="", user_id=""):
                 captured_user_ctx.append(user_ctx)
                 return '{"reply": "测试回复"}'
 

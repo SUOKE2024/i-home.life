@@ -1,15 +1,26 @@
-"""质检 Agent — 照片比对、缺陷识别、验收报告生成
+"""质检 Agent — 照片比对、缺陷识别、验收报告生成、诊断可视化
 
 F38: detect_defects / compare_with_design 支持真实 CV（多模态视觉 LLM），
 受 settings.real_cv_quality_enabled 控制；默认关闭时保持 hash mock 路径，
 响应体携带 cv_mode="mock" + note 诚实标注（禁止伪装真实视觉能力）。
+
+视觉感知闭环（v1.13.x）：
+- 验收报告视觉化：generate_acceptance_report 支持 images（现场照片），
+  真实 CV 缺陷识别结果汇入报告（vision_defects + 整改建议来源标注）；
+- 诊断数据可视化看图：include_chart=True 时用 Pillow 渲染验收统计图表
+  （分项合格率 + 缺陷类别分布，确定性真实数据），再交给多模态视觉模型
+  "看图"解读（chart_analysis 结构化诊断），无视觉 key/失败时诚实标注。
 """
 
 import base64
+import io
 import json
 import logging
+import os
+from typing import Any
 
 import httpx
+from PIL import Image, ImageDraw, ImageFont
 
 from app.agents.base import BaseAgent, PROVIDER_REGISTRY
 from app.config import get_settings
@@ -251,6 +262,365 @@ def _build_compare_vision_prompt(img: dict, specs: dict, expected_dims: dict) ->
 只返回 JSON，不要包含其他文字。"""
 
 
+# ── 诊断数据可视化（Pillow 渲染图表 → 多模态视觉模型"看图"解读）──
+#
+# 图表为确定性渲染（真实验收统计，无外部调用、无视觉 key 依赖）；
+# 图表"看图"解读（chart_analysis）才走真实 CV，不可用/失败时诚实标注 None。
+
+_CHART_WIDTH, _CHART_HEIGHT = 900, 520
+# 图表标签全部用 ASCII（phase/category code + 数字），避免依赖中文字体文件
+# （macOS PingFang / Linux Noto 路径不可移植）。中文字体存在时仅用于标题增强。
+_CHART_FONT_CANDIDATES = (
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
+
+
+def _load_chart_font(size: int) -> Any:
+    """加载图表字体（候选列表探测，全部失败回退默认字体，绝不抛错）。"""
+    for path in _CHART_FONT_CANDIDATES:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+
+def _defect_category_code(name: str) -> str:
+    """缺陷类别中文名 → code（图表标签用 ASCII，避免中文字体依赖）。"""
+    return next((c["code"] for c in DEFECT_CATEGORIES if c["name"] == name), "other")
+
+
+def render_acceptance_chart(report: dict) -> bytes:
+    """渲染验收报告诊断图表（PNG bytes）— 确定性渲染真实数据。
+
+    布局：左 = 各分项合格率条形图（Pass rate by phase, %）；
+          右 = 缺陷类别数量分布条形图（Defect count by category）。
+    无外部调用、无需视觉 key；视觉模型不可用时图表本身仍可返回。
+    """
+    img = Image.new("RGB", (_CHART_WIDTH, _CHART_HEIGHT), "white")
+    draw = ImageDraw.Draw(img)
+    title_font = _load_chart_font(22)
+    label_font = _load_chart_font(14)
+
+    draw.text(
+        (_CHART_WIDTH // 2 - 180, 12),
+        "Acceptance Report Diagnostic Chart",
+        fill="black", font=title_font,
+    )
+
+    chart_top, chart_bottom = 80, 460
+    sections = report.get("sections", [])
+    cat_counts: dict[str, int] = {}
+    for sug in report.get("rectification_suggestions", []):
+        code = _defect_category_code(str(sug.get("category", "other")))
+        cat_counts[code] = cat_counts.get(code, 0) + 1
+
+    # ── 左图：分项合格率 ──
+    left_x0, left_x1 = 40, 440
+    draw.text((left_x0, 48), "Pass rate by phase (%)", fill="black", font=label_font)
+    if sections:
+        bar_w = min(30, (left_x1 - left_x0 - 20) // max(len(sections), 1))
+        for i, sec in enumerate(sections):
+            try:
+                rate = float(sec.get("pass_rate", 0.0))
+            except (TypeError, ValueError):
+                rate = 0.0
+            h = int(rate / 100 * (chart_bottom - chart_top))
+            x = left_x0 + 10 + i * (bar_w + 12)
+            draw.rectangle([x, chart_bottom - h, x + bar_w, chart_bottom], fill="#2f80ed")
+            draw.text((x, chart_bottom - h - 18), f"{rate:.0f}", fill="black", font=label_font)
+            draw.text((x, chart_bottom + 6), str(sec.get("phase", "")), fill="black", font=label_font)
+    else:
+        draw.text((left_x0, chart_top + 80), "No phase data", fill="gray", font=label_font)
+    for pct in (0, 25, 50, 75, 100):
+        y = chart_bottom - int(pct / 100 * (chart_bottom - chart_top))
+        draw.line([left_x0, y, left_x1, y], fill="#dddddd")
+        draw.text((left_x0 - 6, y - 8), str(pct), fill="gray", font=label_font)
+
+    # ── 右图：缺陷类别分布 ──
+    right_x0, right_x1 = 470, 880
+    draw.text((right_x0, 48), "Defect count by category", fill="black", font=label_font)
+    if cat_counts:
+        max_count = max(cat_counts.values())
+        bar_w = min(34, (right_x1 - right_x0 - 20) // max(len(cat_counts), 1))
+        for i, (code, cnt) in enumerate(sorted(cat_counts.items(), key=lambda kv: -kv[1])):
+            h = int(cnt / max(max_count, 1) * (chart_bottom - chart_top))
+            x = right_x0 + 10 + i * (bar_w + 14)
+            draw.rectangle([x, chart_bottom - h, x + bar_w, chart_bottom], fill="#eb5757")
+            draw.text((x, chart_bottom - h - 18), str(cnt), fill="black", font=label_font)
+            draw.text((x, chart_bottom + 6), code, fill="black", font=label_font)
+    else:
+        draw.text((right_x0, chart_top + 80), "No defects detected", fill="gray", font=label_font)
+    draw.line([right_x0, chart_bottom, right_x1, chart_bottom], fill="#bbbbbb")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _build_chart_analysis_prompt(report: dict) -> str:
+    """构建图表"看图"解读 prompt（图表为 render_acceptance_chart 输出）。"""
+    summary = report.get("summary", {})
+    return f"""你是索克家居（i-home.life）AI 质检诊断模型。这是验收报告诊断统计图表：
+- 左半部分：各施工分项合格率（Pass rate by phase, %）
+- 右半部分：缺陷类别数量分布（Defect count by category）
+
+报告概要：总体验收结论「{report.get("overall_verdict_text", "")}」，整体合格率 {summary.get("pass_rate", 0)}%。
+
+请仔细观察图表并返回 JSON（仅返回 JSON）：
+```json
+{{
+  "summary": "总体诊断结论（中文 2-3 句，引用图表中的具体数值）",
+  "key_risks": [
+    {{"phase": "合格率明显偏低（<85%）或缺陷集中的分项 code", "risk": "风险描述（中文）"}}
+  ],
+  "recommendations": ["整改建议（中文）"]
+}}
+```
+注意：无风险分项时 key_risks 返回空数组。只返回 JSON，不要包含其他文字。"""
+
+
+def _analyze_chart_with_vision(prompt: str, chart_bytes: bytes) -> dict | None:
+    """通用图表"看图"解读：多模态视觉模型解读图表 PNG → 结构化诊断。
+
+    受 settings.real_cv_quality_enabled 门控；无视觉 key / 调用失败 → None
+    （调用方以 chart_analysis_note 诚实标注，绝不伪装真实解读）。
+    """
+    if not settings.real_cv_quality_enabled:
+        return None
+    try:
+        raw = _call_vision_llm(prompt, chart_bytes, "image/png")
+        parsed = _parse_vision_json(raw)
+        if not isinstance(parsed, dict):
+            return None
+        return {
+            "summary": str(parsed.get("summary", "")),
+            "key_risks": [r for r in parsed.get("key_risks", []) if isinstance(r, dict)],
+            "recommendations": [str(r) for r in parsed.get("recommendations", [])],
+        }
+    except Exception as e:
+        logger.error("图表视觉解读失败: %s", e)
+        return None
+
+
+def analyze_acceptance_chart(report: dict, chart_bytes: bytes) -> dict | None:
+    """多模态视觉模型"看图"解读验收诊断图表（薄封装，保持对外接口）。"""
+    return _analyze_chart_with_vision(_build_chart_analysis_prompt(report), chart_bytes)
+
+
+def _attach_chart(result: dict, *, render_fn, prompt_builder) -> dict:
+    """渲染诊断图表 + 视觉模型"看图"解读，结果挂到 result。
+
+    - chart_b64 / chart_mime：确定性渲染的真实数据 PNG（零视觉依赖）
+    - chart_analysis：视觉解读（结构化）；不可用时 None + chart_analysis_note 诚实标注
+    """
+    chart_bytes = render_fn(result)
+    result["chart_b64"] = base64.b64encode(chart_bytes).decode("ascii")
+    result["chart_mime"] = "image/png"
+    analysis = _analyze_chart_with_vision(prompt_builder(result), chart_bytes)
+    result["chart_analysis"] = analysis
+    result["chart_analysis_note"] = (
+        None if analysis else "视觉模型不可用或图表解读失败；图表为真实数据渲染，未做 LLM 解读"
+    )
+    return result
+
+
+def render_defect_chart(result: dict) -> bytes:
+    """渲染缺陷识别诊断图表（PNG bytes）— 确定性渲染真实数据。
+
+    布局：左 = 缺陷类别数量分布（Defect count by category）；
+          右 = 缺陷严重度分布（Severity: critical/high/medium/low）。
+    """
+    img = Image.new("RGB", (_CHART_WIDTH, _CHART_HEIGHT), "white")
+    draw = ImageDraw.Draw(img)
+    title_font = _load_chart_font(22)
+    label_font = _load_chart_font(14)
+
+    draw.text(
+        (_CHART_WIDTH // 2 - 150, 12),
+        "Defect Detection Diagnostic Chart",
+        fill="black", font=title_font,
+    )
+
+    chart_top, chart_bottom = 80, 460
+    cat_counts: dict[str, int] = {}
+    for d in result.get("detected_defects", []):
+        code = _defect_category_code(str(d.get("category_name", "other")))
+        cat_counts[code] = cat_counts.get(code, 0) + 1
+    sev_counts: dict[str, int] = {}
+    for d in result.get("detected_defects", []):
+        sev = str(d.get("severity", "low"))
+        sev_counts[sev] = sev_counts.get(sev, 0) + 1
+
+    # ── 左图：缺陷类别分布 ──
+    left_x0, left_x1 = 40, 440
+    draw.text((left_x0, 48), "Defect count by category", fill="black", font=label_font)
+    if cat_counts:
+        bar_w = min(34, (left_x1 - left_x0 - 20) // max(len(cat_counts), 1))
+        for i, (code, cnt) in enumerate(sorted(cat_counts.items(), key=lambda kv: -kv[1])):
+            h = int(cnt / max(max(cat_counts.values()), 1) * (chart_bottom - chart_top))
+            x = left_x0 + 10 + i * (bar_w + 14)
+            draw.rectangle([x, chart_bottom - h, x + bar_w, chart_bottom], fill="#eb5757")
+            draw.text((x, chart_bottom - h - 18), str(cnt), fill="black", font=label_font)
+            draw.text((x, chart_bottom + 6), code, fill="black", font=label_font)
+    else:
+        draw.text((left_x0, chart_top + 80), "No defects detected", fill="gray", font=label_font)
+    for pct in (0, 25, 50, 75, 100):
+        y = chart_bottom - int(pct / 100 * (chart_bottom - chart_top))
+        draw.line([left_x0, y, left_x1, y], fill="#dddddd")
+
+    # ── 右图：严重度分布 ──
+    right_x0, right_x1 = 470, 880
+    draw.text((right_x0, 48), "Severity distribution", fill="black", font=label_font)
+    if sev_counts:
+        sev_order = ("critical", "high", "medium", "low")
+        max_count = max(sev_counts.values())
+        bar_w = min(34, (right_x1 - right_x0 - 20) // max(len(sev_counts), 1))
+        for i, sev in enumerate(sev_order):
+            cnt = sev_counts.get(sev, 0)
+            h = int(cnt / max(max_count, 1) * (chart_bottom - chart_top))
+            x = right_x0 + 10 + i * (bar_w + 20)
+            draw.rectangle([x, chart_bottom - h, x + bar_w, chart_bottom], fill="#9b51e0")
+            draw.text((x, chart_bottom - h - 18), str(cnt), fill="black", font=label_font)
+            draw.text((x, chart_bottom + 6), sev, fill="black", font=label_font)
+    else:
+        draw.text((right_x0, chart_top + 80), "No defects detected", fill="gray", font=label_font)
+    draw.line([right_x0, chart_bottom, right_x1, chart_bottom], fill="#bbbbbb")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _build_defect_chart_prompt(result: dict) -> str:
+    """构建缺陷图表"看图"解读 prompt（图表为 render_defect_chart 输出）。"""
+    return f"""你是索克家居（i-home.life）AI 质检诊断模型。这是工艺缺陷识别诊断图表：
+- 左半部分：缺陷类别数量分布（Defect count by category）
+- 右半部分：缺陷严重度分布（Severity: critical/high/medium/low）
+
+识别结果：共检出 {result.get("defect_count", 0)} 项缺陷，结论「{result.get("verdict_text", "")}」。
+
+请仔细观察图表并返回 JSON（仅返回 JSON）：
+```json
+{{
+  "summary": "缺陷诊断结论（中文 2-3 句，引用图表中的具体数值）",
+  "key_risks": [
+    {{"phase": "缺陷集中或严重度高的项", "risk": "风险描述（中文）"}}
+  ],
+  "recommendations": ["整改建议（中文）"]
+}}
+```
+注意：无风险项时 key_risks 返回空数组。只返回 JSON，不要包含其他文字。"""
+
+
+def analyze_defect_chart(result: dict, chart_bytes: bytes) -> dict | None:
+    """多模态视觉模型"看图"解读缺陷识别诊断图表。"""
+    return _analyze_chart_with_vision(_build_defect_chart_prompt(result), chart_bytes)
+
+
+def render_compare_chart(result: dict) -> bytes:
+    """渲染图纸比对诊断图表（PNG bytes）— 确定性渲染真实数据。
+
+    布局：左 = 规格比对一致/不一致 + 照片一致/不一致计数条形图；
+          右 = 尺寸偏差分布（deviation mm，按项）。
+    """
+    img = Image.new("RGB", (_CHART_WIDTH, _CHART_HEIGHT), "white")
+    draw = ImageDraw.Draw(img)
+    title_font = _load_chart_font(22)
+    label_font = _load_chart_font(14)
+
+    draw.text(
+        (_CHART_WIDTH // 2 - 150, 12),
+        "Design Comparison Diagnostic Chart",
+        fill="black", font=title_font,
+    )
+
+    chart_top, chart_bottom = 80, 460
+    specs = result.get("spec_comparisons", []) or []
+    imgs = result.get("image_analyses", []) or []
+    spec_match = sum(1 for s in specs if s.get("consistent"))
+    spec_mismatch = len(specs) - spec_match
+    img_match = sum(1 for i in imgs if i.get("matches_design"))
+    img_mismatch = len(imgs) - img_match
+
+    # ── 左图：一致性计数（规格 + 照片）──
+    left_x0, left_x1 = 40, 440
+    draw.text((left_x0, 48), "Consistency counts", fill="black", font=label_font)
+    groups = [
+        ("spec_match", "Spec OK", spec_match, "#27ae60"),
+        ("spec_mismatch", "Spec diff", spec_mismatch, "#eb5757"),
+        ("img_match", "Photo OK", img_match, "#2f80ed"),
+        ("img_mismatch", "Photo diff", img_mismatch, "#eb5757"),
+    ]
+    max_count = max([spec_match, spec_mismatch, img_match, img_mismatch], default=0)
+    for i, (_k, label, cnt, color) in enumerate(groups):
+        h = int(cnt / max(max_count, 1) * (chart_bottom - chart_top))
+        x = left_x0 + 10 + i * 100
+        draw.rectangle([x, chart_bottom - h, x + 70, chart_bottom], fill=color)
+        draw.text((x, chart_bottom - h - 18), str(cnt), fill="black", font=label_font)
+        draw.text((x, chart_bottom + 6), label, fill="black", font=label_font)
+    for pct in (0, 25, 50, 75, 100):
+        y = chart_bottom - int(pct / 100 * (chart_bottom - chart_top))
+        draw.line([left_x0, y, left_x1, y], fill="#dddddd")
+
+    # ── 右图：尺寸偏差 ──
+    right_x0, right_x1 = 470, 880
+    draw.text((right_x0, 48), "Dimension deviation (mm)", fill="black", font=label_font)
+    devs = result.get("dimension_deviations", []) or []
+    if devs:
+        devs = [d for d in devs if isinstance(d, dict)]
+        bar_w = min(34, (right_x1 - right_x0 - 20) // max(len(devs), 1))
+        max_dev = max([abs(float(d.get("deviation", 0.0) or 0.0)) for d in devs], default=0.0)
+        for i, d in enumerate(devs):
+            try:
+                dev = float(d.get("deviation", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                dev = 0.0
+            h = int(abs(dev) / max(max_dev, 0.1) * (chart_bottom - chart_top))
+            x = right_x0 + 10 + i * (bar_w + 14)
+            draw.rectangle([x, chart_bottom - h, x + bar_w, chart_bottom], fill="#f2994a")
+            draw.text((x, chart_bottom - h - 18), f"{dev:.1f}", fill="black", font=label_font)
+            draw.text((x, chart_bottom + 6), str(d.get("dimension", ""))[:10], fill="black", font=label_font)
+    else:
+        draw.text((right_x0, chart_top + 80), "No dimension deviations", fill="gray", font=label_font)
+    draw.line([right_x0, chart_bottom, right_x1, chart_bottom], fill="#bbbbbb")
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _build_compare_chart_prompt(result: dict) -> str:
+    """构建图纸比对图表"看图"解读 prompt（图表为 render_compare_chart 输出）。"""
+    return f"""你是索克家居（i-home.life）AI 质检诊断模型。这是照片与设计图纸比对诊断图表：
+- 左半部分：一致性计数（规格比对 Spec OK/diff + 照片比对 Photo OK/diff）
+- 右半部分：各尺寸项偏差值（Dimension deviation, mm）
+
+比对结果：共 {result.get("total_checks", 0)} 项检查，一致 {result.get("matched_count", 0)} 项，
+一致率 {result.get("consistency_rate", 0)}%，结论「{result.get("verdict_text", "")}」。
+
+请仔细观察图表并返回 JSON（仅返回 JSON）：
+```json
+{{
+  "summary": "比对诊断结论（中文 2-3 句，引用图表中的具体数值）",
+  "key_risks": [
+    {{"phase": "偏差超标或比对不一致的项", "risk": "风险描述（中文）"}}
+  ],
+  "recommendations": ["整改建议（中文）"]
+}}
+```
+注意：无风险项时 key_risks 返回空数组。只返回 JSON，不要包含其他文字。"""
+
+
+def analyze_compare_chart(result: dict, chart_bytes: bytes) -> dict | None:
+    """多模态视觉模型"看图"解读图纸比对诊断图表。"""
+    return _analyze_chart_with_vision(_build_compare_chart_prompt(result), chart_bytes)
+
+
 class QAInspectorAgent(BaseAgent):
     agent_name = "qa_inspector"
     tools = _QA_TOOL_SCHEMAS
@@ -292,7 +662,10 @@ class QAInspectorAgent(BaseAgent):
             "inspection_results": {
                 "mep": [{"item": "水管打压测试", "result": "pass", "issues": []}, ...],
                 ...
-            }
+            },
+            # 视觉感知增强层（可选）：
+            "images": [{"url": "...", "type": "tile_surface", "location": "客厅东墙", "captured_at": "..."}],
+            "include_chart": true
         }
         """
         project_id = project_data.get("project_id", "")
@@ -301,6 +674,9 @@ class QAInspectorAgent(BaseAgent):
         acceptance_date = project_data.get("acceptance_date", "")
         phases = project_data.get("phases", [])
         inspection_results = project_data.get("inspection_results", {})
+        # 视觉感知增强层（可选）：现场照片 → 真实 CV 缺陷识别；include_chart → 图表可视化看图
+        images = project_data.get("images", []) or []
+        include_chart = bool(project_data.get("include_chart", False))
 
         # 分项验收
         section_results = []
@@ -409,7 +785,14 @@ class QAInspectorAgent(BaseAgent):
                 "suggestion": self._get_rectification_suggestion(category),
             })
 
-        return {
+        # ── 视觉感知增强层（真实 CV 门控，可选）──
+        # 现场照片 → 多模态视觉模型缺陷识别，结果汇入报告（vision_defects）；
+        # 视觉结果驱动的整改建议带 source="vision_llm" 来源标注（诚实）。
+        vision_defects: list[dict] = []
+        if images and settings.real_cv_quality_enabled:
+            vision_defects = self._detect_report_vision_defects(images)
+
+        result = {
             "project_id": project_id,
             "project_name": project_name,
             "inspector": inspector,
@@ -425,10 +808,13 @@ class QAInspectorAgent(BaseAgent):
             "overall_verdict_text": overall_verdict_text,
             "all_issues": all_issues,
             "rectification_suggestions": rectification_suggestions,
-            # 诚实降级标注：当前为规则引擎 mock（hash 模拟），非真实视觉/实测数据
+            "vision_defects": vision_defects,
+            "vision_defect_count": len(vision_defects),
+            # 诚实降级标注：默认规则引擎 mock（hash 模拟）；接入视觉后 engine/source 如实更新
             "source": "mock",
             "engine": "mock_rule_engine",
             "is_placeholder": True,
+            "note": None,
             "reply": (
                 f"验收报告已生成：{project_name}，"
                 f"共 {len(section_results)} 个分项，{total_items} 个检查点，"
@@ -436,6 +822,61 @@ class QAInspectorAgent(BaseAgent):
                 f"合格率 {overall_pass_rate}%，结论：{overall_verdict_text}"
             ),
         }
+
+        if vision_defects:
+            # 视觉检出的缺陷并入整改建议（来源标注，不伪装为规则判定）
+            result["rectification_suggestions"].extend([
+                {
+                    "issue": f"[视觉]「{d['category_name']}」缺陷（{d['location'] or '图中位置未知'}）",
+                    "category": d["category_name"],
+                    "suggestion": d["rectification"],
+                    "confidence": d["confidence"],
+                    "source": "vision_llm",
+                }
+                for d in vision_defects
+            ])
+            result["engine"] = "mock_rule_engine+vision_llm"
+            result["source"] = "rule_engine+vision_llm"
+            result["is_placeholder"] = False
+            result["cv_mode"] = "real_vision_llm"
+            result["note"] = (
+                f"分项判定由规则引擎生成，缺陷识别由多模态视觉模型分析 "
+                f"{len(images)} 张现场照片（检出 {len(vision_defects)} 项）"
+            )
+            result["reply"] += f" 视觉检出 {len(vision_defects)} 项缺陷"
+        elif images:
+            result["note"] = (
+                "已提供现场照片，但视觉模型不可用（未配置视觉 key 或调用失败），"
+                "缺陷识别为规则引擎模拟，非真实视觉"
+            )
+
+        # ── 诊断数据可视化看图（可选）──
+        # 图表为确定性渲染（真实数据，无视觉依赖）；图表解读才走真实 CV。
+        if include_chart:
+            _attach_chart(
+                result,
+                render_fn=render_acceptance_chart,
+                prompt_builder=_build_chart_analysis_prompt,
+            )
+
+        return result
+
+    def _detect_report_vision_defects(self, images: list[dict]) -> list[dict]:
+        """对现场照片执行真实 CV 缺陷识别（供验收报告视觉化）。
+
+        复用 detect_defects 的真实视觉路径；失败整体降级为空列表
+        （调用方以 note 诚实标注，绝不阻断报告生成）。
+        """
+        try:
+            return self._detect_defects_real_cv({
+                "project_id": "",
+                "phase": "",
+                "images": images,
+                "check_categories": [c["code"] for c in DEFECT_CATEGORIES],
+            }).get("detected_defects", [])
+        except Exception as e:
+            logger.error("generate_acceptance_report 视觉缺陷识别失败: %s", e)
+            return []
 
     def compare_with_design(self, inspection_data: dict) -> dict:
         """照片与设计图纸比对
@@ -451,18 +892,27 @@ class QAInspectorAgent(BaseAgent):
                 {"url": "...", "type": "tile_surface", "location": "客厅东墙", "captured_at": "..."}
             ],
             "design_reference": {"url": "...", "specs": {"tile_size": "800x800", "gap": "2mm"}},
-            "expected_dimensions": {"tile_gap": "2mm", "flatness": "≤3mm", "wall_straightness": "≤2mm"}
+            "expected_dimensions": {"tile_gap": "2mm", "flatness": "≤3mm", "wall_straightness": "≤2mm"},
+            # 诊断数据可视化看图（可选）：
+            "include_chart": true
         }
         """
         if settings.real_cv_quality_enabled:
             try:
-                return self._compare_with_design_real_cv(inspection_data)
+                result = self._compare_with_design_real_cv(inspection_data)
             except Exception as e:
                 logger.error("compare_with_design real_cv 失败，降级 mock: %s", e)
                 result = self._compare_with_design_mock(inspection_data)
                 result["note"] = f"真实 CV 调用失败，已降级为 mock 模拟: {e}"
-                return result
-        return self._compare_with_design_mock(inspection_data)
+        else:
+            result = self._compare_with_design_mock(inspection_data)
+        if inspection_data.get("include_chart"):
+            _attach_chart(
+                result,
+                render_fn=render_compare_chart,
+                prompt_builder=_build_compare_chart_prompt,
+            )
+        return result
 
     def _compare_with_design_mock(self, inspection_data: dict) -> dict:
         """照片与设计图纸比对（hash mock CV，非真实图像识别）"""
@@ -694,18 +1144,27 @@ class QAInspectorAgent(BaseAgent):
             "images": [
                 {"url": "...", "type": "tile_surface", "location": "卫生间墙面", "captured_at": "..."}
             ],
-            "check_categories": ["hollow", "crack", "flatness"]
+            "check_categories": ["hollow", "crack", "flatness"],
+            # 诊断数据可视化看图（可选）：
+            "include_chart": true
         }
         """
         if settings.real_cv_quality_enabled:
             try:
-                return self._detect_defects_real_cv(image_data)
+                result = self._detect_defects_real_cv(image_data)
             except Exception as e:
                 logger.error("detect_defects real_cv 失败，降级 mock: %s", e)
                 result = self._detect_defects_mock(image_data)
                 result["note"] = f"真实 CV 调用失败，已降级为 mock 模拟: {e}"
-                return result
-        return self._detect_defects_mock(image_data)
+        else:
+            result = self._detect_defects_mock(image_data)
+        if image_data.get("include_chart"):
+            _attach_chart(
+                result,
+                render_fn=render_defect_chart,
+                prompt_builder=_build_defect_chart_prompt,
+            )
+        return result
 
     def _detect_defects_mock(self, image_data: dict) -> dict:
         """工艺缺陷识别（hash mock CV，非真实图像识别）"""

@@ -10,12 +10,10 @@ worker 崩溃级联导致整轮结果作废。本脚本在首跑失败后自动�
   python scripts/run_full_tests_with_retry.py                      # 全量 + 失败重试 2 次
   python scripts/run_full_tests_with_retry.py --retries 3          # 指定重试次数
   python scripts/run_full_tests_with_retry.py --tests tests/test_agent_case.py  # 限定范围
-  python scripts/run_full_tests_with_retry.py --wait-clean         # 先等低负载窗口再跑
   python scripts/run_full_tests_with_retry.py --keep-logs          # 保留各轮日志（默认清理）
 
 流程：
-  0.（可选）--wait-clean：轮询等待无其他 pytest 进程且系统负载低于阈值（默认 60s 一次）
-  1. 首跑：pytest -n auto --timeout=60（--tests 指定则跑该范围）
+  1. 首跑：pytest（默认 -n auto --timeout=60，--tests 指定则跑该范围）
   2. 解析失败用例节点 ID（FAILED 行）+ xdist worker 崩溃节点（INTERNALERROR crashitem）
   3. 失败用例【串行】单独重试，最多 retries 次（每轮只重跑仍失败的）
   4. 汇总：首跑失败 N → 重试后通过 M → 仍失败 K；退出码 0=全部通过（含重试），1=仍有失败
@@ -47,18 +45,10 @@ def resolve_python() -> str:
     return sys.executable
 
 
-def run_pytest(targets: list[str], log_path: str, parallel: bool = False) -> int:
-    """运行 pytest 并落日志，返回退出码。
-
-    parallel=True 时首跑用 -n auto（项目全量惯例，多 worker 提速）；
-    重试一律串行（避免 xdist worker 崩溃级联导致整轮作废）。
-    """
+def run_pytest(targets: list[str], log_path: str) -> int:
+    """运行 pytest 并落日志，返回退出码"""
     cmd = [resolve_python(), "-m", "pytest", "-q", "--color=no",
-           "-p", "no:cacheprovider", "--timeout=60"]
-    if parallel:
-        cmd.append("-n")
-        cmd.append("auto")
-    cmd += targets
+           "-p", "no:cacheprovider", "--timeout=60"] + targets
     print(f"运行: {' '.join(cmd)}\n日志: {log_path}")
     try:
         with open(log_path, "w", encoding="utf-8") as f:
@@ -120,38 +110,6 @@ def cleanup(logs: list[str], keep: bool) -> None:
             pass
 
 
-def wait_for_clean_window(load_threshold: float, max_wait_min: int) -> bool:
-    """轮询等待低负载窗口：无其他 pytest 进程且系统负载低于阈值。
-
-    供 --wait-clean 使用（「安排低负载时段」）：外部会话并发跑测试会污染
-    全量结果/耗尽资源，等机器安静后再启动首跑。
-    """
-    deadline = time.time() + max_wait_min * 60
-    while True:
-        other = _other_pytest_processes()
-        load = os.getloadavg()[0]
-        if not other and load < load_threshold:
-            print(f"低负载窗口就绪: 无其他 pytest 进程，负载 {load:.1f} < {load_threshold}，开始运行")
-            return True
-        if time.time() >= deadline:
-            print(f"ERROR: 等待低负载窗口超时（{max_wait_min} 分钟），仍有其他 pytest 进程 "
-                  f"{len(other)} 个、负载 {load:.1f}", file=sys.stderr)
-            return False
-        print(f"等待低负载窗口: 其他 pytest 进程 {len(other)} 个，负载 {load:.1f}"
-              f"（阈值 {load_threshold}），60s 后重试...")
-        time.sleep(60)
-
-
-def _other_pytest_processes() -> list[str]:
-    """返回除本脚本外正在运行的 pytest 进程 PID 列表（pgrep 兼容 macOS/Linux）"""
-    try:
-        out = subprocess.run(["pgrep", "-f", "pytest"], capture_output=True, text=True, timeout=10)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    own = str(os.getpid())
-    return [pid for pid in out.stdout.split() if pid and pid != own]
-
-
 def retry_failed(still_failed: list[str], retries: int, stamp: str) -> tuple[list[str], list[str]]:
     """串行重试失败用例，返回（仍失败列表, 本轮日志列表）"""
     logs: list[str] = []
@@ -171,28 +129,19 @@ def retry_failed(still_failed: list[str], retries: int, stamp: str) -> tuple[lis
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="全量测试 + flaky 自动重试")
-    parser.add_argument("--retries", type=int, default=3, help="失败用例重试次数（默认 3）")
+    parser.add_argument("--retries", type=int, default=2, help="失败用例重试次数（默认 2）")
     parser.add_argument("--tests", default="tests", help="测试范围（默认全量 tests/）")
-    parser.add_argument("--wait-clean", action="store_true",
-                        help="先等低负载窗口（无其他 pytest 进程且负载低于阈值）再跑")
-    parser.add_argument("--load-threshold", type=float, default=4.0,
-                        help="--wait-clean 的负载阈值（默认 4.0）")
-    parser.add_argument("--max-wait", type=int, default=180,
-                        help="--wait-clean 最大等待分钟数（默认 180）")
     parser.add_argument("--keep-logs", action="store_true", help="保留各轮日志（默认清理）")
     args = parser.parse_args()
     if args.retries < 0:
         print("ERROR: --retries 不能为负", file=sys.stderr)
         return 2
 
-    if args.wait_clean and not wait_for_clean_window(args.load_threshold, args.max_wait):
-        return 1
-
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     first_log = log_path_for(stamp, "01_first")
     # --tests 允许多个空格分隔的目标（目录/文件/节点 ID），按 shell 规则拆分
     first_targets = shlex.split(args.tests) or ["tests"]
-    first_exit = run_pytest(first_targets, first_log, parallel=True)
+    first_exit = run_pytest(first_targets, first_log)
     first_summary = parse_summary(read_text(first_log))
     print(f"首跑汇总: passed={first_summary['passed']} failed={first_summary['failed']} "
           f"errors={first_summary['errors']} skipped={first_summary['skipped']} (exit={first_exit})")
