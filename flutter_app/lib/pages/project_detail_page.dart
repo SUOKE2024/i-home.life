@@ -20,6 +20,10 @@ import 'ai_qa_page.dart';
 import 'b2b_delivery_page.dart';
 import 'sketch_to_3d_page.dart';
 import 'ifc_export_page.dart';
+import 'camera_scan_page.dart';
+import 'product_batch_page.dart';
+import 'location_page.dart';
+import 'voice_realtime_page.dart';
 
 class ProjectDetailPage extends StatefulWidget {
   final String projectId;
@@ -254,6 +258,8 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                         _buildV150FeaturesEntry(),
                         const SizedBox(height: 16),
                         _buildB2bBimEntry(),
+                        const SizedBox(height: 16),
+                        _buildSupplyChainEntry(),
                         const SizedBox(height: 16),
                         _buildActions(),
                         const SizedBox(height: 12),
@@ -773,6 +779,69 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                   MaterialPageRoute(
                       builder: (_) =>
                           IFCExportPage(projectId: widget.projectId)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSupplyChainEntry() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('供应链边缘'),
+        Card(
+          color: SuokeDesignTokens.card(context),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFF1E1E32)),
+          ),
+          child: Column(
+            children: [
+              _v150FeatureTile(
+                '拍照上架',
+                '拍照识别产品并确认上架',
+                Icons.photo_camera_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const CameraScanPage()),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                '批量上传',
+                'Excel/CSV 批量创建产品 + AI 文案',
+                Icons.upload_file_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ProductBatchPage()),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                '位置服务',
+                'POI 搜索与地址地理编码',
+                Icons.location_on_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LocationPage()),
+                ),
+              ),
+              const Divider(height: 1, indent: 62),
+              _v150FeatureTile(
+                '实时语音',
+                '语音实时交互（文本输入模式）',
+                Icons.mic_outlined,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const VoiceRealtimePage()),
                 ),
               ),
             ],

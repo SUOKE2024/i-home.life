@@ -1089,6 +1089,25 @@ class ApiClient {
   Future<Result<dynamic>> productBatchTemplate() =>
       get('/products/batch/template');
 
+  /// 批量上传产品（xlsx/csv，multipart；ai_assisted 触发 AI 文案后台任务）
+  Future<Result<dynamic>> productBatchUpload(
+    Uint8List fileBytes,
+    String filename, {
+    bool aiAssisted = true,
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', _uri('/products/batch/upload'));
+      if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
+      request.files.add(http.MultipartFile.fromBytes('file', fileBytes, filename: filename));
+      request.fields['ai_assisted'] = aiAssisted.toString();
+      final streamed = await _send(() => request.send());
+      final res = await http.Response.fromStream(streamed);
+      return _handleResponse(res);
+    } on ApiException catch (e) {
+      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
+    }
+  }
+
   /// 查询 AI 文案生成任务状态
   Future<Result<dynamic>> productBatchAiCopyStatus(String batchId) =>
       get('/products/batch/ai-jobs/$batchId');
