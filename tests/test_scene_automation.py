@@ -246,3 +246,88 @@ async def test_check_sensor_triggers_other_user_isolated(db_session):
     )
 
     assert triggered == []
+
+
+@pytest.mark.asyncio
+async def test_match_sensor_condition_all_keys_missing_no_false_positive(db_session):
+    """修复：condition 键全部缺失于 ambient_data 时返回 False（此前空匹配返回 True 误触发）"""
+    from app.models.project import Project
+    from app.models.user import User
+    from app.services.scene_automation_service import check_sensor_triggers
+
+    user = User(phone="13955010104", name="空匹配修复", role="homeowner", hashed_password="x")
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    project = Project(name="空匹配项目", owner_id=user.id, total_area=80.0)
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    # 多键 sensor 条件（温度 + 湿度），ambient_data 均无这些键
+    await _create_sensor_scene(
+        db_session, user.id, project.id,
+        {"temperature": {"gt": 28}, "humidity": {"lt": 60}},
+    )
+
+    # 真实场景：手机传感器快照只有 GPS 数据（latitude/longitude 不参与 temperature/humidity 匹配）
+    triggered = await check_sensor_triggers(
+        db_session,
+        user_id=user.id,
+        ambient_data={"latitude": 31.23, "longitude": 121.47, "accuracy": 5.0},
+    )
+
+    assert triggered == []
+
+
+# ── _match_sensor_condition 边缘情况单元测试（2026-08-12 补充）──
+
+
+def _match(condition: dict, ambient_data: dict) -> bool:
+    """直接调用模块级匹配函数（同步，无需 db）"""
+    from app.services.scene_automation_service import _match_sensor_condition
+    return _match_sensor_condition(condition, ambient_data)
+
+
+def test_match_partial_keys_missing_still_matches():
+    """多键条件仅部分键在 ambient_data 中：缺失键跳过，命中键通过 → 匹配"""
+    condition = {"temperature": {"gt": 28}, "humidity": {"lt": 60}}
+    assert _match(condition, {"temperature": 30.5}) is True
+
+
+def test_match_scalar_condition_true():
+    """标量条件精确匹配（布尔 occupancy）"""
+    assert _match({"occupancy": True}, {"occupancy": True}) is True
+
+
+def test_match_scalar_condition_mismatch_false():
+    """标量条件不匹配 → False"""
+    assert _match({"occupancy": True}, {"occupancy": False}) is False
+
+
+def test_match_range_comparators_both_satisfied():
+    """混合比较符 gt + lt 同时满足 → 匹配"""
+    condition = {"temperature": {"gt": 28, "lt": 35}}
+    assert _match(condition, {"temperature": 30.5}) is True
+
+
+def test_match_range_comparators_lt_fails():
+    """混合比较符任一不满足（30.5 > 35? 否 → lt 失败）→ False"""
+    condition = {"temperature": {"gt": 28, "lt": 30}}
+    assert _match(condition, {"temperature": 30.5}) is False
+
+
+def test_match_empty_condition_false():
+    """空 condition dict：无可判定键 → False（禁止空匹配）"""
+    assert _match({}, {"temperature": 30.5}) is False
+
+
+def test_match_empty_ambient_data_false():
+    """空 ambient_data：全部键缺失 → False（GPS-only 场景防误触发）"""
+    assert _match({"temperature": {"gt": 28}}, {}) is False
+
+
+def test_match_eq_comparator():
+    """eq 比较符：相等匹配 / 不等不匹配"""
+    assert _match({"humidity": {"eq": 55}}, {"humidity": 55}) is True
+    assert _match({"humidity": {"eq": 55}}, {"humidity": 60}) is False

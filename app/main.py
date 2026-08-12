@@ -44,6 +44,7 @@ from app.api import (
     smart_home, scene_automation, procurement_enhanced, appliance, structural,
     dashboard, feed,
 )
+from app.api import ar_scan  # F1 AR 空间测量（v1.14.x 自 surveys 拆分，前缀 /surveys/ar/*）
 from app.api import identity, products, tasks, points
 from app.api import notifications
 from app.api import admin
@@ -478,6 +479,7 @@ api_router.include_router(agent_skills.router)  # /api/agents/skills/* (Agent Sk
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(agent_identity.router)  # /api/agents/identity/* (GB/Z 185 身份卡, v1.9.0)
 api_router.include_router(surveys.router)       # /api/surveys/*
+api_router.include_router(ar_scan.router)       # /api/surveys/ar/* (F1 AR 空间测量)
 api_router.include_router(location.router)      # /api/location/*
 api_router.include_router(change_orders.router)  # /api/change-orders/*
 api_router.include_router(takeoff.router)       # /api/takeoff/*

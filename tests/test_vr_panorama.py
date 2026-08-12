@@ -216,6 +216,26 @@ async def test_delete_panorama(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_scene_rejects_invalid_transition(client: AsyncClient):
+    """转场类型契约：仅接受 fade/warp/none（v1.14.x Literal 校验）"""
+    headers = await _auth_headers(client, "13960060008")
+    project_id = await _create_project(client, headers)
+    panorama = await _create_panorama(client, headers, project_id, "客厅")
+
+    resp = await client.post(
+        "/api/vr/scenes",
+        json={
+            "project_id": project_id,
+            "name": "非法转场",
+            "panorama_ids": [panorama["id"]],
+            "transition_type": "dissolve",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_create_and_delete_scene(client: AsyncClient):
     """创建和删除 VR 场景"""
     headers = await _auth_headers(client, "13960060009")

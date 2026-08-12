@@ -247,6 +247,53 @@ export async function getMaterials() {
 }
 
 // ──────────────────────────────────────────────────────────────
+// VR 全景 / AR 量房（视觉表现层）
+// ──────────────────────────────────────────────────────────────
+
+export async function getVRPanoramas(projectId) {
+  return request(`/api/vr/panoramas/project/${encodeURIComponent(projectId)}`)
+}
+
+export async function getVRPanorama(panoramaId) {
+  return request(`/api/vr/panoramas/${encodeURIComponent(panoramaId)}`)
+}
+
+export async function getVRScenes(projectId) {
+  return request(`/api/vr/scenes/project/${encodeURIComponent(projectId)}`)
+}
+
+// ── P0 设备热点联动（2026-08-12）──
+
+/** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */
+export async function getDeviceOverlay(projectId) {
+  return request(`/api/vr/projects/${encodeURIComponent(projectId)}/device-overlay`)
+}
+
+/** 设备命令（3D 场景/语音入口，action_status 诚实标注） */
+export async function deviceCommand(deviceId, body) {
+  return request(`/api/smart-home/devices/${encodeURIComponent(deviceId)}/command`, {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+/** 场景执行（3D 场景/语音触发入口） */
+export async function sceneExecute(sceneId, triggerSource = 'vr_overlay') {
+  return request(`/api/scene-automation/scenes/${encodeURIComponent(sceneId)}/execute`, {
+    method: 'POST',
+    body: JSON.stringify({ trigger_source: triggerSource }),
+  })
+}
+
+/** 检测设备 AR 能力并返回推荐方法 + 降级链（POST /api/surveys/ar/device-capability） */
+export async function arDeviceCapability(body) {
+  return request('/api/surveys/ar/device-capability', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+// ──────────────────────────────────────────────────────────────
 // Agent 聊天（SSE 流式）
 // ──────────────────────────────────────────────────────────────
 

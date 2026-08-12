@@ -19,6 +19,8 @@ from app.schemas.smart_home import (
     WiringPlanResult,
     ProtocolAdviceResult,
     PriceComputeResult,
+    DeviceCommandRequest,
+    DeviceCommandResponse,
 )
 from app.schemas.matter_device import (
     MatterPlacementPlanResponse,
@@ -270,6 +272,72 @@ async def update_device(
     resp = SmartDeviceResponse.model_validate(updated)
     if scheme:
         await ws_manager.broadcast_to_project(scheme.project_id, "smart.device.updated", resp.model_dump())
+    return resp
+
+
+# ── 设备命令（P0 3D 场景/语音控制入口，2026-08-12）──
+
+
+@router.post("/devices/{device_id}/command", response_model=DeviceCommandResponse)
+async def device_command(
+    device_id: str,
+    data: DeviceCommandRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """执行设备命令（3D 漫游/语音入口）。
+
+    - 动作白名单校验（复用 DEVICE_ACTION_WHITELIST）
+    - 写入 SceneBehaviorLog(action_type=device_command)，ambient_data 取最近真实传感器快照
+    - 生态桥执行，未接真机 action_status=pending 诚实标注（不伪装已执行）
+    """
+    from sqlalchemy import select
+    from app.models.smart_home import SmartDevice
+    from app.services.scene_automation_service import execute_device_command
+
+    result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设备不存在")
+    scheme = await svc.get_scheme(db, device.scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+
+    outcome = await execute_device_command(
+        db=db,
+        device=device,
+        project_id=scheme.project_id,
+        action=data.action,
+        params=data.params,
+        user_id=current_user.id,
+        source=data.source,
+        scene_id=data.scene_id,
+        ecosystem=data.ecosystem,
+    )
+    if not outcome.get("accepted"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=outcome.get("error"))
+
+    resp = DeviceCommandResponse(
+        device_id=outcome["device_id"],
+        device_name=outcome.get("device_name"),
+        action=outcome["action"],
+        params=outcome.get("params", {}),
+        accepted=True,
+        action_status=outcome["action_status"],
+        note=outcome.get("note"),
+        state=outcome.get("state"),
+    )
+    # WS 广播：3D 场景状态实时刷新（真机执行成功时携带 state）
+    await ws_manager.broadcast_to_project(
+        scheme.project_id, "smart.device.state",
+        {
+            "device_id": device.id,
+            "action": data.action,
+            "action_status": outcome["action_status"],
+            "state": outcome.get("state"),
+        },
+    )
     return resp
 
 

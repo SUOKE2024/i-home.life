@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderKanban, Wallet, HardHat, ShieldCheck, Bot, Home, BellRing } from 'lucide-react'
+import { FolderKanban, Wallet, HardHat, ShieldCheck, Bot, Home, BellRing, Rotate3D, ScanLine } from 'lucide-react'
 import { Card, Badge, Spinner, Empty, ErrorBox } from '../components/ui'
 import A2UICard from '../components/A2UICard'
 import {
@@ -61,7 +61,19 @@ export default function DashboardPage() {
   const load = useCallback(async (projectId) => {
     setLoading(true)
     setError(null)
-    const [ov, pr] = await Promise.all([getDashboardOverview(), listProjects()])
+    // ── 性能监控：记录每次加载/切换的 API 响应时间与总耗时 ──
+    const t0 = performance.now()
+    const apiMs = {}
+    const timed = (name, p) => {
+      const s = performance.now()
+      return Promise.resolve(p).finally(() => {
+        apiMs[name] = Math.round(performance.now() - s)
+      })
+    }
+    const [ov, pr] = await Promise.all([
+      timed('overview', getDashboardOverview()),
+      timed('projects', listProjects()),
+    ])
     if (!ov.isSuccess) {
       setError(ov.error || '仪表盘加载失败')
       setLoading(false)
@@ -78,10 +90,10 @@ export default function DashboardPage() {
     setSelectedId(target)
     if (target) {
       const [fp, al, ms, feed] = await Promise.all([
-        getFloorplans(target),
-        getProgressAlerts(target),
-        getMilestones(target),
-        getFeedCards(target),
+        timed('floorplans', getFloorplans(target)),
+        timed('progress_alerts', getProgressAlerts(target)),
+        timed('milestones', getMilestones(target)),
+        timed('feed', getFeedCards(target)),
       ])
       const plans = fp.isSuccess && Array.isArray(fp.data) ? fp.data : []
       setFloorplans(plans)
@@ -93,7 +105,7 @@ export default function DashboardPage() {
       // 空间即导航：拉取激活户型详情（data JSON 含 rooms 几何）
       const active = plans.find((x) => x.is_active) || plans[0]
       if (active) {
-        const det = await getFloorplan(active.id)
+        const det = await timed('floorplan_detail', getFloorplan(active.id))
         setActivePlan(det.isSuccess && det.data ? det.data : null)
       } else {
         setActivePlan(null)
@@ -106,6 +118,13 @@ export default function DashboardPage() {
       setActivePlan(null)
     }
     setLoading(false)
+    // ── 性能监控日志：每次切换/初始化输出各 API 耗时与总耗时 ──
+    console.info('[perf] dashboard.project-load', {
+      trigger: projectId ? 'switch' : 'init',
+      projectId: target || null,
+      totalMs: Math.round(performance.now() - t0),
+      apiMs,
+    })
   }, [])
 
   useEffect(() => {
@@ -427,6 +446,8 @@ export default function DashboardPage() {
           <Card title="快捷入口" icon={<Bot size={16} className="ico" />}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
               {[
+                { to: '/virtual-tour', label: 'VR 全景', icon: Rotate3D },
+                { to: '/ar-scan', label: 'AR 量房', icon: ScanLine },
                 { to: '/budget', label: '预算管理', icon: Wallet },
                 { to: '/construction', label: '施工管理', icon: HardHat },
                 { to: '/quality', label: '质检验收', icon: ShieldCheck },

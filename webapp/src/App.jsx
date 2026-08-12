@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppProvider, useApp } from './lib/store'
 import Shell from './components/Shell'
@@ -15,6 +15,13 @@ import SmartHomePage from './pages/SmartHome'
 import AiPage from './pages/Ai'
 import ProfilePage from './pages/Profile'
 import DiagnosticsPage from './pages/Diagnostics'
+// VR 全景页依赖 three.js，懒加载避免拖慢首屏 bundle
+const VirtualTourPage = lazy(() => import('./pages/VirtualTour'))
+const ARScanPage = lazy(() => import('./pages/ARScan'))
+
+function SuspenseFallback() {
+  return <div className="page-loading mono">加载中…</div>
+}
 
 function RequireAuth({ children }) {
   const { loggedIn, booted } = useApp()
@@ -43,6 +50,22 @@ export default function App() {
           <Route path="/settlement" element={<SettlementPage />} />
           <Route path="/procurement" element={<ProcurementPage />} />
           <Route path="/smart-home" element={<SmartHomePage />} />
+          <Route
+            path="/virtual-tour"
+            element={
+              <Suspense fallback={<SuspenseFallback />}>
+                <VirtualTourPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/ar-scan"
+            element={
+              <Suspense fallback={<SuspenseFallback />}>
+                <ARScanPage />
+              </Suspense>
+            }
+          />
           <Route path="/ai" element={<AiPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />

@@ -18,6 +18,8 @@ from app.schemas.scene_automation import (
     SceneRecommendResult,
     SceneParseResult,
     SceneSyncResult,
+    SceneExecuteRequest,
+    SceneExecuteResult,
 )
 from app.schemas.scene_behavior import (
     SceneBehaviorLogCreate,
@@ -146,6 +148,35 @@ async def simulate_scene(
     await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
     result = await svc.simulate_scene(db, scene)
     return SceneSimulateResult(**result)
+
+
+@router.post("/scenes/{scene_id}/execute", response_model=SceneExecuteResult)
+async def execute_scene(
+    scene_id: str,
+    body: SceneExecuteRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """执行场景（P0 3D 场景/语音触发入口，2026-08-12）。
+
+    - 与传感器自动触发（check_sensor_triggers）共用执行语义
+    - 每个动作写 SceneBehaviorLog(action_type=manual_trigger)
+    - 生态桥逐个执行，未接真机 action_status=pending 诚实标注
+    """
+    scene = await svc.get_scene(db, scene_id)
+    if not scene:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
+
+    result = await svc.execute_scene_actions(
+        db, scene, current_user.id, trigger_source=body.trigger_source,
+    )
+    resp = SceneExecuteResult(**result)
+    await ws_manager.broadcast_to_project(
+        scene.project_id, "scene.triggered",
+        {"scene_id": scene.id, "scene_name": scene.scene_name, "result": resp.model_dump()},
+    )
+    return resp
 
 
 @router.post("/scenes/{scene_id}/validate", response_model=SceneValidateResult)

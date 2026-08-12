@@ -1,5 +1,6 @@
 """F32 场景编辑服务层 — 场景联动 + 生态对接 + 自然语言解析 + A4 预测式推荐"""
 
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +15,10 @@ from app.services import predictive_scene_service as predictive_scene  # noqa: F
 
 # 业务时区（平台业务时区为北京时间，对齐 agent_context_service._DEFAULT_TZ）
 _BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
+# 场景自动化模块级 logger（check_sensor_triggers 内部使用局部 log，
+# _match_sensor_condition 为模块级函数，复用同一 logger 便于关联排查）
+logger = logging.getLogger("ihome.scene_automation")
 
 
 # ── 场景 CRUD ──
@@ -670,6 +675,10 @@ async def check_sensor_triggers(
         )
     )
     scenes = list(result.scalars().all())
+    log.info(
+        "sensor_trigger_scan: user=%s candidate_scenes=%d ambient_data=%s",
+        user_id, len(scenes), ambient_data,
+    )
 
     triggered: list[dict] = []
     for scene in scenes:
@@ -678,9 +687,24 @@ async def check_sensor_triggers(
             continue
         sensor_cond = cond.get("condition")
         if not isinstance(sensor_cond, dict):
+            log.debug(
+                "sensor_trigger_skip_invalid_condition: scene=%s condition=%s",
+                scene.id, cond,
+            )
             continue
         # 2. 逐项匹配传感器条件
-        if not _match_sensor_condition(sensor_cond, ambient_data):
+        match = _match_sensor_condition(sensor_cond, ambient_data)
+        log.info(
+            "sensor_trigger_match: user=%s scene=%s scene_name=%s "
+            "condition=%s ambient_data=%s matched=%s",
+            user_id,
+            scene.id,
+            scene.scene_name,
+            sensor_cond,
+            ambient_data,
+            match,
+        )
+        if not match:
             continue
 
         # 3. 写入真实触发日志
@@ -735,24 +759,486 @@ def _match_sensor_condition(condition: dict, ambient_data: dict) -> bool:
     - 标量：与 ambient_data 精确相等（如 {"occupancy": True}）
     - 比较符 dict：{"gt": x, "gte": x, "lt": x, "lte": x, "eq": x} 任意组合
 
-    ambient_data 中缺失的键不参与判定（避免 humidity=0 占位误触发）。
+    ambient_data 中缺失的键不参与判定（避免 humidity=0 占位误触发）；
+    但所有键均缺失时返回 False——无任何真实数据可判定，禁止空匹配误触发
+    （2026-08-12 设备链路诊断修复：此前空匹配返回 True，GPS-only ambient_data
+    会触发所有 sensor 场景）。
     """
+    matched_keys = 0
     for key, expected in condition.items():
         if key not in ambient_data:
+            logger.debug(
+                "sensor_condition_key_missing: key=%s expected=%s 不在 ambient_data 中，跳过",
+                key, expected,
+            )
             continue
+        matched_keys += 1
         actual = ambient_data[key]
         if isinstance(expected, dict):
             if "gt" in expected and not actual > expected["gt"]:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不满足 gt=%s",
+                    key, actual, expected["gt"],
+                )
                 return False
             if "gte" in expected and not actual >= expected["gte"]:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不满足 gte=%s",
+                    key, actual, expected["gte"],
+                )
                 return False
             if "lt" in expected and not actual < expected["lt"]:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不满足 lt=%s",
+                    key, actual, expected["lt"],
+                )
                 return False
             if "lte" in expected and not actual <= expected["lte"]:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不满足 lte=%s",
+                    key, actual, expected["lte"],
+                )
                 return False
             if expected.get("eq") is not None and actual != expected["eq"]:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不满足 eq=%s",
+                    key, actual, expected["eq"],
+                )
                 return False
         else:
             if actual != expected:
+                logger.debug(
+                    "sensor_condition_fail: key=%s actual=%s 不匹配 expected=%s",
+                    key, actual, expected,
+                )
                 return False
-    return True
+        logger.debug(
+            "sensor_condition_pass: key=%s actual=%s expected=%s",
+            key, actual, expected,
+        )
+    logger.debug(
+        "sensor_condition_result: matched_keys=%d total_keys=%d matched=%s",
+        matched_keys, len(condition), matched_keys > 0,
+    )
+    return matched_keys > 0
+
+
+# ── 动作执行管线（P0 设备热点联动，2026-08-12 工程落地）──
+# 手动触发（3D 场景点击 / 语音）与传感器自动触发共用执行语义：
+# 写 SceneBehaviorLog + 生态桥执行 + 未接真机 action_status=pending 诚实标注。
+
+
+def _action_state_delta(action: str, params: dict) -> dict:
+    """动作 → 设备实时状态增量。
+
+    仅生态桥真机执行成功（send_command 返回 ok）时应用，保证 state 为真实数据源。
+    未映射动作 / 缺参返回空 dict（不覆盖已存在状态）。
+    """
+    deltas = {
+        "turn_on": {"power": True},
+        "turn_off": {"power": False},
+        "open": {"position": 100},
+        "close": {"position": 0},
+        "set_brightness": {"brightness": params.get("brightness")},
+        "set_volume": {"volume": params.get("volume")},
+        "set_temperature": {"temperature": params.get("temperature")},
+        "set_position": {"position": params.get("position")},
+    }
+    delta = deltas.get(action)
+    if not delta:
+        return {}
+    return {k: v for k, v in delta.items() if v is not None}
+
+
+async def _latest_sensor_context(db: AsyncSession, user_id: str) -> dict:
+    """取用户最近真实 SensorSnapshot 的环境量作为触发上下文（诚实数据，不伪造）。"""
+    from app.models.sensor_snapshot import SensorSnapshot
+
+    result = await db.execute(
+        select(SensorSnapshot)
+        .where(SensorSnapshot.user_id == user_id)
+        .order_by(SensorSnapshot.sampled_at.desc())
+        .limit(1)
+    )
+    snap = result.scalar_one_or_none()
+    if not snap:
+        return {}
+    ctx: dict = {}
+    if snap.temperature is not None:
+        ctx["temperature"] = snap.temperature
+    if snap.humidity is not None:
+        ctx["humidity"] = snap.humidity
+    if snap.light_lux is not None:
+        ctx["light_lux"] = snap.light_lux
+    return ctx
+
+
+async def execute_device_command(
+    db: AsyncSession,
+    device: SmartDevice,
+    project_id: str,
+    action: str,
+    params: dict,
+    user_id: str,
+    source: str = "app",
+    scene_id: str | None = None,
+    ecosystem: str = "matter",
+) -> dict:
+    """执行单设备命令（3D 场景 / 语音入口）。
+
+    1. 动作白名单校验（复用 DEVICE_ACTION_WHITELIST）
+    2. 写入 SceneBehaviorLog(action_type=device_command)，ambient_data 取最近真实传感器快照
+    3. 生态桥 send_command 执行 → 未接真机（NotImplementedError）action_status=pending 诚实标注
+    """
+    from app.models.scene_behavior import SceneBehaviorLog
+
+    allowed = DEVICE_ACTION_WHITELIST.get(device.device_type, set())
+    logger.info(
+        "device_command_received: user=%s device=%s name=%s type=%s "
+        "action=%s params=%s source=%s ecosystem=%s scene_id=%s",
+        user_id, device.id, device.device_name, device.device_type,
+        action, params or {}, source, ecosystem, scene_id,
+    )
+    if allowed and action not in allowed:
+        logger.warning(
+            "device_command_rejected: device=%s type=%s action=%s allowed=%s",
+            device.id, device.device_type, action, sorted(allowed),
+        )
+        return {
+            "accepted": False,
+            "error": f"设备 {device.device_name}({device.device_type}) 不支持动作 {action}",
+        }
+
+    ambient = await _latest_sensor_context(db, user_id)
+    logger.debug(
+        "device_command_context: device=%s ambient_data=%s",
+        device.id, ambient,
+    )
+    log_entry = SceneBehaviorLog(
+        project_id=project_id,
+        user_id=user_id,
+        action_type="device_command",
+        scene_id=scene_id,
+        ambient_data=ambient or None,
+    )
+    db.add(log_entry)
+
+    # 生态桥执行（诚实降级：未配置 API key / 未实现时标注 pending，不伪装已执行）
+    action_status = "pending"
+    note = (
+        "设备动作执行依赖生态桥接（ecosystem_bridge），当前未配置 API key，"
+        "已记录触发意图，待桥接接入真机后执行"
+    )
+    pool = None
+    try:
+        from app.services.ecosystem_bridge import BridgeConnectionPool
+        pool = BridgeConnectionPool()
+        logger.info(
+            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → connect(池化)",
+            device.id, action, ecosystem,
+        )
+        bridge = await pool.get(ecosystem)
+        logger.info(
+            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → send_command",
+            device.id, action, ecosystem,
+        )
+        ok = await bridge.send_command(device.id, action, params or {})
+        logger.info(
+            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → result=%s",
+            device.id, action, ecosystem, ok,
+        )
+        if ok:
+            action_status = "success"
+            note = None
+            # 真机执行成功才写入实时状态（诚实数据源，pending 不写）
+            delta = _action_state_delta(action, params or {})
+            if delta:
+                device.state = {**(device.state or {}), **delta}
+                logger.info(
+                    "device_command_state_applied: device=%s action=%s delta=%s",
+                    device.id, action, delta,
+                )
+    except (NotImplementedError, ValueError) as e:
+        # 桥未实现 / 凭据未配置 → 未接真机，诚实标注 pending（不伪装已执行）
+        note = f"bridge_not_configured: {e}"
+        logger.info(
+            "device_command_bridge_not_configured: device=%s action=%s ecosystem=%s error=%s",
+            device.id, action, ecosystem, e,
+        )
+    except Exception as e:
+        action_status = "failed"
+        note = f"bridge_error: {e}"
+        logger.warning(
+            "device_command_bridge_error: device=%s action=%s ecosystem=%s error=%s",
+            device.id, action, ecosystem, e,
+        )
+    finally:
+        if pool:
+            await pool.close_all()
+
+    await db.commit()
+    logger.info(
+        "device_command_executed: user=%s device=%s name=%s action=%s "
+        "status=%s source=%s note=%s",
+        user_id, device.id, device.device_name, action, action_status, source, note,
+    )
+    return {
+        "device_id": device.id,
+        "device_name": device.device_name,
+        "action": action,
+        "params": params or {},
+        "accepted": True,
+        "action_status": action_status,
+        "note": note,
+        "state": device.state,
+    }
+
+
+def _plan_scene_actions(
+    actions: list,
+    device_map: dict,
+) -> tuple[list, list]:
+    """动作规划：白名单校验 + depends_on 波次拆分。
+
+    - 无 depends_on 的动作一波并行；depends_on 指向已完成动作 idx 的动作进入下一波
+    - 依赖无法满足（环/前序被跳过）→ 退化串行，保证不悬挂
+    - 返回 (waves, plan)：waves 仅含 status=="ok" 的动作；plan 含全部动作（含 skipped/rejected）
+    """
+    plan: list[dict] = []
+    for idx, act in enumerate(actions):
+        if not isinstance(act, dict):
+            continue
+        device_id = act.get("device_id")
+        action = act.get("action")
+        params = act.get("params") or {}
+        device = device_map.get(device_id)
+        item = {
+            "idx": idx, "device": device, "action": action, "params": params,
+            "depends_on": act.get("depends_on"), "status": "ok", "note": None,
+        }
+        if not device or not action:
+            item["status"] = "skipped"
+            item["note"] = "设备不存在或动作缺失"
+            logger.info(
+                "scene_execute_action_skipped: index=%d device_id=%s action=%s 设备不存在或动作缺失",
+                idx, device_id, action,
+            )
+        else:
+            allowed = DEVICE_ACTION_WHITELIST.get(device.device_type, set())
+            if allowed and action not in allowed:
+                item["status"] = "rejected"
+                item["note"] = f"设备 {device.device_name}({device.device_type}) 不支持动作 {action}"
+                logger.info(
+                    "scene_execute_action_rejected: index=%d device=%s name=%s action=%s allowed=%s",
+                    idx, device.id, device.device_name, action, sorted(allowed),
+                )
+        plan.append(item)
+
+    waves: list[list] = []
+    remaining = [it for it in plan if it["status"] == "ok"]
+    done_idx: set[int] = set()
+    while remaining:
+        ready = [
+            it for it in remaining
+            if it.get("depends_on") is None or it["depends_on"] in done_idx
+        ]
+        if not ready:
+            # 依赖无法满足（环/前序被跳过）→ 退化串行
+            ready = [remaining[0]]
+        waves.append(ready)
+        done_idx.update(it["idx"] for it in ready)
+        remaining = [it for it in remaining if it not in ready]
+    return waves, plan
+
+
+async def _run_scene_action(pool, scene: SceneAutomation, item: dict) -> dict:
+    """单动作桥命令执行（阶段 A，无 DB 操作，可并行）。返回含 idx 的结果 dict。"""
+    device = item["device"]
+    action = item["action"]
+    params = item["params"]
+    logger.info(
+        "scene_execute_action_dispatch: scene=%s index=%d device=%s name=%s "
+        "action=%s params=%s",
+        scene.id, item["idx"], device.id, device.device_name, action, params,
+    )
+    action_status = "pending"
+    note = (
+        "设备动作执行依赖生态桥接（ecosystem_bridge），当前未配置 API key，"
+        "已记录触发意图，待桥接接入真机后执行"
+    )
+    try:
+        ecosystem = getattr(scene, "ecosystem", None) or "matter"
+        logger.info(
+            "scene_execute_action_bridge: scene=%s device=%s action=%s ecosystem=%s → connect(池化)",
+            scene.id, device.id, action, ecosystem,
+        )
+        bridge = await pool.get(ecosystem)
+        logger.info(
+            "scene_execute_action_bridge: scene=%s device=%s action=%s → send_command",
+            scene.id, device.id, action,
+        )
+        ok = await bridge.send_command(device.id, action, params)
+        logger.info(
+            "scene_execute_action_bridge: scene=%s device=%s action=%s → result=%s",
+            scene.id, device.id, action, ok,
+        )
+        if ok:
+            action_status = "success"
+            note = None
+    except (NotImplementedError, ValueError) as e:
+        # 桥未实现 / 凭据未配置 → 未接真机，诚实标注 pending
+        note = f"bridge_not_configured: {e}"
+        logger.info(
+            "scene_execute_action_bridge_not_configured: scene=%s device=%s action=%s error=%s",
+            scene.id, device.id, action, e,
+        )
+    except Exception as e:
+        action_status = "failed"
+        note = f"bridge_error: {e}"
+        logger.warning(
+            "scene_action_bridge_error: scene=%s device=%s action=%s error=%s",
+            scene.id, device.id, action, e,
+        )
+    logger.info(
+        "scene_execute_action_result: scene=%s device=%s action=%s status=%s",
+        scene.id, device.id, action, action_status,
+    )
+    return {
+        "idx": item["idx"],
+        "device_id": device.id,
+        "device_name": device.device_name,
+        "action": action,
+        "params": params,
+        "action_status": action_status,
+        "note": note,
+    }
+
+
+async def execute_scene_actions(
+    db: AsyncSession,
+    scene: SceneAutomation,
+    user_id: str,
+    trigger_source: str = "vr_overlay",
+) -> dict:
+    """执行场景动作（手动触发入口，两阶段并行重构 2026-08-12）。
+
+    两阶段拆分（遵守「有 db 串行、无 db 并行」硬约束）：
+    - 阶段 A（并行，无 DB）：生态桥命令 asyncio.gather 并行（纯 I/O，不触碰共享 session），
+      depends_on 动作按波次串行依赖
+    - 阶段 B（串行，有 DB）：SceneBehaviorLog 逐条 add + 单次 commit
+    - 连接复用：BridgeConnectionPool 场景级 1 次 connect，N 动作共享
+    """
+    import asyncio
+
+    from app.models.scene_behavior import SceneBehaviorLog
+
+    logger.info(
+        "scene_execute_start: user=%s scene=%s name=%s trigger_source=%s "
+        "scheme_id=%s actions_count=%d",
+        user_id, scene.id, scene.scene_name, trigger_source,
+        scene.scheme_id, len(scene.actions or []),
+    )
+
+    # ── 准备（串行，读 DB）──
+    devices: list[SmartDevice] = []
+    if scene.scheme_id:
+        result = await db.execute(
+            select(SmartDevice).where(SmartDevice.scheme_id == scene.scheme_id)
+        )
+        devices = list(result.scalars().all())
+    device_map = {d.id: d for d in devices}
+    logger.debug(
+        "scene_execute_devices: scene=%s matched_devices=%d",
+        scene.id, len(devices),
+    )
+    ambient = await _latest_sensor_context(db, user_id)
+
+    # ── 动作规划（白名单校验 + 波次拆分）──
+    waves, plan = _plan_scene_actions(scene.actions or [], device_map)
+
+    # ── 阶段 A：逐波并行执行桥命令（无 DB，可并行）──
+    # results 在 try 外初始化：即使阶段 A 抛异常，异常传播前变量已定义，
+    # 组装阶段也不会 UnboundLocalError（2026-08-12 根因修复：外部并发写入半成品
+    # 曾使 final_results 未初始化即被引用，导致 7 个场景执行用例失败）
+    results: list[dict] = []
+    pool = None
+    try:
+        from app.services.ecosystem_bridge import BridgeConnectionPool
+        pool = BridgeConnectionPool()
+        for wave_idx, wave in enumerate(waves):
+            logger.debug(
+                "scene_execute_wave: scene=%s wave=%d actions=%d",
+                scene.id, wave_idx, len(wave),
+            )
+            wave_results = await asyncio.gather(
+                *(_run_scene_action(pool, scene, item) for item in wave),
+                return_exceptions=True,  # 单动作未捕获异常不中断整波，结果组装仍可达
+            )
+            # 过滤非 dict 结果（异常对象由 _run_scene_action 内部 except 兜底，此处防万一）
+            results.extend(r for r in wave_results if isinstance(r, dict))
+    finally:
+        if pool:
+            await pool.close_all()
+
+    # ── 阶段 B：串行落库（共享 db session，禁止并行）──
+    for item in plan:
+        if item["status"] != "ok":
+            continue
+        db.add(SceneBehaviorLog(
+            project_id=scene.project_id,
+            user_id=user_id,
+            action_type="manual_trigger",
+            scene_id=scene.id,
+            ambient_data=ambient or None,
+        ))
+
+    # ── 组装结果（保持与 actions 原始顺序一致）──
+    result_by_idx = {r["idx"]: r for r in results}
+    final_results: list[dict] = []
+    for item in plan:
+        if item["status"] == "ok":
+            r = result_by_idx[item["idx"]]
+            final_results.append({k: v for k, v in r.items() if k != "idx"})
+        else:
+            final_results.append({
+                "device_id": item["device"].id if item["device"] else None,
+                "action": item["action"],
+                "params": item["params"],
+                "action_status": item["status"],
+                "note": item["note"],
+            })
+
+    # 真机执行成功的动作写实时状态（诚实数据源，pending 不写）
+    for r in final_results:
+        if r["action_status"] != "success":
+            continue
+        device = device_map.get(r["device_id"])
+        if not device:
+            continue
+        delta = _action_state_delta(r["action"], r["params"] or {})
+        if delta:
+            device.state = {**(device.state or {}), **delta}
+            logger.info(
+                "scene_execute_state_applied: scene=%s device=%s action=%s delta=%s",
+                scene.id, device.id, r["action"], delta,
+            )
+    await db.commit()
+
+    status_summary = {
+        s: sum(1 for r in final_results if r["action_status"] == s)
+        for s in ("pending", "success", "failed", "skipped", "rejected")
+    }
+    logger.info(
+        "scene_execute_done: user=%s scene=%s name=%s source=%s actions=%d "
+        "status_summary=%s",
+        user_id, scene.id, scene.scene_name, trigger_source, len(final_results),
+        status_summary,
+    )
+    from datetime import datetime
+    return {
+        "scene_id": scene.id,
+        "scene_name": scene.scene_name,
+        "executed": True,
+        "actions": final_results,
+        "triggered_at": datetime.now(_BJ_TZ).isoformat(),
+    }

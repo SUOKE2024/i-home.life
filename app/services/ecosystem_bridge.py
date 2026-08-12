@@ -5,6 +5,7 @@
 当前为 stub 实现，标注 TODO: need API key 后可按需接入真机。
 """
 
+import asyncio
 import hashlib
 import logging
 import uuid
@@ -594,3 +595,51 @@ class BridgeFactory:
         """注册自定义桥接实现（用于第三方扩展）。"""
         cls._bridges[ecosystem.lower()] = bridge_cls
         logger.info(f"BridgeFactory: registered custom bridge {bridge_cls.__name__} for {ecosystem}")
+
+
+class BridgeConnectionPool:
+    """生态桥连接池：按 ecosystem 复用连接，避免每动作 connect/disconnect。
+
+    设计（2026-08-12 场景执行并行重构）：
+    - 场景级（一次执行）生命周期：get() 获取 → 复用 → close_all() 归还
+    - 不做跨请求全局复用（桥凭据隔离 + 保持无状态回归风险低）
+    - 首次 get 才 connect；后续同 ecosystem 直接复用实例
+    - close_all 对 stub 桥（connect/disconnect 抛 NotImplementedError）静默
+    """
+
+    def __init__(self) -> None:
+        self._conns: dict[str, EcosystemBridge] = {}
+        self._lock = asyncio.Lock()  # 并发首次建连互斥（gather 并行时防重复 connect）
+
+    async def get(
+        self, ecosystem: str, credentials: dict | None = None,
+    ) -> EcosystemBridge:
+        """复用已有连接，否则新建并 connect（仅首次握手，并发安全）。"""
+        async with self._lock:
+            bridge = self._conns.get(ecosystem)
+            if bridge is None:
+                bridge = BridgeFactory.get_bridge(ecosystem, credentials)
+                await bridge.connect(credentials or {})
+                self._conns[ecosystem] = bridge
+                logger.info(
+                    "bridge_pool_new_connection: ecosystem=%s",
+                    ecosystem,
+                )
+        return bridge
+
+    async def close_all(self) -> None:
+        """执行结束统一归还：断开全部连接并清空。"""
+        for ecosystem, bridge in self._conns.items():
+            try:
+                await bridge.disconnect()
+            except (NotImplementedError, ValueError):
+                # stub 桥未实现，静默（诚实降级，不伪装已断开）
+                logger.debug(
+                    "bridge_pool_disconnect_skipped: ecosystem=%s",
+                    ecosystem,
+                )
+        self._conns.clear()
+        logger.debug(
+            "bridge_pool_closed: connections=%s",
+            list(self._conns.keys()),
+        )

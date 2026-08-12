@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
-import '../widgets/network_image.dart';
 import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 
@@ -106,13 +105,14 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
 
   Color _statusColor(String? status) {
     switch (status) {
+      case 'queued':
       case 'draft':
+      case 'archived':
         return Colors.blueGrey;
-      case 'processing':
       case 'rendering':
         return Colors.orange;
-      case 'published':
-      case 'rendered':
+      case 'completed':
+      case 'active':
         return Colors.green;
       case 'failed':
       case 'error':
@@ -124,15 +124,18 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
 
   String _statusLabel(String? status) {
     switch (status) {
+      case 'queued':
+        return '排队中';
       case 'draft':
         return '草稿';
-      case 'processing':
       case 'rendering':
         return '渲染中';
-      case 'published':
-        return '已发布';
-      case 'rendered':
-        return '已渲染';
+      case 'completed':
+        return '已完成';
+      case 'active':
+        return '生效中';
+      case 'archived':
+        return '已归档';
       case 'failed':
       case 'error':
         return '失败';
@@ -326,6 +329,19 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
           child: ListView(
             shrinkWrap: true,
             children: [
+              if ((detail['image_url'] ?? '').toString().isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: PanoramaPreview(
+                    imageUrl: detail['image_url'].toString(),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text('360° 预览 — 左右拖动查看',
+                    style: TextStyle(
+                        color: SuokeDesignTokens.textSub(context), fontSize: 11)),
+                const SizedBox(height: 12),
+              ],
               _detailRow('ID', detail['id']?.toString()),
               _detailRow('类型', detail['panorama_type']?.toString()),
               _detailRow('分辨率', detail['resolution']?.toString()),
@@ -415,9 +431,9 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     decoration: const InputDecoration(labelText: '转场类型'),
                     dropdownColor: SuokeDesignTokens.card(context),
                     items: [
-                      DropdownItem(value: 'fade', label: '淡入淡出'),
-                      DropdownItem(value: 'dissolve', label: '溶解'),
-                      DropdownItem(value: 'slide', label: '滑动'),
+                      DropdownItem(value: 'fade', label: '淡入淡出 (fade)'),
+                      DropdownItem(value: 'warp', label: '穿梭 (warp)'),
+                      DropdownItem(value: 'none', label: '无转场 (none)'),
                     ],
                     onChanged: (v) => setSt(() => transition = v ?? transition),
                   ),
@@ -526,7 +542,7 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final formKey = GlobalKey<FormState>();
     String type = 'info';
     String label = '';
-    String posX = '0', posY = '0', posZ = '0';
+    String posYaw = '0', posPitch = '0';
     String? targetPanoId;
 
     final saved = await showDialog<bool>(
@@ -566,28 +582,25 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
                     children: [
                       Expanded(
                         child: TextFormField(
-                          decoration: const InputDecoration(labelText: 'X'),
+                          decoration: const InputDecoration(
+                            labelText: 'Yaw 方位角 (°)',
+                            helperText: '-360 ~ 360，0=正北，顺时针为正',
+                          ),
                           keyboardType: TextInputType.number,
                           style: TextStyle(color: SuokeDesignTokens.text(context)),
-                          onSaved: (v) => posX = v ?? '0',
+                          onSaved: (v) => posYaw = v ?? '0',
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextFormField(
-                          decoration: const InputDecoration(labelText: 'Y'),
+                          decoration: const InputDecoration(
+                            labelText: 'Pitch 俯仰角 (°)',
+                            helperText: '-90 ~ 90，0=水平',
+                          ),
                           keyboardType: TextInputType.number,
                           style: TextStyle(color: SuokeDesignTokens.text(context)),
-                          onSaved: (v) => posY = v ?? '0',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          decoration: const InputDecoration(labelText: 'Z'),
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(color: SuokeDesignTokens.text(context)),
-                          onSaved: (v) => posZ = v ?? '0',
+                          onSaved: (v) => posPitch = v ?? '0',
                         ),
                       ),
                     ],
@@ -628,10 +641,10 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final body = <String, dynamic>{
       'type': type,
       'label': label,
+      // 球面坐标 (yaw/pitch) — 与后端 HotspotPosition / 全景查看器对齐
       'position': {
-        'x': double.tryParse(posX) ?? 0.0,
-        'y': double.tryParse(posY) ?? 0.0,
-        'z': double.tryParse(posZ) ?? 0.0,
+        'yaw': double.tryParse(posYaw) ?? 0.0,
+        'pitch': double.tryParse(posPitch) ?? 0.0,
       },
       if (type == 'panorama' && targetPanoId != null && targetPanoId!.isNotEmpty)
         'target_panorama_id': targetPanoId,
@@ -977,7 +990,11 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
     final pos = hp['position'];
     String posStr = '-';
     if (pos is Map) {
-      posStr = '(${pos['x']}, ${pos['y']}, ${pos['z']})';
+      if (pos.containsKey('yaw') || pos.containsKey('pitch')) {
+        posStr = 'yaw ${pos['yaw']}° · pitch ${pos['pitch']}°';
+      } else {
+        posStr = '(${pos['x']}, ${pos['y']}, ${pos['z']})';
+      }
     } else if (pos is String) {
       posStr = pos;
     }
@@ -1031,30 +1048,6 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
               '视角：${scene['transition_type'] ?? '-'} · 全景 ${panoIds.length}',
               style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12),
             ),
-            if (scene['thumbnail_url'] != null) ...[
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SuokeNetworkImage(
-                  imageUrl: scene['thumbnail_url'].toString(),
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    height: 120,
-                    color: SuokeDesignTokens.borderClr(context),
-                    child: const Center(
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    height: 120,
-                    color: SuokeDesignTokens.borderClr(context),
-                    child: Icon(Icons.broken_image,
-                        color: SuokeDesignTokens.textSub(context)),
-                  ),
-                ),
-              ),
-            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -1078,4 +1071,78 @@ class _VRPanoramaPageState extends State<VRPanoramaPage>
 class DropdownItem extends DropdownMenuItem<String> {
   DropdownItem({super.key, required String value, required String label})
       : super(value: value, child: Text(label));
+}
+
+/// 简化 360° 全景预览 — 等距柱状投影图水平拖拽查看。
+///
+/// 按 2:1 等距柱状宽高比拉伸图片,横向平移实现水平环视;
+/// 垂直视角固定,供移动端快速预览（完整沉浸式查看器见 webapp Three.js 版）。
+class PanoramaPreview extends StatefulWidget {
+  final String imageUrl;
+  const PanoramaPreview({super.key, required this.imageUrl});
+
+  @override
+  State<PanoramaPreview> createState() => _PanoramaPreviewState();
+}
+
+class _PanoramaPreviewState extends State<PanoramaPreview> {
+  double _offset = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, constraints) {
+        final viewW = constraints.maxWidth;
+        const viewH = 220.0;
+        // 等距柱状 2:1 投影: 高 = 显示高, 宽 = 2×高, 超出部分可水平平移
+        const imgW = viewH * 2;
+        final maxOffset = ((imgW - viewW).clamp(0.0, double.infinity)).toDouble();
+        return ClipRect(
+          child: GestureDetector(
+            onHorizontalDragUpdate: (d) {
+              setState(() {
+                _offset = (_offset - d.delta.dx).clamp(0.0, maxOffset).toDouble();
+              });
+            },
+            child: SizedBox(
+              height: viewH,
+              width: viewW,
+              child: Stack(
+                children: [
+                  Transform.translate(
+                    offset: Offset(-_offset, 0),
+                    child: Image.network(
+                      widget.imageUrl,
+                      height: viewH,
+                      width: imgW,
+                      fit: BoxFit.fill,
+                      errorBuilder: (_, _, _) => Container(
+                        height: viewH,
+                        color: SuokeDesignTokens.borderClr(context),
+                        child: Icon(Icons.broken_image,
+                            color: SuokeDesignTokens.textSub(context)),
+                      ),
+                    ),
+                  ),
+                  // 左右提示箭头
+                  Positioned(
+                    left: 8,
+                    top: viewH / 2 - 10,
+                    child: Icon(Icons.chevron_left,
+                        color: Colors.white.withValues(alpha: 0.7)),
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: viewH / 2 - 10,
+                    child: Icon(Icons.chevron_right,
+                        color: Colors.white.withValues(alpha: 0.7)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

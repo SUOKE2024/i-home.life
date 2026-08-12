@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../services/sensor_service.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 import '../widgets/floor_plan_canvas.dart';
@@ -54,6 +55,28 @@ class _SmartHomePageState extends State<SmartHomePage>
     _nlController = TextEditingController();
     _loadSchemes();
     _loadEcosystems();
+    // 设备链路接入：页面打开时上传一次真实传感器快照（触发场景传感器检查）
+    unawaited(_uploadSensorSnapshot());
+  }
+
+  // ── 设备链路：传感器快照真实上传 ──
+
+  Future<void> _uploadSensorSnapshot() async {
+    final sensor = SensorService();
+    try {
+      await sensor.start();
+      // 等待能力探测完成（约 300ms），确保 available 标志准确
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      final snapshot = sensor.getSnapshot();
+      sensor.stop();
+      final result = await _api.uploadSensorSnapshot(snapshot);
+      if (!result.isSuccess) {
+        debugPrint('传感器快照上传失败: ${result.error}');
+      }
+    } catch (e) {
+      debugPrint('传感器快照上传异常: $e');
+      sensor.stop();
+    }
   }
 
   @override
@@ -328,6 +351,139 @@ class _SmartHomePageState extends State<SmartHomePage>
     }
   }
 
+  // ── 设备链路：穿戴健康监测上报 ──
+
+  void _showHealthMonitorDialog() {
+    if (_selectedSchemeId == null) {
+      _showError('请先在"智能方案"中选择一个方案');
+      _tabController.animateTo(0);
+      return;
+    }
+    const monitorTypes = <String, String>{
+      'heart_rate': '心率（bpm）',
+      'spo2': '血氧（%）',
+      'fall_detection': '跌倒检测',
+      'sleep_quality': '睡眠质量（分）',
+      'activity_tracking': '活动量（步数）',
+    };
+    var selectedType = 'heart_rate';
+    final valueCtrl = TextEditingController();
+    final deviceCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: SuokeDesignTokens.card(context),
+          title: Text('穿戴设备健康监测上报',
+              style: TextStyle(color: SuokeDesignTokens.text(context))),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selectedType,
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: const InputDecoration(labelText: '监测类型'),
+                  items: monitorTypes.entries
+                      .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Text(e.value,
+                              style: TextStyle(
+                                  color: SuokeDesignTokens.text(context)))))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => selectedType = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: valueCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: const InputDecoration(
+                      labelText: '数值（跌倒检测填 1=是 / 0=否）'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: deviceCtrl,
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: const InputDecoration(labelText: '设备 ID（可选）'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('取消',
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: SuokeDesignTokens.accent,
+                  foregroundColor: SuokeDesignTokens.bg(context)),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _submitHealthRecord(
+                    selectedType, monitorTypes[selectedType]!, valueCtrl.text.trim(),
+                    deviceCtrl.text.trim());
+              },
+              child: const Text('上报'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitHealthRecord(
+      String type, String typeLabel, String valueText, String deviceId) async {
+    if (_selectedSchemeId == null) return;
+    final value = double.tryParse(valueText);
+    if (value == null) {
+      _showError('请输入有效数值');
+      return;
+    }
+    final Map<String, dynamic> payload;
+    switch (type) {
+      case 'heart_rate':
+        payload = {'bpm': value.toInt()};
+        break;
+      case 'spo2':
+        payload = {'spo2': value.toInt()};
+        break;
+      case 'fall_detection':
+        payload = {'fall_detected': value > 0};
+        break;
+      case 'sleep_quality':
+        payload = {'sleep_score': value.toInt()};
+        break;
+      case 'activity_tracking':
+        payload = {'steps': value.toInt()};
+        break;
+      default:
+        payload = {'value': value};
+    }
+    final result = await _api.recordHealthData(
+      projectId: widget.projectId,
+      schemeId: _selectedSchemeId!,
+      monitorType: type,
+      value: payload,
+      deviceId: deviceId.isEmpty ? null : deviceId,
+    );
+    if (result.isSuccess) {
+      final data = result.data;
+      final alert = (data is Map) ? data['alert_level'] : null;
+      final msg = alert == 'normal' || alert == null
+          ? '$typeLabel 已上报'
+          : '$typeLabel 已上报（预警：${data['alert_message'] ?? alert}）';
+      _showSuccess(msg);
+    } else {
+      _showError('上报失败：${result.error}');
+    }
+  }
+
   // ── 工具方法 ──
 
   String _formatJson(dynamic data) {
@@ -388,6 +544,14 @@ class _SmartHomePageState extends State<SmartHomePage>
         backgroundColor: SuokeDesignTokens.card(context),
         foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('智能家居管理'),
+        actions: [
+          // 设备链路：穿戴设备健康监测上报入口
+          IconButton(
+            tooltip: '健康监测上报',
+            icon: const Icon(Icons.monitor_heart_outlined),
+            onPressed: _showHealthMonitorDialog,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: SuokeDesignTokens.accent,

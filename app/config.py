@@ -121,7 +121,7 @@ class Settings(BaseSettings):
     #   wss://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime
     # model 查询参数由 VoiceRealtimeSession._build_ws_url 自动注入，无需在此拼接。
     qwen_audio_ws_url: str = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
-    qwen_audio_voice: str = "cherry"      # 默认音色: cherry / zhidan / longxiaochun 等
+    qwen_audio_voice: str = "longanxiaoxin"  # 默认音色（支持 longanqian/longanlingxin 等）
 
     # ── 语音服务 ──
     voice_asr_model: str = "qwen-audio-3.0-realtime"  # ASR 模型 (复用 Qwen-Audio)
@@ -514,6 +514,11 @@ class Settings(BaseSettings):
     # ── A2 智能家居健康监测系统（v1.2.0）──
     # 启用后 /api/health-monitor/* 端点可用，支持健康监测记录 + 空气质量监控
     health_monitor_enabled: bool = True
+
+    # ── 传感器快照（设备链路，2026-08-12 诊断修复）──
+    # 启用后 /api/sensors/* 端点可用（Flutter SensorService 真实读数落库 + 场景触发）
+    # 此前缺失该字段，_require_feature 靠 getattr 兜底默认 True，flag 形同虚设
+    sensor_snapshot_enabled: bool = True
 
     # ── A5 采购交付透明度 ──
     # 启用后 /api/procurement/orders/{order_id}/delivery 等端点可使用

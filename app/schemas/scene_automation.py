@@ -138,3 +138,33 @@ class SceneSyncResult(BaseModel):
     # v1.2.2：暴露失败原因（not_implemented/invalid_credentials/bridge_error），
     # 便于前端按原因差异化提示，亦方便排障。成功时为 None。
     reason: str | None = Field(default=None, description="失败原因（成功时为 None）")
+
+
+# ── 场景执行（P0 3D 场景/语音触发入口，2026-08-12）──
+
+
+class SceneExecuteRequest(BaseModel):
+    """场景执行请求"""
+
+    trigger_source: str = Field(default="vr_overlay", description="触发来源: vr_overlay/voice/app")
+
+
+class SceneActionResult(BaseModel):
+    """场景动作执行结果 — action_status 诚实标注"""
+
+    device_id: str | None = None
+    device_name: str | None = None
+    action: str | None = None
+    params: dict[str, Any] = Field(default_factory=dict)
+    action_status: str = Field(description="pending/success/failed/skipped/rejected")
+    note: str | None = None
+
+
+class SceneExecuteResult(BaseModel):
+    """场景执行结果"""
+
+    scene_id: str
+    scene_name: str
+    executed: bool
+    actions: list[SceneActionResult] = Field(default_factory=list)
+    triggered_at: str

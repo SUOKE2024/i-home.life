@@ -21,10 +21,12 @@ import { apiClient } from '../services/api-client';
 import type { Project, VRPanoramaListItem } from '../types/domain';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  pending: { label: '待渲染', cls: 'pending' },
+  queued: { label: '排队中', cls: 'pending' },
   rendering: { label: '渲染中', cls: 'active' },
   completed: { label: '已完成', cls: 'completed' },
   failed: { label: '失败', cls: 'error' },
+  // 兼容历史数据
+  pending: { label: '待渲染', cls: 'pending' },
 };
 
 const PANORAMA_TYPE_LABELS: Record<string, string> = {

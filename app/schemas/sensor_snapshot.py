@@ -35,11 +35,18 @@ class GpsReadout(BaseModel):
 
 
 class SensorSnapshotRequest(BaseModel):
-    """传感器快照上传请求 — 对齐 Flutter getSnapshot() 输出"""
+    """传感器快照上传请求 — 对齐 Flutter getSnapshot() 输出
+
+    环境量（temperature/humidity/light_lux）由环境传感器/生态桥接真实上报，
+    手机传感器无法提供时不传（None），禁止伪造（诚实降级红线）。
+    """
     accelerometer: SensorAxisReadout | None = None
     gyroscope: SensorAxisReadout | None = None
     magnetometer: MagnetometerReadout | None = None
     gps: GpsReadout | None = None
+    temperature: float | None = Field(default=None, description="温度 (°C)，环境传感器真实上报")
+    humidity: float | None = Field(default=None, description="湿度 (%)，环境传感器真实上报")
+    light_lux: float | None = Field(default=None, description="光照度 (lux)，环境传感器真实上报")
     timestamp: str = Field(description="ISO8601 时间戳")
     platform: str = Field(default="unknown", description="ios / android / harmonyos / web")
     device_id: str | None = Field(default=None, description="设备推送令牌 ID（可选）")

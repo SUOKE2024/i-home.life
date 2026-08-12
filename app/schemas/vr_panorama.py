@@ -1,7 +1,7 @@
 """视觉表现层 VR 全景 Pydantic 验证模型"""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -121,7 +121,7 @@ class VRSceneCreate(BaseModel):
     name: str = Field(..., max_length=200)
     panorama_ids: list[str] = Field(default_factory=list)
     default_panorama_id: str | None = None
-    transition_type: str = Field(default="fade")
+    transition_type: Literal["fade", "warp", "none"] = Field(default="fade")
     bgm_url: str | None = None
     voiceover_url: str | None = None
     notes: str | None = None
@@ -131,7 +131,7 @@ class VRSceneUpdate(BaseModel):
     name: str | None = None
     panorama_ids: list[str] | None = None
     default_panorama_id: str | None = None
-    transition_type: str | None = None
+    transition_type: Literal["fade", "warp", "none"] | None = None
     bgm_url: str | None = None
     voiceover_url: str | None = None
     status: str | None = None

@@ -115,6 +115,30 @@ class SmartDeviceUpdate(BaseModel):
     status: str | None = None
 
 
+# ── 设备命令（P0 3D 场景/语音控制入口，2026-08-12）──
+
+
+class DeviceCommandRequest(BaseModel):
+    """设备命令请求 — 对齐 DEVICE_ACTION_WHITELIST 动作集"""
+    action: str = Field(description="动作: turn_on/turn_off/set_brightness/open/close/play/...")
+    params: dict[str, Any] = Field(default_factory=dict, description="动作参数，如 {'brightness': 80}")
+    source: str = Field(default="app", description="触发来源: app/vr_overlay/voice")
+    scene_id: str | None = Field(default=None, description="关联场景 id（手动触发场景时携带）")
+    ecosystem: str = Field(default="matter", description="生态桥类型: matter/homekit/mijia/harmonyos/tuya")
+
+
+class DeviceCommandResponse(BaseModel):
+    """设备命令响应 — action_status 诚实标注执行状态"""
+    device_id: str
+    device_name: str | None = None
+    action: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    accepted: bool
+    action_status: str = Field(description="pending(桥接未接真机)/success/failed")
+    note: str | None = None
+    state: dict[str, Any] | None = Field(default=None, description="设备实时状态（真机执行成功时返回）")
+
+
 # ── 计算结果 ──
 
 

@@ -19,6 +19,8 @@ echo "╠═══════════════════════�
 echo "  📦 初始化数据库 + 种子数据..."
 source "$VENV_DIR/bin/activate"
 PYTHONPATH=. python scripts/seed.py 2>&1 | grep -v "INFO\|PRAGMA\|CREATE\|SELECT\|INSERT\|COMMIT\|FROM\|RETURNING\|BEGIN\|index\|FOREIGN\|UNIQUE\|PRIMARY\|idx\|ix\|ON\|TABLE\|user\|material\|supplier\|WHERE\|password\|avatar\|hashed\|id," | head -3
+# 注入演示项目（含预算/施工/质检/采购/结算/智能家居全链路数据，幂等）
+PYTHONPATH=. python scripts/seed_demo_data.py 2>&1 | grep -E "seed_demo|✅|ℹ️|❌" | head -3
 
 # 启动服务器
 echo "  🚀 启动 FastAPI 服务器..."

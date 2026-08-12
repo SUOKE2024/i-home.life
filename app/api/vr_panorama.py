@@ -296,3 +296,100 @@ async def delete_scene(
     await ws_manager.broadcast_to_project(
         project_id, "vr.scene.deleted", {"id": scene_id}
     )
+
+
+# ── 3D 设备图层（P0 漫游 × 设备热点联动，2026-08-12）──
+
+
+@router.get("/projects/{project_id}/device-overlay")
+async def device_overlay(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """3D 场景设备图层聚合：设备锚点 + 实时状态 + 关联场景 + 最近传感器快照。
+
+    供 PanoramaViewer 渲染设备热点：
+    - yaw/pitch 由 SmartDevice.position（x: 东西向, y: 高度, z: 南北向）球坐标换算
+    - 关联可触发的 SceneAutomation（scene_ids）
+    - latest_sensor 为最近真实 SensorSnapshot（诚实数据，供联动上下文）
+    """
+    import math
+
+    from sqlalchemy import select
+
+    from app.models.scene_automation import SceneAutomation
+    from app.models.sensor_snapshot import SensorSnapshot
+    from app.models.smart_home import SmartDevice, SmartHomeScheme
+
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+
+    # 项目下全部设备（join scheme 过滤 project_id，排除已删除）
+    result = await db.execute(
+        select(SmartDevice, SmartHomeScheme)
+        .join(SmartHomeScheme, SmartDevice.scheme_id == SmartHomeScheme.id)
+        .where(
+            SmartHomeScheme.project_id == project_id,
+            SmartDevice.deleted_at.is_(None),
+        )
+    )
+    rows = result.all()
+    devices = [row[0] for row in rows]
+
+    # 项目下启用中的场景（按 scheme 关联，供设备热点一键触发）
+    result = await db.execute(
+        select(SceneAutomation).where(
+            SceneAutomation.project_id == project_id,
+            SceneAutomation.enabled.is_(True),
+        )
+    )
+    scenes = list(result.scalars().all())
+    scene_by_scheme: dict[str, list[str]] = {}
+    for s in scenes:
+        scene_by_scheme.setdefault(s.scheme_id or "", []).append(s.id)
+
+    # 最近真实传感器快照（联动上下文，诚实数据）
+    latest_sensor: dict | None = None
+    snap_result = await db.execute(
+        select(SensorSnapshot)
+        .where(SensorSnapshot.user_id == current_user.id)
+        .order_by(SensorSnapshot.sampled_at.desc())
+        .limit(1)
+    )
+    snap = snap_result.scalar_one_or_none()
+    if snap:
+        latest_sensor = {
+            "snapshot_id": snap.id,
+            "temperature": snap.temperature,
+            "humidity": snap.humidity,
+            "light_lux": snap.light_lux,
+            "sampled_at": snap.sampled_at.isoformat() if snap.sampled_at else None,
+        }
+
+    overlay_devices = []
+    for d in devices:
+        yaw, pitch = 0.0, 0.0
+        if d.position_x is not None and d.position_z is not None:
+            # position_x: 东西向(+东), position_z: 南北向(+南), yaw 0=正北顺时针
+            yaw = (math.degrees(math.atan2(d.position_x, d.position_z)) + 360) % 360
+            pitch = -math.degrees(math.atan2(d.position_y or 0, max(
+                math.hypot(d.position_x, d.position_z), 0.1
+            )))
+        overlay_devices.append({
+            "device_id": d.id,
+            "name": d.device_name,
+            "type": d.device_type,
+            "room_name": d.room_name,
+            "status": d.status,
+            "yaw": round(yaw, 1),
+            "pitch": round(pitch, 1),
+            "state": d.state,
+            "scene_ids": scene_by_scheme.get(d.scheme_id, []),
+        })
+
+    return {
+        "project_id": project_id,
+        "device_count": len(overlay_devices),
+        "devices": overlay_devices,
+        "latest_sensor": latest_sensor,
+    }

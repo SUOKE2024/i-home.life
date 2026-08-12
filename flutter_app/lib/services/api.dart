@@ -1607,6 +1607,60 @@ class ApiClient {
         'project_id': ?projectId,
       });
 
+  // ── 设备链路（2026-08-12 全量诊断修复接入）──
+
+  // 传感器快照：上传 SensorService().getSnapshot() 输出（真实落库）
+  Future<Result<dynamic>> uploadSensorSnapshot(Map<String, dynamic> snapshot) =>
+      post('/sensors/snapshot', snapshot);
+
+  // 传感器能力声明查询
+  Future<Result<dynamic>> sensorCapabilities() =>
+      get('/sensors/capabilities');
+
+  // 智能家居健康监测（穿戴设备接入：心率/血氧/跌倒/睡眠/活动量上报）
+  Future<Result<dynamic>> recordHealthData({
+    required String projectId,
+    required String schemeId,
+    required String monitorType,
+    required Map<String, dynamic> value,
+    String? deviceId,
+    DateTime? recordedAt,
+  }) =>
+      post('/health-monitor/records', {
+        'project_id': projectId,
+        'scheme_id': schemeId,
+        'monitor_type': monitorType,
+        'value': value,
+        'device_id': ?deviceId,
+        if (recordedAt != null)
+          'recorded_at': recordedAt.toUtc().toIso8601String(),
+      });
+
+  // 项目健康监测记录列表
+  Future<Result<dynamic>> listHealthRecords(
+    String projectId, {
+    String? monitorType,
+    int limit = 50,
+  }) =>
+      get('/health-monitor/records/project/$projectId'
+          '?limit=$limit'
+          '${monitorType != null ? '&monitor_type=$monitorType' : ''}');
+
+  // 项目健康报告
+  Future<Result<dynamic>> healthReport(String projectId) =>
+      get('/health-monitor/report/$projectId');
+
+  // 空气质量记录上报（环境传感器）
+  Future<Result<dynamic>> recordAirQuality(Map<String, dynamic> body) =>
+      post('/health-monitor/air-quality', body);
+
+  // 空气质量记录列表
+  Future<Result<dynamic>> listAirQuality(String projectId,
+          {String? roomName, int limit = 50}) =>
+      get('/health-monitor/air-quality/$projectId'
+          '?limit=$limit'
+          '${roomName != null ? '&room_name=$roomName' : ''}');
+
   // ── 管理后台 (P2) ──
 
   Future<Result<dynamic>> getAdminUsers() =>

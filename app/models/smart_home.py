@@ -92,6 +92,9 @@ class SmartDevice(Base):
     # 功能特性 JSON: {"调光": true, "色温": true}
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="planned")
     # status: planned(已规划) / installed(已安装) / online(在线) / offline(离线)
+    state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 实时状态 JSON（P0 设备热点联动，2026-08-12）：{"power": true, "brightness": 80}
+    # 仅生态桥真机执行成功（send_command 返回 ok）时写入，无真机数据恒 None，诚实不伪造
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
