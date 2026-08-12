@@ -1981,7 +1981,23 @@ export interface EvalReport {
   // v1.12.x: per-agent 评分 + 量化目标基线
   per_agent_scores: Record<string, EvalPerAgentScore>;
   quality_targets: Record<string, number>;
+  // v1.13.x: 工具选择准确率基线报告
+  tool_accuracy?: Record<string, unknown>;
+  // v1.13.5: 用户反馈满意度维度
+  feedback_metrics?: EvalFeedbackMetrics;
   notes: string[];
+}
+
+/** v1.13.5 反馈满意度维度（per-agent like 率 + overall 聚合判定） */
+export interface EvalFeedbackMetrics {
+  window_days: number;
+  min_samples: number;
+  agent_count: number;
+  per_agent: Record<
+    string,
+    { like_rate: number; samples: number; status: string; target: number }
+  >;
+  overall: { like_rate: number; samples: number; status: string } | null;
 }
 
 /** v1.12.x per-agent 评分（对齐 2026 逐 Agent 评估） */

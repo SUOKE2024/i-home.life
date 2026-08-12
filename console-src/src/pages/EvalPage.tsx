@@ -33,6 +33,14 @@ function flagGuardMessage(status: number, error?: string): string {
 
 const BASELINES = ['base_llm', 'keyword', 'full_system', 'mock'];
 
+/** v1.13.5 反馈满意度状态 → 徽章 tone（对齐后端 DRIFT_STATUS_*） */
+const FB_TONE: Record<string, 'success' | 'warning' | 'danger' | 'muted'> = {
+  ok: 'success',
+  warn: 'warning',
+  critical: 'danger',
+  insufficient_samples: 'muted',
+};
+
 export default function EvalPage() {
   const navigate = useNavigate();
 
@@ -276,6 +284,47 @@ export default function EvalPage() {
                     {JSON.stringify(report.per_agent_scores, null, 2)}
                   </pre>
                 </>
+              )}
+              {/* v1.13.5: 用户反馈满意度维度（per-agent like 率 + overall） */}
+              {!disabled && report.feedback_metrics && (
+                <div
+                  className="wb-smart-card"
+                  data-testid="wb-eval-feedback-metrics"
+                  style={{ marginTop: 10 }}
+                >
+                  <div className="wb-smart-card__head">
+                    <div className="wb-smart-card__room">用户反馈满意度（近 7 天）</div>
+                    {report.feedback_metrics.overall ? (
+                      <span className={`wb-status-chip wb-status-chip--${FB_TONE[report.feedback_metrics.overall.status] ?? 'muted'}`}>
+                        overall {report.feedback_metrics.overall.like_rate}% · {report.feedback_metrics.overall.status}
+                      </span>
+                    ) : (
+                      <span className="wb-status-chip wb-status-chip--muted">
+                        样本不足（&lt;{report.feedback_metrics.min_samples}）
+                      </span>
+                    )}
+                  </div>
+                  <div className="wb-smart-card__meta" style={{ marginTop: 6 }}>
+                    目标 like 率 ≥ {Object.values(report.feedback_metrics.per_agent ?? {})[0]?.target ?? 70}% ·
+                    {report.feedback_metrics.agent_count} 个 Agent 有反馈
+                  </div>
+                  {Object.keys(report.feedback_metrics.per_agent ?? {}).length === 0 ? (
+                    <div className="wb-state" style={{ padding: '8px 0' }}>
+                      <div className="wb-state__icon">💬</div>
+                      <div>暂无用户反馈（L4 学习尚未沉淀样本）</div>
+                    </div>
+                  ) : (
+                    Object.entries(report.feedback_metrics.per_agent).map(([name, m]) => (
+                      <div className="wb-list-row" key={name}>
+                        <span className="wb-list-row__main">{name}</span>
+                        <span className="wb-list-row__sub">{m.like_rate}%（{m.samples} 条）</span>
+                        <span className={`wb-status-chip wb-status-chip--${FB_TONE[m.status] ?? 'muted'}`}>
+                          {m.status}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
               {report.notes.length > 0 && !disabled && (
                 <div className="wb-smart-card__meta" style={{ marginTop: 6 }}>
