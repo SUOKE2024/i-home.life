@@ -63,6 +63,7 @@ async def list_panoramas(
             room_name=p.room_name,
             panorama_type=p.panorama_type,
             image_url=p.image_url,
+            splat_url=p.splat_url,
             thumbnail_url=p.thumbnail_url,
             resolution=p.resolution,
             initial_view=p.initial_view_dict or None,
