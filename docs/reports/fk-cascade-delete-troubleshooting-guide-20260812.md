@@ -162,3 +162,40 @@ async def test_delete_cascades_related_data_with_fk(client, db_session):
   或 FastAPI 异常处理器兜底
 - 排查「本地过、生产 500」时，优先怀疑环境差异（DB 引擎 FK 策略、SQLite/PostgreSQL
   行为差异），而非业务逻辑本身
+
+## 八、2026-08-12 生产事故修复验证结论（DELETE /projects 500）
+
+### 8.1 事故时间线
+
+| 时间 | 事件 |
+|------|------|
+| 00:00:39 | 旧代码进程（uvicorn[720087]）DELETE /projects 违反 `budgets_project_id_fkey` 报 500 |
+| 00:10 | 含 `_cascade_delete_related` 级联删除的修复版本部署（uvicorn[2770252] 起） |
+
+生产错误发生在修复代码部署前，**当前生产代码已含级联删除逻辑**。
+
+### 8.2 修复方案（范式 A：应用层递归级联删除）
+
+- `app/services/project_service.py::delete_project` 在删除项目前调用 `_cascade_delete_related`
+- `_cascade_delete_related` 基于 `Base.metadata` 反射 FK 索引，沿依赖链递归：先删最深子表
+  （budget_lines→budgets→projects、agent_messages→agent_sessions→projects），再删父表
+- 覆盖范围：budgets / budget_lines / floor_plans / rooms→floors / settlements 等全部直接与
+  间接 FK 子表，新表自动纳入（metadata 反射，无需维护名单）
+
+### 8.3 验证结论（2026-08-12 双通道确认）
+
+1. **回归测试**：`tests/test_projects.py::test_delete_project_cascades_related_data_with_fk`
+   局部启用 SQLite `PRAGMA foreign_keys=ON` 模拟生产，断言 DELETE 204 + budgets/floor_plans
+   直接子表 + budget_lines 二级子表全部清空（`finally` 中移除 FK 监听防污染）
+2. **独立探针**：`scripts/verify_fk_cascade_delete.py` 在 FK 约束下创建
+   project + budget + budget_line 三级数据后调用生产同款 `_cascade_delete_related`，
+   验证结果：
+   ```
+   [1] 已创建 project=8a177da3 budget=95380b80 budget_line=c089b6d9
+   [2] 调用 _cascade_delete_related 级联删除...
+       项目残留: 0  budget残留: 0  budget_line残留: 0
+       ✅ 级联删除完整：projects/budgets/budget_lines 全部清空
+   ✅ FK 探针验证通过：_cascade_delete_related 可正确级联删除 budgets/budget_lines
+   ```
+
+**结论：级联删除逻辑完整覆盖 budgets/budget_lines，修复已生效，无需新增代码改动。**
