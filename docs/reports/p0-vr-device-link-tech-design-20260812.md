@@ -315,6 +315,7 @@ async def execute_scene(scene_id, trigger_source, db, user):
 - ✅ **可观测性增强（2026-08-12）**：执行管线全状态流转日志——`device_command_received/rejected/context/bridge_dispatch/executed`、`scene_execute_start/devices/action_dispatch/action_skipped/action_rejected/action_bridge/action_result/done(含 status_summary)`，命令下发（connect→send_command→result）与 pending→success/failed 流转全程可排查
 - ✅ **M4 智能展厅最小原型（2026-08-12 落地）**：`ShowroomPage.jsx`（路由 /showroom + Shell 导航）——展厅 = 项目 VRPanorama（复用 PanoramaViewer 漫游），**展品即热点**（`HotspotCreate/Spec` 新增 `material_id`，type=exhibit）；点击展品 → Material 详情（价格/品牌/规格 + 环保认证 `/api/eco-materials/certs`）→ **一键加入 BOM**（复用 `POST /api/materials/bom` 链路）。**诚实标注**：设计 4.2 的 `Supplier.is_verified` 认证状态未落地（`Supplier` 模型无该字段，不伪造，待模型落地后补）
 - ✅ **浏览器端到端验证（2026-08-12）**：真实运行（uvicorn + vite + 浏览器自动化）走通全链路——漫游渲染 → 设备热点 → DeviceCommandPanel 命令（pending 诚实提示）→ 场景触发 → 智能展厅展品热点 → 详情 + 加入 BOM。**发现并修复 1 个真实 UI 缺陷**：`DeviceCommandPanel.run` 读取顶层 `action_status`，场景执行响应该字段在 `actions[]` 内导致误报「执行失败」——现按 `actions[]` 推导（全 success→success / 含 failed→failed / 其余 pending）
+- ✅ **M3 浏览器验证（2026-08-12）**：真实浏览器加载 Spark 官方 .spz（butterfly）——`@sparkjsdev/spark` 模块加载 + `SparkRenderer` 实例化成功，GaussianViewer 启用；20s 加载超时后**双轨降级链真实生效**（`onFallback` → 回退 PanoramaViewer 贴图全景，无白屏/崩溃）。**发现并修复根因缺陷**：`list_panoramas` 手动构造 `VRPanoramaListItem` 漏序列化 `splat_url`（前端恒 undefined → GS 渲染实际不可达），补 `splat_url=p.splat_url` 后启用正常
 - ⏳ **M4 余项**：供应商实景展厅（验厂漫游）、服务商作品集展厅（4.3）、`Supplier.is_verified` 认证状态模型
 - ⏳ **M3 余项**：3DGS 内容管线（采集/AI 生成 → .spz，见第 4 部分 4.1 效果图漫游管线）
 
