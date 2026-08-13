@@ -1567,6 +1567,13 @@ export class ApiClient {
     return this.request<T>(`/api/eval/drift?window_days=${windowDays}`);
   }
 
+  /** 评估快照趋势（GET /api/eval/trend，admin；v1.13.6） */
+  async getEvalTrend<T = import('../types/domain').EvalTrendResponse>(
+    limit = 30,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/eval/trend?limit=${limit}`);
+  }
+
   /** Agent 治理安全审计（GET /api/admin/agent-governance-audit，平台管理员；v1.12.x） */
   async getGovernanceAudit<T = import('../types/domain').GovernanceAuditResponse>(): Promise<ApiResult<T>> {
     return this.request<T>('/api/admin/agent-governance-audit');

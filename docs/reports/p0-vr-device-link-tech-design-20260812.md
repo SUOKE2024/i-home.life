@@ -102,7 +102,7 @@ ws.on('scene.triggered',     ({ sceneId, actionStatus }) => highlightScene(scene
 ```jsonc
 // Response 200
 {
-  "panorama_id": "可选", 
+  "panorama_id": "可选",
   "devices": [{
     "device_id": "...", "name": "客厅灯", "type": "light",
     "yaw": 120.5, "pitch": -8.0,        // 由 SmartDevice.position 换算或配置

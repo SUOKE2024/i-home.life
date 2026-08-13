@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
 import { login, register, demoLogin, DEMO_ACCOUNTS } from '../lib/api'
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { setAuth, toast } = useApp()
   const [mode, setMode] = useState('login') // login | register
   const [phone, setPhone] = useState('')
@@ -15,11 +15,16 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [demoPhone, setDemoPhone] = useState(null)
 
+  // 登录成功后的跳转目标：仅接受站内绝对路径（/xxx），拒绝外部 URL / 协议相对地址
   const afterAuth = (r, action, accountLabel) => {
     if (r.isSuccess && r.data) {
       setAuth(r.data.user || { phone })
       toast(action === 'demo' ? `已通过演示账号登录（${accountLabel}）` : action === 'login' ? '登录成功' : '注册成功', 'success')
-      navigate('/')
+      const redirectTo = searchParams.get('redirect') || '/'
+      // 跨 SPA 跳转（如 /console/ 属独立控制台应用）：必须整页加载而非 React Router navigate，
+      // 否则 webapp 路由无 /console/ 会被 catch-all 重定向回 '/'
+      const safePath = redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/'
+      window.location.href = safePath
     } else {
       setErr(r.error || '操作失败，请重试')
     }
@@ -149,12 +154,17 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* 备案号 Footer（公开可见，工信部合规：链接至备案管理系统） */}
+      {/* 备案号 Footer（公开可见，工信部合规：链接至备案管理系统）+ 公开文档链接 */}
       <footer
         className="app-footer"
         style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'transparent', borderTop: 'none' }}
       >
         <span className="app-footer-copy">© 2026 索克家居 · i-home.life</span>
+        <span className="app-footer-docs">
+          <Link to="/guide">使用指南</Link>
+          <Link to="/legal/privacy">隐私政策</Link>
+          <Link to="/legal/terms">服务条款</Link>
+        </span>
         <span className="app-footer-beian">
           <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
             滇ICP备2026015233号-2

@@ -6,8 +6,10 @@
  *   2. 有 token → 调 getCurrentUser 校验有效性；401 → 清理 + 跳转；200 → 放行
  *   3. 注册全局 onUnauthorized 回调，后续任何请求 401 同样跳转登录页
  *
- * 跳转目标携带 redirect 参数，登录后回到来源页（对齐 login.html 的 redirect 约定）。
+ * 跳转目标携带 redirect 参数，登录后回到来源页（webapp /auth 登录页消费该参数）。
  * 项目约定：PASETO 无状态，后端不维护会话，故每次进入控制台需校验一次 token。
+ * v1.13.5 修复：原跳 /login.html 已随旧静态页删除而不存在（发布前 QA 回归发现的 404），
+ * 改为跳转 webapp React 登录页 /auth（Nginx try_files 回退 index.html 可达）。
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '../services/api-client';
@@ -21,7 +23,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     /** 跳转登录页，携带当前路径作为 redirect（登录成功后回到来源页） */
     const redirectToLogin = () => {
       const fullPath = window.location.pathname + window.location.search;
-      window.location.href = `/login.html?redirect=${encodeURIComponent(fullPath)}`;
+      window.location.href = `/auth?redirect=${encodeURIComponent(fullPath)}`;
     };
 
     const token = apiClient.getToken();

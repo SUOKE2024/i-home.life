@@ -152,6 +152,15 @@
   display: none;
 }
 
+/* 矮视口（常见笔记本 1366×768 浏览器内容区 ≈660px）下压缩导航密度，
+   保证 14 个导航项 + 品牌区 + 用户信息区在视口内完整可见，避免底部项被裁剪。 */
+@media (max-height: 700px) {
+  .sidenav-nav { gap: 0; padding: 10px 10px; }
+  .nav-item { padding: 6px 12px; }
+  .nav-item .nav-caret { width: 3px; height: 3px; }
+  .nav-divider { margin: 4px 4px; }
+}
+
 .grow { flex: 1; min-width: 0; }
 
 .nav-collapse {
@@ -178,6 +187,10 @@
 .shell--collapsed .nav-collapse span { display: none; }
 
 /* ===== 顶栏 ===== */
+.topbar-menu-btn {
+  display: none;
+}
+
 .topbar {
   height: var(--topbar-h);
   min-height: var(--topbar-h);
@@ -243,16 +256,6 @@
   text-overflow: ellipsis;
 }
 
-.notify-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--red);
-}
-
 /* ===== 内容区 ===== */
 .shell-content {
   flex: 1;
@@ -282,6 +285,160 @@
 
 .app-footer-beian a:hover {
   color: var(--accent-text);
+}
+
+/* 页脚公开文档链接（使用指南/隐私政策/服务条款） */
+.app-footer-docs {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-footer-docs a {
+  color: var(--text-sub);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.app-footer-docs a:hover {
+  color: var(--accent-text);
+}
+
+/* ===== 公开文档页（指南/隐私/条款，DocsPage 渲染 assets 下 markdown） ===== */
+.docs-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.docs-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 40px 48px;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+.docs-card h1 {
+  font-size: 1.9rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+  letter-spacing: 0.01em;
+}
+
+.docs-card h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 36px 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 24px 0 8px;
+}
+
+.docs-card p {
+  margin: 10px 0;
+  color: var(--text-sub);
+}
+
+.docs-card strong {
+  color: var(--text);
+}
+
+.docs-card a {
+  color: var(--accent-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-strong);
+  transition: border-color 0.15s ease;
+}
+
+.docs-card a:hover {
+  border-color: var(--accent);
+}
+
+.docs-card ul,
+.docs-card ol {
+  margin: 10px 0;
+  padding-left: 24px;
+  color: var(--text-sub);
+}
+
+.docs-card li {
+  margin: 6px 0;
+}
+
+.docs-card code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--accent-text);
+}
+
+.docs-card pre {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.docs-card pre code {
+  background: none;
+  border: none;
+  color: var(--text);
+}
+
+.docs-card blockquote {
+  margin: 14px 0;
+  padding: 10px 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-dim);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text-sub);
+  font-size: 0.94rem;
+}
+
+.docs-card hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 28px 0;
+}
+
+.docs-table-wrap {
+  overflow-x: auto;
+  margin: 14px 0;
+}
+
+.docs-card table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.docs-card th,
+.docs-card td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.docs-card th {
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.docs-card td {
+  color: var(--text-sub);
 }
 
 /* ===== 登录页 ===== */
@@ -481,6 +638,53 @@
   .shell-content { padding: 16px; }
   .topbar { padding: 0 14px; }
   .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ═══════════ 移动端响应式（≤768px：侧栏抽屉 + 顶栏适配） ═══════════
+   ISSUE-003：小屏下侧栏固定 232px 挤压内容区，改为隐藏式抽屉：
+   顶栏 Menu 按钮展开，导航项点击 / 遮罩点击 / 路由变化自动收起。 */
+@media (max-width: 768px) {
+  /* 顶栏：显示菜单按钮，隐藏次要信息 */
+  .topbar-menu-btn { display: inline-flex; }
+  .topbar-sub { display: none; }
+  .topbar-date { display: none; }
+  .topbar-user-name { display: none; }
+
+  /* 侧栏 → 固定定位抽屉（忽略桌面折叠偏好，抽屉内始终完整导航） */
+  .sidenav,
+  .shell--collapsed .sidenav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 300;
+    width: min(84vw, var(--sidenav-w));
+    min-width: 0;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .sidenav--mobile-open { transform: translateX(0); box-shadow: 0 0 28px rgba(0, 0, 0, 0.35); }
+  .sidenav--collapsed .sidenav-brand { justify-content: space-between; padding: 18px 16px; }
+  .sidenav--collapsed .nav-item { justify-content: flex-start; padding: 10px 12px; }
+  .sidenav--collapsed .nav-item .nav-label { display: inline; }
+  .sidenav--collapsed .nav-item .nav-caret { display: inline-block; }
+  .sidenav--collapsed .sidenav-user { display: flex; }
+  .shell--collapsed .nav-collapse span { display: inline; }
+
+  /* 遮罩层 */
+  .sidenav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 290;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .sidenav-backdrop.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 /* ═══════════ 全链路诊断（v1.10.x） ═══════════ */

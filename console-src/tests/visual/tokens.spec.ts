@@ -43,14 +43,15 @@ test.describe('设计令牌渲染', () => {
     });
   });
 
-  test('textMuted 色块为 #6B6978', async ({ page }) => {
+  test('textMuted 色块为 #807E8D', async ({ page }) => {
     await page.goto('./tokens');
     const swatch = page.getByTestId('token-swatch--textMuted');
     await expect(swatch).toBeVisible();
-    // 色块的 span 子元素 background = #6B6978 → rgb(107, 105, 120)
+    // 色块的 span 子元素 background = #807E8D → rgb(128, 126, 141)
+    // （v1.13.x 弱文字 AA 升级：原 #6B6978 2.9:1 → #807E8D 4.93:1，见 tokens.ts 注释）
     const colorSpan = swatch.locator('span').first();
     const bg = await colorSpan.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(bg).toBe('rgb(107, 105, 120)'); // #6B6978
+    expect(bg).toBe('rgb(128, 126, 141)'); // #807E8D
   });
 
   test('radius-md 演示块圆角为 12px', async ({ page }) => {

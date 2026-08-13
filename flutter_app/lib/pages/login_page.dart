@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api.dart';
+import '../services/url_opener.dart';
 import '../theme/suoke_theme.dart';
 import 'home_page.dart';
 
@@ -538,11 +539,52 @@ class _LoginPageState extends State<LoginPage> {
                     style: const TextStyle(color: SuokeDesignTokens.accent),
                   ),
                 ),
+
+                // ── 页脚：公开文档链接 + 备案号（对齐 Web 端 Footer） ──
+                const SizedBox(height: 20),
+                Text(
+                  '© 2026 索克家居 · i-home.life — AI 智能装修平台',
+                  style: TextStyle(fontSize: 10, color: SuokeDesignTokens.textMutedClr(context)),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 4,
+                  children: [
+                    _footerLink('使用指南', PublicDocLinks.guide),
+                    _footerLink('隐私政策', PublicDocLinks.privacy),
+                    _footerLink('服务条款', PublicDocLinks.terms),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () => openExternalUrl(context, PublicDocLinks.beian),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: const TextStyle(fontSize: 11),
+                  ),
+                  child: Text(
+                    '滇ICP备2026015233号-2',
+                    style: TextStyle(color: SuokeDesignTokens.textMutedClr(context)),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _footerLink(String label, String url) {
+    return TextButton(
+      onPressed: () => openExternalUrl(context, url),
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        textStyle: const TextStyle(fontSize: 11),
+      ),
+      child: Text(label, style: const TextStyle(color: SuokeDesignTokens.accent)),
     );
   }
 }

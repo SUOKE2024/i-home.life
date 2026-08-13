@@ -289,7 +289,9 @@ class HealthMonitor:
             return result
 
         # 统计数据
-        now = datetime.now(timezone.utc)
+        # SQLite 落库的 planned_date 为 naive（DateTime(timezone=True) 在 SQLite 上不保留
+        # tzinfo），故 now 须转 naive UTC 再比较，否则 offset-aware vs naive 直接抛异常。
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         overdue_count = 0
         delayed_count = 0
         total_planned = 0.0

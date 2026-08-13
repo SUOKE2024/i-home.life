@@ -21,6 +21,7 @@ import type {
   EvalDimensionsResponse,
   EvalDriftResponse,
   EvalReport,
+  EvalTrendResponse,
 } from '../types/domain';
 
 /** 404/503 多为灰度 flag 未启用，追加诚实提示（保留后端真实 error 文案） */
@@ -80,6 +81,18 @@ export default function EvalPage() {
     reload: reloadDrift,
   } = useAsync<EvalDriftResponse | null>(async () => {
     const r = await apiClient.getEvalDrift<EvalDriftResponse>();
+    if (!r.isSuccess || !r.data) throw new Error(flagGuardMessage(r.status, r.error));
+    return r.data;
+  }, []);
+
+  // v1.13.6: 评估快照趋势（多轮迭代闭环，admin 端点）
+  const {
+    data: trend,
+    loading: trendLoading,
+    error: trendError,
+    reload: reloadTrend,
+  } = useAsync<EvalTrendResponse | null>(async () => {
+    const r = await apiClient.getEvalTrend<EvalTrendResponse>();
     if (!r.isSuccess || !r.data) throw new Error(flagGuardMessage(r.status, r.error));
     return r.data;
   }, []);
@@ -326,6 +339,54 @@ export default function EvalPage() {
                   )}
                 </div>
               )}
+              {/* v1.13.6: 用户体验维度（任务完成率/弃单率/会话轮次/星级） */}
+              {!disabled && report.ux_metrics && (
+                <div
+                  className="wb-smart-card"
+                  data-testid="wb-eval-ux-metrics"
+                  style={{ marginTop: 10 }}
+                >
+                  <div className="wb-smart-card__head">
+                    <div className="wb-smart-card__room">用户体验（近 7 天）</div>
+                    <span className="wb-status-chip wb-status-chip--muted">
+                      {report.ux_metrics.total_sessions} 会话
+                    </span>
+                  </div>
+                  {report.ux_metrics.note && (
+                    <div className="wb-smart-card__meta" style={{ marginTop: 6 }}>
+                      {report.ux_metrics.note}
+                    </div>
+                  )}
+                  <div className="wb-list-row">
+                    <span className="wb-list-row__main">任务完成率</span>
+                    <span className="wb-list-row__sub">
+                      {report.ux_metrics.task_completion_rate != null
+                        ? `${report.ux_metrics.task_completion_rate}%`
+                        : '样本不足'}
+                    </span>
+                  </div>
+                  <div className="wb-list-row">
+                    <span className="wb-list-row__main">弃单率</span>
+                    <span className="wb-list-row__sub">
+                      {report.ux_metrics.abandonment_rate != null
+                        ? `${report.ux_metrics.abandonment_rate}%`
+                        : '样本不足'}
+                    </span>
+                  </div>
+                  <div className="wb-list-row">
+                    <span className="wb-list-row__main">平均会话轮次</span>
+                    <span className="wb-list-row__sub">{report.ux_metrics.avg_turns_per_session}</span>
+                  </div>
+                  <div className="wb-list-row">
+                    <span className="wb-list-row__main">平均星级（1-5）</span>
+                    <span className="wb-list-row__sub">
+                      {report.ux_metrics.avg_rating != null
+                        ? `${report.ux_metrics.avg_rating}（${report.ux_metrics.rating_samples} 条）`
+                        : '暂无星级反馈'}
+                    </span>
+                  </div>
+                </div>
+              )}
               {report.notes.length > 0 && !disabled && (
                 <div className="wb-smart-card__meta" style={{ marginTop: 6 }}>
                   {report.notes.map((note, i) => (
@@ -389,6 +450,60 @@ export default function EvalPage() {
                     {r.status}
                   </span>{' '}
                   当前 {r.current} / 目标 {r.target}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* v1.13.6: 评估快照趋势（多轮迭代闭环） */}
+          <div className="wb-section-label" style={{ marginTop: 20 }}>
+            评估快照趋势（admin）
+          </div>
+          {trendLoading && (
+            <div className="wb-state" data-testid="wb-eval-trend-loading">
+              <div className="wb-state__icon">⏳</div>
+              <div>加载趋势…</div>
+            </div>
+          )}
+          {trendError && !trendLoading && (
+            <div className="wb-state wb-state--error" data-testid="wb-eval-trend-error">
+              <div className="wb-state__icon">⚠</div>
+              <div>{trendError}</div>
+              <button
+                className="wb-theme-option wb-theme-option--active"
+                onClick={reloadTrend}
+                type="button"
+              >
+                重试
+              </button>
+            </div>
+          )}
+          {trend && !trendLoading && (
+            <div className="wb-smart-card" data-testid="wb-eval-trend">
+              <div className="wb-smart-card__head">
+                <div className="wb-smart-card__room">快照趋势</div>
+                <span className="wb-status-chip wb-status-chip--info">
+                  {trend.snapshot_count} 条快照
+                </span>
+              </div>
+              {trend.snapshot_count === 0 && (
+                <div className="wb-state" style={{ padding: '8px 0' }}>
+                  <div className="wb-state__icon">📈</div>
+                  <div>暂无快照（触发一次评估运行后生成）</div>
+                </div>
+              )}
+              {trend.trend.map((t) => (
+                <div key={t.id} className="wb-smart-card__meta" style={{ marginTop: 6 }}>
+                  <span className="wb-status-chip wb-status-chip--muted">
+                    {t.created_at ? t.created_at.slice(0, 19) : t.id}
+                  </span>{' '}
+                  成功率 {t.metrics.success_rate ?? '—'}% · 首 token p95{' '}
+                  {t.metrics.first_token_p95_ms ?? '—'}ms
+                  {Object.keys(t.delta_prev).length > 0 && (
+                    <>
+                      {' · '}Δprev {t.delta_prev.success_rate ?? 0}%
+                    </>
+                  )}
                 </div>
               ))}
             </div>

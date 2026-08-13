@@ -6,13 +6,13 @@
 
 i-home.life 平台的 AI Agent 现在具备**自进化**能力：Agent 会从每次任务执行中自动沉淀经验，并在后续相似任务中复用这些经验，实现"越用越聪明"。
 
-本功能受三个独立 feature flag 控制，**默认全部关闭**，需管理员按需灰度开启：
+本功能受三个独立 feature flag 控制，**v1.13.2 起默认全部开启**（关闭即回退为无记忆无进化的静态行为），管理员可按需灰度调整：
 
 | Feature Flag | 作用 | 默认值 |
 |-------------|------|--------|
-| `agent_case_extraction_enabled` | 从 Agent 执行轨迹自动提取结构化经验 Case | False |
-| `agent_skill_distillation_enabled` | Case 聚类蒸馏为可复用 Skill + 执行前检索注入 | False |
-| `agent_skill_evolution_enabled` | Skill 随成败进化（三维质控 + 诊断归因） | False |
+| `agent_case_extraction_enabled` | 从 Agent 执行轨迹自动提取结构化经验 Case | True（v1.13.2 起） |
+| `agent_skill_distillation_enabled` | Case 聚类蒸馏为可复用 Skill + 执行前检索注入 | True（v1.13.2 起） |
+| `agent_skill_evolution_enabled` | Skill 随成败进化（三维质控 + 诊断归因） | True（v1.13.2 起） |
 
 ## 二、自进化管线工作原理
 
@@ -76,18 +76,23 @@ Skill 不是一成不变的，它随使用持续进化：
 
 这确保了 Skill 的每次改进都是统计意义上可靠的，而非测量误差或随机波动。
 
-## 七、如何开启
+## 七、如何开关
 
-在 `.env` 或 `.env.production` 中设置：
+v1.13.2 起三个 flag **默认全部开启**，无需额外配置。如需按需灰度调整，在 `.env` 或 `.env.production` 中设置：
 
 ```bash
-# 按需灰度开启（建议先开 P0 Case 提取，观察积累后再开蒸馏）
+# 关闭全部自进化能力（Agent 回退为无记忆无进化静态行为）
+AGENT_CASE_EXTRACTION_ENABLED=false
+AGENT_SKILL_DISTILLATION_ENABLED=false
+AGENT_SKILL_EVOLUTION_ENABLED=false
+
+# 灰度建议：先开 P0 Case 提取，观察积累后再开蒸馏
 AGENT_CASE_EXTRACTION_ENABLED=true
-AGENT_SKILL_DISTILLATION_ENABLED=true
-AGENT_SKILL_EVOLUTION_ENABLED=true
+AGENT_SKILL_DISTILLATION_ENABLED=false
+AGENT_SKILL_EVOLUTION_ENABLED=false
 ```
 
-回滚：`bash scripts/rollback.sh v1.10.1`（一键关闭三个 flag）
+回滚：`bash scripts/rollback.sh v1.13.1`（一键关闭三个 flag）
 
 ## 八、隐私说明
 

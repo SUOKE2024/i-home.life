@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FolderKanban, Wallet, HardHat, ShieldCheck, FileCheck2,
-  ShoppingCart, Home, Bot, UserCircle, LogOut, Menu, Search, Bell, ChevronDown,
+  ShoppingCart, Home, Bot, UserCircle, LogOut, Menu, ChevronDown,
   Activity, Rotate3D, ScanLine, Store,
 } from 'lucide-react'
 import { Logo, Avatar } from './ui'
@@ -44,8 +44,13 @@ export default function Shell() {
   const loc = useLocation()
   const nav = useNavigate()
   const [tick, setTick] = useState(0)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const meta = PAGE_TITLES[loc.pathname] || PAGE_TITLES['/']
+  // 路由变化时自动关闭移动端抽屉（点击导航项后抽屉应收起）
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [loc.pathname])
 
   const handleLogout = async () => {
     await logout()
@@ -60,9 +65,17 @@ export default function Shell() {
         onToggle={() => setNavCollapsed(!navCollapsed)}
         user={user}
         onLogout={handleLogout}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
       />
       <div className="shell-main">
-        <TopBar title={meta[0]} sub={meta[1]} tick={tick} user={user} />
+        <TopBar
+          title={meta[0]}
+          sub={meta[1]}
+          tick={tick}
+          user={user}
+          onToggleMobile={() => setMobileNavOpen(!mobileNavOpen)}
+        />
         <main className="shell-content">
           <Outlet />
         </main>
@@ -74,9 +87,10 @@ export default function Shell() {
 }
 
 /* ================= 侧边导航 ================= */
-function SideNav({ collapsed, onToggle, user, onLogout }) {
+function SideNav({ collapsed, onToggle, user, onLogout, mobileOpen, onCloseMobile }) {
   return (
-    <aside className={`sidenav${collapsed ? ' sidenav--collapsed' : ''}`}>
+    <>
+      <aside className={`sidenav${collapsed ? ' sidenav--collapsed' : ''}${mobileOpen ? ' sidenav--mobile-open' : ''}`}>
       <div className="sidenav-brand">
         <Logo size={collapsed ? 32 : 34} withText={!collapsed} />
       </div>
@@ -89,6 +103,7 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
             end={end}
             title={collapsed ? label : undefined}
             className={({ isActive }) => `nav-item${isActive ? ' nav-item--active' : ''}`}
+            onClick={onCloseMobile}
           >
             <Icon size={18} strokeWidth={1.8} />
             {!collapsed && <span className="nav-label">{label}</span>}
@@ -102,6 +117,7 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
           to="/ai"
           className={({ isActive }) => `nav-item nav-item--ai${isActive ? ' nav-item--active' : ''}`}
           title={collapsed ? 'AI 管家' : undefined}
+          onClick={onCloseMobile}
         >
           <Bot size={18} strokeWidth={1.8} />
           {!collapsed && <span className="nav-label">AI 管家</span>}
@@ -112,6 +128,7 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
           to="/diagnostics"
           className={({ isActive }) => `nav-item${isActive ? ' nav-item--active' : ''}`}
           title={collapsed ? '全链路诊断' : undefined}
+          onClick={onCloseMobile}
         >
           <Activity size={18} strokeWidth={1.8} />
           {!collapsed && <span className="nav-label">全链路诊断</span>}
@@ -121,6 +138,7 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
           to="/profile"
           className={({ isActive }) => `nav-item${isActive ? ' nav-item--active' : ''}`}
           title={collapsed ? '我的' : undefined}
+          onClick={onCloseMobile}
         >
           <UserCircle size={18} strokeWidth={1.8} />
           {!collapsed && <span className="nav-label">我的</span>}
@@ -146,14 +164,28 @@ function SideNav({ collapsed, onToggle, user, onLogout }) {
           <Menu size={16} />
         </button>
       </div>
-    </aside>
+      </aside>
+      <div
+        className={`sidenav-backdrop${mobileOpen ? ' is-visible' : ''}`}
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
+    </>
   )
 }
 
 /* ================= 顶栏 ================= */
-function TopBar({ title, sub, tick, user }) {
+function TopBar({ title, sub, tick, user, onToggleMobile }) {
   return (
     <header className="topbar">
+      <button
+        className="icon-btn topbar-menu-btn"
+        onClick={onToggleMobile}
+        title="菜单"
+        aria-label="打开导航菜单"
+      >
+        <Menu size={18} />
+      </button>
       <div className="topbar-left">
         <h1 className="topbar-title">{title}</h1>
         <span className="topbar-sub mono">{sub}</span>
@@ -161,13 +193,6 @@ function TopBar({ title, sub, tick, user }) {
 
       <div className="topbar-right">
         <div className="topbar-date mono dim">{new Date().toLocaleDateString('zh-CN')}</div>
-        <button className="icon-btn" title="搜索">
-          <Search size={16} />
-        </button>
-        <button className="icon-btn" title="通知">
-          <Bell size={16} />
-          <i className="notify-dot" />
-        </button>
         <div className="topbar-user">
           <Avatar text={user?.name?.[0] || '索'} size={30} />
           <span className="topbar-user-name">{user?.name?.slice(0, 6) || '索克用户'}</span>
@@ -180,11 +205,17 @@ function TopBar({ title, sub, tick, user }) {
 
 /* ================= 备案号 Footer =================
  * 工信部要求：网站主页下方悬挂互联网信息服务备案号，并链接至工信部备案管理系统。
+ * 同时接入公开文档（使用指南/隐私政策/服务条款，见 assets/guide + assets/legal）。
  */
 function Footer() {
   return (
     <footer className="app-footer">
       <span className="app-footer-copy">© 2026 索克家居 · i-home.life — AI 智能装修平台</span>
+      <span className="app-footer-docs">
+        <Link to="/guide">使用指南</Link>
+        <Link to="/legal/privacy">隐私政策</Link>
+        <Link to="/legal/terms">服务条款</Link>
+      </span>
       <span className="app-footer-beian">
         <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
           滇ICP备2026015233号-2

@@ -1985,7 +1985,24 @@ export interface EvalReport {
   tool_accuracy?: Record<string, unknown>;
   // v1.13.5: 用户反馈满意度维度
   feedback_metrics?: EvalFeedbackMetrics;
+  // v1.13.6: 用户体验维度（任务完成率/弃单率/会话轮次/星级）
+  ux_metrics?: EvalUxMetrics;
+  // v1.13.6: LLM-as-judge 语义评分（受 llm_judge_enabled 门控，默认空）
+  llm_judge?: Record<string, unknown>;
   notes: string[];
+}
+
+/** v1.13.6 用户体验维度（任务完成率/弃单率/会话轮次/星级） */
+export interface EvalUxMetrics {
+  window_days: number;
+  min_samples: number;
+  total_sessions: number;
+  task_completion_rate: number | null;
+  abandonment_rate: number | null;
+  avg_turns_per_session: number;
+  avg_rating: number | null;
+  rating_samples: number;
+  note?: string | null;
 }
 
 /** v1.13.5 反馈满意度维度（per-agent like 率 + overall 聚合判定） */
@@ -2024,6 +2041,26 @@ export interface EvalDriftResponse {
   quality_targets: Record<string, number>;
   records: EvalDriftRecord[];
   summary: { total: number; critical: number; warn: number; ok: number; insufficient_samples: number };
+}
+
+/** GET /api/eval/trend 返回（v1.13.6 快照趋势，多轮迭代闭环） */
+export interface EvalTrendItem {
+  id: string;
+  created_at: string | null;
+  sample_size: number;
+  metrics: {
+    success_rate?: number;
+    fallback_rate?: number;
+    avg_latency_ms?: number;
+    first_token_p95_ms?: number;
+  };
+  delta_prev: Record<string, number>;
+  delta_baseline: Record<string, number>;
+}
+
+export interface EvalTrendResponse {
+  snapshot_count: number;
+  trend: EvalTrendItem[];
 }
 
 /** GET /api/admin/agent-governance-audit 返回（v1.12.x OWASP Agentic Skills Top 10 对照） */

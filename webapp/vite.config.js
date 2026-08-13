@@ -16,6 +16,10 @@ export default defineConfig({
   server: {
     port: 5273,
     strictPort: true,
+    // 允许 dev server 读取仓库根目录（DocsPage 经 ?raw 引入 assets/guide + assets/legal）
+    fs: {
+      allow: ['..'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',

@@ -5,6 +5,7 @@ import 'dart:async';  // unawaited
 import '../main.dart' show AuthGate, ThemeState;
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
+import '../services/url_opener.dart';
 import '../widgets/user_avatar.dart';
 
 /// 用户设置页面
@@ -271,7 +272,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ── 危险操作 ──
+  // ── 其他（版本 / 公开文档 / 备案号 / 退出） ──
 
   Widget _buildDangerSection() {
     return _sectionCard(
@@ -280,7 +281,33 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           leading: Icon(Icons.info_outline, color: SuokeDesignTokens.textSub(context)),
           title: Text('版本', style: TextStyle(color: SuokeDesignTokens.text(context))),
-          trailing: Text('1.13.4', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+          trailing: Text('1.13.6', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+        ),
+        Divider(color: SuokeDesignTokens.textSub(context), height: 1),
+        ListTile(
+          leading: Icon(Icons.menu_book_outlined, color: SuokeDesignTokens.textSub(context)),
+          title: Text('使用指南', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
+          onTap: () => openExternalUrl(context, PublicDocLinks.guide),
+        ),
+        ListTile(
+          leading: Icon(Icons.privacy_tip_outlined, color: SuokeDesignTokens.textSub(context)),
+          title: Text('隐私政策', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
+          onTap: () => openExternalUrl(context, PublicDocLinks.privacy),
+        ),
+        ListTile(
+          leading: Icon(Icons.description_outlined, color: SuokeDesignTokens.textSub(context)),
+          title: Text('服务条款', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Icon(Icons.chevron_right, color: SuokeDesignTokens.textSub(context)),
+          onTap: () => openExternalUrl(context, PublicDocLinks.terms),
+        ),
+        // 备案号（工信部合规：链接至备案管理系统）
+        ListTile(
+          leading: Icon(Icons.badge_outlined, color: SuokeDesignTokens.textSub(context)),
+          title: Text('备案号', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          trailing: Text('滇ICP备2026015233号-2', style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 12)),
+          onTap: () => openExternalUrl(context, PublicDocLinks.beian),
         ),
         Divider(color: SuokeDesignTokens.textSub(context), height: 1),
         ListTile(

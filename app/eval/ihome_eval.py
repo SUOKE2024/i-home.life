@@ -37,6 +37,17 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+def _percentile(values: list[float], p: float) -> float:
+    """线性插值百分位数（p50/p95/p99）。空列表返回 0.0（诚实标注无数据）。"""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    k = (len(ordered) - 1) * p
+    f = int(k)
+    c = f + 1 if f + 1 < len(ordered) else f
+    return ordered[f] + (ordered[c] - ordered[f]) * (k - f)
+
+
 class IHomeEvalDimension(str, Enum):
     """家居领域评估维度（对标 Suoke-Eval1 v2.0 的 20 维）"""
 
@@ -90,6 +101,10 @@ QUALITY_TARGETS: dict[str, float] = {
     # v1.13.4（评估体系维度，2026 前沿：用户满意度纳入质量门禁）：
     "feedback_like_rate_min": 70.0,   # 用户反馈 like 率下限（%）（like/(like+dislike)）
     "feedback_min_samples": 5,        # 反馈漂移判定最小样本量（低于则不判定，诚实标注）
+    # v1.13.6（响应速度 + 用户体验量化）：
+    "latency_p95_ms_max": 30000.0,    # 总延迟 p95 上限（ms）
+    "task_completion_rate_min": 70.0,  # 会话任务完成率下限（%）
+    "abandonment_rate_max": 30.0,      # 会话弃单率上限（%）
 }
 
 
@@ -108,6 +123,8 @@ class IHomeEvalReport:
     quality_targets: dict[str, float] = field(default_factory=dict)  # v1.12.x 量化目标
     tool_accuracy: dict = field(default_factory=dict)  # v1.13.x 工具选择准确率报告
     feedback_metrics: dict = field(default_factory=dict)  # v1.13.5 用户反馈满意度维度
+    ux_metrics: dict = field(default_factory=dict)  # v1.13.6 用户体验维度
+    llm_judge: dict = field(default_factory=dict)  # v1.13.6 LLM-as-judge 语义评分
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -123,6 +140,8 @@ class IHomeEvalReport:
             "quality_targets": self.quality_targets,
             "tool_accuracy": self.tool_accuracy,
             "feedback_metrics": self.feedback_metrics,
+            "ux_metrics": self.ux_metrics,
+            "llm_judge": self.llm_judge,
             "dimension_benchmarks": DIMENSION_BENCHMARKS,
             "notes": self.notes,
         }
@@ -189,11 +208,19 @@ class IHomeEvalRunner:
         avg_latency = (
             sum(t.get("latency_ms", 0) for t in traces) / total
         )
+        # v1.13.6：延迟分位数（p50/p95/p99）+ 首 token p95 实测
+        latencies = [t.get("latency_ms", 0) or 0 for t in traces]
+        first_tokens = [t.get("first_token_latency_ms", 0) or 0 for t in traces]
+        first_tokens_nonzero = [v for v in first_tokens if v > 0]
         return {
             "success_rate": round(success / total * 100, 2),
             "fallback_rate": round(fallback / total * 100, 2),
             "reasoning_leak_rate": round(leaked / total * 100, 2),
             "avg_latency_ms": round(avg_latency, 2),
+            "latency_p50_ms": round(_percentile(latencies, 0.5), 2),
+            "latency_p95_ms": round(_percentile(latencies, 0.95), 2),
+            "latency_p99_ms": round(_percentile(latencies, 0.99), 2),
+            "first_token_p95_ms": round(_percentile(first_tokens_nonzero, 0.95), 2),
             "total_runs": total,
         }
 
@@ -212,9 +239,14 @@ class IHomeEvalRunner:
         scores[IHomeEvalDimension.REASONING_LEAK_RATE.value] = round(
             100 - m.get("reasoning_leak_rate", 0), 2
         )
-        scores[IHomeEvalDimension.SSE_LATENCY.value] = round(
-            max(0, 100 - m.get("avg_latency_ms", 0) / 50), 2  # 5s = 0 分
-        )
+        # v1.13.6：SSE_LATENCY 改用首 token p95 实测（8s = 0 分，对齐 first_token_p95_ms_max）；
+        # 无首 token 数据时回退 avg_latency 伪代理（诚实降级，不伪造）。
+        ft_p95 = m.get("first_token_p95_ms", 0) or 0
+        if ft_p95 > 0:
+            sse_latency = max(0, 100 - ft_p95 / 80)
+        else:
+            sse_latency = max(0, 100 - m.get("avg_latency_ms", 0) / 50)
+        scores[IHomeEvalDimension.SSE_LATENCY.value] = round(sse_latency, 2)
 
         # 正向指标
         scores[IHomeEvalDimension.TOOL_CALL_ACCURACY.value] = self._tool_call_score(traces)
@@ -294,9 +326,13 @@ class IHomeEvalRunner:
         avg_tool_calls（平均工具调用数）、tool_success_rate（工具执行成功率）、
         token_budget_hit_rate（预算早停率，过高说明工具结果上下文过大需优化）。
 
+        v1.13.6 增强：新增延迟分位数（latency_p95_ms）与首 token p95
+        （first_token_p95_ms）——响应速度可量化。
+
         Returns:
             {"designer": {"sample_size": n, "success_rate": .., "fallback_rate": ..,
-                          "avg_latency_ms": .., "avg_tool_calls": ..,
+                          "avg_latency_ms": .., "latency_p95_ms": ..,
+                          "first_token_p95_ms": .., "avg_tool_calls": ..,
                           "tool_success_rate": .., "token_budget_hit_rate": ..,
                           "meets_targets": bool}, ...}
         """
@@ -313,6 +349,10 @@ class IHomeEvalRunner:
             avg_latency = sum(t.get("latency_ms", 0) for t in group) / total
             success_rate = round(success / total * 100, 2)
             fallback_rate = round(fallback / total * 100, 2)
+            # v1.13.6 响应速度分位
+            latencies = [t.get("latency_ms", 0) or 0 for t in group]
+            first_tokens = [t.get("first_token_latency_ms", 0) or 0 for t in group]
+            first_tokens_nonzero = [v for v in first_tokens if v > 0]
             # v1.13.0 工具维度
             avg_tool_calls = round(
                 sum(t.get("tool_call_count", 0) for t in group) / total, 2
@@ -336,6 +376,8 @@ class IHomeEvalRunner:
                 "success_rate": success_rate,
                 "fallback_rate": fallback_rate,
                 "avg_latency_ms": round(avg_latency, 2),
+                "latency_p95_ms": round(_percentile(latencies, 0.95), 2),
+                "first_token_p95_ms": round(_percentile(first_tokens_nonzero, 0.95), 2),
                 "avg_tool_calls": avg_tool_calls,
                 "tool_success_rate": tool_success_rate,
                 "token_budget_hit_rate": budget_hit_rate,
@@ -645,4 +687,302 @@ async def compute_feedback_metrics(
         "agent_count": len(per_agent),
         "per_agent": per_agent,
         "overall": overall,
+    }
+
+
+async def compute_ux_metrics(
+    db, window_days: int = 7, min_samples: int = 5,
+) -> dict:
+    """用户体验维度（v1.13.6）：任务完成率/弃单率/平均会话轮次/星级均值。
+
+    数据源：
+    - agent_sessions + agent_messages（会话级）：任务完成 = 末条消息 assistant；
+      弃单 = 末条消息 user（问而未答）
+    - agent_feedbacks（星级）：avg(rating)，1-5 星
+
+    诚实标注：会话样本量 < min_samples 时 completion/abandonment 不判定（None）。
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func, select
+    from app.models.agent_session import AgentSession, AgentMessage
+    from app.models.agent_feedback import AgentFeedback
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+
+    # 每会话最后一条消息角色
+    last_role_subq = (
+        select(AgentMessage.role)
+        .where(AgentMessage.session_id == AgentSession.id)
+        .order_by(AgentMessage.sequence.desc())
+        .limit(1)
+        .correlate(AgentSession)
+        .scalar_subquery()
+    )
+    sessions_result = await db.execute(
+        select(last_role_subq, func.count())
+        .select_from(AgentSession)
+        .where(AgentSession.created_at >= cutoff)
+        .where(AgentSession.is_deleted.is_(False))
+        .where(AgentSession.message_count > 0)
+        .group_by(last_role_subq)
+    )
+    role_counts = {r[0]: int(r[1]) for r in sessions_result.all()}
+    total_sessions = sum(role_counts.values())
+    completed = role_counts.get("assistant", 0)
+    abandoned = role_counts.get("user", 0)
+
+    # 平均会话轮次（窗口内会话的 user 消息数均值）
+    window_sessions = (
+        select(AgentSession.id)
+        .where(AgentSession.created_at >= cutoff)
+        .where(AgentSession.is_deleted.is_(False))
+    )
+    user_counts = (
+        select(func.count().label("turns"))
+        .select_from(AgentMessage)
+        .where(AgentMessage.role == "user")
+        .where(AgentMessage.session_id.in_(window_sessions))
+        .group_by(AgentMessage.session_id)
+        .subquery()
+    )
+    turns_result = await db.execute(select(func.avg(user_counts.c.turns)))
+    avg_turns = float(turns_result.scalar() or 0.0)
+
+    # 星级均值
+    rating_result = await db.execute(
+        select(func.avg(AgentFeedback.rating), func.count())
+        .where(AgentFeedback.rating.isnot(None))
+        .where(AgentFeedback.created_at >= cutoff)
+    )
+    avg_rating, rating_cnt = rating_result.one()
+
+    sufficient = total_sessions >= min_samples
+    return {
+        "window_days": window_days,
+        "min_samples": min_samples,
+        "total_sessions": total_sessions,
+        "task_completion_rate": (
+            round(completed / total_sessions * 100, 2) if sufficient else None
+        ),
+        "abandonment_rate": (
+            round(abandoned / total_sessions * 100, 2) if sufficient else None
+        ),
+        "avg_turns_per_session": round(avg_turns, 2),
+        "avg_rating": round(float(avg_rating), 2) if avg_rating is not None else None,
+        "rating_samples": int(rating_cnt or 0),
+        "note": None if sufficient else "会话样本量不足，任务完成率/弃单率不判定（诚实标注）",
+    }
+
+
+# ── v1.13.6 评估快照层（历史趋势对比 + 迭代闭环）──
+
+async def fetch_agent_traces_as_dicts(
+    db, window_days: int | None = None, limit: int = 500,
+) -> list[dict]:
+    """从 agent_traces 拉取轨迹并转换为 IHomeEvalRunner 期望的 dict 形态。
+
+    映射 AgentTraceRecord → {status, fallback_used, latency_ms,
+    first_token_latency_ms, agent_name, tool_call_count, token_budget_hit,
+    response_truncated}（response_preview → response_truncated）。
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.agent_trace import AgentTraceRecord
+
+    stmt = select(AgentTraceRecord)
+    if window_days is not None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+        stmt = stmt.where(AgentTraceRecord.created_at >= cutoff)
+    stmt = stmt.order_by(AgentTraceRecord.created_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    rows = result.scalars().all()
+    return [
+        {
+            "status": r.status,
+            "fallback_used": bool(r.fallback_used),
+            "latency_ms": float(r.latency_ms or 0.0),
+            "first_token_latency_ms": float(r.first_token_latency_ms or 0.0),
+            "agent_name": r.agent_name,
+            "tool_call_count": int(r.tool_call_count or 0),
+            "token_budget_hit": bool(r.token_budget_hit),
+            "response_truncated": r.response_preview or "",
+        }
+        for r in rows
+    ]
+
+
+async def persist_eval_snapshot(db, report: IHomeEvalReport) -> str:
+    """落一条评估快照（best-effort）。
+
+    把完整评估报告（metrics/dimension_scores/per_agent_scores/... ）序列化到
+    eval_snapshots 表，供历史趋势对比与漂移检测（vs 历史基线）。
+    """
+    from app.models.eval_snapshot import EvalSnapshotRecord
+
+    record = EvalSnapshotRecord(
+        version=settings.app_version,
+        baseline=report.baseline,
+        sample_size=report.sample_size,
+        metrics=report.metrics,
+        dimension_scores=report.dimension_scores,
+        per_agent_scores=report.per_agent_scores,
+        quality_targets=report.quality_targets,
+        tool_accuracy=report.tool_accuracy,
+        feedback_metrics=report.feedback_metrics,
+        ux_metrics=report.ux_metrics,
+        notes=report.notes,
+    )
+    db.add(record)
+    if db.in_transaction():
+        await db.commit()
+    return record.id
+
+
+async def list_eval_snapshots(db, limit: int = 50) -> list[dict]:
+    """列出最近评估快照（倒序）。"""
+    from sqlalchemy import select
+    from app.models.eval_snapshot import EvalSnapshotRecord
+
+    result = await db.execute(
+        select(EvalSnapshotRecord)
+        .order_by(EvalSnapshotRecord.created_at.desc())
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    return [
+        {
+            "id": r.id,
+            "version": r.version,
+            "baseline": r.baseline,
+            "sample_size": r.sample_size,
+            "metrics": r.metrics or {},
+            "dimension_scores": r.dimension_scores or {},
+            "per_agent_scores": r.per_agent_scores or {},
+            "quality_targets": r.quality_targets or {},
+            "tool_accuracy": r.tool_accuracy or {},
+            "feedback_metrics": r.feedback_metrics or {},
+            "ux_metrics": r.ux_metrics or {},
+            "notes": r.notes or [],
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
+def _delta(current: float, previous: float) -> float:
+    return round(current - previous, 2)
+
+
+async def compute_snapshot_trend(db, limit: int = 30) -> dict:
+    """评估快照趋势（v1.13.6，多轮迭代闭环）。
+
+    按时间升序对比关键指标 vs 上一快照（delta_prev）与首个基线快照
+    （delta_baseline）：success_rate / fallback_rate / avg_latency_ms /
+    first_token_p95_ms。
+    """
+    from sqlalchemy import select
+    from app.models.eval_snapshot import EvalSnapshotRecord
+
+    result = await db.execute(
+        select(EvalSnapshotRecord)
+        .order_by(EvalSnapshotRecord.created_at.asc())
+        .limit(limit)
+    )
+    rows = result.scalars().all()
+    trend: list[dict] = []
+    first_metrics: dict = {}
+    prev_metrics: dict = {}
+    keys = ("success_rate", "fallback_rate", "avg_latency_ms", "first_token_p95_ms")
+    for i, r in enumerate(rows):
+        m = r.metrics or {}
+        if i == 0:
+            first_metrics = m
+        entry = {
+            "id": r.id,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "sample_size": r.sample_size,
+            "metrics": {k: m.get(k) for k in keys},
+            "delta_prev": {},
+            "delta_baseline": {},
+        }
+        if prev_metrics:
+            entry["delta_prev"] = {
+                k: _delta(m.get(k) or 0, prev_metrics.get(k) or 0) for k in keys
+            }
+        if i > 0 and first_metrics:
+            entry["delta_baseline"] = {
+                k: _delta(m.get(k) or 0, first_metrics.get(k) or 0) for k in keys
+            }
+        trend.append(entry)
+        prev_metrics = m
+    return {"snapshot_count": len(trend), "trend": trend}
+
+
+async def detect_drift_vs_history(
+    db, window_days: int = 7, min_samples: int = 5,
+) -> dict:
+    """当前窗口 vs 最近历史快照基线 的 per-agent 漂移（v1.13.6）。
+
+    取最近一条快照的 per_agent_scores 作为历史基线，对比当前窗口 per-agent
+    成功率/降级率/平均延迟，输出 delta（当前 - 历史）。
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import case, func, select
+    from app.models.agent_trace import AgentTraceRecord
+    from app.models.eval_snapshot import EvalSnapshotRecord
+
+    snap = await db.execute(
+        select(EvalSnapshotRecord).order_by(EvalSnapshotRecord.created_at.desc()).limit(1)
+    )
+    snap_row = snap.scalars().first()
+    if snap_row is None:
+        return {"available": False, "reason": "无历史快照基线", "records": []}
+    baseline_per_agent = snap_row.per_agent_scores or {}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+    stmt = (
+        select(
+            AgentTraceRecord.agent_name,
+            func.count().label("cnt"),
+            func.sum(case((AgentTraceRecord.status == "success", 1), else_=0)).label("success_cnt"),
+            func.sum(case((AgentTraceRecord.fallback_used.is_(True), 1), else_=0)).label("fallback_cnt"),
+            func.avg(AgentTraceRecord.latency_ms).label("avg_latency"),
+        )
+        .where(AgentTraceRecord.created_at >= cutoff)
+        .group_by(AgentTraceRecord.agent_name)
+    )
+    result = await db.execute(stmt)
+    records: list[dict] = []
+    for name, cnt, success_cnt, fallback_cnt, avg_latency in result.all():
+        total = int(cnt)
+        if total < min_samples:
+            continue
+        success_rate = round(int(success_cnt or 0) / total * 100, 2)
+        fallback_rate = round(int(fallback_cnt or 0) / total * 100, 2)
+        avg_latency = round(float(avg_latency or 0), 2)
+        base = baseline_per_agent.get(name, {})
+        records.append({
+            "agent_name": name,
+            "sample_size": total,
+            "current": {
+                "success_rate": success_rate,
+                "fallback_rate": fallback_rate,
+                "avg_latency_ms": avg_latency,
+            },
+            "baseline": {
+                "success_rate": base.get("success_rate"),
+                "fallback_rate": base.get("fallback_rate"),
+                "avg_latency_ms": base.get("avg_latency_ms"),
+            },
+            "delta": {
+                "success_rate": _delta(success_rate, base.get("success_rate") or 0),
+                "fallback_rate": _delta(fallback_rate, base.get("fallback_rate") or 0),
+                "avg_latency_ms": _delta(avg_latency, base.get("avg_latency_ms") or 0),
+            },
+        })
+    return {
+        "available": True,
+        "baseline_snapshot_id": snap_row.id,
+        "baseline_created_at": snap_row.created_at.isoformat() if snap_row.created_at else None,
+        "records": records,
     }

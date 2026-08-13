@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.13.4"
+    app_version: str = "1.13.6"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -389,6 +389,10 @@ class Settings(BaseSettings):
     # 高于基线才有价值」）。默认关闭——每次抽样真实调用 LLM（成本/非确定性），
     # 仅管理员按需开启做成本对比评估。
     tool_llm_sampling_enabled: bool = False
+    # v1.13.6：LLM-as-judge 语义正确性评估（faithfulness/completeness/sufficiency
+    # 三要素 0-1 评分，替换关键词代理）。默认关闭——每次抽样真实调用 LLM
+    # （成本/非确定性），仅管理员按需开启；关闭时回退确定性关键词基线并诚实标注。
+    llm_judge_enabled: bool = False
 
     # ── Model Spec 宪法 + HC 硬约束（借鉴 suoke_model_spec）──
     # 启用后 DesignerAgent/BudgetAgent/ProcurementAgent 输出经 rebuttal_engine 校验

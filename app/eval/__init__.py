@@ -10,7 +10,13 @@ from app.eval.ihome_eval import (
     IHomeEvalRunner,
     QUALITY_TARGETS,
     compute_feedback_metrics,
+    compute_snapshot_trend,
+    compute_ux_metrics,
     detect_agent_drift,
+    detect_drift_vs_history,
+    fetch_agent_traces_as_dicts,
+    list_eval_snapshots,
+    persist_eval_snapshot,
     run_ihome_eval,
 )
 from app.eval.tool_accuracy import (
@@ -21,6 +27,11 @@ from app.eval.tool_accuracy import (
     evaluate_tool_selection,
     get_tool_accuracy_report,
 )
+from app.eval.llm_judge import (
+    LLM_JUDGE_DIMENSIONS,
+    evaluate_llm_judge,
+    judge_reply,
+)
 
 __all__ = [
     "DIMENSION_BENCHMARKS",
@@ -29,7 +40,13 @@ __all__ = [
     "IHomeEvalRunner",
     "QUALITY_TARGETS",
     "compute_feedback_metrics",
+    "compute_snapshot_trend",
+    "compute_ux_metrics",
     "detect_agent_drift",
+    "detect_drift_vs_history",
+    "fetch_agent_traces_as_dicts",
+    "list_eval_snapshots",
+    "persist_eval_snapshot",
     "run_ihome_eval",
     "TOOL_SELECTION_DATASET",
     "classify_tool_by_keywords",
@@ -37,4 +54,7 @@ __all__ = [
     "evaluate_llm_tool_selection",
     "evaluate_tool_selection",
     "get_tool_accuracy_report",
+    "LLM_JUDGE_DIMENSIONS",
+    "evaluate_llm_judge",
+    "judge_reply",
 ]

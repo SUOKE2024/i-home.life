@@ -155,3 +155,48 @@ async def test_trigger_alerts_skips_when_single_active_exists(db_session):
         )
     )
     assert count.scalar() == 1
+
+
+@pytest.mark.asyncio
+async def test_check_project_naive_planned_date_no_crash(db_session):
+    """SQLite 落库的 naive planned_date 与 now 比较不应抛异常。
+
+    回归（v1.13.5 启动后端巡检报错）：_check_project 用 aware `datetime.now(timezone.utc)`
+    与 SQLite 读回的 naive `planned_date` 比较，抛 `can't compare offset-naive and
+    offset-aware datetimes`。修复后 now 转 naive UTC，超期里程碑应正确计为 overdue。
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.progress_alert import MilestoneTracker
+
+    project = await _create_project_with_owner(db_session)
+    # 模拟 SQLite 落库形态：naive UTC 时间
+    past = (datetime.now(timezone.utc) - timedelta(days=3)).replace(tzinfo=None)
+    future = (datetime.now(timezone.utc) + timedelta(days=10)).replace(tzinfo=None)
+    db_session.add_all([
+        MilestoneTracker(
+            project_id=project.id,
+            milestone_code="mep",
+            name="水电验收",
+            planned_date=past,
+            planned_percent=40.0,
+            actual_percent=0.0,
+            status="pending",
+        ),
+        MilestoneTracker(
+            project_id=project.id,
+            milestone_code="completion",
+            name="竣工验收",
+            planned_date=future,
+            planned_percent=100.0,
+            actual_percent=0.0,
+            status="pending",
+        ),
+    ])
+    await db_session.commit()
+
+    # 修复前：L304 比较抛异常；修复后应正常返回且 1 个超期里程碑
+    result = await health_monitor._check_project(db_session, project)
+    assert result.total_milestones == 2
+    assert result.health_score < 100.0
+    assert result.alerts, "存在超期里程碑应产生预警"

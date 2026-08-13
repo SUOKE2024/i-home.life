@@ -100,6 +100,9 @@ from app.models.diagnostics import (
 # v1.12.x 智能体系统性打磨 — Agent 执行轨迹持久化（可观测性 + 离线评估 + 漂移检测）
 from app.models.agent_trace import AgentTraceRecord
 
+# v1.13.6 质量评估体系 — 评估快照持久化（历史趋势对比 + 迭代闭环）
+from app.models.eval_snapshot import EvalSnapshotRecord
+
 # 设备链路全量诊断修复 — 传感器快照落库（Flutter SensorService 上报真实读数）
 from app.models.sensor_snapshot import SensorSnapshot
 
@@ -242,6 +245,8 @@ __all__ = [
     "DiagnosticRumEvent",
     # v1.12.x Agent 执行轨迹持久化
     "AgentTraceRecord",
+    # v1.13.6 质量评估体系 — 评估快照持久化
+    "EvalSnapshotRecord",
     # 设备链路全量诊断修复 — 传感器快照落库
     "SensorSnapshot",
 ]

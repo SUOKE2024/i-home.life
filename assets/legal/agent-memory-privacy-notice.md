@@ -5,7 +5,7 @@
 
 ## 一、功能说明
 
-i-home.life 平台的 AI Agent 自进化功能（受 `agent_case_extraction_enabled` / `agent_skill_distillation_enabled` / `agent_skill_evolution_enabled` 三个 feature flag 控制，默认全部关闭）会在 Agent 执行任务时自动收集、处理和存储以下数据：
+i-home.life 平台的 AI Agent 自进化功能（受 `agent_case_extraction_enabled` / `agent_skill_distillation_enabled` / `agent_skill_evolution_enabled` 三个 feature flag 控制，v1.13.2 起默认全部开启，可灰度关闭）会在 Agent 执行任务时自动收集、处理和存储以下数据：
 
 1. **Agent Case（经验记录）**：Agent 每次完成目标导向任务后，系统自动提取的结构化执行记录，包含任务意图、分步执行摘要、完成质量评分。
 2. **Agent Skill（技能资产）**：从多条同类 Case 中蒸馏出的可复用技能，包含通用操作流程和验收标准。
@@ -73,15 +73,15 @@ i-home.life 平台的 AI Agent 自进化功能（受 `agent_case_extraction_enab
 
 ## 六、Feature Flag 控制
 
-自进化功能受三个独立 feature flag 控制，默认全部关闭，确保用户在功能未开启时 Agent 维持无记忆无进化的静态行为：
+自进化功能受三个独立 feature flag 控制，v1.13.2 起默认全部开启（关闭即回退为无记忆无进化的静态 Agent 行为）：
 
 | Flag | 控制范围 | 默认 |
 |------|---------|------|
-| `agent_case_extraction_enabled` | Case 提取 | False |
-| `agent_skill_distillation_enabled` | Skill 蒸馏 + 检索注入 | False |
-| `agent_skill_evolution_enabled` | Skill 进化 + 诊断归因 | False |
+| `agent_case_extraction_enabled` | Case 提取 | True（v1.13.2 起） |
+| `agent_skill_distillation_enabled` | Skill 蒸馏 + 检索注入 | True（v1.13.2 起） |
+| `agent_skill_evolution_enabled` | Skill 进化 + 诊断归因 | True（v1.13.2 起） |
 
-回滚命令：`bash scripts/rollback.sh v1.10.1`（一键关闭三个 flag）
+回滚命令：`bash scripts/rollback.sh v1.13.1`（一键关闭三个 flag，复用自进化管线回滚清单）
 
 ## 七、第三方数据流转
 
@@ -97,4 +97,8 @@ i-home.life 平台的 AI Agent 自进化功能（受 `agent_case_extraction_enab
 
 ## 九、联系方式
 
-如对本隐私声明有任何疑问，请联系：i-home.life 平台运营方
+如对本隐私声明有任何疑问，请联系：
+
+- **邮箱**：<song.xu@icloud.com>
+
+我们将在 1 个工作日内回复您的邮件。

@@ -1,7 +1,7 @@
 name: ihome_app
 description: "索克家居 · i-home.life"
 publish_to: 'none'
-version: 1.13.4+44
+version: 1.13.6+46
 
 # 版本治理说明（v1.3.0）：
 # - 鸿蒙端：Flutter-OH 3.35.7-ohos-0.0.3 / Dart 3.9.2（DevEco Studio 6.0.2 / OpenHarmony API 23+）
@@ -47,6 +47,10 @@ dependencies:
   # 工具
   intl: ^0.20.3
   uuid: ^4.4.0
+  # 打开外部链接（使用指南/隐私政策/服务条款/备案号，对齐 webapp 公开路由）
+  # 注意：鸿蒙端依赖 ohos 实现（openHarmony-tpc flutter_packages），
+  # 启动失败时 url_opener.dart 降级为复制链接到剪贴板。
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

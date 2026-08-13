@@ -65,7 +65,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 105 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。128 ORM 模型 + 76 路由已够复杂（`app/api/` 磁盘实为 76 个路由模块，main.py 79 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2304 passed 不得回退（collect 2310 = 2304 passed + 2 skipped + 4 xfailed，2026-08-13 全量校准；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2318 passed 不得回退（collect 2324 = 2318 passed + 2 skipped + 4 xfailed，2026-08-13 全量校准；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

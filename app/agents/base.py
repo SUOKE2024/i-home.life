@@ -171,18 +171,10 @@ class BaseAgent:
         # 仅缓存非工具调用的确定性请求（相同 agent+messages → 相同回复），
         # TTL 内重复请求直接命中，避免相同确定性子任务重复调用 LLM。
         # 工具调用（with_tools=True）有副作用，一律不缓存。
-        cache_key = None
-        if not with_tools and settings.llm_response_cache_enabled and settings.llm_response_cache_ttl > 0:
-            try:
-                cache_key = self._build_llm_cache_key(messages)
-                from app.services.cache_service import cache
-                cached = await cache.get(cache_key)
-                if cached is not None:
-                    self._record_tier_usage(self.cost_tier, self.agent_name, self.provider, "cache_hit")
-                    return cached
-            except Exception as e:
-                logger.debug("%s._chat: 缓存读取失败（直通 LLM）: %s", self.agent_name, e)
-                cache_key = None
+        # v1.13.5: 抽至 _try_read_llm_cache 以降 _chat 圈复杂度（C901 18→14）。
+        cached, cache_key = await self._try_read_llm_cache(messages, with_tools)
+        if cached is not None:
+            return cached
 
         last_error = None
         no_key_providers: list[str] = []
@@ -194,12 +186,7 @@ class BaseAgent:
                 )
                 _record_llm_span(self.agent_name, provider, _provider_started, "ok", fallback=False)
                 # 成功且为字符串响应 → 写缓存（best-effort）
-                if cache_key is not None and isinstance(result, str):
-                    try:
-                        from app.services.cache_service import cache
-                        await cache.set(cache_key, result, ttl=settings.llm_response_cache_ttl)
-                    except Exception as e:
-                        logger.debug("%s._chat: 缓存写入失败（忽略）: %s", self.agent_name, e)
+                await self._try_write_llm_cache(cache_key, result)
                 return result
             except ConnectionError as e:
                 # v1.13.2: 未配置 API key 的供应商抛 ConnectionError 跳过，
@@ -256,6 +243,39 @@ class BaseAgent:
                 return {"content": mock_text, "tool_calls": []}
             return mock_text
         raise last_error
+
+    async def _try_read_llm_cache(self, messages: list[dict], with_tools: bool) -> tuple[str | None, str | None]:
+        """读取 LLM 确定性响应缓存（best-effort，v1.13.5 自 _chat 抽出以降圈复杂度）。
+
+        仅缓存非工具调用（with_tools=False）的确定性请求。返回 (cached, cache_key)：
+        命中返回 (cached, cache_key)；未命中返回 (None, cache_key) 供成功后回写；
+        禁用或异常返回 (None, None) 直通 LLM，不影响主流程。
+        """
+        if with_tools or not settings.llm_response_cache_enabled or settings.llm_response_cache_ttl <= 0:
+            return None, None
+        try:
+            cache_key = self._build_llm_cache_key(messages)
+            from app.services.cache_service import cache
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                self._record_tier_usage(self.cost_tier, self.agent_name, self.provider, "cache_hit")
+            return cached, cache_key
+        except Exception as e:
+            logger.debug("%s._chat: 缓存读取失败（直通 LLM）: %s", self.agent_name, e)
+            return None, None
+
+    async def _try_write_llm_cache(self, cache_key: str | None, result: str | dict) -> None:
+        """写 LLM 响应缓存（best-effort，v1.13.5 自 _chat 抽出以降圈复杂度）。
+
+        仅写字符串响应；失败仅 debug 日志，不阻断主流程。
+        """
+        if cache_key is None or not isinstance(result, str):
+            return
+        try:
+            from app.services.cache_service import cache
+            await cache.set(cache_key, result, ttl=settings.llm_response_cache_ttl)
+        except Exception as e:
+            logger.debug("%s._chat: 缓存写入失败（忽略）: %s", self.agent_name, e)
 
     def _build_llm_cache_key(self, messages: list[dict]) -> str:
         """构造 LLM 响应缓存 key：agent + messages 内容哈希。
@@ -495,6 +515,48 @@ class BaseAgent:
             logger.debug(
                 "evolution.inject.failed: agent=%s scope=%s error=%s",
                 self.agent_name, project_id and "project" or "personal", e,
+            )
+
+    async def _maybe_persist_stream_trace(
+        self, user_message: str, reply: Any, db, user_id: str, project_id: str,
+        latency_ms: float,
+    ) -> None:
+        """v1.13.6 流式轨迹落库：端点直连 think_stream 时补 agent_traces 记录。
+
+        主链路流式端点不经过 harness.run（无正式 trace），导致 agent_traces 缺流式
+        延迟数据，评估框架首 token / 延迟分位无法覆盖主链路。本 hook 复用
+        harness._persist_trace 落一条最小轨迹（含 latency_ms + first_token_latency_ms）。
+        best-effort：任何失败仅 log debug，不影响主流程（诚实降级）。
+        """
+        if db is None or not user_id:
+            return
+        try:
+            from app.agents.harness import AgentTrace, AgentRunStatus, get_harness
+            reply_text = reply if isinstance(reply, str) else (
+                json.dumps(reply, ensure_ascii=False)[:2000]
+            )
+            trace = AgentTrace(
+                agent_name=self.agent_name or "base",
+                user_message=user_message or "",
+                user_message_truncated=(user_message or "")[:200],
+                response=reply_text,
+                response_truncated=reply_text[:800],
+                status=AgentRunStatus.SUCCESS,
+                user_id=user_id,
+                project_id=project_id,
+            )
+            trace.latency_ms = round(latency_ms, 2)
+            trace.first_token_latency_ms = getattr(
+                self, "_first_token_latency_ms", 0.0,
+            )
+            await get_harness()._persist_trace(
+                trace, {"db": db, "user_id": user_id, "project_id": project_id},
+                agent=self,
+            )
+        except Exception as e:
+            logger.debug(
+                "%s._maybe_persist_stream_trace 失败（不影响主流程）: %s",
+                self.agent_name, e,
             )
 
     async def _maybe_persist_execution_case(
@@ -749,6 +811,10 @@ class BaseAgent:
             "stream": True,
         }
 
+        # v1.13.6: 首 token 延迟（TTFT）实测——从发出请求到首个 content chunk 的时间，
+        # 回填 self._first_token_latency_ms，供 think_stream 落 agent_traces 首 token 分位。
+        self._first_token_latency_ms = 0.0
+        started = time.monotonic()
         response = await client.send(
             client.build_request("POST", cfg["chat_path"], json=request_body),
             stream=True,
@@ -770,6 +836,10 @@ class BaseAgent:
             # 仅采集 content 字段，跳过 reasoning_content（内部思维链）
             piece = delta.get("content") or ""
             if piece:
+                if self._first_token_latency_ms == 0.0:
+                    self._first_token_latency_ms = round(
+                        (time.monotonic() - started) * 1000, 2,
+                    )
                 yield piece
 
     async def think_stream(self, user_message: str, context: str = "", db=None,
@@ -822,11 +892,17 @@ class BaseAgent:
         messages.append({"role": "user", "content": user_message})
 
         # v1.13.3: 累积完整回复，流结束后用于 Case 沉淀 + Skill 成败回写
+        stream_started = time.monotonic()
         chunks: list[str] = []
         async for chunk in self._chat_stream(messages):
             chunks.append(chunk)
             yield chunk
         reply_text = "".join(chunks)
+        latency_ms = (time.monotonic() - stream_started) * 1000
+        # v1.13.6: 流式轨迹落库（首 token + 总延迟），补齐主链路流式响应速度实测
+        await self._maybe_persist_stream_trace(
+            user_message, reply_text, db, user_id, project_id, latency_ms,
+        )
         await self._maybe_persist_execution_case(
             user_message, reply_text, db, user_id, project_id,
         )

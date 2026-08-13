@@ -4,6 +4,25 @@
 
 ## [Unreleased]
 
+### 修复 flake8 C901：BaseAgent._chat 圈复杂度 18→14（2026-08-13）
+- **全量 pre-commit 暴露**：`BaseAgent._chat`（LLM 多供应商 fallback + 响应缓存核心路径）
+  圈复杂度 18 超 max-complexity=15（C901）——此前仅对改动文件跑 flake8 未覆盖该既有违规
+- **修复**：缓存读写抽为 `_try_read_llm_cache` / `_try_write_llm_cache` 两个 best-effort
+  helper（[base.py](app/agents/base.py)），行为不变，_chat 复杂度 18→14
+- **验证**：flake8 0 + mypy 0 + pre-commit --all-files 全绿（0 fail）+ agent/cache/
+  orchestration/harness 154 tests passed + 全量复核 **2318 passed / 0 failed / 0 errors**
+
+### 全景评估执行：QA 产物治理 + 基线校准 2304→2318（2026-08-13）
+- **清理冗余**：删除 `qa-output/`（发布前 QA 截图/报告/代理脚本，可再生成）并加入
+  [.gitignore](.gitignore)（与 dogfood-output 同族，防测试产物误入库）
+- **全量回归**（`.venv/bin/python -m pytest -q`，1515s）：**2318 passed / 0 failed / 0 errors /
+  2 skipped / 4 xfailed**——干净环境单进程跑，无历史 6 errors（那 6 个均为环境争用超时，
+  非代码缺陷）
+- **校准**：[test_baseline.json](scripts/test_baseline.json) 2304/2/4 → **2318/2/4**，
+  CLAUDE.md 同步（pytest 基线 2304→2318、collect 2310→2324）；2318+2+4=2324 与
+  collect-only 自洽
+- **质量门禁复核**：health_monitor 时区修复（ISSUE-009）flake8 0 + mypy 0
+
 ### 评估框架：LLM 工具分类抽样评估 + EvalPage 反馈展示（v1.13.5 维度，2026-08-13）
 - **LLM 工具分类抽样评估**（[tool_accuracy.py](app/eval/tool_accuracy.py)）：`classify_tool_by_llm`
   （复用 BaseAgent._chat 多 LLM fallback + 11 工具语义 catalog + `_parse_llm_tool_reply`
