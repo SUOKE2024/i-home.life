@@ -88,6 +88,30 @@ def test_runtime_metrics_first_token_empty_fallback():
     assert m["first_token_p95_ms"] == 0.0
 
 
+def test_runtime_metrics_delivery_p95_ms():
+    """交付链路（designer/budget 等）延迟聚合为 delivery_p95_ms；非交付 Agent 不计入"""
+    traces = [
+        {
+            "status": "success", "fallback_used": False, "latency_ms": 100,
+            "first_token_latency_ms": 0, "agent_name": "designer",
+            "response_truncated": "x", "tool_call_count": 0, "token_budget_hit": False,
+        },
+        {
+            "status": "success", "fallback_used": False, "latency_ms": 300,
+            "first_token_latency_ms": 0, "agent_name": "budget",
+            "response_truncated": "x", "tool_call_count": 0, "token_budget_hit": False,
+        },
+        {
+            "status": "success", "fallback_used": False, "latency_ms": 9999,
+            "first_token_latency_ms": 0, "agent_name": "concierge",
+            "response_truncated": "x", "tool_call_count": 0, "token_budget_hit": False,
+        },
+    ]
+    m = IHomeEvalRunner()._compute_runtime_metrics(traces)
+    # 仅 designer + budget 计入交付链路：[100, 300] p95 = 290；concierge 被排除
+    assert m["delivery_p95_ms"] == 290.0
+
+
 # ── LLM-as-judge ──
 
 
@@ -132,6 +156,90 @@ async def test_evaluate_llm_judge_empty_samples():
     report = await evaluate_llm_judge(samples=[], sample_size=5)
     assert report["sample_size"] == 0
     assert report["dimensions"]["faithfulness"]["llm_judge"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_judge_reply_pass_k_consistent():
+    """pass^k：k 次一致 → agreement=1.0，均值等于单次分。"""
+    from app.eval.llm_judge import judge_reply_pass_k
+
+    async def fake(prompt: str, reply: str) -> dict:
+        return {"faithfulness": 1.0, "completeness": 0.8, "sufficiency": 0.6}
+
+    result = await judge_reply_pass_k("q", "r", k=3, judge=fake)
+    assert result["k"] == 3
+    assert result["agreement"] == 1.0
+    assert result["scores"]["faithfulness"] == 1.0
+    assert result["scores"]["completeness"] == 0.8
+    assert result["scores"]["sufficiency"] == 0.6
+
+
+@pytest.mark.asyncio
+async def test_judge_reply_pass_k_agreement_computed():
+    """pass^k：k 次分不一致 → agreement 按维度极差 ≤0.2 计算。"""
+    from app.eval.llm_judge import judge_reply_pass_k
+
+    call = {"n": 0}
+
+    async def fake(prompt: str, reply: str) -> dict:
+        # faithfulness 恒 1.0（一致），completeness 逐次递减（不一致）
+        scores = {
+            "faithfulness": 1.0,
+            "completeness": [0.8, 0.6, 0.4][call["n"] % 3],
+            "sufficiency": 0.6,
+        }
+        call["n"] += 1
+        return scores
+
+    result = await judge_reply_pass_k("q", "r", k=3, judge=fake)
+    # completeness 极差 0.4 > 0.2 → 不一致；其余两维一致 → agreement = 2/3
+    assert result["agreement"] == pytest.approx(2 / 3, abs=0.01)
+    assert result["scores"]["completeness"] == pytest.approx(0.6, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_judge_reply_pass_k_k1_degenerates():
+    """k=1 退化为单次 judge，agreement=1.0。"""
+    from app.eval.llm_judge import judge_reply_pass_k
+
+    async def fake(prompt: str, reply: str) -> dict:
+        return {"faithfulness": 0.5, "completeness": 0.5, "sufficiency": 0.5}
+
+    result = await judge_reply_pass_k("q", "r", k=1, judge=fake)
+    assert result["k"] == 1
+    assert result["agreement"] == 1.0
+    assert len(result["runs"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_evaluate_judge_alignment():
+    """金标对齐：judge 与金标完全一致 → overall_mae=0，agreement_rate=1.0。"""
+    from app.eval.llm_judge import evaluate_judge_alignment
+
+    async def perfect_judge(prompt: str, reply: str) -> dict:
+        return {"faithfulness": 1.0, "completeness": 1.0, "sufficiency": 1.0}
+
+    gold = [
+        {"prompt": "p1", "reply": "r1",
+         "gold": {"faithfulness": 1.0, "completeness": 1.0, "sufficiency": 1.0}},
+        {"prompt": "p2", "reply": "r2",
+         "gold": {"faithfulness": 1.0, "completeness": 1.0, "sufficiency": 1.0}},
+    ]
+    report = await evaluate_judge_alignment(judge=perfect_judge, gold_dataset=gold)
+    assert report["available"] is True
+    assert report["sample_size"] == 2
+    assert report["overall_mae"] == 0.0
+    assert report["agreement_rate"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_judge_alignment_no_gold():
+    """无金标数据 → available=False 诚实标注。"""
+    from app.eval.llm_judge import evaluate_judge_alignment
+
+    report = await evaluate_judge_alignment(gold_dataset=[])
+    assert report["available"] is False
+    assert report["sample_size"] == 0
 
 
 # ── UX 指标 ──

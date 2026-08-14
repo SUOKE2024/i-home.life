@@ -255,3 +255,38 @@ def test_design_proposals_endpoint_fallback(monkeypatch):
         assert data["source"] == "fallback"
     finally:
         app.dependency_overrides.clear()
+
+
+def test_design_proposals_cache_user_isolation(monkeypatch):
+    """缓存隔离：不同用户传相同 session_id 不能跨用户读写方案（IDOR 修复）"""
+    from app.services import design_proposal_service as svc
+    monkeypatch.setattr(svc.settings, "design_proposal_llm_enabled", False)
+    client = TestClient(app)
+    from app.auth import get_current_user
+    from app.models.user import User
+
+    user_a = User(id="user-a", phone="13800000001", name="A", role="homeowner")
+    user_b = User(id="user-b", phone="13800000002", name="B", role="homeowner")
+
+    # 用户 A 生成方案（客户端传 session_id=shared），后端应强制用户命名空间
+    app.dependency_overrides[get_current_user] = lambda: user_a
+    try:
+        resp = client.post(
+            "/api/agents/design/proposals",
+            json={"requirement": "设计厨房", "session_id": "shared"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["session_id"] == "proposal_user-a:shared"
+    finally:
+        app.dependency_overrides.clear()
+
+    # 用户 B 用相同 session_id 修订 → 404（无法读用户 A 的缓存方案）
+    app.dependency_overrides[get_current_user] = lambda: user_b
+    try:
+        resp = client.post(
+            "/api/agents/design/proposals/A/revise",
+            json={"change": "加中岛", "session_id": "shared"},
+        )
+        assert resp.status_code == 404
+    finally:
+        app.dependency_overrides.clear()

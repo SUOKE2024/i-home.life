@@ -4,6 +4,61 @@
 
 ## [Unreleased]
 
+### 借鉴落地：DeepSeek Harness「Every run is traceable / Minimal mode」→ Agent 可观测性 + 评测基线（v1.13.8，2026-08-14）
+- **轨迹可回放化**（对齐 DeepSeek Harness「Every run is traceable」）：
+  [agent_trace.py](app/models/agent_trace.py) `agent_traces` 表新增 `tool_calls` 列
+  （Text 存 JSON），[harness.py](app/agents/harness.py) 新增
+  `_serialize_tool_calls_for_trace`（落库前截断 arguments 200 / result 300 / 整体 4000
+  字符，防 PII 扩散 + 体积爆炸）；新增迁移
+  `alembic/versions/b1c2d3e4f5a6_add_agent_trace_tool_calls.py`（幂等，head）
+- **Minimal 模式评测基线**（对齐 DeepSeek Harness「Minimal mode」）：
+  [tool_accuracy.py](app/eval/tool_accuracy.py) 新增 `MINIMAL_TOOL_DATASET`（仅
+  get_budget/get_design_layout 两工具）+ `get_minimal_tool_accuracy_report`，并接入
+  `get_tool_accuracy_report` 的 `minimal` 维度，隔离工具数量对选择准确率的影响
+- **清理冗余**：删除 [harness.py](app/agents/harness.py) `HarnessConfig` 三个死字段
+  （`trace_persist_to_db`/`eval_enabled`/`eval_sample_rate`——实际已由
+  `settings.agent_trace_persist_enabled`/`settings.eval_enabled` 控制，从未被读取）
+- **未落地（架构红线/低价值，诚实标注）**：Cordis 运行时热插拔/自改装、PTC 省 Token、
+  TypeScript 栈——与 Python 模块化单体 + 阿里云 FC 架构冲突或价值低，不硬套
+- **测试**：test_agent_trace_persist +2、test_agent_tool_discipline +3；全量
+  **2361 passed**（基线 2334→2361）+ flake8/mypy 0
+
+### 借鉴落地：AI 游戏「NPC 人格一致 + 价值锚定体验」→ 智能装修 Agent（2026-08-14）
+- **P0 persona 人格锚**（对齐游戏 AI NPC「千人千面但人格一致」）：
+  [base.py](app/agents/base.py) 新增 `persona` 类属性 + `_inject_persona`，在
+  think/think_with_tools/think_stream 三处 system_prompt 后注入稳定「身份 + 服务承诺 +
+  沟通风格」锚；[concierge.py](app/agents/concierge.py)（小索）/
+  [designer.py](app/agents/designer.py)/[budget.py](app/agents/budget.py) 定义 persona；
+  无 persona 的 Agent no-op（诚实降级）
+- **P1 交付体验指标**（对齐「AI 价值锚定用户体验」）：
+  [ihome_eval.py](app/eval/ihome_eval.py) 新增 `DELIVERY_AGENTS` + `delivery_p95_ms`
+  交付链路 p95 延迟（跨 designer/budget/procurement/construction/qa_inspector/settlement
+  聚合），QUALITY_TARGETS 新增 `delivery_p95_ms_max`；与既有 ux_metrics
+  （task_completion/abandonment/rating）互补，量化「用户更快拿到方案/预算」
+- **清理冗余**：移除 base.py `_chat_single_provider` 内重复的局部 `import asyncio`
+- **诚实标注**：P2 商业化（会员订阅/按 Token 付费）需产品决策，本轮未落地；
+  交付链路指标复用 agent_traces 既有 latency 数据，零新数据源
+- **测试**：test_agent_chain +2（persona 注入/no-op）、test_eval_v1136 +1
+  （delivery_p95_ms）；74 定向 passed + flake8/mypy 0
+
+### 智能体全景全量全链路打磨：评测框架正确性 + LLM-as-judge 一致性 + 失败蒸馏（2026-08-14）
+- **P0 评测框架正确性修复**（[ihome_eval.py](app/eval/ihome_eval.py)）：
+  ① `REASONING_LEAK_RATE` 改用 `_looks_like_reasoning_leak`（思维链泄漏特征），
+  废弃「稍后重试」降级文案误判；② `_idor_score` 废弃硬编码 30 基线 + subprocess grep，
+  改纯 Python 扫描 app/api 自维护分母；③ `_hc_compliance_score`/`_material_score` 废弃
+  「spec 文件存在即 100」静态检查，改 HC applies_to ↔ 真实 Agent 可达覆盖率；
+  ④ `_budget_score` 无数据返回 None 并跳过维度（不伪造 0 分）
+- **LLM-as-judge pass^k 一致性**（[llm_judge.py](app/eval/llm_judge.py)）：新增
+  `judge_reply_pass_k`（同题跑 k 次控噪 + agreement 一致性率）、`evaluate_judge_alignment`
+  （人类标注金标 MAE/一致率校准）；config 新增 `llm_judge_pass_k`（默认 3，k=1 等价旧行为）
+- **自进化失败经验蒸馏**：`_looks_like_reasoning_leak` 下沉至 [base.py](app/agents/base.py)
+  并作为确定性失败信号接入 `_maybe_record_skill_outcome`（思维链泄漏记失败，闭环
+  「只记成功不记失败」遗留）
+- **测试**：test_eval_upgrade +7、test_eval_v1136 +6、test_agent_case +1；240 定向 passed；
+  flake8/mypy 0
+- **诚实标注（遗留）**：语义级失败仍依赖离线 LLM-judge 抽样；上下文 compaction /
+  规划期输入侧防御 / ASI 治理为后续迭代项（非本轮硬套）
+
 ### 修复 flake8 C901：BaseAgent._chat 圈复杂度 18→14（2026-08-13）
 - **全量 pre-commit 暴露**：`BaseAgent._chat`（LLM 多供应商 fallback + 响应缓存核心路径）
   圈复杂度 18 超 max-complexity=15（C901）——此前仅对改动文件跑 flake8 未覆盖该既有违规

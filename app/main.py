@@ -42,7 +42,7 @@ from app.api import (
     kitchen, bathroom, custom_furniture, soft_furnishing, vr_panorama, ai_image,
     kitchen_bath_mep, hard_decoration, door_window_waterproof, furniture_catalog,
     smart_home, scene_automation, procurement_enhanced, appliance, structural,
-    dashboard, feed,
+    dashboard, feed, curtain_showroom,
 )
 from app.api import ar_scan  # F1 AR 空间测量（v1.14.x 自 surveys 拆分，前缀 /surveys/ar/*）
 from app.api import identity, products, tasks, points
@@ -512,6 +512,7 @@ api_router.include_router(kitchen_bath_mep.router)        # /api/mep-kb/* (F18)
 api_router.include_router(hard_decoration.router)         # /api/hard-decoration/* (F21)
 api_router.include_router(door_window_waterproof.router)  # /api/door-window-waterproof/* (F23)
 api_router.include_router(furniture_catalog.router)       # /api/furniture-catalog/* (F26)
+api_router.include_router(curtain_showroom.router)        # /api/curtain-showroom/* (窗帘智能展厅)
 api_router.include_router(smart_home.router)              # /api/smart-home/* (F31)
 api_router.include_router(scene_automation.router)        # /api/scene-automation/* (F32)
 api_router.include_router(procurement_enhanced.router)    # /api/procurement-enhanced/* (F33/F34)

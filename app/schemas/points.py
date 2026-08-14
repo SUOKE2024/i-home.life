@@ -53,6 +53,8 @@ class PointsMallItemResponse(BaseModel):
     image_url: str | None = None
     points_required: int
     stock: int
+    # 权益类细分（设计 4.3 服务商付费展厅）：showroom_featured / vr_photo
+    benefit_type: str | None = None
     discount_type: str | None = None
     discount_value: float | None = None
     discount_max: float | None = None

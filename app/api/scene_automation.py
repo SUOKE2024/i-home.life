@@ -4,7 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.project import Project
 from app.models.user import User
 from app.auth import get_current_user
 from app.schemas.scene_automation import (
@@ -44,9 +43,7 @@ async def create_scene(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, data.project_id)
-    if not project or project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     scene = await svc.create_scene(db, data.model_dump())
     resp = SceneAutomationResponse.model_validate(scene)
     await ws_manager.broadcast_to_project(scene.project_id, "scene.created", resp.model_dump())
@@ -106,9 +103,7 @@ async def update_scene(
     existing = await svc.get_scene(db, scene_id)
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
-    project = await db.get(Project, existing.project_id)
-    if not project or project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_access(project_id=existing.project_id, current_user=current_user, db=db)
     scene = await svc.update_scene(db, scene_id, data.model_dump(exclude_unset=True))
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
@@ -126,9 +121,7 @@ async def delete_scene(
     scene = await svc.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
-    project = await db.get(Project, scene.project_id)
-    if not project or project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
     project_id = scene.project_id
     deleted = await svc.delete_scene(db, scene_id)
     if not deleted:

@@ -59,6 +59,11 @@ class AgentTraceRecord(Base):
     tool_call_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_call_rounds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # v1.13.8（借鉴 DeepSeek Harness「Every run is traceable」）：轨迹可回放化。
+    # 存储每次工具调用的 tool/arguments/result（JSON 字符串，落库前截断防 PII 扩散），
+    # 支持失败复盘与回放——此前仅有 tool_call_count，无法还原具体调用。
+    tool_calls: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # v1.13.0（2026 前沿对齐：Agent loop 早停可观测性）
     # token 预算触顶提前终止标记，供离线评估区分正常完成 vs 预算早停。
     token_budget_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

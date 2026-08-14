@@ -88,6 +88,32 @@ def _generate_w3c_trace_context() -> dict:
     }
 
 
+def _serialize_tool_calls_for_trace(tool_calls: list[dict], max_total: int = 4000) -> str | None:
+    """将工具调用链序列化为 JSON 字符串（落库前截断，防 PII 扩散 + 体积爆炸）。
+
+    v1.13.8（借鉴 DeepSeek Harness「Every run is traceable」）：轨迹可回放化。
+    每条 tool_call 仅保留 tool/arguments/result，arguments 截到 200 字符、
+    result 截到 300 字符；整体截到 max_total。无工具调用返回 None（列存 NULL）。
+    """
+    if not tool_calls:
+        return None
+    truncated: list[dict] = []
+    for tc in tool_calls:
+        args = tc.get("arguments")
+        result = tc.get("result")
+        args_text = args if isinstance(args, str) else json.dumps(args, ensure_ascii=False, default=str)
+        result_text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, default=str)
+        truncated.append({
+            "tool": str(tc.get("tool", ""))[:60],
+            "arguments": args_text[:200],
+            "result": result_text[:300],
+        })
+    payload = json.dumps(truncated, ensure_ascii=False, default=str)
+    if len(payload) > max_total:
+        payload = payload[:max_total] + "…"
+    return payload
+
+
 def _build_genai_semconv_meta(trace: "AgentTrace") -> dict:
     """构建 OTel GenAI 语义约定元数据：
     {"traceparent": ..., "tracestate": ..., "baggage": ...,
@@ -231,11 +257,6 @@ class HarnessConfig:
     # 追踪配置
     trace_enabled: bool = True
     trace_max_history: int = 500  # 内存中最多保留的轨迹数
-    trace_persist_to_db: bool = False  # 是否持久化到数据库（v1.2.0 默认关闭，后续版本开启）
-
-    # 评估配置
-    eval_enabled: bool = False
-    eval_sample_rate: float = 0.1  # 采样率
 
     # 上下文管理
     max_context_tokens: int = 8000
@@ -515,6 +536,7 @@ class AgentRuntime:
                 total_tokens=trace.total_tokens,
                 tool_call_count=trace.tool_call_count,
                 tool_call_rounds=trace.tool_call_rounds,
+                tool_calls=_serialize_tool_calls_for_trace(trace.tool_calls),
                 token_budget_hit=trace.token_budget_hit,
                 fallback_used=trace.fallback_used,
                 fallback_reason=trace.fallback_reason or "",

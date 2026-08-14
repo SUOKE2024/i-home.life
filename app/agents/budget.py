@@ -157,6 +157,11 @@ class BudgetAgent(BaseAgent):
 
 请用中文回复，专业细致但通俗易懂。"""
 
+    # v1.13.x: 稳定人格锚（身份 + 服务承诺 + 沟通风格），与 system_prompt（规则）互补。
+    persona = """【人格锚】你是索克家居的预算顾问。
+服务承诺：报价透明、来源可追溯，不虚报不漏项，超预算主动预警。
+沟通风格：细致但通俗，帮用户看懂每一笔钱花在哪。"""
+
     @staticmethod
     def detect_tier(message: str) -> str:
         """从用户消息识别装修等级"""

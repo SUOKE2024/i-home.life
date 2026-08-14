@@ -991,3 +991,61 @@ async def test_no_constraints_for_agent_without_spec(monkeypatch):
 
     joined = "\n".join(m.get("content", "") for m in captured if m.get("role") == "system")
     assert "【Model Spec 硬约束" not in joined
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.13.x 交付体验：persona 人格锚注入（对齐游戏 AI NPC「人格一致」）
+# ════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_think_injects_persona(monkeypatch):
+    """ConciergeAgent 注入 persona 人格锚（身份 + 服务承诺 + 沟通风格）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.concierge import ConciergeAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    captured: list[dict] = []
+    agent = ConciergeAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("你好", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(
+        m.get("content", "") for m in captured if m.get("role") == "system"
+    )
+    assert "【人格锚】" in joined, f"未注入 persona 人格锚: {joined!r}"
+    assert "小索" in joined, f"concierge 应注入「小索」身份锚: {joined!r}"
+
+
+@pytest.mark.asyncio
+async def test_persona_noop_for_agent_without_persona(monkeypatch):
+    """无 persona 定义的 Agent（KitchenAgent）不注入人格锚（no-op 诚实降级）"""
+    from unittest.mock import patch
+
+    from app.agents.base import BaseAgent
+    from app.agents.kitchen_agent import KitchenAgent
+
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    monkeypatch.setattr(get_settings(), "agentic_rag_enabled", False)
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", False)
+
+    captured: list[dict] = []
+    agent = KitchenAgent()
+    try:
+        with patch.object(BaseAgent, "_chat", _capture_messages(captured)):
+            await agent.think("帮我设计厨房", db=None)
+    finally:
+        await agent.close()
+
+    joined = "\n".join(
+        m.get("content", "") for m in captured if m.get("role") == "system"
+    )
+    assert "【人格锚】" not in joined

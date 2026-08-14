@@ -34,7 +34,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 
 ## Agent 可观测性 + 编排 + 评估（v1.12.x，基于 2026 生产级 Agent 前沿）
 
-- **轨迹落库**：每个 Agent 执行（`harness.run`）按采样率落 `agent_traces` 表（`agent_trace_persist_enabled` 默认 True + `agent_trace_sample_rate`）。`workflow_id` 跨 Agent 传播（同一用户请求的所有 Agent 执行共享），prompt 上下文截断采样防 PII。
+- **轨迹落库**：每个 Agent 执行（`harness.run`）按采样率落 `agent_traces` 表（`agent_trace_persist_enabled` 默认 True + `agent_trace_sample_rate`）。`workflow_id` 跨 Agent 传播（同一用户请求的所有 Agent 执行共享），prompt 上下文截断采样防 PII。v1.13.8 起 `tool_calls` 列记录每次工具调用的 tool/arguments/result（arguments 截 200 / result 截 300 字符，整体 4000），实现轨迹可回放（借鉴 DeepSeek Harness「Every run is traceable」，见 `app/agents/harness.py` `_serialize_tool_calls_for_trace`）。
 - **多智能体编排**：`OrchestratorAgent.plan_and_delegate`（`agent_orchestration_pipeline_enabled` 默认 True）→ LLM 任务分解（规则兜底）→ `validate_dag` 循环检测 → `run_workflow` 拓扑执行（复用 harness 自动落 trace）→ 结构化聚合（`AgentTaskResult` 防 prompt injection）。子任务失败标 failed 不阻断聚合，诚实降级。**API：`POST /api/agents/orchestrate`**（全链路可达，flag 关闭按规则单任务执行并标注 rule_single）。
 - **评估三要素**：`IHomeEval` 新增 FAITHFULNESS/COMPLETENESS/SUFFICIENCY 维度（启发式代理指标，非 LLM judge）+ `per_agent_scores` + `QUALITY_TARGETS` 量化基线。漂移检测 `detect_agent_drift`（基于 `agent_traces` 对比基线，`GET /api/eval/drift`）。
 - **成本优化**：`BaseAgent._chat` 确定性响应缓存（`llm_response_cache_enabled` 默认 True，`with_tools=True` 不缓存）；`cost_tiered_routing_enabled` 默认 True（economy 档 Agent 优先 qwen/glm）；Orchestrator `cost_tier="economy"`。
@@ -47,7 +47,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **并行执行 + 预算早停**：`think_with_tools` 同一轮 tool_calls 并行（`parallel_tool_calls_enabled` 默认 True，5x 提速）；`agent_function_call_max_tool_tokens` 累计上下文触顶提前终止（`token_budget_hit` 落 `agent_traces` 表，per-agent 评估可观测）。**v1.13.1 并发约束**：有 db（DB 查询工具）必须串行——共享 AsyncSession 并行触发 SQLAlchemy ISCE 冲突致 DB 查询静默降级 fallback（真实数据失效）；仅无 db（纯计算/外部 API）场景并行。
 - **成本追踪**：`_chat_single_provider` 提取 LLM `usage` → `think_with_tools` 多轮累计 → `agent_traces` 落库（prompt/completion/total tokens，供 per-agent 成本/效率评估）。
 - **L4 双向学习**：`get_user_preference_hint` 同时注入 like 正向示例 + dislike 负向提示（防风格漂移）。
-- **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。v1.13.5 关键词表消歧打磨后基线 75%→**100%（0 混淆）**：设计类三重工具关键词细分（移除宽泛"方案"）、search_materials 与 get_budget 去"多少钱"冲突、negative 用例按「不应选工具」（predicted None）度量、关键词匹配大小写归一化。
+- **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。v1.13.5 关键词表消歧打磨后基线 75%→**100%（0 混淆）**：设计类三重工具关键词细分（移除宽泛"方案"）、search_materials 与 get_budget 去"多少钱"冲突、negative 用例按「不应选工具」（predicted None）度量、关键词匹配大小写归一化。v1.13.8 起新增 Minimal 模式基线（`MINIMAL_TOOL_DATASET` 仅 get_budget/get_design_layout 两工具 + `get_minimal_tool_accuracy_report`，隔离工具数量对选择准确率的影响，借鉴 DeepSeek Harness「Minimal mode」）。
 
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
@@ -65,7 +65,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 105 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。128 ORM 模型 + 76 路由已够复杂（`app/api/` 磁盘实为 76 个路由模块，main.py 79 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2318 passed 不得回退（collect 2324 = 2318 passed + 2 skipped + 4 xfailed，2026-08-13 全量校准；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2361 passed 不得回退（collect 2367 = 2361 passed + 2 skipped + 4 xfailed，2026-08-14 全量校准；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

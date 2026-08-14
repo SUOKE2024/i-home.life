@@ -187,7 +187,7 @@ async def render_panorama(
     panorama.file_size_mb = profile["file_size_mb"]
     panorama.render_duration_sec = profile["duration_sec"]
     panorama.status = "completed"
-    panorama.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    panorama.completed_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(panorama)
     return panorama

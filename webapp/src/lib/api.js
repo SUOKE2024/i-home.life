@@ -341,6 +341,23 @@ export async function publishEffectRender(data) {
   })
 }
 
+// ── 窗帘智能展厅（单店铺固定「官渡区帘享空间窗帘布艺经营部」）──
+
+/** 窗帘展厅总览（店铺 + 系列 + 安装方式 + 灯光预设 + 展示区域） */
+export async function getCurtainShowroomOverview() {
+  return request('/api/curtain-showroom/overview')
+}
+
+/** 窗帘展品列表（可按系列/品牌/材质筛选，3D 换装数据源） */
+export async function getCurtainShowroomProducts(filters = {}) {
+  const params = new URLSearchParams()
+  if (filters.series_id) params.set('series_id', filters.series_id)
+  if (filters.brand) params.set('brand', filters.brand)
+  if (filters.fabric) params.set('fabric', filters.fabric)
+  const q = params.toString()
+  return request(`/api/curtain-showroom/products${q ? `?${q}` : ''}`)
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */
@@ -370,6 +387,50 @@ export async function arDeviceCapability(body) {
     method: 'POST',
     body: JSON.stringify(body || {}),
   })
+}
+
+/** 创建 AR 量房扫描会话（POST /api/surveys/ar/sessions） */
+export async function createARScanSession(data) {
+  return request('/api/surveys/ar/sessions', {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  })
+}
+
+/** 按项目列出 AR 量房扫描会话（GET /api/surveys/ar/sessions/project/:id） */
+export async function listARSessions(projectId) {
+  return request(`/api/surveys/ar/sessions/project/${encodeURIComponent(projectId)}`)
+}
+
+/** 开始扫描（POST /api/surveys/ar/sessions/:id/start） */
+export async function startARScan(sessionId) {
+  return request(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/start`, { method: 'POST' })
+}
+
+/** 处理扫描数据，解析房间/点云/精度（POST /api/surveys/ar/sessions/:id/process） */
+export async function processARScan(sessionId, data) {
+  return request(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/process`, {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  })
+}
+
+/** 获取精度校验报告（GET /api/surveys/ar/sessions/:id/accuracy） */
+export async function getARScanAccuracy(sessionId) {
+  return request(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/accuracy`)
+}
+
+/** 添加测量校准点（POST /api/surveys/ar/points） */
+export async function addARMeasurementPoint(data) {
+  return request('/api/surveys/ar/points', {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  })
+}
+
+/** 将 AR 扫描结果应用到测量记录 Survey（POST /api/surveys/ar/sessions/:id/apply） */
+export async function applyARScanSession(sessionId) {
+  return request(`/api/surveys/ar/sessions/${encodeURIComponent(sessionId)}/apply`, { method: 'POST' })
 }
 
 // ──────────────────────────────────────────────────────────────

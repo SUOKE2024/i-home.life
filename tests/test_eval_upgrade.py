@@ -254,3 +254,69 @@ async def test_feedback_drift_no_feedback_returns_empty(db_session):
 
     drift = await detect_feedback_drift(db_session, window_days=7)
     assert drift == []
+
+
+# ── v1.13.7 P0：评测框架正确性修复 ──
+
+
+def test_reasoning_leak_rate_uses_leak_detector():
+    """思维链泄漏率应检测 reasoning 特征，而非「稍后重试」降级文案。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        # 推理超时降级文案（不应算作思维链泄漏）
+        _trace("designer", response="抱歉，AI 推理超时，请稍后重试或简化您的问题。"),
+        # 第一人称思维链特征（应算作泄漏）
+        _trace("budget", response="我需要理解用户的需求，首先分析户型图。"),
+    ]
+    metrics = runner._compute_runtime_metrics(traces)
+    assert metrics["reasoning_leak_rate"] == 50.0
+
+
+def test_reasoning_leak_rate_zero_for_normal_replies():
+    """正常回复不应触发思维链泄漏。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        _trace("designer", response="根据市场数据，方案如下：\n1. 水电改造\n总结：共 3 项"),
+        _trace("budget", response="报价含税：¥20 万，含质保金。"),
+    ]
+    metrics = runner._compute_runtime_metrics(traces)
+    assert metrics["reasoning_leak_rate"] == 0.0
+
+
+def test_idor_score_uses_actual_route_denominator():
+    """IDOR 覆盖率应为 0-100 的自维护占比，不再依赖硬编码 30 基线。"""
+    runner = IHomeEvalRunner()
+    score = runner._idor_score()
+    assert 0.0 < score <= 100.0
+
+
+def test_hc_compliance_score_measures_wiring():
+    """HC 合规率 = 硬约束 applies_to 命中真实 Agent 的占比（经别名映射）。"""
+    runner = IHomeEvalRunner()
+    score = runner._hc_compliance_score()
+    # 9 条 HC 均至少命中一个真实 Agent（door_window 经别名 door_window_waterproof）
+    assert score == 100.0
+
+
+def test_material_score_graded_by_target_agents():
+    """材料环保维度 = HC-003 目标 Agent 可达率（procurement/designer/budget 全真实）。"""
+    runner = IHomeEvalRunner()
+    assert runner._material_score() == 100.0
+
+
+def test_budget_score_none_without_traces():
+    """无 budget 轨迹时返回 None，不伪造 0 分。"""
+    runner = IHomeEvalRunner()
+    assert runner._budget_score([]) is None
+    assert runner._budget_score([_trace("designer")]) is None
+
+
+def test_dimension_scores_omit_budget_without_data():
+    """无 budget 数据时维度评分应省略 budget_accuracy，静态维度仍存在。"""
+    runner = IHomeEvalRunner()
+    scores = runner._compute_dimension_scores(
+        [], {"fallback_rate": 0, "reasoning_leak_rate": 0, "avg_latency_ms": 0}
+    )
+    assert "budget_accuracy" not in scores
+    assert "hc_compliance_rate" in scores
+    assert "idor_resistance" in scores

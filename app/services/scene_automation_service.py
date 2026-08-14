@@ -219,8 +219,8 @@ async def validate_actions(db: AsyncSession, actions: list | None, devices: list
         if not device:
             errors.append(f"动作 {idx}: 设备 {device_id} 不存在")
             continue
-        allowed = DEVICE_ACTION_WHITELIST.get(device.device_type, set())
-        if allowed and action not in allowed:
+        allowed = DEVICE_ACTION_WHITELIST.get(device.device_type)
+        if not allowed or action not in allowed:
             errors.append(
                 f"动作 {idx}: 设备 {device.device_name}({device.device_type}) 不支持动作 {action}"
             )
@@ -892,17 +892,18 @@ async def execute_device_command(
     """
     from app.models.scene_behavior import SceneBehaviorLog
 
-    allowed = DEVICE_ACTION_WHITELIST.get(device.device_type, set())
+    allowed = DEVICE_ACTION_WHITELIST.get(device.device_type)
     logger.info(
         "device_command_received: user=%s device=%s name=%s type=%s "
         "action=%s params=%s source=%s ecosystem=%s scene_id=%s",
         user_id, device.id, device.device_name, device.device_type,
         action, params or {}, source, ecosystem, scene_id,
     )
-    if allowed and action not in allowed:
+    if not allowed or action not in allowed:
+        # 空白名单（sensor 只读 / 未知设备类型）或动作不合法 → 拒绝，防止绕过动作校验
         logger.warning(
             "device_command_rejected: device=%s type=%s action=%s allowed=%s",
-            device.id, device.device_type, action, sorted(allowed),
+            device.id, device.device_type, action, sorted(allowed or ()),
         )
         return {
             "accepted": False,
@@ -1024,13 +1025,13 @@ def _plan_scene_actions(
                 idx, device_id, action,
             )
         else:
-            allowed = DEVICE_ACTION_WHITELIST.get(device.device_type, set())
-            if allowed and action not in allowed:
+            allowed = DEVICE_ACTION_WHITELIST.get(device.device_type)
+            if not allowed or action not in allowed:
                 item["status"] = "rejected"
                 item["note"] = f"设备 {device.device_name}({device.device_type}) 不支持动作 {action}"
                 logger.info(
                     "scene_execute_action_rejected: index=%d device=%s name=%s action=%s allowed=%s",
-                    idx, device.id, device.device_name, action, sorted(allowed),
+                    idx, device.id, device.device_name, action, sorted(allowed or ()),
                 )
         plan.append(item)
 

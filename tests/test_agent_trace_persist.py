@@ -111,3 +111,49 @@ def test_start_trace_carries_workflow_id():
     d = trace.to_dict()
     assert d["workflow_id"] == "wf_abc"
     assert d["scope"] == "project"
+
+
+def test_serialize_tool_calls_truncates_long_result():
+    """tool_calls 序列化截断 arguments/result（防 PII 扩散 + 体积爆炸）。"""
+    import json
+    from app.agents.harness import _serialize_tool_calls_for_trace
+
+    payload = _serialize_tool_calls_for_trace([
+        {"tool": "get_budget", "arguments": {"area": 100}, "result": "x" * 1000},
+    ])
+    assert payload is not None
+    parsed = json.loads(payload)
+    assert parsed[0]["tool"] == "get_budget"
+    assert len(parsed[0]["result"]) == 300  # result 截到 300 字符
+    assert _serialize_tool_calls_for_trace([]) is None  # 无调用 → NULL
+
+
+async def test_harness_persists_tool_calls_json(db_session):
+    """轨迹落库时 tool_calls 序列化为 JSON 字符串（可回放）。"""
+    import json
+    from app.agents.harness import AgentRunStatus
+
+    harness = AgentRuntime()
+    agent = DesignerAgent()
+    try:
+        trace = harness.start_trace(
+            "budget", "90平预算", provider="deepseek",
+            user_id="u_tool", project_id="p_tool",
+        )
+        trace.tool_calls = [
+            {"tool": "get_budget", "arguments": {"area": 90}, "result": {"total": 144000}},
+        ]
+        trace.tool_call_count = 1
+        trace.response = "预算约 14.4 万"
+        trace.finish(AgentRunStatus.SUCCESS)
+        await harness._persist_trace(
+            trace, {"db": db_session, "user_id": "u_tool"}, agent,
+        )
+    finally:
+        await agent.close()
+
+    record = (await db_session.execute(select(AgentTraceRecord))).scalars().one()
+    assert record.tool_calls is not None
+    parsed = json.loads(record.tool_calls)
+    assert parsed[0]["tool"] == "get_budget"
+    assert "144000" in parsed[0]["result"]

@@ -44,9 +44,7 @@ async def create_scheme(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    project = await db.get(Project, data.project_id)
-    if not project or project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
     scheme = await svc.create_scheme(db, data.model_dump())
     resp = SmartHomeSchemeResponse.model_validate(scheme)
     await ws_manager.broadcast_to_project(scheme.project_id, "smart.scheme.created", resp.model_dump())
@@ -86,9 +84,7 @@ async def delete_scheme(
     scheme = await svc.get_scheme(db, scheme_id)
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
-    project = await db.get(Project, scheme.project_id)
-    if not project or project.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
     project_id = scheme.project_id
     deleted = await svc.delete_scheme(db, scheme_id)
     if not deleted:

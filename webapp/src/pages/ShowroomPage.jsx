@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { X, Package, BadgeCheck, Store, Clock, HardHat, Crown, Sparkles } from 'lucide-react'
+import { X, Package, BadgeCheck, Store, Clock, HardHat, Crown, Sparkles, Blinds } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from '../components/ui'
 import PanoramaViewer from '../components/PanoramaViewer'
+import CurtainShowroom from '../components/CurtainShowroom'
 import { listProjects, getVRPanoramas, getVRPanorama, getMaterial, getMaterialCert, addBomItem, listSuppliers, listCrews, matchCrews, getCrewPortfolio, getMallItems, redeemCrewBenefit, getCrewBenefits } from '../lib/api'
 
 const STATUS_LABELS = {
@@ -236,9 +237,9 @@ export default function ShowroomPage() {
       <div className="page-head">
         <div>
           <h2>智能展厅</h2>
-          <div className="desc">材料展厅 3D 漫游 · 供应商实景展厅 · 服务商作品集 · 展品即热点</div>
+          <div className="desc">材料展厅 3D 漫游 · 窗帘布艺 3D 换装 · 供应商实景展厅 · 服务商作品集 · 展品即热点</div>
         </div>
-        {tab === 'material' ? (
+        {(tab === 'material' || tab === 'curtain') ? (
           <select
             className="select"
             value={selectedId}
@@ -269,6 +270,13 @@ export default function ShowroomPage() {
           <Package size={15} style={{ verticalAlign: -2, marginRight: 4 }} />材料展厅
         </button>
         <button
+          className={tab === 'curtain' ? 'btn btn-primary' : 'btn'}
+          style={{ fontSize: 13 }}
+          onClick={() => switchTab('curtain')}
+        >
+          <Blinds size={15} style={{ verticalAlign: -2, marginRight: 4 }} />窗帘布艺
+        </button>
+        <button
           className={tab === 'supplier' ? 'btn btn-primary' : 'btn'}
           style={{ fontSize: 13 }}
           onClick={() => switchTab('supplier')}
@@ -284,7 +292,9 @@ export default function ShowroomPage() {
         </button>
       </div>
 
-      {tab === 'crew' ? (
+      {tab === 'curtain' ? (
+        <CurtainShowroom projectId={selectedId} />
+      ) : tab === 'crew' ? (
         <>
           {crews.length === 0 && <Empty message="暂无服务商名录，可联系平台入驻" />}
           {crews.length > 0 && (
@@ -567,7 +577,7 @@ export default function ShowroomPage() {
                     )}
                     {exhibit.cert ? (
                       <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', color: 'var(--success, #22c55e)' }}>
-                        <BadgeCheck size={15} /> 环保认证 · {exhibit.cert.cert_name || '已认证'}
+                        <BadgeCheck size={15} /> 环保认证 · {exhibit.cert.certification || '已认证'}
                       </div>
                     ) : (
                       <div style={{ fontSize: 12, marginTop: 8, color: 'var(--text-dim)' }}>

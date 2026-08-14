@@ -65,6 +65,13 @@ def _crew_to_response(crew: ConstructionCrew) -> ConstructionCrewResponse:
         daily_rate=crew.daily_rate,
         status=crew.status,
         introduction=crew.introduction,
+        # F36 入驻审核材料与状态机（前端据此区分 approved/rejected 展示审核状态）
+        review_status=crew.review_status,
+        review_note=crew.review_note,
+        reviewed_at=crew.reviewed_at,
+        license_no=crew.license_no,
+        license_type=crew.license_type,
+        insurance_no=crew.insurance_no,
         showcase_panorama_id=crew.showcase_panorama_id,
         owner_id=crew.owner_id,
         featured=crew.featured,

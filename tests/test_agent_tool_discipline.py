@@ -520,6 +520,35 @@ def test_keyword_case_insensitive():
     assert classify_tool_by_keywords("方案A改成开放式厨房") == "update_design_proposal"
 
 
+# ── v1.13.8 Minimal 模式评测（借鉴 DeepSeek Harness「Minimal mode」）──
+
+
+def test_minimal_dataset_covers_two_core_tools():
+    """Minimal 数据集仅覆盖 get_budget + get_design_layout 两核心工具。"""
+    from app.eval.tool_accuracy import MINIMAL_TOOL_DATASET
+    covered = {c.expected_tool for c in MINIMAL_TOOL_DATASET}
+    assert covered == {"get_budget", "get_design_layout"}
+    assert len(MINIMAL_TOOL_DATASET) >= 10
+
+
+def test_minimal_tool_accuracy_report_100_percent():
+    """极简工具集下关键词基线仍 100% 且零混淆（隔离工具数量对选择准确率的影响）。"""
+    from app.eval.tool_accuracy import get_minimal_tool_accuracy_report
+    report = get_minimal_tool_accuracy_report()
+    assert report["report_type"] == "tool_selection_accuracy_minimal"
+    assert report["metrics"]["accuracy"] == 100.0
+    assert report["confusion"] == []
+
+
+def test_minimal_report_serializable():
+    """Minimal 报告可序列化且诚实标注为 keyword 基线。"""
+    import json
+    from app.eval.tool_accuracy import get_minimal_tool_accuracy_report
+    report = get_minimal_tool_accuracy_report()
+    assert report["baseline"] == "keyword_classifier"
+    json.dumps(report, ensure_ascii=False)
+
+
 # ════════════════════════════════════════════════════════════════
 # 8. per-agent 评估新增工具维度指标
 # ════════════════════════════════════════════════════════════════

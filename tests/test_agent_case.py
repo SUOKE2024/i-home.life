@@ -452,6 +452,29 @@ async def test_skill_outcome_hook_normal_marks_success(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_skill_outcome_hook_reasoning_leak_marks_fail(db_session, monkeypatch):
+    """注入 Skill 后回复为思维链泄漏 → 确定性记失败（v1.13.7 闭环遗留）"""
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+    skill = AgentSkill(
+        id="skr1", name="leak_skill", owner_scope="personal", owner_id="u1",
+        agent_name="designer", system_prompt="test", created_by="u1",
+    )
+    db_session.add(skill)
+    await db_session.flush()
+
+    from app.agents.base import BaseAgent
+
+    agent = BaseAgent()
+    agent._injected_skill_id = "skr1"
+    await agent._maybe_record_skill_outcome(
+        "我需要理解用户的需求，首先分析户型图，然后生成方案。", db_session,
+    )
+    await agent.close()
+    assert skill.fail_count == 1
+    assert skill.success_count == 0
+
+
+@pytest.mark.asyncio
 async def test_skill_outcome_hook_no_skill_skips(db_session, monkeypatch):
     """未注入 Skill 时不计数（无 _injected_skill_id）"""
     monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)

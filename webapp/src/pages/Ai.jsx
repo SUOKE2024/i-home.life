@@ -1,15 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Send, Square, Bot } from 'lucide-react'
+import { Send, Square, Bot, ScanLine } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { streamChat, listProjects } from '../lib/api'
 
 export default function AiPage() {
+  const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState('')
-  const [meta, setMeta] = useState(null)
+  const [card, setCard] = useState(null)   // 当前回复的富卡片（ar_scan_trigger 等）
   const abortRef = useRef(null)
   const listRef = useRef(null)
 
@@ -31,6 +33,7 @@ export default function AiPage() {
     if (!text || busy) return
     setInput('')
     setError(null)
+    setCard(null)
     setMessages((m) => [...m, { role: 'user', content: text }])
     setBusy(true)
 
@@ -43,7 +46,10 @@ export default function AiPage() {
         { message: text, projectId: projectId || null },
         (evt) => {
           if (evt.event === 'meta') {
-            setMeta(evt.data)
+            // 富卡片：ar_scan_trigger 等 message_type + card_payload
+            if (evt.data?.card_payload) {
+              setCard({ type: evt.data.message_type || 'text', payload: evt.data.card_payload })
+            }
           } else if (evt.event === 'token' || evt.event === 'message') {
             const chunk = evt.data?.text ?? evt.data?.content ?? (typeof evt.data === 'string' ? evt.data : '')
             if (chunk) {
@@ -144,6 +150,41 @@ export default function AiPage() {
             </div>
           </div>
         ))}
+
+        {card && card.type === 'ar_scan_trigger' && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div
+              style={{
+                maxWidth: '78%', padding: 12, borderRadius: 12,
+                background: 'var(--accent-dim)', border: '1px solid var(--accent)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <ScanLine size={16} className="ico" />
+                <b style={{ fontSize: 13.5 }}>{card.payload.title || 'AR 空间测量'}</b>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-sub)', lineHeight: 1.6 }}>
+                {card.payload.prompt}
+              </div>
+              {(card.payload.supported_features?.length > 0) && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+                  {card.payload.supported_features.map((f) => (
+                    <span key={f} className="badge" style={{ background: 'var(--border)', color: 'var(--text-sub)', fontSize: 11 }}>
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button
+                className="btn btn--primary"
+                style={{ marginTop: 8, width: '100%' }}
+                onClick={() => navigate('/ar-scan')}
+              >
+                <ScanLine size={15} /> 开始 AR 量房
+              </button>
+            </div>
+          </div>
+        )}
 
         {busy && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>

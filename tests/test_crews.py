@@ -261,6 +261,23 @@ async def test_crew_approved_appears_in_match(
 
 
 @pytest.mark.asyncio
+async def test_crew_list_passes_review_status(
+    client: AsyncClient, auth_headers: dict,
+):
+    """list_crews 应透传 review_status，已审核通过工程队不再被误标 pending"""
+    crew_id = await _create_crew(client, auth_headers, "审核状态透传队")
+    await client.post(f"/api/crews/{crew_id}/submit", json=CREW_MATERIALS, headers=auth_headers)
+
+    admin_headers = await _register_admin(client)
+    await client.post(f"/api/crews/{crew_id}/review", json={"action": "approve"}, headers=admin_headers)
+
+    resp = await client.get("/api/crews", headers=auth_headers)
+    assert resp.status_code == 200
+    crew = next(c for c in resp.json() if c["id"] == crew_id)
+    assert crew["review_status"] == "approved"
+
+
+@pytest.mark.asyncio
 async def test_crew_rejected_not_in_match(
     client: AsyncClient, auth_headers: dict,
 ):

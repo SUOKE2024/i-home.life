@@ -45,6 +45,7 @@ from app.agents.identity_agent import IdentityAgent
 from app.agents.notifications_agent import NotificationsAgent
 from app.agents.takeoff_agent import TakeoffAgent
 from app.agents.ifc_export_agent import IfcExportAgent
+from app.agents.base import _looks_like_reasoning_leak  # v1.13.7 下沉自 base.py
 from app.config import get_settings
 from app.models.agent_session import AgentSession
 from app.ws import ws_manager
@@ -419,40 +420,6 @@ def _extract_reply_from_llm_json(raw: str) -> str:
     return raw
 
 
-def _looks_like_reasoning_leak(text: str) -> bool:
-    """检测文本是否为 LLM reasoning_content 泄漏（思维链）。
-
-    DeepSeek-V4-Pro 等推理模型在 max_tokens 不足时，content 字段为空，
-    BaseAgent._chat 会 fallback 到 reasoning_content。DesignerAgent 的
-    system_prompt 要求 JSON 输出，但 reasoning_content 是自然语言思维链，
-    _extract_reply_from_llm_json 解析失败后原样返回，导致用户看到 LLM
-    内部思维而非友好回复（v1.0.16 同类问题复发）。
-
-    思维链特征：第一人称元描述（"我需要理解/我应该生成/首先分析"等）。
-    """
-    if not text or len(text) < 10:
-        return False
-    reasoning_starts = (
-        "我们需要理解", "我需要理解", "我应该", "我们要",
-        "首先,", "首先，", "第一步",
-        "分析用户", "理解用户",
-        "让我", "让我思考", "让我分析",
-    )
-    reasoning_keywords = (
-        "应该输出", "应该生成", "需要输出", "JSON格式",
-        "输出格式", "需要生成", "按照格式",
-        "思维链", "reasoning", "接下来我",
-    )
-    text_stripped = text.strip()
-    if any(text_stripped.startswith(p) for p in reasoning_starts):
-        return True
-    head = text_stripped[:200]
-    keyword_count = sum(1 for kw in reasoning_keywords if kw in head)
-    if keyword_count >= 2:
-        return True
-    return False
-
-
 def _generate_a2ui_cards(agent_key: str, reply_text: str) -> list[dict] | None:
     """v1.2.3: 将 Agent 文本回复转换为 A2UI 卡片列表。
 
@@ -709,10 +676,23 @@ async def chat_with_agent(  # noqa: C901
         if intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                raw_reply = await des_agent.think(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
+                try:
+                    raw_reply = await asyncio.wait_for(
+                        des_agent.think(
+                            data.message, user_ctx,
+                            db=db, user_id=current_user.id, project_id=data.project_id,
+                        ),
+                        timeout=settings.design_llm_timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "designer_llm_timeout: timeout=%.1fs falling back to layouts",
+                        settings.design_llm_timeout_seconds,
+                    )
+                    layouts = await des_agent.generate_layouts(data.message)
+                    reply = layouts["reply"]
+                    raw_reply = None
+                    return await _finalize("designer", reply, suggestions_map["designer"], raw_output=raw_reply)
                 # DesignerAgent 的 system_prompt 要求 LLM 输出 JSON，
                 # 提取其中的 reply 字段作为用户友好回复
                 reply = _extract_reply_from_llm_json(raw_reply)
@@ -1296,20 +1276,35 @@ async def chat_stream(  # noqa: C901
         elif intent in ("design",):
             des_agent = DesignerAgent()
             try:
-                raw_reply = await des_agent.think(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
-                raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
-                reply = _extract_reply_from_llm_json(raw_reply)
-                if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                try:
+                    raw_reply = await asyncio.wait_for(
+                        des_agent.think(
+                            data.message, user_ctx,
+                            db=db, user_id=current_user.id, project_id=data.project_id,
+                        ),
+                        timeout=settings.design_llm_timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    # 超时确定性兜底：deepseek 生成复杂设计 JSON 可能 40-60s，
+                    # 超时秒回 3 套预置户型，避免用户长时间等待（诚实标注无 AI 原始 JSON）。
                     logger.warning(
-                        "designer_reply_leak_stream: falling back to layouts; "
-                        "raw_head=%r", raw_reply[:200],
+                        "designer_llm_timeout_stream: timeout=%.1fs falling back to layouts",
+                        settings.design_llm_timeout_seconds,
                     )
                     layouts = await des_agent.generate_layouts(data.message)
                     reply = layouts["reply"]
-                    raw_reply_for_cards = None  # fallback 时无原始 JSON
+                    raw_reply_for_cards = None
+                else:
+                    raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
+                    reply = _extract_reply_from_llm_json(raw_reply)
+                    if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                        logger.warning(
+                            "designer_reply_leak_stream: falling back to layouts; "
+                            "raw_head=%r", raw_reply[:200],
+                        )
+                        layouts = await des_agent.generate_layouts(data.message)
+                        reply = layouts["reply"]
+                        raw_reply_for_cards = None  # fallback 时无原始 JSON
             finally:
                 await des_agent.close()
         elif intent in ("budget",):
@@ -1758,7 +1753,11 @@ async def generate_design_proposals(
         db, current_user, data.requirement, "",
     )
     requirement = f"{user_ctx}\n{data.requirement}" if user_ctx else data.requirement
-    session_id = data.session_id or f"proposal_{current_user.id}"
+    # 缓存隔离硬约束：session_id 强制以当前用户 ID 命名空间，
+    # 防止客户端传他人 session_id 跨用户读写缓存方案（IDOR）。
+    session_id = f"proposal_{current_user.id}"
+    if data.session_id:
+        session_id = f"proposal_{current_user.id}:{data.session_id}"
     result = await generate_proposals(requirement, session_id)
     return {
         "proposals": [p.model_dump() for p in result.proposals],
@@ -1786,7 +1785,11 @@ async def revise_design_proposal(
         db, current_user, data.change, "",
     )
     change = f"{user_ctx}\n{data.change}" if user_ctx else data.change
-    session_id = data.session_id or f"proposal_{current_user.id}"
+    # 缓存隔离硬约束：session_id 强制以当前用户 ID 命名空间，
+    # 防止客户端传他人 session_id 跨用户读写缓存方案（IDOR）。
+    session_id = f"proposal_{current_user.id}"
+    if data.session_id:
+        session_id = f"proposal_{current_user.id}:{data.session_id}"
     revised = await revise_proposal(proposal_id, change, session_id)
     if revised is None:
         raise HTTPException(

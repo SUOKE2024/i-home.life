@@ -55,8 +55,9 @@ def _check_ifcopenshell():
 
 def _create_unit_assignment(f):
     length_unit = f.createIfcSIUnit(UnitType="LENGTHUNIT", Prefix="MILLI", Name="METRE")
-    plane_unit = f.createIfcSIUnit(UnitType="AREAUNIT", Prefix="MILLI", Name="SQUARE_METRE")
-    volume_unit = f.createIfcSIUnit(UnitType="VOLUMEUNIT", Prefix="MILLI", Name="CUBIC_METRE")
+    # 面积/体积为导出量纲，不带线性 SI 前缀（MILLI 仅适用于长度单位）
+    plane_unit = f.createIfcSIUnit(UnitType="AREAUNIT", Name="SQUARE_METRE")
+    volume_unit = f.createIfcSIUnit(UnitType="VOLUMEUNIT", Name="CUBIC_METRE")
     return f.createIfcUnitAssignment(Units=[length_unit, plane_unit, volume_unit])
 
 

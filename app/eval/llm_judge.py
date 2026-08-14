@@ -119,6 +119,122 @@ async def judge_reply(
             await agent.close()
 
 
+async def judge_reply_pass_k(
+    prompt: str, reply: str, k: int = 3, judge=None,
+) -> dict:
+    """pass^k 一致性评分（v1.13.7，对齐 2026 LLM-as-judge 控噪前沿）。
+
+    同题跑 k 次 LLM judge，取均值作为最终分，agreement 度量 k 次的一致性
+    （各维归一化分极差 ≤0.2 视为一致，对应 0-5 分差 ≤1 分）。k=1 退化为单次
+    judge（旧行为）。k 越大噪声越低但成本 k 倍。
+
+    Args:
+        judge: 可注入的异步评分器 f(prompt, reply) -> dict（测试用），
+               None 时默认 judge_reply。
+
+    Returns:
+        {"scores": {dim: 0-1}, "agreement": 0-1, "k": k, "runs": [...]}
+    """
+    judge = judge or judge_reply
+    if k <= 1:
+        scores = await judge(prompt, reply)
+        return {"scores": scores, "agreement": 1.0, "k": 1, "runs": [scores]}
+
+    runs = [await judge(prompt, reply) for _ in range(k)]
+    agg: dict[str, float] = {}
+    agreed_dims = 0
+    for dim in LLM_JUDGE_DIMENSIONS:
+        vals = [r.get(dim, 0.0) for r in runs]
+        agg[dim] = round(sum(vals) / len(vals), 4)
+        if max(vals) - min(vals) <= 0.2:
+            agreed_dims += 1
+    return {
+        "scores": agg,
+        "agreement": round(agreed_dims / len(LLM_JUDGE_DIMENSIONS), 4),
+        "k": k,
+        "runs": runs,
+    }
+
+
+# 人类标注金标样本（v1.13.7）：用于校准 LLM judge 与人类判断的对齐度。
+# 样本选取语义明确、答案无歧义的典型问答，gold 为 0-1 分（与 judge 归一化对齐）。
+LLM_JUDGE_GOLD_DATASET: list[dict] = [
+    {
+        "prompt": "120 平北欧风全屋装修，帮我做个预算",
+        "reply": (
+            "根据市场均价，您的全屋装修预算约为 20 万（含税、含 3% 质保金）。\n"
+            "1. 水电改造：3 万\n2. 墙面工程：2 万\n3. 地面工程：3 万\n"
+            "总结：以上为估算，具体以报价单为准。"
+        ),
+        "gold": {"faithfulness": 1.0, "completeness": 1.0, "sufficiency": 1.0},
+    },
+    {
+        "prompt": "帮我设计一个厨房布局",
+        "reply": "好的。",
+        "gold": {"faithfulness": 0.0, "completeness": 0.0, "sufficiency": 0.0},
+    },
+    {
+        "prompt": "客厅用什么地板环保？",
+        "reply": (
+            "建议选 E0 级环保地板，实木复合或强化地板均可。\n"
+            "注意事项：E0 级甲醛释放量 ≤0.5mg/L，需认准检测报告。"
+        ),
+        "gold": {"faithfulness": 1.0, "completeness": 1.0, "sufficiency": 1.0},
+    },
+]
+
+
+async def evaluate_judge_alignment(
+    judge=None, gold_dataset: list[dict] | None = None,
+) -> dict:
+    """LLM judge 与人类标注金标的对齐度（v1.13.7）。
+
+    度量 judge 对金标样本的评分与人类标注的偏差：MAE（平均绝对误差，0-1）越低、
+    agreement_rate（容差 0.2 内一致占比）越高，说明 judge 与人类判断越对齐。
+    诚实标注：金标为少量人工样本，非全量权威基准；judge 非确定性，仅抽样校准用。
+
+    Returns:
+        {"available", "sample_size", "mae_per_dimension", "overall_mae",
+         "agreement_rate", "notes"}
+    """
+    gold = gold_dataset if gold_dataset is not None else LLM_JUDGE_GOLD_DATASET
+    if not gold:
+        return {"available": False, "reason": "无金标数据", "sample_size": 0}
+
+    judge = judge or judge_reply
+    per_dim_err: dict[str, list[float]] = {d: [] for d in LLM_JUDGE_DIMENSIONS}
+    agreed = 0
+    total = 0
+    for item in gold:
+        scores = await judge(item["prompt"], item["reply"])
+        g = item["gold"]
+        for dim in LLM_JUDGE_DIMENSIONS:
+            err = abs(float(scores.get(dim, 0.0)) - float(g.get(dim, 0.0)))
+            per_dim_err[dim].append(err)
+            total += 1
+            if err <= 0.2:
+                agreed += 1
+
+    mae = {
+        d: round(sum(errs) / len(errs), 4)
+        for d, errs in per_dim_err.items() if errs
+    }
+    overall_mae = round(
+        sum(sum(errs) for errs in per_dim_err.values()) / max(total, 1), 4,
+    )
+    return {
+        "available": True,
+        "sample_size": len(gold),
+        "mae_per_dimension": mae,
+        "overall_mae": overall_mae,
+        "agreement_rate": round(agreed / max(total, 1), 4),
+        "notes": [
+            "容差 0.2（0-1 分）判定一致；MAE 越低 judge 与人类标注越对齐",
+            "金标为少量人工样本，非全量权威基准；judge 非确定性，仅抽样校准",
+        ],
+    }
+
+
 # 三要素 → 关键词基线（与 IHomeEvalRunner._compute_dimension_scores 对齐）
 _KEYWORD_BASELINE: dict[str, tuple[str, ...]] = {
     "faithfulness": ("来源", "根据", "依据", "参考", "标注", "数据来源"),

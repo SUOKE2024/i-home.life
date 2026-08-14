@@ -83,6 +83,39 @@ def _accumulate_usage(total_usage: dict, result: str | dict) -> None:
         total_usage["total_tokens"] += int(usage.get("total_tokens", 0) or 0)
 
 
+def _looks_like_reasoning_leak(text: str) -> bool:
+    """检测文本是否为 LLM reasoning_content 泄漏（思维链）。
+
+    推理模型在 max_tokens 不足时 content 字段为空，可能 fallback 到
+    reasoning_content，导致用户看到 LLM 内部思维而非友好回复。
+    思维链特征：第一人称元描述（"我需要理解/我应该生成/首先分析"等）。
+
+    v1.13.7：从 app/api/agents.py 下沉至此（供 base.py 的 Skill 成败回写复用，
+    避免 base → api 反向依赖）。
+    """
+    if not text or len(text) < 10:
+        return False
+    reasoning_starts = (
+        "我们需要理解", "我需要理解", "我应该", "我们要",
+        "首先,", "首先，", "第一步",
+        "分析用户", "理解用户",
+        "让我", "让我思考", "让我分析",
+    )
+    reasoning_keywords = (
+        "应该输出", "应该生成", "需要输出", "JSON格式",
+        "输出格式", "需要生成", "按照格式",
+        "思维链", "reasoning", "接下来我",
+    )
+    text_stripped = text.strip()
+    if any(text_stripped.startswith(p) for p in reasoning_starts):
+        return True
+    head = text_stripped[:200]
+    keyword_count = sum(1 for kw in reasoning_keywords if kw in head)
+    if keyword_count >= 2:
+        return True
+    return False
+
+
 class BaseAgent:
     """AI Agent 基类 —— 支持多 LLM 供应商 + FunctionCall 工具调用。
 
@@ -103,6 +136,9 @@ class BaseAgent:
 
     agent_name: str = "base"
     system_prompt: str = ""
+    # v1.13.x: 稳定人格锚（身份 + 服务承诺 + 沟通风格），与 system_prompt（职责/
+    # 输出规范）互补——system_prompt 是「怎么做」，persona 是「我是谁」。空串 no-op。
+    persona: str = ""
     provider: str = "deepseek"  # "deepseek" | "glm"
     tools: list[dict] = []       # FunctionCall 工具 schema 列表
 
@@ -420,7 +456,6 @@ class BaseAgent:
             except Exception as e:
                 last_error = e
                 if attempt < max_retries:
-                    import asyncio
                     await asyncio.sleep(1)
         raise last_error
 
@@ -668,6 +703,16 @@ class BaseAgent:
         if constraint:
             messages.append({"role": "system", "content": constraint})
 
+    def _inject_persona(self, messages: list[dict]) -> None:
+        """v1.13.x: 注入稳定 persona 人格锚（身份 + 服务承诺 + 沟通风格）。
+
+        紧跟 system_prompt，让 LLM 每次对话都稳定感知「我是谁」，不随上下文漂移
+        （对齐游戏 AI NPC「千人千面但人格一致」——同一 Agent 始终是同一人设）。
+        无 persona 定义的 Agent no-op（诚实降级，不影响主流程）。
+        """
+        if self.persona:
+            messages.append({"role": "system", "content": self.persona})
+
     async def _maybe_record_skill_outcome(self, reply: Any, db) -> None:
         """v1.13.3: Skill 使用成败回写（best-effort）。
 
@@ -697,7 +742,14 @@ class BaseAgent:
                 )
                 return
             from app.services.agent_skill_evolution_service import record_skill_outcome
-            if reply.startswith("[mock]") or reply.startswith("Agent 暂时无法响应"):
+            # v1.13.7：思维链泄漏也是确定性失败信号（回复为 LLM 内部思维而非友好
+            # 用户回复），一并记失败，闭环「只记成功不记失败」遗留（语义级失败
+            # 仍依赖离线 LLM-judge 抽样，见 llm_judge.py）。
+            if (
+                reply.startswith("[mock]")
+                or reply.startswith("Agent 暂时无法响应")
+                or _looks_like_reasoning_leak(reply)
+            ):
                 # v1.13.5: 注入 Skill 后仍降级 → 确定性记失败，激活失败数据层
                 await record_skill_outcome(db, skill_id=skill_id, success=False)
                 logger.debug(
@@ -730,6 +782,8 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.x: 注入稳定 persona 人格锚（紧跟 system_prompt，稳定「我是谁」认知）
+        self._inject_persona(messages)
         # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
         self._append_model_spec_constraint(messages)
 
@@ -863,6 +917,8 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.x: 注入稳定 persona 人格锚（紧跟 system_prompt，稳定「我是谁」认知）
+        self._inject_persona(messages)
         # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
         self._append_model_spec_constraint(messages)
 
@@ -971,6 +1027,8 @@ class BaseAgent:
         messages = []
         if self.system_prompt:
             messages.append({"role": "system", "content": self.system_prompt})
+        # v1.13.x: 注入稳定 persona 人格锚（紧跟 system_prompt，稳定「我是谁」认知）
+        self._inject_persona(messages)
         # v1.13.5: Model Spec HC 约束前置声明（Guideline-as-Code，有适用约束才注入）
         self._append_model_spec_constraint(messages)
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { UserCircle, Phone, ShieldCheck, CalendarDays, LogOut, Info } from 'lucide-react'
 import { Card, Badge, Empty } from '../components/ui'
 import { useApp } from '../lib/store'
+import { request } from '../lib/api'
 
 /* 角色映射：后端 role → 中文展示，未收录的原样显示 */
 const ROLE_MAP = {
@@ -22,6 +23,16 @@ function fmtDate(v) {
 export default function ProfilePage() {
   const { user, logout, toast } = useApp()
   const navigate = useNavigate()
+  const [appVersion, setAppVersion] = useState('')
+
+  /* 从 /api/health 读取真实后端版本（避免硬编码过期版本号） */
+  useEffect(() => {
+    let alive = true
+    request('/api/health').then((r) => {
+      if (alive && r.isSuccess && r.data?.version) setAppVersion(r.data.version)
+    })
+    return () => { alive = false }
+  }, [])
 
   /* 退出登录：调用 logout 后跳转登录页 */
   const handleLogout = async () => {
@@ -83,7 +94,7 @@ export default function ProfilePage() {
             {/* 系统信息卡片（诚实标注） */}
             <Card title="系统信息" icon={<Info size={16} className="ico" />}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <InfoRow label="系统版本" value={<span className="mono">v1.11.0</span>} />
+                <InfoRow label="系统版本" value={<span className="mono">{appVersion ? `v${appVersion}` : '—'}</span>} />
                 <InfoRow label="平台" value="索克家居 · i-home.life" />
                 <InfoRow label="备案号" value="滇ICP备2026015233号-2" />
                 <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>

@@ -1,9 +1,10 @@
 """视觉表现层 VR 全景 Pydantic 验证模型"""
 
+import json
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HotspotPosition(BaseModel):
@@ -71,8 +72,10 @@ class VRPanoramaResponse(BaseModel):
     thumbnail_url: str | None
     resolution: str
     fov: float
-    initial_view: str | None
-    hotspots: str | None
+    # 注意：ORM 里 initial_view/hotspots 是 JSON 字符串，这里解析为 dict/list，
+    # 供前端直接渲染（避免 hotspots.forEach 对字符串报错）。
+    initial_view: dict[str, Any] | None = None
+    hotspots: list[dict[str, Any]] = Field(default_factory=list)
     render_quality: str
     file_size_mb: float
     render_duration_sec: int
@@ -81,6 +84,28 @@ class VRPanoramaResponse(BaseModel):
     completed_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("initial_view", mode="before")
+    @classmethod
+    def _parse_initial_view(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "{}")
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return v
+
+    @field_validator("hotspots", mode="before")
+    @classmethod
+    def _parse_hotspots(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return v
 
 
 class VRPanoramaListItem(BaseModel):
@@ -164,8 +189,6 @@ class VRSceneResponse(BaseModel):
     project_id: str
     name: str
     panorama_ids: str | None
-    # 解析后的 panorama_id 列表 (前端直接用,无需自行 JSON.parse)
-    panorama_id_list: list[str] = []
     default_panorama_id: str | None
     transition_type: str
     bgm_url: str | None

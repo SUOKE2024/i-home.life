@@ -302,6 +302,10 @@ class Settings(BaseSettings):
     llm_response_cache_enabled: bool = True
     llm_response_cache_ttl: int = 600
 
+    # 设计意图 LLM 超时（秒）：deepseek 生成复杂设计 JSON 可能 40-60s，
+    # 超时后确定性兜底（generate_layouts 秒回 3 套预置户型），避免用户长时间等待。
+    design_llm_timeout_seconds: float = 20.0
+
     # ── 在线进化闭环（v1.2.0）──
     # 轨迹驱动的 Agent 自我改进：收集执行轨迹 → 分析失败模式 → 优化 prompt/降级策略
     agent_evolution_enabled: bool = True
@@ -393,6 +397,9 @@ class Settings(BaseSettings):
     # 三要素 0-1 评分，替换关键词代理）。默认关闭——每次抽样真实调用 LLM
     # （成本/非确定性），仅管理员按需开启；关闭时回退确定性关键词基线并诚实标注。
     llm_judge_enabled: bool = False
+    # v1.13.7：LLM-as-judge pass^k 一致性（同题跑 k 次控噪，对齐 2026 前沿）。
+    # k=1 等价于单次 judge（旧行为）；k 越大噪声越低但成本 k 倍（每样本 k 次 LLM 调用）。
+    llm_judge_pass_k: int = 3
 
     # ── Model Spec 宪法 + HC 硬约束（借鉴 suoke_model_spec）──
     # 启用后 DesignerAgent/BudgetAgent/ProcurementAgent 输出经 rebuttal_engine 校验

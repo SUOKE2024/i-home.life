@@ -11,6 +11,8 @@ const STATUS_LABELS = {
   pending: ['场景触发，待设备执行（生态桥未接真机）', 'amber'],
   success: ['场景执行成功', 'green'],
   failed: ['场景执行失败', 'red'],
+  skipped: ['场景动作已跳过（设备不存在或动作缺失）', 'amber'],
+  rejected: ['场景动作被拒绝（动作不合法）', 'red'],
 }
 
 export default function SceneTriggerOverlay({ flash }) {

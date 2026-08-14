@@ -36,7 +36,7 @@ def _current_user(user=Depends(get_current_user)):
 
 
 @router.post("/device-capability", response_model=ARDeviceCapabilityResponse)
-async def ar_device_capability(body: DeviceCapabilityRequest):
+async def ar_device_capability(body: DeviceCapabilityRequest, user=Depends(_current_user)):
     """检测设备 AR 能力并返回推荐扫描方法与降级链。
 
     返回的 fallback_chain 是从推荐方法到 manual 的完整降级路径,
@@ -162,6 +162,8 @@ async def process_ar_scan(
             "door_count": result["parsed_model"]["door_count"],
             "window_count": result["parsed_model"]["window_count"],
         },
+        # 诚实标注：真实解析降级到 mock 时给出警告，前端据此标注「模拟数据」
+        "parse_warnings": result["parsed_model"]["parse_warnings"],
         "accuracy_report": result["accuracy_report"],
     }
 
@@ -217,25 +219,28 @@ async def delete_ar_session(session_id: str, db: AsyncSession = Depends(get_db),
 @router.post("/features", response_model=WallFeatureResponse, status_code=status.HTTP_201_CREATED)
 async def add_wall_feature(body: WallFeatureCreate, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     """添加墙面特征 — 门/窗/洞口/梁/柱/管道/开关插座。"""
+    # 先鉴权再写库：session 不存在即 404，防止悬空 session 绕过鉴权越权写库
+    session = await ar_scan_service.get_session(db, body.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
+
     data = body.model_dump()
     if "extra" in data and data["extra"] is not None:
         data["extra"] = dict(data["extra"])
     feature = await ar_scan_service.add_wall_feature(db, data)
     # 校验规范并发送 WS 通知
     warnings = ar_scan_service.validate_wall_feature(feature)
-    session = await ar_scan_service.get_session(db, feature.session_id)
-    if session:
-        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
-        await ws_manager.broadcast_to_project(
-            session.project_id,
-            "ar.feature.added",
-            {
-                "feature_id": feature.id,
-                "feature_type": feature.feature_type,
-                "room_name": feature.room_name,
-                "compliance_warnings": warnings,
-            },
-        )
+    await ws_manager.broadcast_to_project(
+        session.project_id,
+        "ar.feature.added",
+        {
+            "feature_id": feature.id,
+            "feature_type": feature.feature_type,
+            "room_name": feature.room_name,
+            "compliance_warnings": warnings,
+        },
+    )
     return feature
 
 
@@ -245,8 +250,9 @@ async def list_wall_features(
     user=Depends(_current_user),
 ):
     session = await ar_scan_service.get_session(db, session_id)
-    if session:
-        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     return await ar_scan_service.list_wall_features(db, session_id, room_name)
 
 
@@ -257,8 +263,9 @@ async def delete_wall_feature(feature_id: str, db: AsyncSession = Depends(get_db
     if not feat:
         raise HTTPException(status_code=404, detail="墙面特征不存在")
     session = await ar_scan_service.get_session(db, feat.session_id)
-    if session:
-        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     ok = await ar_scan_service.delete_wall_feature(db, feature_id)
     if not ok:
         raise HTTPException(status_code=404, detail="墙面特征不存在")
@@ -272,27 +279,31 @@ async def add_measurement_point(
     body: MeasurementPointCreate, db: AsyncSession = Depends(get_db), user=Depends(_current_user)
 ):
     """添加测量校准点 — 用于 AR 精度校验 (同时记录 AR 测量值和人工参考值)。"""
+    # 先鉴权再写库：session 不存在即 404，防止悬空 session 绕过鉴权越权写库
+    session = await ar_scan_service.get_session(db, body.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
+
     data = body.model_dump()
     point = await ar_scan_service.add_measurement_point(db, data)
-    session = await ar_scan_service.get_session(db, point.session_id)
-    if session:
-        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
-        await ws_manager.broadcast_to_project(
-            session.project_id,
-            "ar.point.added",
-            {
-                "point_id": point.id,
-                "label": point.label,
-                "deviation": point.deviation,
-                "rms_error_cm": session.accuracy_rms_error,
-            },
-        )
+    await ws_manager.broadcast_to_project(
+        session.project_id,
+        "ar.point.added",
+        {
+            "point_id": point.id,
+            "label": point.label,
+            "deviation": point.deviation,
+            "rms_error_cm": session.accuracy_rms_error,
+        },
+    )
     return point
 
 
 @router.get("/points/{session_id}", response_model=list[MeasurementPointResponse])
 async def list_measurement_points(session_id: str, db: AsyncSession = Depends(get_db), user=Depends(_current_user)):
     session = await ar_scan_service.get_session(db, session_id)
-    if session:
-        await verify_project_access(project_id=session.project_id, current_user=user, db=db)
+    if not session:
+        raise HTTPException(status_code=404, detail="扫描会话不存在")
+    await verify_project_access(project_id=session.project_id, current_user=user, db=db)
     return await ar_scan_service.list_measurement_points(db, session_id)

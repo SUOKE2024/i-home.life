@@ -404,6 +404,30 @@ async def test_plan_scene_actions_skipped_rejected():
     assert len(waves) == 1 and [it["idx"] for it in waves[0]] == [2]
 
 
+async def test_plan_scene_actions_sensor_empty_whitelist_rejected():
+    """传感器（只读，白名单为空）/ 未知类型 的动作应被拒绝，而非绕过校验"""
+    from app.services.scene_automation_service import _plan_scene_actions
+
+    class _D:
+        def __init__(self, id_, type_):
+            self.id = id_
+            self.device_type = type_
+            self.device_name = id_
+
+    device_map = {
+        "sensor0": _D("sensor0", "sensor"),        # 白名单显式空
+        "unknown0": _D("unknown0", "robot"),       # 未知类型 → 空白名单
+    }
+    actions = [
+        {"device_id": "sensor0", "action": "turn_on"},
+        {"device_id": "unknown0", "action": "turn_on"},
+    ]
+    waves, plan = _plan_scene_actions(actions, device_map)
+    statuses = [it["status"] for it in plan]
+    assert statuses == ["rejected", "rejected"]
+    assert waves == []  # 无 ok 动作
+
+
 # ── 边界场景补充（2026-08-12 覆盖率报告第 4 节 7 项）──
 
 

@@ -88,7 +88,7 @@ def upgrade() -> None:
         print(f"  added: {_CREWS}.owner_id (权益归属用户)")
     # 2) construction_crews.featured（平台授予置顶标志）
     if _has_table(_CREWS) and not _has_column(_CREWS, "featured"):
-        _add_column(_CREWS, sa.Column("featured", sa.Boolean(), nullable=False, server_default=sa.text("0")))
+        _add_column(_CREWS, sa.Column("featured", sa.Boolean(), nullable=False, server_default=sa.false()))
         print(f"  added: {_CREWS}.featured (置顶标志，平台授予)")
     # 3) points_mall_items.benefit_type（vip 类商品细分权益类型）
     if _has_table(_MALL) and not _has_column(_MALL, "benefit_type"):
@@ -158,7 +158,7 @@ def _seed_benefit_items() -> None:
                 "(id, name, category, description, image_url, points_required, stock, discount_type, "
                 " discount_value, discount_max, benefit_type, validity_days, is_active, sort_order, created_at) "
                 "VALUES (:id, :name, :category, :description, NULL, :points_required, :stock, NULL, "
-                " NULL, NULL, :benefit_type, :validity_days, 1, :sort_order, :created_at)"
+                " NULL, NULL, :benefit_type, :validity_days, TRUE, :sort_order, :created_at)"
             ),
             {
                 "id": str(uuid.uuid4()),

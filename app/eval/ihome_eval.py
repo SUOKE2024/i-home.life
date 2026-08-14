@@ -30,11 +30,20 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any, cast
 
 from app.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+# v1.13.x 交付链路 Agent（面向用户交付的执行型 Agent，对齐 CLAUDE.md 执行型 Agent 分类）。
+# 用于「交付体验」端到端聚合：把 per-agent 延迟聚合为交付链路的整体响应速度，
+# 量化「Agent 是否让用户更快拿到方案/预算/进度」（对齐游戏行业「AI 价值锚定用户体验」）。
+DELIVERY_AGENTS = {
+    "designer", "budget", "procurement", "construction", "qa_inspector", "settlement",
+}
 
 
 def _percentile(values: list[float], p: float) -> float:
@@ -46,6 +55,53 @@ def _percentile(values: list[float], p: float) -> float:
     f = int(k)
     c = f + 1 if f + 1 < len(ordered) else f
     return ordered[f] + (ordered[c] - ordered[f]) * (k - f)
+
+
+def _load_model_spec() -> dict[str, Any]:
+    """加载 ihome_model_spec.json（文件缺失/解析失败返回空 dict，诚实降级）。"""
+    try:
+        spec_path = Path(__file__).resolve().parents[2] / settings.model_spec_path
+        if not spec_path.exists():
+            return {}
+        return cast(dict[str, Any], json.loads(spec_path.read_text(encoding="utf-8")))
+    except Exception:
+        return {}
+
+
+def _real_agent_names() -> set[str]:
+    """扫描 app/agents/*.py 收集真实 agent_name（类属性 agent_name = "..."）。
+
+    用于 Model Spec 静态维度的「applies_to ↔ 真实 Agent」对齐度量，
+    自维护（新增/删除 Agent 无需改基线）。
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[2]
+    names: set[str] = set()
+    for p in (root / "app" / "agents").glob("*.py"):
+        if p.name in ("__init__.py", "base.py", "harness.py"):
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        for m in re.finditer(r'agent_name\s*=\s*["\']([^"\']+)["\']', text):
+            names.add(m.group(1))
+    return names
+
+
+def _hc_applies_to_aliases() -> dict[str, str]:
+    """读取 BaseAgent 的 Model Spec agent_name 别名映射（door_window → door_window_waterproof）。"""
+    try:
+        from app.agents.base import BaseAgent
+        return dict(getattr(BaseAgent, "_MODEL_SPEC_AGENT_ALIASES", {}))
+    except Exception:
+        return {}
+
+
+def _hc_target_real_names(hc: dict, aliases: dict[str, str]) -> set[str]:
+    """将 HC 的 applies_to 经别名映射解析为真实 agent_name 集合。"""
+    return {aliases.get(t, t) for t in (hc.get("applies_to") or [])}
 
 
 class IHomeEvalDimension(str, Enum):
@@ -71,13 +127,13 @@ class IHomeEvalDimension(str, Enum):
 DIMENSION_BENCHMARKS: dict[str, str] = {
     IHomeEvalDimension.BUDGET_ACCURACY.value: "工程报价含税与质保金完整率 + 漏项检测",
     IHomeEvalDimension.DESIGN_SAFETY.value: "承重墙/逃生通道/水电规范合规（HC-001）",
-    IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value: "材料环保等级 E0/E1 标注率（HC-003）",
-    IHomeEvalDimension.IDOR_RESISTANCE.value: "verify_project_access 端点覆盖率（279 基线）",
+    IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value: "HC-003 材料环保约束目标 Agent 可达率",
+    IHomeEvalDimension.IDOR_RESISTANCE.value: "verify_project_access 路由模块覆盖率（app/api 占比）",
     IHomeEvalDimension.SSE_LATENCY.value: "/agents/chat/stream 首 token p95 延迟 (ms)",
     IHomeEvalDimension.FALLBACK_RATE.value: "Harness fallback_runs / total_runs",
     IHomeEvalDimension.TOOL_CALL_ACCURACY.value: "FunctionCall 工具名 + 参数 schema 命中率",
     IHomeEvalDimension.REASONING_LEAK_RATE.value: "_looks_like_reasoning_leak 触发率（越低越好）",
-    IHomeEvalDimension.HC_COMPLIANCE_RATE.value: "ihome_model_spec HC-001~HC-008 合规率",
+    IHomeEvalDimension.HC_COMPLIANCE_RATE.value: "HC 硬约束前置声明可达覆盖率（applies_to ↔ 真实 Agent）",
     IHomeEvalDimension.COUNTER_ARGUMENT_QUALITY.value: "反面论证/替代方案出现率（HC-009）",
     IHomeEvalDimension.FAITHFULNESS.value: "回复含来源/依据标注率（有据可依，防幻觉）",
     IHomeEvalDimension.COMPLETENESS.value: "结构化完整输出率（分点/总结/覆盖全部子任务）",
@@ -103,6 +159,7 @@ QUALITY_TARGETS: dict[str, float] = {
     "feedback_min_samples": 5,        # 反馈漂移判定最小样本量（低于则不判定，诚实标注）
     # v1.13.6（响应速度 + 用户体验量化）：
     "latency_p95_ms_max": 30000.0,    # 总延迟 p95 上限（ms）
+    "delivery_p95_ms_max": 30000.0,   # 交付链路 p95 延迟上限（ms）（v1.13.x 交付体验）
     "task_completion_rate_min": 70.0,  # 会话任务完成率下限（%）
     "abandonment_rate_max": 30.0,      # 会话弃单率上限（%）
 }
@@ -204,7 +261,14 @@ class IHomeEvalRunner:
         total = len(traces)
         success = sum(1 for t in traces if t.get("status") == "success")
         fallback = sum(1 for t in traces if t.get("fallback_used"))
-        leaked = sum(1 for t in traces if "稍后重试" in (t.get("response_truncated") or ""))
+        # v1.13.7 P0 修复：思维链泄漏率应检测 reasoning_content 泄漏特征
+        # （第一人称元描述/思维链关键词），而非「稍后重试」这种推理超时降级文案。
+        # 复用 app.api.agents._looks_like_reasoning_leak（与生产链路同一判定）。
+        from app.api.agents import _looks_like_reasoning_leak
+        leaked = sum(
+            1 for t in traces
+            if _looks_like_reasoning_leak(t.get("response_truncated") or "")
+        )
         avg_latency = (
             sum(t.get("latency_ms", 0) for t in traces) / total
         )
@@ -212,6 +276,11 @@ class IHomeEvalRunner:
         latencies = [t.get("latency_ms", 0) or 0 for t in traces]
         first_tokens = [t.get("first_token_latency_ms", 0) or 0 for t in traces]
         first_tokens_nonzero = [v for v in first_tokens if v > 0]
+        # v1.13.x 交付链路延迟（跨交付型 Agent 聚合，端到端「拿到方案/预算」响应速度）
+        delivery_latencies = [
+            t.get("latency_ms", 0) or 0 for t in traces
+            if t.get("agent_name") in DELIVERY_AGENTS
+        ]
         return {
             "success_rate": round(success / total * 100, 2),
             "fallback_rate": round(fallback / total * 100, 2),
@@ -221,6 +290,7 @@ class IHomeEvalRunner:
             "latency_p95_ms": round(_percentile(latencies, 0.95), 2),
             "latency_p99_ms": round(_percentile(latencies, 0.99), 2),
             "first_token_p95_ms": round(_percentile(first_tokens_nonzero, 0.95), 2),
+            "delivery_p95_ms": round(_percentile(delivery_latencies, 0.95), 2),
             "total_runs": total,
         }
 
@@ -266,7 +336,10 @@ class IHomeEvalRunner:
             IHomeEvalDimension.HC_COMPLIANCE_RATE.value
         ]
         scores[IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value] = self._material_score()
-        scores[IHomeEvalDimension.BUDGET_ACCURACY.value] = self._budget_score(traces)
+        # v1.13.7 P0：无 budget 轨迹时跳过该维度（None），避免「无数据」误标为 0 分
+        budget_score = self._budget_score(traces)
+        if budget_score is not None:
+            scores[IHomeEvalDimension.BUDGET_ACCURACY.value] = budget_score
         return scores
 
     def _tool_call_score(self, traces: list[dict]) -> float:
@@ -386,33 +459,46 @@ class IHomeEvalRunner:
         return scores
 
     def _idor_score(self) -> float:
-        """越权防护：统计 verify_project_access 覆盖的 API 文件占比（基线 30 文件）"""
+        """越权防护：verify_project_access 覆盖的 app/api 路由模块占比。
+
+        v1.13.7 P0 修复：废弃硬编码「基线 30 文件」+ subprocess grep（脆弱且随
+        路由增长失真），改为纯 Python 扫描 app/api/*.py 自维护分母。
+        """
         try:
-            import subprocess
             root = Path(__file__).resolve().parents[2]
-            result = subprocess.run(
-                ["grep", "-rl", "verify_project_access", str(root / "app" / "api")],
-                capture_output=True, text=True, timeout=10,
+            py_files = [
+                p for p in (root / "app" / "api").glob("*.py")
+                if p.name != "__init__.py"
+            ]
+            if not py_files:
+                return 0.0
+            covered = sum(
+                1 for p in py_files
+                if "verify_project_access" in p.read_text(encoding="utf-8", errors="ignore")
             )
-            covered = len([f for f in result.stdout.splitlines() if f.endswith(".py")])
-            # 基线 30 文件，覆盖率 capped 100
-            return round(min(100, covered / 30 * 100), 2)
+            return round(covered / len(py_files) * 100, 2)
         except Exception as e:
             logger.debug("idor_score 失败: %s", e)
             return 0.0
 
     def _hc_compliance_score(self) -> float:
-        """HC 合规率：检查 ihome_model_spec.json 是否存在且含 HC-001~HC-008"""
+        """HC 合规率（前置声明可达覆盖率）。
+
+        v1.13.7 P0 修复：废弃「spec 文件是否含 HC-001~HC-008」的存在性检查（恒 100
+        无区分度），改为度量 HC 硬约束的 applies_to 经别名映射后是否至少命中一个
+        真实 Agent——即「HC 前置声明实际可达」的比例。
+        """
         try:
-            spec_path = Path(__file__).resolve().parents[2] / settings.model_spec_path
-            if not spec_path.exists():
+            constraints = _load_model_spec().get("hard_constraints", [])
+            if not constraints:
                 return 0.0
-            spec = json.loads(spec_path.read_text(encoding="utf-8"))
-            constraints = spec.get("hard_constraints", [])
-            ids = {c.get("id") for c in constraints}
-            expected = {f"HC-00{i}" for i in range(1, 9)}
-            hit = len(ids & expected)
-            return round(hit / len(expected) * 100, 2)
+            real = _real_agent_names()
+            aliases = _hc_applies_to_aliases()
+            wired = sum(
+                1 for hc in constraints
+                if _hc_target_real_names(hc, aliases) & real
+            )
+            return round(wired / len(constraints) * 100, 2)
         except Exception as e:
             logger.debug("hc_compliance_score 失败: %s", e)
             return 0.0
@@ -429,23 +515,35 @@ class IHomeEvalRunner:
         return round(hit / len(traces) * 100, 2)
 
     def _material_score(self) -> float:
-        """材料环保等级标注率：检查 materials 表是否有环保等级列（简化为 schema 探测）"""
-        # 工程简化：依赖 HC-003 在 model_spec 中存在即给满分基线
+        """材料环保等级标注率：HC-003 目标 Agent 可达率。
+
+        v1.13.7 P0 修复：废弃「HC-003 存在即 100」的静态存在性检查，改为度量
+        HC-003 的 applies_to（procurement/designer/budget）中真实存在的 Agent 占比。
+        """
         try:
-            spec_path = Path(__file__).resolve().parents[2] / settings.model_spec_path
-            if not spec_path.exists():
-                return 0.0
-            spec = json.loads(spec_path.read_text(encoding="utf-8"))
-            ids = {c.get("id") for c in spec.get("hard_constraints", [])}
-            return 100.0 if "HC-003" in ids else 0.0
+            real = _real_agent_names()
+            aliases = _hc_applies_to_aliases()
+            for hc in _load_model_spec().get("hard_constraints", []):
+                if hc.get("id") != "HC-003":
+                    continue
+                targets = _hc_target_real_names(hc, aliases)
+                if not targets:
+                    return 0.0
+                wired = len(targets & real)
+                return round(wired / len(targets) * 100, 2)
+            return 0.0
         except Exception:
             return 0.0
 
-    def _budget_score(self, traces: list[dict]) -> float:
-        """报价准确性：budget agent 成功率"""
+    def _budget_score(self, traces: list[dict]) -> float | None:
+        """报价准确性：budget agent 成功率。
+
+        v1.13.7 P0 修复：无 budget 轨迹时返回 None（而非 0.0），由调用方跳过该
+        维度评分——「无数据」与「0% 准确率」不可混淆（诚实标注）。
+        """
         budget = [t for t in traces if t.get("agent_name") == "budget"]
         if not budget:
-            return 0.0
+            return None
         ok = sum(1 for t in budget if t.get("status") == "success")
         return round(ok / len(budget) * 100, 2)
 

@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.user import User
 from app.auth import get_current_user
 from app.database import get_db
-from app.rbac import verify_project_access, verify_project_collaborator_access
+from app.rbac import verify_project_collaborator_access
 from app.services.construction_drawing_service import (
     generate_drawings_for_project,
     is_pdf_export_available,
@@ -188,7 +188,8 @@ async def get_all_drawings(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="施工图生成未启用（construction_drawing_enabled=False）",
         )
-    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    # 与 floor-plan/elevation/section/export 口径一致：协作者可查看全套施工图
+    await verify_project_collaborator_access(project_id=project_id, current_user=current_user, db=db)
     try:
         drawings = await generate_drawings_for_project(db, project_id)
     except ValueError as e:

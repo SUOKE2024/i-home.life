@@ -230,9 +230,11 @@ def evaluate_tool_selection(
 def get_tool_accuracy_report(classifier=None) -> dict:
     """生成工具选择准确率报告（供 ihome_eval TOOL_CALL_ACCURACY 维度 / CI 复用）。
 
-    返回报告 + 数据集规模 + 版本标注。零 LLM 依赖（确定性，诚实标注为基线）。
+    返回报告 + 数据集规模 + Minimal 模式对比（隔离工具数量影响）+ 版本标注。
+    零 LLM 依赖（确定性，诚实标注为基线）。
     """
     result = evaluate_tool_selection(classifier=classifier)
+    minimal_result = evaluate_tool_selection(cases=MINIMAL_TOOL_DATASET, classifier=classifier)
     return {
         "report_type": "tool_selection_accuracy",
         "baseline": "keyword_classifier" if classifier is None else "custom",
@@ -242,12 +244,78 @@ def get_tool_accuracy_report(classifier=None) -> dict:
             "accuracy": result["accuracy"],
             "sample_size": result["sample_size"],
         },
+        "minimal": {
+            "dataset_size": len(MINIMAL_TOOL_DATASET),
+            "metrics": {
+                "accuracy": minimal_result["accuracy"],
+                "sample_size": minimal_result["sample_size"],
+            },
+            "confusion": minimal_result["confusion"],
+        },
         "per_tool": result["per_tool"],
         "per_failure_mode": result["per_failure_mode"],
         "confusion": result["confusion"],
         "notes": [
             "确定性关键词基线（非 LLM），用于建立工具选择最低可接受线",
+            "minimal 为仅 get_budget/get_design_layout 两工具的子集基线（隔离工具数量影响）",
             "LLM 分类的抽样评估见 GET /api/eval/tool-accuracy/llm-sample（受 tool_llm_sampling_enabled 门控）",
+        ],
+    }
+
+
+# ════════════════════════════════════════════════════════════════
+# Minimal 模式评测（v1.13.8，借鉴 DeepSeek Harness「Minimal mode」）
+# ════════════════════════════════════════════════════════════════
+
+# DeepSeek Harness 的 Minimal mode 仅保留 1-2 个工具用于公平基准测试，
+# 减少 harness 优势干扰。本项目对齐：仅覆盖 get_budget + get_design_layout
+# 两个最核心工具，用于隔离「模型工具选择能力 vs 工程 harness 复杂度」。
+# 若极简工具集下分类器仍 100% 且混淆归零，说明误差主要来自工具数量/
+# 关键词冲突，而非单工具语义识别。
+
+MINIMAL_TOOL_DATASET: list[ToolSelectionCase] = [
+    # ── get_budget（预算）──────────────────────────────────────────
+    ToolSelectionCase("100平简约风装修预算多少", "get_budget", {"area": 100, "style": "modern"}, "normal"),
+    ToolSelectionCase("帮我估算下120平房子的装修费用", "get_budget", {"area": 120}, "normal"),
+    ToolSelectionCase("90平轻奢装修大概花多少钱", "get_budget", {"area": 90, "style": "luxury"}, "normal"),
+    ToolSelectionCase("装修预算明细能查吗", "get_budget", {}, "boundary", "无面积信息，仍应选预算工具"),
+    ToolSelectionCase("160平的别墅装修要多少钱", "get_budget", {"area": 160}, "normal"),
+    # ── get_design_layout（设计布局）────────────────────────────────
+    ToolSelectionCase("120平三室两厅北欧风设计一下", "get_design_layout", {"area": 120, "style": "nordic"}, "normal"),
+    ToolSelectionCase("帮我出个新中式的客厅布局", "get_design_layout", {"style": "chinese"}, "normal"),
+    ToolSelectionCase("80平两居室怎么布置好", "get_design_layout", {"area": 80}, "normal"),
+    ToolSelectionCase("日式风格装修方案看看", "get_design_layout", {"style": "japanese"}, "normal"),
+    ToolSelectionCase("现代简约的卧室设计图", "get_design_layout", {"style": "modern"}, "normal"),
+    # ── 负面用例（闲聊/致谢，不应选工具）───────────────────────────
+    ToolSelectionCase("你好，在吗", "get_budget", {}, "negative", "闲聊，不应选工具"),
+    ToolSelectionCase("谢谢你的帮助", "get_budget", {}, "negative", "致谢，不应选工具"),
+]
+
+
+def get_minimal_tool_accuracy_report(classifier=None) -> dict:
+    """生成 Minimal 模式工具选择准确率报告（借鉴 DeepSeek Harness Minimal mode）。
+
+    仅覆盖 2 个核心工具（get_budget/get_design_layout），复用 evaluate_tool_selection。
+    用于隔离「模型工具选择能力 vs 工程 harness 复杂度」——对比全工具集基线
+    （get_tool_accuracy_report），若两工具集均 100% 且混淆归零，说明误差主要
+    来自工具数量/关键词冲突而非单工具语义识别。
+    """
+    result = evaluate_tool_selection(cases=MINIMAL_TOOL_DATASET, classifier=classifier)
+    return {
+        "report_type": "tool_selection_accuracy_minimal",
+        "baseline": "keyword_classifier" if classifier is None else "custom",
+        "dataset": "MINIMAL_TOOL_DATASET",
+        "dataset_size": len(MINIMAL_TOOL_DATASET),
+        "metrics": {
+            "accuracy": result["accuracy"],
+            "sample_size": result["sample_size"],
+        },
+        "per_tool": result["per_tool"],
+        "per_failure_mode": result["per_failure_mode"],
+        "confusion": result["confusion"],
+        "notes": [
+            "Minimal 模式（仅 get_budget/get_design_layout 两工具），隔离工具数量对选择准确率的影响",
+            "对比全工具集基线（TOOL_SELECTION_DATASET）：两工具集均 100% 且混淆归零说明误差来自工具数量/关键词冲突",
         ],
     }
 

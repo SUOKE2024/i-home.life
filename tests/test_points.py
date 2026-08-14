@@ -254,6 +254,27 @@ async def test_redeem_item_decrements_stock(db_session):
     assert item.stock == 4
 
 
+@pytest.mark.asyncio
+async def test_mall_item_response_passes_benefit_type(db_session):
+    """积分商城商品响应应透传 benefit_type（服务商付费展厅权益商品）"""
+    from app.schemas.points import PointsMallItemResponse
+
+    item = PointsMallItem(
+        name="作品集置顶 · 30 天",
+        category="vip",
+        benefit_type="showroom_featured",
+        points_required=2000,
+        stock=-1,
+        is_active=True,
+    )
+    db_session.add(item)
+    await db_session.commit()
+    await db_session.refresh(item)
+
+    resp = PointsMallItemResponse.model_validate(item)
+    assert resp.benefit_type == "showroom_featured"
+
+
 # ════════════════════════════════════════════════════════════════
 # recompute_ranking / get_ranking
 # ════════════════════════════════════════════════════════════════

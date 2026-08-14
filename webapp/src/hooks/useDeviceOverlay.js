@@ -71,11 +71,18 @@ export default function useDeviceOverlay(projectId) {
   /** 记录场景执行结果（SceneTriggerOverlay 浮层），FLASH_MS 后自动关闭 */
   const showSceneFlash = useCallback(({ sceneId, sceneName, actions }) => {
     const list = actions || []
-    const status = list.length > 0 && list.every((a) => a.action_status === 'success')
-      ? 'success'
-      : list.some((a) => a.action_status === 'failed')
-        ? 'failed'
-        : 'pending'
+    const statuses = list.map((a) => a.action_status)
+    const status = statuses.length === 0
+      ? 'pending'
+      : statuses.every((s) => s === 'success')
+        ? 'success'
+        : statuses.some((s) => s === 'failed')
+          ? 'failed'
+          : statuses.some((s) => s === 'rejected')
+            ? 'rejected'
+            : statuses.some((s) => s === 'skipped')
+              ? 'skipped'
+              : 'pending'
     setSceneFlash({ sceneId, sceneName, status, actions: list })
     const t = setTimeout(() => setSceneFlash(null), FLASH_MS + 500)
     flashTimersRef.current.push(t)

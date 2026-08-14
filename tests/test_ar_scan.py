@@ -27,6 +27,7 @@ async def _create_project(client: AsyncClient, headers: dict, name: str = "AR �
 @pytest.mark.asyncio
 async def test_ar_device_capability_lidar(client: AsyncClient):
     """LiDAR 设备 — 推荐 lidar 方法,降级链包含所有方法"""
+    token, headers = await _register_and_login(client, "13900008001")
     resp = await client.post("/api/surveys/ar/device-capability", json={
         "platform": "ios",
         "device_model": "iPhone 15 Pro",
@@ -34,7 +35,7 @@ async def test_ar_device_capability_lidar(client: AsyncClient):
         "arkit_version": "7.0",
         "supports_roomplan": True,
         "supports_photogrammetry": True,
-    })
+    }, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["recommended_method"] == "lidar"
@@ -48,13 +49,14 @@ async def test_ar_device_capability_lidar(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_ar_device_capability_visual_slam_android(client: AsyncClient):
     """Android 设备 (无 LiDAR) — 推荐 visual_slam 方法"""
+    token, headers = await _register_and_login(client, "13900008002")
     resp = await client.post("/api/surveys/ar/device-capability", json={
         "platform": "android",
         "device_model": "Pixel 8",
         "has_lidar": False,
         "arcore_version": "1.31",
         "supports_photogrammetry": True,
-    })
+    }, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["recommended_method"] == "visual_slam"
@@ -66,13 +68,14 @@ async def test_ar_device_capability_visual_slam_android(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_ar_device_capability_harmonyos(client: AsyncClient):
     """HarmonyOS 设备 — 支持 AR Engine visual_slam"""
+    token, headers = await _register_and_login(client, "13900008003")
     resp = await client.post("/api/surveys/ar/device-capability", json={
         "platform": "harmonyos",
         "device_model": "MatePad Pro 13.2",
         "has_lidar": False,
         "ar_engine_version": "1.0",
         "supports_photogrammetry": True,
-    })
+    }, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["recommended_method"] == "visual_slam"
@@ -82,19 +85,30 @@ async def test_ar_device_capability_harmonyos(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_ar_device_capability_old_ios_degrades(client: AsyncClient):
     """iOS ARKit 4 但无 LiDAR — 应降级到 visual_slam"""
+    token, headers = await _register_and_login(client, "13900008004")
     resp = await client.post("/api/surveys/ar/device-capability", json={
         "platform": "ios",
         "device_model": "iPhone 11",
         "has_lidar": False,
         "arkit_version": "5.0",
         "supports_photogrammetry": True,
-    })
+    }, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     # iPhone 11 无 LiDAR,推荐 visual_slam
     assert data["recommended_method"] == "visual_slam"
     assert data["lidar_supported"] is False
     assert data["fallback_chain"][0] == "visual_slam"
+
+
+@pytest.mark.asyncio
+async def test_ar_device_capability_requires_auth(client: AsyncClient):
+    """设备能力检测端点也需认证（与同文件其它端点口径一致）"""
+    resp = await client.post("/api/surveys/ar/device-capability", json={
+        "platform": "ios",
+        "has_lidar": True,
+    })
+    assert resp.status_code == 401
 
 
 # ── F1.2 扫描会话生命周期 ──
@@ -368,6 +382,42 @@ async def test_ar_wall_features_crud(client: AsyncClient):
     # 删除特征
     resp = await client.delete(f"/api/surveys/ar/features/{new_feature['id']}", headers=headers)
     assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_ar_dangling_session_rejected(client: AsyncClient):
+    """悬空 session_id（不存在）应返回 404，而非跳过鉴权写库/删除（IDOR 修复）"""
+    token, headers = await _register_and_login(client, "13900008100")
+
+    # 不存在的 session_id 写墙面特征 → 404（此前会跳过鉴权直接写库）
+    resp = await client.post("/api/surveys/ar/features", json={
+        "session_id": "nonexistent-session",
+        "room_name": "客厅",
+        "feature_type": "door",
+        "position_x": 1.0,
+        "position_y": 0.0,
+        "width": 0.9,
+        "height": 2.1,
+        "depth": 0.2,
+    }, headers=headers)
+    assert resp.status_code == 404
+
+    # 不存在的 session_id 写测量点 → 404（此前会跳过鉴权直接写库）
+    resp = await client.post("/api/surveys/ar/points", json={
+        "session_id": "nonexistent-session",
+        "label": "主卧对角线",
+        "ar_value": 3.2,
+        "reference_value": 3.1,
+    }, headers=headers)
+    assert resp.status_code == 404
+
+    # 不存在的 session_id 列出特征 → 404（此前静默返回空列表）
+    resp = await client.get("/api/surveys/ar/features/nonexistent-session", headers=headers)
+    assert resp.status_code == 404
+
+    # 不存在的 session_id 列出测量点 → 404
+    resp = await client.get("/api/surveys/ar/points/nonexistent-session", headers=headers)
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

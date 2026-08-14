@@ -1106,7 +1106,7 @@ async def delete_session(db: AsyncSession, session: ScanSession) -> None:
 async def start_scan(db: AsyncSession, session: ScanSession) -> ScanSession:
     """开始扫描,设置状态为 scanning。"""
     session.status = "scanning"
-    session.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.started_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(session)
     return session
@@ -1185,7 +1185,7 @@ async def process_scan(
     session.accuracy_level = accuracy["accuracy_level"]
 
     session.status = "completed"
-    session.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    session.completed_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(session)
 
