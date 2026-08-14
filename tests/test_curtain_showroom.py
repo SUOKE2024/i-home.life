@@ -111,24 +111,26 @@ async def test_curtain_showroom_products_filter(client: AsyncClient, auth_header
 
 @pytest.mark.asyncio
 async def test_curtain_product_texture_upload(client: AsyncClient, auth_headers, db_session):
-    """上传真实面料贴图并回读"""
+    """上传真实面料贴图三件套并回读"""
     await _seed_showroom(db_session)
     products = (await client.get("/api/curtain-showroom/products", headers=auth_headers)).json()
     assert len(products) == 1
     product_id = products[0]["id"]
 
-    png_bytes = b"\x89PNG\r\n\x1a\n" + b"fake-png-content"
-    resp = await client.post(
-        f"/api/curtain-showroom/products/{product_id}/texture",
-        files={"file": ("fabric.png", png_bytes, "image/png")},
-        headers=auth_headers,
-    )
-    assert resp.status_code == 200
-    assert resp.json()["texture_url"] == f"/api/curtain-showroom/products/{product_id}/texture"
+    for map_type in ("texture", "normal", "roughness"):
+        png_bytes = b"\x89PNG\r\n\x1a\n" + f"{map_type}-bytes".encode()
+        resp = await client.post(
+            f"/api/curtain-showroom/products/{product_id}/maps/{map_type}",
+            files={"file": ("fabric.png", png_bytes, "image/png")},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        url_field = f"{'texture' if map_type == 'texture' else map_type}_url"
+        assert resp.json()[url_field] == f"/api/curtain-showroom/products/{product_id}/maps/{map_type}"
 
-    tex = await client.get(
-        f"/api/curtain-showroom/products/{product_id}/texture", headers=auth_headers,
-    )
-    assert tex.status_code == 200
-    assert tex.content == png_bytes
-    assert tex.headers["content-type"].startswith("image/png")
+        tex = await client.get(
+            f"/api/curtain-showroom/products/{product_id}/maps/{map_type}", headers=auth_headers,
+        )
+        assert tex.status_code == 200
+        assert tex.content == png_bytes
+        assert tex.headers["content-type"].startswith("image/png")

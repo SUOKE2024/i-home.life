@@ -23,6 +23,14 @@ from app.services import curtain_showroom_service
 
 router = APIRouter(prefix="/curtain-showroom", tags=["窗帘展厅"])
 
+# 贴图三件套字段映射：map_type → (url 字段, 数据字段, MIME 字段)
+_MAP_TYPE_FIELDS = {
+    "texture": ("texture_url", "texture_data", "texture_content_type"),
+    "normal": ("normal_url", "normal_data", "normal_content_type"),
+    "roughness": ("roughness_url", "roughness_data", "roughness_content_type"),
+}
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+
 
 @router.get(
     "/overview",
@@ -79,18 +87,21 @@ async def list_products(
 
 
 @router.post(
-    "/products/{product_id}/texture",
+    "/products/{product_id}/maps/{map_type}",
     response_model=CurtainProductResponse,
-    summary="上传真实面料贴图",
-    description="上传面料 albedo 贴图（jpeg/png/webp，≤5MB），存原始字节并替换 3D 换装纹理。",
+    summary="上传面料贴图（三件套）",
+    description="上传 albedo(normal/roughness) 贴图（jpeg/png/webp，≤5MB）。map_type: texture/normal/roughness。",
 )
-async def upload_product_texture(
+async def upload_product_map(
     product_id: str,
+    map_type: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if file.content_type not in {"image/jpeg", "image/png", "image/webp"}:
+    if map_type not in _MAP_TYPE_FIELDS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="map_type 仅支持 texture/normal/roughness")
+    if file.content_type not in _ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="仅支持 jpeg/png/webp 图片")
     data = await file.read()
     if len(data) > 5 * 1024 * 1024:
@@ -98,28 +109,36 @@ async def upload_product_texture(
     product = await curtain_showroom_service.get_product(db, product_id)
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="展品不存在")
-    product.texture_data = data
-    product.texture_content_type = file.content_type or "image/png"
-    product.texture_url = f"/api/curtain-showroom/products/{product_id}/texture"
+    url_attr, data_attr, ct_attr = _MAP_TYPE_FIELDS[map_type]
+    setattr(product, data_attr, data)
+    setattr(product, ct_attr, file.content_type or "image/png")
+    setattr(product, url_attr, f"/api/curtain-showroom/products/{product_id}/maps/{map_type}")
     await db.commit()
     await db.refresh(product)
     return CurtainProductResponse.model_validate(product)
 
 
 @router.get(
-    "/products/{product_id}/texture",
-    summary="获取真实面料贴图",
-    description="返回展品已上传的面料贴图原始字节。",
+    "/products/{product_id}/maps/{map_type}",
+    summary="获取面料贴图（三件套）",
+    description="返回展品已上传的贴图原始字节。map_type: texture/normal/roughness。",
 )
-async def get_product_texture(
+async def get_product_map(
     product_id: str,
+    map_type: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if map_type not in _MAP_TYPE_FIELDS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="map_type 仅支持 texture/normal/roughness")
     product = await curtain_showroom_service.get_product(db, product_id)
-    if not product or not product.texture_data:
+    if not product:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="展品不存在")
+    _, data_attr, ct_attr = _MAP_TYPE_FIELDS[map_type]
+    data = getattr(product, data_attr)
+    if not data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="贴图不存在")
     return Response(
-        content=product.texture_data,
-        media_type=product.texture_content_type or "image/png",
+        content=data,
+        media_type=getattr(product, ct_attr) or "image/png",
     )

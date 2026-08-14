@@ -404,17 +404,20 @@ export async function getCurtainShowroomProducts(filters = {}) {
   return request(`/api/curtain-showroom/products${q ? `?${q}` : ''}`)
 }
 
-/** 上传真实面料贴图（multipart，替换 3D 换装纹理） */
-export async function uploadCurtainTexture(productId, file) {
+/** 上传真实面料贴图（multipart，三件套：texture/normal/roughness） */
+export async function uploadCurtainMap(productId, mapType, file) {
   const token = getToken()
   const form = new FormData()
   form.append('file', file)
   try {
-    const res = await fetch(`/api/curtain-showroom/products/${encodeURIComponent(productId)}/texture`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    })
+    const res = await fetch(
+      `/api/curtain-showroom/products/${encodeURIComponent(productId)}/maps/${encodeURIComponent(mapType)}`,
+      {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      },
+    )
     if (res.status === 401) {
       clearToken()
       if (onUnauthorizedCb) onUnauthorizedCb()

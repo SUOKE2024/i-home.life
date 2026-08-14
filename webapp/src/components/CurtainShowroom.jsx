@@ -11,7 +11,7 @@ import {
   getCurtainShowroomOverview,
   getCurtainShowroomProducts,
   addBomItem,
-  uploadCurtainTexture,
+  uploadCurtainMap,
   getToken,
 } from '../lib/api'
 
@@ -159,7 +159,7 @@ function makeFabricMaterial(fabric, colorName) {
 }
 
 /** 加载需鉴权的贴图（fetch + PASETO → Blob → THREE.Texture），失败由调用方回退程序化 */
-async function loadAuthedTexture(url) {
+async function loadAuthedTexture(url, srgb = false) {
   const token = getToken()
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
   if (!res.ok) throw new Error(`贴图加载失败 HTTP ${res.status}`)
@@ -173,7 +173,7 @@ async function loadAuthedTexture(url) {
   })
   URL.revokeObjectURL(objUrl)
   const tex = new THREE.Texture(img)
-  tex.colorSpace = THREE.SRGBColorSpace
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
   tex.needsUpdate = true
   return tex
@@ -607,18 +607,22 @@ export default function CurtainShowroom({ projectId }) {
       currentInstallation.render_type, currentProduct.fabric, currentProduct.color,
     )
     w.curtainGroup.add(curtain)
-    // 已上传真实贴图 → 异步加载替换 albedo；失败静默回退程序化
-    if (currentProduct.texture_url) {
-      loadAuthedTexture(currentProduct.texture_url).then((tex) => {
+    // 已上传真实贴图 → 异步加载替换（albedo SRGB / normal+roughness 线性）；失败静默回退程序化
+    const applyMap = (url, prop, srgb) => {
+      if (!url) return
+      loadAuthedTexture(url, srgb).then((tex) => {
         curtain.traverse((obj) => {
           if (obj.isMesh && obj.userData.isFabric) {
-            obj.material.map?.dispose()
-            obj.material.map = tex
+            if (obj.material[prop]) obj.material[prop].dispose()
+            obj.material[prop] = tex
             obj.material.needsUpdate = true
           }
         })
       }).catch(() => {})
     }
+    applyMap(currentProduct.texture_url, 'map', true)
+    applyMap(currentProduct.normal_url, 'normalMap', false)
+    applyMap(currentProduct.roughness_url, 'roughnessMap', false)
   }, [currentInstallation, currentProduct])
 
   // ── 时间/灯光 ──
@@ -661,25 +665,26 @@ export default function CurtainShowroom({ projectId }) {
     }))
   }
 
-  // 真实面料贴图上传
-  const textureFileRef = useRef(null)
-  const [uploading, setUploading] = useState(false)
-  const handleTextureUpload = async (e) => {
+  // 真实面料贴图上传（三件套：texture/normal/roughness）
+  const mapFileRefs = useRef({})
+  const [uploadingMap, setUploadingMap] = useState(null)
+  const handleMapUpload = (mapType) => async (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !exhibit) return
-    setUploading(true)
-    setExhibit((ex) => ({ ...ex, textureMsg: { busy: true } }))
-    const r = await uploadCurtainTexture(exhibit.id, file)
+    setUploadingMap(mapType)
+    setExhibit((ex) => ({ ...ex, mapMsg: { ...(ex.mapMsg || {}), [mapType]: { busy: true } } }))
+    const r = await uploadCurtainMap(exhibit.id, mapType, file)
     if (r.isSuccess && r.data) {
-      const url = r.data.texture_url
-      setCurrentProduct((p) => (p && p.id === r.data.id ? { ...p, texture_url: url } : p))
-      setProducts((list) => list.map((p) => (p.id === r.data.id ? { ...p, texture_url: url } : p)))
-      setExhibit((ex) => ({ ...ex, texture_url: url, textureMsg: { ok: true, msg: '真实贴图已上传并替换' } }))
+      const urlField = mapType === 'texture' ? 'texture_url' : mapType === 'normal' ? 'normal_url' : 'roughness_url'
+      const url = r.data[urlField]
+      setCurrentProduct((p) => (p && p.id === r.data.id ? { ...p, [urlField]: url } : p))
+      setProducts((list) => list.map((p) => (p.id === r.data.id ? { ...p, [urlField]: url } : p)))
+      setExhibit((ex) => ({ ...ex, [urlField]: url, mapMsg: { ...(ex.mapMsg || {}), [mapType]: { ok: true, msg: '已上传' } } }))
     } else {
-      setExhibit((ex) => ({ ...ex, textureMsg: { ok: false, msg: r.error || '上传失败' } }))
+      setExhibit((ex) => ({ ...ex, mapMsg: { ...(ex.mapMsg || {}), [mapType]: { ok: false, msg: r.error || '上传失败' } } }))
     }
-    setUploading(false)
+    setUploadingMap(null)
   }
 
   // 派生筛选
@@ -786,31 +791,44 @@ export default function CurtainShowroom({ projectId }) {
                   {exhibit.action.msg}
                 </div>
               )}
-              <input
-                ref={textureFileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                style={{ display: 'none' }}
-                onChange={handleTextureUpload}
-              />
-              <button
-                className="btn"
-                style={{ width: '100%', marginTop: 6, fontSize: 12 }}
-                disabled={uploading}
-                onClick={() => textureFileRef.current?.click()}
-              >
-                {uploading ? '上传中…' : exhibit.texture_url ? '替换真实面料贴图' : '上传真实面料贴图'}
-              </button>
-              {exhibit.textureMsg && (
-                <div style={{
-                  marginTop: 6, fontSize: 11, padding: '5px 8px', borderRadius: 6,
-                  background: exhibit.textureMsg.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
-                  color: exhibit.textureMsg.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
-                }}
-                >
-                  {exhibit.textureMsg.msg}
-                </div>
-              )}
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 10 }}>真实面料 PBR 贴图（可选，默认程序化）</div>
+              {[
+                ['texture', '颜色贴图 (albedo)'],
+                ['normal', '法线贴图 (normal)'],
+                ['roughness', '粗糙度贴图 (roughness)'],
+              ].map(([mapType, label]) => {
+                const urlField = mapType === 'texture' ? 'texture_url' : mapType === 'normal' ? 'normal_url' : 'roughness_url'
+                const msg = exhibit.mapMsg?.[mapType]
+                return (
+                  <div key={mapType}>
+                    <input
+                      ref={(el) => { mapFileRefs.current[mapType] = el }}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      style={{ display: 'none' }}
+                      onChange={handleMapUpload(mapType)}
+                    />
+                    <button
+                      className="btn"
+                      style={{ width: '100%', marginTop: 6, fontSize: 12 }}
+                      disabled={uploadingMap === mapType}
+                      onClick={() => mapFileRefs.current[mapType]?.click()}
+                    >
+                      {uploadingMap === mapType ? '上传中…' : exhibit[urlField] ? `替换${label}` : `上传${label}`}
+                    </button>
+                    {msg && !msg.busy && (
+                      <div style={{
+                        marginTop: 4, fontSize: 11, padding: '4px 8px', borderRadius: 6,
+                        background: msg.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
+                        color: msg.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
+                      }}
+                      >
+                        {msg.msg}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
           {selectedDevice && (

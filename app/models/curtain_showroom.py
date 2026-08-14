@@ -78,9 +78,15 @@ class CurtainProduct(Base):
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     fabric: Mapped[str] = mapped_column(String(50), nullable=False)  # 材质（棉麻/雪尼尔/绒布/纱/遮光）
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 颜色（供程序化纹理 + 色卡）
-    texture_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # 3D 贴图（无则程序化）
-    texture_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # 真实面料贴图原始字节
-    texture_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 贴图 MIME 类型
+    texture_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # 3D 贴图 albedo（无则程序化）
+    texture_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # 真实面料 albedo 贴图原始字节
+    texture_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)  # albedo MIME 类型
+    normal_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # 法线贴图 URL
+    normal_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # 法线贴图原始字节
+    normal_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 法线 MIME 类型
+    roughness_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # 粗糙度贴图 URL
+    roughness_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # 粗糙度贴图原始字节
+    roughness_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)  # 粗糙度 MIME 类型
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)  # 实拍/缩略图
     unit: Mapped[str] = mapped_column(String(20), nullable=False, default="米")
     unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)

@@ -33,6 +33,8 @@ class CurtainProductResponse(BaseModel):
     fabric: str
     color: str | None = None
     texture_url: str | None = None
+    normal_url: str | None = None
+    roughness_url: str | None = None
     image_url: str | None = None
     unit: str
     unit_price: float
