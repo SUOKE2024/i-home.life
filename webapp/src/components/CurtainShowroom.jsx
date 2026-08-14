@@ -6,6 +6,7 @@ import { paintDeviceSprite } from './PanoramaViewer'
 import DeviceCommandPanel from './DeviceCommandPanel'
 import SceneTriggerOverlay from './SceneTriggerOverlay'
 import useDeviceOverlay from '../hooks/useDeviceOverlay'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import {
   getCurtainShowroomOverview,
   getCurtainShowroomProducts,
@@ -23,71 +24,148 @@ function colorToHex(name) {
   return COLOR_MAP[name] || '#d8d2c8'
 }
 
-/** 程序化面料纹理（无外部图依赖，诚实标注为示意纹理） */
-function makeFabricTexture(fabric, colorName) {
-  const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 256
-  const ctx = canvas.getContext('2d')
+/** 颜色明暗调整（factor >0 变亮，<0 变暗） */
+function shadeColor(hex, factor) {
+  const c = new THREE.Color(hex)
+  const target = factor > 0 ? 1.0 : 0.0
+  const amt = Math.abs(factor)
+  c.r += (target - c.r) * amt
+  c.g += (target - c.g) * amt
+  c.b += (target - c.b) * amt
+  return `#${c.getHexString()}`
+}
+
+function makeCanvas(size) {
+  const c = document.createElement('canvas')
+  c.width = size
+  c.height = size
+  return c
+}
+
+/** 面料 albedo：平纹织造（经纬线明暗交织）+ 纤维噪声 + 材质专属纹理 */
+function makeFabricAlbedo(fabric, colorName) {
+  const S = 512
+  const c = makeCanvas(S)
+  const ctx = c.getContext('2d')
   const base = colorToHex(colorName)
-  const sheer = fabric === '纱'
-
   ctx.fillStyle = base
-  ctx.fillRect(0, 0, 256, 256)
+  ctx.fillRect(0, 0, S, S)
 
-  if (sheer) {
-    ctx.globalAlpha = 0.65
-    ctx.fillStyle = base
-    ctx.fillRect(0, 0, 256, 256)
-    ctx.globalAlpha = 1
-    ctx.strokeStyle = 'rgba(255,255,255,0.55)'
-    ctx.lineWidth = 1
-    for (let i = 0; i <= 256; i += 6) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke()
+  if (fabric === '纱') {
+    ctx.fillStyle = shadeColor(base, 0.12)
+    ctx.fillRect(0, 0, S, S)
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'
+    ctx.lineWidth = 2
+    for (let i = 0; i <= S; i += 16) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, S); ctx.stroke()
+      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(S, i); ctx.stroke()
     }
   } else {
-    // 织纹经纬线
-    ctx.strokeStyle = 'rgba(0,0,0,0.06)'
-    ctx.lineWidth = 1
-    for (let i = 0; i <= 256; i += 4) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke()
-      ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke()
+    const thread = fabric === '棉麻' ? 12 : 6
+    for (let i = 0; i < S; i += thread) {
+      const f = (i / thread) % 2 === 0 ? 0.06 : -0.06
+      ctx.fillStyle = shadeColor(base, f)
+      ctx.fillRect(i, 0, thread / 2, S)
+      ctx.fillStyle = shadeColor(base, f * 0.7)
+      ctx.fillRect(0, i, S, thread / 2)
+    }
+    for (let i = 0; i < 4000; i++) {
+      ctx.fillStyle = shadeColor(base, Math.random() * 0.06 - 0.03)
+      ctx.fillRect(Math.random() * S, Math.random() * S, 2, 2)
     }
     if (fabric === '提花') {
-      ctx.strokeStyle = 'rgba(0,0,0,0.10)'
-      for (let x = -256; x < 512; x += 32) {
-        for (let y = -256; y < 512; y += 32) {
+      ctx.strokeStyle = shadeColor(base, -0.16)
+      ctx.lineWidth = 3
+      for (let x = -S; x < S * 2; x += 48) {
+        for (let y = -S; y < S * 2; y += 48) {
           ctx.beginPath()
-          ctx.moveTo(x, y + 8); ctx.lineTo(x + 8, y); ctx.lineTo(x + 16, y + 8); ctx.lineTo(x + 8, y + 16)
+          ctx.moveTo(x, y + 14); ctx.lineTo(x + 14, y)
+          ctx.lineTo(x + 28, y + 14); ctx.lineTo(x + 14, y + 28)
           ctx.closePath(); ctx.stroke()
         }
       }
     } else if (fabric === '雪尼尔') {
-      ctx.fillStyle = 'rgba(255,255,255,0.10)'
-      for (let i = 0; i < 900; i++) {
-        ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2)
-      }
-    } else if (fabric === '棉麻') {
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)'
-      for (let i = 0; i <= 256; i += 16) {
-        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.stroke()
+      for (let i = 0; i < 12000; i++) {
+        ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`
+        ctx.fillRect(Math.random() * S, Math.random() * S, 1.5, 1.5)
       }
     }
   }
 
-  const tex = new THREE.CanvasTexture(canvas)
+  const tex = new THREE.CanvasTexture(c)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.anisotropy = 8
   return tex
+}
+
+/** 面料 bump（灰度凹凸）：织纹凸起 */
+function makeFabricBump(fabric) {
+  const S = 256
+  const c = makeCanvas(S)
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#808080'
+  ctx.fillRect(0, 0, S, S)
+  const thread = fabric === '棉麻' ? 16 : 8
+  ctx.strokeStyle = '#c8c8c8'
+  ctx.lineWidth = 3
+  for (let i = 0; i <= S; i += thread) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, S); ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(S, i); ctx.stroke()
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+/** 面料 roughness（灰度）：丝绸类更光滑、棉麻更粗糙 */
+function makeFabricRoughness(fabric) {
+  const S = 256
+  const c = makeCanvas(S)
+  const ctx = c.getContext('2d')
+  const base = fabric === '提花' || fabric === '雪尼尔' ? 70 : fabric === '棉麻' || fabric === '纱' ? 150 : 110
+  ctx.fillStyle = `rgb(${base},${base},${base})`
+  ctx.fillRect(0, 0, S, S)
+  ctx.fillStyle = `rgb(${base + 20},${base + 20},${base + 20})`
+  for (let i = 0; i <= S; i += 8) {
+    ctx.fillRect(i, 0, 2, S)
+    ctx.fillRect(0, i, S, 2)
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  return tex
+}
+
+/** 组合 PBR 面料材质（albedo + bump + roughness + sheen 丝绸高光） */
+function makeFabricMaterial(fabric, colorName) {
+  const silky = fabric === '提花' || fabric === '雪尼尔'
+  const sheer = fabric === '纱'
+  return new THREE.MeshPhysicalMaterial({
+    map: makeFabricAlbedo(fabric, colorName),
+    bumpMap: makeFabricBump(fabric),
+    bumpScale: fabric === '提花' ? 0.10 : 0.06,
+    roughnessMap: makeFabricRoughness(fabric),
+    roughness: 0.85,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+    transparent: sheer,
+    opacity: sheer ? 0.55 : 1.0,
+    sheen: silky ? 1.0 : 0.0,
+    sheenColor: new THREE.Color(colorToHex(colorName)),
+    sheenRoughness: 0.55,
+  })
 }
 
 function disposeObject(root) {
   root.traverse((obj) => {
     if (obj.isMesh) {
       obj.geometry?.dispose()
-      if (obj.material) {
-        if (obj.material.map) obj.material.map.dispose()
-        obj.material.dispose()
+      const m = obj.material
+      if (m) {
+        ;['map', 'bumpMap', 'roughnessMap', 'normalMap', 'alphaMap', 'displacementMap', 'metalnessMap'].forEach((k) => {
+          if (m[k]) m[k].dispose()
+        })
+        m.dispose()
       }
     }
   })
@@ -136,15 +214,10 @@ function buildRoom() {
   return g
 }
 
-/** 按安装方式构建窗帘几何（含程序化面料纹理） */
+/** 按安装方式构建窗帘几何（PBR 面料 + 预模拟褶皱） */
 function buildCurtain(renderType, fabric, colorName) {
   const group = new THREE.Group()
-  const tex = makeFabricTexture(fabric, colorName)
-  const sheer = fabric === '纱'
-  const mat = new THREE.MeshStandardMaterial({
-    map: tex, side: THREE.DoubleSide, roughness: 0.85, metalness: 0,
-    transparent: sheer, opacity: sheer ? 0.55 : 1.0,
-  })
+  const mat = makeFabricMaterial(fabric, colorName)
   const width = 2.6
   const height = 1.9
   const topY = 2.45
@@ -153,6 +226,8 @@ function buildCurtain(renderType, fabric, colorName) {
 
   const addFabric = (mesh) => {
     mesh.userData.isFabric = true
+    mesh.castShadow = true
+    mesh.receiveShadow = true
     group.add(mesh)
   }
 
@@ -197,13 +272,20 @@ function buildCurtain(renderType, fabric, colorName) {
     group.add(track)
   }
 
-  // 褶皱帘（正弦波折叠）
-  const seg = 22
-  const geo = new THREE.PlaneGeometry(width, height, seg, 1)
+  // 褶皱帘：多重褶皱 + 中部鼓出 + 顶部聚拢（预模拟垂坠感）
+  const segX = 48
+  const segY = 24
+  const geo = new THREE.PlaneGeometry(width, height, segX, segY)
   const pos = geo.attributes.position
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i)
-    pos.setZ(i, Math.sin((x / width) * Math.PI * 5) * 0.13)
+    const y = pos.getY(i)
+    const t = x / width           // -0.5..0.5
+    const v = y / height + 0.5    // 0=底, 1=顶
+    const folds = Math.sin(t * Math.PI * 6) * 0.16 + Math.sin(t * Math.PI * 11 + 1.7) * 0.05
+    const gather = 0.55 + v * 0.45      // 顶部聚拢、底部舒展
+    const billow = Math.cos(t * Math.PI) * 0.10 // 中部鼓出
+    pos.setZ(i, folds * gather + billow)
   }
   geo.computeVertexNormals()
   const curtain = new THREE.Mesh(geo, mat)
@@ -260,12 +342,11 @@ function applyLighting(w, lighting) {
   const c = new THREE.Color(lighting.light_color || '#ffffff')
   const intensity = lighting.ambient_intensity ?? 1.0
   w.ambient.color.copy(c)
-  w.ambient.intensity = 0.35 * intensity + 0.15
-  w.hemi.color.copy(c)
-  w.hemi.intensity = 0.3 * intensity
+  w.ambient.intensity = 0.12 * intensity + 0.06
   w.dir.color.copy(c)
-  w.dir.intensity = 0.9 * intensity
-  const bg = c.clone().multiplyScalar(0.32)
+  w.dir.intensity = 1.0 * intensity
+  w.scene.environmentIntensity = 0.45 * intensity + 0.1
+  const bg = c.clone().multiplyScalar(0.30)
   w.scene.background = bg
   w.scene.fog = new THREE.Fog(bg, 6, 22)
 }
@@ -344,14 +425,24 @@ export default function CurtainShowroom({ projectId }) {
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.05
     mount.appendChild(renderer.domElement)
 
-    const ambient = new THREE.AmbientLight('#ffffff', 0.5)
-    const hemi = new THREE.HemisphereLight('#ffffff', '#3a3a3a', 0.3)
-    const dir = new THREE.DirectionalLight('#ffffff', 1.1)
+    // PBR：HDRI 环境光（IBL）+ 低环境光 + 单一方向光（软阴影）
+    const pmrem = new THREE.PMREMGenerator(renderer)
+    const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+    scene.environment = envMap
+    scene.environmentIntensity = 0.55
+
+    const ambient = new THREE.AmbientLight('#ffffff', 0.15)
+    const dir = new THREE.DirectionalLight('#ffffff', 1.3)
     dir.position.set(2.5, 4, 3.5)
     dir.castShadow = true
-    scene.add(ambient, hemi, dir)
+    dir.shadow.mapSize.set(1024, 1024)
+    dir.shadow.bias = -0.0002
+    scene.add(ambient, dir)
 
     scene.add(buildRoom())
 
@@ -391,8 +482,8 @@ export default function CurtainShowroom({ projectId }) {
     updateCamera()
 
     worldRef.current = {
-      scene, camera, renderer, ambient, hemi, dir, curtainGroup, hotspot, state, updateCamera,
-      rebuildDeviceSprites,
+      scene, camera, renderer, ambient, dir, curtainGroup, hotspot, state, updateCamera,
+      rebuildDeviceSprites, pmrem, envMap,
     }
 
     let dragging = false
@@ -466,6 +557,8 @@ export default function CurtainShowroom({ projectId }) {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('click', onClick)
       disposeObject(scene)
+      envMap?.dispose()
+      pmrem?.dispose()
       renderer.dispose()
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement)
       worldRef.current = null
