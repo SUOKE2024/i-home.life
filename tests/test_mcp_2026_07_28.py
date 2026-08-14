@@ -74,7 +74,7 @@ async def test_stateless_no_session_handshake(client: AsyncClient):
 def test_stateless_protocol_version_constant():
     """协议版本常量为 2026-07-28"""
     assert mcp_server.PROTOCOL_VERSION == "2026-07-28"
-    assert mcp_server.SERVER_VERSION == "1.13.6"
+    assert mcp_server.SERVER_VERSION == "1.14.0"
 
 
 # === P1-2 server/discover RPC ===

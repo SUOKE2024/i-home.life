@@ -1,6 +1,7 @@
+import json
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SupplierCreate(BaseModel):
@@ -11,6 +12,10 @@ class SupplierCreate(BaseModel):
     category: str = Field(min_length=1, max_length=50)
     rating: float = Field(default=3.0, ge=0, le=5)
     showroom_panorama_id: str | None = None
+    # 支持的装修风格列表（设计流程编排：按风格匹配供应商）
+    styles: list[str] = Field(default_factory=list)
+    # 价格档位：economy / standard / premium
+    price_tier: str = Field(default="standard", max_length=20)
 
 
 class SupplierUpdate(BaseModel):
@@ -23,6 +28,8 @@ class SupplierUpdate(BaseModel):
     category: str | None = Field(default=None, min_length=1, max_length=50)
     rating: float | None = Field(default=None, ge=0, le=5)
     showroom_panorama_id: str | None = None
+    styles: list[str] | None = None
+    price_tier: str | None = Field(default=None, max_length=20)
 
 
 class SupplierResponse(BaseModel):
@@ -38,9 +45,25 @@ class SupplierResponse(BaseModel):
     is_verified: bool = False
     # 实景展厅全景（设计 4.2）：无实景内容恒 NULL，前端诚实标注
     showroom_panorama_id: str | None = None
+    # 支持的装修风格列表（ORM 存 JSON 字符串，此处解析为 list）
+    styles: list[str] = Field(default_factory=list)
+    # 价格档位：economy / standard / premium
+    price_tier: str = "standard"
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("styles", mode="before")
+    @classmethod
+    def _parse_styles(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return v
 
 
 class SupplierVerifyRequest(BaseModel):

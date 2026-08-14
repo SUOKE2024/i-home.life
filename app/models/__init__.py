@@ -114,6 +114,9 @@ from app.models.eval_snapshot import EvalSnapshotRecord
 # 设备链路全量诊断修复 — 传感器快照落库（Flutter SensorService 上报真实读数）
 from app.models.sensor_snapshot import SensorSnapshot
 
+# 设计流程编排 — 风格/预算选供应商 → VR 效果图 → 可行性分析
+from app.models.design_flow import DesignFlow, DesignFlowFeasibility
+
 __all__ = [
     "User",
     "Project",
@@ -263,6 +266,9 @@ __all__ = [
     "EvalSnapshotRecord",
     # 设备链路全量诊断修复 — 传感器快照落库
     "SensorSnapshot",
+    # 设计流程编排
+    "DesignFlow",
+    "DesignFlowFeasibility",
 ]
 
 

@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta, timezone
+import json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -41,6 +42,8 @@ async def get_suppliers(db: AsyncSession, category: str | None = None) -> list[S
 
 
 async def create_supplier(db: AsyncSession, data: dict) -> Supplier:
+    if isinstance(data.get("styles"), list):
+        data["styles"] = json.dumps(data["styles"], ensure_ascii=False)
     supplier = Supplier(**data)
     db.add(supplier)
     await db.commit()
@@ -77,6 +80,8 @@ async def update_supplier(db: AsyncSession, supplier_id: str, data: dict) -> Sup
     if not supplier:
         return None
     for key, value in data.items():
+        if key == "styles" and isinstance(value, list):
+            value = json.dumps(value, ensure_ascii=False)
         setattr(supplier, key, value)
     await db.commit()
     await db.refresh(supplier)

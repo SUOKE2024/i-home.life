@@ -24,6 +24,10 @@ class Supplier(Base):
     showroom_panorama_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("vr_panoramas.id"), nullable=True, index=True
     )
+    # 支持的装修风格列表（JSON 字符串，形如 ["modern","nordic","奶油风"]）
+    styles: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # 价格档位：economy / standard / premium（由预算映射，见 design_flow_service）
+    price_tier: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -34,6 +38,21 @@ class Supplier(Base):
     __table_args__ = (
         CheckConstraint("rating >= 0 AND rating <= 5", name="chk_supplier_rating_range"),
     )
+
+    @property
+    def styles_list(self) -> list[str]:
+        import json
+
+        try:
+            return json.loads(self.styles or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @styles_list.setter
+    def styles_list(self, value: list[str]):
+        import json
+
+        self.styles = json.dumps(value or [], ensure_ascii=False)
 
 
 class Quotation(Base):

@@ -75,6 +75,7 @@ from app.api import ecosystem
 from app.api import ai_qa
 from app.api import agent_identity  # v1.9.0 GB/Z 185 智能体身份码/ACDL（flag 门控）
 from app.api import diagnostics as diagnostics_api  # v1.10.x 全链路诊断管理端
+from app.api import design_flow  # 设计流程编排（风格/预算选供应商 → VR → 可行性分析）
 
 settings = get_settings()
 logger = structlog.get_logger("ihome")
@@ -550,6 +551,7 @@ api_router.include_router(solution_first.router)      # /api/solution-first/* (F
 api_router.include_router(ecosystem.router)           # /api/ecosystem/* (F46 生态桥接优先级)
 api_router.include_router(ai_qa.router)               # /api/ai-qa/* (F47 AI 装修问答)
 api_router.include_router(diagnostics_api.router)     # /api/diagnostics/* (v1.10.x 全链路诊断)
+api_router.include_router(design_flow.router)         # /api/design-flow/* (设计流程编排)
 # A2A Agent Card 公开端点（规范要求 .well-known 路径，无 /api 前缀）
 app.include_router(a2a_api.public_router)
 # v1.3.0: MCP Server Card 公开端点（GET /.well-known/mcp，无 /api 前缀）
