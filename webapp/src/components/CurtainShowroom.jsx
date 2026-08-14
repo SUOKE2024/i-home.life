@@ -331,7 +331,7 @@ export default function CurtainShowroom({ projectId }) {
   const onHotspotRef = useRef(null)
   onHotspotRef.current = () => { if (currentProduct) setExhibit(currentProduct) }
 
-  // ── 3D 世界（mount 一次）──
+  // ── 3D 世界（overview 加载后构建；此前 loading 早返回致 mountRef 尚未渲染）──
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
@@ -470,7 +470,7 @@ export default function CurtainShowroom({ projectId }) {
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement)
       worldRef.current = null
     }
-  }, [])
+  }, [overview])
 
   // ── 智能家居设备图层：devices 变化时重建 Sprite（含激活/状态色）──
   useEffect(() => {
