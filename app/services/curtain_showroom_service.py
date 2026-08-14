@@ -56,6 +56,13 @@ async def list_products(
     return list(result.scalars().all())
 
 
+async def get_product(db: AsyncSession, product_id: str) -> CurtainProduct | None:
+    result = await db.execute(
+        select(CurtainProduct).where(CurtainProduct.id == product_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def list_installations(db: AsyncSession) -> list[CurtainInstallation]:
     result = await db.execute(
         select(CurtainInstallation).order_by(CurtainInstallation.sort_order.asc())

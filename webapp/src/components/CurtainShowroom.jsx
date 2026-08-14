@@ -11,6 +11,8 @@ import {
   getCurtainShowroomOverview,
   getCurtainShowroomProducts,
   addBomItem,
+  uploadCurtainTexture,
+  getToken,
 } from '../lib/api'
 
 /** 颜色名 → hex（seed 数据色板；未命中回退中性米白） */
@@ -154,6 +156,27 @@ function makeFabricMaterial(fabric, colorName) {
     sheenColor: new THREE.Color(colorToHex(colorName)),
     sheenRoughness: 0.55,
   })
+}
+
+/** 加载需鉴权的贴图（fetch + PASETO → Blob → THREE.Texture），失败由调用方回退程序化 */
+async function loadAuthedTexture(url) {
+  const token = getToken()
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  if (!res.ok) throw new Error(`贴图加载失败 HTTP ${res.status}`)
+  const blob = await res.blob()
+  const objUrl = URL.createObjectURL(blob)
+  const img = new Image()
+  await new Promise((resolve, reject) => {
+    img.onload = resolve
+    img.onerror = () => reject(new Error('图片解码失败'))
+    img.src = objUrl
+  })
+  URL.revokeObjectURL(objUrl)
+  const tex = new THREE.Texture(img)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.needsUpdate = true
+  return tex
 }
 
 function disposeObject(root) {
@@ -584,6 +607,18 @@ export default function CurtainShowroom({ projectId }) {
       currentInstallation.render_type, currentProduct.fabric, currentProduct.color,
     )
     w.curtainGroup.add(curtain)
+    // 已上传真实贴图 → 异步加载替换 albedo；失败静默回退程序化
+    if (currentProduct.texture_url) {
+      loadAuthedTexture(currentProduct.texture_url).then((tex) => {
+        curtain.traverse((obj) => {
+          if (obj.isMesh && obj.userData.isFabric) {
+            obj.material.map?.dispose()
+            obj.material.map = tex
+            obj.material.needsUpdate = true
+          }
+        })
+      }).catch(() => {})
+    }
   }, [currentInstallation, currentProduct])
 
   // ── 时间/灯光 ──
@@ -626,6 +661,27 @@ export default function CurtainShowroom({ projectId }) {
     }))
   }
 
+  // 真实面料贴图上传
+  const textureFileRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+  const handleTextureUpload = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !exhibit) return
+    setUploading(true)
+    setExhibit((ex) => ({ ...ex, textureMsg: { busy: true } }))
+    const r = await uploadCurtainTexture(exhibit.id, file)
+    if (r.isSuccess && r.data) {
+      const url = r.data.texture_url
+      setCurrentProduct((p) => (p && p.id === r.data.id ? { ...p, texture_url: url } : p))
+      setProducts((list) => list.map((p) => (p.id === r.data.id ? { ...p, texture_url: url } : p)))
+      setExhibit((ex) => ({ ...ex, texture_url: url, textureMsg: { ok: true, msg: '真实贴图已上传并替换' } }))
+    } else {
+      setExhibit((ex) => ({ ...ex, textureMsg: { ok: false, msg: r.error || '上传失败' } }))
+    }
+    setUploading(false)
+  }
+
   // 派生筛选
   const brandOptions = [...new Set(products.map((p) => p.brand).filter(Boolean))]
   const fabricOptions = [...new Set(products.map((p) => p.fabric).filter(Boolean))]
@@ -661,7 +717,7 @@ export default function CurtainShowroom({ projectId }) {
             padding: '4px 8px', borderRadius: 6,
           }}
           >
-            3D 示意场景 · 非实景实拍 · 面料纹理为程序化生成
+            3D 场景 · 支持上传真实面料贴图（默认程序化纹理）
           </div>
           <div style={{
             position: 'absolute', left: 10, bottom: 10, zIndex: 20, fontSize: 11,
@@ -728,6 +784,31 @@ export default function CurtainShowroom({ projectId }) {
                 }}
                 >
                   {exhibit.action.msg}
+                </div>
+              )}
+              <input
+                ref={textureFileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleTextureUpload}
+              />
+              <button
+                className="btn"
+                style={{ width: '100%', marginTop: 6, fontSize: 12 }}
+                disabled={uploading}
+                onClick={() => textureFileRef.current?.click()}
+              >
+                {uploading ? '上传中…' : exhibit.texture_url ? '替换真实面料贴图' : '上传真实面料贴图'}
+              </button>
+              {exhibit.textureMsg && (
+                <div style={{
+                  marginTop: 6, fontSize: 11, padding: '5px 8px', borderRadius: 6,
+                  background: exhibit.textureMsg.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
+                  color: exhibit.textureMsg.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
+                }}
+                >
+                  {exhibit.textureMsg.msg}
                 </div>
               )}
             </div>

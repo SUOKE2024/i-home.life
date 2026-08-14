@@ -341,6 +341,52 @@ export async function publishEffectRender(data) {
   })
 }
 
+// ──────────────────────────────────────────────────────────────
+// 设计流程编排（风格/预算选供应商 → VR 效果图 → 可行性分析）
+// ──────────────────────────────────────────────────────────────
+
+export async function createDesignFlow(data) {
+  return request('/api/design-flow', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getDesignFlow(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}`)
+}
+
+export async function matchDesignFlowSuppliers(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/suppliers/match`, { method: 'POST' })
+}
+
+export async function selectDesignFlowSupplier(flowId, data) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/suppliers/select`, {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  })
+}
+
+export async function renderDesignFlow(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/render`, { method: 'POST' })
+}
+
+export async function adjustDesignFlow(flowId, data) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/adjust`, {
+    method: 'POST',
+    body: JSON.stringify(data || {}),
+  })
+}
+
+export async function confirmDesignFlow(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/confirm`, { method: 'POST' })
+}
+
+export async function getDesignFlowFeasibility(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/feasibility`)
+}
+
+export async function suggestDesignFlow(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/suggest`, { method: 'POST' })
+}
+
 // ── 窗帘智能展厅（单店铺固定「官渡区帘享空间窗帘布艺经营部」）──
 
 /** 窗帘展厅总览（店铺 + 系列 + 安装方式 + 灯光预设 + 展示区域） */
@@ -356,6 +402,34 @@ export async function getCurtainShowroomProducts(filters = {}) {
   if (filters.fabric) params.set('fabric', filters.fabric)
   const q = params.toString()
   return request(`/api/curtain-showroom/products${q ? `?${q}` : ''}`)
+}
+
+/** 上传真实面料贴图（multipart，替换 3D 换装纹理） */
+export async function uploadCurtainTexture(productId, file) {
+  const token = getToken()
+  const form = new FormData()
+  form.append('file', file)
+  try {
+    const res = await fetch(`/api/curtain-showroom/products/${encodeURIComponent(productId)}/texture`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
+    if (res.status === 401) {
+      clearToken()
+      if (onUnauthorizedCb) onUnauthorizedCb()
+      return { isSuccess: false, status: 401, error: '认证过期，请重新登录' }
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => undefined)
+      return { isSuccess: true, status: res.status, data }
+    }
+    const errorBody = await res.json().catch(() => undefined)
+    const error = (errorBody && (errorBody.detail || errorBody.message)) || `HTTP ${res.status}`
+    return { isSuccess: false, status: res.status, error }
+  } catch (err) {
+    return { isSuccess: false, status: 0, error: err instanceof Error ? err.message : String(err) }
+  }
 }
 
 // ── P0 设备热点联动（2026-08-12）──

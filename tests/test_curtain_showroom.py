@@ -107,3 +107,28 @@ async def test_curtain_showroom_products_filter(client: AsyncClient, auth_header
 
     miss = await client.get("/api/curtain-showroom/products?fabric=绒布", headers=auth_headers)
     assert len(miss.json()) == 0
+
+
+@pytest.mark.asyncio
+async def test_curtain_product_texture_upload(client: AsyncClient, auth_headers, db_session):
+    """上传真实面料贴图并回读"""
+    await _seed_showroom(db_session)
+    products = (await client.get("/api/curtain-showroom/products", headers=auth_headers)).json()
+    assert len(products) == 1
+    product_id = products[0]["id"]
+
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"fake-png-content"
+    resp = await client.post(
+        f"/api/curtain-showroom/products/{product_id}/texture",
+        files={"file": ("fabric.png", png_bytes, "image/png")},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["texture_url"] == f"/api/curtain-showroom/products/{product_id}/texture"
+
+    tex = await client.get(
+        f"/api/curtain-showroom/products/{product_id}/texture", headers=auth_headers,
+    )
+    assert tex.status_code == 200
+    assert tex.content == png_bytes
+    assert tex.headers["content-type"].startswith("image/png")
