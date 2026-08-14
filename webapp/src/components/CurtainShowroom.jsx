@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import * as THREE from 'three'
 import { X, Package, Shuffle, Lightbulb, Wrench, Layers, Store } from 'lucide-react'
 import { Spinner, Empty, ErrorBox } from './ui'
+import { paintDeviceSprite } from './PanoramaViewer'
+import DeviceCommandPanel from './DeviceCommandPanel'
+import SceneTriggerOverlay from './SceneTriggerOverlay'
+import useDeviceOverlay from '../hooks/useDeviceOverlay'
 import {
   getCurtainShowroomOverview,
   getCurtainShowroomProducts,
@@ -229,6 +233,29 @@ function makeHotspotSprite() {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }))
 }
 
+/** 智能家居设备 Sprite（复用 P0 设备热点着色：在线绿/离线灰/激活橙） */
+function makeDeviceSprite(device) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  paintDeviceSprite(canvas, device)
+  const tex = new THREE.CanvasTexture(canvas)
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }))
+  const yawRad = ((device.yaw ?? 0) * Math.PI) / 180
+  const pitchRad = ((device.pitch ?? 0) * Math.PI) / 180
+  const r = 3.0
+  const phi = Math.PI / 2 - pitchRad
+  const theta = Math.PI - yawRad
+  // 球坐标（yaw=0 → -z 正前方），抬高到房间观察中心 y=1.4
+  sprite.position.set(
+    r * Math.sin(phi) * Math.sin(theta),
+    1.4 + r * Math.cos(phi),
+    r * Math.sin(phi) * Math.cos(theta),
+  )
+  sprite.scale.set(0.5, 0.5, 1)
+  return sprite
+}
+
 function applyLighting(w, lighting) {
   const c = new THREE.Color(lighting.light_color || '#ffffff')
   const intensity = lighting.ambient_intensity ?? 1.0
@@ -263,6 +290,14 @@ export default function CurtainShowroom({ projectId }) {
   const [currentProduct, setCurrentProduct] = useState(null)
   const [filters, setFilters] = useState({ series_id: null, brand: null, fabric: null })
   const [exhibit, setExhibit] = useState(null) // 热点/自选后的展品详情面板
+  const [selectedDevice, setSelectedDevice] = useState(null) // 点击的智能家居设备
+
+  // 智能家居设备图层（复用 P0 设备热点联动：加载 + WS/轮询 + 命令/场景/传感器）
+  const { devices, latestSensor, sendCommand, triggerScene, sceneFlash } = useDeviceOverlay(projectId)
+  const devicesRef = useRef([])
+  const deviceSpritesRef = useRef([])
+  const onDeviceClickRef = useRef(null)
+  onDeviceClickRef.current = (d) => setSelectedDevice(d)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -328,6 +363,21 @@ export default function CurtainShowroom({ projectId }) {
     hotspot.position.set(0, 1.6, -2.15)
     scene.add(hotspot)
 
+    // 智能家居设备图层容器（设备 Sprite 随 devices 变化重建）
+    const deviceGroup = new THREE.Group()
+    scene.add(deviceGroup)
+    const rebuildDeviceSprites = (list) => {
+      while (deviceGroup.children.length) {
+        const s = deviceGroup.children[0]
+        deviceGroup.remove(s)
+        s.material?.map?.dispose()
+        s.material?.dispose()
+      }
+      const sprites = (list || []).map((d) => makeDeviceSprite(d))
+      sprites.forEach((s) => deviceGroup.add(s))
+      deviceSpritesRef.current = sprites
+    }
+
     const target = new THREE.Vector3(0, 1.4, 0)
     const state = { yaw: 0, pitch: 0.06, radius: 5.6 }
     const updateCamera = () => {
@@ -342,6 +392,7 @@ export default function CurtainShowroom({ projectId }) {
 
     worldRef.current = {
       scene, camera, renderer, ambient, hemi, dir, curtainGroup, hotspot, state, updateCamera,
+      rebuildDeviceSprites,
     }
 
     let dragging = false
@@ -373,9 +424,14 @@ export default function CurtainShowroom({ projectId }) {
         -((e.clientY - rect.top) / rect.height) * 2 + 1,
       )
       raycaster.setFromCamera(ndc, camera)
-      if (raycaster.intersectObject(hotspot).length > 0) {
+      const hit = raycaster.intersectObjects([hotspot, ...deviceSpritesRef.current])[0]
+      if (!hit) return
+      if (hit.object === hotspot) {
         onHotspotRef.current?.()
+        return
       }
+      const idx = deviceSpritesRef.current.indexOf(hit.object)
+      if (idx >= 0) onDeviceClickRef.current?.(devicesRef.current[idx])
     }
     el.addEventListener('pointerdown', onDown)
     window.addEventListener('pointermove', onMove)
@@ -415,6 +471,12 @@ export default function CurtainShowroom({ projectId }) {
       worldRef.current = null
     }
   }, [])
+
+  // ── 智能家居设备图层：devices 变化时重建 Sprite（含激活/状态色）──
+  useEffect(() => {
+    devicesRef.current = devices
+    worldRef.current?.rebuildDeviceSprites?.(devices)
+  }, [devices])
 
   // ── 换装（安装方式 / 展品变化时重建窗帘）──
   useEffect(() => {
@@ -513,8 +575,20 @@ export default function CurtainShowroom({ projectId }) {
             color: 'rgba(255,255,255,0.6)',
           }}
           >
-            拖拽环视 · 滚轮缩放 · 点击金色「展」热点查看详情
+            拖拽环视 · 滚轮缩放 · 点「展」看展品加 BOM · 点设备图标控制智能家居
           </div>
+          {latestSensor && (
+            <div style={{
+              position: 'absolute', right: 10, bottom: 10, zIndex: 20, fontSize: 11,
+              color: 'rgba(255,255,255,0.75)', background: 'rgba(10,12,16,0.6)',
+              padding: '4px 8px', borderRadius: 6,
+            }}
+            >
+              环境 {latestSensor.temperature != null ? `${latestSensor.temperature}°C` : '-'}
+              · 湿度 {latestSensor.humidity != null ? `${latestSensor.humidity}%` : '-'}
+              · 光照 {latestSensor.light_lux != null ? `${latestSensor.light_lux}lux` : '-'}
+            </div>
+          )}
 
           {exhibit && (
             <div style={{
@@ -565,6 +639,16 @@ export default function CurtainShowroom({ projectId }) {
               )}
             </div>
           )}
+          {selectedDevice && (
+            <DeviceCommandPanel
+              device={selectedDevice}
+              sensor={latestSensor}
+              onClose={() => setSelectedDevice(null)}
+              onCommand={(device, action) => sendCommand(device, action)}
+              onScene={(sceneId) => triggerScene(sceneId)}
+            />
+          )}
+          <SceneTriggerOverlay flash={sceneFlash} />
         </div>
       </div>
 
