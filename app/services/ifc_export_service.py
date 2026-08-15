@@ -651,3 +651,97 @@ def export_design_to_ifc(floor_plan_data: dict) -> str:
     os.close(fd)
     f.write(filepath)
     return filepath
+
+
+# ── P1 方向 C：IFC 交付校验 / 构件字典对齐 / 模型对比 ───────────
+# v1.14.0 P1（2026 openBIM 前沿）：对标 buildingSMART bSDD / IDS / IfcDiff 的轻量确定性实现。
+# 诚实边界：本实现为基础校验（构件类型计数 + Pset 存在性 + 类型计数 diff），
+# 非完整 bSDD 字典查询 / IDS 规则引擎 / 几何级 IfcDiff（需外部规范文件与几何内核）。
+
+# IFC 实体类型 → 索克本体构件（对齐 app/ontology/renovation_ontology.json 的 element）
+IFC_BSD_ALIGNMENT: dict[str, dict] = {
+    "IfcWall": {"ontology": "wall", "name": "墙"},
+    "IfcWallStandardCase": {"ontology": "wall", "name": "墙（标准）"},
+    "IfcDoor": {"ontology": "door", "name": "门"},
+    "IfcWindow": {"ontology": "window", "name": "窗"},
+    "IfcBeam": {"ontology": "beam", "name": "梁"},
+    "IfcColumn": {"ontology": "column", "name": "柱"},
+    "IfcSlab": {"ontology": "slab", "name": "楼板"},
+    "IfcBuildingStorey": {"ontology": "floor", "name": "楼层"},
+    "IfcSpace": {"ontology": "room", "name": "房间"},
+}
+
+
+def _ifc_type_counts(ifc_file) -> dict[str, int]:
+    """统计 IFC 文件各实体类型数量。"""
+    counts: dict[str, int] = {}
+    for entity in ifc_file:
+        t = entity.is_a()
+        counts[t] = counts.get(t, 0) + 1
+    return counts
+
+
+def validate_ifc_file(filepath: str) -> dict:
+    """IFC 交付校验（P1，对标 buildingSMART IDS / bSDD 构件字典的轻量实现）。
+
+    读回导出的 IFC 文件，统计构件类型 + 校验关键 Pset 存在性，输出结构化交付
+    校验报告。诚实边界：基础校验，非完整 IDS 规则引擎。
+    """
+    _check_ifcopenshell()
+    f = ifcopenshell.open(filepath)
+    counts = _ifc_type_counts(f)
+
+    elements: dict[str, int] = {}
+    for ifc_type, meta in IFC_BSD_ALIGNMENT.items():
+        if counts.get(ifc_type):
+            elements[meta["ontology"]] = elements.get(meta["ontology"], 0) + counts[ifc_type]
+
+    wall_entities = list(f.by_type("IfcWall")) + list(f.by_type("IfcWallStandardCase"))
+    pset_walls = sum(
+        1 for w in wall_entities
+        if any(rel.is_a("IfcRelDefinesByProperties") for rel in (getattr(w, "IsDefinedBy", None) or []))
+    )
+    wall_count = len(wall_entities)
+
+    issues: list[str] = []
+    if wall_count > 0 and pset_walls == 0:
+        issues.append("墙体未附 Pset_WallCommon（建议开启 ifc_real_placement_enabled）")
+
+    return {
+        "source": "ifcopenshell_deterministic",
+        "schema": f.schema,
+        "entity_types": counts,
+        "elements": elements,
+        "element_count": sum(elements.values()),
+        "pset_wall_coverage": round(pset_walls / wall_count, 4) if wall_count else 1.0,
+        "bsdd_alignment": IFC_BSD_ALIGNMENT,
+        "issues": issues,
+        "note": "基础交付校验（构件类型 + Pset 存在性）；完整 IDS 规则引擎需 bSDD/IDS 规范文件，诚实标注",
+    }
+
+
+def diff_ifc_files(path_a: str, path_b: str) -> dict:
+    """IFC 模型对比（P1，对标 IfcDiff 的轻量实现）。
+
+    对比两个 IFC 文件的构件类型计数差异（如 IfcWall 3→4）。
+    诚实边界：类型计数级对比，非几何/属性级 diff（需 IfcDiff/几何内核）。
+    """
+    _check_ifcopenshell()
+    fa = ifcopenshell.open(path_a)
+    fb = ifcopenshell.open(path_b)
+    ca = _ifc_type_counts(fa)
+    cb = _ifc_type_counts(fb)
+
+    all_types = sorted(set(ca) | set(cb))
+    deltas = {
+        t: {"before": ca.get(t, 0), "after": cb.get(t, 0), "delta": cb.get(t, 0) - ca.get(t, 0)}
+        for t in all_types
+        if ca.get(t, 0) != cb.get(t, 0)
+    }
+    return {
+        "source": "ifcopenshell_deterministic",
+        "a_element_count": sum(ca.values()),
+        "b_element_count": sum(cb.values()),
+        "type_deltas": deltas,
+        "note": "类型计数级对比；几何/属性级 diff 需 IfcDiff/几何内核，诚实标注",
+    }

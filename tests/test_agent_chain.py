@@ -401,7 +401,7 @@ async def test_project_scope_case_persist_and_inject_chain(
     )
     assert "[历史经验 Case" in joined, f"未注入 Case 上下文: {joined!r}"
     assert "帮我设计厨房布局方案" in joined, f"注入的 Case 非 project scope 命中: {joined!r}"
-    assert "[进化 Skill: 厨房动线技能]" in joined, f"未注入 Skill: {joined!r}"
+    assert "[进化 Skill: 厨房动线技能 (skill_id=seed_skill_p)]" in joined, f"未注入 Skill: {joined!r}"
 
     # ── ② 写侧验证：think 内建 hook 沉淀了 project scope 新 Case ──
     rows = (await db_session.execute(select(AgentCase))).scalars().all()
@@ -514,7 +514,7 @@ async def test_stream_think_injects_and_persists(client, db_session, monkeypatch
         m.get("content", "") for m in captured_msgs if m.get("role") == "system"
     )
     assert "[历史经验 Case" in joined, f"流式未注入 Case: {joined!r}"
-    assert "[进化 Skill: 厨房动线技能v1133]" in joined, f"流式未注入 Skill: {joined!r}"
+    assert "[进化 Skill: 厨房动线技能v1133 (skill_id=" in joined, f"流式未注入 Skill: {joined!r}"
 
     # 写侧：沉淀 project scope 新 Case
     rows = (await db_session.execute(select(AgentCase))).scalars().all()
@@ -638,9 +638,9 @@ async def test_inject_evolution_context_respects_budget(client, db_session, monk
     db_session.add(project)
     await db_session.commit()
     await db_session.refresh(project)
-    await _seed_project_scope_case_skill(db_session, user.id, project.id)
+    skill_id = await _seed_project_scope_case_skill(db_session, user.id, project.id)
 
-    skill_block = "[进化 Skill: 厨房动线技能v1133]\n优先推荐 U 型厨房布局"
+    skill_block = f"[进化 Skill: 厨房动线技能v1133 (skill_id={skill_id})]\n优先推荐 U 型厨房布局"
 
     # 场景①：预算充足 → Case 全量注入，总长 ≤ 预算
     monkeypatch.setattr(get_settings(), "context_injection_budget_chars", 500)

@@ -1,0 +1,39 @@
+{
+  "ontology": "agent",
+  "version": "1.0.0",
+  "aligned_with": ["GB/Z 185-2026 ACDL 能力描述思路"],
+  "description": "索克家居 Agent 能力本体：25 Agent + 1 Orchestrator 的能力/审批边界/分类。确定性知识基座，供 agent_identity_card 与治理审计引用。",
+  "categories": {
+    "orchestration": "总控编排",
+    "execution": "执行型（面向用户交付）",
+    "business_ops": "商业运营型（平台自身运营）"
+  },
+  "agents": [
+    {"id": "orchestrator", "name": "总控编排 Agent", "category": "orchestration", "role": "任务拆解/路由分派/进度监控/聚合", "capabilities": ["意图分类", "LLM 任务分解 + 规则兜底", "DAG 循环检测与拓扑执行", "每日运营简报"], "decision_boundary": "拆解自主；高风险动作(H1-H5)人工确认"},
+    {"id": "designer", "name": "设计 Agent", "category": "execution", "role": "平面布局/3D/效果图", "capabilities": ["3 套平面布局", "动线分析", "讨论式方案修订", "施工图/BIM/渲染"], "decision_boundary": "承重结构红线 HC-001；方案需业主确认(H1)"},
+    {"id": "budget", "name": "预算 Agent", "category": "execution", "role": "成本估算/预算跟踪", "capabilities": ["报价估算", "预算跟踪", "超支预警"], "decision_boundary": "含税与质保金 HC-002；超支需审批(H2)"},
+    {"id": "procurement", "name": "采购 Agent", "category": "execution", "role": "物料匹配/询价比价", "capabilities": ["物料搜索", "询价比价", "担保支付", "物流", "以销定产"], "decision_boundary": "环保 HC-003；下单需确认(H3)"},
+    {"id": "construction", "name": "施工 Agent", "category": "execution", "role": "进度管理/任务调度", "capabilities": ["进度管理", "任务调度", "工人/班组匹配", "变更单"], "decision_boundary": "工期缓冲 HC-004；水电规范 HC-005"},
+    {"id": "qa_inspector", "name": "质检 Agent", "category": "execution", "role": "质量检测/验收报告", "capabilities": ["验收报告", "图纸比对", "缺陷识别"], "decision_boundary": "质检不代验收；缺陷如实标注"},
+    {"id": "settlement", "name": "结算 Agent", "category": "execution", "role": "财务结算/付款管理", "capabilities": ["里程碑结算", "对账", "异常检测"], "decision_boundary": "结算须业主确认(H5)"},
+    {"id": "concierge", "name": "客服 Agent", "category": "execution", "role": "7×24 知识问答/咨询", "capabilities": ["知识问答", "咨询接待", "问题升级"], "decision_boundary": "复杂问题升级转人工"},
+    {"id": "content_publisher", "name": "内容发布 Agent", "category": "execution", "role": "供应商产品/服务发布", "capabilities": ["产品/服务发布", "内容生成"], "decision_boundary": "AI 生成草稿需人工审核"},
+    {"id": "admin", "name": "平台管理 Agent", "category": "execution", "role": "用户/角色/平台统计", "capabilities": ["用户/角色/权限查询", "平台统计"], "decision_boundary": "AI 不做平台管理写操作，仅引导管理 API"},
+    {"id": "kitchen", "name": "厨房设计 Agent", "category": "execution", "role": "橱柜布局/黄金三角/水电", "capabilities": ["橱柜布局", "黄金三角", "水电走线"], "decision_boundary": "燃气安全间距 HC-007"},
+    {"id": "bathroom", "name": "卫浴设计 Agent", "category": "execution", "role": "干湿分离/排水/防水", "capabilities": ["干湿分离", "排水坡度", "防水方案"], "decision_boundary": "防水高度 HC-008"},
+    {"id": "mep", "name": "水电暖通 Agent", "category": "execution", "role": "强弱电/空调新风/给排水", "capabilities": ["强弱电布局", "空调新风", "给排水"], "decision_boundary": "水电规范 HC-005"},
+    {"id": "appliance", "name": "家电 Agent", "category": "execution", "role": "电器尺寸/能效/安装", "capabilities": ["电器尺寸预留", "能效匹配", "安装方案"], "decision_boundary": "燃气间距 HC-007"},
+    {"id": "furniture", "name": "家具 Agent", "category": "execution", "role": "风格搭配/尺寸/材质", "capabilities": ["风格搭配", "尺寸建议", "材质推荐"], "decision_boundary": "环保 HC-003"},
+    {"id": "door_window", "name": "门窗防水 Agent", "category": "execution", "role": "型材/五金/闭水试验", "capabilities": ["型材选择", "五金配置", "闭水试验"], "decision_boundary": "防水范围 HC-008"},
+    {"id": "files", "name": "文件管理 Agent", "category": "execution", "role": "合同图纸上传下载分类", "capabilities": ["文件上传/下载", "合同图纸分类"], "decision_boundary": "文件归属校验"},
+    {"id": "products", "name": "产品管理 Agent", "category": "execution", "role": "供应商产品上架定价", "capabilities": ["产品上架", "定价管理", "SKU 管理"], "decision_boundary": "产品归属校验"},
+    {"id": "identity", "name": "身份认证 Agent", "category": "execution", "role": "实名认证审核状态查询", "capabilities": ["实名认证查询", "审核状态"], "decision_boundary": "仅查询，不代审"},
+    {"id": "notifications", "name": "通知 Agent", "category": "execution", "role": "消息推送提醒", "capabilities": ["消息推送", "提醒", "设备注册"], "decision_boundary": "仅推送，不改业务数据"},
+    {"id": "takeoff", "name": "工程量计算 Agent", "category": "execution", "role": "墙面面积/地砖用量/材料清单", "capabilities": ["墙面面积", "地砖用量", "材料清单"], "decision_boundary": "算量来源诚实标注"},
+    {"id": "ifc_export", "name": "BIM 导出 Agent", "category": "execution", "role": "IFC 结构模型导出", "capabilities": ["IFC 结构模型导出"], "decision_boundary": "依赖 ifcopenshell，如实披露"},
+    {"id": "growth", "name": "增长分析 Agent", "category": "business_ops", "role": "功能使用率周报/调用统计", "capabilities": ["功能使用率周报", "Agent 调用统计"], "decision_boundary": "基于 agent_feedbacks 诚实标注"},
+    {"id": "marketing", "name": "营销 Agent", "category": "business_ops", "role": "多渠道推广素材生成", "capabilities": ["小红书/抖音/朋友圈素材草稿"], "decision_boundary": "AI 草稿需人工审核"},
+    {"id": "competitor_research", "name": "竞品调研 Agent", "category": "business_ops", "role": "竞品调研简报", "capabilities": ["竞品调研简报"], "decision_boundary": "非实时数据诚实标注"},
+    {"id": "finance_recon", "name": "财务对账 Agent", "category": "business_ops", "role": "平台抽成收入统计", "capabilities": ["平台抽成收入统计"], "decision_boundary": "基于内部支付/托管表，无外部对接"}
+  ]
+}

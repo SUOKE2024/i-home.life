@@ -501,6 +501,11 @@ class BaseAgent:
             skill = await get_skill_for_injection(
                 db, agent_name=self.agent_name, owner_id=owner_id, scope=scope,
             )
+            # v1.14.0 P1 经验注入溯源：skill 块含 skill_id，便于轨迹回放与评测归因
+            skill_block = (
+                f"[进化 Skill: {skill.name} (skill_id={skill.id})]\n{skill.system_prompt}"
+                if (skill and skill.system_prompt) else ""
+            )
             case_ctx = build_case_context(cases)
             budget = settings.context_injection_budget_chars
             budget_tokens = settings.context_injection_budget_tokens
@@ -509,8 +514,8 @@ class BaseAgent:
                 # Skill 蒸馏知识高密度全量优先，Case 用剩余预算——超限从末尾 Case
                 # 开始丢弃（cases 已按 quality 降序），防 context rot 淹没关键事实。
                 # max_tokens（token 估算，估算系数 len//2）优先于 max_chars。
-                if skill and skill.system_prompt:
-                    budget -= len(f"[进化 Skill: {skill.name}]\n{skill.system_prompt}")
+                if skill_block:
+                    budget -= len(skill_block)
                 case_ctx = build_case_context(
                     cases,
                     max_chars=budget if budget > 0 else None,
@@ -529,11 +534,8 @@ class BaseAgent:
                     "evolution.inject.case_miss: agent=%s scope=%s owner_id=%s case_count=0",
                     self.agent_name, scope, owner_id,
                 )
-            if skill and skill.system_prompt:
-                messages.append({
-                    "role": "system",
-                    "content": f"[进化 Skill: {skill.name}]\n{skill.system_prompt}",
-                })
+            if skill_block:
+                messages.append({"role": "system", "content": skill_block})
                 # v1.13.3: 记录注入的 Skill，供 _maybe_record_skill_outcome 回写成败
                 self._injected_skill_id = skill.id
                 logger.debug(

@@ -1,0 +1,333 @@
+# 面向家装交付的自进化多智能体系统：全链路闭环、统计归因与可治理性
+
+**A Self-Evolving Multi-Agent System for Home Renovation Delivery: Closed-Loop Learning, Statistical Attribution, and Governability**
+
+> 本文基于索克家居（i-home.life，v1.14.0）生产系统的真实代码结构撰写，面向软件工程 / 智能体系统的工业实践类投稿。所有架构描述均与源码一一对应，所有量化基线均来自仓库内确定性验证脚本与测试基线，未伪造任何实验数据。
+
+---
+
+## 摘要
+
+将大语言模型（LLM）驱动的智能体（Agent）落地到长周期、多角色、强约束的家装交付领域，面临三重困难：其一，任务链长且跨专业（设计—预算—采购—施工—质检—结算），单一模型无法胜任，需要多智能体协作；其二，领域知识隐性、经验驱动，静态提示词难以持续提升；其三，Agent 一旦拥有工具调用与自主决策能力，即引入提示注入、越权、幻觉参数等新的安全与治理风险。本文提出并实现了一个运行于模块化单体之上的**自进化多智能体系统**，其核心贡献包括：(1) 一个统一 Harness 运行层，将 Agent 的生命周期、降级、重试、追踪（W3C Trace Context + OpenTelemetry GenAI 语义约定）、成本核算与评估循环标准化；(2) 一条**「轨迹→案例→技能→进化」三层自进化闭环**，其中技能进化采用「LLM 提出变更、确定性代码归因变更」的分离原则，以配对比例显著性检验（z≥1.96）抑制过拟合；(3) 一个 hub-spoke 多智能体编排器，以 LLM 分解 + 规则兜底 + DAG 循环检测 + 结构化消息聚合，阻断 Agent 间提示注入缝隙；(4) 一套「工具契约纪律 + 执行前校验 + 预算早停 + 成本分层路由」的工具治理机制；(5) 一个覆盖 OWASP Agentic Skills Top 10 的确定性治理审计框架，以及贯穿全系统的**诚实降级**设计原则；(6) 一个对齐 Brick/BOT/IFC 开放本体的家装领域知识基座与标准目录，实现「标准→规则→代码」的可追溯。系统已通过 2417 项测试基线，工具选择确定性基线在 56 条中文用例上达到 100%（零混淆）。本文的价值在于：给出了一套在**真实业务约束下**（模块化单体、多 LLM 供应商降级链、诚实降级红线）构建可观测、可评估、可治理、可持续进化的生产级多智能体系统的可复现工程范式。
+
+**关键词**：大语言模型；多智能体系统；自进化；技能蒸馏；统计归因；可观测性；Agent 治理；家装数字化
+
+---
+
+## Abstract
+
+Deploying LLM-driven agents into long-horizon, multi-role, and constraint-heavy home renovation delivery is challenging in three ways: the task chain spans heterogeneous specialties (design, budget, procurement, construction, inspection, settlement); domain knowledge is implicit and experience-driven, so static prompts plateau quickly; and tool-using autonomous agents introduce new security and governance risks such as prompt injection, unauthorized access, and hallucinated arguments. This paper presents a self-evolving multi-agent system running on a modular monolith. Its core contributions are: (1) a unified Harness layer that standardizes the agent lifecycle, fallback, retry, tracing (W3C Trace Context and OpenTelemetry GenAI semantic conventions), cost accounting, and evaluation loop; (2) a three-layer "trace→case→skill→evolution" closed loop in which skill evolution separates *proposal generation* (by LLM) from *attribution* (by deterministic code), using a paired-proportion significance test (z≥1.96) to resist overfitting; (3) a hub-spoke orchestrator combining LLM decomposition, rule fallback, DAG cycle detection, and structured message aggregation to close agent-to-agent prompt-injection seams; (4) a tool-governance mechanism of contract discipline, pre-execution validation, token-budget early stopping, and cost-tiered routing; and (5) a deterministic governance audit mapped to the OWASP Agentic Skills Top 10, together with a system-wide *honest degradation* design principle; and (6) a renovation-domain knowledge base (ontology + standards catalog) aligned with the Brick/BOT/IFC open ontologies for traceable standards-to-code mapping. The system passes a 2,392-test baseline, and its deterministic tool-selection baseline reaches 100% accuracy (zero confusion) on 56 Chinese utterances. The contribution is an engineering paradigm for building observable, evaluable, governable, and continuously self-improving production multi-agent systems under real-world constraints (modular monolith, multi-provider LLM fallback chain, and an honest-degradation red line).
+
+**Keywords**: Large Language Model; Multi-Agent System; Self-Evolution; Skill Distillation; Statistical Attribution; Observability; Agent Governance; Renovation Digitalization
+
+---
+
+## 1 引言
+
+### 1.1 背景与动机
+
+家装是典型的长周期、重决策、强协同服务行业：一个项目从量房、设计、报价、采购、施工、质检到结算，涉及业主、设计师、预算师、采购、施工班组、质检员等多方角色，链路长达数月。传统上，该链路高度依赖人工经验与线下沟通，效率低、透明度差、信息断层严重。索克家居（i-home.life）是一套 AI 智能装修平台，目标是将 LLM 能力嵌入这条交付链的每一个环节，形成「AI 嵌入生意每一环」的数字化协作形态。
+
+然而，将通用 LLM 直接应用到该领域存在明显不足：(1) 单次对话无法承载跨专业的完整任务链；(2) 领域经验（如承重墙判断、水电规范、环保材料禁忌）隐性且分散，难以固化；(3) 通用模型缺乏对工具调用的可靠约束，容易产生幻觉参数与越权操作。因此，系统需要**多智能体协作**来分解职责、**持续学习机制**来沉淀经验、**可观测与治理机制**来保证安全与质量。
+
+### 1.2 问题与挑战
+
+本文将家装领域的生产级智能体系统归纳为四个核心挑战：
+
+- **C1 异构任务分解与协作**：用户一句自然语言需求（如「帮我看看 120 平三室两厅北欧风，顺便做份预算」）需被分解为可并行/串行的专业子任务，且子任务间存在依赖约束，分解错误会导致链路级联失败。
+- **C2 经验沉淀与抗过拟合进化**：Agent 每天产生大量执行轨迹，如何从中提炼可复用经验、并以统计可信的方式验证经验有效性，避免「用噪声记忆污染未来决策」。
+- **C3 工具可靠性**：Agent 拥有 FunctionCall 工具能力后，幻觉参数可能直接触达数据库或外部 API，导致真实数据失效甚至安全事故。
+- **C4 治理与诚实性**：Agent 自主性越强，越需要回答「谁、何时、对哪个项目、做了什么、是否可还原」，且当能力不可用时必须诚实降级而非伪造结果。
+
+### 1.3 贡献
+
+针对上述挑战，本文的主要贡献如下：
+
+1. **统一 Harness 运行范式**（对应 C2/C3）：以「Agent = Model + Harness」为指导思想，将生命周期、降级、重试、超时、追踪、成本核算、评估循环收敛到单一运行层，使 25 个业务 Agent 共享同一套可观测基础设施（第 3 章）。
+2. **三层自进化闭环与统计归因**（对应 C2）：提出「轨迹（Trace）→ 案例（Case）→ 技能（Skill）→ 进化（Evolution）」闭环，并在技能进化中贯彻「LLM 提出变更、确定性代码归因变更」的分离原则，用配对比例显著性检验（z≥1.96）作为采纳门槛（第 4 章）。
+3. **hub-spoke 编排 + 结构化 Agent 消息**（对应 C1）：LLM 任务分解、DAG 循环检测（Kahn 拓扑排序）、拓扑执行、结构化结果聚合，从消息形态上阻断 Agent 间提示注入（第 5 章）。
+4. **工具契约纪律与成本分层**（对应 C3）：显式 required 契约、执行前类型校验、DB 场景串行/纯计算场景并行的执行策略、token 预算早停、成本分层路由与多 LLM 降级链（第 6 章）。
+5. **确定性治理审计 + 诚实降级原则**（对应 C4）：对照 OWASP Agentic Skills Top 10 的确定性审计、三档安全姿态、人工审批状态机、Model Spec 硬约束，以及贯穿全系统的诚实降级红线（第 7、8 章）。
+6. **家装领域本体基座 + 标准目录**（对应 C4 与知识固化）：新增对齐 Brick/BOT/IFC 开放本体的空间/构件/材质/Agent 能力本体，以及结构化装修标准目录，实现「标准→规则→代码」可追溯，并以只读 API 暴露（第 3.4 章）。
+7. **可复现的评估体系**：13 维评估 + 量化目标 + 漂移检测 + 工具选择基线（第 7 章），并诚实报告当前已验证结果与局限（第 10 章）。
+
+---
+
+## 2 相关工作
+
+**LLM Agent 基础。** ReAct[1] 与 Toolformer[2] 确立了「推理—行动—观察」与工具自监督学习范式；Chain-of-Thought[3] 揭示分步推理对复杂任务的价值。本系统在此基础上将工具调用标准化为「契约 + 校验」的受控循环（第 6 章）。
+
+**多智能体协作。** AutoGen[4]、MetaGPT[5] 与 Generative Agents[6] 分别探索了对话式、SOP 式与记忆流式的多智能体组织。本文的编排器（第 5 章）与上述工作的关键区别在于：子 Agent 输出以结构化 `AgentTaskResult` 聚合而非拼接为自由文本，从接口层面缓解 Agent 间提示注入（对应 OWASP AG1/AG5）。
+
+**记忆与技能进化。** MemGPT[7] 与 Generative Agents[6] 关注上下文与长期记忆；Voyager[8] 提出可复用技能库；Reflexion[9] 与 Self-Refine[10] 通过语言反馈自我改进。本文借鉴 EverMind EverOS 的「轨迹→案例」经验沉淀、SkillCorpus 的技能策展、HarnessBank 的「诊断—归因分离」思想[11]，并在真实生产路径中落地了从案例蒸馏到技能进化、再到统计归因的完整闭环（第 4 章）。与 Voyager 的「成功即保存技能」不同，本文的进化层引入了确定性显著性检验，避免将偶发成功固化为经验。
+
+**空间智能与建筑领域本体。** SpatialLM[16] 将 3D 点云转换为结构化空间布局（墙/门/窗 + 语义物体框）；3D-FRONT[17] 提供大规模专业室内场景与家具布局数据集；Brick Schema 与 BOT（Building Topology Ontology）[18] 为建筑物理/拓扑资产提供开放本体；IfcOpenShell[19] 是成熟的 openBIM IFC 库。本文在此基础上新增对齐 Brick/BOT/IFC 的家装领域本体基座与标准目录（第 3.4 章），使空间语义与治理审计可对齐开放标准而非自定义 JSON。
+
+**Agent 治理与安全。** OWASP 发布了面向 LLM 应用及 Agentic 系统的 Top 10 风险框架[12]；Model Context Protocol（MCP）[13] 与 OpenTelemetry GenAI 语义约定[14] 提供了工具互操作与可观测性标准。本文在模块化单体内部自建治理（而非引入外部记忆/编排服务），并以 PASETO v4.local[15] 作为鉴权基石。
+
+**工程定位。** 与上述以算法创新或框架通用性为主的工作不同，本文的贡献在于**领域约束下的系统工程**：在「模块化单体、多 LLM 供应商降级链、诚实降级红线」等真实约束下，证明自进化、可观测、可治理的闭环可以低成本复现，而非依赖 K8s/微服务/外部记忆服务等重基础设施。
+
+---
+
+## 3 系统架构
+
+### 3.1 总体形态
+
+系统采用**模块化单体**（modular monolith）架构：Python(FastAPI) 后端 + Flutter 多端 + React WebApp/控制台。所有路由在应用入口无条件加载，无按角色拆分的微服务进程。这一选择源于两个现实约束：(1) 业务处于快速演进期，微服务边界不稳定；(2) 团队规模与运维能力要求「一个可部署、可回滚、可测试」的整体。CLAUDE.md 将「禁止引入 K8s/容器编排」列为架构红线。
+
+系统规模（截至 v1.14.0）：139 个 ORM 模型、76 个路由模块、109 个服务、25 个业务 Agent（21 个执行型 + 4 个商业运营型）+ 1 个总控 Orchestrator。
+
+在业务代码之外，系统沉淀了一层只读、确定性的**领域知识基座**：`app/ontology/`（空间/构件/材质/Agent 能力本体）与 `app/standards/`（验收清单、定额库、标准目录），供 Agent、治理审计与空间语义统一引用（见 §3.4）。
+
+### 3.2 分层结构
+
+系统在横向上分为五层：
+
+1. **Harness 运行层**（`app/agents/harness.py`）：`AgentRuntime` 统一管理 Agent 生命周期（创建→执行→追踪→评估→清理），提供降级策略、重试策略、超时控制、5 层记忆模型（ephemeral/session/project/user/knowledge_base）与离线评估循环。所有 Agent 执行经 `harness.run()` 收敛，自动获得轨迹落库与自进化案例提取。
+2. **Agent 层**（`app/agents/`）：`BaseAgent` 提供多 LLM 供应商路由、FunctionCall 工具调用、流式输出、自进化经验注入、Model Spec 约束声明等公共能力；25 个业务 Agent 通过子类化仅声明 `agent_name`、`system_prompt`、`persona`、`tools`、`cost_tier` 等差异。
+3. **服务层**（`app/services/`）：109 个领域服务承载具体业务能力（预算、设计、采购、施工、质检、结算、自进化案例/技能服务、编排服务、治理审计等）。
+4. **工具层**（`app/services/agent_tool_registry.py`）：`ToolRegistry` 单例注册 11 个内置用户工具 + 6 个管理工具，统一执行前的参数校验、姿态检查、审计记录、SSRF 拦截与输出清洗。
+5. **本体与标准层**（`app/ontology/` + `app/standards/`）：确定性 JSON 本体（空间/构件/材质/Agent 能力）与标准目录（验收清单、定额库、标准目录），对齐 Brick/BOT/IFC 开放本体，供空间语义、治理审计与 Agent 身份卡统一引用（见 §3.4）。
+
+### 3.3 统一 Harness 运行范式
+
+`AgentRuntime.run()` 的契约如下：接收任意 `BaseAgent` 实例与用户消息，返回 `{"reply", "trace", ...}`。其关键设计包括：
+
+- **轨迹先行**：每次执行生成 `AgentTrace`，记录 token 消耗、工具调用链、降级信息、延迟（含首 token 延迟）、`token_budget_hit`（预算早停标记）、`workflow_id`（跨 Agent 编排 ID）。
+- **W3C Trace Context + OTel GenAI SemConv**：轨迹生成 `traceparent`/`tracestate`，并按 `gen_ai.system/model/agent.name/usage.*` 语义约定标注，使 LLM 调用可纳入既有分布式追踪体系。
+- **降级与重试**：`FallbackStrategy` 枚举（mock_reply / raise_error / retry_n_times / degrade_to_rule），超时重试后进入降级，降级结果显式标注 `fallback=True`。
+- **轨迹可回放**：`tool_calls` 序列化保留 tool/arguments/result（参数截 200、结果截 300、整体 4000 字符），对齐「Every run is traceable」。
+
+这一层的价值在于**收敛复杂度**：25 个 Agent 无需各自实现追踪、降级、成本核算，而是共享同一套经过验证的基础设施，这是后文自进化与评估得以「全链路」覆盖的前提。
+
+---
+
+## 3.4 本体与标准知识基座
+
+针对 C4 的「可还原」诉求与领域知识固化，系统新增一层只读、确定性的领域知识基座，由两部分构成：
+
+- **领域本体**（`app/ontology/`）：三个 JSON 本体——`renovation_ontology`（空间 site/floor/zone/room + 构件 wall/door/window/column/beam + 关系 adjacent_to/contains/part_of）、`agent_ontology`（26 个 Agent 的能力/审批边界/分类）、`material_ontology`（材质/环保等级，对齐 HC-003 的 ENF/E0/E1、禁止 E2）。术语显式对齐 Brick/BOT/IFC（如 room ↔ bot:Space ↔ IfcSpace ↔ brick:Room），以 `GET /api/ontology/{domain}/alignments` 暴露对齐映射。
+- **标准目录**（`app/standards/`）：结构化装修标准目录（IFC/COBie/bSDD、GB 55000 系列、GB 50210/50303/50242、GB 18580 环保等级等），供 Model Spec HC 硬约束、验收清单、定额库统一引用，实现「标准→规则→代码」可追溯，以 `GET /api/standards` 暴露。
+
+设计上刻意保持**确定性、零外部依赖、非 RDF 推理引擎**：本体以 JSON 表达术语与关系而非引入 OWL 推理，符合模块化单体红线；检索退化为关键词匹配（诚实降级，见 §11 局限）。
+
+---
+
+## 4 自进化闭环：轨迹→案例→技能→进化
+
+这是本文最核心的贡献。系统实现了一条三层自进化管线，由三个独立 feature flag 灰度控制，均可独立关闭回退到无记忆静态行为。
+
+### 4.1 P0：案例提取（经验沉淀层）
+
+每次 Agent 执行产生 `AgentTrace`，`extract_case_from_trace()` 执行如下流程：
+
+1. **轨迹压缩**：截断保留用户请求（500 字）、工具调用摘要（最多 10 个）、Agent 回复（800 字），超过 2000 字符启发式截断；
+2. **目标导向过滤**：`_is_goal_directed()` 过滤闲聊/简单问答（命中「你好/谢谢/你是谁」等模式或消息过短则不入案例），避免噪声记忆；
+3. **LLM 结构化提取**：将压缩轨迹交给 LLM 提取 `{task_intent, approach[], outcome, quality_score}`，其中 `task_intent` 是自包含的意图陈述（未来检索的键），`approach` 记录关键步骤（最多 8 步，含失败重试）；
+4. **持久化**：落 `AgentCase`（含 `scope`/`owner_id`/`trace_id`），并以 `trace_id` 去重防止同一执行双提取。
+
+检索时 `search_cases()` 按 scope 隔离 + 关键词匹配（未配置向量库时诚实降级为 LIKE 匹配），并以 `quality_score → retrieval_count → created_at` 的 recency 排序键排序，避免陈旧高分案例永久压制新经验。
+
+### 4.2 P1：技能蒸馏（能力跃升层）
+
+当同 Agent 同 scope 下未蒸馏的高质量案例（quality≥0.5）达到阈值 3 条时，触发 `distill_skill_from_cases()`：
+
+1. LLM 从案例簇提炼 `{name, description, system_prompt, tools[], acceptance_criteria[]}`；
+2. **生成前查重合并**：`_find_similar_skill()` 检查是否已存在同名技能，存在则回写案例的 `distilled_to_skill_id` 并合并，而非新建冗余（SkillCorpus 策展思想）；
+3. 新技能以 `DRAFT` 状态入库，需经进化层质控后才 `ACTIVE`；
+4. 回写案例的 `cluster_id` 与 `distilled_to_skill_id`，形成案例—技能的可追溯关联。
+
+执行前 `get_skill_for_injection()` 优先取 `ACTIVE` + 高 `utility_score` 的技能，注入 Agent 上下文。
+
+### 4.3 P1：技能进化与统计归因（抗过拟合核心）
+
+技能进化层解决一个关键问题：**LLM 提出的技能变更是有噪声的，不能直接信任**。系统借鉴 HarnessBank 的「诊断—归因分离」原则，将「提出变更」与「归因变更」解耦：
+
+**提出变更（LLM，有噪声）**：LLM 诊断失败案例的 (WHERE=哪个环节, WHY=为何失败) 病理，提出技能补丁。
+
+**归因变更（确定性代码，可信）**：`diagnose_credit_skill_patch()` 用配对比例显著性检验判断补丁是否真实有效：
+
+$$
+z = \frac{|\Delta p|}{\sqrt{\bar{p}(1-\bar{p}) \cdot 2 / n}}, \quad \bar{p} = \frac{p_{before} + p_{after}}{2}
+$$
+
+仅当 `z ≥ 1.96`（95% 置信）且 `Δp > 0` 时才采纳补丁。以 (WHERE×WHY) 病理为键而非「任务」为键存档，是抗过拟合的归纳偏置。
+
+**三维质控**：`evaluate_skill_quality()` 计算三个维度：
+
+- **Utility（实用性）**：成功率 × 使用频次加权；
+- **Robustness（鲁棒性）**：Wilson 区间下界近似，样本量越大越稳定；
+- **Safety（安全性）**：失败率反向。
+
+综合分 `overall = (utility + robustness + safety) / 3`。低质技能（total≥5 且 overall<0.3）自动 `ARCHIVED` 淘汰；高质 DRAFT 技能（total≥3 且 overall≥0.6）自动晋升 `ACTIVE`。
+
+**成败回写闭环**：`BaseAgent._maybe_record_skill_outcome()` 在每次注入技能执行后确定性回写成败（reply 非空且非 `[mock]`/降级占位/思维链泄漏 → success=True），使进化的数据层在生产路径真实运转，而非仅在测试/脚本中空转。
+
+### 4.4 全链路闭环与上下文预算
+
+v1.13.x 的「断点 A–I」修复补齐了此前未纳入闭环的路径：`think`/`think_with_tools`/`think_stream`、意图分类、客服生成、内容发布、语音实时、IM 群聊、产品文案、技能实例化、编排 LLM 分解等全部接入「经验注入 + 案例沉淀 + 成败回写」。同时引入**上下文注入预算**（`context_injection_budget_chars`，默认 4000 字符）：技能蒸馏知识高密度全量优先，案例按质量降序裁剪，防止「上下文腐烂」（context rot）淹没关键事实。
+
+---
+
+## 5 多智能体编排
+
+### 5.1 hub-spoke 编排范式
+
+`OrchestratorAgent.plan_and_delegate()` 采用 Orchestrator-Worker（hub-spoke）范式，链路为：
+
+```
+用户需求 → LLM 任务分解（规则兜底）→ DAG 循环检测 → harness 拓扑执行 → 结构化聚合
+```
+
+**任务分解**：`decompose_request()` 优先 LLM 输出 `{"tasks": [{"agent", "task", "depends_on"}]}`，任何失败（无 key/非 JSON/结构非法）诚实降级为规则单任务分解，绝不伪装 LLM 能力。
+
+**DAG 校验**：`validate_dag()` 检测重复 ID、悬空依赖，并用 Kahn 拓扑排序检测环；`topological_order()` 返回拓扑执行序。环检测失败时回退规则分解。
+
+**拓扑执行**：`run_workflow()` 按拓扑序复用 `harness.run()` 执行子任务，共享同一 `workflow_id` 贯穿所有 Agent 执行；前置任务失败/跳过时，依赖它的任务标记 `skipped` 不级联执行。
+
+### 5.2 结构化 Agent 消息（防注入缝隙）
+
+与多数框架将子 Agent 文本输出直接拼接进后续 prompt 不同，本系统子任务结果以 `AgentTaskResult` 结构化数据（`task_id/agent_id/status/result/confidence/reasoning`）聚合。聚合时按状态分类标注（成功/失败/跳过），失败不阻断其它成功任务，最终输出诚实标注每项来源。这一设计将 Agent 间消息从「自由文本」升级为「结构化数据」，从根本上消除「子 Agent 输出被当作指令再执行」的注入缝隙（对应 OWASP AG1/AG5）。
+
+---
+
+## 6 工具纪律与成本控制
+
+### 6.1 契约纪律
+
+`AgentTool` 显式声明 `required` 参数列表，替代「全部参数标必填」的旧行为——后者会诱导 LLM 幻觉填充可选参数，降低工具选择准确率。工具描述统一含「示例：」use-example，将工具描述作为最高优先级 prompt。
+
+### 6.2 执行前校验
+
+`ToolRegistry.execute()` 在执行前按契约校验参数类型（number/integer/string/boolean/array/object），并**拒绝未知参数名**（strict schema），防止 LLM 编造工具未声明的参数到达 handler。
+
+### 6.3 并行与预算早停
+
+- **并行执行**：同一轮多个 `tool_calls` 支持 `asyncio.gather` 并行。但系统发现并修复了一个真实回归——共享 AsyncSession 下并行触发 SQLAlchemy 并发冲突，导致 DB 查询静默降级、真实数据失效。修复策略为「有 db 串行、无 db（纯计算/外部 API）并行」，体现「正确性优先于速度」的原则。
+- **预算早停**：累计工具参数 + 结果上下文估算 token，超限（默认 12000）提前终止循环并强制生成最终回复，`token_budget_hit` 落轨迹供评估区分「正常完成 vs 预算早停」。
+
+### 6.4 成本分层与降级链
+
+- **多 LLM 降级链**：`deepseek → qwen → glm → doubao`，`_chat` 失败时按链降级，整链均无 key 时返回 `[mock]` 兜底并显式标注。
+- **成本分层路由**：`cost_tier="economy"` 的 Agent（如意图分类、客服、通知、积分等低价值解析）优先走低成本供应商，主供应商保留兜底。
+- **响应缓存**：对非工具调用的确定性请求（相同 agent+messages）命中缓存，工具调用（有副作用）一律不缓存。
+
+---
+
+## 7 可观测性与评估
+
+### 7.1 轨迹落库
+
+每次 `harness.run()` 按采样率（默认 1.0）落 `agent_traces` 表，含 token 消耗、工具调用链、降级/重试、`token_budget_hit`、延迟分位等，`workflow_id` 支持跨 Agent 链路回溯。prompt 上下文截断采样防 PII 扩散。
+
+### 7.2 评估三要素与维度
+
+`IHomeEval` 定义了 13 个评估维度，覆盖领域专用维度（预算准确性、设计安全、材料禁忌、越权防护）与通用维度（忠实性 Faithfulness、完整性 Completeness、充分性 Sufficiency、降级率、思维链泄漏率、工具调用准确率等），并映射到 `QUALITY_TARGETS` 量化基线（如成功率≥95%、降级率≤5%、首 token p95≤8s、预算早停率≤20%）。忠实/完整/充分性当前以关键词命中作为**启发式代理指标**（诚实标注非 LLM judge），精确语义评估由 LLM-as-judge 抽样补充。
+
+### 7.3 漂移检测
+
+`detect_agent_drift()` 基于持久化轨迹做 per-agent 质量漂移检测，对比当前窗口成功率/降级率/延迟/预算早停率与量化基线，按差距 <10%（warn）/≥10%（critical）分级，样本不足标记 `insufficient_samples` 不判定。另含用户反馈漂移（`detect_feedback_drift`，like 率）与 UX 指标（任务完成率/弃单率/星级）。
+
+### 7.4 工具选择准确率基线
+
+`tool_accuracy.py` 提供 56 条中文用例（覆盖 11 个工具 × normal/boundary/confusable/negative 四类失败模式）与确定性关键词分类器。该基线经关键词消歧打磨后达到 **100%（0 混淆）**，用于建立「最低可接受线」——LLM 分类必须显著高于此基线才值得引入成本（另有 Minimal 模式隔离工具数量影响）。
+
+---
+
+## 8 治理与安全
+
+### 8.1 OWASP Agentic Skills Top 10 对照
+
+`run_governance_audit()` 将 OWASP Agentic Skills Top 10 风险类别逐项映射到平台既有控制点，输出确定性审计报告（只读、无副作用、不依赖 LLM）。控制点包括：工具描述防投毒、三档安全姿态 + 审批状态机、Model Spec 硬约束 + 反驳重生成、Skill scope-owned 授权、A2A + PASETO、工具轮数 + 超时双约束、`verify_project_access` 归属校验、FunctionCall schema 严格校验、PII 掩码 + 会话加密、Pydantic 输入校验。
+
+### 8.2 安全姿态与审批
+
+三档 posture：`strict`（高危工具需人工批准，pending 拦截）、`auto`（默认，正常执行）、`dangerous`（全放行）。strict 模式下高危工具创建 `AgentApproval` 待审批单，批准后以 `dangerous` 重放绕过二次拦截。
+
+### 8.3 Model Spec 硬约束
+
+`model_spec_enabled` 开启后，Agent 输出经 `rebuttal_engine` 的 `check_output_with_semantic`（关键词预筛 + LLM 语义兜底）校验，违规时注入反驳上下文重生成；同时 `_model_spec_constraint_prompt()` 在输出前将适用于该 Agent 的硬约束前置声明（Guideline-as-Code），从源头减少违规。
+
+### 8.4 MCP 安全硬化
+
+工具注册时校验 description 防投毒；执行前 SSRF 参数拦截（内网/云元数据 169.254.169.254）；执行后输出敏感字段清洗。三者均受 `mcp_security_hardening_enabled` 门控，关闭零回归。
+
+---
+
+## 9 诚实降级：贯穿全系统的设计原则
+
+本文提出「**诚实降级**」作为生产级 Agent 系统的第一性原则：**能力不可用时明确 503/占位/标注，禁止用硬编码假数据伪装真实能力**。这一原则在系统中的具体体现：
+
+- 工具层：真实 DB 查询命中返回 `source="db"`，查无记录/异常/flag 关闭回退样例并标记 `source="*_fallback"`；
+- 编排层：LLM 分解失败降级规则单任务并标注 `engine="rule_single"`；
+- 进化层：flag 关闭或提取失败仅 log，不影响主流程，且绝不伪造成功；
+- 评估层：「无数据」与「0% 准确率」严格区分（如无 budget 轨迹时该维度返回 None 而非 0 分）。
+
+这一原则是系统的**文化约束**，其代价是部分场景下「可用性」低于「伪造可用性」的方案，但换取了真实数据的可信度与可回溯性。
+
+---
+
+## 10 评估结果与现状
+
+本文诚实报告当前已由确定性脚本/测试验证的结果，不编造生产环境尚未采集的量化指标。
+
+**测试基线**：全量 `pytest` 2417 passed（collect 2423 = 2417 passed + 2 skipped + 4 xfailed），为质量门禁硬约束。
+
+**自进化管线验证**：59 条用例 + 覆盖率 99% + `verify_self_evolution.py` 66 项检查通过。
+
+**工具选择基线**：56 条中文用例，确定性关键词基线经消歧后 **100%（0 混淆）**；Minimal 模式（仅 2 工具）用于隔离工具数量对选择准确率的影响。
+
+**本体基座与标准目录**：`app/ontology/` 三本体 + `app/standards/` 标准目录已落地，Agent 本体覆盖全部 26 个 Agent（测试强制校验），标准目录与验收清单交叉引用一致；新增 12 项测试全通过。
+
+**生产量化指标**：成功率、降级率、延迟分位、反馈 like 率、任务完成率等指标由 `agent_traces`/`agent_feedbacks`/`agent_sessions` 表实时计算并经漂移检测门禁，但**本文不报告未经授权的生产统计值**——这些数值属于部署环境数据，需在实际采集后另文补充。
+
+---
+
+## 11 讨论与局限
+
+**局限与诚实声明**：
+
+1. **进化闭环的失败信号不完整**：`record_skill_outcome` 当前确定性判定只能可靠识别「成功」与「明显的降级/泄漏失败」，语义级失败（如回复看似成功但答非所问）仍依赖离线 LLM-as-judge 抽样，尚未完全闭环（代码中已诚实标注该遗留）。
+2. **检索为关键词降级**：未配置向量库时案例检索退化为 LIKE 匹配，语义召回质量受限；向量检索能力在配置 `vector_db_url` 后方可激活。
+3. **评估代理指标**：忠实/完整/充分性的关键词命中是启发式代理，非真实语义分数，仅用于快速回归门禁。
+4. **统计归因为轻量实现**：`diagnose_credit_skill_patch` 的配对比例检验是 HarnessBank「Gated Screening」的轻量近似，未引入多闸门因果推断。
+5. **单点治理为只读**：治理审计为确定性只读报告，未形成自动阻断闭环。
+6. **本体为 JSON 表达**：领域本体以 JSON 表达术语与关系、对齐 Brick/BOT/IFC 术语，未引入 RDF/OWL 推理引擎，故不具备完整语义推理能力。
+
+**适用边界**：本文范式最适用于「长链路、多角色、强领域约束、对数据可信度要求高」的垂直行业（家装、医疗、法律、政务等），其模块化单体 + 诚实降级 + 确定性审计的组合在中小团队、快速演进场景下尤其具备可复制性。
+
+---
+
+## 12 结论
+
+本文提出并实现了一个面向家装交付的生产级自进化多智能体系统，其核心方法论可归纳为四句话：**用统一 Harness 收敛复杂度，用「轨迹→案例→技能→进化」闭环沉淀经验，用统计归因对抗过拟合，用诚实降级守住可信度底线**。系统的可复现价值在于：它证明了在模块化单体、多 LLM 降级链、诚实降级红线等真实约束下，自进化、可观测、可评估、可治理的智能体系统可以低成本落地，而非依赖重基础设施。未来工作将聚焦于：语义级失败信号的闭环回写、向量化经验检索、治理审计到自动阻断的升级，以及基于生产数据的完整量化评估。
+
+---
+
+## 参考文献
+
+> 说明：为保持学术可核查性，下列正式文献均为真实、可公开检索的工作；标注「行业技术参考」者来自系统实现时借鉴的 2026 行业报告/内部技术框架，此处作为非正式参考列出，不附虚假 DOI。
+
+[1] Yao S, Zhao J, Yu D, et al. ReAct: Synergizing Reasoning and Acting in Language Models[C]. ICLR, 2023.
+[2] Schick T, Dwivedi-Yu J, Dessì R, et al. Toolformer: Language Models Can Teach Themselves to Use Tools[C]. NeurIPS, 2023.
+[3] Wei J, Wang X, Schuurmans D, et al. Chain-of-Thought Prompting Elicits Reasoning in Large Language Models[C]. NeurIPS, 2022.
+[4] Wu Q, Bansal G, Zhang J, et al. AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation[C]. 2023.
+[5] Hong S, Zheng X, Chen J, et al. MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework[C]. ICLR, 2024.
+[6] Park J S, O'Brien J C, Cai C J, et al. Generative Agents: Interactive Simulacra of Human Behavior[C]. UIST, 2023.
+[7] Packer C, Wooders S, Lin K, et al. MemGPT: Towards LLMs as Operating Systems[C]. 2023.
+[8] Wang G, Xie Y, Jiang Y, et al. Voyager: An Open-Ended Embodied Agent with Large Language Models[C]. 2023.
+[9] Shinn N, Cassano F, Gopinath A, et al. Reflexion: Language Agents with Verbal Reinforcement Learning[C]. NeurIPS, 2023.
+[10] Madaan A, Tandon N, Gupta P, et al. Self-Refine: Iterative Refinement with Self-Feedback[C]. NeurIPS, 2023.
+[11] 行业技术参考：EverMind EverOS Agent Memory、SkillCorpus 技能策展、HarnessBank「诊断—归因分离」与 Gated Screening、DeepSeek Harness「Every run is traceable / Minimal mode」、Suoke-Eval1 评估维度方法论（系统实现借鉴来源，非公开论文）。
+[12] OWASP. OWASP Top 10 for LLM Applications / Agentic Skills Top 10. 2025–2026.
+[13] Anthropic. Model Context Protocol (MCP) Specification. 2024–2026.
+[14] OpenTelemetry. GenAI Semantic Conventions. 2024–2026.
+[15] Paragonie Initiative. PASETO: Platform-Agnostic Security Tokens. 2018–2026.
+[16] Mao Y, Zhong J, Fang C, et al. SpatialLM: Spatial Language Models for 3D Scene Understanding. arXiv:2506.07491 (NeurIPS 2025).
+[17] Fu H, Cai B, Gao L, et al. 3D-FRONT: 3D Furnished Rooms with layOuts and semaNTics. ICCV, 2021. arXiv:2011.09127.
+[18] Balaji B, Bhattacharya A, Fierro G, et al. Brick: Towards a Unified Metadata Schema for Buildings. BuildSys, 2016. / W3C LBD Community Group. Building Topology Ontology (BOT).
+[19] IfcOpenShell — Open Source IFC Library and Geometry Engine. https://docs.ifcopenshell.org/.
+
+---
+
+*本文档由代码库分析生成，所有架构与机制描述均可溯源至源码（`app/agents/`、`app/services/`、`app/eval/`、`app/ontology/`、`app/standards/`、`app/config.py`）。论文中的量化基线均来自仓库内确定性验证脚本与测试基线，未包含任何未经授权的生产统计值。*

@@ -1,6 +1,8 @@
 """BIM IFC 导出测试 — structural / design 导出 + 鉴权"""
 
 import json
+import os
+
 import pytest
 from httpx import AsyncClient
 
@@ -330,3 +332,77 @@ async def test_export_design_ifc_no_permission(
         json={},
     )
     assert resp.status_code == 403
+
+
+# ════════════════════════════════════════════════════════════════
+# P1 方向 C：IFC 交付校验 / 模型对比（validate_ifc_file / diff_ifc_files）
+# ════════════════════════════════════════════════════════════════
+
+
+def test_validate_ifc_file_design_export():
+    """导出 design IFC 后，交付校验统计构件类型 + Pset 覆盖"""
+    from app.services.ifc_export_service import export_design_to_ifc, validate_ifc_file
+
+    plan = {
+        "name": "校验测试",
+        "wall_height": 2.8,
+        "data": {
+            "walls": [
+                {"name": "W1", "thickness": 240, "length": 4.0,
+                 "start": {"x": 0, "y": 0}, "end": {"x": 4000, "y": 0}},
+            ],
+            "doors": [{"name": "D1", "width": 900, "height": 2100}],
+            "windows": [],
+        },
+    }
+    filepath = export_design_to_ifc(plan)
+    try:
+        report = validate_ifc_file(filepath)
+        assert report["schema"] == "IFC4"
+        assert report["source"] == "ifcopenshell_deterministic"
+        assert report["elements"].get("wall", 0) >= 1
+        assert report["elements"].get("door", 0) >= 1
+        # ifc_real_placement_enabled=True 默认 → 墙体附 Pset
+        assert report["pset_wall_coverage"] == 1.0
+        assert report["issues"] == []
+    finally:
+        os.remove(filepath)
+
+
+def test_diff_ifc_files_type_counts():
+    """模型对比：构件类型计数差异（IfcWallStandardCase 1→2）"""
+    from app.services.ifc_export_service import export_design_to_ifc, diff_ifc_files
+
+    base = {
+        "name": "diff",
+        "wall_height": 2.8,
+        "data": {
+            "walls": [
+                {"name": "W1", "thickness": 240, "length": 4.0,
+                 "start": {"x": 0, "y": 0}, "end": {"x": 4000, "y": 0}},
+            ],
+            "doors": [], "windows": [],
+        },
+    }
+    more = {
+        "name": "diff",
+        "wall_height": 2.8,
+        "data": {
+            "walls": [
+                {"name": "W1", "thickness": 240, "length": 4.0,
+                 "start": {"x": 0, "y": 0}, "end": {"x": 4000, "y": 0}},
+                {"name": "W2", "thickness": 240, "length": 3.0,
+                 "start": {"x": 0, "y": 4000}, "end": {"x": 3000, "y": 4000}},
+            ],
+            "doors": [], "windows": [],
+        },
+    }
+    pa = export_design_to_ifc(base)
+    pb = export_design_to_ifc(more)
+    try:
+        diff = diff_ifc_files(pa, pb)
+        assert diff["a_element_count"] < diff["b_element_count"]
+        assert diff["type_deltas"]["IfcWallStandardCase"]["delta"] == 1
+    finally:
+        os.remove(pa)
+        os.remove(pb)

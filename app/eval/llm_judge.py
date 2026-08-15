@@ -255,6 +255,7 @@ async def evaluate_llm_judge(
     sample_size: int = 12,
     random_seed: int | None = None,
     judge=None,
+    pass_k: int | None = None,
 ) -> dict:
     """LLM-as-judge 语义正确性抽样评估（v1.13.6）。
 
@@ -278,13 +279,20 @@ async def evaluate_llm_judge(
         pool = random.sample(pool, sample_size)
 
     judge = judge or judge_reply
+    k = pass_k if pass_k is not None else 1  # 默认单次（旧行为），API 层按 config 传 k
     per_dim_llm: dict[str, list[float]] = {d: [] for d in LLM_JUDGE_DIMENSIONS}
     per_dim_kw: dict[str, list[float]] = {d: [] for d in LLM_JUDGE_DIMENSIONS}
+    agreements: list[float] = []
 
     for s in pool:
         prompt = s.get("prompt", "")
         reply = s.get("reply", "")
-        scores = await judge(prompt, reply)
+        if k > 1:
+            result = await judge_reply_pass_k(prompt, reply, k=k, judge=judge)
+            scores = result["scores"]
+            agreements.append(result["agreement"])
+        else:
+            scores = await judge(prompt, reply)
         for dim in LLM_JUDGE_DIMENSIONS:
             per_dim_llm[dim].append(float(scores.get(dim, 0.0)))
             per_dim_kw[dim].append(_keyword_baseline_score(dim, reply))
@@ -292,18 +300,26 @@ async def evaluate_llm_judge(
     def _avg(vals: list[float]) -> float:
         return round(sum(vals) / len(vals), 4) if vals else 0.0
 
+    agreement = round(sum(agreements) / len(agreements), 4) if agreements else 1.0
+    notes = [
+        "LLM-as-judge 语义评分（非确定性、有成本），抽样金标准对比",
+        "keyword_baseline 为确定性关键词代理（0/1），二者并列非互替",
+        "受 llm_judge_enabled 门控（默认关闭）；样本不足时诚实标注 0 样本",
+    ]
+    if k > 1:
+        notes.append(
+            f"pass^k={k} 控噪：同题跑 k 次取均值，agreement 为各维一致性占比（0-1，越高越稳定）"
+        )
     return {
         "report_type": "llm_judge_semantic_quality",
         "sample_size": len(pool),
+        "pass_k": k,
+        "agreement": agreement,
         "dimensions": {
             d: {
                 "llm_judge": _avg(per_dim_llm[d]),
                 "keyword_baseline": _avg(per_dim_kw[d]),
             } for d in LLM_JUDGE_DIMENSIONS
         },
-        "notes": [
-            "LLM-as-judge 语义评分（非确定性、有成本），抽样金标准对比",
-            "keyword_baseline 为确定性关键词代理（0/1），二者并列非互替",
-            "受 llm_judge_enabled 门控（默认关闭）；样本不足时诚实标注 0 样本",
-        ],
+        "notes": notes,
     }

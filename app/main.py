@@ -60,6 +60,8 @@ from app.api import ai_render
 from app.api import ifc_export
 from app.api import construction_drawing
 from app.api import eval as eval_api
+from app.api import ontology as ontology_api
+from app.api import standards as standards_api
 from app.api import a2a as a2a_api
 from app.api import energy
 from app.api import health as health_api
@@ -538,6 +540,8 @@ api_router.include_router(ifc_export.router)      # /api/bim/export/* (IFC 导�
 api_router.include_router(construction_drawing.router)  # /api/construction-drawing/* (施工图 v1.2.0)
 # v1.1.28 借鉴索克生活：评估框架 + A2A 协议端点
 api_router.include_router(eval_api.router)         # /api/eval/* (Suoke-Eval1 评估)
+api_router.include_router(ontology_api.router)     # /api/ontology/* (本体基座 P0)
+api_router.include_router(standards_api.router)    # /api/standards/* (标准目录 P0)
 api_router.include_router(a2a_api.router)          # /api/a2a/* (A2A 协议)
 api_router.include_router(energy.router)           # /api/energy/* (A1 能耗监测)
 api_router.include_router(b2b_delivery.router)     # /api/b2b/* (B2B 装企交付 v1.4.x)

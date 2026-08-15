@@ -242,6 +242,43 @@ async def test_evaluate_judge_alignment_no_gold():
     assert report["sample_size"] == 0
 
 
+@pytest.mark.asyncio
+async def test_evaluate_llm_judge_pass_k():
+    """evaluate_llm_judge pass_k>1 走 judge_reply_pass_k，报告含 pass_k/agreement。"""
+    from app.eval.llm_judge import evaluate_llm_judge
+
+    async def fake(prompt: str, reply: str) -> dict:
+        return {"faithfulness": 1.0, "completeness": 0.6, "sufficiency": 0.6}
+
+    report = await evaluate_llm_judge(
+        samples=[{"prompt": "q", "reply": "r"}],
+        sample_size=1,
+        judge=fake,
+        pass_k=3,
+    )
+    assert report["pass_k"] == 3
+    assert report["agreement"] == 1.0  # fake 恒同分 → 各维一致
+    assert report["sample_size"] == 1
+    assert report["dimensions"]["faithfulness"]["llm_judge"] == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_llm_judge_default_single_shot():
+    """evaluate_llm_judge 不传 pass_k → 默认单次（旧行为），pass_k=1。"""
+    from app.eval.llm_judge import evaluate_llm_judge
+
+    async def fake(prompt: str, reply: str) -> dict:
+        return {"faithfulness": 0.5, "completeness": 0.5, "sufficiency": 0.5}
+
+    report = await evaluate_llm_judge(
+        samples=[{"prompt": "q", "reply": "r"}],
+        sample_size=1,
+        judge=fake,
+    )
+    assert report["pass_k"] == 1
+    assert report["agreement"] == 1.0
+
+
 # ── UX 指标 ──
 
 

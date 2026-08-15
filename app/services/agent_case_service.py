@@ -359,7 +359,7 @@ def build_case_context(cases: list[AgentCase], max_chars: int | None = None, max
         except (json.JSONDecodeError, TypeError):
             approach_steps.append("    (步骤解析失败)")
         block = (
-            f"Case {i} [质量={case.quality_score:.1f}, 结果={case.outcome}]:\n"
+            f"Case {i} [质量={case.quality_score:.1f}, 结果={case.outcome}, case_id={case.id}]:\n"
             f"  意图: {case.task_intent}\n"
             f"  步骤:\n" + "\n".join(approach_steps)
         )

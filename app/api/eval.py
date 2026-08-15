@@ -248,6 +248,7 @@ async def run_llm_judge(
         samples=samples,
         sample_size=request.sample_size,
         random_seed=request.random_seed,
+        pass_k=settings.llm_judge_pass_k,
     )
     logger.info(
         "eval_llm_judge: user=%s sample=%d",

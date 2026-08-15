@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### 借鉴落地：本体/领域知识基座 + 标准目录 + IFC 增强 + 自进化增量（第三轮前沿研究，2026-08-15）
+- **P0 本体基座**（对齐 Brick/BOT/IFC 开放本体）：新增 [app/ontology/](app/ontology/) 三个确定性
+  JSON 本体（renovation/agent/material，零外部运行时依赖）+ [ontology_service.py](app/services/ontology_service.py)
+  （加载/检索/对齐映射）+ `GET /api/ontology/{domain}` 只读端点，供空间语义、Agent 身份卡、治理审计引用。
+- **P0 标准目录**：[standards_catalog.py](app/standards/standards_catalog.py) 结构化标准目录
+  （编号/领域/关键约束/适用 Agent/来源）+ `GET /api/standards` 只读端点，实现「标准→规则→代码」可追溯。
+- **P1 IFC 增强**（对标 IfcDiff/bSDD/IDS 的轻量确定性实现）：[ifc_export_service.py](app/services/ifc_export_service.py)
+  新增 `validate_ifc_file`（交付校验：构件类型计数 + Pset 覆盖）、`diff_ifc_files`（模型对比）、
+  `IFC_BSD_ALIGNMENT`（IFC 实体↔索克本体构件字典）；`scripts/eval_spatial_semantics.py` 空间语义金标评测脚本。
+- **P1 自进化增量**：① 经验注入溯源（skill_id/case_id 入注入块，供轨迹回放与评测归因）
+  ② 轨迹回放端点 `GET /api/agents/traces/{trace_id}/replay`（对齐 DeepSeek Harness「Every run is traceable」）
+  ③ LLM-as-judge `pass^k` 一致性（config `llm_judge_pass_k` 默认 3，k=1 等价旧行为）。
+- **诚实标注**：本体/标准目录为确定性 JSON 知识基座（非 RDF/OWL 推理引擎）；IFC 校验为基础校验
+  （非完整 IDS 规则引擎/几何级 IfcDiff）；SpatialLM 外部增强器为 P2（算力/许可 CC-BY-NC，本轮不落地）。
+- **论文修订**：`goai-agent-infra/初赛-技术论文.md` 增补本体/标准差异化维度，统一实测口径。
+
 ### 评估报告执行（第二轮）：空间数字底座 Robot-Ready Home（v1.14.0，2026-08-14）
 - **P0 空间数字底座**（对标尚品宅配「户型→数字空间底座」/ 大晓 Kairos-HomeWorld 的确定性兜底）：
   [spatial_semantics_service.py](app/services/spatial_semantics_service.py) 新增

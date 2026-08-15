@@ -1,0 +1,47 @@
+{
+  "ontology": "renovation",
+  "version": "1.0.0",
+  "aligned_with": ["BOT (Building Topology Ontology)", "Brick Schema", "IFC (ISO 16739)"],
+  "description": "家装空间/构件/关系本体，术语对齐 BOT/Brick/IFC，供空间语义与治理审计引用。确定性知识基座，非 RDF 推理引擎。",
+  "spatial": {
+    "site": {"name": "场地", "bot": "bot:Site", "ifc": "IfcSite"},
+    "building": {"name": "建筑", "bot": "bot:Building", "ifc": "IfcBuilding"},
+    "floor": {"name": "楼层", "bot": "bot:Storey", "ifc": "IfcBuildingStorey"},
+    "zone": {"name": "区域", "bot": "bot:Zone", "ifc": "IfcZone", "brick": "brick:Zone"},
+    "room": {"name": "房间", "bot": "bot:Space", "ifc": "IfcSpace", "brick": "brick:Room"},
+    "room_types": {
+      "living_room": {"name": "客厅"},
+      "bedroom": {"name": "卧室"},
+      "kitchen": {"name": "厨房"},
+      "bathroom": {"name": "卫生间"},
+      "dining_room": {"name": "餐厅"},
+      "study": {"name": "书房"},
+      "balcony": {"name": "阳台"},
+      "hallway": {"name": "走廊/玄关"},
+      "storage": {"name": "储物间"},
+      "other": {"name": "其他"}
+    }
+  },
+  "element": {
+    "wall": {"name": "墙", "ifc": "IfcWall", "brick": "brick:Wall"},
+    "door": {"name": "门", "ifc": "IfcDoor"},
+    "window": {"name": "窗", "ifc": "IfcWindow"},
+    "ceiling": {"name": "吊顶", "ifc": "IfcCovering"},
+    "slab": {"name": "楼板", "ifc": "IfcSlab"},
+    "column": {"name": "柱", "ifc": "IfcColumn"},
+    "beam": {"name": "梁", "ifc": "IfcBeam"},
+    "stair": {"name": "楼梯", "ifc": "IfcStair"}
+  },
+  "fixture_furniture": {
+    "furniture": {"name": "家具", "brick": "brick:Furniture"},
+    "fixture": {"name": "固定装置", "brick": "brick:Fixture"},
+    "appliance": {"name": "家电", "brick": "brick:Equipment"}
+  },
+  "relations": [
+    {"id": "adjacent_to", "name": "相邻"},
+    {"id": "contains", "name": "包含"},
+    {"id": "part_of", "name": "属于"},
+    {"id": "opens_to", "name": "开口朝向"},
+    {"id": "connects", "name": "连接"}
+  ]
+}

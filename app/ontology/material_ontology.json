@@ -1,0 +1,87 @@
+{
+  "ontology": "material",
+  "version": "1.0.0",
+  "aligned_with": ["HC-003 材料环保等级强制标注", "GB 18580 人造板甲醛释放限量", "GB 18581/18582/18583/18585 有害物质限量", "GB 6566 建筑材料放射性核素限量"],
+  "description": "家装材质/环保等级/工艺本体，对齐 HC-003（E0/E1/ENF，禁止 E2）与 GB 环保标准。确定性知识基座。",
+  "eco_grades": {
+    "ENF": "最高环保等级",
+    "E0": "卧室/儿童房强制",
+    "E1": "室内基本达标",
+    "E2": "禁止用于室内"
+  },
+  "materials": [
+    {
+      "code": "board",
+      "name": "人造板材/家具板材",
+      "standard": "GB 18580",
+      "forbidden_indoor": ["E2"],
+      "required_bedroom": ["ENF", "E0"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "coating",
+      "name": "内墙/木器涂料",
+      "standard": "GB 18581 / GB 18582",
+      "forbidden_indoor": ["未标注有害物质限量"],
+      "required_bedroom": ["ENF", "E0"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "adhesive",
+      "name": "胶粘剂",
+      "standard": "GB 18583",
+      "forbidden_indoor": ["未标注有害物质限量"],
+      "required_bedroom": ["E0", "ENF"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "wallpaper",
+      "name": "壁纸",
+      "standard": "GB 18585",
+      "forbidden_indoor": ["未标注有害物质限量"],
+      "required_bedroom": ["E0", "ENF"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "flooring",
+      "name": "地板（复合/实木）",
+      "standard": "GB 18580",
+      "forbidden_indoor": ["E2"],
+      "required_bedroom": ["ENF", "E0"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "carpet",
+      "name": "地毯",
+      "standard": "GB 18587",
+      "forbidden_indoor": ["未标注有害物质限量"],
+      "required_bedroom": ["E0", "ENF"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "tile_stone",
+      "name": "瓷砖/石材",
+      "standard": "GB 6566",
+      "radiation_class": ["A", "B", "C"],
+      "forbidden_indoor": ["C 类（超限放射性）"],
+      "required_bedroom": ["A 类"],
+      "hc": "HC-003"
+    },
+    {
+      "code": "hardware",
+      "name": "五金",
+      "standard": "—",
+      "forbidden_indoor": [],
+      "required_bedroom": [],
+      "hc": "—"
+    },
+    {
+      "code": "glass",
+      "name": "建筑用玻璃",
+      "standard": "GB 15763",
+      "forbidden_indoor": [],
+      "required_bedroom": [],
+      "hc": "—"
+    }
+  ]
+}
