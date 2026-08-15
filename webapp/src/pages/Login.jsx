@@ -76,6 +76,19 @@ export default function LoginPage() {
         setErr('本机号码一键登录需引入阿里云 H5 SDK（页面未加载 numberAuth-web-sdk.js）')
         return
       }
+      const fmtErr = (res, fallback) => {
+        if (!res || typeof res !== 'object') return fallback
+        const c = res.carrier && typeof res.carrier === 'object' ? res.carrier : {}
+        const bits = [res.code, res.vender, c.carrierSdkCode, c.carrierSdkMsg].filter(Boolean)
+        if (Array.isArray(res.content)) {
+          for (const e of res.content) {
+            if (e && typeof e === 'object') {
+              bits.push([e.vender, e.code, e.msg].filter(Boolean).join('/'))
+            }
+          }
+        }
+        return `${res.msg || fallback}${bits.length ? `（${bits.join(' · ')}）` : ''}`
+      }
       const spToken = await new Promise((resolve, reject) => {
         const server = new window.PhoneNumberServer()
         server.checkLoginAvailable({
@@ -85,10 +98,16 @@ export default function LoginPage() {
             server.getLoginToken({
               authPageOption: {},
               success: (res) => resolve(res && typeof res === 'object' ? res.spToken : undefined),
-              error: (res) => reject(new Error((res && res.msg) || '授权失败')),
+              error: (res) => {
+                console.error('[oneclick] getLoginToken error:', res)
+                reject(new Error(fmtErr(res, '授权失败')))
+              },
             })
           },
-          error: (res) => reject(new Error((res && res.msg) || '鉴权失败')),
+          error: (res) => {
+            console.error('[oneclick] checkLoginAvailable error:', res)
+            reject(new Error(fmtErr(res, '鉴权失败')))
+          },
         })
       })
       if (!spToken) {
