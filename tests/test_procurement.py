@@ -295,12 +295,17 @@ async def test_recommend_suppliers_source_mock_template(client: AsyncClient):
 
 
 async def _register_admin(client: AsyncClient, phone: str = "13900000090") -> dict:
-    resp = await client.post(
-        "/api/auth/register",
-        json={"phone": phone, "name": "平台管理员", "password": "test123456", "role": "admin"},
-    )
-    assert resp.status_code == 201, resp.text
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+    """直接通过 DB 创建管理员并签发 token（register 已禁止自注册 admin）"""
+    import uuid as _uuid
+    from app.database import async_session
+    from app.models.user import User
+    from app.auth.paseto_handler import create_token
+
+    user_id = str(_uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=user_id, phone=phone, name="平台管理员", role="admin", hashed_password="x"))
+        await db.commit()
+    return {"Authorization": f"Bearer {create_token(user_id, 'admin')}"}
 
 
 @pytest.mark.asyncio

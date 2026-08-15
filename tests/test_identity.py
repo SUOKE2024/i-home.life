@@ -12,16 +12,17 @@ from httpx import AsyncClient
 
 
 async def _register_admin(client: AsyncClient) -> dict:
-    """注册管理员用户并返回 auth headers"""
-    import uuid
+    """直接通过 DB 创建管理员并签发 token（register 已禁止自注册 admin）"""
+    import uuid as _uuid
+    from app.database import async_session
+    from app.models.user import User
+    from app.auth.paseto_handler import create_token
 
-    phone = f"139{str(uuid.uuid4().int)[:8]}"
-    resp = await client.post(
-        "/api/auth/register",
-        json={"phone": phone, "name": "管理员测试", "password": "test123456", "role": "admin"},
-    )
-    assert resp.status_code == 201, f"注册管理员失败: {resp.json()}"
-    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+    user_id = str(_uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=user_id, phone=f"139{_uuid.uuid4().hex[:8]}", name="管理员测试", role="admin", hashed_password="x"))
+        await db.commit()
+    return {"Authorization": f"Bearer {create_token(user_id, 'admin')}"}
 
 
 @pytest.mark.asyncio

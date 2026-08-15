@@ -24,6 +24,21 @@ async def _register(client: AsyncClient, phone: str = "13900007001", role: str =
     return resp.json()["access_token"]
 
 
+async def _register_admin(phone: str = "13900007011") -> str:
+    """直接通过 DB 创建管理员并签发 token（register 已禁止自注册 admin）"""
+    import uuid as _uuid
+
+    from app.auth.paseto_handler import create_token
+    from app.database import async_session
+    from app.models.user import User
+
+    user_id = str(_uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=user_id, phone=phone, name="Skill测试管理员", role="admin", hashed_password="x"))
+        await db.commit()
+    return create_token(user_id, "admin")
+
+
 def _skill_payload(name: str = "验收Skill", agent_name: str = "qa_inspector") -> dict:
     return {
         "name": name,
@@ -185,7 +200,7 @@ async def test_skill_share_grant_requires_grant_to(client: AsyncClient):
 async def test_skill_promote_admin_only(client: AsyncClient):
     """非 admin 提升 → 403；admin 提升 → owner_scope=org"""
     token_user = await _register(client, "13900007010")
-    token_admin = await _register(client, "13900007011", role="admin")
+    token_admin = await _register_admin("13900007011")
     headers_user = {"Authorization": f"Bearer {token_user}"}
     headers_admin = {"Authorization": f"Bearer {token_admin}"}
 

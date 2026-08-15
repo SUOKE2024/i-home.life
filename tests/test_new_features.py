@@ -273,13 +273,15 @@ async def test_crew_match(client: AsyncClient):
         crew_ids.append(resp.json()["id"])
 
     # F36: 审核通过前工程队不出现在匹配中，先提交审核并由管理员 approve
-    admin_phone = f"139{str(uuid.uuid4().int)[:8]}"
-    admin_resp = await client.post(
-        "/api/auth/register",
-        json={"phone": admin_phone, "name": "审核管理员", "password": "test123456", "role": "admin"},
-    )
-    assert admin_resp.status_code == 201
-    admin_headers = {"Authorization": f"Bearer {admin_resp.json()['access_token']}"}
+    from app.database import async_session
+    from app.models.user import User
+    from app.auth.paseto_handler import create_token
+
+    admin_user_id = str(uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=admin_user_id, phone=f"139{uuid.uuid4().hex[:8]}", name="审核管理员", role="admin", hashed_password="x"))
+        await db.commit()
+    admin_headers = {"Authorization": f"Bearer {create_token(admin_user_id, 'admin')}"}
     for crew_id in crew_ids:
         submit_resp = await client.post(
             f"/api/crews/{crew_id}/submit",

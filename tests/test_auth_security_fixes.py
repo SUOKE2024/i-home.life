@@ -305,3 +305,32 @@ async def test_e2e_auth_smoke(client: AsyncClient):
     # 7. /me 带旧 token → 401（被撤销）
     r = await client.get("/api/auth/me", headers=headers)
     assert r.status_code == 401, f"logout 后旧 token 应 401: {r.status_code}"
+
+
+# ═══════════════════════════════════════════════════════════
+#  注册角色白名单：禁止自注册 admin / 非法角色
+# ═══════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_admin_role(client: AsyncClient):
+    """注册端点拒绝自注册 admin（防权限提升）"""
+    phone = f"139{str(uuid.uuid4().int)[:8]}"
+    r = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "越权管理员", "password": "test123456", "role": "admin"},
+    )
+    assert r.status_code == 400
+    assert "无效角色" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_unknown_role(client: AsyncClient):
+    """注册端点拒绝非法角色"""
+    phone = f"139{str(uuid.uuid4().int)[:8]}"
+    r = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "非法角色", "password": "test123456", "role": "superadmin"},
+    )
+    assert r.status_code == 400
+    assert "无效角色" in r.json()["detail"]

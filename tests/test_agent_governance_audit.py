@@ -101,15 +101,16 @@ async def test_governance_audit_requires_platform_admin(client: AsyncClient, aut
 @pytest.mark.asyncio
 async def test_governance_audit_admin_ok(client: AsyncClient):
     """平台管理员可获得 10 项审计结果"""
-    import uuid
+    import uuid as _uuid
+    from app.database import async_session
+    from app.models.user import User
+    from app.auth.paseto_handler import create_token
 
-    phone = f"138{str(uuid.uuid4().int)[:8]}"
-    resp = await client.post(
-        "/api/auth/register",
-        json={"phone": phone, "name": "治理审计管理员", "password": "test123456", "role": "admin"},
-    )
-    assert resp.status_code == 201
-    headers = {"Authorization": f"Bearer {resp.json()['access_token']}"}
+    user_id = str(_uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=user_id, phone=f"138{_uuid.uuid4().hex[:8]}", name="治理审计管理员", role="admin", hashed_password="x"))
+        await db.commit()
+    headers = {"Authorization": f"Bearer {create_token(user_id, 'admin')}"}
 
     resp = await client.get("/api/admin/agent-governance-audit", headers=headers)
     assert resp.status_code == 200

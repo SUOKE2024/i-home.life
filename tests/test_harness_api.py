@@ -66,14 +66,16 @@ async def test_harness_health_structure(client: AsyncClient):
 
 
 async def _register_admin(client: AsyncClient) -> str:
-    """注册管理员并返回 access_token。"""
-    phone = f"138{uuid.uuid4().hex[:8]}"
-    resp = await client.post(
-        "/api/auth/register",
-        json={"phone": phone, "name": "轨迹管理员", "password": "test123456", "role": "admin"},
-    )
-    assert resp.status_code == 201, resp.json()
-    return resp.json()["access_token"]
+    """直接通过 DB 创建管理员并签发 token（register 已禁止自注册 admin）"""
+    from app.database import async_session
+    from app.models.user import User
+    from app.auth.paseto_handler import create_token
+
+    user_id = str(uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(id=user_id, phone=f"138{uuid.uuid4().hex[:8]}", name="轨迹管理员", role="admin", hashed_password="x"))
+        await db.commit()
+    return create_token(user_id, "admin")
 
 
 @pytest.mark.asyncio

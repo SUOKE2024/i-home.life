@@ -4,6 +4,14 @@ import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
 import { login, register, demoLogin, DEMO_ACCOUNTS, getOneClickAuthToken, oneClickH5Login } from '../lib/api'
 
+// 注册可选主角色（对齐后端 User.role 主角色，不含 admin——管理员不可自注册）
+const REGISTER_ROLES = [
+  { value: 'homeowner', label: '业主' },
+  { value: 'designer', label: '设计师' },
+  { value: 'contractor', label: '施工方 / 服务商' },
+  { value: 'supplier', label: '供应商' },
+]
+
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
   const { setAuth, toast } = useApp()
@@ -11,6 +19,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState('homeowner')
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
   const [demoPhone, setDemoPhone] = useState(null)
@@ -43,7 +52,7 @@ export default function LoginPage() {
     }
     setBusy(true)
     const r =
-      mode === 'login' ? await login(phone, password) : await register(phone, name, password)
+      mode === 'login' ? await login(phone, password) : await register(phone, name, password, role)
     setBusy(false)
     afterAuth(r, mode)
   }
@@ -56,8 +65,8 @@ export default function LoginPage() {
     const r = await demoLogin(account.phone)
     setBusy(false)
     setDemoPhone(null)
-    // 设计师演示账号登录后直达设计工作台（控制台 /console/），其余账号回 WebApp 首页
-    afterAuth(r, 'demo', account.label, account.role === 'designer' ? '/console/' : '/')
+    // 按账号 landing 落点跳转：业主/管理员回 WebApp 首页，设计师/供应商/服务商直达控制台对应模块
+    afterAuth(r, 'demo', account.label, account.landing || '/')
   }
 
   // 运营商一键登录（H5）：后端取鉴权 Token → JS SDK 拉起授权页拿 spToken → 换 PASETO Token。
@@ -165,6 +174,23 @@ export default function LoginPage() {
                 placeholder="您的称呼"
                 maxLength={20}
               />
+            </div>
+          )}
+          {mode === 'register' && (
+            <div className="field">
+              <label>角色</label>
+              <select
+                className="select"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                data-testid="auth-register-role"
+              >
+                {REGISTER_ROLES.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
           <div className="field">
