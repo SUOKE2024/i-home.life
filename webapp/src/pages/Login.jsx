@@ -16,11 +16,11 @@ export default function LoginPage() {
   const [demoPhone, setDemoPhone] = useState(null)
 
   // 登录成功后的跳转目标：仅接受站内绝对路径（/xxx），拒绝外部 URL / 协议相对地址
-  const afterAuth = (r, action, accountLabel) => {
+  const afterAuth = (r, action, accountLabel, fallbackPath = '/') => {
     if (r.isSuccess && r.data) {
       setAuth(r.data.user || { phone })
       toast(action === 'demo' ? `已通过演示账号登录（${accountLabel}）` : action === 'login' ? '登录成功' : '注册成功', 'success')
-      const redirectTo = searchParams.get('redirect') || '/'
+      const redirectTo = searchParams.get('redirect') || fallbackPath
       // 跨 SPA 跳转（如 /console/ 属独立控制台应用）：必须整页加载而非 React Router navigate，
       // 否则 webapp 路由无 /console/ 会被 catch-all 重定向回 '/'
       const safePath = redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/'
@@ -56,7 +56,8 @@ export default function LoginPage() {
     const r = await demoLogin(account.phone)
     setBusy(false)
     setDemoPhone(null)
-    afterAuth(r, 'demo', account.label)
+    // 设计师演示账号登录后直达设计工作台（控制台 /console/），其余账号回 WebApp 首页
+    afterAuth(r, 'demo', account.label, account.role === 'designer' ? '/console/' : '/')
   }
 
   // 运营商一键登录（H5）：后端取鉴权 Token → JS SDK 拉起授权页拿 spToken → 换 PASETO Token。
