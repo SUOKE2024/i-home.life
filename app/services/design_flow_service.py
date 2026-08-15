@@ -17,21 +17,22 @@ import secrets
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.design_flow import DesignFlow, DesignFlowFeasibility
+from app.models.design_flow import DesignFlow, DesignFlowDrawing, DesignFlowFeasibility
 from app.models.floorplan import FloorPlan
 from app.models.material import BOMItem
 from app.models.procurement import Supplier
+from app.services import construction_drawing_service, lighting_service, mep_service, vr_panorama_service
 from app.services.ai_render_service import ai_render_service
 from app.services.material_service import get_current_bom_version
 from app.services.predictive_maintenance_service import analyze_project_risks
 from app.services.procurement_service import get_material_availability
-from app.services import vr_panorama_service
 
 logger = logging.getLogger(__name__)
 
 # 状态机阶段
 STAGE_INIT = "init"
 STAGE_SUPPLIER_MATCHED = "supplier_matched"
+STAGE_DRAWINGS_GENERATED = "drawings_generated"
 STAGE_RENDERED = "rendered"
 STAGE_CONFIRMED = "confirmed"
 STAGE_FEASIBILITY_DONE = "feasibility_done"
@@ -167,6 +168,8 @@ async def match_suppliers(db: AsyncSession, style: str, price_tier: str) -> list
             "styles": s.styles_list,
             "price_tier": s.price_tier,
             "address": s.address,
+            # 供应商实景展厅（车间/样品间 360°），无实景内容恒 None，前端诚实标注
+            "showroom_panorama_id": s.showroom_panorama_id,
         }
         for s in matched
     ]
@@ -255,10 +258,102 @@ async def _render_and_set_scene(db: AsyncSession, flow: DesignFlow, user_id: str
     flow.stage = STAGE_RENDERED
 
 
-async def trigger_render(db: AsyncSession, flow: DesignFlow, user_id: str) -> DesignFlow:
-    """触发渲染（stage: supplier_matched → rendered）。"""
+# 房间类型短名 → 标准名（兼容 seed 与测试两种格式）
+_ROOM_TYPE_ALIASES = {
+    "living": "living_room",
+    "bedroom": "bedroom",
+    "kitchen": "kitchen",
+    "bathroom": "bathroom",
+    "study": "study",
+    "dining": "dining_room",
+    "balcony": "balcony",
+    "laundry": "laundry",
+}
+
+
+def _normalize_room(room: dict) -> dict:
+    """归一化房间字段：type → room_type，并映射短名到标准名。"""
+    out = dict(room)
+    room_type = out.get("room_type") or out.get("type") or "bedroom"
+    out["room_type"] = _ROOM_TYPE_ALIASES.get(str(room_type), str(room_type))
+    if "name" not in out:
+        out["name"] = out.get("name") or out.get("room_name") or "房间"
+    return out
+
+
+async def generate_drawings(db: AsyncSession, flow: DesignFlow) -> DesignFlow:
+    """生成设计图纸（stage: supplier_matched → drawings_generated）。
+
+    复用现有 service：
+    - construction_drawing_service.generate_drawings_for_project → 平面/立面/剖面 + 水电图 SVG
+    - mep_service.generate_mep_plan → 水电点位规划（结构化）
+    - lighting_service.generate_ai_scheme → 逐房间灯图方案
+    """
     if flow.stage != STAGE_SUPPLIER_MATCHED:
-        raise ValueError("当前阶段不可渲染，请先选择供应商")
+        raise ValueError("当前阶段不可生成图纸，请先选择供应商")
+
+    # 1. 施工图全套（含 MEP 水电图叠加 SVG）
+    try:
+        drawings = await construction_drawing_service.generate_drawings_for_project(
+            db, flow.project_id
+        )
+    except ValueError:
+        raise ValueError("户型无有效几何数据，无法生成施工图")
+
+    # 2. 水电点位规划 + 灯图（逐房间）
+    floorplan = await _get_floorplan(db, flow.floorplan_id)
+    floorplan_dict = _loads(floorplan.data) if floorplan else {}
+    rooms_raw = floorplan_dict.get("rooms", []) or []
+    rooms = [_normalize_room(r) for r in rooms_raw if isinstance(r, dict)]
+
+    mep_plan = mep_service.generate_mep_plan(rooms)
+    lighting_schemes = []
+    for room in rooms:
+        try:
+            scheme = lighting_service.generate_ai_scheme(
+                flow.project_id,
+                room.get("name", "房间"),
+                float(room.get("area", 0) or 0),
+                room.get("room_type", "bedroom"),
+                flow.style,
+            )
+            lighting_schemes.append(scheme)
+        except Exception:  # pragma: no cover - 单房间灯图失败不影响整体
+            logger.warning("design_flow lighting scheme failed room=%s", room.get("name"))
+
+    # 落库（幂等：重复生成覆盖同一份图纸）
+    existing = await db.execute(
+        select(DesignFlowDrawing).where(DesignFlowDrawing.flow_id == flow.id)
+    )
+    drawing = existing.scalar_one_or_none()
+    if not drawing:
+        drawing = DesignFlowDrawing(flow_id=flow.id)
+        db.add(drawing)
+    drawing.floor_plan_svg = drawings.floor_plan_svg
+    drawing.elevation_svgs = json.dumps(drawings.elevation_svgs, ensure_ascii=False)
+    drawing.section_svg = drawings.section_svg
+    drawing.mep_overlay_svg = drawings.mep_overlay_svg
+    drawing.mep_plan = json.dumps(mep_plan, ensure_ascii=False)
+    drawing.lighting_schemes = json.dumps(lighting_schemes, ensure_ascii=False)
+    drawing.status = "completed"
+
+    flow.stage = STAGE_DRAWINGS_GENERATED
+    await db.commit()
+    await db.refresh(flow)
+    return flow
+
+
+async def get_drawings(db: AsyncSession, flow_id: str) -> DesignFlowDrawing | None:
+    result = await db.execute(
+        select(DesignFlowDrawing).where(DesignFlowDrawing.flow_id == flow_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def trigger_render(db: AsyncSession, flow: DesignFlow, user_id: str) -> DesignFlow:
+    """触发渲染（stage: drawings_generated → rendered）。"""
+    if flow.stage != STAGE_DRAWINGS_GENERATED:
+        raise ValueError("当前阶段不可渲染，请先生成设计图纸")
     await _render_and_set_scene(db, flow, user_id)
     await db.commit()
     await db.refresh(flow)

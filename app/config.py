@@ -437,6 +437,9 @@ class Settings(BaseSettings):
     economy_providers: str = "qwen,glm"
     # 经济档意图（低价值任务，优先使用低成本档位）
     economy_intents: str = "concierge,notifications,points,files,identity,general,support"
+    # v1.14.x 意图分类规则优先：明确关键词命中直接返回，省一次 LLM 调用降低 SSE 首 token 延迟。
+    # True=规则优先（快，省 LLM）；False=LLM 优先（原行为，复杂语义更准）。
+    classify_intent_rule_first_enabled: bool = True
 
     @property
     def economy_provider_list(self) -> list[str]:
@@ -643,6 +646,12 @@ class Settings(BaseSettings):
     spatial_perception_enabled: bool = False   # 户型结构/承重/管线识别
     spatial_reasoning_enabled: bool = False    # 设计错误规避规则引擎
     spatial_interaction_enabled: bool = False   # 设计→施工指令→采购多角色协同
+
+    # ── v1.14.0: 确定性空间语义 + 渲染一致性（对标 SpatialLM/SpatialGen 兜底，零外部依赖）──
+    # spatial_semantics_enabled：从 floorplan.data 派生房间语义/家具占位/区域聚合（纯规则）
+    spatial_semantics_enabled: bool = True
+    # render_consistency_check_enabled：渲染前输入侧几何一致性校验（确定性）
+    render_consistency_check_enabled: bool = True
 
     # ── Sketch-to-3D 视觉识别（v1.2.0）──
     # 启用后 /api/sketch-to-3d/analyze 使用多模态视觉模型（DeepSeek/GLM/Qwen）分析手绘草图

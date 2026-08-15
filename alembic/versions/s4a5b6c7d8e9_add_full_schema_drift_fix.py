@@ -108,7 +108,7 @@ _COLUMNS: list[tuple[str, str, sa.Column, list[tuple[str, list[str]]]]] = [
     ("chat_messages", "thread_root_id",
      sa.Column("thread_root_id", sa.String(36), nullable=True), []),
     ("chat_messages", "is_deleted",
-     sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("0")), []),
+     sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false()), []),
     ("chat_messages", "deleted_at",
      sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True), []),
     # file_attachments 1 列（model index=True）
@@ -149,7 +149,7 @@ _COLUMNS: list[tuple[str, str, sa.Column, list[tuple[str, list[str]]]]] = [
     ("procurement_orders", "delivery_address",
      sa.Column("delivery_address", sa.Text(), nullable=True), []),
     ("procurement_orders", "assembly_required",
-     sa.Column("assembly_required", sa.Boolean(), nullable=False, server_default=sa.text("0")), []),
+     sa.Column("assembly_required", sa.Boolean(), nullable=False, server_default=sa.false()), []),
     ("procurement_orders", "assembly_difficulty",
      sa.Column("assembly_difficulty", sa.String(30), nullable=True), []),
     ("procurement_orders", "delivery_notes",
@@ -163,7 +163,7 @@ _COLUMNS: list[tuple[str, str, sa.Column, list[tuple[str, list[str]]]]] = [
      sa.Column("scan_session_id", sa.String(36), nullable=True), []),
     # settlement_lines 4 列（异常标记）
     ("settlement_lines", "is_anomaly",
-     sa.Column("is_anomaly", sa.Boolean(), nullable=False, server_default=sa.text("0")), []),
+     sa.Column("is_anomaly", sa.Boolean(), nullable=False, server_default=sa.false()), []),
     ("settlement_lines", "anomaly_type",
      sa.Column("anomaly_type", sa.String(50), nullable=True), []),
     ("settlement_lines", "anomaly_severity",
@@ -178,7 +178,7 @@ _COLUMNS: list[tuple[str, str, sa.Column, list[tuple[str, list[str]]]]] = [
     ("settlements", "suggested_deduction",
      sa.Column("suggested_deduction", sa.Float(), nullable=False, server_default=sa.text("0")), []),
     ("settlements", "review_required",
-     sa.Column("review_required", sa.Boolean(), nullable=False, server_default=sa.text("0")), []),
+     sa.Column("review_required", sa.Boolean(), nullable=False, server_default=sa.false()), []),
     ("settlements", "review_reason",
      sa.Column("review_reason", sa.String(500), nullable=True), []),
     ("settlements", "reviewed_by",
@@ -187,7 +187,7 @@ _COLUMNS: list[tuple[str, str, sa.Column, list[tuple[str, list[str]]]]] = [
     ("users", "sub_role",
      sa.Column("sub_role", sa.String(30), nullable=True), []),
     ("users", "is_verified",
-     sa.Column("is_verified", sa.Boolean(), nullable=False, server_default=sa.text("0")), []),
+     sa.Column("is_verified", sa.Boolean(), nullable=False, server_default=sa.false()), []),
 ]
 
 # 缺失的 8 张表（定义与 model metadata 完全一致）

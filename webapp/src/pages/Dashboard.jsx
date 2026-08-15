@@ -4,13 +4,13 @@ import { FolderKanban, Wallet, HardHat, ShieldCheck, Bot, Home, BellRing, Rotate
 import { Card, Badge, Spinner, Empty, ErrorBox } from '../components/ui'
 import A2UICard from '../components/A2UICard'
 import {
-  getDashboardOverview,
   listProjects,
   getFloorplans,
   getFloorplan,
   getProgressAlerts,
   getMilestones,
   getFeedCards,
+  getBudgetByProject,
 } from '../lib/api'
 
 const STATUS_MAP = {
@@ -47,7 +47,7 @@ const roomStatusOf = (plan) =>
 
 export default function DashboardPage() {
   const nav = useNavigate()
-  const [overview, setOverview] = useState(null)
+  const [budget, setBudget] = useState(null)
   const [projects, setProjects] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [floorplans, setFloorplans] = useState([])
@@ -70,17 +70,13 @@ export default function DashboardPage() {
         apiMs[name] = Math.round(performance.now() - s)
       })
     }
-    const [ov, pr] = await Promise.all([
-      timed('overview', getDashboardOverview()),
-      timed('projects', listProjects()),
-    ])
-    if (!ov.isSuccess) {
-      setError(ov.error || '仪表盘加载失败')
+    const pr = await timed('projects', listProjects())
+    if (!pr.isSuccess) {
+      setError(pr.error || '项目列表加载失败')
       setLoading(false)
       return
     }
-    setOverview(ov.data || {})
-    const list = pr.isSuccess && Array.isArray(pr.data) ? pr.data : []
+    const list = Array.isArray(pr.data) ? pr.data : []
     setProjects(list)
     const target =
       projectId ||
@@ -89,11 +85,12 @@ export default function DashboardPage() {
       ''
     setSelectedId(target)
     if (target) {
-      const [fp, al, ms, feed] = await Promise.all([
+      const [fp, al, ms, feed, bd] = await Promise.all([
         timed('floorplans', getFloorplans(target)),
         timed('progress_alerts', getProgressAlerts(target)),
         timed('milestones', getMilestones(target)),
         timed('feed', getFeedCards(target)),
+        timed('budget', getBudgetByProject(target)),
       ])
       const plans = fp.isSuccess && Array.isArray(fp.data) ? fp.data : []
       setFloorplans(plans)
@@ -102,6 +99,7 @@ export default function DashboardPage() {
       setFeedCards(
         feed.isSuccess && feed.data && Array.isArray(feed.data.cards) ? feed.data.cards : []
       )
+      setBudget(bd.isSuccess && bd.data ? bd.data : null)
       // 空间即导航：拉取激活户型详情（data JSON 含 rooms 几何）
       const active = plans.find((x) => x.is_active) || plans[0]
       if (active) {
@@ -116,6 +114,7 @@ export default function DashboardPage() {
       setMilestones([])
       setFeedCards([])
       setActivePlan(null)
+      setBudget(null)
     }
     setLoading(false)
     // ── 性能监控日志：每次切换/初始化输出各 API 耗时与总耗时 ──
@@ -140,7 +139,9 @@ export default function DashboardPage() {
   if (loading) return <Spinner label="正在加载看板…" />
   if (error) return <ErrorBox message={error} onRetry={() => load(selectedId)} />
 
-  const b = overview?.budget || {}
+  const budgetRate = budget && budget.total_estimated > 0
+    ? `${Math.round((budget.total_actual / budget.total_estimated) * 100)}%`
+    : '—'
   const project = projects.find((x) => x.id === selectedId) || null
   const status = project?.status || 'draft'
 
@@ -410,7 +411,7 @@ export default function DashboardPage() {
               <div>
                 <div className="lab">预算执行率</div>
                 <div className="val">
-                  {Math.round((b.utilization ?? 0) * 100)}%<small> 实际/预估</small>
+                  {budgetRate}<small> 实际/预估</small>
                 </div>
               </div>
               <div>

@@ -140,6 +140,14 @@ class AIRenderService:
         """
         start = time.perf_counter()
 
+        # v1.14.0 P0-2: 渲染前输入侧确定性几何一致性校验
+        # （像素级输出↔参考一致性需视觉模型，本层仅校验输入几何，诚实标注）
+        consistency_check = None
+        if get_settings().render_consistency_check_enabled:
+            from app.services.spatial_semantics_service import validate_floorplan_consistency
+            fp_ref = layout_json.get("floorplan", layout_json) if isinstance(layout_json, dict) else layout_json
+            consistency_check = validate_floorplan_consistency(fp_ref)
+
         # v1.13.4（评估体系维度）：走缓存版偏好查询（与 /chat 端点一致）
         preference_hint = await get_pref_hint_cached(
             user_id, "designer", db,
@@ -193,6 +201,7 @@ class AIRenderService:
             "style": style,
             "model_used": settings.deepseek_model,
             "processing_time_ms": processing_ms,
+            "consistency_check": consistency_check,
             "preference_hint_applied": hint_applied,
         }
         return annotate_output(result, content_type="render", source="render_2d")

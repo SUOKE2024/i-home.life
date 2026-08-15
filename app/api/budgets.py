@@ -133,7 +133,9 @@ async def generate_from_bom(
 ):
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     existing = await budget_service.get_budget(db, project_id)
-    if existing:
+    # 仅当已有「非空」预算时冲突；空预算（如 lifecycle_orchestration 项目创建时
+    # 自动建的占位预算）允许由 BOM 覆盖生成，恢复 BOM→预算→结算链路。
+    if existing and existing.lines:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该项目已有预算")
 
     budget = await budget_service.generate_budget_from_bom(db, project_id)

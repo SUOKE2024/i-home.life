@@ -37,7 +37,7 @@ def upgrade() -> None:
             sa.Column("id", sa.String(36), primary_key=True),
             sa.Column("name", sa.String(200), nullable=False),
             sa.Column("description", sa.String(500), nullable=True),
-            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )
@@ -106,7 +106,7 @@ def upgrade() -> None:
             sa.Column("unit_price", sa.Float(), nullable=False, server_default=sa.text("0.0")),
             sa.Column("description", sa.String(1000), nullable=True),
             sa.Column("sort_order", sa.Integer(), nullable=False, server_default=sa.text("0")),
-            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+            sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
             sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         )

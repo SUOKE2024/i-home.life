@@ -4,6 +4,42 @@
 
 ## [Unreleased]
 
+### 评估报告执行（第二轮）：空间数字底座 Robot-Ready Home（v1.14.0，2026-08-14）
+- **P0 空间数字底座**（对标尚品宅配「户型→数字空间底座」/ 大晓 Kairos-HomeWorld 的确定性兜底）：
+  [spatial_semantics_service.py](app/services/spatial_semantics_service.py) 新增
+  `build_spatial_foundation` —— 从 floorplan.data 确定性派生「房间语义标注 + 房间邻接图
+  （基于 x/y/w/h 几何）+ 关键动线导航（入口→客厅/厨房/卫生间/卧室/餐厅）+ 毫米尺度校准」，
+  输出机器人/智能体可读 JSON，`source=rule_derived` 诚实标注（非真实机器人仿真，
+  真实具身接入需外部世界模型/3DGS 管线）。
+- **端点**：`GET /api/floorplans/{plan_id}/spatial-foundation`（受 `spatial_semantics_enabled` 门控，
+  关闭 503 诚实降级）。
+- **诚实标注（遗留，非本轮硬套）**：P1 实景重建（3DGS/手持扫描需外部硬件/API）、
+  P1 Matter 真实生态（`ecosystem_bridge` 需 API key/真机）、P2 垂直数据飞轮 / 端侧 AI /
+  商业化（需真实业务回流/端侧模型/产品决策）——本轮不落地，维持诚实降级。
+- **测试**：`test_spatial_semantics` +3（几何邻接/导航 / 无几何诚实降级 / 端点 200）；
+  flake8 / mypy 0。
+
+### 评估报告执行：确定性空间语义理解 + 渲染一致性校验（v1.14.0，2026-08-14）
+- **P0-1 语义空间理解层**（对标 2026 空间大模型 SpatialLM/SpatialGen 的确定性兜底）：
+  [spatial_semantics_service.py](app/services/spatial_semantics_service.py) 新增
+  `analyze_spatial_semantics`（房间语义类型推断 + 家具占位面积门槛 + 湿区/睡眠区/公共区聚合）
+  与 `validate_floorplan_consistency`（渲染前输入侧几何一致性校验：房间/墙体/洞口引用/面积和），
+  全部确定性规则，`source=rule_estimated` / `deterministic_rules` 诚实标注，零外部依赖。
+- **端点**：`GET /api/floorplans/{plan_id}/semantics` 返回 `{semantics, consistency}`，
+  受 `spatial_semantics_enabled` 门控（默认 True，关闭 503 诚实降级）。
+- **P0-2 渲染一致性校验接入**：[ai_render_service.py](app/services/ai_render_service.py)
+  `render_2d` 渲染前调用 `validate_floorplan_consistency`（受 `render_consistency_check_enabled`
+  门控默认 True），结果携带 `consistency_check` 字段；像素级输出↔参考一致性需视觉模型，
+  本层仅做输入侧确定性校验（诚实标注，不伪装视觉能力）。
+- **feature flags**：新增 `spatial_semantics_enabled` / `render_consistency_check_enabled`
+  （均默认 True，确定性零外部依赖）。
+- **诚实标注（遗留，非本轮硬套）**：P1 实景重建（3DGS/手持扫描需外部硬件/API）、
+  P1 Matter 真实生态（`ecosystem_bridge` 需 API key/真机）、P2 商业化（产品决策）、
+  P2 垂直数据飞轮（需真实业务案例回流）——本轮不落地，维持诚实降级。
+- **测试**：`test_spatial_semantics` +13（类型推断 / 家具门槛 / 区域聚合 / 一致性校验 /
+  端点 200 / 503 / 401 / 404）；flake8 / mypy 0；全量回归 **2388 passed / 2 skipped /
+  4 xfailed**（基线 2361→2388 已校准 `test_baseline.json` + CLAUDE.md）。
+
 ### 借鉴落地：DeepSeek Harness「Every run is traceable / Minimal mode」→ Agent 可观测性 + 评测基线（v1.13.8，2026-08-14）
 - **轨迹可回放化**（对齐 DeepSeek Harness「Every run is traceable」）：
   [agent_trace.py](app/models/agent_trace.py) `agent_traces` 表新增 `tool_calls` 列

@@ -10,21 +10,34 @@
  */
 import { test, expect } from '@playwright/test';
 
+// 预设 token + mock 认证，避免 AuthGate 跳转 webapp 登录页（本地 preview base /console/ 下
+// /auth 不可达，会返回 vite base 提示而非 index.html）。对齐 pages.spec.ts 的 mock 策略。
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('paseto_token', 'test-p1qa'));
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'u1', phone: '13800138000', name: '测试', role: 'admin' }),
+    }),
+  );
+});
+
 // 路由 path 已核实 App.tsx L127-141
 const PAGES = [
-  { path: '/agent-identity', name: 'AgentIdentity' },
-  { path: '/agent-approvals', name: 'AgentApprovals' },
-  { path: '/agent-skills', name: 'AgentSkills' },
-  { path: '/agent-memory', name: 'AgentMemory' },
-  { path: '/a2a', name: 'A2A' },
-  { path: '/mcp', name: 'MCP' },
-  { path: '/harness', name: 'Harness' },
-  { path: '/eval', name: 'Eval' },
-  { path: '/governance-audit', name: 'GovernanceAudit' },
-  { path: '/points', name: 'Points' },
-  { path: '/ai-image', name: 'AIImage' },
-  { path: '/identity', name: 'Identity' },
-  { path: '/surveys', name: 'Surveys' },
+  { path: '/console/agent-identity', name: 'AgentIdentity' },
+  { path: '/console/agent-approvals', name: 'AgentApprovals' },
+  { path: '/console/agent-skills', name: 'AgentSkills' },
+  { path: '/console/agent-memory', name: 'AgentMemory' },
+  { path: '/console/a2a', name: 'A2A' },
+  { path: '/console/mcp', name: 'MCP' },
+  { path: '/console/harness', name: 'Harness' },
+  { path: '/console/eval', name: 'Eval' },
+  { path: '/console/governance-audit', name: 'GovernanceAudit' },
+  { path: '/console/points', name: 'Points' },
+  { path: '/console/ai-image', name: 'AIImage' },
+  { path: '/console/identity', name: 'Identity' },
+  { path: '/console/surveys', name: 'Surveys' },
 ];
 
 test.describe('P1 QA — 16 新页路由可达 + 渲染', () => {
@@ -46,7 +59,7 @@ test.describe('P1 QA — flag 门控降级', () => {
     await page.route('**/api/agents/skills*', route =>
       route.fulfill({ status: 503, json: { detail: 'agent_skill_enabled=false' } }),
     );
-    await page.goto('/agent-skills');
+    await page.goto('/console/agent-skills');
     // 降级文案以页面实现为准（占位：断言任一错误/降级提示）
     await expect(page.locator('body')).not.toBeEmpty();
   });
@@ -58,7 +71,7 @@ test.describe('P1 QA — 越权 403', () => {
     await page.route('**/api/agents/approvals*', route =>
       route.fulfill({ status: 403, json: { detail: 'forbidden' } }),
     );
-    await page.goto('/agent-approvals');
+    await page.goto('/console/agent-approvals');
     // 断言无权限提示（占位：按页面实现补充文本断言）
     await expect(page.locator('body')).not.toBeEmpty();
   });

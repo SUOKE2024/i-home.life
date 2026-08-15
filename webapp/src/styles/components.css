@@ -72,6 +72,31 @@
 .badge--red { background: var(--red-dim); color: var(--red); border-color: transparent; }
 .badge--violet { background: var(--violet-dim); color: var(--violet); border-color: transparent; }
 
+/* Chip（可选中标签，对齐 DESIGN.md chip 胶囊，仅可选中态用金色） */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elev);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+.chip:hover { background: var(--bg-elev-2); color: var(--text); }
+.chip--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.chip--active:hover { background: var(--accent-bright); color: var(--on-accent); }
+
 /* Button */
 .btn {
   display: inline-flex;
@@ -160,7 +185,8 @@
   gap: 6px;
 }
 
-.field label {
+.field label,
+.field-label {
   font-size: 12px;
   color: var(--text-sub);
 }

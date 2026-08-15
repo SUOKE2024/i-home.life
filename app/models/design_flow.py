@@ -79,3 +79,27 @@ class DesignFlowFeasibility(Base):
             return json.loads(raw or "{}")
         except (json.JSONDecodeError, TypeError):
             return {}
+
+
+class DesignFlowDrawing(Base):
+    """设计环节图纸 — 施工图全套 + 水电图 + 灯图（渲染前生成）"""
+
+    __tablename__ = "design_flow_drawings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    flow_id: Mapped[str] = mapped_column(String(36), ForeignKey("design_flows.id"), nullable=False, index=True, unique=True)
+    # 施工图：平面布置图 SVG
+    floor_plan_svg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 施工图：立面图列表（JSON [{wall_name, svg}]）
+    elevation_svgs: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 施工图：剖面图 SVG
+    section_svg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 水电图：给排水/电气叠加 SVG
+    mep_overlay_svg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 水电图：点位规划（JSON，复用 mep_service.generate_mep_plan）
+    mep_plan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 灯图：逐房间灯光方案（JSON 列表，复用 lighting_service.generate_ai_scheme）
+    lighting_schemes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # status: pending / completed / failed
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

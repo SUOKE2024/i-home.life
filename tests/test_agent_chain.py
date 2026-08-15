@@ -690,7 +690,7 @@ async def test_classify_intent_passes_context(db_session, monkeypatch):
     agent = OrchestratorAgent()
     try:
         result = await agent.classify_intent(
-            "测试消息", db=db_session, user_id="u1", project_id="p1",
+            "你好呀", db=db_session, user_id="u1", project_id="p1",
         )
     finally:
         await agent.close()

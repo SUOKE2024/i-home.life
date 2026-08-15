@@ -221,7 +221,10 @@ def upgrade() -> None:
             skipped += 1
             continue
         try:
-            op.create_index(index_name, table_name, [column_name])
+            # savepoint 隔离单索引失败：PG 下 DDL 错误会使整个事务 abort，
+            # 用 begin_nested 回滚到 savepoint，后续索引仍可继续创建（SQLite 无此限制）。
+            with conn.begin_nested():
+                op.create_index(index_name, table_name, [column_name])
             created += 1
         except Exception as e:
             # 索引可能已存在（命名冲突）或表无该列，跳过
@@ -244,6 +247,7 @@ def downgrade() -> None:
     for index_name, _table_name, _column_name in _INDEXES:
         if index_name in existing_indexes:
             try:
-                op.drop_index(index_name)
+                with conn.begin_nested():
+                    op.drop_index(index_name)
             except Exception as e:
                 print(f"  skip drop {index_name}: {e}")

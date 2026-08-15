@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Smartphone, Ruler, ShieldCheck, Play, ScanLine, Plus, Layers, Crosshair, Home,
+  Smartphone, Ruler, ShieldCheck, Play, ScanLine, Plus, Layers, Crosshair, Home, Navigation,
 } from 'lucide-react'
 import { Spinner, ErrorBox, Empty } from '../components/ui'
 import {
   arDeviceCapability, listProjects, createARScanSession, listARSessions,
   startARScan, processARScan, getARScanAccuracy, addARMeasurementPoint, applyARScanSession,
 } from '../lib/api'
+import useGeolocation from '../hooks/useGeolocation'
 
 const METHOD_META = {
   lidar: { label: 'LiDAR 激光扫描', desc: 'iPhone Pro / iPad Pro 专属，厘米级精度' },
@@ -50,6 +51,9 @@ export default function ARScanPage() {
   const [ptLabel, setPtLabel] = useState('主卧对角线')
   const [ptAr, setPtAr] = useState('')
   const [ptRef, setPtRef] = useState('')
+
+  // Web 定位：navigator.geolocation → 复用后端传感器快照端点
+  const { locating, result: gpsResult, error: gpsError, locate } = useGeolocation()
 
   const loadSessions = useCallback(async (pid) => {
     if (!pid) { setSessions([]); return }
@@ -261,6 +265,22 @@ export default function ARScanPage() {
                   <span style={{ marginLeft: 10 }}>
                     降级链：{(cap.fallback_chain || []).map((x) => METHOD_META[x]?.label || x).join(' → ')}
                   </span>
+                </div>
+
+                {/* Web 定位：真实 GPS 坐标上报后端传感器快照 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                  <button className="btn" onClick={locate} disabled={locating}>
+                    <Navigation size={15} /> {locating ? '定位中…' : '获取定位'}
+                  </button>
+                  {gpsResult && (
+                    <span style={{ fontSize: 12, color: 'var(--text-sub)' }}>
+                      定位成功：{gpsResult.latitude.toFixed(5)}, {gpsResult.longitude.toFixed(5)}
+                      {' · 精度 '}{Math.round(gpsResult.accuracy)}m · 已上报传感器快照
+                    </span>
+                  )}
+                  {gpsError && (
+                    <span style={{ fontSize: 12, color: 'var(--red)' }}>{gpsError}</span>
+                  )}
                 </div>
               </div>
             </div>

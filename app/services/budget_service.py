@@ -117,9 +117,17 @@ async def generate_budget_from_bom(
     if not bom_items:
         return None
 
-    budget = Budget(project_id=project_id)
-    db.add(budget)
-    await db.flush()
+    # 复用已有空预算（如 lifecycle_orchestration 项目创建时自动建的占位预算），
+    # 避免重复插入触发 project_id 唯一约束冲突；非空预算由调用方在 409 检查拦截。
+    existing = await get_budget(db, project_id)
+    if existing:
+        # 清空旧预算行（delete-orphan cascade 负责删除），再写入 BOM 派生行
+        existing.lines.clear()
+        budget = existing
+    else:
+        budget = Budget(project_id=project_id)
+        db.add(budget)
+        await db.flush()
 
     category_names = BUDGET_CATEGORY_BY_CODE
 
@@ -153,7 +161,12 @@ async def generate_budget_from_bom(
             note=f"pricing_source={pricing_source}; tier={tier}" if settings.quota_library_enabled else None,
         )
         total += estimated
-        db.add(bl)
+        if existing:
+            # 已有预算的 lines 已通过 selectinload 加载，走关系集合避免 delete-orphan 误删
+            existing.lines.append(bl)
+        else:
+            # 新建预算 lines 未加载（懒加载在 async 下会 MissingGreenlet），直接 db.add
+            db.add(bl)
 
     budget.total_estimated = total
     await db.commit()

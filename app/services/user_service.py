@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import uuid
@@ -65,7 +66,8 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
     """
     hashed = None
     if data.password:
-        hashed = _hash_password(data.password)
+        # bcrypt 为 CPU 密集同步操作（~300ms），放入线程池避免阻塞 async 事件循环
+        hashed = await asyncio.to_thread(_hash_password, data.password)
 
     user = User(
         phone=data.phone,
@@ -111,6 +113,6 @@ async def authenticate_user(db: AsyncSession, phone: str, password: str) -> User
     # 纯 Passkey 用户无密码，不能通过传统密码登录
     if not user.hashed_password:
         return None
-    if not _verify_password(password, user.hashed_password):
+    if not await asyncio.to_thread(_verify_password, password, user.hashed_password):
         return None
     return user

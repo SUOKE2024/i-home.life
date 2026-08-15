@@ -12,6 +12,14 @@ export default defineConfig({
     emptyOutDir: true,
     assetsDir: 'assets',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // 拆分 react 全家桶为独立 vendor chunk：缩小主包体积 + 利用浏览器长缓存
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom', 'zustand'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

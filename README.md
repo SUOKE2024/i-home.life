@@ -2,10 +2,24 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.13.1 · 工具纪律迭代（ISCE 串行修复/成本追踪/负反馈双向学习 + 契约校验/并行调用/预算早停）
+> v1.14.0 · 设计流程编排 + 确定性空间语义理解（SpatialLM/SpatialGen 确定性兜底）
 > 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 105 Service + 129 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-14 · 空间数字底座（Robot-Ready Home）
+
+- 新增 `build_spatial_foundation`：从户型确定性派生「房间语义标注 + 房间邻接图 + 关键动线导航 + 毫米尺度校准」，输出机器人/智能体可读 JSON（`source=rule_derived`，对标尚品宅配「户型→数字空间底座」的确定性兜底）
+- 端点 `GET /api/floorplans/{id}/spatial-foundation`
+- 遗留诚实标注：实景重建（3DGS）/ Matter 真实生态 / 数据飞轮 / 端侧 AI / 商业化不落地
+
+### 2026-08-14 · 评估报告执行：确定性空间语义 + 渲染一致性校验（v1.14.0）
+
+- **P0-1 语义空间理解层**：新增 `app/services/spatial_semantics_service.py` —— 从户型数据确定性派生房间语义类型 / 家具占位（面积门槛）/ 湿区睡眠区公共区聚合，`source=rule_estimated` 诚实标注（对标 2026 空间大模型 SpatialLM/SpatialGen 的确定性兜底，零外部依赖）
+- **P0-2 渲染一致性校验**：`render_2d` 渲染前输入侧几何一致性校验（房间/墙体/洞口引用/面积和），结果携带 `consistency_check`；像素级一致性需视觉模型，诚实标注不伪装
+- **端点**：`GET /api/floorplans/{id}/semantics`（受 `spatial_semantics_enabled` 门控，关闭 503）
+- **遗留诚实标注**：实景重建（3DGS）、Matter 真实生态、商业化、数据飞轮四项需外部硬件/API key/产品决策，本轮不落地
+- 验证：新增 13 测试 + flake8/mypy 0
 
 ### 2026-08-12 · 设备链路全量诊断修复（摄像头/语音/传感器/穿戴/场景触发）
 

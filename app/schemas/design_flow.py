@@ -46,6 +46,8 @@ class SupplierCandidate(BaseModel):
     styles: list[str] = Field(default_factory=list)
     price_tier: str = "standard"
     address: str | None = None
+    # 供应商实景展厅（车间/样品间 360°），无实景内容恒 None，前端诚实标注
+    showroom_panorama_id: str | None = None
 
 
 class SupplierSelectRequest(BaseModel):
@@ -99,4 +101,57 @@ class DesignFlowFeasibilityResponse(BaseModel):
                 return json.loads(v or "{}")
             except (json.JSONDecodeError, TypeError):
                 return {}
+        return v
+
+
+class DesignFlowDrawingResponse(BaseModel):
+    """设计环节图纸（施工图全套 + 水电图 + 灯图）"""
+
+    id: str
+    flow_id: str
+    floor_plan_svg: str | None = None
+    elevation_svgs: list[dict[str, Any]] = Field(default_factory=list)
+    section_svg: str | None = None
+    mep_overlay_svg: str | None = None
+    mep_plan: dict[str, Any] = Field(default_factory=dict)
+    lighting_schemes: list[dict[str, Any]] = Field(default_factory=list)
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("elevation_svgs", mode="before")
+    @classmethod
+    def _parse_elevations(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return v
+
+    @field_validator("mep_plan", mode="before")
+    @classmethod
+    def _parse_mep_plan(cls, v):
+        if v is None:
+            return {}
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "{}")
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return v
+
+    @field_validator("lighting_schemes", mode="before")
+    @classmethod
+    def _parse_lighting(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                return json.loads(v or "[]")
+            except (json.JSONDecodeError, TypeError):
+                return []
         return v

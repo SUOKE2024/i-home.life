@@ -9,6 +9,7 @@ from app.models.user import User
 from app.rbac import verify_project_access
 from app.schemas.design_flow import (
     DesignFlowCreate,
+    DesignFlowDrawingResponse,
     DesignFlowResponse,
     DesignFlowAdjustRequest,
     DesignFlowFeasibilityResponse,
@@ -89,6 +90,35 @@ async def select_supplier(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return DesignFlowResponse.model_validate(flow)
+
+
+@router.post("/{flow_id}/drawings", response_model=DesignFlowResponse)
+async def generate_drawings(
+    flow_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """生成设计图纸（施工图全套 + 水电图 + 灯图，渲染前）。"""
+    flow = await _get_flow_or_404(db, flow_id, user)
+    try:
+        flow = await design_flow_service.generate_drawings(db, flow)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    return DesignFlowResponse.model_validate(flow)
+
+
+@router.get("/{flow_id}/drawings", response_model=DesignFlowDrawingResponse)
+async def get_drawings(
+    flow_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """查询设计图纸。"""
+    await _get_flow_or_404(db, flow_id, user)
+    drawing = await design_flow_service.get_drawings(db, flow_id)
+    if not drawing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="设计图纸尚未生成")
+    return DesignFlowDrawingResponse.model_validate(drawing)
 
 
 @router.post("/{flow_id}/render", response_model=DesignFlowResponse)

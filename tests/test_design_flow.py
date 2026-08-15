@@ -141,7 +141,7 @@ async def test_select_supplier_random_and_manual(client: AsyncClient):
     floorplan_id = await _create_floorplan(client, headers, project_id)
 
     sid_a = await _create_supplier(client, headers, "随机A", "flooring", 4.8, ["modern"], "standard")
-    await _create_supplier(client, headers, "随机B", "flooring", 4.5, ["modern"], "standard")
+    sid_b = await _create_supplier(client, headers, "随机B", "flooring", 4.5, ["modern"], "standard")
 
     flow = await _create_flow(client, headers, project_id, floorplan_id, style="modern", budget=200000.0, mode="random")
 
@@ -153,7 +153,7 @@ async def test_select_supplier_random_and_manual(client: AsyncClient):
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["stage"] == "supplier_matched"
-    assert resp.json()["supplier_id"] in {sid_a}
+    assert resp.json()["supplier_id"] in {sid_a, sid_b}
 
     # 手动选择非法供应商
     resp = await client.post(
@@ -180,6 +180,33 @@ async def test_flow_state_machine_illegal_transition(client: AsyncClient):
     assert resp.status_code == 409
 
 
+# ── 设计图纸 ──
+
+
+@pytest.mark.asyncio
+async def test_generate_drawings(client: AsyncClient):
+    headers = await _auth_headers(client, "13970000009")
+    project_id = await _create_project(client, headers)
+    floorplan_id = await _create_floorplan(client, headers, project_id)
+
+    await _create_supplier(client, headers, "图纸供应商", "flooring", 4.8, ["modern"], "standard")
+    flow = await _create_flow(client, headers, project_id, floorplan_id, style="modern", budget=200000.0)
+
+    await client.post(f"/api/design-flow/{flow['id']}/suppliers/select", json={"mode": "random"}, headers=headers)
+
+    resp = await client.post(f"/api/design-flow/{flow['id']}/drawings", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["stage"] == "drawings_generated"
+
+    get_resp = await client.get(f"/api/design-flow/{flow['id']}/drawings", headers=headers)
+    assert get_resp.status_code == 200, get_resp.text
+    data = get_resp.json()
+    assert data["status"] == "completed"
+    assert data["floor_plan_svg"]  # 平面图 SVG 非空
+    assert data["mep_plan"]  # 水电点位规划
+    assert len(data["lighting_schemes"]) == 2  # 客厅 + 主卧
+
+
 # ── 渲染 + 全屋漫游 ──
 
 
@@ -193,6 +220,7 @@ async def test_render_creates_effect_panoramas_and_scene(client: AsyncClient):
     flow = await _create_flow(client, headers, project_id, floorplan_id, style="modern", budget=200000.0)
 
     await client.post(f"/api/design-flow/{flow['id']}/suppliers/select", json={"mode": "random"}, headers=headers)
+    await client.post(f"/api/design-flow/{flow['id']}/drawings", headers=headers)
 
     resp = await client.post(f"/api/design-flow/{flow['id']}/render", headers=headers)
     assert resp.status_code == 200, resp.text
@@ -220,6 +248,7 @@ async def test_adjust_style_triggers_rerender(client: AsyncClient):
     flow = await _create_flow(client, headers, project_id, floorplan_id, style="modern", budget=200000.0, mode="random")
 
     await client.post(f"/api/design-flow/{flow['id']}/suppliers/select", json={"mode": "random"}, headers=headers)
+    await client.post(f"/api/design-flow/{flow['id']}/drawings", headers=headers)
     await client.post(f"/api/design-flow/{flow['id']}/render", headers=headers)
 
     # 换风格 → 重新匹配供应商 + 重渲染
@@ -246,6 +275,7 @@ async def test_confirm_generates_feasibility(client: AsyncClient):
     flow = await _create_flow(client, headers, project_id, floorplan_id, style="modern", budget=200000.0)
 
     await client.post(f"/api/design-flow/{flow['id']}/suppliers/select", json={"mode": "random"}, headers=headers)
+    await client.post(f"/api/design-flow/{flow['id']}/drawings", headers=headers)
     await client.post(f"/api/design-flow/{flow['id']}/render", headers=headers)
 
     resp = await client.post(f"/api/design-flow/{flow['id']}/confirm", headers=headers)

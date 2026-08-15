@@ -486,7 +486,7 @@ export default function ShowroomPage() {
                     }}
                     >
                       {p.thumbnail_url ? (
-                        <img src={p.thumbnail_url} alt={p.room_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={p.thumbnail_url} alt={p.room_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none' }} />
                       ) : (
                         <Package size={40} />
                       )}

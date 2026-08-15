@@ -259,10 +259,14 @@ async def test_generate_budget_from_bom_conflict(client: AsyncClient):
     token = await _register_and_login(client, phone="13900000019")
     proj_id = await _create_project(client, token, "BOM 冲突项目")
 
-    # 先创建一个预算
+    # 先创建一个「非空」预算（含预算行）
     await client.post(
         "/api/budgets",
-        json={"project_id": proj_id, "lines": []},
+        json={
+            "project_id": proj_id,
+            "lines": [{"category": "硬装", "name": "墙面处理", "estimated_amount": 10000.0,
+                       "unit": "㎡", "quantity": 10, "unit_price": 1000}],
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -271,6 +275,55 @@ async def test_generate_budget_from_bom_conflict(client: AsyncClient):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_generate_budget_from_bom_overwrites_empty(client: AsyncClient):
+    """空预算（lifecycle 自动建的占位预算）应允许 BOM 覆盖生成，而非 409。"""
+    token = await _register_and_login(client, phone="13900000029")
+    proj_id = await _create_project(client, token, "空预算覆盖项目")
+
+    # 先创建一个空预算（模拟 lifecycle_orchestration 项目创建时自动建的空预算）
+    await client.post(
+        "/api/budgets",
+        json={"project_id": proj_id, "lines": []},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # 无 BOM 时仍 404（诚实报错），而非 409
+    response = await client.post(
+        f"/api/budgets/generate-from-bom/{proj_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+    # 添加 BOM 后，空预算被覆盖生成（201）
+    cat_resp = await client.post(
+        "/api/materials/categories",
+        json={"code": "flooring", "name": "地面材料"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    cat_id = cat_resp.json()["id"]
+    mat_resp = await client.post(
+        "/api/materials",
+        json={"category_id": cat_id, "name": "750×1500 大板砖", "sku": "TILE-750X",
+              "unit": "㎡", "unit_price": 180.0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    mat_id = mat_resp.json()["id"]
+    await client.post(
+        "/api/materials/bom",
+        json={"project_id": proj_id, "material_id": mat_id, "quantity": 10.0, "unit_price": 180.0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    response = await client.post(
+        f"/api/budgets/generate-from-bom/{proj_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data["lines"]) == 1
 
 
 # ── F10 AI 分项预算 ──────────────────────────────────────────

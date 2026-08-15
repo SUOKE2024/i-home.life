@@ -120,7 +120,7 @@ export default function SettlementPage() {
                   return (
                     <tr key={line.id || i}>
                       <td>{line.name || '—'}</td>
-                      <td className="num">{fmtMoney(line.amount ?? line.actual_amount ?? line.contract_amount)}</td>
+                      <td className="num">{fmtMoney((line.contract_amount ?? 0) + (line.change_amount ?? 0))}</td>
                       <td>
                         <Badge tone={ls.tone}>{ls.label}</Badge>
                       </td>

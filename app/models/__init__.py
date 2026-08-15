@@ -115,7 +115,7 @@ from app.models.eval_snapshot import EvalSnapshotRecord
 from app.models.sensor_snapshot import SensorSnapshot
 
 # 设计流程编排 — 风格/预算选供应商 → VR 效果图 → 可行性分析
-from app.models.design_flow import DesignFlow, DesignFlowFeasibility
+from app.models.design_flow import DesignFlow, DesignFlowFeasibility, DesignFlowDrawing
 
 __all__ = [
     "User",
@@ -269,6 +269,7 @@ __all__ = [
     # 设计流程编排
     "DesignFlow",
     "DesignFlowFeasibility",
+    "DesignFlowDrawing",
 ]
 
 

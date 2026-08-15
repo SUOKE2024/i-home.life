@@ -1218,264 +1218,270 @@ async def chat_stream(  # noqa: C901
 
     # Hybrid routing
     agent = OrchestratorAgent()
-    classification = None  # v1.1.29: always defined for closure safety
-    try:
-        # 若客户端显式指定了 agent_type（非 orchestrator），直接路由到对应 Agent
-        explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
-        if explicit_intent:
-            intent = explicit_intent
-        else:
-            classification = await agent.classify_intent(
-                data.message, db=db, user_id=current_user.id,
-                project_id=data.project_id,
-            )
-            intent = classification.get("intent", "general")
 
-        # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
+    async def generate_sse():
+        nonlocal user_ctx  # v1.14.x: user_ctx 在闭包内被 _inject_preference_hint 更新，需声明 nonlocal
+        # v1.14.x SSE 预热：classify/think 前立即发送初始事件，避免首 token 长时间无反馈
+        yield f"data: {json.dumps({'event': 'thinking_step', 'content': '开始分析您的请求…', 'agent_type': 'orchestrator'})}\n\n"
+        await asyncio.sleep(0.01)
+
+        classification = None  # v1.1.29: always defined for closure safety
         try:
-            from app.metrics import intent_cost_tier_total
-            tier = "economy" if intent in settings.economy_intent_list else "standard"
-            intent_cost_tier_total.labels(intent=intent, tier=tier).inc()
-        except Exception:
-            pass
+            # 若客户端显式指定了 agent_type（非 orchestrator），直接路由到对应 Agent
+            explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
+            if explicit_intent:
+                intent = explicit_intent
+            else:
+                classification = await agent.classify_intent(
+                    data.message, db=db, user_id=current_user.id,
+                    project_id=data.project_id,
+                )
+                intent = classification.get("intent", "general")
 
-        # v1.13.3（全链路闭环补齐）：/chat/stream 补 L4 偏好注入（与 /chat 对齐）
-        try:
-            user_ctx = await _inject_preference_hint(db, current_user.id, intent, user_ctx)
-        except Exception:
-            import structlog
-            structlog.get_logger("agent").debug(
-                "stream_pref_hint_failed", exc_info=True,
-            )
-
-        # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送
-        stream_agent = None
-        stream_msg = None
-        stream_ctx = None
-        raw_reply_for_cards: str | None = None  # v1.2.3: 结构化 JSON 用于 A2UI 卡片生成
-
-        # 获取回复文本（与 /chat 相同逻辑）
-        if intent in ("content_publish",):
-            cp_agent = ContentPublisherAgent()
+            # v1.4.x 意图成本路由观测：记录每次意图解析的成本档位（best-effort）
             try:
-                product_intent = ContentPublisherAgent.classify_intent(data.message)
-                if product_intent != "create_product" or any(
-                    kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
-                ):
-                    reply = await cp_agent.think(
-                        f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx,
-                        db=db, user_id=current_user.id, project_id=data.project_id,
-                    )
-                else:
-                    reply = await cp_agent.generate_content_publish_reply(
-                        data.message, current_user.name,
-                        db=db, user_id=current_user.id, project_id=data.project_id,
-                    )
-            finally:
-                await cp_agent.close()
-        elif intent in ("design",):
-            des_agent = DesignerAgent()
+                from app.metrics import intent_cost_tier_total
+                tier = "economy" if intent in settings.economy_intent_list else "standard"
+                intent_cost_tier_total.labels(intent=intent, tier=tier).inc()
+            except Exception:
+                pass
+
+            # v1.13.3（全链路闭环补齐）：/chat/stream 补 L4 偏好注入（与 /chat 对齐）
             try:
+                user_ctx = await _inject_preference_hint(db, current_user.id, intent, user_ctx)
+            except Exception:
+                import structlog
+                structlog.get_logger("agent").debug(
+                    "stream_pref_hint_failed", exc_info=True,
+                )
+
+            # 真流式 Agent：LLM 模式下使用 think_stream() 逐 token 推送
+            stream_agent = None
+            stream_msg = None
+            stream_ctx = None
+            raw_reply_for_cards: str | None = None  # v1.2.3: 结构化 JSON 用于 A2UI 卡片生成
+
+            # 获取回复文本（与 /chat 相同逻辑）
+            if intent in ("content_publish",):
+                cp_agent = ContentPublisherAgent()
                 try:
-                    raw_reply = await asyncio.wait_for(
-                        des_agent.think(
-                            data.message, user_ctx,
+                    product_intent = ContentPublisherAgent.classify_intent(data.message)
+                    if product_intent != "create_product" or any(
+                        kw in data.message for kw in ["修改", "更新", "下架", "库存", "我的产品", "列表"]
+                    ):
+                        reply = await cp_agent.think(
+                            f"供应商 {current_user.name} 请求管理产品：{data.message}", user_ctx,
                             db=db, user_id=current_user.id, project_id=data.project_id,
-                        ),
-                        timeout=settings.design_llm_timeout_seconds,
-                    )
-                except asyncio.TimeoutError:
-                    # 超时确定性兜底：deepseek 生成复杂设计 JSON 可能 40-60s，
-                    # 超时秒回 3 套预置户型，避免用户长时间等待（诚实标注无 AI 原始 JSON）。
-                    logger.warning(
-                        "designer_llm_timeout_stream: timeout=%.1fs falling back to layouts",
-                        settings.design_llm_timeout_seconds,
-                    )
-                    layouts = await des_agent.generate_layouts(data.message)
-                    reply = layouts["reply"]
-                    raw_reply_for_cards = None
-                else:
-                    raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
-                    reply = _extract_reply_from_llm_json(raw_reply)
-                    if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                        )
+                    else:
+                        reply = await cp_agent.generate_content_publish_reply(
+                            data.message, current_user.name,
+                            db=db, user_id=current_user.id, project_id=data.project_id,
+                        )
+                finally:
+                    await cp_agent.close()
+            elif intent in ("design",):
+                des_agent = DesignerAgent()
+                try:
+                    try:
+                        raw_reply = await asyncio.wait_for(
+                            des_agent.think(
+                                data.message, user_ctx,
+                                db=db, user_id=current_user.id, project_id=data.project_id,
+                            ),
+                            timeout=settings.design_llm_timeout_seconds,
+                        )
+                    except asyncio.TimeoutError:
+                        # 超时确定性兜底：deepseek 生成复杂设计 JSON 可能 40-60s，
+                        # 超时秒回 3 套预置户型，避免用户长时间等待（诚实标注无 AI 原始 JSON）。
                         logger.warning(
-                            "designer_reply_leak_stream: falling back to layouts; "
-                            "raw_head=%r", raw_reply[:200],
+                            "designer_llm_timeout_stream: timeout=%.1fs falling back to layouts",
+                            settings.design_llm_timeout_seconds,
                         )
                         layouts = await des_agent.generate_layouts(data.message)
                         reply = layouts["reply"]
-                        raw_reply_for_cards = None  # fallback 时无原始 JSON
-            finally:
-                await des_agent.close()
-        elif intent in ("budget",):
-            # 与 /chat 对齐：FunctionCall 工具调用（get_budget）后流式推送最终回复
-            bud_agent = BudgetAgent()
-            try:
-                _tool_result = await bud_agent.think_with_tools(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
+                        raw_reply_for_cards = None
+                    else:
+                        raw_reply_for_cards = raw_reply  # v1.2.3: 保存原始 JSON 用于 A2UI 卡片
+                        reply = _extract_reply_from_llm_json(raw_reply)
+                        if _looks_like_reasoning_leak(reply) or "稍后重试" in reply or raw_reply.startswith("[mock]"):
+                            logger.warning(
+                                "designer_reply_leak_stream: falling back to layouts; "
+                                "raw_head=%r", raw_reply[:200],
+                            )
+                            layouts = await des_agent.generate_layouts(data.message)
+                            reply = layouts["reply"]
+                            raw_reply_for_cards = None  # fallback 时无原始 JSON
+                finally:
+                    await des_agent.close()
+            elif intent in ("budget",):
+                # 与 /chat 对齐：FunctionCall 工具调用（get_budget）后流式推送最终回复
+                bud_agent = BudgetAgent()
+                try:
+                    _tool_result = await bud_agent.think_with_tools(
+                        data.message, user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
+                    reply = _tool_result["final_reply"]
+                finally:
+                    await bud_agent.close()
+            elif intent in ("procurement",):
+                proc_agent = ProcurementAgent()
+                try:
+                    _tool_result = await proc_agent.think_with_tools(
+                        data.message, user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
+                    reply = _tool_result["final_reply"]
+                finally:
+                    await proc_agent.close()
+            elif intent in ("construction",):
+                cons_agent = ConstructionAgent()
+                try:
+                    _tool_result = await cons_agent.think_with_tools(
+                        data.message, user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
+                    reply = _tool_result["final_reply"]
+                finally:
+                    await cons_agent.close()
+            elif intent in ("settlement",):
+                stream_agent = SettlementAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("qa_inspector",):
+                qa_agent = QAInspectorAgent()
+                try:
+                    _tool_result = await qa_agent.think_with_tools(
+                        data.message, user_ctx,
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
+                    reply = _tool_result["final_reply"]
+                finally:
+                    await qa_agent.close()
+            elif intent in ("concierge",):
+                conc_agent = ConciergeAgent()
+                try:
+                    reply = await conc_agent.generate_response(
+                        data.message, f"业主: {current_user.name}",
+                        db=db, user_id=current_user.id, project_id=data.project_id,
+                    )
+                finally:
+                    await conc_agent.close()
+            elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
+                stream_agent = AdminAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("ar_measurement",):
+                # AR 测量引导：与 chat_with_agent 中 ar_measurement 分支保持一致
+                reply_lines = [
+                    "AR 空间测量功能可以帮助您快速测量房间尺寸、墙面面积等数据。",
+                    "",
+                    "使用方法：",
+                    "1. 打开索克家居 App（支持 iOS/Android/鸿蒙）",
+                    "2. 进入项目后点击「AR 扫描」或「量房」功能",
+                    "3. 按照指引移动设备扫描房间",
+                    f"4. 扫描完成后，数据将自动同步到项目 {data.project_id or ''} 中",
+                    "",
+                    "支持的功能：",
+                    "- RoomPlan 全屋扫描（iPhone Pro 系列 LiDAR）",
+                    "- 视觉 SLAM 空间建模（普通摄像头）",
+                    "- 激光测距仪辅助校准",
+                    "- 墙面特征自动识别（门窗、管道、电箱）",
+                    "- 精度报告生成（RMS 误差分析）",
+                    "",
+                    "如果您正在使用移动端 App，可以直接打开 AR 扫描功能开始测量。",
+                ]
+                reply = "\n".join(reply_lines)
+            elif intent in ("floorplans",):
+                reply = "户型管理功能可以帮助您查看、保存和修改户型方案。您可以在项目中查看已保存的户型平面图。"
+            elif intent in ("structural",):
+                reply = "土建结构模块支持梁、柱、墙、板等结构元素的设计与分析。请告诉我具体的结构设计需求。"
+            elif intent in ("lighting",):
+                reply = "灯光设计模块支持照明方案规划、照度计算和色温推荐。请告诉我您想为哪个房间设计灯光方案。"
+            elif intent in ("smart_home",):
+                reply = "智能家居模块支持设备配置、场景联动和 Matter/Zigbee 协议。请告诉我您想配置哪种智能设备。"
+            elif intent in ("scene_automation",):
+                reply = "场景自动化支持创建和编辑智能场景联动规则，如离家模式、回家模式、睡眠模式等。"
+            elif intent in ("custom_furniture",):
+                reply = "定制家具模块支持参数化设计柜体（衣柜、橱柜、书柜等），自动计算板材用量和价格。"
+            elif intent in ("tasks",):
+                reply = "任务协调模块支持施工任务的分派、跟踪和管理。请告诉我您想创建或查看什么任务。"
+            elif intent in ("change_orders",):
+                reply = "变更管理模块支持工程变更的申请、审批和跟踪。请告诉我您想做什么样的变更。"
+            elif intent in ("crews",):
+                reply = "工程队管理模块支持班组匹配和施工队调度。请告诉我您的项目需求，我来帮您匹配合适的施工队。"
+            elif intent in ("vr_panorama",):
+                reply = "VR 全景查看器支持 360° 沉浸式漫游和场景切换。请打开 VR 全景页面开始体验。"
+            elif intent in ("ai_render",):
+                reply = "AI 渲染模块支持 2D/3D 效果图生成和风格迁移。请告诉我您想渲染什么内容。"
+            elif intent in ("sketch_to_3d",):
+                reply = "草图转3D 功能可以将手绘草图智能转换为 3D 模型。请上传您的草图，我来帮您转换。"
+            elif intent in ("soft_furnishing",):
+                reply = "软装设计模块支持窗帘、布艺、地毯、饰品等软装配饰的选择与搭配。"
+            elif intent in ("hard_decoration",):
+                reply = "硬装设计模块支持吊顶、墙面装饰、地面铺装等硬装方案设计。"
+            elif intent in ("takeoff",):
+                stream_agent = TakeoffAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("points",):
+                reply = "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
+            elif intent in ("cad_import",):
+                reply = "CAD 导入模块支持 DXF/DWG 格式的户型图纸导入和墙体解析。"
+            elif intent in ("kitchen",):
+                stream_agent = KitchenAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("bathroom",):
+                stream_agent = BathroomAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("mep",):
+                stream_agent = MepAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("appliance",):
+                stream_agent = ApplianceAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("furniture",):
+                stream_agent = FurnitureAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("door_window",):
+                stream_agent = DoorWindowAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("files",):
+                stream_agent = FilesAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("products",):
+                stream_agent = ProductsAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("identity",):
+                stream_agent = IdentityAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("notifications",):
+                stream_agent = NotificationsAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("ifc_export",):
+                stream_agent = IfcExportAgent()
+                stream_msg = data.message
+                stream_ctx = user_ctx
+            elif intent in ("voice",):
+                reply = (
+                    "语音对话已就绪，您可以直接说出装修需求。点击输入框旁的话筒按钮进入语音模式，"
+                    "支持实时对话、多意图并行调度与任务进度查询（「任务进度」）。"
                 )
-                reply = _tool_result["final_reply"]
-            finally:
-                await bud_agent.close()
-        elif intent in ("procurement",):
-            proc_agent = ProcurementAgent()
-            try:
-                _tool_result = await proc_agent.think_with_tools(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
-                reply = _tool_result["final_reply"]
-            finally:
-                await proc_agent.close()
-        elif intent in ("construction",):
-            cons_agent = ConstructionAgent()
-            try:
-                _tool_result = await cons_agent.think_with_tools(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
-                reply = _tool_result["final_reply"]
-            finally:
-                await cons_agent.close()
-        elif intent in ("settlement",):
-            stream_agent = SettlementAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("qa_inspector",):
-            qa_agent = QAInspectorAgent()
-            try:
-                _tool_result = await qa_agent.think_with_tools(
-                    data.message, user_ctx,
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
-                reply = _tool_result["final_reply"]
-            finally:
-                await qa_agent.close()
-        elif intent in ("concierge",):
-            conc_agent = ConciergeAgent()
-            try:
-                reply = await conc_agent.generate_response(
-                    data.message, f"业主: {current_user.name}",
-                    db=db, user_id=current_user.id, project_id=data.project_id,
-                )
-            finally:
-                await conc_agent.close()
-        elif intent in ("admin", "user_manage", "platform_stats", "identity_review"):
-            stream_agent = AdminAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("ar_measurement",):
-            # AR 测量引导：与 chat_with_agent 中 ar_measurement 分支保持一致
-            reply_lines = [
-                "AR 空间测量功能可以帮助您快速测量房间尺寸、墙面面积等数据。",
-                "",
-                "使用方法：",
-                "1. 打开索克家居 App（支持 iOS/Android/鸿蒙）",
-                "2. 进入项目后点击「AR 扫描」或「量房」功能",
-                "3. 按照指引移动设备扫描房间",
-                f"4. 扫描完成后，数据将自动同步到项目 {data.project_id or ''} 中",
-                "",
-                "支持的功能：",
-                "- RoomPlan 全屋扫描（iPhone Pro 系列 LiDAR）",
-                "- 视觉 SLAM 空间建模（普通摄像头）",
-                "- 激光测距仪辅助校准",
-                "- 墙面特征自动识别（门窗、管道、电箱）",
-                "- 精度报告生成（RMS 误差分析）",
-                "",
-                "如果您正在使用移动端 App，可以直接打开 AR 扫描功能开始测量。",
-            ]
-            reply = "\n".join(reply_lines)
-        elif intent in ("floorplans",):
-            reply = "户型管理功能可以帮助您查看、保存和修改户型方案。您可以在项目中查看已保存的户型平面图。"
-        elif intent in ("structural",):
-            reply = "土建结构模块支持梁、柱、墙、板等结构元素的设计与分析。请告诉我具体的结构设计需求。"
-        elif intent in ("lighting",):
-            reply = "灯光设计模块支持照明方案规划、照度计算和色温推荐。请告诉我您想为哪个房间设计灯光方案。"
-        elif intent in ("smart_home",):
-            reply = "智能家居模块支持设备配置、场景联动和 Matter/Zigbee 协议。请告诉我您想配置哪种智能设备。"
-        elif intent in ("scene_automation",):
-            reply = "场景自动化支持创建和编辑智能场景联动规则，如离家模式、回家模式、睡眠模式等。"
-        elif intent in ("custom_furniture",):
-            reply = "定制家具模块支持参数化设计柜体（衣柜、橱柜、书柜等），自动计算板材用量和价格。"
-        elif intent in ("tasks",):
-            reply = "任务协调模块支持施工任务的分派、跟踪和管理。请告诉我您想创建或查看什么任务。"
-        elif intent in ("change_orders",):
-            reply = "变更管理模块支持工程变更的申请、审批和跟踪。请告诉我您想做什么样的变更。"
-        elif intent in ("crews",):
-            reply = "工程队管理模块支持班组匹配和施工队调度。请告诉我您的项目需求，我来帮您匹配合适的施工队。"
-        elif intent in ("vr_panorama",):
-            reply = "VR 全景查看器支持 360° 沉浸式漫游和场景切换。请打开 VR 全景页面开始体验。"
-        elif intent in ("ai_render",):
-            reply = "AI 渲染模块支持 2D/3D 效果图生成和风格迁移。请告诉我您想渲染什么内容。"
-        elif intent in ("sketch_to_3d",):
-            reply = "草图转3D 功能可以将手绘草图智能转换为 3D 模型。请上传您的草图，我来帮您转换。"
-        elif intent in ("soft_furnishing",):
-            reply = "软装设计模块支持窗帘、布艺、地毯、饰品等软装配饰的选择与搭配。"
-        elif intent in ("hard_decoration",):
-            reply = "硬装设计模块支持吊顶、墙面装饰、地面铺装等硬装方案设计。"
-        elif intent in ("takeoff",):
-            stream_agent = TakeoffAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("points",):
-            reply = "积分系统支持积分累计、等级提升和积分兑换。您可以通过完成装修任务获取积分。"
-        elif intent in ("cad_import",):
-            reply = "CAD 导入模块支持 DXF/DWG 格式的户型图纸导入和墙体解析。"
-        elif intent in ("kitchen",):
-            stream_agent = KitchenAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("bathroom",):
-            stream_agent = BathroomAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("mep",):
-            stream_agent = MepAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("appliance",):
-            stream_agent = ApplianceAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("furniture",):
-            stream_agent = FurnitureAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("door_window",):
-            stream_agent = DoorWindowAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("files",):
-            stream_agent = FilesAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("products",):
-            stream_agent = ProductsAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("identity",):
-            stream_agent = IdentityAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("notifications",):
-            stream_agent = NotificationsAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("ifc_export",):
-            stream_agent = IfcExportAgent()
-            stream_msg = data.message
-            stream_ctx = user_ctx
-        elif intent in ("voice",):
-            reply = (
-                "语音对话已就绪，您可以直接说出装修需求。点击输入框旁的话筒按钮进入语音模式，"
-                "支持实时对话、多意图并行调度与任务进度查询（「任务进度」）。"
-            )
-        else:
-            reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
+            else:
+                reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
 
-        # SSE 流式推送
-        async def generate_sse():
+            # SSE 流式推送
             # 将 intent 反向映射为 agent_type，与非流式接口返回值保持一致
             # （如 intent="design" → agent_type="designer"）
             _intent_to_agent_type = {
@@ -1653,17 +1659,18 @@ async def chat_stream(  # noqa: C901
                     done_payload['a2ui_cards'] = a2ui_cards
             yield f"data: {json.dumps(done_payload)}\n\n"
 
-        return StreamingResponse(
-            generate_sse(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
-    finally:
-        await agent.close()
+        finally:
+            await agent.close()
+
+    return StreamingResponse(
+        generate_sse(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/design", response_model=DesignPlanResponse)

@@ -368,6 +368,14 @@ export async function renderDesignFlow(flowId) {
   return request(`/api/design-flow/${encodeURIComponent(flowId)}/render`, { method: 'POST' })
 }
 
+export async function generateDesignFlowDrawings(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/drawings`, { method: 'POST' })
+}
+
+export async function getDesignFlowDrawings(flowId) {
+  return request(`/api/design-flow/${encodeURIComponent(flowId)}/drawings`)
+}
+
 export async function adjustDesignFlow(flowId, data) {
   return request(`/api/design-flow/${encodeURIComponent(flowId)}/adjust`, {
     method: 'POST',
@@ -461,6 +469,26 @@ export async function sceneExecute(sceneId, triggerSource = 'vr_overlay') {
 /** 检测设备 AR 能力并返回推荐方法 + 降级链（POST /api/surveys/ar/device-capability） */
 export async function arDeviceCapability(body) {
   return request('/api/surveys/ar/device-capability', {
+    method: 'POST',
+    body: JSON.stringify(body || {}),
+  })
+}
+
+// ── Web 麦克风 → 后端语音端点 ──
+
+/** 语音文本处理（复用后端 /api/voice/process-enhanced：情绪检测 + Agent 路由） */
+export async function processVoice(text, projectId = null) {
+  return request('/api/voice/process-enhanced', {
+    method: 'POST',
+    body: JSON.stringify({ text, project_id: projectId, emotion_enabled: true }),
+  })
+}
+
+// ── Web 定位 → 后端传感器端点 ──
+
+/** 上传传感器快照（复用后端 /api/sensors/snapshot：GPS/IMU 落库 + 场景触发检查） */
+export async function uploadSensorSnapshot(body) {
+  return request('/api/sensors/snapshot', {
     method: 'POST',
     body: JSON.stringify(body || {}),
   })

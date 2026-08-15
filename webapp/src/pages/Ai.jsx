@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Send, Square, Bot, ScanLine } from 'lucide-react'
+import { Send, Square, Bot, ScanLine, Mic } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { streamChat, listProjects } from '../lib/api'
+import { streamChat, listProjects, processVoice } from '../lib/api'
+import useVoiceInput from '../hooks/useVoiceInput'
 
 export default function AiPage() {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export default function AiPage() {
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState('')
   const [card, setCard] = useState(null)   // 当前回复的富卡片（ar_scan_trigger 等）
+  const [thinking, setThinking] = useState('')  // 后端 thinking_step 进度（意图分析/调度）
   const abortRef = useRef(null)
   const listRef = useRef(null)
 
@@ -34,6 +36,7 @@ export default function AiPage() {
     setInput('')
     setError(null)
     setCard(null)
+    setThinking('')
     setMessages((m) => [...m, { role: 'user', content: text }])
     setBusy(true)
 
@@ -45,7 +48,10 @@ export default function AiPage() {
       await streamChat(
         { message: text, projectId: projectId || null },
         (evt) => {
-          if (evt.event === 'meta') {
+          if (evt.event === 'thinking_step') {
+            // 后端思考步骤（分析意图 → 调度 Agent），让等待有可见进度
+            setThinking(evt.data?.content || '')
+          } else if (evt.event === 'meta') {
             // 富卡片：ar_scan_trigger 等 message_type + card_payload
             if (evt.data?.card_payload) {
               setCard({ type: evt.data.message_type || 'text', payload: evt.data.card_payload })
@@ -87,6 +93,26 @@ export default function AiPage() {
     if (abortRef.current) abortRef.current.abort()
     setBusy(false)
   }
+
+  // 麦克风语音：getUserMedia 浏览器端转写 → 复用后端语音端点
+  const handleVoiceTranscript = async (text) => {
+    setError(null)
+    setCard(null)
+    setMessages((m) => [...m, { role: 'user', content: text }])
+    setBusy(true)
+    const r = await processVoice(text, projectId || null)
+    setBusy(false)
+    if (r.isSuccess && r.data) {
+      setMessages((m) => [...m, { role: 'assistant', content: r.data.reply || '（无回复）' }])
+    } else {
+      setError(r.error || '语音处理失败')
+    }
+  }
+
+  const { listening, supported: voiceSupported, start: startVoice, stop: stopVoice } = useVoiceInput({
+    onTranscript: handleVoiceTranscript,
+    onError: (msg) => setError(msg),
+  })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - var(--topbar-h) - 96px)', minHeight: 420 }}>
@@ -190,7 +216,7 @@ export default function AiPage() {
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
               <Bot size={15} className="amber-text" />
-              <span style={{ fontSize: 13, color: 'var(--text-sub)' }}>AI 思考中…</span>
+              <span style={{ fontSize: 13, color: 'var(--text-sub)' }}>{thinking || 'AI 思考中…'}</span>
             </div>
           </div>
         )}
@@ -218,6 +244,14 @@ export default function AiPage() {
           placeholder="输入问题，Enter 发送（Shift+Enter 换行）"
           style={{ flex: 1, minHeight: 48 }}
         />
+        <button
+          className="btn"
+          onClick={listening ? stopVoice : startVoice}
+          disabled={!voiceSupported || busy}
+          title={voiceSupported ? '语音输入' : '当前浏览器不支持语音识别'}
+        >
+          <Mic size={15} /> {listening ? '聆听中…' : '语音'}
+        </button>
         {busy ? (
           <button className="btn" onClick={stop} title="停止生成">
             <Square size={15} /> 停止

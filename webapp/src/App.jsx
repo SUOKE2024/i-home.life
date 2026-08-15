@@ -16,6 +16,7 @@ import SmartHomePage from './pages/SmartHome'
 import AiPage from './pages/Ai'
 import ProfilePage from './pages/Profile'
 import DiagnosticsPage from './pages/Diagnostics'
+import DesignFlowPage from './pages/DesignFlow'
 // VR 全景页依赖 three.js，懒加载避免拖慢首屏 bundle
 const VirtualTourPage = lazy(() => import('./pages/VirtualTour'))
 const ARScanPage = lazy(() => import('./pages/ARScan'))
@@ -82,6 +83,7 @@ export default function App() {
             }
           />
           <Route path="/ai" element={<AiPage />} />
+          <Route path="/design-flow" element={<DesignFlowPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
         </Route>

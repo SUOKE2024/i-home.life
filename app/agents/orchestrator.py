@@ -125,7 +125,17 @@ class OrchestratorAgent(BaseAgent):
 
         v1.13.3（全链路闭环补齐，断点 A）：补 db/user_id/project_id 透传 think，
         使意图分类 LLM 调用同样享有 RAG/进化注入/Case 沉淀。
+
+        v1.14.x：规则关键词优先——明确命中意图直接返回，省一次 LLM 调用降低
+        SSE 首 token 延迟；规则无匹配（general）时才回退 LLM 理解复杂语义。
         """
+        # 规则优先（可经 classify_intent_rule_first_enabled 关闭回退 LLM 优先）
+        from app.config import get_settings
+        if get_settings().classify_intent_rule_first_enabled:
+            rule = self.fallback_classify(message)
+            if rule.get("intent") != "general":
+                return rule
+
         try:
             result = await self.think(message, db=db, user_id=user_id, project_id=project_id)
             result = result.strip()
