@@ -75,7 +75,7 @@ Deploying LLM-driven agents into long-horizon, multi-role, and constraint-heavy 
 
 系统采用**模块化单体**（modular monolith）架构：Python(FastAPI) 后端 + Flutter 多端 + React WebApp/控制台。所有路由在应用入口无条件加载，无按角色拆分的微服务进程。这一选择源于两个现实约束：(1) 业务处于快速演进期，微服务边界不稳定；(2) 团队规模与运维能力要求「一个可部署、可回滚、可测试」的整体。CLAUDE.md 将「禁止引入 K8s/容器编排」列为架构红线。
 
-系统规模（截至 v1.14.0）：139 个 ORM 模型、76 个路由模块、109 个服务、25 个业务 Agent（21 个执行型 + 4 个商业运营型）+ 1 个总控 Orchestrator。
+系统规模（截至 v1.14.0）：140 个 ORM 模型、76 个路由模块、111 个服务、25 个业务 Agent（21 个执行型 + 4 个商业运营型）+ 1 个总控 Orchestrator。
 
 在业务代码之外，系统沉淀了一层只读、确定性的**领域知识基座**：`app/ontology/`（空间/构件/材质/Agent 能力本体）与 `app/standards/`（验收清单、定额库、标准目录），供 Agent、治理审计与空间语义统一引用（见 §3.4）。
 
@@ -85,7 +85,7 @@ Deploying LLM-driven agents into long-horizon, multi-role, and constraint-heavy 
 
 1. **Harness 运行层**（`app/agents/harness.py`）：`AgentRuntime` 统一管理 Agent 生命周期（创建→执行→追踪→评估→清理），提供降级策略、重试策略、超时控制、5 层记忆模型（ephemeral/session/project/user/knowledge_base）与离线评估循环。所有 Agent 执行经 `harness.run()` 收敛，自动获得轨迹落库与自进化案例提取。
 2. **Agent 层**（`app/agents/`）：`BaseAgent` 提供多 LLM 供应商路由、FunctionCall 工具调用、流式输出、自进化经验注入、Model Spec 约束声明等公共能力；25 个业务 Agent 通过子类化仅声明 `agent_name`、`system_prompt`、`persona`、`tools`、`cost_tier` 等差异。
-3. **服务层**（`app/services/`）：109 个领域服务承载具体业务能力（预算、设计、采购、施工、质检、结算、自进化案例/技能服务、编排服务、治理审计等）。
+3. **服务层**（`app/services/`）：111 个领域服务承载具体业务能力（预算、设计、采购、施工、质检、结算、自进化案例/技能服务、编排服务、治理审计等）。
 4. **工具层**（`app/services/agent_tool_registry.py`）：`ToolRegistry` 单例注册 11 个内置用户工具 + 6 个管理工具，统一执行前的参数校验、姿态检查、审计记录、SSRF 拦截与输出清洗。
 5. **本体与标准层**（`app/ontology/` + `app/standards/`）：确定性 JSON 本体（空间/构件/材质/Agent 能力）与标准目录（验收清单、定额库、标准目录），对齐 Brick/BOT/IFC 开放本体，供空间语义、治理审计与 Agent 身份卡统一引用（见 §3.4）。
 

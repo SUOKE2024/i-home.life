@@ -14,7 +14,7 @@
 2. **IFC/BIM 开源栈成熟且与索克现有 IFC 导出天然同源**：`ifcopenshell`（LGPL）+ `Bonsai`（原 BlenderBIM）+ `bSDD/IDS/BCF` 已形成完整 openBIM 生态。索克当前 IFC 导出依赖 ifcopenshell，可进一步对齐 `bSDD`（buildingSMART Data Dictionary）做「构件语义字典」，对齐 `IDS`（Information Delivery Specification）做「交付物校验规则」。
 3. **空间/3D 数据集可低成本反哺索克设计与空间语义**：`3D-FRONT`（阿里，18,797 房间/7,302 家具，学术免费）、`SpatialLM-Dataset`（群核，12,328 场景/54,778 房间/59 语义类，**CC-BY-NC-4.0 非商用**）可作空间推理/布局评测金标；但**商用许可红线必须守住**（CC-BY-NC 不能进生产数据管线）。
 4. **多智能体/自进化方向**：索克自建的「Harness + 自进化三层 + 编排」在架构上已对齐 2026 主流（AutoGen/LangGraph/CrewAI/MetaGPT），**无需引入外部框架**；应把精力放在「经验注入的结构化/预算控制、轨迹可回放、Agent-as-a-Judge `pass^k`、记忆冲突门控」这些与索克既有代码契合的**增量打磨**上。
-5. **论文修订重点**：把「本体/领域知识基座 + 开源资产对齐」作为新的差异化维度写入论文（第 3 章架构 + 第 2 章相关工作 + 参考文献），并把此前 `128/105/2391` 等口径统一为实测值（`139 ORM / 109 Service / 2417 pytest`）。
+5. **论文修订重点**：把「本体/领域知识基座 + 开源资产对齐」作为新的差异化维度写入论文（第 3 章架构 + 第 2 章相关工作 + 参考文献），并把此前 `128/105/2391` 等口径统一为实测值（`140 ORM / 111 Service / 2417 pytest`）。
 
 ---
 
@@ -173,7 +173,7 @@
 | §2 相关工作 | 补 `SpatialLM`（arXiv:2506.07491）、`3D-FRONT`（arXiv:2011.09127）、`Brick Schema`、`IfcOpenShell`、`AutoGen/LangGraph/CrewAI/MetaGPT` 等真实文献 |
 | §3 系统架构 | 增补「本体/标准层」：`app/ontology/` + `app/standards/` 在图与分层中体现 |
 | §7 可观测/评估 | 补「空间语义金标评测（3D-FRONT/SpatialLM-Dataset，CC-BY-NC 研究边界）」 |
-| §10 评估结果 | 数字统一：`139 ORM / 109 Service / 2417 pytest`；补「开源资产对齐表」 |
+| §10 评估结果 | 数字统一：`140 ORM / 111 Service / 2417 pytest`；补「开源资产对齐表」 |
 | 参考文献 | 新增真实可核查条目：SpatialLM、3D-FRONT、Brick、IfcOpenShell、AutoGen、LangGraph、MetaGPT、Voyager、Reflexion、ISO 16739、GB 55000/GB 18580 等 |
 
 **诚实边界保持**：明确标注「SpatialLM-Dataset 为 CC-BY-NC-4.0 仅研究对照、不商用」「质检 mock CV/VR mock/AI 渲染 L1-L2 如实披露」，与既有论文一致。
@@ -207,4 +207,4 @@
 **公认成熟开源资产（2025 前即存在）**
 - AutoGen / LangGraph / CrewAI / MetaGPT / OpenAI Agents SDK / MemGPT(Letta) / Voyager / Reflexion
 - ISO 16739(IFC) / COBie / bSDD / IDS / BCF / GB 55000 系列 / GB/T 50353 / GB/T 50327 / GB 50210 / GB 18580 / GB 18583-18585 / Matter
-- i-home.life 代码实测（v1.14.0：139 ORM / 76 路由模块 / 109 Service / 25 Agent+1 Orchestrator / 2417 pytest 基线）
+- i-home.life 代码实测（v1.14.0：140 ORM / 76 路由模块 / 111 Service / 25 Agent+1 Orchestrator / 2417 pytest 基线）
