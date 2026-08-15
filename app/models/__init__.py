@@ -15,7 +15,7 @@ from app.models.survey import Survey
 from app.models.change_order import ChangeOrder, ChangeOrderItem
 from app.models.payment import Payment
 from app.models.chat import ChatMessage, ChatRoom
-from app.models.construction_crew import ConstructionCrew, CrewMatch
+from app.models.construction_crew import ConstructionCrew, CrewBenefit, CrewMatch
 from app.models.progress_alert import ProgressAlert, MilestoneTracker
 from app.models.quality import QualityIssue, RectificationOrder, QualityAssessment
 from app.models.service_worker import ServiceWorker, ServiceWorkerMatch
@@ -145,6 +145,7 @@ __all__ = [
     "ChatMessage",
     "ChatRoom",
     "ConstructionCrew",
+    "CrewBenefit",
     "CrewMatch",
     "ProgressAlert",
     "MilestoneTracker",
