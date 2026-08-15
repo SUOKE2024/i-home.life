@@ -289,9 +289,10 @@ class HealthMonitor:
             return result
 
         # 统计数据
-        # SQLite 落库的 planned_date 为 naive（DateTime(timezone=True) 在 SQLite 上不保留
-        # tzinfo），故 now 须转 naive UTC 再比较，否则 offset-aware vs naive 直接抛异常。
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        # planned_date 跨 SQLite/PostgreSQL 时区语义不一致：SQLite 读回为 naive（值仍 UTC），
+        # PostgreSQL 读回为 offset-aware UTC（会话 TimeZone=UTC）。统一转 offset-aware UTC
+        # 再比较，避免 offset-aware vs naive 直接抛异常。
+        now = datetime.now(timezone.utc)
         overdue_count = 0
         delayed_count = 0
         total_planned = 0.0
@@ -304,8 +305,12 @@ class HealthMonitor:
                 total_actual += m.actual_percent
             elif m.status == "delayed":
                 delayed_count += 1
-            if m.planned_date and m.planned_date < now and m.status not in ("completed",):
-                overdue_count += 1
+            if m.planned_date and m.status not in ("completed",):
+                planned = m.planned_date
+                if planned.tzinfo is None:
+                    planned = planned.replace(tzinfo=timezone.utc)
+                if planned < now:
+                    overdue_count += 1
 
         result.delayed_milestones = delayed_count
         result.planned_progress = total_planned
