@@ -98,6 +98,28 @@ export async function logout() {
 }
 
 // ──────────────────────────────────────────────────────────────
+// 运营商一键登录（阿里云号码认证 H5）
+// ──────────────────────────────────────────────────────────────
+
+/** 获取 H5 一键登录鉴权 Token（后端调用 GetAuthToken，返回 accessToken/jwtToken） */
+export async function getOneClickAuthToken() {
+  return request('/api/auth/oneclick/h5/auth-token', { method: 'POST' })
+}
+
+/** H5 一键登录：用 JS SDK 返回的 spToken 换取 PASETO Token */
+export async function oneClickH5Login(spToken) {
+  const r = await request('/api/auth/oneclick/h5/login', {
+    method: 'POST',
+    body: JSON.stringify({ sp_token: spToken }),
+  })
+  if (r.isSuccess && r.data && r.data.access_token) {
+    setToken(r.data.access_token)
+    localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
+  }
+  return r
+}
+
+// ──────────────────────────────────────────────────────────────
 // 演示账号（对齐 scripts/seed.py 体验账户 / 123456）
 // ──────────────────────────────────────────────────────────────
 

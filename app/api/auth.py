@@ -5,7 +5,14 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.user import User
 from app.models.webauthn_credential import WebAuthnCredential
-from app.schemas.user import UserCreate, UserLogin, TokenResponse, UserResponse
+from app.schemas.user import (
+    UserCreate,
+    UserLogin,
+    OneClickLoginRequest,
+    H5OneClickLoginRequest,
+    TokenResponse,
+    UserResponse,
+)
 from app.schemas.webauthn import (
     WebAuthnRegisterBeginRequest,
     WebAuthnRegisterCompleteRequest,
@@ -17,7 +24,8 @@ from app.schemas.webauthn import (
 )
 from app.auth.paseto_handler import create_token
 from app.auth import get_current_user
-from app.services.user_service import create_user, authenticate_user
+from app.services.user_service import create_user, authenticate_user, get_or_create_phone_user
+from app.services import phone_number_auth_service
 from app.services.webauthn_service import (
     webauthn_register_begin,
     webauthn_register_complete,
@@ -212,6 +220,88 @@ async def logout(
     await db.commit()
 
     return {"detail": "登出成功"}
+
+
+# ═══════════════════════════════════════════
+#  运营商一键登录（阿里云号码认证）
+# ═══════════════════════════════════════════
+
+
+async def _issue_token_for_phone(
+    db: AsyncSession,
+    request: Request,
+    phone: str,
+    channel: str,
+) -> TokenResponse:
+    """按手机号查找/创建用户，签发 PASETO Token 并写审计日志。"""
+    user = await get_or_create_phone_user(db, phone)
+    token = create_token(user.id, user.role)
+
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="ONECLICK_LOGIN",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role, "channel": channel, "phone_suffix": user.phone[-4:]},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return TokenResponse(
+        access_token=token,
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.post("/oneclick/login", response_model=TokenResponse)
+async def oneclick_login(
+    data: OneClickLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """App 一键登录：用阿里云号码认证 SDK 的 access_token 换取本机手机号并登录。"""
+    if not settings.phone_oneclick_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="一键登录功能已关闭")
+    try:
+        phone = await phone_number_auth_service.get_mobile(data.access_token)
+    except phone_number_auth_service.PhoneAuthError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    return await _issue_token_for_phone(db, request, phone, channel="app")
+
+
+@router.post("/oneclick/h5/auth-token")
+async def oneclick_h5_auth_token():
+    """H5 一键登录鉴权：返回 accessToken + jwtToken 供前端 JS SDK 拉起授权页。"""
+    if not settings.phone_oneclick_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="一键登录功能已关闭")
+    if not settings.aliyun_phone_auth_scene_code:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="H5 一键登录未配置认证方案")
+    try:
+        return await phone_number_auth_service.get_auth_token(
+            settings.aliyun_phone_auth_scene_code,
+            settings.aliyun_phone_auth_page_url,
+            settings.aliyun_phone_auth_origin,
+        )
+    except phone_number_auth_service.PhoneAuthError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+
+@router.post("/oneclick/h5/login", response_model=TokenResponse)
+async def oneclick_h5_login(
+    data: H5OneClickLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """H5 一键登录：用 H5 JS SDK 的 sp_token 换取手机号并登录。"""
+    if not settings.phone_oneclick_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="一键登录功能已关闭")
+    try:
+        phone = await phone_number_auth_service.get_phone_with_token(data.sp_token)
+    except phone_number_auth_service.PhoneAuthError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    return await _issue_token_for_phone(db, request, phone, channel="h5")
 
 
 # ═══════════════════════════════════════════

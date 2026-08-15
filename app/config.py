@@ -279,6 +279,17 @@ class Settings(BaseSettings):
     # 第三方身份核验
     aliyun_id_verify_appcode: str = ""  # 阿里云身份证实名认证 AppCode
 
+    # ── 阿里云号码认证服务（运营商一键登录）──
+    # App 一键登录走 GetMobile(access_token)；H5 一键登录走 GetAuthToken + GetPhoneWithToken(sp_token)
+    phone_oneclick_enabled: bool = True
+    aliyun_phone_auth_access_key_id: str = ""      # RAM AccessKey ID（需 dypns 号码认证权限）
+    aliyun_phone_auth_access_key_secret: str = ""  # RAM AccessKey Secret
+    aliyun_phone_auth_endpoint: str = "dypnsapi.aliyuncs.com"
+    # H5 一键登录认证方案（在号码认证控制台创建 H5 认证方案后获得）
+    aliyun_phone_auth_scene_code: str = ""
+    aliyun_phone_auth_page_url: str = ""  # H5 页面地址，如 https://i-home.life/
+    aliyun_phone_auth_origin: str = ""    # H5 请求来源（源地址），如 https://i-home.life
+
     # ── Agent Harness 统一编排（v1.2.0）──
     harness_trace_enabled: bool = True
     harness_trace_max_history: int = 500

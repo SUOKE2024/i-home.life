@@ -26,6 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _passkeyLoading = false;
   bool _biometricsLoading = false;
   bool _submitting = false;
+  bool _oneClickLoading = false;
   String _role = 'homeowner';
   String _subRole = '';
 
@@ -180,6 +181,50 @@ class _LoginPageState extends State<LoginPage> {
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  // ── 运营商一键登录（阿里云号码认证）──
+  //
+  // access_token 由阿里云号码认证 SDK（Android/iOS/鸿蒙原生）在用户点击授权页
+  // 确认后返回。当前 Flutter 端尚未接入该原生 SDK，此处返回 null 作为集成点：
+  // 接入后在此调用对应平台通道（如 ali_auth / flutter_ali_auth）获取 token。
+  Future<String?> _fetchOneClickAccessToken() async {
+    // TODO: 接入阿里云号码认证 Flutter 插件，调用其 getLoginToken() 返回 access_token。
+    return null;
+  }
+
+  Future<void> _oneClickLogin() async {
+    if (_oneClickLoading) return;
+    setState(() => _oneClickLoading = true);
+    try {
+      final accessToken = await _fetchOneClickAccessToken();
+      if (accessToken == null || accessToken.isEmpty) {
+        _showError('本机号码一键登录需接入阿里云号码认证 SDK（当前环境未集成）');
+        return;
+      }
+      final api = ApiClient();
+      final result = await api.oneClickLogin(accessToken);
+      if (result.isSuccess) {
+        // 记录手机号用于后续生物识别提示（不保存密码）
+        final res = result.data as Map<String, dynamic>;
+        final user = res['user'] as Map<String, dynamic>?;
+        if (user != null && user['phone'] != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('last_phone', user['phone'] as String);
+          await prefs.setBool(_kPasskeyRegisteredKey, true);
+        }
+        if (mounted) {
+          unawaited(Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomePage()),
+          ));
+        }
+      } else {
+        _showError('一键登录失败: ${result.error}');
+      }
+    } finally {
+      if (mounted) setState(() => _oneClickLoading = false);
     }
   }
 
@@ -447,6 +492,27 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           )
                         : Text(_isRegister ? '注册' : '登录'),
+                  ),
+                ),
+
+                // ── 运营商一键登录（无需输入手机号和验证码） ──
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _oneClickLoading ? null : _oneClickLogin,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                    ),
+                    child: _oneClickLoading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              semanticsLabel: '一键登录中',
+                            ),
+                          )
+                        : const Text('本机号码一键登录'),
                   ),
                 ),
 

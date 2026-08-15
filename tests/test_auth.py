@@ -2,7 +2,9 @@ import pytest
 from httpx import AsyncClient
 
 from app.auth.paseto_handler import create_token
+from app.config import get_settings
 from app.models.user import User
+from app.services import phone_number_auth_service
 from app.services.user_service import _hash_password
 
 
@@ -322,3 +324,91 @@ async def test_token_payload_contains_claims(client: AsyncClient):
     assert payload["role"] == "homeowner"
     assert "iat" in payload
     assert "exp" in payload
+
+
+# ═══════════════════════════════════════════
+#  运营商一键登录（阿里云号码认证）
+# ═══════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_oneclick_login_creates_and_reuses_user(client: AsyncClient, monkeypatch):
+    """一键登录：mock 阿里云取号返回手机号，首次创建用户，再次登录复用同一用户"""
+    async def fake_get_mobile(access_token: str) -> str:
+        return "13900014141"
+
+    monkeypatch.setattr(phone_number_auth_service, "get_mobile", fake_get_mobile)
+
+    first = await client.post(
+        "/api/auth/oneclick/login",
+        json={"access_token": "fake-token"},
+    )
+    assert first.status_code == 200
+    data = first.json()
+    assert "access_token" in data
+    assert data["user"]["phone"] == "13900014141"
+    assert data["token_type"] == "Bearer"
+
+    second = await client.post(
+        "/api/auth/oneclick/login",
+        json={"access_token": "fake-token-2"},
+    )
+    assert second.status_code == 200
+    assert second.json()["user"]["id"] == data["user"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_oneclick_login_disabled(client: AsyncClient, monkeypatch):
+    """一键登录功能关闭时应返回 503"""
+    monkeypatch.setattr(get_settings(), "phone_oneclick_enabled", False)
+    response = await client.post(
+        "/api/auth/oneclick/login",
+        json={"access_token": "fake-token"},
+    )
+    assert response.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_oneclick_login_provider_error(client: AsyncClient, monkeypatch):
+    """阿里云取号失败时应返回 502"""
+    async def fake_get_mobile(access_token: str) -> str:
+        raise phone_number_auth_service.PhoneAuthError("取号失败")
+
+    monkeypatch.setattr(phone_number_auth_service, "get_mobile", fake_get_mobile)
+    response = await client.post(
+        "/api/auth/oneclick/login",
+        json={"access_token": "fake-token"},
+    )
+    assert response.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_oneclick_h5_auth_token(client: AsyncClient, monkeypatch):
+    """H5 鉴权端点应返回 accessToken + jwtToken"""
+    monkeypatch.setattr(get_settings(), "aliyun_phone_auth_scene_code", "FC000000")
+
+    async def fake_get_auth_token(scene_code: str, url: str, origin: str) -> dict:
+        return {"access_token": "at", "jwt_token": "jt"}
+
+    monkeypatch.setattr(phone_number_auth_service, "get_auth_token", fake_get_auth_token)
+    response = await client.post("/api/auth/oneclick/h5/auth-token")
+    assert response.status_code == 200
+    assert response.json()["access_token"] == "at"
+    assert response.json()["jwt_token"] == "jt"
+
+
+@pytest.mark.asyncio
+async def test_oneclick_h5_login(client: AsyncClient, monkeypatch):
+    """H5 一键登录：mock 阿里云取号返回手机号并签发 token"""
+    async def fake_get_phone_with_token(sp_token: str) -> str:
+        return "13900015151"
+
+    monkeypatch.setattr(phone_number_auth_service, "get_phone_with_token", fake_get_phone_with_token)
+    response = await client.post(
+        "/api/auth/oneclick/h5/login",
+        json={"sp_token": "fake-sp-token"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["user"]["phone"] == "13900015151"
+    assert "access_token" in data

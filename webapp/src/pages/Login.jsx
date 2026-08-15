@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
-import { login, register, demoLogin, DEMO_ACCOUNTS } from '../lib/api'
+import { login, register, demoLogin, DEMO_ACCOUNTS, getOneClickAuthToken, oneClickH5Login } from '../lib/api'
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams()
@@ -57,6 +57,51 @@ export default function LoginPage() {
     setBusy(false)
     setDemoPhone(null)
     afterAuth(r, 'demo', account.label)
+  }
+
+  // 运营商一键登录（H5）：后端取鉴权 Token → JS SDK 拉起授权页拿 spToken → 换 PASETO Token。
+  // 页面需通过 <script> 引入阿里云 numberAuth-web-sdk.js（挂载 window.PhoneNumberServer），
+  // 未引入时优雅降级提示，不影响密码登录。
+  const oneClickSubmit = async () => {
+    setErr(null)
+    setBusy(true)
+    try {
+      const auth = await getOneClickAuthToken()
+      if (!auth.isSuccess) {
+        setErr(auth.error || '一键登录鉴权失败')
+        return
+      }
+      const { access_token: accessToken, jwt_token: jwtToken } = auth.data || {}
+      if (!window.PhoneNumberServer) {
+        setErr('本机号码一键登录需引入阿里云 H5 SDK（页面未加载 numberAuth-web-sdk.js）')
+        return
+      }
+      const spToken = await new Promise((resolve, reject) => {
+        const server = new window.PhoneNumberServer()
+        server.checkLoginAvailable({
+          accessToken,
+          jwtToken,
+          success: () => {
+            server.getLoginToken({
+              authPageOption: {},
+              success: (res) => resolve(res && typeof res === 'object' ? res.spToken : undefined),
+              error: (res) => reject(new Error((res && res.msg) || '授权失败')),
+            })
+          },
+          error: (res) => reject(new Error((res && res.msg) || '鉴权失败')),
+        })
+      })
+      if (!spToken) {
+        setErr('一键登录未获取到授权 Token')
+        return
+      }
+      const r = await oneClickH5Login(spToken)
+      afterAuth(r, 'login')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '一键登录失败')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -127,6 +172,17 @@ export default function LoginPage() {
             {busy ? '请稍候…' : mode === 'login' ? '登 录' : '注册并登录'}
           </button>
         </form>
+
+        {/* 运营商一键登录（H5） */}
+        <button
+          type="button"
+          className="btn"
+          onClick={oneClickSubmit}
+          disabled={busy}
+          style={{ marginTop: 12 }}
+        >
+          {busy ? '请稍候…' : '本机号码一键登录'}
+        </button>
 
         {err && <div className="auth-err">{err}</div>}
 

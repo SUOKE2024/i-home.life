@@ -2637,7 +2637,7 @@ export interface AuditLogItem {
   action: string;
   resource_type: string | null;
   resource_id: string | null;
-  details: string | null;
+  details: Record<string, unknown> | string | null;
   request_ip: string | null;
   user_agent: string | null;
   created_at: string | null;

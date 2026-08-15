@@ -567,6 +567,23 @@ class ApiClient {
   Future<Result<dynamic>> deletePasskey(String credentialId) =>
       delete('/auth/webauthn/credentials/$credentialId');
 
+  // ── 运营商一键登录（阿里云号码认证）──
+
+  /// App 一键登录：用号码认证 SDK 返回的 access_token 换取 PASETO Token。
+  /// 成功时自动保存 token（与密码登录一致）。
+  Future<Result<dynamic>> oneClickLogin(String accessToken) async {
+    final result = await post('/auth/oneclick/login', {
+      'access_token': accessToken,
+    });
+    if (result.isSuccess && result.data != null) {
+      final data = result.data as Map<String, dynamic>;
+      if (data['access_token'] != null) {
+        await saveToken(data['access_token'] as String);
+      }
+    }
+    return result;
+  }
+
   // ── 项目 ──
 
   Future<Result<dynamic>> getProjects() => get('/projects');

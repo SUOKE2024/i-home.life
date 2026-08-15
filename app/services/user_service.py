@@ -105,6 +105,26 @@ async def create_passkey_user(
     return user
 
 
+async def get_or_create_phone_user(db: AsyncSession, phone: str) -> User:
+    """按手机号查找用户，不存在则创建无密码用户（供一键登录使用）。"""
+    result = await db.execute(select(User).where(User.phone == phone))
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+
+    user = User(
+        id=str(uuid.uuid4()),
+        phone=phone,
+        name=f"用户{phone[-4:]}",
+        role="homeowner",
+        hashed_password=None,  # 一键登录用户无密码，后续可绑定密码/Passkey
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
 async def authenticate_user(db: AsyncSession, phone: str, password: str) -> User | None:
     result = await db.execute(select(User).where(User.phone == phone))
     user = result.scalar_one_or_none()

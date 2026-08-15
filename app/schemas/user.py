@@ -20,6 +20,18 @@ class UserLogin(BaseModel):
     password: str
 
 
+class OneClickLoginRequest(BaseModel):
+    """App 一键登录请求：access_token 由阿里云号码认证 SDK 获取"""
+
+    access_token: str = Field(min_length=1)
+
+
+class H5OneClickLoginRequest(BaseModel):
+    """H5 一键登录请求：sp_token 由 H5 JS SDK 获取"""
+
+    sp_token: str = Field(min_length=1)
+
+
 class UserResponse(BaseModel):
     id: str
     phone: str

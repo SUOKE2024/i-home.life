@@ -46,6 +46,11 @@ function fmtDate(v: string | null | undefined): string {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('zh-CN', { hour12: false });
 }
 
+function fmtDetails(v: Record<string, unknown> | string | null | undefined): string {
+  if (v == null) return '';
+  return typeof v === 'string' ? v : (JSON.stringify(v) ?? '');
+}
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const [roleFilter, setRoleFilter] = useState('');
@@ -241,7 +246,7 @@ export default function AdminPage() {
                       <td>{log.resource_type ? `${log.resource_type}${log.resource_id ? `/${log.resource_id}` : ''}` : '—'}</td>
                       <td>{log.user_id ?? '—'}</td>
                       <td>{log.request_ip ?? '—'}</td>
-                      <td title={log.details ?? ''}>{(log.details ?? '').slice(0, 40) || '—'}</td>
+                      <td title={fmtDetails(log.details)}>{fmtDetails(log.details).slice(0, 40) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
