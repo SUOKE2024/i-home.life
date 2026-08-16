@@ -61,6 +61,23 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+dependency_overrides:
+  # 2026-08-16 CI 修复：image_picker_android 0.8.13+17 起在其 build.gradle.kts
+  # 使用 kotlin{compilerOptions{}} DSL 但未在 plugins{} 块应用 kotlin-android
+  # （依赖宿主侧自动应用，面向 AGP9/新 Flutter），在本项目 Flutter 3.41.7 +
+  # KGP 2.2.20 下脚本编译失败（Unresolved reference: compilerOptions），
+  # Android release 构建必挂（CI apk-size-budget / flutter-perf-baseline 自 #82 起）。
+  # pin 回 +16（无 kotlin DSL 用法，运行期由 Flutter 插件加载器应用 Kotlin）。
+  image_picker_android: 0.8.13+16
+  # 同批损坏（2026-08-16 扫描 pubspec.lock 全量 Android 插件确认共 5 个），
+  # 均为同一模式：build.gradle.kts 用 kotlin{compilerOptions{}} DSL 但 plugins{}
+  # 块未应用 kotlin-android（注释掉，面向 AGP9），KGP 2.2.20 下脚本编译失败。
+  # 各回退一个版本（经 pub.dev archive 逐一验证为无此问题）：
+  local_auth_android: 2.0.7            # 坏 2.0.8 → 好 2.0.7（无 kotlin DSL）
+  permission_handler_android: 13.0.1   # 坏 14.0.0 → 好 13.0.1（groovy gradle）
+  shared_preferences_android: 2.4.22   # 坏 2.4.23 → 好 2.4.22（DSL 有插件应用）
+  url_launcher_android: 6.3.29         # 坏 6.3.30 → 好 6.3.29（无 kotlin DSL）
+
 flutter:
   uses-material-design: true
 
