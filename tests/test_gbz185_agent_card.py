@@ -108,6 +108,43 @@ def test_build_acdl_structure():
     assert build_acdl("designer", capabilities=["自定义能力"])["agent"]["capabilities"] == ["自定义能力"]
 
 
+# ── build_acdl：v1.14.1 ontology 单源接入 ─────────────────
+
+
+def test_build_acdl_capabilities_from_ontology():
+    """kitchen 不在 DEFAULT_CAPABILITIES → capabilities 必来自 agent_ontology.json（单源验证）"""
+    acdl = build_acdl("kitchen")
+    # agent_ontology.json 中 kitchen 的能力首项「橱柜布局」
+    assert acdl["agent"]["capabilities"][0] == "橱柜布局"
+    assert "水电走线" in acdl["agent"]["capabilities"]
+
+
+def test_build_acdl_ontology_metadata_present():
+    """本体命中时 acdl 携带 ontology 元数据（分类/职责/决策边界）"""
+    acdl = build_acdl("designer")
+    onto = acdl.get("ontology")
+    assert onto is not None
+    assert onto["source"] == "agent_ontology.json"
+    assert onto["category"] == "execution"
+    assert "HC-001" in onto["decision_boundary"]  # 承重结构红线
+
+
+def test_build_acdl_ontology_missing_falls_back(monkeypatch):
+    """本体加载失败/未收录 → 回退 DEFAULT_CAPABILITIES（诚实降级，行为向后兼容）"""
+    from app.services import agent_identity_card as svc
+
+    monkeypatch.setattr(svc, "_ontology_agent", lambda name: None)
+    acdl = build_acdl("designer")
+    assert acdl["agent"]["capabilities"] == list(
+        svc.DEFAULT_CAPABILITIES["designer"]
+    )
+    assert "ontology" not in acdl
+    # 未收录 agent 仍回退 generic
+    assert build_acdl("no_such_agent")["agent"]["capabilities"] == list(
+        svc.DEFAULT_CAPABILITIES["generic"]
+    )
+
+
 # ── get_agent_identity ────────────────────────────────────
 
 

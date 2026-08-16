@@ -83,19 +83,45 @@ def generate_aid(agent_name: str, security_level: str = "2") -> str:
     return prefix + _luhn_check_digit(prefix)
 
 
+def _ontology_agent(agent_name: str) -> dict | None:
+    """从 agent_ontology.json 取该 Agent 的本体描述（v1.14.1 接入）。
+
+    单源接入：此前本模块用硬编码 DEFAULT_CAPABILITIES，与本体 JSON 平行维护
+    （2026-08-16 全景评估 P3：ontology 零接入 Agent 链路）。现以本体为
+    capabilities 的第一来源；本体缺失/加载失败返回 None，回退硬编码表。
+    """
+    try:
+        from app.services.ontology_service import load_ontology
+        data = load_ontology("agent") or {}
+    except Exception:  # noqa: BLE001 — 本体不可用不阻断身份卡
+        return None
+    for entry in data.get("agents", []):
+        if isinstance(entry, dict) and entry.get("id") == agent_name:
+            return entry
+    return None
+
+
 def build_acdl(agent_name: str, capabilities: list[str] | None = None) -> dict:
     """构建 ACDL 能力描述（GB/Z 185.4 JSON）：
     {"schema": "GB-Z-185.4", "acdl_version": "1.0",
      "agent": {"agent_id": <aid>, "name": agent_name, "security_level": "L2",
-               "capabilities": capabilities 或默认按 agent 类型给 2-4 项中文能力,
-               "interface": {"discovery": "a2a", "transport": ["json-rpc"], "endpoint_hint": "本平台内部"}}}
+               "capabilities": capabilities 或本体/默认按 agent 类型给 2-4 项中文能力,
+               "interface": {"discovery": "a2a", "transport": ["json-rpc"], "endpoint_hint": "本平台内部"}},
+     "ontology": {"category": ..., "role": ..., "decision_boundary": ..., "source": ...}（本体命中时）}
+
+    v1.14.1：未显式传 capabilities 时优先取 agent_ontology.json（26 Agent 单源），
+    本体未收录/加载失败回退 DEFAULT_CAPABILITIES（诚实降级，行为向后兼容）。
     """
     aid = generate_aid(agent_name)
     # 安全分级字符位于 AID 第 12 位（9 厂商 + 2 类型 + 1 分级），与身份码保持一致
     level_digit = aid[11]
+    onto = _ontology_agent(agent_name)
     if capabilities is None:
-        capabilities = list(DEFAULT_CAPABILITIES.get(agent_name, DEFAULT_CAPABILITIES["generic"]))
-    return {
+        if onto and onto.get("capabilities"):
+            capabilities = list(onto["capabilities"])
+        else:
+            capabilities = list(DEFAULT_CAPABILITIES.get(agent_name, DEFAULT_CAPABILITIES["generic"]))
+    acdl: dict = {
         "schema": "GB-Z-185.4",
         "acdl_version": "1.0",
         "agent": {
@@ -110,6 +136,15 @@ def build_acdl(agent_name: str, capabilities: list[str] | None = None) -> dict:
             },
         },
     }
+    if onto:
+        acdl["ontology"] = {
+            "display_name": onto.get("name", ""),
+            "category": onto.get("category", ""),
+            "role": onto.get("role", ""),
+            "decision_boundary": onto.get("decision_boundary", ""),
+            "source": "agent_ontology.json",
+        }
+    return acdl
 
 
 def get_agent_identity(agent_name: str, capabilities: list[str] | None = None) -> dict:
