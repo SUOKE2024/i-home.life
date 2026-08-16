@@ -113,11 +113,10 @@ jobs:
           flake8 tests/ --max-line-length=120 --extend-ignore=E203,W503
 
       - name: Type check (mypy)
-        # allow-failure: 当前为信息收集阶段，不阻塞 CI
-        # 逐步修复类型标注后可将 allow-failure 改为 false
-        continue-on-error: true
+        # v1.14.1（2026-08-16 评估 P2a）：类型债务已清零（374 源文件 0 错误），
+        # 由 continue-on-error 转为阻塞门禁（与 CLAUDE.md「mypy 必跑」声明一致）
         run: |
-          mypy app/ --ignore-missing-imports --no-strict-optional --follow-imports=silent || true
+          mypy app/ --ignore-missing-imports --no-strict-optional --follow-imports=silent
 
   # ── DESIGN.md 校验（Google design.md 规范，2026-08-11 借鉴落地）──
   # 根目录 DESIGN.md 是「设计版 CLAUDE.md」：YAML token（规范值）+ Markdown 设计理念。
