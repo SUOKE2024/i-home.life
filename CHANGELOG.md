@@ -22,6 +22,11 @@
   回滚：env 设 `PASETO_REVOCATION_REDIS_ENABLED=false` 即可。
 - **P2 mypy CI 转阻塞门禁**：类型债务已清零（374 源文件 0 错误），
   [ci.yml](.github/workflows/ci.yml) 由 continue-on-error 转阻塞（与 CLAUDE.md 声明一致）。
+  附带修复 CI mypy 1.19.x（无 SQLAlchemy stubs）报出的 8 处 `no-any-return`
+  （rbac/auth 变量注解 `Project | None` / `User | None` + rate_limit/ihome_eval str() 包裹，
+  本地 mypy 2.3.0 与 CI 1.19.1 双版本均 0 错误）；另固化工作树遗留的 2 处 E501 修复
+  （agents.py SSE 预热 / test_new_features），webapp package.json 回退误扫入的外部
+  router7 升级（与 lock 失同步致 npm ci 失败）。
 - **P2 e2e 覆盖率补齐**：新增 [test_e2e_agent_chain.py](tests/e2e/test_e2e_agent_chain.py)
   11 用例（对话→会话持久化 / 专用 Agent 契约 / L4 反馈 / 编排规则兜底 / 记忆 CRUD /
   身份卡本体单源 / 本体 API / A2A Agent Card / 工具选择基线 / 自进化周期端点 / 鉴权边界），

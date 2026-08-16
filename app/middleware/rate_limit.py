@@ -89,7 +89,7 @@ def _get_client_ip(request: Request) -> str:
     xff = request.headers.get("x-forwarded-for")
     if xff:
         # X-Forwarded-For: client, proxy1, proxy2 — 取第一个
-        return xff.split(",")[0].strip()
+        return str(xff.split(",")[0].strip())
     client = request.client
     return client.host if client else "unknown"
 

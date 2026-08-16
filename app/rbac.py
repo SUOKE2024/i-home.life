@@ -78,7 +78,7 @@ async def verify_project_access(
 ) -> Project:
     """验证项目访问权限：admin 或项目 owner"""
     result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
+    project: Project | None = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 
@@ -114,7 +114,7 @@ async def verify_project_collaborator_access(
     与 verify_project_access 的区别：允许非 owner 的认证角色访问。
     """
     result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
+    project: Project | None = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
 

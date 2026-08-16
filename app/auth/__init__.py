@@ -78,7 +78,7 @@ async def get_current_user(
             _user_cache.pop(user_id, None)
 
     result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    user: User | None = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

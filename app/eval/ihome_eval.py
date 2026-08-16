@@ -933,7 +933,7 @@ async def persist_eval_snapshot(db, report: IHomeEvalReport) -> str:
     db.add(record)
     if db.in_transaction():
         await db.commit()
-    return record.id
+    return str(record.id)
 
 
 async def list_eval_snapshots(db, limit: int = 50) -> list[dict]:
