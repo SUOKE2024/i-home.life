@@ -311,3 +311,26 @@ async def get_agent_governance_audit(
     """
     from app.services.agent_governance_audit import run_governance_audit
     return run_governance_audit()
+
+
+@router.get("/skill-evolution")
+async def run_skill_evolution(
+    current_user: User = Depends(require_platform_manage),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """自进化周期触发（v1.14.1，2026-08-16 全景评估 P0 修复）。
+
+    编排 Skill 蒸馏（Case 簇→DRAFT Skill）+ 三维质控（DRAFT→ACTIVE 晋升 /
+    低质 archive）。此前 distill/evaluate 在生产代码零调用方（孤岛函数），
+    蒸馏出的 Skill 永远无法进入注入链——本端点为其生产触发方。
+
+    阿里云 FC 定时触发器可复用 daily-briefing 的触发模式调用本端点
+    （周期建议每日/每周一次）。子阶段受各自 feature flag 控制
+    （agent_skill_distillation_enabled / agent_skill_evolution_enabled），
+    关闭时报告 skipped_reasons 诚实标注。
+    """
+    from app.services.agent_skill_evolution_service import run_skill_evolution_cycle
+
+    report = await run_skill_evolution_cycle(db)
+    await db.commit()
+    return report

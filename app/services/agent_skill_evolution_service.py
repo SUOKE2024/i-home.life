@@ -26,7 +26,7 @@ import math
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -43,6 +43,12 @@ _DISTILL_THRESHOLD = 3
 
 # 配对显著性检验阈值（z-score，借鉴 HarnessBank Gated Screening）
 _SIGNIFICANCE_Z = 1.96  # 95% 置信
+
+# v1.14.1 进化周期单次处理上限（防单周期 LLM 成本失控，诚实计入报告）
+_CYCLE_MAX_CLUSTERS = 50
+_CYCLE_MAX_EVALUATIONS = 200
+# 蒸馏者标识：区分「本周期新建」与「合并到已有」（created_by 回查）
+_CYCLE_CREATED_BY = "skill_evolution_cycle"
 
 
 async def distill_skill_from_cases(
@@ -431,6 +437,10 @@ async def get_skill_for_injection(
     """检索可注入的 Skill（供 BaseAgent 执行前使用）。
 
     优先取 ACTIVE + 高 utility_score 的 Skill。
+    v1.14.1 DRAFT 试用期注入：无 ACTIVE Skill 时回退取 DRAFT——打破
+    「DRAFT 无使用记录→无法晋升 ACTIVE→注入只取 ACTIVE→永远无使用记录」
+    死锁。DRAFT 注入同样经 _maybe_record_skill_outcome 回写成败，三维质控
+    达标（overall>=0.6 且 total>=3）即晋升，持续低质则 archived（金丝雀语义）。
     """
     settings = get_settings()
     if not settings.agent_skill_distillation_enabled:
@@ -452,4 +462,143 @@ async def get_skill_for_injection(
         .limit(1)
     )
     result = await db.execute(stmt)
-    return result.scalars().first()
+    active = result.scalars().first()
+    if active is not None:
+        return active
+
+    # v1.14.1 DRAFT 试用期回退（无 ACTIVE 时）
+    draft_stmt = (
+        select(AgentSkill)
+        .where(
+            and_(
+                AgentSkill.agent_name == agent_name,
+                AgentSkill.owner_scope == scope,
+                AgentSkill.owner_id == owner_id,
+                AgentSkill.status == STATUS_DRAFT,
+                AgentSkill.deleted_at.is_(None),
+            )
+        )
+        .order_by(AgentSkill.updated_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(draft_stmt)
+    draft = result.scalars().first()
+    if draft is not None:
+        logger.debug(
+            "get_skill_for_injection: 无 ACTIVE Skill，回退 DRAFT 试用期注入 %s", draft.id,
+        )
+    return draft
+
+
+async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
+    """v1.14.1 自进化周期编排：蒸馏未消化 Case 簇 + 三维质控评估存量 Skill。
+
+    此前 distill_skill_from_cases / evaluate_skill_quality 在生产代码零调用方
+    （仅测试与 verify 脚本可达，蒸馏出的 DRAFT Skill 无法进入注入链——
+    2026-08-16 全景评估 P0 发现）。本函数是生产触发方，由
+    GET /api/admin/skill-evolution 调用（阿里云 FC 定时触发器可复用
+    daily-briefing 的触发模式）。
+
+    流程：
+      1. 蒸馏：按 (agent_name, scope, owner_id) 聚类未蒸馏高质量 Case
+         （>= _DISTILL_THRESHOLD），逐簇调用 distill_skill_from_cases
+      2. 质控：评估所有 DRAFT/ACTIVE 且有使用记录的 Skill，
+         达标 DRAFT→ACTIVE 晋升 / 低质 auto-archive（evaluate_skill_quality 内建）
+
+    Returns:
+        结构化周期报告（JSON 可序列化，含诚实降级原因与处理上限标注）
+    """
+    settings = get_settings()
+    report: dict = {
+        "cycle": "skill_evolution",
+        "distillation_enabled": settings.agent_skill_distillation_enabled,
+        "evolution_enabled": settings.agent_skill_evolution_enabled,
+        "clusters_found": 0,
+        "distilled_new": [],
+        "merged_existing": [],
+        "evaluated": 0,
+        "promoted_draft_to_active": [],
+        "archived_low_quality": [],
+        "limits": {"max_clusters": _CYCLE_MAX_CLUSTERS, "max_evaluations": _CYCLE_MAX_EVALUATIONS},
+        "skipped_reasons": [],
+    }
+
+    # ── 1. 蒸馏未消化 Case 簇 ──
+    if not settings.agent_skill_distillation_enabled:
+        report["skipped_reasons"].append("agent_skill_distillation_enabled=False，跳过蒸馏")
+    else:
+        cluster_stmt = (
+            select(
+                AgentCase.agent_name,
+                AgentCase.owner_id,
+                AgentCase.scope,
+                func.count(AgentCase.id).label("case_count"),
+            )
+            .where(
+                and_(
+                    AgentCase.quality_score >= 0.5,
+                    AgentCase.distilled_to_skill_id.is_(None),
+                    AgentCase.deleted_at.is_(None),
+                )
+            )
+            .group_by(AgentCase.agent_name, AgentCase.owner_id, AgentCase.scope)
+            .having(func.count(AgentCase.id) >= _DISTILL_THRESHOLD)
+            .order_by(func.count(AgentCase.id).desc())
+            .limit(_CYCLE_MAX_CLUSTERS)
+        )
+        result = await db.execute(cluster_stmt)
+        clusters = result.all()
+        report["clusters_found"] = len(clusters)
+
+        for agent_name, owner_id, scope, _count in clusters:
+            skill = await distill_skill_from_cases(
+                db, agent_name=agent_name, owner_id=owner_id, scope=scope,
+                created_by=_CYCLE_CREATED_BY,
+            )
+            if skill is None:
+                continue  # LLM 失败/不足阈值（best-effort，已在函数内 log）
+            entry = {"skill_id": skill.id, "name": skill.name, "agent": agent_name}
+            if skill.created_by == _CYCLE_CREATED_BY and skill.version == 1:
+                report["distilled_new"].append(entry)
+            else:
+                report["merged_existing"].append(entry)
+
+    # ── 2. 三维质控评估（有使用记录的 DRAFT/ACTIVE）──
+    if not settings.agent_skill_evolution_enabled:
+        report["skipped_reasons"].append("agent_skill_evolution_enabled=False，跳过质控")
+    else:
+        eval_stmt = (
+            select(AgentSkill)
+            .where(
+                and_(
+                    AgentSkill.status.in_([STATUS_DRAFT, STATUS_ACTIVE]),
+                    AgentSkill.deleted_at.is_(None),
+                    (AgentSkill.success_count + AgentSkill.fail_count) > 0,
+                )
+            )
+            .limit(_CYCLE_MAX_EVALUATIONS)
+        )
+        result = await db.execute(eval_stmt)
+        skills = list(result.scalars().all())
+        for skill in skills:
+            before_status = skill.status
+            scores = await evaluate_skill_quality(db, skill_id=skill.id)
+            if scores is None:
+                continue
+            report["evaluated"] += 1
+            if before_status == STATUS_DRAFT and skill.status == STATUS_ACTIVE:
+                report["promoted_draft_to_active"].append(
+                    {"skill_id": skill.id, "name": skill.name, "overall": scores["overall"]},
+                )
+            elif before_status != STATUS_ARCHIVED and skill.status == STATUS_ARCHIVED:
+                report["archived_low_quality"].append(
+                    {"skill_id": skill.id, "name": skill.name, "overall": scores["overall"]},
+                )
+
+    logger.info(
+        "skill_evolution_cycle: clusters=%d new=%d merged=%d evaluated=%d promoted=%d archived=%d",
+        report["clusters_found"], len(report["distilled_new"]), len(report["merged_existing"]),
+        report["evaluated"], len(report["promoted_draft_to_active"]),
+        len(report["archived_low_quality"]),
+    )
+    return report
