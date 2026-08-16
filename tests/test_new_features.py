@@ -279,7 +279,8 @@ async def test_crew_match(client: AsyncClient):
 
     admin_user_id = str(uuid.uuid4())
     async with async_session() as db:
-        db.add(User(id=admin_user_id, phone=f"139{uuid.uuid4().hex[:8]}", name="审核管理员", role="admin", hashed_password="x"))
+        db.add(User(id=admin_user_id, phone=f"139{uuid.uuid4().hex[:8]}", name="审核管理员",
+                    role="admin", hashed_password="x"))
         await db.commit()
     admin_headers = {"Authorization": f"Bearer {create_token(admin_user_id, 'admin')}"}
     for crew_id in crew_ids:

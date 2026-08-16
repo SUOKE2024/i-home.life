@@ -1222,7 +1222,8 @@ async def chat_stream(  # noqa: C901
     async def generate_sse():
         nonlocal user_ctx  # v1.14.x: user_ctx 在闭包内被 _inject_preference_hint 更新，需声明 nonlocal
         # v1.14.x SSE 预热：classify/think 前立即发送初始事件，避免首 token 长时间无反馈
-        yield f"data: {json.dumps({'event': 'thinking_step', 'content': '开始分析您的请求…', 'agent_type': 'orchestrator'})}\n\n"
+        warmup = json.dumps({'event': 'thinking_step', 'content': '开始分析您的请求…', 'agent_type': 'orchestrator'})
+        yield f"data: {warmup}\n\n"
         await asyncio.sleep(0.01)
 
         classification = None  # v1.1.29: always defined for closure safety
