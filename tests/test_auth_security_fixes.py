@@ -20,6 +20,7 @@ from app.auth.paseto_handler import (
     TokenInvalidError,
     _revoked_tokens,
     create_token,
+    is_token_revoked,
     revoke_token,
     verify_token,
 )
@@ -132,6 +133,39 @@ async def test_revoke_expired_token_no_op():
     revoke_token(payload["jti"], past_exp)
     # blacklist 应为空
     assert len(_revoked_tokens) == 0
+
+
+def test_revocation_redis_default_on_and_degrades_to_memory():
+    """v1.14.1: flag 默认 True（多 worker 撤销共享）；URL 空 → best-effort 降级内存。
+
+    回归锁定：防止默认值被无意翻回 False（多 worker 下 logout 撤销失真）。
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from app.auth import paseto_handler
+    from app.config import get_settings
+
+    settings = get_settings()
+    assert settings.paseto_revocation_redis_enabled is True, (
+        "paseto_revocation_redis_enabled 默认应为 True（v1.14.1 起，多 worker 撤销共享）"
+    )
+    # URL 未配置 → _use_redis_backend() False → 内存降级（生产/测试行为一致）
+    monkey_url = settings.paseto_revocation_redis_url
+    try:
+        settings.paseto_revocation_redis_url = ""
+        # 重置 memo 以走「URL 空」分支
+        paseto_handler._redis_init_attempted = True
+        paseto_handler._redis_client = None
+        assert paseto_handler._use_redis_backend() is False
+        # 内存撤销链路仍工作
+        jti = "jti-degrade-check"
+        exp_iso = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        revoke_token(jti, exp_iso)
+        assert is_token_revoked(jti) is True
+    finally:
+        settings.paseto_revocation_redis_url = monkey_url
+        paseto_handler._redis_init_attempted = False
+        paseto_handler._redis_client = None
 
 
 # ═══════════════════════════════════════════════════════════

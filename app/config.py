@@ -82,9 +82,10 @@ class Settings(BaseSettings):
     # 仅在 strict_mode=False 的回滚路径或密钥为空字符串时生效。
     allow_plaintext_session: bool = False
     # v1.8.2 P2.5: Token 撤销列表 Redis 化（多 worker 共享，评估报告建议项）
-    # False（默认）= 进程内 dict（FC 单实例场景 OK，logout 仅当前 worker 生效）
-    # True = Redis 共享撤销列表（多 worker 必需），Redis 不可用时 best-effort 降级到内存
-    paseto_revocation_redis_enabled: bool = False
+    # False = 进程内 dict（logout 仅当前 worker 生效，多 worker 下撤销失真）
+    # True（默认，v1.14.1 起）= Redis 共享撤销列表（多 worker 必需），
+    #   URL 未配置或 Redis 不可用时 best-effort 降级到内存（行为与 False 一致，仅多一次 warning）
+    paseto_revocation_redis_enabled: bool = True
     paseto_revocation_redis_url: str = ""  # 留空则降级到内存（不自动复用 cache_service）
 
     # ── WebAuthn / FIDO2 / Passkey ──
