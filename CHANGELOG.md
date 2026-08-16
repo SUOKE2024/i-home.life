@@ -2,6 +2,40 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.14.1] - 2026-08-16（全景评估 P0-P3 修复）
+
+### 全景全量全链路评估执行（2026-08-16，三路代码级审计 + 主代理核验 + 2026 前沿对标）
+- **P0 自进化管线生产触发方**（修复「声称闭环实际断裂」）：
+  `distill_skill_from_cases` / `evaluate_skill_quality` 此前在生产代码零调用方（仅测试
+  与 verify 脚本可达），蒸馏出的 DRAFT Skill 永远无法晋升进入注入链。新增
+  [run_skill_evolution_cycle](app/services/agent_skill_evolution_service.py)（聚类发现
+  未蒸馏 Case 簇 → 蒸馏 → 三维质控 → DRAFT→ACTIVE 晋升 / 低质 archive，单周期
+  上限 50 簇/200 评估防 LLM 成本失控）+ 生产端点 `GET /api/admin/skill-evolution`
+  （平台管理员，FC 定时触发器可复用 daily-briefing 触发模式）。
+- **P0 DRAFT 试用期注入**：[get_skill_for_injection](app/services/agent_skill_evolution_service.py)
+  无 ACTIVE Skill 时回退 DRAFT——打破「无使用记录→无法晋升→注入只取 ACTIVE→永远无
+  使用记录」死锁（金丝雀语义：DRAFT 注入同样回写成败，质控达标晋升/低质淘汰）。
+- **P1 PASETO 撤销列表 Redis 化默认开启**（多 worker 安全修复）：生产 4 workers 下
+  进程内 dict 撤销列表导致 logout 仅当前 worker 生效。`paseto_revocation_redis_enabled`
+  默认 False→True（URL 空或 Redis 不可用 best-effort 降级内存，行为不变仅多一次
+  warning）；`.env.production` 指向本机 Redis 独立 DB /1（防缓存 flush 误清撤销表）。
+  回滚：env 设 `PASETO_REVOCATION_REDIS_ENABLED=false` 即可。
+- **P2 mypy CI 转阻塞门禁**：类型债务已清零（374 源文件 0 错误），
+  [ci.yml](.github/workflows/ci.yml) 由 continue-on-error 转阻塞（与 CLAUDE.md 声明一致）。
+- **P2 e2e 覆盖率补齐**：新增 [test_e2e_agent_chain.py](tests/e2e/test_e2e_agent_chain.py)
+  11 用例（对话→会话持久化 / 专用 Agent 契约 / L4 反馈 / 编排规则兜底 / 记忆 CRUD /
+  身份卡本体单源 / 本体 API / A2A Agent Card / 工具选择基线 / 自进化周期端点 / 鉴权边界），
+  e2e 7→18 用例。
+- **P3 ontology 接入 Agent 链路**：[agent_identity_card.py](app/services/agent_identity_card.py)
+  ACDL capabilities 改为 agent_ontology.json 单源（覆盖 26 Agent，含 category/role/
+  decision_boundary 元数据块），本体缺失回退原硬编码表（行为向后兼容）。
+- **版本**：1.14.0 → 1.14.1 全链路 15 处同步（config/.env×4/Flutter 1.14.1+48/
+  webapp/console/ci×3/deploy/MCP server/测试断言×3）。
+- **诚实标注（遗留）**：`diagnose_credit_skill_patch`（HarnessBank 归因工具）仍无
+  patch 生产方（无 Skill patch 更新链路，属未来功能）；限流/MCP MRTR 内存态多 worker
+  限制仍在（本轮仅修撤销列表）；依赖 lock 文件未引入（本地 macOS 无 Linux 构建环境，
+  跨平台 wheel 锁定不可靠，留待 CI 侧 pip-compile）。
+
 ## [Unreleased]
 
 ### 借鉴落地：本体/领域知识基座 + 标准目录 + IFC 增强 + 自进化增量（第三轮前沿研究，2026-08-15）

@@ -42,6 +42,7 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.10.2 — 自进化边界测试补全（无新 flag，复用 v1.10.1 回滚清单）"
             echo "  v1.12.0 — 智能体系统性打磨（轨迹持久化 / 编排管线 / LLM 响应缓存 / 分级路由）"
             echo "  v1.13.0 — 工具纪律（tool_argument_validation / parallel_tool_calls）"
+            echo "  v1.14.1 — 全景评估修复（PASETO 撤销 Redis 化；自进化周期复用 v1.10.1 清单）"
             exit 0
             ;;
         --help|-h)
@@ -167,6 +168,14 @@ case "$VERSION" in
         ROLLBACK_FLAGS=(
             "TOOL_ARGUMENT_VALIDATION_ENABLED=false"
             "PARALLEL_TOOL_CALLS_ENABLED=false"
+        )
+        ;;
+    v1.14.1)
+        # v1.14.1 全景评估修复（2026-08-16）
+        # PASETO 撤销列表 Redis 化默认开启 → 回滚置 false（恢复进程内 dict 行为）
+        # 自进化周期端点/DRAFT 试用期注入复用 v1.10.1 三 flag（关闭即回退静态行为）
+        ROLLBACK_FLAGS=(
+            "PASETO_REVOCATION_REDIS_ENABLED=false"
         )
         ;;
     *)

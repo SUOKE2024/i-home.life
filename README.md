@@ -2,10 +2,17 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.14.0 · 设计流程编排 + 确定性空间语义理解（SpatialLM/SpatialGen 确定性兜底）
-> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 105 Service + 129 ORM 模型 + 74 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.14.1 · 自进化闭环生产触发 + 空间语义底座 + 设计流程编排
+> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 111 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-16 · 全景评估 P0-P3 修复（v1.14.1）
+
+- **自进化闭环补全**：`run_skill_evolution_cycle` + `GET /api/admin/skill-evolution` 生产触发方（蒸馏/质控/晋升此前为无调用方的孤岛函数）+ DRAFT 试用期注入打破晋升死锁
+- **安全**：PASETO 撤销列表 Redis 化默认开启（多 worker logout 撤销共享）
+- **门禁**：mypy CI 转阻塞；e2e 7→18 用例（Agent 主链路全覆盖）
+- **本体接入**：身份卡 ACDL 能力改 agent_ontology.json 单源（26 Agent + 决策边界元数据）
 
 ### 2026-08-14 · 空间数字底座（Robot-Ready Home）
 
