@@ -372,12 +372,19 @@ jobs:
             webapp/dist/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/webapp/dist/
 
       - name: Sync backend
+        # v1.14.1 修复（2026-08-16 deploy 首次真实执行暴露）：
+        # 1) 源目录带斜杠（app/ alembic/ scripts/）会把目录内容「平铺」到 /opt/ihome 根，
+        #    破坏 app 包结构（uvicorn 报 Could not import module app.main）。
+        # 2) --delete 会删除 /opt/ihome 下所有不在源列表的内容（webapp/.env/data/knowledge），
+        #    且未排除 .env 导致生产密钥丢失。故去掉 --delete，源目录改不带斜杠，
+        #    并补齐 knowledge 顶层包（app.services 依赖 knowledge.loader）。
         run: |
-          rsync -avz --delete \
+          rsync -avz \
             --exclude='.venv/' --exclude='__pycache__/' --exclude='*.pyc' \
             --exclude='data/' --exclude='.git/' \
+            --exclude='.env' --exclude='.env.*' \
             -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            app/ alembic/ alembic.ini requirements.txt scripts/ \
+            app alembic alembic.ini requirements.txt scripts knowledge \
             ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/ihome/
 
       - name: Install deps & migrate & restart
