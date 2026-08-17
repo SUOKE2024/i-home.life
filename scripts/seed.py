@@ -161,7 +161,10 @@ async def seed():
                 sub_role="curtain_designer", hashed_password=_hash_password("123456"),
             ),
             User(phone="13700137000", name="供应链", role="supplier", hashed_password=_hash_password("123456")),
-            User(phone="13600136000", name="监理", role="supervisor", hashed_password=_hash_password("123456")),
+            User(
+                phone="13600136000", name="监理", role="contractor",
+                sub_role="supervisor", hashed_password=_hash_password("123456"),
+            ),
             User(
                 phone="13400134000", name="电工", role="contractor",
                 sub_role="electrician", hashed_password=_hash_password("123456"),
