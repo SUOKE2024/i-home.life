@@ -38,12 +38,11 @@ class _ProductBatchPageState extends State<ProductBatchPage> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['xlsx', 'csv'],
       );
-      if (result == null || result.files.isEmpty || !mounted) return;
-      final file = result.files.first;
+      if (file == null || !mounted) return;
       final bytes = await file.readAsBytes();
       if (!mounted) return;
       if (bytes.isEmpty) {

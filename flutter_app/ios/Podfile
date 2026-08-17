@@ -28,8 +28,6 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
-
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths
@@ -44,6 +42,9 @@ post_install do |installer|
       config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
       config.build_settings['CODE_SIGNING_IDENTITY'] = ''
       config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+      # use_frameworks! 下 CocoaPods 自动生成的 umbrella 头会用双引号 include，
+      # 触发 "double-quoted include in framework header" 告警，这里关闭。
+      config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
     end
   end
 end

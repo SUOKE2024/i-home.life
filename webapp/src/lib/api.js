@@ -126,11 +126,8 @@ export async function oneClickH5Login(spToken) {
 export const DEMO_ACCOUNTS = [
   { phone: '13800138000', label: '业主 · 张先生', hint: '完整演示项目（推荐）', role: 'homeowner', landing: '/' },
   { phone: '13900139000', label: '设计师 · 李设计师', hint: 'AI 设计工作台', role: 'designer', landing: '/console/' },
-  { phone: '13200132000', label: '窗帘设计师', hint: '定制家具', role: 'designer', sub_role: 'curtain_designer', landing: '/console/custom-furniture' },
   { phone: '13700137000', label: '供应链 · 供应商', hint: '采购与供应', role: 'supplier', landing: '/console/procurement' },
   { phone: '13600136000', label: '监理', hint: '质检验收', role: 'supervisor', landing: '/console/quality' },
-  { phone: '13400134000', label: '电工 · 服务商', hint: '施工任务', role: 'contractor', sub_role: 'electrician', landing: '/console/crews' },
-  { phone: '13300133000', label: '木工 · 服务商', hint: '施工任务', role: 'contractor', sub_role: 'carpenter', landing: '/console/crews' },
   { phone: '13500135000', label: '管理员', hint: '平台全功能', role: 'admin', landing: '/' },
 ]
 

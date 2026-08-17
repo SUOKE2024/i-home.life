@@ -146,7 +146,10 @@ class _AIChatPageState extends State<AIChatPage> {
       _currentProjectId = pid;
       _connectWebSocket();
       if (pc.projects.isEmpty) {
-        pc.loadProjects();
+        // 延迟到当前帧构建完成后再加载，避免 build 阶段触发 notifyListeners
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (pc.projects.isEmpty) pc.loadProjects();
+        });
       }
     }
   }
@@ -1593,14 +1596,14 @@ class _AIChatPageState extends State<AIChatPage> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.pickFiles();
-      if (result == null || result.files.isEmpty || !mounted) return;
-      final file = result.files.first;
-      if (file.path == null) return;
+      final file = await FilePicker.pickFile();
+      if (file == null || file.path == null || !mounted) return;
 
-      final sizeStr = file.size > 1024 * 1024
-          ? '${(file.size / (1024 * 1024)).toStringAsFixed(1)} MB'
-          : '${(file.size / 1024).toStringAsFixed(0)} KB';
+      final length = await file.length();
+      if (!mounted) return;
+      final sizeStr = length > 1024 * 1024
+          ? '${(length / (1024 * 1024)).toStringAsFixed(1)} MB'
+          : '${(length / 1024).toStringAsFixed(0)} KB';
 
       _addMessage(ChatMessage(
         type: ChatMessageType.document,

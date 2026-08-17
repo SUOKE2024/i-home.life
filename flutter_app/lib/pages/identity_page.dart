@@ -72,10 +72,8 @@ class _IdentityPageState extends State<IdentityPage>
 
   Future<void> _pickImage(bool isFront) async {
     try {
-      final result = await FilePicker.pickFiles(type: FileType.image);
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
-      if (file.path == null) return;
+      final file = await FilePicker.pickFile(type: FileType.image);
+      if (file == null || file.path == null) return;
       setState(() {
         if (isFront) {
           _frontPath = file.path;
