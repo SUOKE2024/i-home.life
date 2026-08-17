@@ -191,7 +191,11 @@ def test_qa_detect_defects():
 
 
 def test_qa_detect_defects_no_defects():
-    """工艺缺陷识别 — 无缺陷场景"""
+    """工艺缺陷识别 — 无照片场景
+
+    v1.15.x 走查修复：0 检查项（无现场照片）不再输出「未检出缺陷，工艺合格」
+    伪结论——诚实返回 insufficient_data（数据不足，无法判定）。
+    """
     agent = QAInspectorAgent()
     image_data = {
         "project_id": "P004",
@@ -202,8 +206,9 @@ def test_qa_detect_defects_no_defects():
     result = agent.detect_defects(image_data)
 
     assert result["defect_count"] == 0
-    assert result["verdict"] == "pass"
-    assert "合格" in result["verdict_text"]
+    assert result["checked_items"] == 0
+    assert result["verdict"] == "insufficient_data"
+    assert "数据不足" in result["verdict_text"]
 
 
 # === F38 真实 CV（多模态视觉 LLM）测试 ===

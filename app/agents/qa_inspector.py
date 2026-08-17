@@ -91,6 +91,14 @@ ACCEPTANCE_ITEMS = [
     },
 ]
 
+# v1.15.x 走查修复：中文阶段名 → 标准 code 归一化（此前中文阶段名匹配不到
+# 检查项 → 0 检查项却输出「不合格需返工」伪结论）
+PHASE_ALIASES = {
+    "水电": "mep", "泥木": "masonry", "木工": "carpentry",
+    "油漆": "painting", "安装": "installation",
+}
+PHASE_ALIASES_REVERSE = {v: k for k, v in PHASE_ALIASES.items()}
+
 
 # 缺陷类别（按常见质量缺陷分类）
 DEFECT_CATEGORIES = [
@@ -678,6 +686,19 @@ class QAInspectorAgent(BaseAgent):
         images = project_data.get("images", []) or []
         include_chart = bool(project_data.get("include_chart", False))
 
+        # v1.15.x 走查修复：中文阶段名（水电/泥木/木工/油漆/安装）此前匹配不到
+        # ACCEPTANCE_ITEMS 的英文 code → 0 检查项却给出「不合格需返工」结论。
+        # 中文名归一化为标准 code；仍有未匹配项时计入 unmatched_phases 诚实标注。
+        unmatched_phases: list[str] = []
+        normalized_phases: list[str] = []
+        for phase in phases:
+            code = PHASE_ALIASES.get(str(phase), str(phase))
+            if any(p["phase"] == code for p in ACCEPTANCE_ITEMS):
+                normalized_phases.append(code)
+            else:
+                unmatched_phases.append(str(phase))
+        phases = normalized_phases
+
         # 分项验收
         section_results = []
         total_items = 0
@@ -690,7 +711,16 @@ class QAInspectorAgent(BaseAgent):
             if not phase_def:
                 continue
 
-            results = inspection_results.get(phase, [])
+            results = inspection_results.get(phase, []) or []
+            if not results:
+                # v1.15.x：兼容中文阶段键（如 inspection_results={"水电": [...]}）
+                alias_name = PHASE_ALIASES_REVERSE.get(phase)
+                if alias_name:
+                    results = inspection_results.get(alias_name, []) or []
+            # v1.15.x 防御：inspection_results[phase] 须为列表（含 item/result/issue
+            # 字段）；非列表（如 {"水电": {...}} 中文键/对象形态）安全降级为 mock 判定
+            if not isinstance(results, list):
+                results = []
             item_results = []
             section_passed = 0
             section_failed = 0
@@ -755,7 +785,12 @@ class QAInspectorAgent(BaseAgent):
 
         # 总体验收结论
         overall_pass_rate = round(passed_items / max(total_items, 1) * 100, 2)
-        if overall_pass_rate >= 95:
+        if total_items == 0:
+            # v1.15.x 走查修复：0 检查项不得给出「不合格（需返工）」等伪结论——
+            # 诚实返回「数据不足，无法判定」，并说明需要什么数据。
+            overall_verdict = "insufficient_data"
+            overall_verdict_text = "数据不足，无法判定"
+        elif overall_pass_rate >= 95:
             overall_verdict = "excellent"
             overall_verdict_text = "优秀"
         elif overall_pass_rate >= 85:
@@ -792,6 +827,37 @@ class QAInspectorAgent(BaseAgent):
         if images and settings.real_cv_quality_enabled:
             vision_defects = self._detect_report_vision_defects(images)
 
+        # 诚实降级标注：默认规则引擎 mock（hash 模拟）；接入视觉后 engine/source 如实更新
+        # v1.15.x 走查修复：0 检查项/未匹配阶段/无实测数据时，note 如实说明原因，
+        # 结论为 insufficient_data，不再输出「不合格需返工」伪结论。
+        if total_items == 0:
+            note = (
+                f"未匹配到可验收检查项（phases={phases}，"
+                f"unmatched={unmatched_phases}），无法判定；"
+                "请提供标准阶段代码（mep/masonry/carpentry/painting/installation）"
+                "或现场照片后重新生成"
+            )
+        elif unmatched_phases:
+            note = f"以下阶段未匹配标准检查项，已跳过：{unmatched_phases}"
+        elif not inspection_results:
+            note = "未提供 inspection_results，检查项按规则引擎参考判定（mock）"
+        else:
+            note = None
+
+        if total_items == 0:
+            reply = (
+                f"验收数据不足：{project_name or '项目'} 未匹配到可验收检查项，"
+                "无法给出验收结论。请提供标准阶段代码（mep/masonry/carpentry/"
+                "painting/installation）或现场照片后重新生成。"
+            )
+        else:
+            reply = (
+                f"验收报告已生成：{project_name}，"
+                f"共 {len(section_results)} 个分项，{total_items} 个检查点，"
+                f"合格 {passed_items} 项，不合格 {failed_items} 项，"
+                f"合格率 {overall_pass_rate}%，结论：{overall_verdict_text}"
+            )
+
         result = {
             "project_id": project_id,
             "project_name": project_name,
@@ -814,13 +880,8 @@ class QAInspectorAgent(BaseAgent):
             "source": "mock",
             "engine": "mock_rule_engine",
             "is_placeholder": True,
-            "note": None,
-            "reply": (
-                f"验收报告已生成：{project_name}，"
-                f"共 {len(section_results)} 个分项，{total_items} 个检查点，"
-                f"合格 {passed_items} 项，不合格 {failed_items} 项，"
-                f"合格率 {overall_pass_rate}%，结论：{overall_verdict_text}"
-            ),
+            "note": note,
+            "reply": reply,
         }
 
         if vision_defects:
@@ -906,6 +967,20 @@ class QAInspectorAgent(BaseAgent):
                 result["note"] = f"真实 CV 调用失败，已降级为 mock 模拟: {e}"
         else:
             result = self._compare_with_design_mock(inspection_data)
+        # v1.15.x 走查修复：0 可比对项（无照片/无规格/无尺寸）不得输出
+        # 「重大偏差（需返工）」伪结论——诚实标注数据不足。
+        if result.get("total_checks", 0) == 0:
+            result["verdict"] = "insufficient_data"
+            result["verdict_text"] = "数据不足，无法比对（未提供照片或设计参考）"
+            result["note"] = (
+                (result.get("note") or "")
+                + " 无任何可比对项（照片/规格/尺寸均为空），无法判定。"
+            ).strip()
+            result["reply"] = (
+                f"设计图纸比对：{result.get('phase', '') or '指定'} 阶段无任何可比对项，"
+                "无法给出比对结论。请上传现场照片，或提供设计参考"
+                "（design_reference.specs / expected_dimensions）后重新比对。"
+            )
         if inspection_data.get("include_chart"):
             _attach_chart(
                 result,
@@ -1310,7 +1385,12 @@ class QAInspectorAgent(BaseAgent):
             category_count[cat] = category_count.get(cat, 0) + 1
 
         # 总体评价
-        if not detected_defects:
+        # v1.15.x 走查修复：0 检查项不得输出「未检出缺陷，工艺合格」伪结论——
+        # 诚实返回数据不足（未提供现场照片时无法判定）
+        if checked_items == 0:
+            verdict = "insufficient_data"
+            verdict_text = "数据不足，无法判定（未提供现场照片）"
+        elif not detected_defects:
             verdict = "pass"
             verdict_text = "未检出缺陷，工艺合格"
         elif severity_count["critical"] > 0:

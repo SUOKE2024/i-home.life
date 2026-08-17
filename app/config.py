@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.15.0"
+    app_version: str = "1.15.1"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -303,7 +303,7 @@ class Settings(BaseSettings):
     # ── Agent Harness 统一编排（v1.2.0）──
     harness_trace_enabled: bool = True
     harness_trace_max_history: int = 500
-    harness_agent_timeout_seconds: int = 60
+    harness_agent_timeout_seconds: int = 180  # v1.15.x: 60→180，真实推理模型工具循环不再被误杀
     harness_max_retries: int = 1
 
     # ── Agent 执行轨迹持久化（v1.12.x 可观测性打磨，对齐 2026 workflow ID 传播范式）──

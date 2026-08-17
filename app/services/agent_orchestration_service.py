@@ -155,8 +155,54 @@ _INTENT_TO_AGENT = {
 }
 
 
+# 主链路 canonical 顺序 + 链式表述领域关键词（v1.15.x）
+_CHAIN_ORDER = ["designer", "budget", "procurement", "construction", "qa_inspector", "settlement"]
+_CHAIN_CONNECTORS = ("先", "然后", "接着", "随后", "最后", "之后", "再")
+_CHAIN_DOMAIN_KEYWORDS = {
+    "designer": ["设计", "布局", "方案", "户型", "风格", "空间规划"],
+    "budget": ["预算", "报价", "费用", "成本", "多少钱", "价格"],
+    "procurement": ["采购", "材料", "物料", "建材", "清单", "供应商"],
+    "construction": ["施工", "排期", "工期", "进度", "安排施工"],
+    "qa_inspector": ["质检", "验收", "缺陷", "整改"],
+    "settlement": ["结算", "付款", "尾款", "账单"],
+}
+
+
+def _has_chain_connector(message: str) -> bool:
+    """检测链式表述（先/再/然后/最后等连接词）。"""
+    return any(c in message for c in _CHAIN_CONNECTORS)
+
+
 def _rule_decompose(message: str) -> list[AgentTask]:
-    """规则分解兜底：按 orchestrator 关键词分类为单任务（与原路由行为一致）。"""
+    """规则分解兜底：默认按 orchestrator 关键词分类为单任务（与原路由行为一致）。
+
+    v1.15.x 走查修复：含「先…再…然后…最后…」等多阶段链式表述且命中 ≥2 个
+    主链路领域关键词时，按 canonical 顺序（designer→budget→procurement→
+    construction→qa_inspector→settlement）生成依赖链任务，避免真实 LLM 分解
+    失败/DAG 校验失败时整段需求塌缩成单任务。
+    """
+    if _has_chain_connector(message):
+        hit = [
+            agent for agent, kws in _CHAIN_DOMAIN_KEYWORDS.items()
+            if any(k in message for k in kws)
+        ]
+        if len(hit) >= 2:
+            tasks = []
+            for agent_name in _CHAIN_ORDER:
+                if agent_name not in hit:
+                    continue
+                tasks.append(AgentTask(
+                    task_id=str(uuid.uuid4())[:12],
+                    agent_name=agent_name,
+                    description=message,
+                    dependencies=[tasks[-1].task_id] if tasks else [],
+                ))
+            logger.info(
+                "orchestration._rule_decompose: 链式分解 agent_chain=%s",
+                [t.agent_name for t in tasks],
+            )
+            return tasks
+
     from app.agents.orchestrator import OrchestratorAgent
     cls = OrchestratorAgent.fallback_classify(message)
     intent = cls["intent"]
@@ -169,6 +215,41 @@ def _rule_decompose(message: str) -> list[AgentTask]:
         agent_name=agent_name,
         description=message,
     )]
+
+
+def _resolve_dependencies(tasks: list[AgentTask]) -> None:
+    """v1.15.x 走查修复：重映射 LLM 分解产生的依赖引用。
+
+    LLM 无法预知 uuid task_id，常按序号（task_1）或 agent 名引用依赖 →
+    validate_dag 恒失败整体降级为单任务。此处按「task_N 序号 / agent 名 /
+    已有 id」三档解析；无法解析的依赖丢弃（防环/悬空）。
+    """
+    id_set = {t.task_id for t in tasks}
+    by_index: dict[str, str] = {}
+    by_agent: dict[str, str] = {}
+    for idx, t in enumerate(tasks, start=1):
+        by_index[str(idx)] = t.task_id
+        by_index[f"task_{idx}"] = t.task_id
+        by_agent.setdefault(t.agent_name, t.task_id)
+    for t in tasks:
+        resolved: list[str] = []
+        for dep in t.dependencies:
+            target = None
+            if dep in id_set:
+                target = dep
+            elif dep in by_index:
+                target = by_index[dep]
+            elif dep in by_agent and by_agent[dep] != t.task_id:
+                target = by_agent[dep]
+            if target is None:
+                logger.warning(
+                    "orchestration._resolve_dependencies: 丢弃无法解析的依赖 task=%s dep=%r",
+                    t.task_id, dep,
+                )
+                continue
+            if target not in resolved:
+                resolved.append(target)
+        t.dependencies = resolved
 
 
 async def decompose_request(
@@ -227,8 +308,8 @@ async def _llm_decompose(
             "- concierge: 通用客服\n"
             "必须只输出如下 JSON（不要输出任何其他文字）：\n"
             '{"tasks": [{"agent": "designer", "task": "子任务描述", "depends_on": ["前置task_id"]}]}\n'
-            "注意：depends_on 引用的必须是本 JSON 中其他任务；无依赖填空数组；"
-            "任务数 1-4 个，不要过度拆分。"
+            "注意：depends_on 引用前置任务时用序号（如 [\"task_1\"]，从 1 开始按输出顺序编号）"
+            "或前置任务的 agent 名；无依赖填空数组；任务数 1-4 个，不要过度拆分。"
         )
         messages = [
             {"role": "system", "content": agent.system_prompt},
@@ -271,6 +352,10 @@ async def _llm_decompose(
             description=str(raw["task"]),
             dependencies=deps,
         ))
+
+    # v1.15.x 走查修复：依赖引用重映射（task_N 序号 / agent 名 / 已有 id 三档），
+    # 无法解析的依赖丢弃——防 validate_dag 恒失败整体降级为单任务。
+    _resolve_dependencies(tasks)
     return tasks or None
 
 

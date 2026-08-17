@@ -71,7 +71,7 @@ class MCPServer:
 
     # ── 服务器元信息常量 ──
     SERVER_NAME = "i-home.life MCP Server"
-    SERVER_VERSION = "1.15.0"
+    SERVER_VERSION = "1.15.1"
     # MCP 2026-07-28 stateless 核心
     PROTOCOL_VERSION = "2026-07-28"
     # v1.3.0: list 结果缓存 TTL（秒），客户端可据此缓存工具目录

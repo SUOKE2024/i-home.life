@@ -6,6 +6,13 @@ from app.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
+# v1.15.x 走查修复：全流程安排请求的强关键词（规则判定 general 后不再进入
+# LLM 二次分类——LLM 会把「装修流程」误判为 construction 等单域）
+PROCESS_OVERVIEW_KEYWORDS = (
+    "整个流程", "全流程", "完整流程", "全部流程", "整体流程",
+    "全套流程", "装修流程", "总流程",
+)
+
 
 class OrchestratorAgent(BaseAgent):
     agent_name = "orchestrator"
@@ -135,6 +142,11 @@ class OrchestratorAgent(BaseAgent):
             rule = self.fallback_classify(message)
             if rule.get("intent") != "general":
                 return rule
+            # v1.15.x 走查修复：全流程安排请求规则已判定 general，不再进入
+            # LLM 二次分类（LLM 会把「装修流程」误判为 construction 等单域，
+            # agent_type 标签再次与用户诉求不符）
+            if any(k in message for k in PROCESS_OVERVIEW_KEYWORDS):
+                return rule
 
         try:
             result = await self.think(message, db=db, user_id=user_id, project_id=project_id)
@@ -245,6 +257,24 @@ class OrchestratorAgent(BaseAgent):
         }
 
         keywords["settlement"] = ["结算", "付款", "尾款", "账单", "结清", "结账"]
+
+        # v1.15.x 走查修复：全流程安排类请求（「帮我安排整个装修流程」）此前因
+        # 消息中附带「预算15万」被关键词路由到 budget，agent_type 标签与用户
+        # 实际诉求不符。强流程词命中 → general（由 /chat 的 general 分支交给
+        # OrchestratorAgent 真实回答整体流程）；弱流程词仅在 ≥2 个主链路领域
+        # 命中时视为总览请求，避免误伤单领域问题（如「水电改造流程」仍走 mep）。
+        weak_process_kws = ("流程安排", "帮我安排", "怎么安排", "流程怎么走")
+        if any(k in message for k in PROCESS_OVERVIEW_KEYWORDS):
+            return {"intent": "general", "reasoning": "全流程安排请求，交由总控给出整体流程", "reply": ""}
+        if any(k in message for k in weak_process_kws):
+            major_domains = ("design", "budget", "procurement", "construction",
+                             "qa_inspector", "settlement")
+            hits = sum(
+                1 for d in major_domains
+                if any(k in message for k in keywords.get(d, []))
+            )
+            if hits >= 2:
+                return {"intent": "general", "reasoning": "多阶段流程安排请求，交由总控给出整体流程", "reply": ""}
 
         scores = {}
         for intent, kws in keywords.items():

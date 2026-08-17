@@ -11,6 +11,7 @@ Agent 端点:
 import asyncio
 import json
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -341,8 +342,19 @@ AGENT_TYPE_TO_INTENT: dict[str, str] = {
     "furniture_catalog": "furniture",        # Web 前端用 furniture_catalog
     "door_window_waterproof": "door_window",  # Web 前端用 door_window_waterproof
     "voice": "voice",                         # voice agent（语音输入）
+    # v1.15.x 走查修复：商业运营 Agent 注册路由（管理员专用，见 _BUSINESS_OPS_INTENTS）。
+    # 此前 marketing/competitor_research 显式 agent_type 被静默路由到
+    # orchestrator/budget 答非所问。
+    "marketing": "marketing",
+    "competitor_research": "competitor_research",
+    "growth": "growth",
+    "finance_recon": "finance_recon",
     # "orchestrator" 不在此表中 → 触发自动分类
 }
+
+# v1.15.x: 平台运营专用意图（数据含用户反馈/平台财务，仅管理员可用；
+# 显式指定时非管理员 403，隐式分类不会命中这些意图）
+_BUSINESS_OPS_INTENTS = frozenset({"marketing", "competitor_research", "growth", "finance_recon"})
 
 
 # v1.13.3（全链路闭环补齐）：intent → agent_name 映射（L4 偏好注入用，
@@ -362,6 +374,9 @@ INTENT_TO_AGENT_NAME: dict[str, str] = {
     "ifc_export": "ifc_export", "soft_furnishing": "soft_furnishing",
     "hard_decoration": "hard_decoration", "points": "points",
     "cad_import": "cad_import",
+    # v1.15.x 商业运营 Agent（管理员专用，见 _BUSINESS_OPS_INTENTS）
+    "marketing": "marketing", "competitor_research": "competitor_research",
+    "growth": "growth", "finance_recon": "finance_recon",
 }
 
 
@@ -381,6 +396,151 @@ async def _inject_preference_hint(db, user_id: str, intent: str, user_ctx: str) 
         max_examples=settings.agent_learning_max_examples,
     )
     return f"{hint}\n{user_ctx}" if hint else user_ctx
+
+
+async def _build_business_ops_reply(intent: str, message: str, db, user_name: str) -> str:
+    """v1.15.x: 商业运营 Agent 聊天回复（/chat 与 /chat/stream 共用，管理员专用）。
+
+    - marketing / competitor_research：真实 LLM 生成（prompt 内置诚实标注）；
+    - growth / finance_recon：确定性报表生成器直接产出（不额外烧 LLM），
+      并附数据源诚实标注。
+    """
+    if intent == "growth":
+        from app.agents.growth import GrowthAgent
+        agent = GrowthAgent()
+        try:
+            report = await agent.generate_weekly_report(db, days=7)
+        finally:
+            await agent.close()
+        if not report.get("enabled", True):
+            return f"增长分析未启用：{report.get('note', 'growth_agent_enabled=False')}"
+        lines = [
+            f"已为您生成平台增长周报（最近 {report.get('period_days', 7)} 天）：",
+        ]
+        dist = report.get("feedback_distribution", {}) or {}
+        for agent_name, stat in dist.items():
+            lines.append(
+                f"- {agent_name}：点赞 {stat.get('like', 0)} / 点踩 {stat.get('dislike', 0)}，"
+                f"平均评分 {stat.get('avg_rating', 0)}（共 {stat.get('total', 0)} 条反馈）"
+            )
+        if not dist:
+            lines.append("- 本期暂无用户反馈数据")
+        note = report.get("note", "")
+        if note:
+            lines.append(f"数据源说明：{note}")
+        return "\n".join(lines)
+    if intent == "finance_recon":
+        from app.agents.finance_recon import FinanceReconAgent
+        agent = FinanceReconAgent()
+        try:
+            report = await agent.generate_recon_report(db, days=30)
+        finally:
+            await agent.close()
+        if not report.get("enabled", True):
+            return f"财务对账未启用：{report.get('note', 'finance_recon_agent_enabled=False')}"
+        lines = [
+            f"已为您生成平台财务对账简报（最近 {report.get('period_days', 30)} 天）：",
+            f"- 支付笔数：{report.get('payment_count', 0)}，总额：{report.get('payment_total', 0)} 元",
+            f"- 担保支付笔数：{report.get('escrow_count', 0)}，总额：{report.get('escrow_total', 0)} 元",
+        ]
+        for key in ("payment_note", "escrow_note"):
+            if report.get(key):
+                lines.append(f"- {report[key]}")
+        lines.append(f"数据源说明：{report.get('note', '基于平台内部 payment/escrow 表统计')}")
+        return "\n".join(lines)
+    if intent == "marketing":
+        from app.agents.marketing import MarketingAgent
+        agent = MarketingAgent()
+        try:
+            reply = await agent.think(message, f"运营: {user_name}")
+        finally:
+            await agent.close()
+        return reply
+    # competitor_research
+    from app.agents.competitor_research import CompetitorResearchAgent
+    agent = CompetitorResearchAgent()
+    try:
+        reply = await agent.think(message, f"运营: {user_name}")
+    finally:
+        await agent.close()
+    return reply
+
+
+async def _load_settlement_context(db, project_id: str) -> str:
+    """v1.15.x 走查修复：结算 Agent 聊天时注入项目真实台账数据。
+
+    此前 settlement 聊天虽有 project_id 透传但无查询实现，用户被要求手抄
+    合同信息。现在读取结算单 + 明细行，注入上下文；无结算单时诚实告知
+    （引导先创建结算单），不再让用户手动提供合同台账。
+    """
+    if not project_id:
+        return ""
+    try:
+        from sqlalchemy import select
+        from app.models.settlement import Settlement, SettlementLine
+
+        row = (
+            await db.execute(
+                select(Settlement).where(Settlement.project_id == project_id)
+                .order_by(Settlement.created_at.desc()).limit(1)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return (
+                "\n[项目台账] 该项目尚未创建结算单。请引导用户先通过结算管理"
+                "（/api/settlements）创建结算单或从预算生成，不要索要合同编号。"
+            )
+        lines = (
+            await db.execute(
+                select(SettlementLine).where(SettlementLine.settlement_id == row.id)
+            )
+        ).scalars().all()
+        lines_txt = "；".join(
+            f"{ln.category}-{ln.name}: 合同 {ln.contract_amount} 元 / 实际 {ln.actual_amount} 元"
+            f"（{ln.status}）"
+            for ln in lines[:20]
+        ) or "（无明细行）"
+        return (
+            "\n[项目台账] 结算单：合同金额 "
+            f"{row.contract_amount} 元，实际金额 {row.actual_amount} 元，"
+            f"应付 {row.payable_amount} 元，状态 {row.status}，"
+            f"异常 {row.anomaly_count} 项（严重 {row.critical_anomaly_count}）。"
+            f"明细：{lines_txt}"
+        )
+    except Exception:
+        logger.warning("settlement_context_load_failed", exc_info=True)
+        return ""
+
+
+def _split_markdown_sections(text: str) -> dict[str, str]:
+    """v1.15.x: 按 markdown 标题切分 LLM 回复为 {标题: 内容}。
+
+    无标题时返回 {"": 全文}。用于 budget/procurement/construction 结构化
+    字段提取（此前四个字段全部塞同一全文，前端无法分区渲染）。
+    """
+    parts = re.split(r"(?m)^(#{1,4}\s+.+)$", text)
+    sections: dict[str, str] = {}
+    if parts and parts[0].strip():
+        sections[""] = parts[0].strip()
+    for i in range(1, len(parts), 2):
+        title = re.sub(r"^#{1,4}\s+", "", parts[i]).strip()
+        body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        sections[title] = body
+    return sections
+
+
+def _pick_section(sections: dict[str, str], keywords: tuple[str, ...]) -> str:
+    """从 markdown 分节中按关键词挑出目标小节；未命中回退开头摘要/全文。"""
+    for title, body in sections.items():
+        if any(k in title or k in body[:80] for k in keywords):
+            if body.strip():
+                return body.strip()
+    if sections.get("", "").strip():
+        return sections[""].strip()
+    for body in sections.values():
+        if body.strip():
+            return body.strip()
+    return ""
 
 
 def _extract_reply_from_llm_json(raw: str) -> str:
@@ -569,8 +729,22 @@ async def chat_with_agent(  # noqa: C901
         # 若客户端显式指定了 agent_type（非 orchestrator），直接路由到对应 Agent，
         # 跳过 LLM classify 调用以降低延迟
         explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
+        if data.agent_type and data.agent_type != "orchestrator" and not explicit_intent:
+            # v1.15.x 走查修复：未知 agent_type 此前被静默路由到 orchestrator/budget
+            # 并答非所问（如 marketing/competitor_research 未注册期）。现在诚实
+            # 报 422，不再静默吞噬客户端错误。
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"未知的 agent_type: {data.agent_type}（可用 Agent 列表见 /api/a2a/agents）",
+            )
         if explicit_intent:
             intent = explicit_intent
+            # v1.15.x 商业运营 Agent 角色门控：平台数据（用户反馈/财务）仅管理员
+            if intent in _BUSINESS_OPS_INTENTS and current_user.role != "admin":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="该 Agent 为平台运营专用（仅管理员可用）",
+                )
         else:
             classification = await agent.classify_intent(
                 data.message, db=db, user_id=current_user.id,
@@ -754,6 +928,11 @@ async def chat_with_agent(  # noqa: C901
         elif intent in ("settlement",):
             sett_agent = SettlementAgent()
             try:
+                # v1.15.x 走查修复：project_id 透传实际生效——查询结算单台账
+                # 注入上下文，Agent 基于真实数据回答，不再让用户手抄合同信息
+                settlement_ctx = await _load_settlement_context(db, data.project_id)
+                if settlement_ctx:
+                    user_ctx = f"{user_ctx}\n{settlement_ctx}"
                 reply = await sett_agent.think(
                     data.message, user_ctx,
                     db=db, user_id=current_user.id, project_id=data.project_id,
@@ -1119,8 +1298,34 @@ async def chat_with_agent(  # noqa: C901
             )
             return await _finalize("voice", reply, ["打开语音输入", "测试语音对话", "查看语音任务"])
 
+        elif intent in _BUSINESS_OPS_INTENTS:
+            # v1.15.x 走查修复：商业运营 Agent 真实可用（管理员专用，角色门控见路由头）
+            reply = await _build_business_ops_reply(intent, data.message, db, current_user.name)
+            return await _finalize(intent, reply, ["查看运营简报", "查看周报数据"])
+
         else:
             # Unknown intent — fallback to orchestrator general reply
+            # v1.15.x 走查修复：intent=general（含「整个装修流程」等总览请求）
+            # 调用 OrchestratorAgent 真实回答整体流程，不再返回固定引导话术；
+            # LLM 失败时回退固定引导（诚实降级）。
+            if intent == "general":
+                try:
+                    reply = await asyncio.wait_for(
+                        agent.think(
+                            data.message, user_ctx,
+                            db=db, user_id=current_user.id, project_id=data.project_id,
+                        ),
+                        timeout=settings.harness_agent_timeout_seconds,
+                    )
+                    # v1.15.x：Orchestrator 输出 JSON 信封（intent/reasoning/reply），
+                    # 提取 reply 字段避免把 ```json``` 原样展示给用户
+                    reply = _extract_reply_from_llm_json(reply or "")
+                    if reply.startswith("[mock]") or "稍后重试" in reply or not reply.strip():
+                        reply = ""  # mock/降级占位 → 回退固定引导
+                    if reply and reply.strip():
+                        return await _finalize("orchestrator", reply, suggestions_map["orchestrator"])
+                except Exception:
+                    logger.warning("chat.general: orchestrator.think 失败，回退固定引导", exc_info=True)
             reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
             suggestions = suggestions_map["orchestrator"]
             return await _finalize("orchestrator", reply, suggestions)
@@ -1219,6 +1424,21 @@ async def chat_stream(  # noqa: C901
     # Hybrid routing
     agent = OrchestratorAgent()
 
+    # v1.15.x 走查修复：显式 agent_type 校验前置到 SSE 响应创建之前——
+    # 未知 agent_type 此前被静默路由答非所问；商业运营 Agent 仅管理员可用。
+    precomputed_explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
+    if data.agent_type and data.agent_type != "orchestrator" and not precomputed_explicit_intent:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"未知的 agent_type: {data.agent_type}（可用 Agent 列表见 /api/a2a/agents）",
+        )
+    if precomputed_explicit_intent and precomputed_explicit_intent in _BUSINESS_OPS_INTENTS \
+            and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="该 Agent 为平台运营专用（仅管理员可用）",
+        )
+
     async def generate_sse():
         nonlocal user_ctx  # v1.14.x: user_ctx 在闭包内被 _inject_preference_hint 更新，需声明 nonlocal
         # v1.14.x SSE 预热：classify/think 前立即发送初始事件，避免首 token 长时间无反馈
@@ -1229,7 +1449,7 @@ async def chat_stream(  # noqa: C901
         classification = None  # v1.1.29: always defined for closure safety
         try:
             # 若客户端显式指定了 agent_type（非 orchestrator），直接路由到对应 Agent
-            explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
+            explicit_intent = precomputed_explicit_intent
             if explicit_intent:
                 intent = explicit_intent
             else:
@@ -1347,6 +1567,10 @@ async def chat_stream(  # noqa: C901
                 finally:
                     await cons_agent.close()
             elif intent in ("settlement",):
+                # v1.15.x 走查修复：注入真实结算台账（与 /chat 对齐）
+                settlement_ctx = await _load_settlement_context(db, data.project_id)
+                if settlement_ctx:
+                    user_ctx = f"{user_ctx}\n{settlement_ctx}"
                 stream_agent = SettlementAgent()
                 stream_msg = data.message
                 stream_ctx = user_ctx
@@ -1479,6 +1703,27 @@ async def chat_stream(  # noqa: C901
                     "语音对话已就绪，您可以直接说出装修需求。点击输入框旁的话筒按钮进入语音模式，"
                     "支持实时对话、多意图并行调度与任务进度查询（「任务进度」）。"
                 )
+            elif intent in _BUSINESS_OPS_INTENTS:
+                # v1.15.x 走查修复：商业运营 Agent（管理员专用，角色门控见路由头）
+                reply = await _build_business_ops_reply(intent, data.message, db, current_user.name)
+            elif intent == "general":
+                # v1.15.x 走查修复：general（含「整个装修流程」总览请求）走
+                # Orchestrator 真实回答。Orchestrator 输出 JSON 信封，先提取
+                # reply 再假流式推送（避免 ```json``` 信封流给用户）
+                try:
+                    _general_reply = await asyncio.wait_for(
+                        agent.think(
+                            data.message, user_ctx,
+                            db=db, user_id=current_user.id, project_id=data.project_id,
+                        ),
+                        timeout=settings.harness_agent_timeout_seconds,
+                    )
+                    reply = _extract_reply_from_llm_json(_general_reply or "")
+                    if reply.startswith("[mock]") or "稍后重试" in reply or not reply.strip():
+                        reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
+                except Exception:
+                    logger.warning("chat_stream.general: orchestrator.think 失败，回退固定引导", exc_info=True)
+                    reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
             else:
                 reply = f"我理解您的问题是关于「{data.message[:40]}...」的。\n\n请告诉我具体需要什么帮助，例如：开始设计、查看预算、浏览材料、施工进度等。"
 
@@ -1518,6 +1763,12 @@ async def chat_stream(  # noqa: C901
                 "identity": "identity",
                 "notifications": "notifications",
                 "ifc_export": "ifc_export",
+                # v1.15.x 商业运营 Agent + general（orchestrator）
+                "marketing": "marketing",
+                "competitor_research": "competitor_research",
+                "growth": "growth",
+                "finance_recon": "finance_recon",
+                "general": "orchestrator",
                 "voice": "voice",
             }
 
@@ -1831,10 +2082,14 @@ async def analyze_budget(
             db=db, user_id=current_user.id, project_id=data.project_id,
         )
         agent_logger.info("agent_budget_reply", reply_len=len(reply), reply_preview=reply[:80])
+        # v1.15.x 走查修复：结构化字段此前与 full_reply 完全相同（同一全文复制
+        # 四次），前端无法分区渲染。现在按 markdown 分节提取：summary=开头摘要、
+        # category_breakdown=明细/拆解小节、cost_saving_tips=省钱/建议小节。
+        sections = _split_markdown_sections(reply)
         return BudgetAnalysisResponse(
-            summary=reply,
-            category_breakdown=reply,
-            cost_saving_tips=reply,
+            summary=_pick_section(sections, ("结论", "总价", "总预算", "报价")),
+            category_breakdown=_pick_section(sections, ("明细", "分类", "分项", "拆解", "预算分配", "清单")),
+            cost_saving_tips=_pick_section(sections, ("省钱", "节省", "建议", "提示", "省", "Tips")),
             full_reply=reply,
         )
     finally:
@@ -1857,10 +2112,12 @@ async def analyze_procurement(
             data.message, user_ctx,
             db=db, user_id=current_user.id, project_id=data.project_id,
         )
+        # v1.15.x 走查修复：结构化字段提取（此前三个字段与 full_reply 完全相同）
+        sections = _split_markdown_sections(reply)
         return ProcurementAnalysisResponse(
-            purchase_plan=reply,
-            supplier_recommendation=reply,
-            timeline=reply,
+            purchase_plan=_pick_section(sections, ("采购", "清单", "主材", "计划", "方案")),
+            supplier_recommendation=_pick_section(sections, ("供应商", "推荐", "品牌", "渠道")),
+            timeline=_pick_section(sections, ("时间", "节点", "到货", "排期", "工期", "进度")),
             full_reply=reply,
         )
     finally:
@@ -1883,10 +2140,12 @@ async def plan_construction(
             data.message, user_ctx,
             db=db, user_id=current_user.id, project_id=data.project_id,
         )
+        # v1.15.x 走查修复：结构化字段提取（此前三个字段与 full_reply 完全相同）
+        sections = _split_markdown_sections(reply)
         return ConstructionPlanResponse(
-            phases=reply,
-            schedule=reply,
-            quality_checklist=reply,
+            phases=_pick_section(sections, ("阶段", "工序", "步骤", "施工安排", "流程")),
+            schedule=_pick_section(sections, ("工期", "时间", "排期", "进度", "计划", "节点")),
+            quality_checklist=_pick_section(sections, ("验收", "检查", "质检", "清单", "标准", "质量")),
             full_reply=reply,
         )
     finally:
@@ -2203,14 +2462,35 @@ async def identity_agent(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """身份认证 Agent（管理员专用）— 用户实名认证审核"""
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="仅管理员可访问身份认证审核功能",
-        )
+    """身份认证 Agent — 用户实名认证指导（管理员可咨询审核操作）。
+
+    v1.15.x 走查修复：此前普通用户访问直接 403「仅管理员可访问身份认证审核
+    功能」——22 个用户可见 Agent 中一个不可达。修复后：普通用户可咨询实名
+    认证流程/材料要求（IdentityAgent 只做指引，真实核验由认证功能完成，
+    无数据泄露面）；管理员保持审核相关建议。
+    """
     agent = IdentityAgent()
     try:
+        if current_user.role != "admin":
+            # 普通用户：注入自身认证状态说明（诚实标注来源），咨询认证流程
+            role_ctx = (
+                f"用户: {current_user.name}\n"
+                "（当前登录用户咨询实名认证流程与材料要求。你只做操作指引，"
+                "不得声称已执行核验/审核；审核状态以应用内实名认证页面为准）"
+            )
+            user_ctx = await _extract_and_inject_agent_context(
+                db, current_user, data.message, role_ctx,
+                project_id=data.project_id, location=data.location,
+            )
+            reply = await agent.think(
+                data.message, user_ctx,
+                db=db, user_id=current_user.id, project_id=data.project_id,
+            )
+            return SimpleAgentResponse(
+                agent_type="identity",
+                reply=reply,
+                suggestions=["实名认证流程", "认证材料要求", "查询认证状态"],
+            )
         user_ctx = await _extract_and_inject_agent_context(
             db, current_user, data.message, f"管理员: {current_user.name}",
             project_id=data.project_id, location=data.location,

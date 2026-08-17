@@ -44,6 +44,12 @@ REGISTERED_AGENT_NAMES: list[str] = [
     "TakeoffAgent", "IfcExportAgent",
 ]
 
+# v1.15.x: 平台运营专用 Agent（注册在 harness，但不进 A2A 公开技能卡；
+# A2A 下发受管理员角色门控，见 send_task）
+_BUSINESS_OPS_AGENT_KEYS = frozenset({
+    "growth", "marketing", "competitor_research", "finance_recon",
+})
+
 
 def _resolve_agent_cls(harness, agent_name: str):
     """按请求名解析 Agent 类：兼容类名（KitchenAgent/QAInspectorAgent）与小写注册名（kitchen）。
@@ -264,6 +270,18 @@ async def send_task(
             error=f"Agent '{request.agent_name}' 未注册",
         )
 
+    # v1.15.x 走查修复：商业运营 Agent（growth/marketing/competitor_research/
+    # finance_recon）为平台运营专用，A2A 下发仅管理员可用（普通用户暴露平台
+    # 用户反馈/财务数据违反最小权限）
+    if getattr(agent_cls, "agent_name", "") in _BUSINESS_OPS_AGENT_KEYS and current_user.role != "admin":
+        db_task.state = A2ATaskState.FAILED.value
+        db_task.error = "平台运营专用 Agent，仅管理员可用"
+        await db.commit()
+        return A2ATaskResponse(
+            task_id=task_id, state=A2ATaskState.FAILED,
+            error=db_task.error,
+        )
+
     trace = None
     try:
         agent = agent_cls()
@@ -282,14 +300,28 @@ async def send_task(
             user_id=current_user.id,
             project_id=request.project_id or "",
         )
+        reply_text = (result.get("reply") or "").strip()
+        if result.get("fallback") or not reply_text:
+            # v1.15.x 走查修复：执行降级不再伪装 completed——诚实标注 failed
+            # + 降级原因（此前「服务暂时不可用」占位文案以 completed 状态返回，
+            # A2A 客户端无法区分真实完成与降级）
+            harness.finish_trace(trace, AgentRunStatus.FALLBACK)
+            db_task.state = A2ATaskState.FAILED.value
+            db_task.error = "Agent 执行降级（服务暂时不可用），请稍后重试"
+            await db.commit()
+            return A2ATaskResponse(
+                task_id=task_id,
+                state=A2ATaskState.FAILED,
+                error=db_task.error,
+            )
         harness.finish_trace(trace, AgentRunStatus.SUCCESS)
         db_task.state = A2ATaskState.COMPLETED.value
-        db_task.result = result.get("reply", "")
+        db_task.result = reply_text
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id,
             state=A2ATaskState.COMPLETED,
-            result=result.get("reply", ""),
+            result=reply_text,
         )
     except Exception as e:
         logger.error("a2a_task_failed: agent=%s error=%s", request.agent_name, e)

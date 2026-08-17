@@ -1,5 +1,7 @@
 """设计 Agent — 自动生成多套布局方案"""
 
+import re
+
 from app.agents.base import BaseAgent
 from app.services.agent_tool_registry import tool_registry
 
@@ -143,18 +145,41 @@ class DesignerAgent(BaseAgent):
         },
     }
 
+    _AREA_TEMPLATE_KEYS = (50, 90, 126, 160)
+
     @staticmethod
-    def _detect_area(message: str) -> str:
+    def _detect_area(message: str) -> tuple[str, float | None]:
+        """检测面积模板档位。
+
+        v1.15.x 走查修复：此前 89㎡ 等未命中固定档位的面积一律回退 "126" 模板，
+        并在回复中硬编码「已为您生成3套126㎡户型设计方案」——用户实际 89㎡ 却
+        看到 126㎡（假数据味道）。修复后：
+        - 从消息解析真实数字面积，取最近模板档位（50/90/126/160）；
+        - 返回 (模板key, 用户声明面积)，声明面积随回复诚实标注；
+        - 无数字面积时保留原关键字/默认档位，声明面积为 None。
+        """
+        m = re.search(r"(\d{2,3}(?:\.\d+)?)\s*(?:平|平米|平方米|㎡|m2|m²|平方)", message)
+        if m:
+            try:
+                declared = float(m.group(1))
+            except ValueError:
+                declared = None
+            if declared is not None:
+                nearest = min(
+                    DesignerAgent._AREA_TEMPLATE_KEYS,
+                    key=lambda k: abs(k - declared),
+                )
+                return str(nearest), declared
         if "160" in message or "大平层" in message:
-            return "160"
+            return "160", None
         if "90" in message or "小户型" in message:
-            return "90"
+            return "90", None
         if "50" in message or "一室" in message:
-            return "50"
-        return "126"
+            return "50", None
+        return "126", None
 
     async def generate_layouts(self, message: str) -> dict:
-        area = self._detect_area(message)
+        area, declared_area = self._detect_area(message)
         if area not in self.DEFAULT_LAYOUTS:
             area = "126"
 
@@ -170,6 +195,15 @@ class DesignerAgent(BaseAgent):
                 "total_area": round(total_area, 1),
             })
 
+        # v1.15.x 走查修复：用户提到孩子/儿童/宝宝时，将书房调整标记为儿童房
+        # （此前 89㎡ 家庭需求「儿童房安全环保」生成的却是书房）
+        if re.search(r"孩子|儿童|宝宝|亲子", message):
+            for plan in plans:
+                for room in plan["rooms"]:
+                    if room.get("type") == "study":
+                        room["type"] = "bedroom"
+                        room["name"] = "儿童房"
+
         materials = [
             "客厅/餐厅：建议750×1500大板砖，耐磨美观",
             "卧室：推荐实木多层地板，温暖舒适",
@@ -178,11 +212,23 @@ class DesignerAgent(BaseAgent):
         ]
 
         recommendation = plans[1]["name"] if len(plans) > 1 else plans[0]["name"]
+        # v1.15.x 走查修复：回复不再硬编码模板档位面积（如「126㎡户型」），
+        # 诚实标注用户声明面积 + 参考布局总面积（与实际测量以量房为准）。
+        total = plans[1]["total_area"] if len(plans) > 1 else plans[0]["total_area"]
+        if declared_area is not None:
+            area_note = (
+                f"（您家面积约{declared_area:.0f}㎡，以下为相近户型参考布局，"
+                f"总面积约{total:.1f}㎡，实际请以量房尺寸为准）"
+            )
+        else:
+            area_note = (
+                f"（参考户型布局总面积约{total:.1f}㎡，实际请以量房尺寸为准）"
+            )
         return {
             "plans": plans,
             "recommendation": recommendation,
             "materials": materials,
-            "reply": f"已为您生成{len(plans)}套{area}㎡户型设计方案，推荐{recommendation}，南北通透，采光更佳。",
+            "reply": f"已为您生成{len(plans)}套设计方案，推荐{recommendation}，南北通透，采光更佳。{area_note}",
         }
 
     # ── F28 智能布局动线分析 ──
@@ -624,7 +670,7 @@ class DesignerAgent(BaseAgent):
         - material_specs: 材料规格（含品牌、型号、厚度）
         - bim_compatible: 标记为 BIM 兼容格式
         """
-        _area = self._detect_area(message)  # noqa: F841 — 预留，后续版本按面积微调 BIM 参数
+        _area, _declared = self._detect_area(message)  # noqa: F841 — 预留，后续版本按面积微调 BIM 参数
         base_layout = await self.generate_layouts(message)
 
         # 将基础布局增强为 BIM 结构化数据

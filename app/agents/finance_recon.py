@@ -76,18 +76,24 @@ class FinanceReconAgent(BaseAgent):
             report["payment_note"] = f"payment 表查询失败: {e}"
 
         # escrow 统计（best-effort）
+        # v1.15.x 走查修复：此前 from app.models.escrow import EscrowOrder 模块不存在
+        # （实际担保支付表为 app.models.procurement_enhanced.EscrowPayment），
+        # 导致 escrow 统计恒失败、ImportError 暴露在简报输出中。
         try:
             from sqlalchemy import select, func
-            from app.models.escrow import EscrowOrder  # type: ignore
+            from app.models.procurement_enhanced import EscrowPayment
 
             stmt = (
-                select(func.count(), func.coalesce(func.sum(EscrowOrder.amount), 0))
-                .where(EscrowOrder.created_at >= since)
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(EscrowPayment.total_amount), 0),
+                ).where(EscrowPayment.created_at >= since)
             )
             row = (await db.execute(stmt)).one_or_none()
             if row:
                 report["escrow_count"] = int(row[0] or 0)
                 report["escrow_total"] = float(row[1] or 0)
+            report["escrow_note"] = "基于平台内部 escrow_payments 担保支付表统计（非银行存管账户）"
         except Exception as e:
             logger.debug("finance_recon: escrow 统计失败: %s", e)
             report["escrow_note"] = f"escrow 表查询失败: {e}"

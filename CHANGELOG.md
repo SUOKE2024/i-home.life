@@ -2,6 +2,44 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.1] - 2026-08-17（智能体用户全流程走查修复，12 项发现）
+
+走查报告：`docs/agent-journey-walkthrough-2026-08-17.md`（真实用户旅程逐端点调用，
+回归测试 `tests/test_walkthrough_fixes.py` 25 用例）。修复清单：
+
+- **#1 编排层真实 LLM 系统性失败**：harness 60s 超时误杀推理模型工具循环
+  （`harness_agent_timeout_seconds` 60→180，get_harness 从 settings 注入）；
+  工具循环空回复（finish=tool_calls 且 content 为空）降级无工具 think 重试，
+  全空走 fallback 由调用方诚实标注失败。
+- **#2 A2A 降级伪装 completed**：harness fallback 占位文案不再以 completed 返回——
+  诚实 state=failed + 降级原因；商业运营 Agent（growth/marketing/competitor_research/
+  finance_recon）注册 harness 但 A2A/chat 显式下发仅管理员可用（最小权限）。
+- **#3 designer 假数据味道**：89㎡ 项目不再回退 126㎡ 模板硬编码文案——解析真实
+  数字面积取最近档位（50/90/126/160）并诚实标注声明面积；用户提到孩子时书房
+  调整儿童房。
+- **#4 孤立 Agent**：marketing/competitor_research 此前无任何入口、显式 agent_type
+  被静默路由到 orchestrator/budget 答非所问——补齐路由 + 角色门控 + 未知
+  agent_type 422 诚实报错；/chat 与 /chat/stream 均支持。
+- **#5 finance_recon 断链**：escrow 统计改用真实表 `procurement_enhanced.EscrowPayment`
+  （原 `app.models.escrow` 不存在），简报标注 escrow_payments 数据源。
+- **#6 意图分类偏差**：全流程安排请求（含「预算15万」等词）此前被关键词路由到
+  budget——强流程词/多领域命中 → general 交 Orchestrator 真实回答。
+- **#7 qa_inspector 结论误导**：0 检查项/0 比对项/无照片时不再输出「不合格需返工」
+  「重大偏差」「工艺合格」伪结论——诚实 insufficient_data + 数据不足说明；
+  中文阶段名（水电/泥木/油漆）归一化为标准 code。
+- **#8 concierge FAQ 低分错配**：匹配阈值 0.1→0.4，新增入住/甲醛治理条目；
+  低置信度诚实转人工。
+- **#9 identity 端点 403 不可达**：普通用户可咨询实名认证流程（指引性质，
+  无数据泄露面），管理员保持审核建议。
+- **#10 settlement 链路未闭环**：聊天注入真实结算台账（_load_settlement_context），
+  不再让用户手抄合同信息。
+- **#11 编排 DAG 恒失败**：LLM 分解依赖引用（task_N 序号/agent 名）重映射为真实
+  task_id；链式表述（先…再…最后…）按 canonical 顺序生成依赖链任务。
+- **#12 结构化字段全文复制**：budget/procurement/construction 三个响应按 markdown
+  分节提取 summary/明细/省钱建议等字段，前端可分区渲染。
+- **版本**：1.15.0 → 1.15.1 全链路同步（config/.env×4/Flutter 1.15.1+50/webapp/
+  console/ci×3/deploy/MCP SERVER_VERSION/测试断言×3）。
+
 ## [1.15.0] - 2026-08-17（微信开放平台「网站应用」扫码登录）
 
 - **微信扫码登录**（`wechat_oauth_enabled` 默认 False，灰度开启）：开放平台网站应用

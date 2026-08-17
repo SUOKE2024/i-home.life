@@ -251,7 +251,10 @@ class HarnessConfig:
     retry_delay_ms: int = 1000
 
     # 超时控制
-    agent_timeout_seconds: int = 60
+    # v1.15.x 走查修复：推理模型单轮 30-60s + 工具轮次叠加，60s 极易误杀
+    # （orchestrate/A2A 的 designer/kitchen 均因此「执行降级/无回复」）。
+    # 对齐 config.harness_agent_timeout_seconds（get_harness 时从 settings 注入）。
+    agent_timeout_seconds: int = 180
     stream_timeout_seconds: int = 120
 
     # 追踪配置
@@ -363,9 +366,13 @@ class AgentRuntime:
                 agent._harness_trace = trace
             except Exception:
                 pass
+            # v1.15.x 走查修复：工具循环返回空回复（推理模型 finish=tool_calls 且
+            # content 为空）时，下一轮降级为无工具 think 重试——直连 think 路径在
+            # 真实环境中稳定返回正文；全部耗尽后走 fallback，调用方诚实标注失败。
+            force_plain_think = False
             for attempt in range(self.config.max_retries + 1):
                 try:
-                    if hasattr(agent, "think_with_tools") and agent.tools:
+                    if hasattr(agent, "think_with_tools") and agent.tools and not force_plain_think:
                         result = await asyncio.wait_for(
                             agent.think_with_tools(user_message, **agent_kwargs),
                             timeout=self.config.agent_timeout_seconds,
@@ -386,6 +393,18 @@ class AgentRuntime:
                             agent.think(user_message, **agent_kwargs),
                             timeout=self.config.agent_timeout_seconds,
                         )
+                    if not (reply or "").strip():
+                        logger.warning(
+                            "harness_empty_reply: agent=%s attempt=%d "
+                            "force_plain_think=%s",
+                            agent.agent_name, attempt, force_plain_think,
+                        )
+                        force_plain_think = True
+                        if attempt < self.config.max_retries:
+                            await asyncio.sleep(self.config.retry_delay_ms / 1000)
+                            continue
+                        # 重试耗尽：抛超时进入统一 fallback（不再把空回复当成功）
+                        raise asyncio.TimeoutError
                     trace.response = reply
                     trace.finish(AgentRunStatus.SUCCESS)
                     self._metrics["success_runs"] += 1
@@ -727,7 +746,14 @@ def get_harness() -> AgentRuntime:
     """获取全局 Harness 实例"""
     global _harness
     if _harness is None:
-        _harness = AgentRuntime()
+        # v1.15.x 走查修复：超时/重试从 settings 注入（此前 HarnessConfig 默认值
+        # 60s 与 settings.harness_agent_timeout_seconds 脱节，真实 LLM 下
+        # orchestrate/A2A 的工具循环子任务被 60s 误杀）
+        _settings = get_settings()
+        _harness = AgentRuntime(HarnessConfig(
+            agent_timeout_seconds=_settings.harness_agent_timeout_seconds,
+            max_retries=_settings.harness_max_retries,
+        ))
         # 注册所有已知 Agent
         from app.agents import (
             OrchestratorAgent, DesignerAgent, BudgetAgent,
@@ -763,4 +789,15 @@ def get_harness() -> AgentRuntime:
         _harness.register_agent("notifications", NotificationsAgent)
         _harness.register_agent("takeoff", TakeoffAgent)
         _harness.register_agent("ifc_export", IfcExportAgent)
+        # v1.15.x 走查修复：商业运营 Agent（growth/marketing/competitor_research/
+        # finance_recon）此前未注册——flag 默认 True 但 A2A/编排/聊天均无入口，
+        # 显式 agent_type 被静默路由到 orchestrator/budget 答非所问。
+        # 注册后由 API 层做管理员角色门控（平台运营专用，非用户可见技能）。
+        from app.agents import (
+            GrowthAgent, MarketingAgent, CompetitorResearchAgent, FinanceReconAgent,
+        )
+        _harness.register_agent("growth", GrowthAgent)
+        _harness.register_agent("marketing", MarketingAgent)
+        _harness.register_agent("competitor_research", CompetitorResearchAgent)
+        _harness.register_agent("finance_recon", FinanceReconAgent)
     return _harness

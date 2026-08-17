@@ -93,6 +93,20 @@ FAQ_KNOWLEDGE_BASE = [
         "answer": "结算按里程碑分期付款：1) 交房节点 30%；2) 水电验收 20%；3) 泥瓦验收 25%；4) 竣工验收 20%；5) 保修期满 5%。建议每阶段验收合格后再付款，保留尾款作为质量保障。",
         "category": "settlement",
     },
+    {
+        "id": "faq_011",
+        "question": "装修完成后多久可以入住？甲醛怎么治理？",
+        "keywords": ["入住", "甲醛", "多久可以入住", "通风", "除甲醛", "治理"],
+        "answer": (
+            "入住时间与甲醛治理：1) 装修完工后建议通风至少 3-6 个月再入住；"
+            "2) 有孕妇、婴幼儿的家庭建议通风 6 个月以上，并在入住前做一次"
+            "CMA 资质机构的空气质量检测（甲醛 ≤ 0.08mg/m³，儿童房建议 ≤ 0.06mg/m³）；"
+            "3) 治理手段：持续开窗通风（最有效）、活性炭包、新风系统、"
+            "光触媒喷涂（需选正规机构）；4) 环保源头控制：装修时选用 E0/ENF 级板材"
+            "与水性涂料，比事后治理更重要。"
+        ),
+        "category": "construction",
+    },
 ]
 
 
@@ -209,6 +223,8 @@ EMOTION_RESPONSE_STRATEGIES = {
 class ConciergeAgent(BaseAgent):
     agent_name = "concierge"
     cost_tier = "economy"  # 客服低价值意图：优先低成本供应商
+    # v1.15.x 走查修复：FAQ 匹配置信度阈值（0.1 → 0.4，低于阈值诚实转人工）
+    FAQ_MATCH_THRESHOLD = 0.4
     system_prompt = """你是索克家居（i-home.life）AI 客服 Agent。
 
 你的职责：
@@ -252,6 +268,10 @@ class ConciergeAgent(BaseAgent):
 
         Returns:
             匹配到的 FAQ 答案，含匹配度评分
+
+        v1.15.x 走查修复：匹配阈值 0.1 过低——「装修完成后多久可以入住？甲醛
+        怎么治理？」以 0.28 低分命中「装修一般需要多长时间」答非所问且
+        need_human=False。阈值提升至 0.4，低于阈值诚实返回未找到 + 转人工。
         """
         matched_faqs = []
 
@@ -270,27 +290,41 @@ class ConciergeAgent(BaseAgent):
         # 按匹配度排序
         matched_faqs.sort(key=lambda x: x["match_score"], reverse=True)
 
-        if not matched_faqs:
+        # v1.15.x: 置信度阈值——低于阈值的高分项仍可能是语义错配
+        if matched_faqs and matched_faqs[0]["match_score"] >= self.FAQ_MATCH_THRESHOLD:
+            best_match = matched_faqs[0]
+            return {
+                "found": True,
+                "question": question,
+                "answer": best_match["answer"],
+                "category": best_match["category"],
+                "best_match_question": best_match["question"],
+                "match_score": best_match["match_score"],
+                "matched_faqs": matched_faqs[:3],
+                "reply": best_match["answer"],
+                "need_human": False,
+            }
+
+        if matched_faqs:
+            # 低置信度匹配：诚实告知无把握 + 转人工，不硬答
             return {
                 "found": False,
                 "question": question,
-                "answer": "抱歉，知识库中暂未找到匹配的答案。您可以换一种方式提问，或转人工客服获取帮助。",
-                "matched_faqs": [],
-                "reply": "抱歉，暂未找到相关答案，建议您转接人工客服获取帮助。",
+                "answer": "抱歉，知识库中没有高置信度的匹配答案（最佳匹配相似度偏低）。建议转人工客服获取准确解答。",
+                "best_match_question": matched_faqs[0]["question"],
+                "match_score": matched_faqs[0]["match_score"],
+                "matched_faqs": matched_faqs[:3],
+                "reply": "抱歉，这个问题我拿不准（最佳匹配相似度偏低），建议转接人工客服获取准确解答。",
                 "need_human": True,
             }
 
-        best_match = matched_faqs[0]
         return {
-            "found": True,
+            "found": False,
             "question": question,
-            "answer": best_match["answer"],
-            "category": best_match["category"],
-            "best_match_question": best_match["question"],
-            "match_score": best_match["match_score"],
-            "matched_faqs": matched_faqs[:3],
-            "reply": best_match["answer"],
-            "need_human": False,
+            "answer": "抱歉，知识库中暂未找到匹配的答案。您可以换一种方式提问，或转人工客服获取帮助。",
+            "matched_faqs": [],
+            "reply": "抱歉，暂未找到相关答案，建议您转接人工客服获取帮助。",
+            "need_human": True,
         }
 
     def classify_inquiry(self, message: str) -> dict:

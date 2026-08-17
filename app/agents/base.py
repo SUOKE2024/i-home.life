@@ -422,10 +422,18 @@ class BaseAgent:
                         request_body["temperature"] = 0.3
                         empty_content_retries_used += 1
                         continue
-                    content = (
-                        "抱歉，AI 推理超时，请稍后重试或简化您的问题。"
-                        f"(finish_reason={finish})"
-                    )
+                    if finish == "tool_calls" and with_tools:
+                        # v1.15.x 走查修复：推理模型（deepseek-reasoner 等）常以
+                        # finish=tool_calls 且 content 为空结束——正文在工具结果
+                        # 之后的下一轮产出。此前把超时道歉文案塞进 content，
+                        # 污染工具轮对话且循环后用户看到「AI 推理超时」。
+                        # 此处保持 content 为空，由 think_with_tools 循环继续处理。
+                        content = ""
+                    else:
+                        content = (
+                            "抱歉，AI 推理超时，请稍后重试或简化您的问题。"
+                            f"(finish_reason={finish})"
+                        )
 
                 if with_tools:
                     result = {"content": content, "tool_calls": []}
