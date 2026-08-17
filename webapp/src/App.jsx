@@ -4,6 +4,7 @@ import { AppProvider, useApp } from './lib/store'
 import Shell from './components/Shell'
 
 import LoginPage from './pages/Login'
+import WeChatCallback from './pages/WeChatCallback'
 import DocsPage from './pages/DocsPage'
 import DashboardPage from './pages/Dashboard'
 import ProjectsPage from './pages/Projects'
@@ -38,6 +39,7 @@ export default function App() {
     <AppProvider>
       <Routes>
         <Route path="/auth" element={<LoginPage />} />
+        <Route path="/wechat-callback" element={<WeChatCallback />} />
         {/* 公开文档页（指南/隐私/条款，无需登录；内容来自 assets/guide + assets/legal） */}
         <Route path="/guide" element={<DocsPage doc="guide" />} />
         <Route path="/legal/privacy" element={<DocsPage doc="privacy" />} />

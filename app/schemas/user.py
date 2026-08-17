@@ -32,9 +32,22 @@ class H5OneClickLoginRequest(BaseModel):
     sp_token: str = Field(min_length=1)
 
 
+class WeChatLoginRequest(BaseModel):
+    """微信扫码登录请求：code/state 来自 qrconnect 回调参数"""
+
+    code: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+
+
+class WeChatBindPhoneRequest(BaseModel):
+    """微信账号绑定手机号：复用运营商 H5 一键登录 sp_token 验真"""
+
+    sp_token: str = Field(min_length=1)
+
+
 class UserResponse(BaseModel):
     id: str
-    phone: str
+    phone: str | None = None  # 微信登录用户未绑手机前为 None
     name: str
     role: str
     sub_role: str | None = None

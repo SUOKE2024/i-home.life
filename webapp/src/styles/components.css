@@ -151,6 +151,18 @@
   border-color: var(--border-strong);
 }
 
+.btn--wechat {
+  background: #07c160;
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn--wechat:hover {
+  color: #fff;
+  filter: brightness(1.06);
+}
+
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;

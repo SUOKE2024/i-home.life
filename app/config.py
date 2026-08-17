@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.14.1"
+    app_version: str = "1.15.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -290,6 +290,15 @@ class Settings(BaseSettings):
     aliyun_phone_auth_scene_code: str = ""
     aliyun_phone_auth_page_url: str = ""  # H5 页面地址，如 https://i-home.life/
     aliyun_phone_auth_origin: str = ""    # H5 请求来源（源地址），如 https://i-home.life
+
+    # ── 微信开放平台「网站应用」扫码登录 ──
+    # OAuth2 授权码流程（qrconnect）：前端跳授权页 → 微信回调带 code/state →
+    # 后端换 openid 建号签发 PASETO。AppSecret 仅 env 注入，禁止入库/日志。
+    wechat_oauth_enabled: bool = False
+    wechat_app_id: str = ""              # 开放平台网站应用 APPID
+    wechat_app_secret: str = ""          # AppSecret（仅 .env 注入）
+    wechat_redirect_uri: str = ""        # 回调地址，如 https://i-home.life/wechat-callback
+    wechat_state_expire_seconds: int = 600  # state 防 CSRF 签名有效期（秒）
 
     # ── Agent Harness 统一编排（v1.2.0）──
     harness_trace_enabled: bool = True

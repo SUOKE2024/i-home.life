@@ -2,10 +2,16 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.14.1 · 自进化闭环生产触发 + 空间语义底座 + 设计流程编排
-> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 111 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.15.0 · 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-17 · 微信开放平台扫码登录（v1.15.0）
+
+- **微信扫码登录**：开放平台「网站应用」OAuth2 授权码流程（qrconnect），HMAC 签名 state 防 CSRF；首登自动注册（role=homeowner，phone 可空），`POST /api/auth/wechat/bind-phone` 复用运营商一键登录链路验真绑手机
+- **数据模型**：users 新增 wechat_openid（唯一）/wechat_unionid + phone 放开 NOT NULL；alembic `y9a0b1c2d3e4` 双向可逆 + runtime 迁移 v9
+- **测试**：新增 12 用例；Service 计数 111→112
 
 ### 2026-08-16 · 全景评估 P0-P3 修复（v1.14.1）
 

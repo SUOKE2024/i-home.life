@@ -10,6 +10,8 @@ from app.schemas.user import (
     UserLogin,
     OneClickLoginRequest,
     H5OneClickLoginRequest,
+    WeChatLoginRequest,
+    WeChatBindPhoneRequest,
     TokenResponse,
     UserResponse,
 )
@@ -24,8 +26,14 @@ from app.schemas.webauthn import (
 )
 from app.auth.paseto_handler import create_token
 from app.auth import get_current_user
-from app.services.user_service import create_user, authenticate_user, get_or_create_phone_user
-from app.services import phone_number_auth_service
+from app.services.user_service import (
+    create_user,
+    authenticate_user,
+    get_or_create_phone_user,
+    get_or_create_wechat_user,
+    bind_phone_to_user,
+)
+from app.services import phone_number_auth_service, wechat_oauth_service
 from app.services.webauthn_service import (
     webauthn_register_begin,
     webauthn_register_complete,
@@ -311,6 +319,102 @@ async def oneclick_h5_login(
     except phone_number_auth_service.PhoneAuthError as e:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
     return await _issue_token_for_phone(db, request, phone, channel="h5")
+
+
+# ═══════════════════════════════════════════
+#  微信开放平台「网站应用」扫码登录（OAuth2 授权码）
+# ═══════════════════════════════════════════
+
+
+@router.get("/wechat/authorize-url")
+async def wechat_authorize_url():
+    """生成微信扫码授权链接（state 防 CSRF，有效期 wechat_state_expire_seconds）。"""
+    if not settings.wechat_oauth_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="微信登录功能已关闭")
+    if not settings.wechat_app_id or not settings.wechat_redirect_uri:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="微信登录未配置 APPID/回调地址")
+    state = wechat_oauth_service.create_oauth_state()
+    return {"url": wechat_oauth_service.build_authorize_url(state), "state": state}
+
+
+@router.post("/wechat/login", response_model=TokenResponse)
+async def wechat_login(
+    data: WeChatLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """微信扫码回调登录：校验 state → code 换 openid → 建号/复用 → 签发 PASETO。
+
+    账号策略：openid 首登自动注册（role=homeowner、无手机号无密码），后续可
+    走 /wechat/bind-phone 绑定手机号；昵称/头像仅首登写入（best-effort）。
+    """
+    if not settings.wechat_oauth_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="微信登录功能已关闭")
+    if not wechat_oauth_service.verify_oauth_state(data.state):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录状态(state)校验失败或已过期，请重新扫码")
+
+    try:
+        token_info = await wechat_oauth_service.exchange_code(data.code)
+    except wechat_oauth_service.WeChatOAuthError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+    openid = token_info.get("openid")
+    if not openid:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="微信未返回 openid，登录失败")
+
+    unionid = token_info.get("unionid") or None
+    access_token = token_info.get("access_token") or ""
+    profile: dict = {}
+    if access_token:
+        profile = await wechat_oauth_service.fetch_userinfo(access_token, openid)  # best-effort
+    nickname = wechat_oauth_service.sanitize_nickname(profile.get("nickname", ""))
+    avatar_url = profile.get("headimgurl") or None
+
+    user = await get_or_create_wechat_user(db, openid, unionid, nickname, avatar_url)
+    token = create_token(user.id, user.role)
+
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="WECHAT_LOGIN",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role, "channel": "wechat", "bound_phone": user.phone is not None},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return TokenResponse(
+        access_token=token,
+        user=UserResponse.model_validate(user),
+    )
+
+
+@router.post("/wechat/bind-phone", response_model=UserResponse)
+async def wechat_bind_phone(
+    data: WeChatBindPhoneRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """微信账号绑定手机号：复用运营商 H5 一键登录 sp_token 链路验真（无需短信验证码基建）。"""
+    if not settings.wechat_oauth_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="微信登录功能已关闭")
+    # 预检以 DB 真实状态为准（current_user 可能为缓存 detached 对象）
+    db_user = await db.get(User, current_user.id)
+    if db_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在")
+    if db_user.phone:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前账号已绑定手机号")
+    try:
+        phone = await phone_number_auth_service.get_phone_with_token(data.sp_token)
+    except phone_number_auth_service.PhoneAuthError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+    try:
+        current_user = await bind_phone_to_user(db, db_user, phone)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return UserResponse.model_validate(current_user)
 
 
 # ═══════════════════════════════════════════

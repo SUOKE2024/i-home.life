@@ -137,6 +137,28 @@ export async function demoLogin(phone = DEMO_ACCOUNTS[0].phone) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// 微信开放平台「网站应用」扫码登录
+// ──────────────────────────────────────────────────────────────
+
+/** 获取微信扫码授权链接（后端签发防 CSRF state，前端整页跳转） */
+export async function wechatAuthorizeUrl() {
+  return request('/api/auth/wechat/authorize-url')
+}
+
+/** 微信回调登录：code/state 换 PASETO Token */
+export async function wechatLogin(code, state) {
+  const r = await request('/api/auth/wechat/login', {
+    method: 'POST',
+    body: JSON.stringify({ code, state }),
+  })
+  if (r.isSuccess && r.data && r.data.access_token) {
+    setToken(r.data.access_token)
+    localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
+  }
+  return r
+}
+
+// ──────────────────────────────────────────────────────────────
 // 聚合看板
 // ──────────────────────────────────────────────────────────────
 

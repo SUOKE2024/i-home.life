@@ -39,7 +39,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
 # v1.2.x: 新增 ar_scan_sessions.floorplan_id (AR 测量会话关联户型方案)
-_SCHEMA_MIGRATION_VERSION = 8  # v8: 空间即导航 floor_plans.room_status 逐房间状态; v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
+_SCHEMA_MIGRATION_VERSION = 9  # v9: users.wechat_openid/wechat_unionid 微信登录绑定; v8: 空间即导航 floor_plans.room_status 逐房间状态; v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
 
 
 class Base(DeclarativeBase):
@@ -124,6 +124,8 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
             user_migrations = [
                 ("users", "sub_role", "VARCHAR(30)"),
                 ("users", "is_verified", "BOOLEAN DEFAULT FALSE NOT NULL"),
+                ("users", "wechat_openid", "VARCHAR(64)"),
+                ("users", "wechat_unionid", "VARCHAR(64)"),
             ]
             for table, column, coltype in user_migrations:
                 if column not in user_cols:
@@ -132,6 +134,17 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
                     )
                     logging.getLogger("ihome").info(
                         f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+            # wechat_openid 唯一索引（防并发重复建号；IF NOT EXISTS 幂等，PG/SQLite 均支持）
+            if "wechat_openid" in user_cols:
+                try:
+                    await conn.execute(text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_wechat_openid "
+                        "ON users (wechat_openid)"
+                    ))
+                except Exception as e:  # 索引创建失败不阻断启动（alembic 链会补）
+                    logging.getLogger("ihome").warning(
+                        f"migration: create unique index ix_users_wechat_openid failed: {e}"
                     )
 
         # 检查 projects 表（v1.0.14 修复：project_type/source/scan_session_id

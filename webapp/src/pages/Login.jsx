@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
-import { login, register, demoLogin, DEMO_ACCOUNTS, getOneClickAuthToken, oneClickH5Login } from '../lib/api'
+import { login, register, demoLogin, DEMO_ACCOUNTS, getOneClickAuthToken, oneClickH5Login, wechatAuthorizeUrl } from '../lib/api'
 
 // 注册可选主角色（对齐后端 User.role 主角色，不含 admin——管理员不可自注册）
 const REGISTER_ROLES = [
@@ -133,6 +133,24 @@ export default function LoginPage() {
     }
   }
 
+  // 微信扫码登录（开放平台网站应用）：后端签发授权链接（含防 CSRF state），整页跳转微信授权页
+  const wechatSubmit = async () => {
+    setErr(null)
+    setBusy(true)
+    try {
+      const r = await wechatAuthorizeUrl()
+      if (!r.isSuccess || !r.data || !r.data.url) {
+        setErr(r.error || '微信登录暂不可用')
+        return
+      }
+      window.location.href = r.data.url
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '微信登录失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -228,6 +246,17 @@ export default function LoginPage() {
           style={{ marginTop: 12 }}
         >
           {busy ? '请稍候…' : '本机号码一键登录'}
+        </button>
+
+        {/* 微信扫码登录（开放平台网站应用） */}
+        <button
+          type="button"
+          className="btn btn--wechat"
+          onClick={wechatSubmit}
+          disabled={busy}
+          style={{ marginTop: 12 }}
+        >
+          {busy ? '请稍候…' : '微信扫码登录'}
         </button>
 
         {err && <div className="auth-err">{err}</div>}

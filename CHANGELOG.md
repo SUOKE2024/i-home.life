@@ -2,6 +2,32 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.0] - 2026-08-17（微信开放平台「网站应用」扫码登录）
+
+- **微信扫码登录**（`wechat_oauth_enabled` 默认 False，灰度开启）：开放平台网站应用
+  OAuth2 授权码流程（qrconnect）——`GET /api/auth/wechat/authorize-url`（签发
+  HMAC-SHA256 签名 state 防 CSRF，复用 PASETO 主密钥，10 分钟有效）→
+  `POST /api/auth/wechat/login`（code 换 openid/unionid，首登自动注册 homeowner、
+  phone=NULL 无密码，昵称/头像 best-effort 拉取 + 清洗）→ PASETO Token。
+  WebApp 登录页新增「微信扫码登录」按钮 + `/wechat-callback` 回调页（按角色落点跳转）。
+- **可选绑手机**：`POST /api/auth/wechat/bind-phone` 复用运营商 H5 一键登录 sp_token
+  链路验真（不新增短信验证码基建）；绑定前短信类能力诚实不可用。修复
+  `get_current_user` 缓存 detached 对象直接变更的隐患（bind 按 id 重载后再写）。
+- **数据模型**：users.phone 放开 NOT NULL（微信用户无手机号）；新增 wechat_openid
+  （唯一索引防并发重复建号）/ wechat_unionid。Alembic 迁移
+  `y9a0b1c2d3e4`（幂等 + 双向可逆，SQLite 跳过 phone DROP NOT NULL——由
+  create_all 建模，downgrade 不回滚该约束）；runtime 轻量迁移 v9 同步补列 + 索引。
+- **测试**：新增 `tests/test_wechat_login.py` 12 用例（flag 503 / 授权链接 + state 签名 /
+  建号与复用 / 昵称清洗 / 微信侧错误 502 / openid 缺失 / 绑手机成功·冲突·已绑定·未登录 /
+  state 过期）。
+- **基线校准**：2442 → 2454 passed（+12 微信登录用例；collect 2448 → 2460，
+  2026-08-17 全量首跑零重试）
+- **版本**：1.14.1 → 1.15.0 全链路同步（config/.env×4/Flutter 1.15.0+49/webapp/console/
+  ci×3/deploy/MCP SERVER_VERSION/测试断言×3）；Service 计数 111→112
+  （新增 wechat_oauth_service），README/CLAUDE/参赛材料/PPT 同步。
+- **诚实标注**：微信 AppSecret 仅 .env 注入（不入库不入日志）；昵称/头像拉取失败
+  不阻断登录（默认昵称「微信用户」）；unionid 需开放平台账号绑定主体后才返回。
+
 ## [1.14.1] - 2026-08-16（全景评估 P0-P3 修复）
 
 ### 全景全量全链路评估执行（2026-08-16，三路代码级审计 + 主代理核验 + 2026 前沿对标）

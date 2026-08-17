@@ -11,7 +11,8 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
+    phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True, index=True)
+    # 微信开放平台登录用户无手机号（phone=NULL），绑手机前短信类能力不可用（诚实降级）
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False, default="homeowner")
     # 主角色: homeowner / designer / contractor / supplier / admin
@@ -22,6 +23,9 @@ class User(Base):
     # designer 细分: curtain_designer(窗帘设计师)
     sub_role: Mapped[str | None] = mapped_column(String(30), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # ── 微信开放平台「网站应用」扫码登录绑定（openid 唯一）──
+    wechat_openid: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
+    wechat_unionid: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(200), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     is_verified: Mapped[bool] = mapped_column(default=False)  # 是否已实名认证
