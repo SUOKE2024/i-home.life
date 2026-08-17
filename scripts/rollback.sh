@@ -43,6 +43,7 @@ while [[ $# -gt 0 ]]; do
             echo "  v1.12.0 — 智能体系统性打磨（轨迹持久化 / 编排管线 / LLM 响应缓存 / 分级路由）"
             echo "  v1.13.0 — 工具纪律（tool_argument_validation / parallel_tool_calls）"
             echo "  v1.14.1 — 全景评估修复（PASETO 撤销 Redis 化；自进化周期复用 v1.10.1 清单）"
+            echo "  v1.15.0 — 微信开放平台扫码登录（wechat_oauth_enabled 默认 False 灰度；v1.15.1 走查修复无新 flag，复用本清单）"
             exit 0
             ;;
         --help|-h)
@@ -176,6 +177,16 @@ case "$VERSION" in
         # 自进化周期端点/DRAFT 试用期注入复用 v1.10.1 三 flag（关闭即回退静态行为）
         ROLLBACK_FLAGS=(
             "PASETO_REVOCATION_REDIS_ENABLED=false"
+        )
+        ;;
+    v1.15.0)
+        # v1.15.0 微信开放平台扫码登录（2026-08-17，默认 False 灰度）
+        # 回滚置 false 即禁用微信 OAuth 入口（恢复 v1.14.1 无微信登录状态）
+        # v1.15.1 智能体走查修复无新增 flag，复用本清单
+        # 数据库迁移 y9a0b1c2d3e4（users 加 wechat_openid/unionid + phone 放开 NOT NULL）可逆，
+        # 需回滚时按需执行 alembic downgrade（SQLite 跳过 phone DROP NOT NULL，create_all 建模）
+        ROLLBACK_FLAGS=(
+            "WECHAT_OAUTH_ENABLED=false"
         )
         ;;
     *)

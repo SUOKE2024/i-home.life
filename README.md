@@ -2,10 +2,15 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.15.0 · 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> v1.15.1 · 智能体全流程走查 12 项修复 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
 > 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-17 · 智能体用户全流程走查修复（v1.15.1）
+
+- **12 项走查修复**（报告 `docs/agent-journey-walkthrough-2026-08-17.md`）：harness 超时 60→180s + 空回复降级重试；A2A 降级诚实 `state=failed`；designer 去 126㎡ 硬编码模板按真实面积取档；4 商业运营 Agent 路由 + 管理员门控 + 未知 agent_type 422；finance_recon 改真实 escrow 表；qa_inspector 0 检查项 → `insufficient_data`；concierge FAQ 阈值 0.1→0.4；settlement 注入真实结算台账；编排依赖重映射 + 链式分解；结构化字段 markdown 分节提取等
+- **回归测试**：新增 `tests/test_walkthrough_fixes.py` 31 用例，全量 2485 passed + 2 skipped + 4 xfailed，0 失败
 
 ### 2026-08-17 · 微信开放平台扫码登录（v1.15.0）
 

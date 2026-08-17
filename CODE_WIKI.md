@@ -4,7 +4,7 @@
 
 > **版本**：v7.2
 > **最后更新**：2026-08-11
-> **项目状态**：v1.13.1（工具纪律迭代：ISCE 串行修复 + 成本追踪 + 负反馈双向学习，2139 passed）· 自进化管线（v1.10.2 引入）· 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）· 智能体系统性打磨（v1.12.0 全链路可观测性/编排/评估/成本）· DESIGN.md 设计系统规范（token 三端对齐）
+> **项目状态**：v1.15.1（智能体全流程走查 12 项修复 + 微信扫码登录，2485 passed）· 自进化管线（v1.10.2 引入）· 前端缺口补齐（Agent 治理 8 页 + 单端独缺 7 页）· 智能体系统性打磨（v1.12.0 全链路可观测性/编排/评估/成本）· DESIGN.md 设计系统规范（token 三端对齐）
 > **作者**：索克生活 (suoke.life) · song.xu@icloud.com
 > **代码仓库**：github.com/SUOKE2024/i-home.life
 
@@ -197,7 +197,7 @@
 │   ├── bench-matepad.sh              # MatePad 性能验收脚本
 │   └── seed.py                       # 种子数据 (225 SKU)
 │
-├── tests/                            # 测试套件 (2139 pass / 10 skipped / 4 xfailed, v1.13.1)
+├── tests/                            # 测试套件 (2485 pass / 2 skipped / 4 xfailed, v1.15.1)
 │   ├── conftest.py                   # pytest fixtures (AsyncClient + ASGITransport)
 │   ├── test_auth.py                  # 认证 (7)
 │   ├── test_webauthn.py              # WebAuthn/Passkey 全链路 (含安全增强, v1.1.28)
@@ -602,7 +602,7 @@ pip install -r requirements.txt
 # 4. 启动服务
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 5. 运行测试 (基线 2139 pass / 10 skipped / 4 xfailed)
+# 5. 运行测试 (基线 2485 pass / 2 skipped / 4 xfailed)
 python -m pytest tests/ -v
 
 # 6. 运行全链路 Demo
