@@ -152,7 +152,7 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
           final status = task.status;
           final statusColor = {
             ConstructionStatus.pending: SuokeDesignTokens.textSub(context),
-            ConstructionStatus.inProgress: Colors.blue,
+            ConstructionStatus.inProgress: SuokeDesignTokens.info,
             ConstructionStatus.completed: Colors.green,
             ConstructionStatus.delayed: Colors.red,
           }[status] ?? SuokeDesignTokens.textSub(context);

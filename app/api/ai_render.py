@@ -157,7 +157,7 @@ async def restage_photo(
     # 校验 mode 取值
     if mode not in SUPPORTED_RESTAGE_MODES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"无效的 mode: {mode}，支持: {', '.join(SUPPORTED_RESTAGE_MODES)}",
         )
 
@@ -175,7 +175,7 @@ async def restage_photo(
     photo_data = await photo.read()
     if not photo_data:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="照片内容为空",
         )
 

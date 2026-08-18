@@ -27,6 +27,9 @@
   --accent-glow: rgba(201, 151, 59, 0.15);
   /* 金色按钮上的前景文字色（跨主题恒定，保证对比度） */
   --on-accent: #08080f;
+  /* 金色交互前景色别名 + 主交互色别名（跨主题恒定，保证对比度） */
+  --accent-contrast: #08080f;
+  --primary: var(--accent);
 
   /* Status */
   --success: #4a9e6e;

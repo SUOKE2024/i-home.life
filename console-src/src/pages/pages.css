@@ -461,6 +461,7 @@
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .wb-budget-stat--spent .wb-budget-stat__value {
   color: var(--warning);
@@ -1170,6 +1171,7 @@
   font-size: var(--font-size-lg);
   font-weight: 700;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .wb-takeoff-stat__value span {
   font-size: var(--font-size-xs);
@@ -1261,7 +1263,7 @@
   padding: 10px 20px;
   border-radius: var(--radius-md);
   background: var(--primary);
-  color: #fff;
+  color: var(--accent-contrast);
   border: none;
   font-size: var(--font-size-sm);
   cursor: pointer;
@@ -1649,6 +1651,7 @@
   font-weight: 800;
   line-height: 1;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .wb-bento__value--accent {
   color: var(--accent);
@@ -1860,6 +1863,7 @@
   font-size: var(--font-size-lg, 18px);
   font-weight: 600;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .wb-card {
@@ -1938,12 +1942,12 @@
 }
 
 .wb-btn {
-  height: 32px;
+  height: 40px;
   padding: 0 14px;
   border: none;
   border-radius: var(--radius-input, 8px);
   background: var(--accent);
-  color: var(--accent-contrast, #fff);
+  color: var(--accent-contrast);
   font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;

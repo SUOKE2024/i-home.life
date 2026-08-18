@@ -335,6 +335,258 @@ class OrchestratorAgent(BaseAgent):
 
         return briefing
 
+    # ── v1.15.6: 供应商每日经营简报（复用 daily-briefing FC 定时触发器模式）──
+
+    async def generate_supplier_daily_briefing(self, db) -> dict:
+        """生成供应商每日经营简报（受 supplier_daily_briefing_enabled 控制）。
+
+        聚合确定性数据（交付单状态分布 / 供应商生态 / 托管资金，基于
+        delivery_orders、users、suppliers、products、escrow_payments 内部表）
+        + ProcurementAgent AI 经营建议（economy 档，best-effort）。
+
+        诚实标注：数据源逐段标注表名；AI 段失败时标 error 不伪造建议。
+        供 FC 定时触发器每日调用 GET /api/admin/supplier-daily-briefing。
+        """
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import func, select
+        from app.config import get_settings
+        _settings = get_settings()
+
+        if not _settings.supplier_daily_briefing_enabled:
+            return {"enabled": False, "note": "supplier_daily_briefing_enabled=False"}
+
+        _bj_tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
+        briefing: dict = {
+            "enabled": True,
+            "generated_at": datetime.now(_bj_tz).isoformat(),
+            "briefing_type": "supplier_daily",
+            "sections": {},
+        }
+
+        # ── 确定性数据段（数据源诚实标注表名）──
+        try:
+            from app.models.delivery_order import DeliveryOrder
+            from app.models.user import User
+            from app.models.procurement import Supplier
+            from app.models.product import Product
+            from app.models.procurement_enhanced import EscrowPayment
+
+            delivery_rows = (
+                await db.execute(
+                    select(DeliveryOrder.status, func.count(DeliveryOrder.id)).group_by(DeliveryOrder.status)
+                )
+            ).all()
+            briefing["sections"]["delivery_stats"] = {
+                "source": "delivery_orders",
+                "by_status": {row[0]: row[1] for row in delivery_rows},
+            }
+
+            supplier_users = (await db.execute(
+                select(func.count(User.id)).where(User.role == "supplier")
+            )).scalar_one()
+            supplier_rows = (await db.execute(select(func.count(Supplier.id)))).scalar_one()
+            product_count = (await db.execute(select(func.count(Product.id)))).scalar_one()
+            briefing["sections"]["supplier_ecosystem"] = {
+                "source": "users/suppliers/products",
+                "supplier_users": supplier_users,
+                "supplier_records": supplier_rows,
+                "product_count": product_count,
+            }
+
+            escrow_rows = (
+                await db.execute(
+                    select(EscrowPayment.status, func.count(EscrowPayment.id),
+                           func.coalesce(func.sum(EscrowPayment.total_amount), 0.0))
+                    .group_by(EscrowPayment.status)
+                )
+            ).all()
+            briefing["sections"]["escrow_stats"] = {
+                "source": "escrow_payments",
+                "by_status": {row[0]: {"count": row[1], "total_amount": float(row[2])} for row in escrow_rows},
+            }
+        except Exception as e:
+            logger.warning("orchestrator.supplier_daily_briefing: 数据段失败: %s", e)
+            briefing["sections"]["data_error"] = {"error": str(e)}
+
+        # ── AI 经营建议（ProcurementAgent，economy 档；失败诚实标 error）──
+        try:
+            from app.agents.procurement import ProcurementAgent
+            payload = {
+                "delivery_stats": briefing["sections"].get("delivery_stats"),
+                "supplier_ecosystem": briefing["sections"].get("supplier_ecosystem"),
+                "escrow_stats": briefing["sections"].get("escrow_stats"),
+            }
+            agent = ProcurementAgent()
+            try:
+                ai_reply = await agent.think(
+                    "你是平台供应商生态的运营助手。基于以下确定性统计（数据源：delivery_orders/"
+                    "users/suppliers/products/escrow_payments 内部表），给出 3-5 条今日供应商生态"
+                    "经营建议（履约优先级/资金风险/供给结构），每条 ≤40 字，中文：\n"
+                    + str(payload),
+                    db=db,
+                )
+                briefing["sections"]["ai_suggestions"] = {
+                    "source": "ProcurementAgent（economy 档，基于内部表统计，非实时外部数据）",
+                    "content": (ai_reply or "").strip() or "（本次无建议）",
+                }
+            finally:
+                await agent.close()
+        except Exception as e:
+            logger.warning("orchestrator.supplier_daily_briefing: AI 建议失败: %s", e)
+            briefing["sections"]["ai_suggestions"] = {"error": str(e)}
+
+        return briefing
+
+    async def generate_project_weekly_briefing(self, db, project_id: str) -> dict:
+        """v1.15.7 用户侧项目周报（Long-Horizon 主动服务，Vinci2 借鉴）。
+
+        复用供应商每日简报的确定性聚合模式（v1.15.6），面向项目 owner：
+        聚合项目/任务/预算/采购/验收/里程碑六段确定性数据（数据源逐段标注
+        表名）+ Orchestrator AI 周度建议（economy 档，best-effort）。
+        供 GET /api/agents/projects/{project_id}/weekly-briefing 调用；
+        可被 FC 定时触发器批量拉取（Long-Horizon 主动推送 P2 规划）。
+        """
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import func, select
+        from app.config import get_settings
+        _settings = get_settings()
+
+        if not _settings.project_weekly_briefing_enabled:
+            return {"enabled": False, "note": "project_weekly_briefing_enabled=False"}
+
+        _bj_tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
+        briefing: dict = {
+            "enabled": True,
+            "generated_at": datetime.now(_bj_tz).isoformat(),
+            "briefing_type": "project_weekly",
+            "project_id": project_id,
+            "sections": {},
+        }
+
+        try:
+            from app.models.project import Project
+            from app.models.orchestrator_task import OrchestratorTask
+            from app.models.budget import Budget
+            from app.models.procurement import ProcurementOrder
+            from app.models.construction import Inspection, ConstructionTask
+            from app.models.progress_alert import MilestoneTracker
+
+            project = (
+                await db.execute(select(Project).where(Project.id == project_id))
+            ).scalars().first()
+            briefing["sections"]["project"] = {
+                "source": "projects",
+                "name": project.name if project else None,
+                "status": project.status if project else None,
+                "phase": getattr(project, "phase", None) if project else None,
+                "total_area": getattr(project, "total_area", None) if project else None,
+            }
+
+            task_rows = (
+                await db.execute(
+                    select(OrchestratorTask.status, func.count(OrchestratorTask.id))
+                    .where(OrchestratorTask.project_id == project_id)
+                    .group_by(OrchestratorTask.status)
+                )
+            ).all()
+            briefing["sections"]["tasks"] = {
+                "source": "orchestrator_tasks",
+                "by_status": {row[0]: row[1] for row in task_rows},
+            }
+
+            budget_row = (
+                await db.execute(
+                    select(Budget).where(Budget.project_id == project_id)
+                    .order_by(Budget.created_at.desc()).limit(1)
+                )
+            ).scalars().first()
+            briefing["sections"]["budget"] = {
+                "source": "budgets",
+                "total_amount": float(budget_row.total_amount) if budget_row else None,
+                "status": budget_row.status if budget_row else None,
+                "note": None if budget_row else "该项目尚无预算记录（数据不足，诚实标注）",
+            }
+
+            order_rows = (
+                await db.execute(
+                    select(ProcurementOrder.status, func.count(ProcurementOrder.id),
+                           func.coalesce(func.sum(ProcurementOrder.total_amount), 0.0))
+                    .where(ProcurementOrder.project_id == project_id)
+                    .group_by(ProcurementOrder.status)
+                )
+            ).all()
+            briefing["sections"]["procurement"] = {
+                "source": "procurement_orders",
+                "by_status": {
+                    row[0]: {"count": row[1], "total_amount": float(row[2])}
+                    for row in order_rows
+                },
+            }
+
+            inspection_rows = (
+                await db.execute(
+                    select(Inspection.status, func.count(Inspection.id))
+                    .join(ConstructionTask, Inspection.task_id == ConstructionTask.id)
+                    .where(ConstructionTask.project_id == project_id)
+                    .group_by(Inspection.status)
+                )
+            ).all()
+            briefing["sections"]["inspections"] = {
+                "source": "inspections（经 construction_tasks 关联项目）",
+                "by_status": {row[0]: row[1] for row in inspection_rows},
+            }
+
+            milestone_rows = (
+                await db.execute(
+                    select(MilestoneTracker.milestone_code, MilestoneTracker.name,
+                           MilestoneTracker.status, MilestoneTracker.planned_date,
+                           MilestoneTracker.actual_percent)
+                    .where(MilestoneTracker.project_id == project_id)
+                    .order_by(MilestoneTracker.planned_date)
+                )
+            ).all()
+            briefing["sections"]["milestones"] = {
+                "source": "milestone_trackers",
+                "items": [
+                    {
+                        "milestone_code": row[0], "name": row[1], "status": row[2],
+                        "planned_date": row[3].isoformat() if row[3] else None,
+                        "actual_percent": row[4],
+                    }
+                    for row in milestone_rows
+                ],
+            }
+        except Exception as e:
+            logger.warning("orchestrator.project_weekly_briefing: 数据段失败: %s", e)
+            briefing["sections"]["data_error"] = {"error": str(e)}
+
+        # ── AI 周度建议（economy 档，best-effort；失败诚实标 error 不伪造）──
+        try:
+            payload = {
+                "project": briefing["sections"].get("project"),
+                "tasks": briefing["sections"].get("tasks"),
+                "budget": briefing["sections"].get("budget"),
+                "procurement": briefing["sections"].get("procurement"),
+                "inspections": briefing["sections"].get("inspections"),
+                "milestones": briefing["sections"].get("milestones"),
+            }
+            ai_reply = await self.think(
+                "你是家装项目管家。基于以下项目确定性统计（数据源：projects/orchestrator_tasks/"
+                "budgets/procurement_orders/inspections/milestone_trackers 内部表），给出本周项目"
+                "周报建议 3-5 条（进度风险/预算/采购/验收节奏），每条 ≤40 字，中文；数据缺失的"
+                "维度直接说明「暂无数据」不要编造：\n" + str(payload),
+                db=db, project_id=project_id,
+            )
+            briefing["sections"]["ai_suggestions"] = {
+                "source": "Orchestrator（economy 档，基于内部表统计，非实时外部数据）",
+                "content": (ai_reply or "").strip() or "（本次无建议）",
+            }
+        except Exception as e:
+            logger.warning("orchestrator.project_weekly_briefing: AI 建议失败: %s", e)
+            briefing["sections"]["ai_suggestions"] = {"error": str(e)}
+
+        return briefing
+
     # ── P3: 多智能体协作编排（v1.12.x，对齐 2026 hub-spoke/pipeline 范式）──
 
     async def plan_and_delegate(

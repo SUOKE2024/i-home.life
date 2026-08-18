@@ -161,7 +161,8 @@ export default function ProjectsPage() {
         />
       ) : (
         <Card title="项目列表" sub={`${total} 个`} icon={<FolderOpen size={15} className="ico" />}>
-          <table className="table">
+          <div className="table-wrap">
+            <table className="table">
             <thead>
               <tr>
                 <th>名称</th>
@@ -196,7 +197,8 @@ export default function ProjectsPage() {
                 )
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         </Card>
       )}
     </div>

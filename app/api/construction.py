@@ -50,6 +50,40 @@ from app.config import get_settings
 router = APIRouter(prefix="/construction", tags=["施工"])
 
 
+@router.get("/projects/{project_id}/robot-readiness")
+async def get_robot_readiness(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v1.15.7 机器人友好度评估（具身智能 C 端拐点卡位，确定性规则零 LLM 成本）。
+
+    五项检查（门洞通行宽度/无门槛/插座高度/动线宽度/地面连续性），数据缺失
+    逐项 insufficient_data 诚实标注；全缺时不判「不合格」（诚实降级红线）。
+    """
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    from app.services.robot_ready_service import assess_robot_ready
+
+    return await assess_robot_ready(db, project_id)
+
+
+@router.get("/projects/{project_id}/robot-ready-export")
+async def export_robot_ready(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v1.15.7 空间语义 JSON 导出（schema v0.1 先行定义，行业无标准前卡位）。
+
+    导出户型/房间语义 + 机器人友好评估 + gaps 诚实标注（不伪造实测值）。
+    对标尚品宅配×启元 Robot-Ready 生态——差异化在「装修交付链数据」而非定制家具数据。
+    """
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    from app.services.robot_ready_service import export_spatial_semantics
+
+    return await export_spatial_semantics(db, project_id)
+
+
 class ConstructionPlanRequest(BaseModel):
     total_area: float = 100.0
     tier: str = "comfort"

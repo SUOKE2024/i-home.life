@@ -109,7 +109,6 @@ function SideNav({ collapsed, onToggle, user, onLogout, mobileOpen, onCloseMobil
           >
             <Icon size={18} strokeWidth={1.8} />
             {!collapsed && <span className="nav-label">{label}</span>}
-            {!collapsed && <i className="nav-caret" />}
           </NavLink>
         ))}
 
@@ -157,12 +156,12 @@ function SideNav({ collapsed, onToggle, user, onLogout, mobileOpen, onCloseMobil
                 {user?.phone || '未登录'} · {user?.role || '-'}
               </div>
             </div>
-            <button className="icon-btn icon-btn--ghost" onClick={onLogout} title="退出登录">
+            <button className="icon-btn icon-btn--ghost" onClick={onLogout} title="退出登录" aria-label="退出登录">
               <LogOut size={15} />
             </button>
           </div>
         )}
-        <button className="nav-collapse" onClick={onToggle} title={collapsed ? '展开导航' : '收起导航'}>
+        <button className="nav-collapse" onClick={onToggle} title={collapsed ? '展开导航' : '收起导航'} aria-label={collapsed ? '展开导航' : '收起导航'}>
           <Menu size={16} />
         </button>
       </div>

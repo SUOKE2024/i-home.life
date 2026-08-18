@@ -106,7 +106,8 @@ export default function SettlementPage() {
           {lines.length === 0 ? (
             <Empty message="暂无结算明细" />
           ) : (
-            <table className="table">
+            <div className="table-wrap">
+              <table className="table">
               <thead>
                 <tr>
                   <th>项目</th>
@@ -128,7 +129,8 @@ export default function SettlementPage() {
                   )
                 })}
               </tbody>
-            </table>
+              </table>
+            </div>
           )}
         </Card>
       </>

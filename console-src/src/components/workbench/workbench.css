@@ -111,8 +111,8 @@
   border-color: var(--border-active);
 }
 .wb-agent-chip--active {
-  color: var(--text-primary);
-  border-color: currentColor;
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .wb-agent-chip__emoji {
   font-size: 14px;

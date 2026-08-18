@@ -103,6 +103,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-height: 44px;
   padding: 8px 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
@@ -129,6 +130,7 @@
 }
 
 .btn--primary {
+  min-height: 48px;
   background: linear-gradient(135deg, var(--accent), var(--accent-bright));
   border-color: transparent;
   color: var(--on-accent);
@@ -173,9 +175,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   border: none;
   background: transparent;
   color: var(--text-sub);

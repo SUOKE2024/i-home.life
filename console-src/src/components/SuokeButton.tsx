@@ -39,7 +39,7 @@ export default function SuokeButton({
     gap: 6,
     height: SIZE_HEIGHT[size],
     padding: '0 20px',
-    borderRadius: 'var(--radius-pill)',
+    borderRadius: 'var(--radius-input)',
     fontFamily: 'inherit',
     fontSize: SIZE_FONT[size],
     fontWeight: 600,
@@ -51,7 +51,7 @@ export default function SuokeButton({
   };
 
   const styles: Record<ButtonVariant, React.CSSProperties> = {
-    primary: { background: 'var(--accent)', color: '#000' },
+    primary: { background: 'var(--accent)', color: 'var(--on-accent)' },
     outline: { background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-active)' },
     text: { background: 'transparent', color: 'var(--accent)', padding: '0 8px' },
     danger: { background: 'var(--danger)', color: '#fff' },

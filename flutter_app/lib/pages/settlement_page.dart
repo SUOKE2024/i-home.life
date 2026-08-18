@@ -219,7 +219,7 @@ class _SettlementPageState extends State<SettlementPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.receipt_long,
-                size: 64, color: Color(0xFF5A5866)),
+                size: 64, color: SuokeDesignTokens.textMuted),
             const SizedBox(height: 16),
             Text('暂无结算单',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
@@ -301,7 +301,7 @@ class _SettlementPageState extends State<SettlementPage>
                 return Text(
                   '结算单号: ${idStr.length > 8 ? idStr.substring(0, 8) : idStr}',
                   style: const TextStyle(
-                      color: Color(0xFF5A5866), fontSize: 11),
+                      color: SuokeDesignTokens.textMuted, fontSize: 11),
                 );
               }),
             ],
@@ -442,7 +442,7 @@ class _SettlementPageState extends State<SettlementPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.flag_outlined,
-                size: 48, color: Color(0xFF5A5866)),
+                size: 48, color: SuokeDesignTokens.textMuted),
             const SizedBox(height: 12),
             Text('暂无里程碑',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),
@@ -560,7 +560,7 @@ class _SettlementPageState extends State<SettlementPage>
                       Text(
                           '付款比例: ${(ratio * 100).toInt()}%',
                           style: const TextStyle(
-                              color: Color(0xFF5A5866),
+                              color: SuokeDesignTokens.textMuted,
                               fontSize: 11)),
                     ],
                   ),

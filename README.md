@@ -2,10 +2,32 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.15.2 · 业务链路全景走查 15 项修复（状态机-约束对齐 + 前端契约 + 审批流接线）+ 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
-> 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.15.6 · 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> 核心能力：66 页面 React Web 控制台 + Flutter 58 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-18 · 供应商经营简报 + B2B 角色语义（v1.15.6）
+
+- **供应商每日经营简报**：`GET /api/admin/supplier-daily-briefing`（`require_platform_manage`，阿里云 FC 定时触发器复用 daily-briefing 模式）聚合交付单状态分布/供应商生态/托管资金统计（数据源逐段标注内部表）+ ProcurementAgent AI 经营建议（economy 档，失败标 error 不伪造）；受 `supplier_daily_briefing_enabled`（默认 True）门控
+- **B2B 端点角色语义**：`POST /b2b/delivery` 创建与状态流转收紧为 contractor/supplier/admin（业主/设计师 403）；list/get 保持归属范围
+- **测试**：+8 用例（简报 6 + b2b 2），全量 2563 passed
+
+### 2026-08-18 · 供应链/服务商生态 AI 工作台（v1.15.4）
+
+- **角色触达体系修复**（报告 `docs/supplier-ai-workbench-2026-08-18.md`）：修复 `products.py` 创建产品授权缺口（原条件允许任何已认证用户发布产品）；`PermissionChecker` 权限码体系接线（默认映射兜底无 seed 即生效）；新增 `GET /auth/me/permissions` 菜单出口；supplier 权限码扩展（产品/订单/报价/履约/结算）
+- **Console 供应商工作台**（`/supplier`，仅 supplier/admin 可见）：看板三卡（我的产品/交付单/生效权限码）+ 六模块入口 + **AI 经营助手**（streamChat 路由 ProcurementAgent，预设提示词 + 诚实降级）；SideNav 角色过滤（管理后台组仅 admin）
+- **Flutter 角色导航**：supplier 底部导航渲染供应商 tab 集（首页/交付/产品/我的）
+- **清理**：删除 PlaceholderHome 占位页 + /tokens 路由
+- **门禁**：pytest 2506 passed（+7 新用例）· pre-commit 全绿 · mypy 0 issue · console 构建 + flutter analyze 通过
+
+### 2026-08-18 · 三端 UI/UX 布局系统性修复（v1.15.3）
+
+- **DESIGN.md 规范审计修复**（报告 `docs/uiux-layout-audit-fixes-2026-08-18.md`）：三端只读审计（webapp 19 路由 / console 72 页 / flutter 57 页）以设计 token 为基线 + WCAG 2.2 检查，P0 论断二次复验后修复
+- **P0 修复**：未定义 token 补齐（webapp `--success/--danger/--primary/--card`、console `--accent-contrast/--primary`）+ Tailwind 色板回退清零（含 indigo）；黄色违规 → 深金 `#8A6415`（DESIGN.md YAML 补 `accent-text` token 三端同步，lint 0 errors）；金底白字清零（console `.wb-btn` 40px、flutter FAB）；触摸目标统一 ≥44px（webapp 圆形图标按钮 + flutter 热区）
+- **Flutter 导航骨架重建**：`main.dart` 具名路由表注册 58 页（29 孤儿页接入）、HomePage 64px 底部导航、项目链路打通；`light()` 主题补全防 Material 3 紫回退 + C 端卡片 16px 圆角 + tabular-nums
+- **P1/P2**：webapp 8 张表格 `table-wrap` 防溢出 + 死类名清理；console 侧栏 232px + 窄屏抽屉导航 + 选中态品牌金 + `#6B6978` 清零；flutter 废弃旧色/默认蓝 → token
+- **门禁**：pytest 2499 passed 不回归 · pre-commit 全绿 · mypy 0 issue · design lint 0 errors · vite build ×2 · flutter analyze 0 issues
 
 ### 2026-08-17 · 业务链路全景全量走查修复（v1.15.2）
 

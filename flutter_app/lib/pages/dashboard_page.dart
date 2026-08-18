@@ -132,7 +132,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               const SizedBox(height: 8),
-              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: cs.onSurface)),
+              Text(value, style: SuokeDesignTokens.statTextStyle.copyWith(fontSize: 24, color: cs.onSurface)),
             ],
           ),
         ),

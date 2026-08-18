@@ -41,7 +41,7 @@ class _CADPageState extends State<CADPage> {
   ];
   int _activeLayerIdx = 0;
 
-  static const _colors = [Colors.blueGrey, Colors.brown, Colors.teal, Colors.indigo, Colors.orange, Colors.pink, Colors.green, Colors.amber];
+  static const _colors = [Colors.blueGrey, Colors.brown, Colors.teal, SuokeDesignTokens.info, Colors.orange, Colors.pink, Colors.green, Colors.amber];
 
   final Map<String, String> _toolNames = {
     'select': '选择', 'line': '直线', 'rect': '矩形', 'arc': '圆弧',
@@ -206,7 +206,7 @@ class _CADPageState extends State<CADPage> {
             style: TextStyle(color: SuokeDesignTokens.text(context), fontSize: 12, fontFamily: 'monospace'),
             decoration: const InputDecoration(
               hintText: '粘贴 JSON 项目数据...',
-              hintStyle: TextStyle(color: Color(0xFF5A5866)),
+              hintStyle: TextStyle(color: SuokeDesignTokens.textMuted),
               border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF2A2A3E))),
             ),
           ),
@@ -553,11 +553,11 @@ class _CADPageState extends State<CADPage> {
               children: [
                 Text('${_elements.length} 元素', style: const TextStyle(fontSize: 12, color: Color(0xFF8A8894))),
                 const SizedBox(width: 12),
-                Text('正交:${_orthoLock ? "ON" : "OFF"}', style: const TextStyle(fontSize: 11, color: Color(0xFF5A5866))),
+                Text('正交:${_orthoLock ? "ON" : "OFF"}', style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textMuted)),
                 const SizedBox(width: 8),
-                Text('捕捉:${_snapEnabled ? "ON" : "OFF"}', style: const TextStyle(fontSize: 11, color: Color(0xFF5A5866))),
+                Text('捕捉:${_snapEnabled ? "ON" : "OFF"}', style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textMuted)),
                 const Spacer(),
-                Text('缩放 ${(_scale * 100).toInt()}% | ${_toolNames[_tool]}', style: const TextStyle(fontSize: 12, color: Color(0xFF5A5866))),
+                Text('缩放 ${(_scale * 100).toInt()}% | ${_toolNames[_tool]}', style: const TextStyle(fontSize: 12, color: SuokeDesignTokens.textMuted)),
               ],
             ),
           ),

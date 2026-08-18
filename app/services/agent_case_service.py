@@ -49,6 +49,123 @@ _COMPRESS_THRESHOLD = 2000
 # v1.13.5: token 估算换算系数（len//2——中文≈1字/token 与英文≈4字符/token 的中间值）
 TOKEN_ESTIMATE_DIVISOR = 2
 
+# v1.15.5 失败学习：失败轨迹确定性分类（借鉴 EdgeBench——失败是最贵的学习信号，
+# ITBench-AA 显示 agentic 任务失败率 >50%，失败样本比成功样本更稀缺更有价值）
+_FAILURE_STATUSES = ("failed", "fallback")
+_FAILURE_TYPE_TIMEOUT = "timeout"
+_FAILURE_TYPE_EMPTY_REPLY = "empty_reply"
+_FAILURE_TYPE_FALLBACK = "fallback"
+_FAILURE_TYPE_LLM_ERROR = "llm_error"
+_FAILURE_TYPE_TOOL_LOOP = "tool_loop"
+_FAILURE_TYPE_UNKNOWN = "unknown"
+
+# 失败信号特征词 → failure_type（确定性，无 LLM 成本）
+_TIMEOUT_HINTS = ("timeout", "超时", "asyncio.TimeoutError", "all_retries_exhausted")
+_EMPTY_REPLY_HINTS = ("empty", "空回复", "no content", "finish=tool_calls")
+_TOOL_LOOP_HINTS = ("tool_loop", "max_tool", "token_budget_hit", "工具循环")
+
+
+def _classify_failure_type(trace_dict: dict) -> str:
+    """确定性失败分类（无 LLM 成本）→ failure_type。
+
+    信号优先级：timeout > tool_loop > empty_reply(显式空回复信号) > fallback(状态)
+    > llm_error(有错误信息) > unknown（仅有 failed 状态、无任何诊断信息）。
+    （借鉴 HarnessBank「诊断-归因分离」：以病理为键而非任务为键，抗过拟合）
+    """
+    status = str(trace_dict.get("status") or "")
+    fallback_reason = str(trace_dict.get("fallback_reason") or "")
+    error_type = str(trace_dict.get("error_type") or "")
+    error_message = str(trace_dict.get("error_message") or "")
+    blob = f"{fallback_reason}|{error_type}|{error_message}|{status}".lower()
+    if any(h in blob for h in _TIMEOUT_HINTS):
+        return _FAILURE_TYPE_TIMEOUT
+    if any(h in blob for h in _TOOL_LOOP_HINTS):
+        return _FAILURE_TYPE_TOOL_LOOP
+    if any(h in blob for h in _EMPTY_REPLY_HINTS):
+        return _FAILURE_TYPE_EMPTY_REPLY
+    if status == "fallback":
+        return _FAILURE_TYPE_FALLBACK
+    if error_type or error_message:
+        return _FAILURE_TYPE_LLM_ERROR
+    return _FAILURE_TYPE_UNKNOWN
+
+
+async def extract_failure_case_from_trace(
+    trace_dict: dict,
+    db: AsyncSession,
+    *,
+    owner_id: str,
+    scope: str = "personal",
+    created_by: str = "",
+) -> AgentCase | None:
+    """v1.15.5 失败学习：从失败轨迹确定性提取失败 Case（零 LLM 成本）。
+
+    此前 extract_case_from_trace 只走 LLM 成功路径，失败轨迹（harness FAILED/
+    FALLBACK）完全不沉淀——失败信号被丢弃（CLAUDE.md「只记成功不记失败」遗留
+    的 Case 层对应物）。本函数：
+
+      - 判定：trace status ∈ (failed, fallback) 或 error_message 非空
+      - 分类：_classify_failure_type 确定性病理分类（timeout/empty_reply/fallback/…）
+      - 持久化：outcome="failed" + quality_score=0.0 + failure_type + approach 失败记录
+      - 防双提取：同 trace_id 已沉淀则跳过
+
+    失败 Case 供 run_skill_evolution_cycle 按 (agent_name, failure_type) 聚类
+    蒸馏「反模式 Skill」（避免重复错误），受 agent_failure_learning_enabled 门控。
+    """
+    settings = get_settings()
+    if not settings.agent_failure_learning_enabled:
+        return None
+
+    status = str(trace_dict.get("status") or "")
+    if status not in _FAILURE_STATUSES and not trace_dict.get("error_message"):
+        logger.debug("extract_failure_case: 非失败轨迹（status=%s），跳过", status)
+        return None
+
+    trace_id = trace_dict.get("trace_id")
+    if trace_id:
+        existing = await db.execute(
+            select(AgentCase.id).where(AgentCase.trace_id == trace_id).limit(1)
+        )
+        if existing.scalar_one_or_none():
+            logger.debug("extract_failure_case: trace_id=%s 已提取过，跳过", trace_id)
+            return None
+
+    failure_type = _classify_failure_type(trace_dict)
+    user_message = trace_dict.get("user_message_truncated") or trace_dict.get("user_message", "") or "(无用户消息)"
+    fallback_reason = trace_dict.get("fallback_reason") or trace_dict.get("error_message") or failure_type
+    approach = json.dumps(
+        [{
+            "step": 1,
+            "attempted": user_message[:300],
+            "tool": "harness",
+            "result": f"{failure_type}: {fallback_reason}"[:500],
+            "revised": False,
+        }],
+        ensure_ascii=False,
+    )
+
+    agent_case = AgentCase(
+        id=str(uuid.uuid4()),
+        scope=scope,
+        owner_id=owner_id,
+        agent_name=trace_dict.get("agent_name", "base"),
+        session_id=None,
+        trace_id=trace_id,
+        task_intent=user_message[:200],
+        approach=approach,
+        outcome="failed",
+        quality_score=0.0,
+        failure_type=failure_type,
+        created_by=created_by or owner_id,
+    )
+    db.add(agent_case)
+    await db.flush()
+    logger.info(
+        "extract_failure_case: 已沉淀失败 Case %s (agent=%s, failure_type=%s)",
+        agent_case.id, agent_case.agent_name, failure_type,
+    )
+    return agent_case
+
 
 def _is_goal_directed(user_message: str) -> bool:
     """判定是否目标导向对话（闲聊/简单 Q&A 不入 Case）。
@@ -156,6 +273,14 @@ async def extract_case_from_trace(
     if not _is_goal_directed(user_message):
         logger.debug("extract_case: 非目标导向对话，跳过")
         return None
+
+    # v1.15.5 失败学习：失败轨迹走确定性失败提取（零 LLM 成本、病理分类、
+    # 聚类蒸馏反模式），成功轨迹走 LLM 结构化提取
+    status = str(trace_dict.get("status") or "")
+    if status in _FAILURE_STATUSES or trace_dict.get("error_message"):
+        return await extract_failure_case_from_trace(
+            trace_dict, db, owner_id=owner_id, scope=scope, created_by=created_by,
+        )
 
     # 压缩轨迹
     trajectory = _compress_trajectory(trace_dict)
@@ -310,10 +435,32 @@ async def search_cases(
             desc(AgentCase.retrieval_count),
             desc(AgentCase.created_at),
         )
-        .limit(limit)
+        # v1.15.7 时间衰减：取 limit×4 候选池供 Python 侧衰减重排
+        # （SQL 无法表达指数衰减；候选池放大保证衰减后仍有足量新鲜样本）
+        .limit(max(limit * 4, 20))
     )
     result = await db.execute(stmt)
     cases = list(result.scalars().all())
+
+    # v1.15.7 记忆时间衰减（MobileMem 2026 借鉴）：effective = quality ×
+    # exp(-age_days / half_life)——陈旧经验自然降权，防旧高分 Case 压制新经验。
+    # 确定性纯计算（无 LLM 成本）；关闭 flag 回退 quality-only 排序（旧行为）。
+    if settings.memory_time_decay_enabled and cases:
+        half_life = max(float(settings.memory_decay_half_life_days), 0.1)
+        now = datetime.now(timezone.utc)
+
+        def _decayed(case: AgentCase) -> float:
+            created = case.created_at
+            if created is None:
+                return float(case.quality_score)
+            if created.tzinfo is None:  # SQLite server_default 返回 naive UTC
+                created = created.replace(tzinfo=timezone.utc)
+            age_days = max((now - created).total_seconds() / 86400.0, 0.0)
+            import math
+            return float(case.quality_score) * math.exp(-age_days / half_life)
+
+        cases.sort(key=_decayed, reverse=True)
+    cases = cases[:limit]
 
     # 更新检索计数（best-effort）
     for case in cases:

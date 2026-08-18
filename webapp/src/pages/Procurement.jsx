@@ -125,7 +125,8 @@ export default function ProcurementPage() {
     body = <Empty message="该项目暂无采购单" />
   } else {
     body = (
-      <table className="table">
+      <div className="table-wrap">
+        <table className="table">
         <thead>
           <tr>
             <th>订单号</th>
@@ -151,7 +152,8 @@ export default function ProcurementPage() {
             )
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     )
   }
 

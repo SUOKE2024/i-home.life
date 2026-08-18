@@ -37,7 +37,10 @@ require_admin = allow_admin
 
 
 class PermissionChecker:
-    """基于权限码的细粒度访问检查。
+    """基于权限码的细粒度访问检查（默认映射兜底 + DB 角色权限表可增删）。
+
+    判定顺序：admin 直通 → DB `RolePermission` 行命中 → `DEFAULT_ROLE_PERMISSIONS`
+    默认映射命中（平台基线，无需 seed 即可用）→ 403。
 
     Usage::
         require_manage_users = PermissionChecker("user:manage")
@@ -56,19 +59,24 @@ class PermissionChecker:
         if current_user.role == "admin":
             return current_user
 
-        # 查询角色权限表
+        # 1) 角色权限表（管理员可经 /admin/roles/{role}/permissions 动态调整）
         result = await db.execute(
             select(RolePermission).where(
                 RolePermission.role == current_user.role,
                 RolePermission.permission_code == self.permission_code,
             )
         )
-        if result.scalar_one_or_none() is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"角色 {current_user.role} 无权限执行此操作（需要: {self.permission_code}）",
-            )
-        return current_user
+        if result.scalar_one_or_none() is not None:
+            return current_user
+
+        # 2) 平台默认权限映射兜底（无需 seed；DB 行优先级更高可覆盖）
+        if self.permission_code in DEFAULT_ROLE_PERMISSIONS.get(current_user.role, []):
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"角色 {current_user.role} 无权限执行此操作（需要: {self.permission_code}）",
+        )
 
 
 async def verify_project_access(
@@ -216,5 +224,39 @@ DEFAULT_ROLE_PERMISSIONS = {
     "supplier": [
         "project:read",
         "material:read", "material:write",
+        "product:write",
+        "order:read", "quote:write", "fulfillment:update", "settlement:read",
     ],
 }
+
+
+def get_default_permission_codes(role: str) -> list[str]:
+    """角色默认权限码（平台基线，未含 DB 动态调整）"""
+    return DEFAULT_ROLE_PERMISSIONS.get(role, [])
+
+
+def get_all_permission_codes() -> list[str]:
+    """全部已知权限码（admin 直通语义的展示全集）"""
+    codes: list[str] = []
+    for role_codes in DEFAULT_ROLE_PERMISSIONS.values():
+        for code in role_codes:
+            if code not in codes:
+                codes.append(code)
+    return codes
+
+
+async def get_effective_permission_codes(db: AsyncSession, role: str) -> list[str]:
+    """角色生效权限码 = 平台默认映射 ∪ DB 角色权限表（admin 返回全集）。
+
+    供 /auth/me/permissions 菜单出口与前端导航过滤使用；DB 行可增删、
+    默认映射恒为基线（无 seed 也可用）。
+    """
+    if role == "admin":
+        return get_all_permission_codes()
+
+    result = await db.execute(select(RolePermission).where(RolePermission.role == role))
+    codes = [row.permission_code for row in result.scalars()]
+    for code in DEFAULT_ROLE_PERMISSIONS.get(role, []):
+        if code not in codes:
+            codes.append(code)
+    return sorted(codes)

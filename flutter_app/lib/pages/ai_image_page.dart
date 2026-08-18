@@ -466,7 +466,7 @@ class _AIImagePageState extends State<AIImagePage>
     String label;
     switch (status) {
       case 'processing':
-        color = const Color(0xFF2196F3);
+        color = SuokeDesignTokens.info;
         label = '生成中';
         break;
       case 'completed':
@@ -634,7 +634,7 @@ class _AIImagePageState extends State<AIImagePage>
                 if (status == 'processing') ...[
                   const SizedBox(width: 16),
                   Text('${job['progress_percent'] ?? 0}%',
-                      style: const TextStyle(color: Colors.blue, fontSize: 12)),
+                      style: const TextStyle(color: SuokeDesignTokens.info, fontSize: 12)),
                 ],
               ],
             ),

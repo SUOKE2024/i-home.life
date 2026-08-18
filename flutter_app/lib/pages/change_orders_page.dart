@@ -401,7 +401,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.assignment_outlined,
-                size: 64, color: Color(0xFF5A5866)),
+                size: 64, color: SuokeDesignTokens.textMuted),
             const SizedBox(height: 16),
             Text('暂无变更订单', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
             const SizedBox(height: 16),
@@ -527,7 +527,7 @@ class _ChangeOrdersPageState extends State<ChangeOrdersPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.assignment_outlined,
-                size: 64, color: Color(0xFF5A5866)),
+                size: 64, color: SuokeDesignTokens.textMuted),
             const SizedBox(height: 16),
             Text('请从列表中选择一个变更订单查看详情',
                 style: TextStyle(color: SuokeDesignTokens.textSub(context))),

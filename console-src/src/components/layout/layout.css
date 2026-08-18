@@ -38,7 +38,7 @@
    SideNav — 桌面侧栏
    ════════════════════════════════════════════ */
 .wb-sidenav {
-  width: 220px;
+  width: 232px;
   flex-shrink: 0;
   background: var(--surface1);
   border-right: 1px solid var(--border);
@@ -111,7 +111,7 @@
 }
 .wb-sidenav__item--active {
   background: var(--surface2);
-  color: var(--text-primary);
+  color: var(--accent);
   border-left-color: var(--accent);
   font-weight: 600;
 }
@@ -121,6 +121,71 @@
   flex-shrink: 0;
   width: 18px;
   text-align: center;
+}
+
+/* ════════════════════════════════════════════
+   窄屏顶栏 + 抽屉导航（<1025px 导航替代）
+   ════════════════════════════════════════════ */
+.wb-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 0 16px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.wb-topbar__menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius-input);
+}
+.wb-topbar__menu:hover {
+  background: var(--surface2);
+}
+.wb-topbar__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+.wb-drawer__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+.wb-drawer__panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 85vw;
+  background: var(--surface1);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
 }
 
 /* ════════════════════════════════════════════

@@ -27,7 +27,6 @@ export default function AgentSelector({ selected, onSelect }: AgentSelectorProps
             role="tab"
             aria-selected={isActive}
             className={`wb-agent-chip ${isActive ? 'wb-agent-chip--active' : ''}`}
-            style={isActive ? { color: info.color, borderColor: info.color } : undefined}
             onClick={() => onSelect(key)}
             data-testid={`wb-agent-chip--${key}`}
           >

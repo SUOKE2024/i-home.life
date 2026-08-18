@@ -46,6 +46,8 @@ class _HomePageState extends State<HomePage> {
   List<dynamic> _feedCards = [];     // A2UI 主动卡片流（8 类卡片并入首页 feed）
   bool _loading = true;
   String? _error;
+  // v1.15.4 角色感知导航：supplier 显示供应商 tab 集（交付/产品），其余角色保持默认
+  String _role = 'homeowner';
 
   static const _labels = ['量房', '设计', '预算', '施工', '质检', '结算', '入住'];
 
@@ -85,6 +87,14 @@ class _HomePageState extends State<HomePage> {
       _loading = true;
       _error = null;
     });
+    // v1.15.4 角色感知导航：拉取当前用户角色（best-effort，失败回退 homeowner 默认 tab 集）
+    final meResult = await _api.get('/auth/me');
+    if (meResult.isSuccess && meResult.data is Map) {
+      final role = (meResult.data as Map)['role']?.toString();
+      if (role != null && role != _role && mounted) {
+        setState(() => _role = role);
+      }
+    }
     final projectsResult = await _api.getProjects();
     if (!projectsResult.isSuccess) {
       if (mounted) {
@@ -201,6 +211,93 @@ class _HomePageState extends State<HomePage> {
           Expanded(child: _buildBody()),
         ],
       ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  /// 底部导航（DESIGN.md：NavigationBar 高 64px；首页/项目/AI 管家/我的）
+  Widget _buildBottomNav() {
+    final isSupplier = _role == 'supplier';
+    final destinations = isSupplier
+        ? <NavigationDestination>[
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: '首页',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.local_shipping_outlined),
+              selectedIcon: Icon(Icons.local_shipping),
+              label: '交付',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              selectedIcon: Icon(Icons.inventory_2),
+              label: '产品',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: '我的',
+            ),
+          ]
+        : const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: '首页',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.folder_outlined),
+              selectedIcon: Icon(Icons.folder),
+              label: '项目',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.auto_awesome_outlined),
+              selectedIcon: Icon(Icons.auto_awesome),
+              label: 'AI 管家',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: '我的',
+            ),
+          ];
+
+    return NavigationBar(
+      height: 64,
+      onDestinationSelected: (index) {
+        if (isSupplier) {
+          switch (index) {
+            case 1:
+              Navigator.pushNamed(context, '/b2b-delivery');
+              break;
+            case 2:
+              Navigator.pushNamed(context, '/products');
+              break;
+            case 3:
+              Navigator.pushNamed(context, '/settings');
+              break;
+            default:
+              break; // 首页（0）：已在当前页
+          }
+          return;
+        }
+        switch (index) {
+          case 1:
+            Navigator.pushNamed(context, '/projects');
+            break;
+          case 2:
+            Navigator.pushNamed(context, '/ai-chat');
+            break;
+          case 3:
+            Navigator.pushNamed(context, '/settings');
+            break;
+          default:
+            break; // 首页（0）：已在当前页
+        }
+      },
+      destinations: destinations,
     );
   }
 
@@ -278,7 +375,7 @@ class _HomePageState extends State<HomePage> {
                     context,
                     MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
-                  child: const UserAvatar(size: 34),
+                  child: const UserAvatar(size: 44),
                 ),
               ),
             ],
@@ -476,33 +573,40 @@ class _HomePageState extends State<HomePage> {
               return Expanded(
                 child: Column(
                   children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDone
-                            ? SuokeDesignTokens.accent.withValues(alpha: 0.16)
-                            : isNow
-                                ? SuokeDesignTokens.accent
-                                : SuokeDesignTokens.surface2.withValues(alpha: 0.4),
-                        border: Border.all(
-                          color: isDone || isNow
-                              ? SuokeDesignTokens.accent
-                              : SuokeDesignTokens.borderClr(context),
-                          width: isNow ? 2 : 1,
-                        ),
-                      ),
+                    // 触摸目标 ≥44×44：外框 44，视觉节点保持 30（热区 padding，不破坏视觉）
+                    SizedBox(
+                      width: 44,
+                      height: 44,
                       child: Center(
-                        child: isDone
-                            ? const Icon(Icons.check, size: 15, color: SuokeDesignTokens.accent)
-                            : Text('${i + 1}',
-                                style: TextStyle(
-                                    color: isNow
-                                        ? SuokeDesignTokens.bgDeep
-                                        : SuokeDesignTokens.textSub(context),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700)),
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDone
+                                ? SuokeDesignTokens.accent.withValues(alpha: 0.16)
+                                : isNow
+                                    ? SuokeDesignTokens.accent
+                                    : SuokeDesignTokens.surfaceWarm2,
+                            border: Border.all(
+                              color: isDone || isNow
+                                  ? SuokeDesignTokens.accent
+                                  : SuokeDesignTokens.borderClr(context),
+                              width: isNow ? 2 : 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: isDone
+                                ? const Icon(Icons.check, size: 15, color: SuokeDesignTokens.accent)
+                                : Text('${i + 1}',
+                                    style: TextStyle(
+                                        color: isNow
+                                            ? SuokeDesignTokens.bgDeep
+                                            : SuokeDesignTokens.textSub(context),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700)),
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -559,7 +663,7 @@ class _HomePageState extends State<HomePage> {
                     value: score / 100,
                     strokeWidth: 10,
                     strokeCap: StrokeCap.round,
-                    backgroundColor: SuokeDesignTokens.surface2.withValues(alpha: 0.5),
+                    backgroundColor: SuokeDesignTokens.surfaceWarm2,
                     color: color,
                   ),
                 ),
@@ -567,7 +671,7 @@ class _HomePageState extends State<HomePage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('$score',
-                        style: TextStyle(
+                        style: SuokeDesignTokens.statTextStyle.copyWith(
                             color: SuokeDesignTokens.text(context),
                             fontSize: 26,
                             fontWeight: FontWeight.w800)),
@@ -929,7 +1033,7 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () => _openChat(prefill: message),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(44, 36),
+                        minimumSize: const Size(44, 44),
                       ),
                       child: const Text('问管家',
                           style: TextStyle(color: SuokeDesignTokens.accent, fontSize: 11.5)),

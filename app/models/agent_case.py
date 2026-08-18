@@ -72,6 +72,11 @@ class AgentCase(Base):
     quality_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     # 0.0-1.0 自评（用户反馈 agent_feedbacks 可校准此值）
 
+    # v1.15.5 失败学习（2026 前沿 EdgeBench 借鉴：失败是最贵的学习信号）
+    failure_type: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    # 确定性失败分类：timeout / empty_reply / fallback / llm_error / tool_loop / unknown
+    # 供反模式 Skill 蒸馏按 (agent_name, failure_type) 聚类（借鉴 HarnessBank 病理键）
+
     # ── 进化统计（Skill 蒸馏 + 诊断归因用）──
     cluster_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     # 聚类后归属的簇 id（同簇 Case 蒸馏为一个 Skill）

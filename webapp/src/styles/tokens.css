@@ -5,6 +5,7 @@
   --bg: #0d0d16;
   --bg-elev: #12121d;
   --bg-elev-2: #1a1a2a;
+  --card: #12121d;
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.16);
 
@@ -16,6 +17,7 @@
 
   /* 品牌（暗金） */
   --accent: #c9973b;
+  --primary: #c9973b;
   --accent-bright: #e0aa4a;
   --accent-dim: rgba(201, 151, 59, 0.16);
   --accent-text: #e0b35e;
@@ -23,6 +25,8 @@
   --on-accent: #08080f;
 
   /* 语义色 */
+  --success: #4a9e6e;
+  --danger: #c94a4a;
   --green: #4ac9a3;
   --green-dim: rgba(74, 201, 163, 0.14);
   --sky: #4aa3c9;
@@ -73,6 +77,7 @@
   --bg: #f8f7f4;
   --bg-elev: #ffffff;   /* surface-warm */
   --bg-elev-2: #f0eee8; /* surface-warm-2 */
+  --card: #ffffff;
   --border: #e8e5de;    /* border-warm */
   --border-strong: #d4d0c8;
 

@@ -156,7 +156,8 @@ export default function QualityPage() {
             {issues.length === 0 ? (
               <Empty message="暂无质量问题" />
             ) : (
-              <table className="table">
+              <div className="table-wrap">
+                <table className="table">
                 <thead>
                   <tr>
                     <th>问题描述</th>
@@ -193,7 +194,8 @@ export default function QualityPage() {
                     )
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </Card>
 
@@ -207,7 +209,8 @@ export default function QualityPage() {
             {checklist.length === 0 ? (
               <Empty message="暂无验收清单数据" />
             ) : (
-              <table className="table">
+              <div className="table-wrap">
+                <table className="table">
                 <thead>
                   <tr>
                     <th>检查项</th>
@@ -222,7 +225,8 @@ export default function QualityPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </Card>
 

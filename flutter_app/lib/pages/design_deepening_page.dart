@@ -397,7 +397,8 @@ class _DesignDeepeningPageState extends State<DesignDeepeningPage>
           ? FloatingActionButton(
               onPressed: _createPlan,
               backgroundColor: SuokeDesignTokens.accent,
-              child: const Icon(Icons.add, color: Colors.white),
+              // 金色底必须深墨字（on-accent 7.56:1），白字仅 2.64:1 不达 WCAG AA
+              child: const Icon(Icons.add, color: SuokeDesignTokens.onAccent),
             )
           : null,
     );

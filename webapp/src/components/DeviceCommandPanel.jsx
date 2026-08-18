@@ -86,7 +86,7 @@ export default function DeviceCommandPanel({
           )}
         </div>
         <button
-          className="ghost"
+          className="btn btn--ghost"
           style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
           onClick={onClose}
           aria-label="关闭"
@@ -124,7 +124,7 @@ export default function DeviceCommandPanel({
           {device.sceneIds.map((sid) => (
             <button
               key={sid}
-              className="btn btn-primary"
+              className="btn btn--primary"
               style={{ width: '100%', marginBottom: 6, fontSize: 13 }}
               disabled={busy === `scene:${sid}`}
               onClick={() => run(`scene:${sid}`, () => onScene(sid))}
@@ -145,9 +145,9 @@ export default function DeviceCommandPanel({
                 ? 'rgba(34, 197, 94, 0.12)'
                 : 'rgba(250, 200, 60, 0.12)',
             color: result.status === 'failed'
-              ? 'var(--danger, #dc3c3c)'
+              ? 'var(--danger)'
               : result.status === 'success'
-                ? 'var(--success, #22c55e)'
+                ? 'var(--success)'
                 : 'var(--text-dim)',
           }}
         >

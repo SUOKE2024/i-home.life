@@ -82,21 +82,6 @@
   padding: 10px 0;
 }
 
-.nav-item .nav-caret {
-  position: absolute;
-  right: 8px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.nav-item--active .nav-caret {
-  opacity: 1;
-}
-
 .nav-divider {
   height: 1px;
   background: var(--border);
@@ -157,7 +142,6 @@
 @media (max-height: 700px) {
   .sidenav-nav { gap: 0; padding: 10px 10px; }
   .nav-item { padding: 6px 12px; }
-  .nav-item .nav-caret { width: 3px; height: 3px; }
   .nav-divider { margin: 4px 4px; }
 }
 
@@ -667,7 +651,6 @@
   .sidenav--collapsed .sidenav-brand { justify-content: space-between; padding: 18px 16px; }
   .sidenav--collapsed .nav-item { justify-content: flex-start; padding: 10px 12px; }
   .sidenav--collapsed .nav-item .nav-label { display: inline; }
-  .sidenav--collapsed .nav-item .nav-caret { display: inline-block; }
   .sidenav--collapsed .sidenav-user { display: flex; }
   .shell--collapsed .nav-collapse span { display: inline; }
 
@@ -685,6 +668,9 @@
     opacity: 1;
     pointer-events: auto;
   }
+
+  /* 内容网格：固定双列 KPI 小屏单列堆叠（stat-grid/grid-2/bento 已各自断点收敛） */
+  .kpi-row { grid-template-columns: 1fr; }
 }
 
 /* ═══════════ 全链路诊断（v1.10.x） ═══════════ */

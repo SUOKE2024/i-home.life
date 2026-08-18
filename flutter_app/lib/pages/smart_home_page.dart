@@ -1990,7 +1990,7 @@ class _SmartHomePageState extends State<SmartHomePage>
         t.contains('窗帘') || t.contains('curtain') ||
         t.contains('温控') || t.contains('thermostat') ||
         t.contains('风扇') || t.contains('fan')) {
-      return Colors.blue;
+      return SuokeDesignTokens.info;
     }
     if (t.contains('电视') || t.contains('tv') ||
         t.contains('音响') || t.contains('speaker') ||
@@ -2159,7 +2159,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                     children: [
                       _buildDeviceLegend(Colors.amber, '照明'),
                       _buildDeviceLegend(Colors.red, '安防'),
-                      _buildDeviceLegend(Colors.blue, '气候'),
+                      _buildDeviceLegend(SuokeDesignTokens.info, '气候'),
                       _buildDeviceLegend(Colors.purple, '娱乐'),
                       _buildDeviceLegend(Colors.green, '家电'),
                     ],
@@ -2241,7 +2241,7 @@ class _SmartHomePageState extends State<SmartHomePage>
       case '安防':
         return Colors.red;
       case '气候':
-        return Colors.blue;
+        return SuokeDesignTokens.info;
       case '娱乐':
         return Colors.purple;
       case '家电':

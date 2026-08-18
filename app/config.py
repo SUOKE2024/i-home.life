@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.15.2"
+    app_version: str = "1.15.7"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -195,6 +195,16 @@ class Settings(BaseSettings):
     agent_skill_distillation_enabled: bool = True
     # P1: Skill 随成败进化（三维质控 Utility/Robustness/Safety + WHERE×WHY 诊断归因）
     agent_skill_evolution_enabled: bool = True
+    # v1.15.5 失败学习（2026 前沿 EdgeBench/ITBench-AA 借鉴：失败是最贵的学习信号，
+    # 前沿模型 agentic 任务成功率 <50%，失败样本更稀缺）：harness FAILED/FALLBACK 轨迹
+    # 确定性沉淀失败 Case（failure_type 病理分类）→ 同病理 ≥3 条蒸馏「反模式 Skill」
+    # → 执行前注入「历史失败教训」警告。关闭即回退失败不沉淀（旧行为）。
+    agent_failure_learning_enabled: bool = True
+    # v1.15.7 记忆时间衰减（MobileMem 2026 借鉴：长期记忆须随年龄衰减防陈旧经验
+    # 主导检索）：search_cases 检索排序 = quality × exp(-年龄/半衰期)，陈旧 Case
+    # 自然降权（确定性，无额外成本）。关闭即回退 quality-only 排序（旧行为）。
+    memory_time_decay_enabled: bool = True
+    memory_decay_half_life_days: float = 30.0
     # v1.13.5（2026 Context Engineering 前沿对齐）：自进化注入上下文预算（字符数）。
     # think 前注入的 Case/Skill 总上下文超预算时按优先级裁剪（Skill 蒸馏知识全量优先，
     # Case 按 quality 降序从末尾丢弃/截断），防 context rot（上下文腐烂：噪音淹没关键事实
@@ -461,6 +471,22 @@ class Settings(BaseSettings):
     # v1.14.x 意图分类规则优先：明确关键词命中直接返回，省一次 LLM 调用降低 SSE 首 token 延迟。
     # True=规则优先（快，省 LLM）；False=LLM 优先（原行为，复杂语义更准）。
     classify_intent_rule_first_enabled: bool = True
+    # v1.15.5 复杂度自适应路由（2026 前沿 ARISE 自适应分辨率测试时计算借鉴）：
+    # standard 档 Agent 按任务复杂度规则判定（_estimate_task_complexity）动态调链——
+    # low 复杂度（问候/短 FAQ）低成本供应商优先省钱省时延；high 复杂度（多域/长文本/
+    # 全流程）主供应商（推理模型）优先保质量。economy 档行为不变。
+    adaptive_reasoning_routing_enabled: bool = True
+    # v1.15.5 会话上下文压缩（LangChain Long-Horizon Agents/语境工程借鉴）：
+    # /chat 与 /chat/stream 服务端对超长 history 摘要压缩（保留尾部
+    # chat_context_max_turns 条消息 + 头部 LLM 摘要），防上下文膨胀致时延/成本失控；
+    # LLM 摘要失败回退纯截断（诚实降级，不丢尾部关键消息）。
+    chat_context_compaction_enabled: bool = True
+    chat_context_max_turns: int = 24
+    # v1.15.5 可验证支付意图（2026 智能体支付协议 AP2「可验证意图」对齐）：
+    # Agent 建议的采购付款意图由服务端 HMAC-SHA256 签发（复用 PASETO 主密钥），
+    # 短时有效 + 防篡改；verify 端点供结算/担保支付链校验意图真实性。
+    agent_payment_intent_enabled: bool = True
+    payment_intent_ttl_seconds: int = 600
 
     @property
     def economy_provider_list(self) -> list[str]:
@@ -494,6 +520,16 @@ class Settings(BaseSettings):
     # POST /api/b2b/delivery：输入户型/面积/风格/预算 → 整包返回
     # 设计方案 + 报价 + 施工计划（纯编排、只读、不落库）
     b2b_delivery_enabled: bool = True
+
+    # ── 供应商每日经营简报（v1.15.6，复用 daily-briefing FC 定时触发器模式）──
+    # GET /api/admin/supplier-daily-briefing：聚合交付单状态分布 + 供应商生态/托管资金统计
+    # + ProcurementAgent AI 经营建议（economy 档，best-effort 降级标注）
+    supplier_daily_briefing_enabled: bool = True
+    # v1.15.7 用户侧项目周报（Long-Horizon 主动服务，Vinci2 借鉴）：
+    # GET /api/agents/projects/{project_id}/weekly-briefing——项目/任务/预算/采购/
+    # 验收/里程碑六段确定性数据（逐段标注数据源）+ AI 周度建议（economy 档 best-effort）。
+    # 关闭即 503 诚实报错。
+    project_weekly_briefing_enabled: bool = True
 
     # ── DSPy prompt 优化（借鉴 dspy_optimization_service）──
     # 启用后 DesignerAgent/BudgetAgent prompt 经 ChainOfThought 优化

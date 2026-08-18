@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.user import User
+from app.rbac import get_effective_permission_codes
 from app.models.webauthn_credential import WebAuthnCredential
 from app.schemas.user import (
     UserCreate,
@@ -179,6 +180,25 @@ async def login(
 )
 async def me(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
+
+
+@router.get(
+    "/me/permissions",
+    summary="获取当前用户生效权限码（菜单/导航出口）",
+    description="返回角色与生效权限码（平台默认映射 ∪ DB 角色权限表；admin 返回全集）。"
+    "供三端按角色渲染导航与页面触达，v1.15.4 供应商工作台引入。",
+    response_description="角色与权限码列表",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
+async def me_permissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    codes = await get_effective_permission_codes(db, current_user.role)
+    return {"role": current_user.role, "permissions": codes}
 
 
 @router.post(

@@ -289,6 +289,34 @@ async def delete_memory(db: AsyncSession, user_id: str, memory_id: str) -> bool:
     return result.rowcount > 0
 
 
+async def get_org_memories(db: AsyncSession, limit: int = 20) -> list[AgentMemory]:
+    """v1.15.7 组织级共享记忆（信通院记忆分级「跨 Agent 共享」对齐）。
+
+    返回 scope=org 的记忆（平台管理员写入、全平台成员可读——org 为平台
+    天然成员域）。team 级共享因项目无 Team 实体暂缓（P2 路线图，诚实标注）。
+    只读 + 访问统计（与 get_user_memories 同构）。
+    """
+    stmt = (
+        select(AgentMemory)
+        .where(AgentMemory.scope == SCOPE_ORG)
+        .order_by(desc(AgentMemory.updated_at))
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    rows = list(result.scalars().all())
+    try:
+        now = datetime.now(timezone.utc)
+        for m in rows:
+            m.access_count = (m.access_count or 0) + 1
+            m.last_accessed_at = now
+        await db.commit()
+        for m in rows:
+            await db.refresh(m)
+    except Exception:
+        logger.debug("agent_memory.org_access_stat_update_failed", exc_info=True)
+    return rows
+
+
 async def build_memory_context(
     db: AsyncSession,
     user_id: str,

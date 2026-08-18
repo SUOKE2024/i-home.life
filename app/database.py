@@ -39,7 +39,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 # 迁移批次版本号（每次新增列迁移时递增）
 # v1.1.12: 启动时检查 _schema_migrations.version，已应用则跳过 25+ 表 inspection
 # v1.2.x: 新增 ar_scan_sessions.floorplan_id (AR 测量会话关联户型方案)
-_SCHEMA_MIGRATION_VERSION = 9  # v9: users.wechat_openid/wechat_unionid 微信登录绑定; v8: 空间即导航 floor_plans.room_status 逐房间状态; v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
+_SCHEMA_MIGRATION_VERSION = 10  # v10: agent_cases.failure_type 失败学习分类列; v9: users.wechat_openid/wechat_unionid 微信登录绑定; v8: 空间即导航 floor_plans.room_status 逐房间状态; v7: v1.6.0 chat_rooms.agent_members + chat_messages.auto_reply_meta + bom_items.version/quantity_source/fallback_note; v6: projects 项目卡片采集字段; v5: ai_image_jobs.render_backend
 
 
 class Base(DeclarativeBase):
@@ -169,6 +169,45 @@ async def _run_lightweight_migrations(force: bool = False):  # noqa: C901
             ]
             for table, column, coltype in project_migrations:
                 if column not in project_cols:
+                    await conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+                    )
+                    logging.getLogger("ihome").info(
+                        f"migration: ALTER TABLE {table} ADD COLUMN {column} {coltype}"
+                    )
+
+        # agent_cases 表（v10: failure_type 失败学习分类列，v1.15.5 前沿借鉴 EdgeBench）
+        case_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "agent_cases")
+        )
+        if case_cols is not None and "failure_type" not in case_cols:
+            await conn.execute(text(
+                "ALTER TABLE agent_cases ADD COLUMN failure_type VARCHAR(30)"
+            ))
+            logging.getLogger("ihome").info(
+                "migration: ALTER TABLE agent_cases ADD COLUMN failure_type VARCHAR(30)"
+            )
+            try:
+                await conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_cases_failure_type "
+                    "ON agent_cases (failure_type)"
+                ))
+            except Exception as e:  # 索引创建失败不阻断启动（alembic 链会补）
+                logging.getLogger("ihome").warning(
+                    f"migration: create index ix_agent_cases_failure_type failed: {e}"
+                )
+
+        # a2a_tasks 表（v10: trace_id/evidence 协议信任层证据链，v1.15.5 AAIF 借鉴）
+        a2a_cols = await conn.run_sync(
+            lambda sync_conn: _get_table_columns(sync_conn, "a2a_tasks")
+        )
+        if a2a_cols is not None:
+            a2a_migrations = [
+                ("a2a_tasks", "trace_id", "VARCHAR(12)"),
+                ("a2a_tasks", "evidence", "TEXT"),
+            ]
+            for table, column, coltype in a2a_migrations:
+                if column not in a2a_cols:
                     await conn.execute(
                         text(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
                     )

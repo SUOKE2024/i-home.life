@@ -4,9 +4,6 @@ import '../services/api.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 import '../widgets/empty_state.dart';
-import 'budget_page.dart';
-import 'construction_page.dart';
-import 'settlement_page.dart';
 import 'design_deepening_page.dart';
 import 'procurement_enhanced_page.dart';
 import 'ar_scan_page.dart';
@@ -929,10 +926,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => BudgetPage(projectId: widget.projectId)),
-                ),
+                onPressed: () => Navigator.pushNamed(context, '/budget', arguments: widget.projectId),
                 icon: const Icon(Icons.account_balance_wallet, size: 18),
                 label: const Text('预算管理'),
               ),
@@ -940,10 +934,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => ConstructionPage(projectId: widget.projectId)),
-                ),
+                onPressed: () => Navigator.pushNamed(context, '/construction', arguments: widget.projectId),
                 icon: const Icon(Icons.engineering, size: 18),
                 label: const Text('施工管理'),
               ),
@@ -951,10 +942,7 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => SettlementPage(projectId: widget.projectId)),
-                ),
+                onPressed: () => Navigator.pushNamed(context, '/settlement', arguments: widget.projectId),
                 icon: const Icon(Icons.receipt_long, size: 18),
                 label: const Text('结算管理'),
               ),

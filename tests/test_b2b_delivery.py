@@ -14,13 +14,40 @@ from httpx import AsyncClient
 from app.config import get_settings
 
 
-async def _register(client: AsyncClient, phone: str = "13900007001") -> str:
+async def _register(client: AsyncClient, phone: str = "13900007001", role: str = "contractor") -> str:
+    """注册 B2B 装企（v1.15.6 起交付单创建限 contractor/supplier/admin）"""
     resp = await client.post(
         "/api/auth/register",
-        json={"phone": phone, "name": "B2B装企", "password": "test123456"},
+        json={"phone": phone, "name": "B2B装企", "password": "test123456", "role": role},
     )
     assert resp.status_code == 201
     return resp.json()["access_token"]
+
+
+@pytest.mark.asyncio
+async def test_b2b_delivery_rejects_homeowner(client: AsyncClient):
+    """v1.15.6 角色语义：业主创建交付单 → 403"""
+    token = await _register(client, phone="13900007101", role="homeowner")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/b2b/delivery",
+        json={"name": "业主越权交付", "area": 120, "style": "modern"},
+        headers=headers,
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_b2b_delivery_allows_supplier(client: AsyncClient):
+    """v1.15.6 角色语义：供应商创建交付单放行"""
+    token = await _register(client, phone="13900007102", role="supplier")
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await client.post(
+        "/api/b2b/delivery",
+        json={"name": "供应商整装交付", "area": 90, "style": "modern"},
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
 
 
 @pytest.mark.asyncio
@@ -231,12 +258,12 @@ async def test_b2b_delivery_status_transitions(client: AsyncClient):
 
 
 async def _register_get_user_id(client: AsyncClient, db_session, phone: str) -> tuple[str, str]:
-    """注册用户，返回 (token, user_id)"""
+    """注册用户（v1.15.6 交付单创建限 contractor/supplier/admin），返回 (token, user_id)"""
     from sqlalchemy import select
     from app.models.user import User
     resp = await client.post(
         "/api/auth/register",
-        json={"phone": phone, "name": "B2B待办", "password": "test123456"},
+        json={"phone": phone, "name": "B2B待办", "password": "test123456", "role": "contractor"},
     )
     assert resp.status_code == 201
     token = resp.json()["access_token"]
@@ -255,7 +282,7 @@ async def _register_get_user_id_short(client: AsyncClient, phone: str) -> tuple[
     from app.models.user import User
     resp = await client.post(
         "/api/auth/register",
-        json={"phone": phone, "name": "B2B待办", "password": "test123456"},
+        json={"phone": phone, "name": "B2B待办", "password": "test123456", "role": "contractor"},
     )
     assert resp.status_code == 201
     token = resp.json()["access_token"]

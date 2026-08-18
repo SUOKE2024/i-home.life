@@ -357,7 +357,7 @@ export default function ARScanPage() {
                 </div>
               )}
               {result && Array.isArray(result.parse_warnings) && result.parse_warnings.length > 0 && (
-                <div style={{ fontSize: 12, color: '#b45309', marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: 'var(--accent-text)', marginTop: 8 }}>
                   解析说明：{result.parse_warnings.join('；')}
                 </div>
               )}

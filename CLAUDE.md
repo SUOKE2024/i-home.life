@@ -17,7 +17,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 
 - **执行型 Agent**（面向用户交付）：designer/budget/procurement/construction/qa_inspector/settlement/concierge 等 21 个，覆盖家装交付链路。
 - **商业运营 Agent**（平台自身运营，借鉴 Polsia 9 大智能体 + 义乌「AI 嵌入生意每一环」）：growth/marketing/competitor_research/finance_recon，受各自 `xxx_agent_enabled` flag 灰度，v1.13.2 起默认 True（best-effort 降级，关闭即回退 enabled=False 诚实标注）。
-- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `https://i-home.life/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron；2026-08-08 域名切换后触发器目标 URL 须为域名 443，不再用 `http://118.31.223.213:8081`）。v1.13.2 起该 flag 默认 True（子 Agent 未启用时 best-effort 降级标注）。
+- **主动 Orchestrator**：`OrchestratorAgent.generate_daily_briefing` 每日聚合 growth + finance 报告，阿里云 FC 定时触发器调用 `https://i-home.life/api/admin/daily-briefing`（受 `business_ops_orchestrator_enabled` 控制，无 K8s/Cron；2026-08-08 域名切换后触发器目标 URL 须为域名 443，不再用 `http://118.31.223.213:8081`）。v1.13.2 起该 flag 默认 True（子 Agent 未启用时 best-effort 降级标注）。v1.15.6 起 `generate_supplier_daily_briefing` 供应商每日经营简报复用同一 FC 触发模式调用 `/api/admin/supplier-daily-briefing`（受 `supplier_daily_briefing_enabled` 默认 True 控制；确定性数据段基于 delivery_orders/users/suppliers/products/escrow_payments 内部表并逐段标注，AI 建议 economy 档 best-effort）。
 - **以销定产**：`procurement_demand_driven_enabled`（默认 True，v1.13.2 起）开启后 `procurement_service.drive_procurement_from_bom` 从 designer BOM 反向驱动采购优先级（紧急/常规/可缓），借鉴义乌「以销定产」模式。
 
 商业运营 Agent 数据源诚实标注（GrowthAgent 基于 `agent_feedbacks` 表，非全量调用日志；FinanceRecon 基于 `payment/escrow` 内部表，无 Stripe 对接），禁止伪装实时数据。
@@ -27,7 +27,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 三层独立 feature flag 灰度，v1.13.2 起默认全 True（经 59 用例 + 覆盖率 99% + verify 脚本 66 项验证；关闭即回退无记忆无进化静态行为）：
 - **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。v1.13.2 后全链路闭环：主链路端点直连 `think/think_with_tools` 时由 BaseAgent 内建 hook（`_maybe_persist_execution_case`）用最小 AgentTrace 补沉淀；harness.run 设 `agent._harness_trace` 标记 + `extract_case_from_trace` trace_id 去重防双提取；Case/Skill 提取与注入支持 project scope（空间感知，owner_id=project_id）+ recency 排序键（时间感知，`search_cases` created_at / `get_skill_for_injection` updated_at）。
 - **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：同主题 Case ≥3 条聚类蒸馏为 Skill（`distill_skill_from_cases`，生成前查重合并避免冗余——SkillCorpus 策展）；`BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文。
-- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。v1.13.3 起 `record_skill_outcome` 由 BaseAgent 内建 hook `_maybe_record_skill_outcome` 在生产路径真实调用（此前仅 verify 脚本/测试调用，success/fail_count 恒 0 空转）：think/think_with_tools/think_stream 出口注入 Skill 后按确定性判定（reply 非空且非 [mock]/降级占位 → success=True）回写，P1 进化数据层激活；只记成功不记失败（success=False 需 LLM 信号，遗留）。
+- **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。v1.13.3 起 `record_skill_outcome` 由 BaseAgent 内建 hook `_maybe_record_skill_outcome` 在生产路径真实调用（此前仅 verify 脚本/测试调用，success/fail_count 恒 0 空转）：think/think_with_tools/think_stream 出口注入 Skill 后按确定性判定（reply 非空且非 [mock]/降级占位 → success=True）回写，P1 进化数据层激活；确定性失败（[mock]/思维链泄漏）已回写，语义级失败仍需 LLM 信号（遗留）；v1.15.5 起失败轨迹在 **Case 层**闭环（failure_type 病理分类 + 反模式蒸馏，见「v1.15.5 前沿借鉴落地」节）。
 - **v1.14.1 蒸馏/质控生产触发方**（修复 2026-08-16 评估 P0「孤岛函数」）：`run_skill_evolution_cycle`（agent_skill_evolution_service）编排「聚类发现未蒸馏 Case 簇 → 蒸馏 → 三维质控 → DRAFT→ACTIVE 晋升/低质 archive」，生产端点 `GET /api/admin/skill-evolution`（平台管理员；FC 定时触发器可复用 daily-briefing 模式，单周期上限 50 簇/200 评估）；`get_skill_for_injection` 无 ACTIVE 时回退 DRAFT 试用期注入（打破「无使用记录→无法晋升→只注入 ACTIVE」死锁）。`diagnose_credit_skill_patch` 仍无 patch 生产方（诚实遗留）。
 - **v1.13.3 全链路闭环**（断点 A–I 全修）：think/think_with_tools/think_stream 与 classify_intent / concierge.generate_response / content_publisher.generate_content_publish_reply 均支持 db/user_id/project_id 透传；`think_stream` 补齐 RAG+进化注入+流后 Case 沉淀（此前流式路径三无）；语音（voice_realtime）、IM 群聊（chat_service harness.run）、产品文案（products/camera_scan/ai_copy）、Skill 实例化（agent_skills）、编排 LLM 分解（agent_orchestration_service `_llm_decompose`）全部纳入注入/沉淀闭环；`_inject_preference_hint` helper 供 /chat 与 /chat/stream 共用 L4 偏好注入。
 - 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
@@ -50,6 +50,21 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **L4 双向学习**：`get_user_preference_hint` 同时注入 like 正向示例 + dislike 负向提示（防风格漂移）。
 - **工具选择评估**：`app/eval/tool_accuracy.py`（56 条中文用例数据集，11 工具 × normal/boundary/confusable/negative）+ 确定性基线报告；`GET /api/eval/tool-accuracy` 暴露；`QUALITY_TARGETS.tool_selection_accuracy_min=60` / `token_budget_hit_rate_max=20`（漂移检测纳入）。v1.13.5 关键词表消歧打磨后基线 75%→**100%（0 混淆）**：设计类三重工具关键词细分（移除宽泛"方案"）、search_materials 与 get_budget 去"多少钱"冲突、negative 用例按「不应选工具」（predicted None）度量、关键词匹配大小写归一化。v1.13.8 起新增 Minimal 模式基线（`MINIMAL_TOOL_DATASET` 仅 get_budget/get_design_layout 两工具 + `get_minimal_tool_accuracy_report`，隔离工具数量对选择准确率的影响，借鉴 DeepSeek Harness「Minimal mode」）。
 
+## v1.15.5 前沿借鉴落地（2026 评估执行，详见 `docs/frontier-borrowing-2026-08-17.md`）
+
+- **失败学习**（`agent_failure_learning_enabled` 默认 True）：harness FAILED/FALLBACK 轨迹确定性沉淀失败 Case（`agent_cases.failure_type` 病理分类，零 LLM 成本）；同病理 ≥3 条蒸馏「[反模式] Skill」（名称前缀约定，与正向 Skill 分离，不进 outcome 回写）；执行前注入「历史失败教训」。关闭即回退失败不沉淀。
+- **协议信任层**：A2A 响应与 `a2a_tasks` 表含 `trace_id`/`evidence` 证据链（全路径诚实标注降级原因）；可验证支付意图端点（`agent_payment_intent_enabled` 默认 True + TTL 600s，HMAC 复用 PASETO 主密钥）——**仅签发/验证不扣款，escrow 绑定为 P2 路线图，禁止宣称支付闭环**。
+- **语境工程**（`chat_context_compaction_enabled` 默认 True / `chat_context_max_turns=24`）：/chat 与 /chat/stream 服务端压缩超长 history（头部 LLM 摘要 + 尾部保留，摘要失败回退截断）；摘要走 BaseAgent fallback chain（economy 档），勿绕过。
+- **复杂度自适应路由**（`adaptive_reasoning_routing_enabled` 默认 True）：`BaseAgent._estimate_task_complexity` 确定性规则（high/low/standard）动态调 `_resolve_chain(complexity)`；economy 档行为与无参旧调用完全兼容，改动链逻辑勿破坏该兼容。
+
+## v1.15.7 第二轮前沿借鉴落地（2026 评估执行，详见 `docs/frontier-borrowing-round2-2026-08-18.md`）
+
+- **ATH/国标信任层审计**：`run_governance_audit` 含 `ath_trust_layer` 独立章节（ATH1-5 五项确定性检查，对齐信通院 ATH 1.0 + 7 项国标）；OWASP 10 项保持独立，改审计勿合并两者（既有测试断言 total=10）。
+- **记忆时间衰减**（`memory_time_decay_enabled` 默认 True / `memory_decay_half_life_days=30`）：`search_cases` 排序 = quality × exp(-年龄/半衰期)，候选池 limit×4 供衰减重排；关闭即回退 quality-only 旧排序。
+- **org 共享记忆**：`GET /agents/memory/org` 全平台可读；scope=org 写入仅管理员（403）。team 级因无 Team 实体暂缓（P2，禁止伪称已实现）。
+- **项目周报**（`project_weekly_briefing_enabled` 默认 True）：`GET /agents/projects/{id}/weekly-briefing` 六段确定性数据逐段标注数据源 + AI 建议 economy 档 best-effort；关闭 503。
+- **Robot-Ready**：`robot_ready_service` 五项确定性校验——数据缺失逐项 `insufficient_data`，**全缺不得判不合格**（诚实降级红线）；`spatial-semantics/0.1` 为平台先行定义导出 schema（行业无标准，改 schema 须 bump 版本号并同步文档）。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
@@ -66,7 +81,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2499 passed 不得回退（collect 2505 = 2499 passed + 2 skipped + 4 xfailed，2026-08-17 全量校准，首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2581 passed 不得回退（collect 2587 = 2581 passed + 2 skipped + 4 xfailed，2026-08-18 全量校准，首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

@@ -57,6 +57,21 @@ class MemoryListResponse(BaseModel):
     items: list[MemoryItemResponse]
 
 
+@router.get("/org", response_model=MemoryListResponse)
+async def list_org_memories(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v1.15.7 组织级共享记忆（信通院记忆分级「跨 Agent 共享」对齐）。
+
+    平台管理员写入（POST scope=org 需 admin）、全平台成员可读。
+    team 级共享因项目无 Team 实体暂缓（P2 路线图，诚实标注）。
+    """
+    rows = await agent_memory_service.get_org_memories(db)
+    items = [_serialize(m) for m in rows]
+    return MemoryListResponse(count=len(items), items=items)
+
+
 def _serialize(mem) -> MemoryItemResponse:
     return MemoryItemResponse(
         id=mem.id,
@@ -86,7 +101,7 @@ async def list_memories(
     """
     if scope is not None and scope not in _ALLOWED_SCOPES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"scope 必须是 {list(_ALLOWED_SCOPES)} 之一",
         )
     rows = await agent_memory_service.get_user_memories(
@@ -109,18 +124,24 @@ async def create_memory(
     """
     if payload.category not in _ALLOWED_CATEGORIES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"category 必须是 {list(_ALLOWED_CATEGORIES)} 之一",
         )
     if payload.scope not in _ALLOWED_SCOPES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"scope 必须是 {list(_ALLOWED_SCOPES)} 之一",
         )
     if payload.scope == agent_memory_service.SCOPE_PROJECT and not payload.project_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="scope=project 时 project_id 必填",
+        )
+    # v1.15.7 组织级共享记忆：scope=org 仅平台管理员可写（全平台可见，防滥用）
+    if payload.scope == agent_memory_service.SCOPE_ORG and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="scope=org 组织级共享记忆仅平台管理员可写入",
         )
     mem = await agent_memory_service.save_memory(
         db, current_user.id, payload.category, payload.key,

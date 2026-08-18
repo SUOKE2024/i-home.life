@@ -76,12 +76,12 @@ async def assign_cert(
     _check_eco_enabled()
     if data.eco_grade not in eco_material_service.ECO_GRADES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="环保等级不合法，可选: HENF/ENF/E0/E1",
         )
     if data.henf_grade and data.henf_grade not in eco_material_service.ECO_GRADES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="HENF 等级不合法，可选: HENF/ENF/E0/E1",
         )
     try:

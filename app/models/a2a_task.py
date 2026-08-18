@@ -30,6 +30,13 @@ class A2ATask(Base):
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # v1.15.5 协议信任层（AAIF「可验证证据在协议边界」+ AP2 借鉴）：
+    # A2A 任务执行证据链持久化——trace_id 关联 harness 轨迹（可回放溯源），
+    # evidence 存 JSON（agent_name/workflow_id/duration_ms/degraded/status），
+    # 客户端可核验「任务确实由哪个 Agent 执行、是否降级」而非信任裸文案。
+    trace_id: Mapped[str | None] = mapped_column(String(12), nullable=True, index=True)
+    evidence: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON 字符串
+
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

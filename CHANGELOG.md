@@ -2,6 +2,161 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.7] - 2026-08-18（第二轮 2026 前沿借鉴落地：ATH 信任层 / 记忆分级 / 项目周报 / Robot-Ready）
+
+执行记录：`docs/frontier-borrowing-round2-2026-08-18.md`（依据第二轮 2026 前沿
+诊断评估报告），回归测试 `tests/test_frontier_v1157.py` 18 用例（mock 确定性，全绿）。
+
+- **P0 ATH/国标信任层审计**（信通院 ATH 1.0 + 7 项国标，认证窗口卡位）：
+  `run_governance_audit` 新增独立章节 `ath_trust_layer`——5 项确定性检查
+  （身份可信声明/握手状态机/执行证据链/动作可验证意图/MCP 规范对齐），默认
+  5/5 pass，附信通院依据引用；OWASP 10 项保持独立（既有断言兼容）。
+- **P0 记忆分级对照**（信通院记忆能力分级 + MobileMem 时间衰减）：
+  `search_cases` 指数时间衰减重排（`memory_time_decay_enabled=True` +
+  `memory_decay_half_life_days=30`，陈旧经验自然降权，flag 关回退旧排序）；
+  org 级共享记忆（`GET /agents/memory/org` 全平台可读 + POST scope=org 管理员
+  门控 403）。**诚实标注**：team 级因无 Team 实体暂缓（P2）。
+- **P1 用户侧项目周报**（Long-Horizon 主动服务，Vinci2 借鉴）：
+  `GET /api/agents/projects/{id}/weekly-briefing`（owner/admin，flag 默认 True
+  关闭 503）——项目/任务/预算/采购/验收/里程碑六段确定性数据（逐段标注数据源）
+  + AI 周度建议（economy 档 best-effort）。验收段经 construction_tasks 关联、
+  里程碑对齐 milestone_code/actual_percent。FC 批量主动推送为 P2 规划。
+- **P1 Robot-Ready 校验 + 空间语义导出**（国盛证券：居家数据采集闭环是 C 端
+  规模化关键；栖息地/海尔/尚品宅配×启元具身化拐点）：
+  `GET /construction/projects/{id}/robot-readiness` 五项确定性校验（门洞≥0.85m/
+  无门槛/插座 0.3–1.2m/动线≥1.0m/地面连续），数据缺失逐项 insufficient_data、
+  **全缺不判不合格**（诚实降级红线）；`GET /construction/projects/{id}/
+  robot-ready-export` 定义 **spatial-semantics/0.1 先行 schema** + gaps 诚实标注。
+- **基线校准**：2555 → 2573 passed（+18 前沿用例；collect 2579 =
+  2573 + 2 skipped + 4 xfailed）。
+
+## [1.15.6] - 2026-08-18（供应商每日经营简报 FC 定时任务 + B2B 端点角色语义）
+
+- **供应商每日经营简报**（复用 daily-briefing 模式）：`OrchestratorAgent.generate_supplier_daily_briefing`
+  聚合确定性数据段（交付单状态分布 `delivery_orders` / 供应商生态 `users/suppliers/products` /
+  托管资金 `escrow_payments`，数据源逐段诚实标注表名）+ ProcurementAgent AI 经营建议
+  （economy 档，失败标 error 不伪造建议）；新增 `GET /api/admin/supplier-daily-briefing`
+  （`require_platform_manage`），阿里云 FC 定时触发器复用 daily-briefing 触发模式
+  （部署侧配置 + invoker 鉴权，目标 URL 域名 443，无 K8s/Cron）；受
+  `supplier_daily_briefing_enabled`（默认 True）门控，关闭回退 enabled=False 诚实标注。
+- **B2B 端点角色语义**（v1.15.4 遗留专项）：`POST /b2b/delivery` 创建与
+  `PUT /b2b/delivery/{id}/status` 状态流转收紧为 **contractor/supplier/admin**
+  （业主/设计师 403）——交付单是装企/供应商间的整包交付契约，业主走项目内流程；
+  list/get 保持归属范围（own orders）。既有测试夹具同步改为 contractor 角色，
+  新增业主 403 / 供应商放行用例。
+- **测试**：新增 `tests/test_supplier_briefing.py` 6 用例（结构/flag 关闭/AI 段诚实
+  error/端点鉴权 401/403/管理员 200，LLM 全隔离 mock）+ b2b 2 用例；全量
+  2563 passed（2555 基线 + 8 新用例，2 skipped + 4 xfailed 不回归）。
+- **版本**：1.15.4 → 1.15.6 全链路同步（1.15.5 前沿借鉴特性已在前序 CHANGELOG 记录，
+  其版本号未同步；本次一并对齐：config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.6+54/webapp+lock+version.json/console 1.15.6.0+lock/ci×3/deploy/测试断言×3）。
+
+## [1.15.5] - 2026-08-18（2026 前沿借鉴落地：失败学习 / 协议信任层 / 语境工程 / 自适应路由）
+
+执行记录：`docs/frontier-borrowing-2026-08-17.md`（依据 2026 前沿诊断评估报告），
+回归测试 `tests/test_frontier_v1153.py` 49 用例（mock 确定性，全绿）。
+
+- **P0 失败案例蒸馏闭环**（EdgeBench/ITBench-AA 借鉴：失败是最贵的学习信号）：
+  此前 harness FAILED/FALLBACK 轨迹不沉淀 Case（失败信号被丢弃）。新增
+  `agent_cases.failure_type` 病理分类列（迁移 `v1c2d3e4f5a6` + runtime v10）；
+  `extract_failure_case_from_trace` 零 LLM 成本确定性沉淀失败 Case（timeout/
+  empty_reply/fallback/llm_error/tool_loop/unknown）；harness 降级/异常分支补
+  提取调用；同病理 ≥3 条蒸馏「[反模式] Skill」（`distill_anti_pattern_skill`，
+  进化周期新增失败簇阶段）；执行前注入「历史失败教训」警告
+  （`get_anti_pattern_hints`，ACTIVE 优先 DRAFT 回退）。受
+  `agent_failure_learning_enabled`（默认 True）门控。
+- **P0 协议信任层**（AAIF「可验证证据在协议边界」+ AP2「可验证意图」）：
+  A2A 任务响应与 `a2a_tasks` 表新增 `trace_id`/`evidence` 证据链（全部路径诚实
+  标注降级原因，可凭 trace_id 回放溯源）；新增可验证支付意图
+  `POST /procurement/orders/{id}/payment-intent` + `/payment-intents/verify`
+  （HMAC-SHA256 复用 PASETO 主密钥，TTL 600s，防篡改/过期/字段比对）。
+  **诚实标注**：仅签发/验证，不触发扣款，escrow 绑定为 P2 路线图。
+- **P1 会话上下文压缩**（LangChain 语境工程）：`context_compaction_service`——
+  history 超阈值时头部 LLM 摘要 + 尾部保留，摘要失败回退纯截断；/chat 与
+  /chat/stream 双路径接入；`chat_context_compaction_enabled=True` +
+  `chat_context_max_turns=24`。
+- **P1 复杂度自适应路由**（ARISE 自适应分辨率）：`_estimate_task_complexity`
+  确定性规则 → `_resolve_chain(complexity)`：standard 档低复杂度低成本供应商
+  优先（主供应商兜底），高复杂度保持推理模型优先；economy 档与无参旧调用
+  完全向后兼容；`adaptive_reasoning_routing_enabled=True`。
+- **冗余清理**：21 处 `HTTP_422_UNPROCESSABLE_ENTITY` → `_CONTENT`
+  （StarletteDeprecationWarning 清零）；CHANGELOG v1.15.1 用例计数 25→31 勘误。
+- **基线校准**：2506 → 2555 passed（+49 前沿用例；collect 2561 =
+  2555 + 2 skipped + 4 xfailed）。
+- **P2 路线图**（未在本版本落地，见执行记录）：escrow 意图 token 绑定 /
+  Long-Horizon 项目生命周期 / 具身数据导出 / 终端任务成功率评测。
+
+## [1.15.4] - 2026-08-18（供应链/服务商生态 AI 工作台 + 角色触达体系修复）
+
+设计报告：`docs/supplier-ai-workbench-2026-08-18.md`（供应商「可管理、可运营 + AI 协助」
+工作台；角色触达复评发现并修复真实授权缺口）。
+
+- **P0 授权缺口修复**：`products.py` 创建产品原条件 `role != "supplier" and not is_verified`
+  允许任何已认证用户发布产品（已认证设计师/业主可越权、未认证供应商反可直通）→ 改为
+  `role in ("supplier", "admin")`（实名认证属平台审核策略，由身份认证流程独立管理）。
+- **权限码体系接线**：`PermissionChecker` 升级四级判定（admin 直通 → DB `RolePermission`
+  → `DEFAULT_ROLE_PERMISSIONS` 默认映射兜底 → 403），权限码无 seed 即生效、DB 可增删覆盖；
+  `supplier` 默认映射扩展 `product:write/order:read/quote:write/fulfillment:update/
+  settlement:read`；新增 `get_effective_permission_codes` 等 helper。
+- **菜单出口**：新增 `GET /auth/me/permissions` 返回角色 + 生效权限码（默认映射 ∪ DB 行，
+  admin 全集），供三端按角色渲染导航。
+- **Console 供应商工作台**：`UserContext` 用户上下文（AuthGate 注入 role/sub_role）；
+  SideNav 角色过滤（「管理后台」组仅 admin 可见、新增「供应商」组仅 supplier/admin，
+  后端 403 兜底双层防御）；`SupplierWorkbenchPage`（/supplier）看板三卡（我的产品/交付单/
+  生效权限码，真实 API 失败诚实显示 —）+ 六模块入口（复用既有页面）+ **AI 经营助手**
+  （streamChat 路由 ProcurementAgent，预设提示词 + 自由输入，SSE 增量渲染，诚实降级）。
+- **Flutter 角色导航**：home_page 拉取 /auth/me（best-effort），supplier 底部导航渲染
+  供应商 tab 集（首页/交付 /b2b-delivery/产品 /products/我的），其余角色保持默认四 tab。
+- **冗余清理**：删除 `PlaceholderHome.tsx` + `/tokens` 占位路由（批次 1 验证页，已被
+  WorkbenchPage 取代且色板注释含废弃 #6B6978）。
+- **门禁**：pytest 全量 2506 passed（2499 基线 + 7 新用例，2 skipped + 4 xfailed 不回归）；
+  定向回归 auth/admin 48 passed；pre-commit 全绿；mypy 374 文件 0 issue；console 构建
+  （tsc+vite）通过；flutter analyze 0 issues。
+- **版本**：1.15.3 → 1.15.4 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.4+53/webapp+lock+version.json/console 1.15.4.0+lock/ci×3/deploy/测试断言×3）。
+- **遗留（诚实标注）**：供应商子角色仅数据约定未独立区分权限；b2b_delivery 等 B2B
+  协作端点仍为宽口径（跨 contractor/supplier 语义，收紧需专项）；供应商每日经营简报
+  （FC 定时触发）未接入；工作台未接 A2UI 卡片流/文件上传。
+
+## [1.15.3] - 2026-08-18（三端 UI/UX 布局系统性修复，DESIGN.md 规范审计）
+
+审计报告：`docs/uiux-layout-audit-fixes-2026-08-18.md`（webapp 19 路由 / console 72 页 /
+flutter 57 页三端只读审计，以 DESIGN.md token 为基线 + WCAG 2.2 交叉检查，P0 论断二次复验）。
+
+- **P0 未定义 token 与危险回退清零**：webapp `tokens.css` 补 `--success/--danger/--primary/--card`
+  （此前 `var(--success, #22c55e)` 等回退到 Tailwind 默认色板，含 indigo #2563eb）；console
+  `tokens.css` 补 `--accent-contrast`（金底深墨字）与 `--primary`（此前 CAD/Sketch3D/IFC
+  上传按钮透明失效）。三端全库 Tailwind 回退 hex（#22c55e/#2563eb/#dc3c3c）清零。
+- **P0 黄色违规**：webapp Showroom/VirtualTour/ARScan 琥珀黄 #b45309 → 深金 `--accent-text`
+  （#8A6415，AA 4.99:1）；DESIGN.md YAML 补录 `accent-text` token + 组件引用，三端同步，
+  `npx @google/design.md lint` 0 errors / 0 warnings。
+- **P0 金底白字清零**：console `.wb-btn` 白字 → `--accent-contrast` 深墨字 + 高度 32→40px
+  （8+ 页统一）；flutter `design_deepening_page` FAB 白图标 → `onAccent`。
+- **P0 触摸目标 ≥44px**：webapp `.icon-btn` 32×32 方角 → 44×44 圆形、`.btn` min-height 44px
+  （主 CTA 48px）；flutter 头像 34→44、按钮 36→44、时间线节点热区 30→44（外框 padding）。
+- **P0 Flutter 导航骨架重建**：`main.dart` 新增 `onGenerateAppRoute` 具名路由表注册 58 页
+  （29 个孤儿页全部转为可达，AuthGate 门控不变）；`home_page` 新增 64px `NavigationBar`
+  （首页/项目/AI 管家/我的）；项目链路 ProjectDetail → 预算/施工/结算改 `pushNamed` 打通。
+- **P0 Flutter `SuokeTheme.light()` 结构补全**：新增 `accentText/surfaceWarm/surfaceWarm2/
+  canvasWarm/onAccent` 常量；补 textButton/chip/snackBar/divider/progressIndicator/errorBorder/
+  textTheme 组件主题（此前缺位触发 Material 3 默认紫回退）；双主题 `ColorScheme` 的
+  `secondary/tertiary/onPrimary/onSecondary/onTertiary` 收进金色系（light 补 onPrimary 深墨字）；
+  C 端卡片圆角 12→16px；`statTextStyle` tabular-nums。
+- **P1 布局与导航**：webapp 8 张裸表格（7 页）加 `table-wrap` 防移动端横向溢出 + `.kpi-row`
+  小屏单列；误导性 `nav-caret` 圆点移除；图标按钮补 aria-label。console 侧栏 220→232px、
+  选中态改品牌金（弃 Agent 语义色）、**<1025px 窄屏新增汉堡顶栏 + 抽屉导航**（此前直接
+  丢导航）、`#6B6978` 遗留值清零、escrow 重复导航项删除。
+- **P2 冗余清理**：webapp 死类名 `ghost` → `btn btn--ghost`（7 处）；console `SuokeCard`
+  内联 `':hover'` 死代码删除、`SuokeButton` 胶囊圆角 → 8px + 主按钮硬编码 `#000` →
+  `var(--on-accent)`；flutter 废弃旧色 `0xFF5A5866` 12 处 → `textMuted`、Material
+  默认蓝/indigo 8 处 → `info`。
+- **门禁**：pytest 全量 2499 passed 不回归；pre-commit 全绿；mypy 374 文件 0 issue；
+  design.md lint 0 errors；vite build webapp + console（tsc）通过；flutter analyze 0 issues。
+- **版本**：1.15.2 → 1.15.3 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.3+52/webapp+lock+version.json/console 1.15.3.0+lock/ci×3/deploy/测试断言×3）。
+- **遗留（报告不改）**：webapp 内联字号 37 处非档位、console 内容区 720px 双重限宽、
+  flutter 硬编码 fontSize 928 / Color(0x) 214 处——超出本次外科手术范围，留待专项治理。
+
 ## [1.15.2] - 2026-08-17（业务链路全景走查修复，15 项发现）
 
 走查报告：`docs/fullchain-walkthrough-business-2026-08-17.md`（业务数据流 / 前端契约 /
@@ -37,7 +192,7 @@
 ## [1.15.1] - 2026-08-17（智能体用户全流程走查修复，12 项发现）
 
 走查报告：`docs/agent-journey-walkthrough-2026-08-17.md`（真实用户旅程逐端点调用，
-回归测试 `tests/test_walkthrough_fixes.py` 25 用例）。修复清单：
+回归测试 `tests/test_walkthrough_fixes.py` 31 用例）。修复清单：
 
 - **#1 编排层真实 LLM 系统性失败**：harness 60s 超时误杀推理模型工具循环
   （`harness_agent_timeout_seconds` 60→180，get_harness 从 settings 注入）；

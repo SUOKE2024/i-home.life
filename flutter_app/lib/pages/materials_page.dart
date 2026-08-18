@@ -104,7 +104,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
                   TextField(
                     decoration: const InputDecoration(
                       hintText: '搜索物料...',
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF5A5866)),
+                      prefixIcon: Icon(Icons.search, color: SuokeDesignTokens.textMuted),
                     ),
                     onChanged: (v) => setState(() => _search = v),
                   ),
@@ -166,7 +166,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
                               ),
                               Text(
                                 '/${m.unit ?? '件'}',
-                                style: const TextStyle(fontSize: 11, color: Color(0xFF5A5866)),
+                                style: const TextStyle(fontSize: 11, color: SuokeDesignTokens.textMuted),
                               ),
                             ],
                           ),

@@ -299,6 +299,28 @@ async def get_daily_briefing(
     return briefing
 
 
+@router.get("/supplier-daily-briefing")
+async def get_supplier_daily_briefing(
+    current_user: User = Depends(require_platform_manage),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """供应商每日经营简报（v1.15.6，受 supplier_daily_briefing_enabled 控制）
+
+    聚合交付单状态分布 + 供应商生态（用户/供应商/产品）+ 托管资金统计
+    + ProcurementAgent AI 经营建议（economy 档，best-effort 降级标注）。
+
+    阿里云 FC 定时触发器复用 daily-briefing 的触发模式（部署侧配置触发器 +
+    invoker 鉴权，无 K8s/Cron；目标 URL 为域名 443）。
+    """
+    from app.agents.orchestrator import OrchestratorAgent
+    orch = OrchestratorAgent()
+    try:
+        briefing = await orch.generate_supplier_daily_briefing(db)
+    finally:
+        await orch.close()
+    return briefing
+
+
 @router.get("/agent-governance-audit")
 async def get_agent_governance_audit(
     current_user: User = Depends(require_platform_manage),

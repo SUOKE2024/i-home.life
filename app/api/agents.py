@@ -671,16 +671,28 @@ async def chat_with_agent(  # noqa: C901
             )
             db_history = data.history  # 降级：使用空 history
 
+    # v1.15.5 语境工程（LangChain Long-Horizon 借鉴）：超长 history 先摘要压缩——
+    # 头部超出保留窗口的部分 LLM 摘要为 system 消息，不再整段丢弃（防丢失早期
+    # 需求/约束）；摘要失败自动回退纯截断（诚实降级，best-effort）。
+    try:
+        from app.services.context_compaction_service import compact_history
+        db_history = await compact_history(db_history, max_turns=10)
+    except Exception:
+        pass  # 压缩失败保持旧行为（仅取最近 10 条）
+
     # 构建 history 上下文（多轮对话支持）
     history_ctx = ""
     if db_history:
-        recent = db_history[-10:]  # 仅取最近 10 轮，防止 token 超限
+        recent = db_history[-11:]  # 最多 1 条摘要 + 最近 10 轮，防止 token 超限
         lines = []
         for h in recent:
             role = h.get("role", "user")
             content = h.get("content", "")[:500]  # 截断超长消息
             agent_t = h.get("agent_type", "")
             prefix = f"[{agent_t}] " if agent_t and role == "assistant" else ""
+            if role == "system" and content.startswith("[早前对话摘要]"):
+                lines.append(content)  # 摘要消息原样注入（无 role 前缀）
+                continue
             lines.append(f"{prefix}{role}: {content}")
         history_ctx = "\n".join(lines)
     user_ctx = f"用户: {current_user.name}"
@@ -734,7 +746,7 @@ async def chat_with_agent(  # noqa: C901
             # 并答非所问（如 marketing/competitor_research 未注册期）。现在诚实
             # 报 422，不再静默吞噬客户端错误。
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"未知的 agent_type: {data.agent_type}（可用 Agent 列表见 /api/a2a/agents）",
             )
         if explicit_intent:
@@ -1372,16 +1384,26 @@ async def chat_stream(  # noqa: C901
             )
             db_history = data.history
 
+    # v1.15.5 语境工程：流式路径同样先摘要压缩超长 history（与 /chat 一致）
+    try:
+        from app.services.context_compaction_service import compact_history
+        db_history = await compact_history(db_history, max_turns=10)
+    except Exception:
+        pass  # 压缩失败保持旧行为（仅取最近 10 条）
+
     # 构建 history 上下文
     history_ctx = ""
     if db_history:
-        recent = db_history[-10:]
+        recent = db_history[-11:]  # 最多 1 条摘要 + 最近 10 轮
         lines = []
         for h in recent:
             role = h.get("role", "user")
             content = h.get("content", "")[:500]
             agent_t = h.get("agent_type", "")
             prefix = f"[{agent_t}] " if agent_t and role == "assistant" else ""
+            if role == "system" and content.startswith("[早前对话摘要]"):
+                lines.append(content)  # 摘要消息原样注入
+                continue
             lines.append(f"{prefix}{role}: {content}")
         history_ctx = "\n".join(lines)
     user_ctx = f"用户: {current_user.name}"
@@ -1429,7 +1451,7 @@ async def chat_stream(  # noqa: C901
     precomputed_explicit_intent = AGENT_TYPE_TO_INTENT.get(data.agent_type)
     if data.agent_type and data.agent_type != "orchestrator" and not precomputed_explicit_intent:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"未知的 agent_type: {data.agent_type}（可用 Agent 列表见 /api/a2a/agents）",
         )
     if precomputed_explicit_intent and precomputed_explicit_intent in _BUSINESS_OPS_INTENTS \
@@ -2454,6 +2476,41 @@ async def products_agent(
         )
     finally:
         await agent.close()
+
+
+@router.get("/projects/{project_id}/weekly-briefing")
+async def project_weekly_briefing(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """v1.15.7 用户侧项目周报（Long-Horizon 主动服务，Vinci2「有问必答→主动服务」借鉴）。
+
+    项目 owner（或 admin）获取六段确定性数据（数据源逐段标注）+ AI 周度建议
+    （economy 档 best-effort，失败诚实标 error）。flag 关闭 503 诚实报错。
+    可被 FC 定时触发器批量拉取做主动推送（P2 路线图，见 frontier-borrowing 文档）。
+    """
+    settings_local = get_settings()
+    if not settings_local.project_weekly_briefing_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="项目周报未启用（project_weekly_briefing_enabled=False）",
+        )
+    # 归属校验（对齐 /chat 项目校验：404 + 非 owner 非 admin 403）
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if current_user.role != "admin" and project.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+
+    from app.agents.orchestrator import OrchestratorAgent
+
+    orch = OrchestratorAgent()
+    try:
+        return await orch.generate_project_weekly_briefing(db, project_id)
+    finally:
+        await orch.close()
 
 
 @router.post("/identity", response_model=SimpleAgentResponse)

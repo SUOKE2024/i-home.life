@@ -239,7 +239,8 @@ export default function ConstructionPage() {
             {tasks.length === 0 ? (
               <Empty message="暂无施工任务" />
             ) : (
-              <table className="table">
+              <div className="table-wrap">
+                <table className="table">
                 <thead>
                   <tr>
                     <th>标题</th>
@@ -274,7 +275,8 @@ export default function ConstructionPage() {
                     )
                   })}
                 </tbody>
-              </table>
+                </table>
+              </div>
             )}
           </Card>
         </>

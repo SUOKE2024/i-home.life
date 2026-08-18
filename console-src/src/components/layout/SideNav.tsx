@@ -20,6 +20,7 @@
 
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getAgentInfo } from '../../services/agent-router';
+import { useUser } from '../../context/UserContext';
 
 interface NavItem {
   label: string;
@@ -31,6 +32,10 @@ interface NavItem {
 interface NavGroup {
   title: string;
   items: NavItem[];
+  /** 仅管理员可见（v1.15.4 角色导航过滤，后端 require_admin 兜底） */
+  adminOnly?: boolean;
+  /** 可见角色白名单（admin 恒可见全部） */
+  roles?: string[];
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -91,6 +96,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    // v1.15.4 供应商工作台：仅 supplier/admin 可见（可管理、可运营 + AI 协助）
+    title: '供应商',
+    roles: ['supplier'],
+    items: [
+      { label: '供应商工作台', path: '/supplier', emoji: '🏭' },
+    ],
+  },
+  {
     title: '财务',
     items: [
       { label: '预算', path: '/budget', agent: 'budget' },
@@ -135,6 +148,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: '管理后台',
+    adminOnly: true,
     items: [
       { label: '管理后台', path: '/admin', emoji: '🛠' },
       { label: '通知', path: '/notifications', emoji: '🔔' },
@@ -160,7 +174,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: '适老改造', path: '/elderly-adaptation', emoji: '🧓' },
       { label: '局部焕新', path: '/partial-renovation', emoji: '🔧' },
-      { label: '资金托管', path: '/escrow', emoji: '🛡' },
       { label: '环保材料', path: '/eco-materials', emoji: '🌿' },
       { label: '方案前置', path: '/solution-first', emoji: '🚀' },
       { label: '生态桥接', path: '/ecosystem', emoji: '🔗' },
@@ -169,9 +182,29 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+/** 根据路由 path 返回导航标题（供窄屏顶栏显示页面标题） */
+export function getNavTitle(path: string): string | undefined {
+  for (const group of NAV_GROUPS) {
+    const item = group.items.find((it) => it.path === path);
+    if (item) return item.label;
+  }
+  return undefined;
+}
+
 export default function SideNav() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useUser();
+
+  // v1.15.4 角色导航过滤：admin 恒可见全部；adminOnly 组仅 admin；
+  // roles 白名单组仅命中角色可见（后端 403 兜底，前端隐藏为体验层）
+  const role = user?.role ?? '';
+  const visibleGroups = NAV_GROUPS.filter((group) => {
+    if (role === 'admin') return true;
+    if (group.adminOnly) return false;
+    if (group.roles && !group.roles.includes(role)) return false;
+    return true;
+  });
 
   return (
     <nav className="wb-sidenav" aria-label="主导航" data-testid="wb-sidenav">
@@ -180,13 +213,12 @@ export default function SideNav() {
         <span className="wb-sidenav__brand-text">索克家居</span>
       </div>
       <div className="wb-sidenav__scroll">
-        {NAV_GROUPS.map((group) => (
+        {visibleGroups.map((group) => (
           <div className="wb-sidenav__group" key={group.title}>
             <div className="wb-sidenav__group-title">{group.title}</div>
             {group.items.map((item) => {
               const info = item.agent ? getAgentInfo(item.agent) : null;
               const emoji = item.emoji ?? info?.emoji ?? '·';
-              const color = info?.color;
               const isActive = location.pathname === item.path;
               return (
                 <button
@@ -196,7 +228,6 @@ export default function SideNav() {
                   onClick={() => navigate(item.path)}
                   aria-current={isActive ? 'page' : undefined}
                   data-testid={`wb-sidenav-item--${item.path.replace(/\//g, '') || 'root'}`}
-                  style={isActive && color ? { color } : undefined}
                 >
                   <span className="wb-sidenav__item-emoji">{emoji}</span>
                   <span>{item.label}</span>

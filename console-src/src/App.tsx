@@ -3,7 +3,7 @@ import AuthGate from './components/AuthGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import WorkbenchPage from './pages/WorkbenchPage';
 import NotFoundPage from './pages/NotFoundPage';
-import PlaceholderHome from './pages/PlaceholderHome';
+import SupplierWorkbenchPage from './pages/SupplierWorkbenchPage';
 
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -83,7 +83,7 @@ export default function App() {
       <ErrorBoundary resetOnLocationChange url={location.pathname}>
         <Routes>
           <Route path="/" element={<WorkbenchPage />} />
-          <Route path="/tokens" element={<PlaceholderHome />} />
+          <Route path="/supplier" element={<SupplierWorkbenchPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />

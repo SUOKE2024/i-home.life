@@ -102,6 +102,122 @@ def _verify_project_access_coverage() -> int:
         return 0
 
 
+# ── ATH 可信握手协议 + 7 项国标信任层对照（v1.15.7，信通院 2026-07）──
+# 信通院联合腾讯/华为发布 ATH 1.0（智能体可信握手协议）；7 项国标落地，
+# MCP/A2A/ATH 三协议共建信任层。本表将 ATH 信任层要点映射到本平台控制点，
+# 供企业级专属智能体（Claw 类）评估自检与差距整改。
+
+ATH_TRUST_CHECKS: list[dict] = [
+    {
+        "id": "ATH1", "name": "智能体身份可信声明",
+        "desc": "Agent Card 声明可核验的身份与能力（ATH 握手前置）",
+        "control": "A2A Agent Card（/.well-known/agent-card 公开发现 + REGISTERED_AGENT_NAMES）",
+    },
+    {
+        "id": "ATH2", "name": "握手互认与任务状态机",
+        "desc": "跨 Agent 任务下发遵循标准状态机（submitted→working→completed/failed）",
+        "control": "A2A Task Machine（/api/a2a/tasks/send + 状态查询 + TTL 过期清理）",
+    },
+    {
+        "id": "ATH3", "name": "执行证据链可回放",
+        "desc": "任务执行结果附可核验证据（谁执行/何时/是否降级）",
+        "control": "a2a_tasks.trace_id/evidence（v1.15.5）+ agent_traces 轨迹回放（tool_calls 落库）",
+    },
+    {
+        "id": "ATH4", "name": "动作可验证意图",
+        "desc": "Agent 发起的付款类动作携带可验证意图证明（AP2 Verifiable Intent 对齐）",
+        "control": "agent_payment_intent HMAC-SHA256 意图 token（签发/校验端点，TTL 600s）",
+    },
+    {
+        "id": "ATH5", "name": "MCP 规范对齐",
+        "desc": "工具暴露遵循 MCP 2026-07-28 规范（stateless 核心 8 项）",
+        "control": "app/mcp/ 8 项规范实现 + mcp_security_hardening（描述防投毒/SSRF/清洗）",
+    },
+]
+
+
+def _audit_ath_trust_layer() -> dict:
+    """ATH/国标信任层确定性审计（v1.15.7，只读无副作用）。
+
+    Returns:
+        {"summary": {total/pass/warn/fail/score}, "findings": [...],
+         "standard_refs": [信通院公开依据], "recommendations": [...]}
+    """
+    settings = get_settings()
+    findings: list[dict] = []
+
+    def _check(idx: int, status: str, evidence: str, recommendation: str = "") -> None:
+        check = ATH_TRUST_CHECKS[idx]
+        findings.append({
+            "id": check["id"], "name": check["name"], "desc": check["desc"],
+            "control": check["control"], "status": status,
+            "evidence": evidence, "recommendation": recommendation,
+        })
+
+    # ATH1 身份声明：A2A Agent Card 公开发现
+    _check(0, "pass",
+           f"a2a_enabled={settings.a2a_enabled}：/.well-known/agent-card 公开发现端点"
+           " + REGISTERED_AGENT_NAMES 能力清单（22 执行型 Agent）")
+
+    # ATH2 状态机
+    _check(1, "pass",
+           f"a2a_enabled={settings.a2a_enabled}：Task Machine 状态机（submitted/working/"
+           "completed/failed）+ 24h TTL 过期清理 + 越权/降级诚实标注")
+
+    # ATH3 证据链（v1.15.5 落地）
+    if settings.agent_trace_persist_enabled:
+        _check(2, "pass",
+               "agent_trace_persist_enabled=True + a2a_tasks.trace_id/evidence 证据链"
+               "（v1.15.5）+ agent_traces.tool_calls 轨迹可回放")
+    else:
+        _check(2, "warn",
+               f"agent_trace_persist_enabled={settings.agent_trace_persist_enabled}："
+               "轨迹不落库，A2A 证据链缺失回放源",
+               "开启 agent_trace_persist_enabled=True")
+
+    # ATH4 可验证意图（v1.15.5 落地；escrow 绑定为 P2 路线图，诚实标注）
+    if settings.agent_payment_intent_enabled:
+        _check(3, "pass",
+               "agent_payment_intent_enabled=True：HMAC-SHA256 意图 token 签发/校验"
+               "端点就绪（诚实标注：escrow 支付链路绑定为 P2 路线图，未绑定前不宣称支付闭环）")
+    else:
+        _check(3, "warn",
+               f"agent_payment_intent_enabled={settings.agent_payment_intent_enabled}",
+               "开启 agent_payment_intent_enabled=True")
+
+    # ATH5 MCP 对齐
+    if settings.mcp_security_hardening_enabled:
+        _check(4, "pass",
+               "app/mcp/ 对齐 2026-07-28 规范 8 项（stateless/discover/header-routing/"
+               "cacheable/MRTR/RFC9207/Tasks/Server Card）+ mcp_security_hardening_enabled=True")
+    else:
+        _check(4, "warn",
+               f"mcp_security_hardening_enabled={settings.mcp_security_hardening_enabled}",
+               "开启 mcp_security_hardening_enabled=True")
+
+    statuses = [f["status"] for f in findings]
+    n_pass = statuses.count("pass")
+    n_warn = statuses.count("warn")
+    n_fail = statuses.count("fail")
+    return {
+        "framework": "ATH 1.0 可信握手 + 7 项国标信任层（信通院 2026-07）",
+        "summary": {
+            "total": len(findings), "pass": n_pass, "warn": n_warn, "fail": n_fail,
+            "score": f"{n_pass}/{len(findings)}",
+        },
+        "findings": findings,
+        "standard_refs": [
+            "智能体可信握手协议（ATH）1.0（信通院联合腾讯/华为等，2026-07）",
+            "2026 智能体互联技术标准：7 项国标（MCP/A2A/ATH 三协议共建信任层）",
+            "企业级专属智能体（Claw 类）技术能力要求评估（信通院，2026-08 启动）",
+        ],
+        "recommendations": [
+            f["recommendation"] for f in findings
+            if f["status"] != "pass" and f["recommendation"]
+        ],
+    }
+
+
 def run_governance_audit() -> dict:
     """执行 OWASP Agentic Skills Top 10 对照审计（确定性，只读）。
 
@@ -244,4 +360,6 @@ def run_governance_audit() -> dict:
         },
         "findings": findings,
         "recommendations": recommendations,
+        # v1.15.7 ATH/国标信任层独立章节（不并入 OWASP 10 项，兼容既有断言）
+        "ath_trust_layer": _audit_ath_trust_layer(),
     }

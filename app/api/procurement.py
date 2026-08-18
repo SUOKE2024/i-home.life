@@ -292,6 +292,87 @@ async def get_order_detail(
     return OrderResponse.model_validate(order)
 
 
+class PaymentIntentVerifyRequest(BaseModel):
+    """v1.15.5 可验证支付意图校验请求（AP2 Verifiable Intent 对齐）"""
+    token: str
+    order_id: str
+    amount: float
+    actor_user_id: str
+
+
+@router.post(
+    "/orders/{order_id}/payment-intent",
+    summary="签发可验证支付意图",
+    description=(
+        "v1.15.5（2026 智能体支付协议 AP2「可验证意图」对齐）：对采购订单签发 "
+        "HMAC-SHA256 意图 token（复用 PASETO 主密钥，短时有效），供结算/担保支付链"
+        "校验 Agent 建议付款的真实性。仅签发不扣款（诚实标注：escrow 绑定为 P2 路线图）。"
+    ),
+    responses={
+        200: {"description": "签发成功，返回 token/expires_at"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "订单不存在"},
+        503: {"description": "agent_payment_intent_enabled=False"},
+    },
+)
+async def create_payment_intent(
+    order_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    settings = get_settings()
+    if not settings.agent_payment_intent_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="可验证支付意图未启用",
+        )
+    order = await procurement_service.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="订单不存在")
+    if current_user.role != "admin":
+        await _verify_project_owner(db, order.project_id, current_user)
+
+    from app.services.agent_payment_intent import create_payment_intent as _create_intent
+
+    intent = _create_intent(
+        order_id=order.id,
+        amount=float(order.total_amount),
+        actor_user_id=current_user.id,
+    )
+    return {
+        **intent,
+        "note": "意图 token 仅证明付款建议真实性（AP2 Verifiable Intent），不触发任何扣款",
+    }
+
+
+@router.post(
+    "/payment-intents/verify",
+    summary="校验可验证支付意图",
+    description=(
+        "v1.15.5：结算/担保支付链校验支付意图 token 真实性（签名/过期/字段比对）。"
+        "无状态验证，不泄露订单数据。"
+    ),
+    responses={
+        200: {"description": "校验结果 {valid, reason}"},
+        401: {"description": "未登录或 Token 无效"},
+    },
+)
+async def verify_payment_intent_endpoint(
+    data: PaymentIntentVerifyRequest,
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.agent_payment_intent import verify_payment_intent
+
+    result = verify_payment_intent(
+        data.token,
+        order_id=data.order_id,
+        amount=data.amount,
+        actor_user_id=data.actor_user_id,
+    )
+    return result
+
+
 @router.patch(
     "/orders/{order_id}",
     response_model=OrderResponse,

@@ -17,7 +17,7 @@ export function Logo({ size = 34, withText = false }) {
       />
       {withText && (
         <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <b style={{ fontSize: 15, letterSpacing: 0.5, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+          <b style={{ fontSize: 16, letterSpacing: 0.5, color: 'var(--text)', whiteSpace: 'nowrap' }}>
             索克家居
           </b>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
@@ -113,7 +113,7 @@ export function Spinner({ label = '加载中…' }) {
 export function Empty({ message = '暂无数据', description, actionLabel, onAction, icon = '🗂' }) {
   return (
     <div className="empty">
-      <span style={{ fontSize: 32 }}>{icon}</span>
+      <span style={{ fontSize: 24 }}>{icon}</span>
       <span>{message}</span>
       {description && <span className="sub">{description}</span>}
       {actionLabel && onAction && (
@@ -129,7 +129,7 @@ export function Empty({ message = '暂无数据', description, actionLabel, onAc
 export function ErrorBox({ message, onRetry }) {
   return (
     <div className="error-box">
-      <span style={{ fontSize: 32 }}>⚠️</span>
+      <span style={{ fontSize: 24 }}>⚠️</span>
       <span>{message || '加载失败'}</span>
       {onRetry && (
         <button className="btn btn--ghost" onClick={onRetry}>

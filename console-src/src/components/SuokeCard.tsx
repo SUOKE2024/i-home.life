@@ -46,9 +46,6 @@ export default function SuokeCard({
         padding: typeof padding === 'number' ? `${padding}px` : padding,
         cursor: interactive || onClick ? 'pointer' : 'default',
         transition: 'border-color 0.15s, background 0.15s',
-        ...(interactive
-          ? { ':hover': { borderColor: 'var(--border-active)', background: 'var(--surface2)' } }
-          : {}),
         ...style,
       }}
     >

@@ -20,7 +20,7 @@ export default function SceneTriggerOverlay({ flash }) {
   const [label, tone] = STATUS_LABELS[flash.status] || STATUS_LABELS.pending
   const colors = {
     amber: 'rgba(250, 200, 60, 0.14)', green: 'rgba(34, 197, 94, 0.14)', red: 'rgba(220, 60, 60, 0.14)',
-    text: { amber: 'var(--text-dim)', green: 'var(--success, #22c55e)', red: 'var(--danger, #dc3c3c)' }[tone],
+    text: { amber: 'var(--text-dim)', green: 'var(--success)', red: 'var(--danger)' }[tone],
   }
   const ok = flash.actions.filter((a) => a.action_status === 'success').length
   return (

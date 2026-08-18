@@ -155,7 +155,7 @@ export default function VirtualTourPage() {
                   </div>
                   <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
                     {p.content_source === 'effect' ? (
-                      <span style={{ color: '#b45309' }}>AI 效果图 · 2D 平面预览（非 360° 实景）</span>
+                      <span style={{ color: 'var(--accent-text)' }}>AI 效果图 · 2D 平面预览（非 360° 实景）</span>
                     ) : (
                       <>
                         {p.panorama_type === 'equirectangular' ? '球面全景' : p.panorama_type || '-'} · {p.resolution} · {p.hotspots?.length ?? 0} 热点
@@ -209,7 +209,7 @@ export default function VirtualTourPage() {
                 />
                 <div style={{
                   position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)',
-                  background: 'rgba(251,191,36,0.92)', color: '#5b3a00',
+                  background: 'var(--accent)', color: 'var(--on-accent)',
                   fontSize: 12, padding: '4px 12px', borderRadius: 999, fontWeight: 600,
                 }}
                 >

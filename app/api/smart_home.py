@@ -312,7 +312,7 @@ async def device_command(
         ecosystem=data.ecosystem,
     )
     if not outcome.get("accepted"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=outcome.get("error"))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=outcome.get("error"))
 
     resp = DeviceCommandResponse(
         device_id=outcome["device_id"],
@@ -614,12 +614,12 @@ async def commission_matter_device(
     # ── 参数校验 ──
     if body.passcode < 0 or body.passcode > 99999999999:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="passcode 必须是 11 位数字",
         )
     if body.discriminator < 0 or body.discriminator > 4095:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="discriminator 必须是 0-4095 (12-bit)",
         )
 
@@ -648,7 +648,7 @@ async def commission_matter_device(
         )
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(e),
         )
 

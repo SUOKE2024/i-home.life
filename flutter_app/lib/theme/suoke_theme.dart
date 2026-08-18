@@ -161,6 +161,26 @@ class SuokeDesignTokens {
   /// 浅色弱文字：was 0xFF9E9A94(2.63:1) → 0xFF706C66(4.79:1 on #F8F7F4)，达 WCAG AA
   static const Color lightTextMuted = Color(0xFF706C66);
 
+  // ── C 端浅色暖底令牌（对齐 DESIGN.md「C 端浅色暖底」/ tokens.css [data-theme='light']）──
+
+  /// 浅色底金色文字专用（深金 #8A6415，AA 4.99:1）——#C9973B 在米白底仅 2.45:1 不达标
+  static const Color accentText = Color(0xFF8A6415);
+  /// 暖白卡面/弹层（C 端 surface-warm）
+  static const Color surfaceWarm = Color(0xFFFFFFFF);
+  /// 暖白悬浮/胶囊底/徽章底（C 端 surface-warm-2）
+  static const Color surfaceWarm2 = Color(0xFFF0EEE8);
+  /// 暖米画布（C 端 canvas-warm）
+  static const Color canvasWarm = Color(0xFFF8F7F4);
+  /// 金色底上的前景深墨字（跨主题恒定，对齐 on-accent）
+  static const Color onAccent = Color(0xFF08080F);
+
+  /// 统计数字等宽样式（tabular-nums，22/700，对齐 DESIGN.md stat-value）
+  static const TextStyle statTextStyle = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
   // ── Theme-aware context helpers ──
 
   /// 页面背景色
@@ -201,6 +221,11 @@ class SuokeTheme {
       scaffoldBackgroundColor: SuokeDesignTokens.bgDeep,
       colorScheme: const ColorScheme.dark(
         primary: SuokeDesignTokens.accent,
+        // secondary/tertiary 收进金色系（防 M3 默认紫/青色回退，守「金色唯一交互色」纪律）
+        secondary: SuokeDesignTokens.accentBright,
+        onSecondary: SuokeDesignTokens.bgDeep,
+        tertiary: SuokeDesignTokens.accent,
+        onTertiary: SuokeDesignTokens.bgDeep,
         surface: SuokeDesignTokens.cardBg,
         onPrimary: SuokeDesignTokens.bgDeep,
         onSurface: SuokeDesignTokens.textPrimary,
@@ -437,6 +462,12 @@ class SuokeTheme {
       scaffoldBackgroundColor: SuokeDesignTokens.lightBg,
       colorScheme: const ColorScheme.light(
         primary: SuokeDesignTokens.accent,
+        // 金底深墨字 + secondary/tertiary 金色系（防 M3 默认紫/青色回退；浅色下 onPrimary 必须深墨）
+        onPrimary: SuokeDesignTokens.onAccent,
+        secondary: SuokeDesignTokens.accentBright,
+        onSecondary: SuokeDesignTokens.onAccent,
+        tertiary: SuokeDesignTokens.accent,
+        onTertiary: SuokeDesignTokens.onAccent,
         onSurface: SuokeDesignTokens.lightTextPrimary,
         error: SuokeDesignTokens.danger,
       ),
@@ -471,7 +502,8 @@ class SuokeTheme {
         elevation: 1,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(SuokeDesignTokens.radius),
+          // C 端卡片圆角 16px（B 端 dark 保持 12px）
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusLg),
           side: const BorderSide(color: SuokeDesignTokens.lightBorder),
         ),
       ),
@@ -490,6 +522,14 @@ class SuokeTheme {
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusInput),
           borderSide: const BorderSide(color: SuokeDesignTokens.accent),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusInput),
+          borderSide: const BorderSide(color: SuokeDesignTokens.danger),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusInput),
+          borderSide: const BorderSide(color: SuokeDesignTokens.danger),
         ),
       ),
 
@@ -516,11 +556,82 @@ class SuokeTheme {
         ),
       ),
 
+      // ── 文本按钮（浅底金色文字用深金 accentText） ──
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: SuokeDesignTokens.accentText,
+        ),
+      ),
+
+      // ── Chip ──
+      chipTheme: ChipThemeData(
+        backgroundColor: SuokeDesignTokens.surfaceWarm2,
+        selectedColor: SuokeDesignTokens.accent.withValues(alpha: 0.14),
+        side: const BorderSide(color: SuokeDesignTokens.lightBorder),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusPill),
+        ),
+        labelStyle: const TextStyle(
+          fontSize: SuokeDesignTokens.fontSizeSm,
+          color: SuokeDesignTokens.lightTextPrimary,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: SuokeDesignTokens.fontSizeSm,
+          color: SuokeDesignTokens.accentText,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: SuokeDesignTokens.spacingSm),
+      ),
+
+      // ── SnackBar ──
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: SuokeDesignTokens.lightCard,
+        contentTextStyle: const TextStyle(color: SuokeDesignTokens.lightTextPrimary),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(SuokeDesignTokens.radiusSm),
+          side: const BorderSide(color: SuokeDesignTokens.lightBorder),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+
+      // ── Divider ──
+      dividerTheme: const DividerThemeData(
+        color: SuokeDesignTokens.lightBorder,
+        thickness: 1,
+        space: 0,
+      ),
+
+      // ── Progress Indicator（金色，跨主题恒定） ──
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: SuokeDesignTokens.accent,
+        linearTrackColor: SuokeDesignTokens.lightBorder,
+      ),
+
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: SuokeDesignTokens.lightCard.withValues(alpha: 0.92),
         indicatorColor: SuokeDesignTokens.accent.withValues(alpha: 0.12),
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
         height: 64,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            // 浅底金色文字用深金 accentText（#C9973B 在米白底仅 2.45:1 不达标）
+            return const TextStyle(
+              color: SuokeDesignTokens.accentText,
+              fontSize: SuokeDesignTokens.fontSizeXs,
+              fontWeight: FontWeight.w600,
+            );
+          }
+          return const TextStyle(
+            color: SuokeDesignTokens.lightTextSecondary,
+            fontSize: SuokeDesignTokens.fontSizeXs,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: SuokeDesignTokens.accentText, size: 22);
+          }
+          return const IconThemeData(color: SuokeDesignTokens.lightTextSecondary, size: 22);
+        }),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       ),
 
@@ -552,6 +663,19 @@ class SuokeTheme {
           fontSize: SuokeDesignTokens.fontSizeSm,
         ),
         bodySmall: TextStyle(
+          color: SuokeDesignTokens.lightTextMuted,
+          fontSize: SuokeDesignTokens.fontSizeXs,
+        ),
+        labelLarge: TextStyle(
+          color: SuokeDesignTokens.lightTextPrimary,
+          fontSize: SuokeDesignTokens.fontSizeMd,
+          fontWeight: FontWeight.w600,
+        ),
+        labelMedium: TextStyle(
+          color: SuokeDesignTokens.lightTextSecondary,
+          fontSize: SuokeDesignTokens.fontSizeSm,
+        ),
+        labelSmall: TextStyle(
           color: SuokeDesignTokens.lightTextMuted,
           fontSize: SuokeDesignTokens.fontSizeXs,
         ),

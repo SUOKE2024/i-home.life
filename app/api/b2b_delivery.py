@@ -320,11 +320,19 @@ async def create_delivery(
 
     - 关联 project_id 时校验项目归属（owner/admin），报价档走真实预算
     - async_mode=true 立即返回 generating，后台任务填充整包（GET 详情轮询）
+    - v1.15.6 角色语义：仅装企(contractor)/供应商(supplier)/管理员可创建交付单
     """
     if not settings.b2b_delivery_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="B2B 交付功能未启用",
+        )
+
+    # v1.15.6 角色语义：B2B 交付单是装企/供应商之间的整包交付契约，业主/设计师走项目内流程
+    if current_user.role not in ("contractor", "supplier", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅装企/供应商角色可创建交付单",
         )
 
     # 项目归属校验（若指定 project_id）
@@ -469,18 +477,24 @@ async def update_delivery_status(
     """流转交付单状态（generating→draft→quoted→accepted→in_construction→completed）。
 
     非法流转返回 422，保证交付进度可追踪、可回滚（QM"可还原"）。
+    v1.15.6 角色语义：仅装企/供应商/管理员可流转（业主/设计师 403）。
     """
+    if current_user.role not in ("contractor", "supplier", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅装企/供应商角色可流转交付单状态",
+        )
     order = await _get_owned_order(db, order_id, current_user.id)
     target = data.status
     allowed = _ALLOWED_TRANSITIONS.get(order.status, set())
     if target not in ALL_STATUSES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"非法状态: {target}，合法值: {', '.join(ALL_STATUSES)}",
         )
     if target not in allowed:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"非法状态流转: {order.status} → {target}，允许: {', '.join(sorted(allowed)) or '无'}",
         )
     order.status = target

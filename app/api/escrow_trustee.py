@@ -156,7 +156,7 @@ async def confirm_acceptance(
     _check_escrow_enabled()
     if data.role not in ACCEPTANCE_ROLES:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="无效的确认角色，可选: owner/contractor",
         )
     await _get_account_with_access(db, account_id, current_user)

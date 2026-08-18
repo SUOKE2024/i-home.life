@@ -50,6 +50,171 @@ _CYCLE_MAX_EVALUATIONS = 200
 # 蒸馏者标识：区分「本周期新建」与「合并到已有」（created_by 回查）
 _CYCLE_CREATED_BY = "skill_evolution_cycle"
 
+# v1.15.5 失败学习（EdgeBench/ITBench-AA 借鉴：失败是最贵的学习信号）——
+# 反模式 Skill 命名前缀：检索注入时以「历史失败教训」警告呈现，
+# 与正向 Skill 配置分离（诊断-归因分离，以病理为键而非任务为键）
+_ANTI_PATTERN_PREFIX = "[反模式] "
+
+_ANTI_PATTERN_PROMPT = """你是 Agent 反模式蒸馏器。以下是 {agent_name} Agent 的 {count} 条同类失败案例（病理：{failure_type}）。
+请提炼该病理的「避免事项」，只返回严格 JSON：
+{{"name": "简短反模式名（≤20字，不含[反模式]前缀）", "description": "一段话：该失败模式是什么、什么输入会触发、执行时应如何避免（≤150字）"}}
+失败案例：
+{cases_text}
+"""
+
+
+async def distill_anti_pattern_skill(
+    db: AsyncSession,
+    *,
+    agent_name: str,
+    failure_type: str,
+    owner_id: str,
+    scope: str = SCOPE_PERSONAL,
+    created_by: str = "",
+) -> AgentSkill | None:
+    """v1.15.5 失败学习：从同病理失败 Case 簇蒸馏「反模式 Skill」。
+
+    与 distill_skill_from_cases 的区别：
+      - 输入：outcome="failed" 且 failure_type 相同的失败 Case（质量分恒 0）
+      - 输出：name 带 [反模式] 前缀、description 为「避免事项」的 DRAFT Skill
+      - 不合并到正向 Skill（病理键分离，抗过拟合——HarnessBank 原则）
+
+    Returns:
+        新建的 AgentSkill 或 None（不足阈值/flag 关闭/LLM 失败）
+    """
+    settings = get_settings()
+    if not settings.agent_failure_learning_enabled:
+        return None
+    if not settings.agent_skill_distillation_enabled:
+        return None
+
+    stmt = (
+        select(AgentCase)
+        .where(
+            and_(
+                AgentCase.agent_name == agent_name,
+                AgentCase.scope == scope,
+                AgentCase.owner_id == owner_id,
+                AgentCase.outcome == "failed",
+                AgentCase.failure_type == failure_type,
+                AgentCase.distilled_to_skill_id.is_(None),
+                AgentCase.deleted_at.is_(None),
+            )
+        )
+        .order_by(AgentCase.created_at.desc())
+        .limit(10)
+    )
+    result = await db.execute(stmt)
+    cases = list(result.scalars().all())
+    if len(cases) < _DISTILL_THRESHOLD:
+        logger.debug(
+            "distill_anti_pattern: %s/%s 不足阈值（%d < %d），跳过",
+            agent_name, failure_type, len(cases), _DISTILL_THRESHOLD,
+        )
+        return None
+
+    cases_text = "\n".join(
+        f"- {c.task_intent[:120]}（{c.approach[:200]}）" for c in cases
+    )
+    prompt = _ANTI_PATTERN_PROMPT.format(
+        agent_name=agent_name, count=len(cases), failure_type=failure_type,
+        cases_text=cases_text,
+    )
+    messages = [
+        {"role": "system", "content": "你是 Agent 反模式蒸馏器，只返回严格 JSON。"},
+        {"role": "user", "content": prompt},
+    ]
+    try:
+        from app.agents.base import BaseAgent
+
+        agent = BaseAgent()
+        agent.agent_name = "anti_pattern_distiller"
+        agent.system_prompt = "你是 Agent 反模式蒸馏器，只返回严格 JSON。"
+        reply = await agent._chat(messages)
+        await agent.close()
+    except Exception as e:
+        logger.debug("distill_anti_pattern: LLM 调用失败: %s", e)
+        return None
+
+    data = _parse_skill_json(reply)
+    if data is None:
+        logger.debug("distill_anti_pattern: JSON 解析失败，跳过")
+        return None
+
+    name = f"{_ANTI_PATTERN_PREFIX}{str(data.get('name') or failure_type)[:80]}"
+    # 同病理去重：已存在同名 ACTIVE/DRAFT 反模式则复用（不重复新建）
+    existing = await db.execute(
+        select(AgentSkill).where(
+            and_(
+                AgentSkill.agent_name == agent_name,
+                AgentSkill.owner_scope == scope,
+                AgentSkill.owner_id == owner_id,
+                AgentSkill.name == name,
+                AgentSkill.deleted_at.is_(None),
+            )
+        ).limit(1)
+    )
+    existing_skill = existing.scalars().first()
+
+    skill = existing_skill or AgentSkill(
+        id=str(uuid.uuid4()),
+        name=name,
+        description=str(data.get("description") or f"避免 {failure_type} 类失败")[:500],
+        agent_name=agent_name,
+        owner_scope=scope,
+        owner_id=owner_id,
+        system_prompt=f"历史失败教训（病理={failure_type}）：执行时避免重复以下错误。",
+        status=STATUS_DRAFT,
+        created_by=created_by or _CYCLE_CREATED_BY,
+    )
+    if existing_skill is None:
+        db.add(skill)
+    for case in cases:
+        case.distilled_to_skill_id = skill.id
+    await db.flush()
+    logger.info(
+        "distill_anti_pattern: agent=%s failure_type=%s skill=%s cases=%d",
+        agent_name, failure_type, skill.id, len(cases),
+    )
+    return skill
+
+
+async def get_anti_pattern_hints(
+    db: AsyncSession,
+    *,
+    agent_name: str,
+    owner_id: str,
+    scope: str = SCOPE_PERSONAL,
+) -> list[str]:
+    """v1.15.5 失败学习：检索该 Agent 的反模式提示（ACTIVE 优先，DRAFT 回退）。
+
+    供 BaseAgent 执行前注入为「历史失败教训」警告，避免重复同类错误。
+    返回 description 列表（最多 3 条），无则空列表。
+    """
+    settings = get_settings()
+    if not settings.agent_failure_learning_enabled:
+        return []
+    stmt = (
+        select(AgentSkill)
+        .where(
+            and_(
+                AgentSkill.agent_name == agent_name,
+                AgentSkill.owner_scope == scope,
+                AgentSkill.owner_id == owner_id,
+                AgentSkill.name.like(f"{_ANTI_PATTERN_PREFIX}%"),
+                AgentSkill.status.in_([STATUS_ACTIVE, STATUS_DRAFT]),
+                AgentSkill.deleted_at.is_(None),
+            )
+        )
+        .order_by(
+            # ACTIVE 优先，再按时间感知 recency（updated_at 降序）
+            AgentSkill.status.desc(), AgentSkill.updated_at.desc(),
+        )
+        .limit(3)
+    )
+    result = await db.execute(stmt)
+    return [s.description for s in result.scalars().all() if s.description]
+
 
 async def distill_skill_from_cases(
     db: AsyncSession,
@@ -513,9 +678,12 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
         "cycle": "skill_evolution",
         "distillation_enabled": settings.agent_skill_distillation_enabled,
         "evolution_enabled": settings.agent_skill_evolution_enabled,
+        "failure_learning_enabled": settings.agent_failure_learning_enabled,
         "clusters_found": 0,
         "distilled_new": [],
         "merged_existing": [],
+        "failure_clusters_found": 0,
+        "anti_pattern_distilled": [],
         "evaluated": 0,
         "promoted_draft_to_active": [],
         "archived_low_quality": [],
@@ -562,6 +730,48 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
                 report["distilled_new"].append(entry)
             else:
                 report["merged_existing"].append(entry)
+
+    # ── 1b. v1.15.5 失败学习：失败 Case 簇蒸馏反模式 Skill ──
+    if not settings.agent_failure_learning_enabled:
+        report["skipped_reasons"].append("agent_failure_learning_enabled=False，跳过失败蒸馏")
+    else:
+        failure_cluster_stmt = (
+            select(
+                AgentCase.agent_name,
+                AgentCase.owner_id,
+                AgentCase.scope,
+                AgentCase.failure_type,
+                func.count(AgentCase.id).label("case_count"),
+            )
+            .where(
+                and_(
+                    AgentCase.outcome == "failed",
+                    AgentCase.failure_type.isnot(None),
+                    AgentCase.distilled_to_skill_id.is_(None),
+                    AgentCase.deleted_at.is_(None),
+                )
+            )
+            .group_by(AgentCase.agent_name, AgentCase.owner_id, AgentCase.scope, AgentCase.failure_type)
+            .having(func.count(AgentCase.id) >= _DISTILL_THRESHOLD)
+            .order_by(func.count(AgentCase.id).desc())
+            .limit(_CYCLE_MAX_CLUSTERS)
+        )
+        result = await db.execute(failure_cluster_stmt)
+        failure_clusters = result.all()
+        report["failure_clusters_found"] = len(failure_clusters)
+
+        for agent_name, owner_id, scope, failure_type, _count in failure_clusters:
+            skill = await distill_anti_pattern_skill(
+                db, agent_name=agent_name, failure_type=failure_type,
+                owner_id=owner_id, scope=scope,
+                created_by=_CYCLE_CREATED_BY,
+            )
+            if skill is None:
+                continue
+            report["anti_pattern_distilled"].append({
+                "skill_id": skill.id, "name": skill.name,
+                "agent": agent_name, "failure_type": failure_type,
+            })
 
     # ── 2. 三维质控评估（有使用记录的 DRAFT/ACTIVE）──
     if not settings.agent_skill_evolution_enabled:

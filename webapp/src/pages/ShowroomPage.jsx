@@ -306,7 +306,7 @@ export default function ShowroomPage() {
                     <div style={{
                       height: 88, background: approved ? 'rgba(34, 197, 94, 0.08)' : 'var(--border)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: approved ? 'var(--success, #22c55e)' : 'var(--text-dim)',
+                      color: approved ? 'var(--success)' : 'var(--text-dim)',
                       position: 'relative',
                     }}
                     >
@@ -314,8 +314,8 @@ export default function ShowroomPage() {
                       {c.featured && (
                         <span style={{
                           position: 'absolute', top: 8, left: 8, fontSize: 10, padding: '2px 6px',
-                          borderRadius: 4, background: 'rgba(251, 191, 36, 0.18)',
-                          color: '#b45309', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
+                          borderRadius: 8, background: 'var(--accent-dim)',
+                          color: 'var(--accent-text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3,
                         }}
                         >
                           <Crown size={11} /> 置顶
@@ -324,8 +324,8 @@ export default function ShowroomPage() {
                       {!approved && (
                         <span style={{
                           position: 'absolute', top: 8, right: 8, fontSize: 10, padding: '2px 6px',
-                          borderRadius: 4, background: 'rgba(251, 191, 36, 0.15)',
-                          color: '#b45309', letterSpacing: 1,
+                          borderRadius: 8, background: 'var(--accent-dim)',
+                          color: 'var(--accent-text)', letterSpacing: 1,
                         }}
                         >
                           REVIEWING
@@ -335,7 +335,7 @@ export default function ShowroomPage() {
                     <div style={{ padding: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
                         {c.name}
-                        {approved && <BadgeCheck size={15} color="var(--success, #22c55e)" />}
+                        {approved && <BadgeCheck size={15} color="var(--success)" />}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                         资质 {c.qualification || '-'} 级 · 评分 {Number(c.rating || 0).toFixed(1)} · 案例 {c.completed_projects || 0} 个 · ¥{c.daily_rate || 0}/天
@@ -348,7 +348,7 @@ export default function ShowroomPage() {
                         </div>
                       )}
                       {!approved && (
-                        <div style={{ fontSize: 12, marginTop: 6, color: '#b45309' }}>
+                        <div style={{ fontSize: 12, marginTop: 6, color: 'var(--accent-text)' }}>
                           <Clock size={12} style={{ verticalAlign: -2 }} /> 入驻审核中，通过后方可接单
                         </div>
                       )}
@@ -364,7 +364,7 @@ export default function ShowroomPage() {
                         <div style={{
                           width: '100%', marginTop: 8, padding: '7px 0', textAlign: 'center',
                           fontSize: 12, color: 'var(--text-dim)', border: '1px dashed var(--border)',
-                          borderRadius: 6,
+                          borderRadius: 8,
                         }}
                         >
                           暂无作品集全景（待上传已交付项目实景）
@@ -379,15 +379,15 @@ export default function ShowroomPage() {
                         {approved ? '发起接单' : '审核中不可接单'}
                       </button>
                       <button
-                        className="ghost"
+                        className="btn btn--ghost"
                         style={{ width: '100%', marginTop: 4, fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer' }}
                         onClick={() => openPortfolio(c)}
                       >
                         装修过程透明 · 施工进度/质检时间线
                       </button>
                       <button
-                        className="ghost"
-                        style={{ width: '100%', marginTop: 4, fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#b45309' }}
+                        className="btn btn--ghost"
+                        style={{ width: '100%', marginTop: 4, fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--accent-text)' }}
                         onClick={() => openBenefits(c)}
                       >
                         <Crown size={12} style={{ verticalAlign: -2 }} /> 展厅权益 · 置顶/VR 实拍
@@ -409,7 +409,7 @@ export default function ShowroomPage() {
                   <div style={{
                     height: 96, background: s.is_verified ? 'rgba(34, 197, 94, 0.08)' : 'var(--border)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: s.is_verified ? 'var(--success, #22c55e)' : 'var(--text-dim)',
+                    color: s.is_verified ? 'var(--success)' : 'var(--text-dim)',
                     position: 'relative',
                   }}
                   >
@@ -417,8 +417,8 @@ export default function ShowroomPage() {
                     {!s.is_verified && (
                       <span style={{
                         position: 'absolute', top: 8, right: 8, fontSize: 10, padding: '2px 6px',
-                        borderRadius: 4, background: 'rgba(251, 191, 36, 0.15)',
-                        color: '#b45309', letterSpacing: 1,
+                        borderRadius: 8, background: 'var(--accent-dim)',
+                        color: 'var(--accent-text)', letterSpacing: 1,
                       }}
                       >
                         PENDING
@@ -428,16 +428,16 @@ export default function ShowroomPage() {
                   <div style={{ padding: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
                       {s.name}
-                      {s.is_verified && <BadgeCheck size={15} color="var(--success, #22c55e)" />}
+                      {s.is_verified && <BadgeCheck size={15} color="var(--success)" />}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                       {s.category || '-'} · 评分 {Number(s.rating || 0).toFixed(1)}
                     </div>
                     <div style={{ fontSize: 12, marginTop: 6 }}>
                       {s.is_verified ? (
-                        <span style={{ color: 'var(--success, #22c55e)' }}>✓ 已认证</span>
+                        <span style={{ color: 'var(--success)' }}>✓ 已认证</span>
                       ) : (
-                        <span style={{ color: '#b45309' }}>
+                        <span style={{ color: 'var(--accent-text)' }}>
                           <Clock size={12} style={{ verticalAlign: -2 }} /> 认证审核中
                         </span>
                       )}
@@ -454,7 +454,7 @@ export default function ShowroomPage() {
                       <div style={{
                         width: '100%', marginTop: 8, padding: '7px 0', textAlign: 'center',
                         fontSize: 12, color: 'var(--text-dim)', border: '1px dashed var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 8,
                       }}
                       >
                         暂无实景展厅（待上传车间/样品间全景）
@@ -543,19 +543,19 @@ export default function ShowroomPage() {
               <div style={{
                 position: 'absolute', right: 16, top: 16, width: 280, zIndex: 30,
                 background: 'var(--card)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                borderRadius: 16, padding: 14, boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
               }}
               >
                 {exhibit.loading ? (
                   <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>展品加载中…</div>
                 ) : exhibit.error || !exhibit.material ? (
-                  <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)' }}>{exhibit.error || '展品不存在'}</div>
+                  <div style={{ fontSize: 13, color: 'var(--danger)' }}>{exhibit.error || '展品不存在'}</div>
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <strong style={{ fontSize: 15 }}>{exhibit.material.name}</strong>
+                      <strong style={{ fontSize: 16 }}>{exhibit.material.name}</strong>
                       <button
-                        className="ghost"
+                        className="btn btn--ghost"
                         style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
                         onClick={() => setExhibit(null)}
                         aria-label="关闭"
@@ -576,7 +576,7 @@ export default function ShowroomPage() {
                       </div>
                     )}
                     {exhibit.cert ? (
-                      <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', color: 'var(--success, #22c55e)' }}>
+                      <div style={{ fontSize: 12, marginTop: 8, display: 'flex', gap: 6, alignItems: 'center', color: 'var(--success)' }}>
                         <BadgeCheck size={15} /> 环保认证 · {exhibit.cert.certification || '已认证'}
                       </div>
                     ) : (
@@ -595,9 +595,9 @@ export default function ShowroomPage() {
                     {exhibit.action && !exhibit.action.busy && (
                       <div
                         style={{
-                          marginTop: 8, fontSize: 12, padding: '6px 8px', borderRadius: 6,
+                          marginTop: 8, fontSize: 12, padding: '6px 8px', borderRadius: 8,
                           background: exhibit.action.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
-                          color: exhibit.action.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
+                          color: exhibit.action.ok ? 'var(--success)' : 'var(--danger)',
                         }}
                       >
                         {exhibit.action.msg}
@@ -626,14 +626,14 @@ export default function ShowroomPage() {
         >
           <div style={{
             width: 420, maxWidth: '92vw', background: 'var(--card)',
-            border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            border: '1px solid var(--border)', borderRadius: 16, padding: 16,
             boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
           }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong>{crewMatch.crew.name} · 发起接单</strong>
               <button
-                className="ghost"
+                className="btn btn--ghost"
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
                 onClick={() => setCrewMatch(null)}
                 aria-label="关闭"
@@ -646,7 +646,7 @@ export default function ShowroomPage() {
                 正在匹配当前项目工程队…
               </div>
             ) : crewMatch.error ? (
-              <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{crewMatch.error}</div>
+              <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 12 }}>{crewMatch.error}</div>
             ) : (
               <>
                 {crewMatch.mine ? (
@@ -679,7 +679,7 @@ export default function ShowroomPage() {
                         key={m.id}
                         style={{
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          padding: '6px 8px', marginBottom: 4, borderRadius: 6,
+                          padding: '6px 8px', marginBottom: 4, borderRadius: 8,
                           background: 'var(--bg, #f6f7f9)',
                         }}
                       >
@@ -687,7 +687,7 @@ export default function ShowroomPage() {
                           {m.crew?.name || m.crew_id}
                           {m.crew?.qualification ? `（资质 ${m.crew.qualification}）` : ''}
                         </span>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--success, #22c55e)' }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--success)' }}>
                           {Number(m.match_score || 0).toFixed(0)} 分
                         </span>
                       </div>
@@ -708,14 +708,14 @@ export default function ShowroomPage() {
         >
           <div style={{
             width: 520, maxWidth: '94vw', maxHeight: '86vh', overflowY: 'auto',
-            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 16,
             boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
           }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong>{portfolio.crew.name} · 装修过程透明</strong>
               <button
-                className="ghost"
+                className="btn btn--ghost"
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
                 onClick={() => setPortfolio(null)}
                 aria-label="关闭"
@@ -728,7 +728,7 @@ export default function ShowroomPage() {
                 正在加载施工进度与质检记录…
               </div>
             ) : portfolio.error ? (
-              <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{portfolio.error}</div>
+              <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 12 }}>{portfolio.error}</div>
             ) : (
               <>
                 {!portfolio.data.projects || portfolio.data.projects.length === 0 ? (
@@ -751,10 +751,10 @@ export default function ShowroomPage() {
                                     {ph.in_progress > 0 ? `${ph.in_progress} 进行中 · ` : ''}{done}%
                                   </span>
                                 </div>
-                                <div style={{ height: 6, borderRadius: 3, background: 'var(--border)' }}>
+                                <div style={{ height: 6, borderRadius: 8, background: 'var(--border)' }}>
                                   <div style={{
-                                    width: `${done}%`, height: 6, borderRadius: 3,
-                                    background: done === 100 ? 'var(--success, #22c55e)' : 'var(--primary, #2563eb)',
+                                    width: `${done}%`, height: 6, borderRadius: 8,
+                                    background: done === 100 ? 'var(--success)' : 'var(--primary)',
                                   }}
                                   />
                                 </div>
@@ -798,16 +798,16 @@ export default function ShowroomPage() {
         >
           <div style={{
             width: 520, maxWidth: '94vw', maxHeight: '86vh', overflowY: 'auto',
-            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16,
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: 16,
             boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
           }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Crown size={15} color="#b45309" />{benefits.crew.name} · 展厅权益
+                <Crown size={15} color="var(--accent-text)" />{benefits.crew.name} · 展厅权益
               </strong>
               <button
-                className="ghost"
+                className="btn btn--ghost"
                 style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
                 onClick={() => setBenefits(null)}
                 aria-label="关闭"
@@ -822,7 +822,7 @@ export default function ShowroomPage() {
             ) : (
               <>
                 {benefits.error && (
-                  <div style={{ fontSize: 13, color: 'var(--danger, #dc3c3c)', marginTop: 12 }}>{benefits.error}</div>
+                  <div style={{ fontSize: 13, color: 'var(--danger)', marginTop: 12 }}>{benefits.error}</div>
                 )}
                 {benefits.records.length > 0 && (
                   <div style={{ marginTop: 12 }}>
@@ -830,7 +830,7 @@ export default function ShowroomPage() {
                     {benefits.records.map((b) => (
                       <div key={b.id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        fontSize: 13, padding: '6px 10px', borderRadius: 6,
+                        fontSize: 13, padding: '6px 10px', borderRadius: 8,
                         background: 'var(--bg, #f6f7f9)', marginBottom: 4,
                       }}
                       >
@@ -838,7 +838,7 @@ export default function ShowroomPage() {
                           {b.benefit_type === 'showroom_featured' ? '作品集置顶' : 'VR 实拍权益'}
                           <span style={{ color: 'var(--text-dim)', marginLeft: 6 }}>-{b.points_spent} 积分</span>
                         </span>
-                        <span style={{ fontSize: 12, color: b.status === 'active' ? 'var(--success, #22c55e)' : 'var(--text-dim)' }}>
+                        <span style={{ fontSize: 12, color: b.status === 'active' ? 'var(--success)' : 'var(--text-dim)' }}>
                           {b.status === 'active' ? (b.expires_at ? `有效至 ${new Date(b.expires_at).toLocaleDateString()}` : '生效中') : b.status}
                         </span>
                       </div>
@@ -859,7 +859,7 @@ export default function ShowroomPage() {
                           {item.description && (
                             <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>{item.description}</div>
                           )}
-                          <div style={{ fontSize: 12, color: '#b45309', marginTop: 4 }}>
+                          <div style={{ fontSize: 12, color: 'var(--accent-text)', marginTop: 4 }}>
                             <Sparkles size={11} style={{ verticalAlign: -2 }} /> {item.points_required} 积分
                           </div>
                         </div>

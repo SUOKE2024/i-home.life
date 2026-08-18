@@ -71,8 +71,11 @@ async def create_product(
     db: AsyncSession = Depends(get_db),
 ):
     """创建产品（支持 AI 辅助生成文案）"""
-    if current_user.role != "supplier" and not current_user.is_verified:
-        raise HTTPException(status_code=403, detail="仅已认证的供应商可发布产品")
+    # 角色门控（v1.15.4）：仅供应商/管理员可创建产品。
+    # 此前条件 role!=supplier and not is_verified 允许任何已认证用户发布（授权缺口）。
+    # 供应商实名认证（is_verified）属平台审核策略，由身份认证流程独立管理，此处不双重拦截。
+    if current_user.role not in ("supplier", "admin"):
+        raise HTTPException(status_code=403, detail="仅供应商角色可发布产品")
 
     # 获取供应商信息
     stmt = select(Supplier).where(Supplier.phone == current_user.phone)

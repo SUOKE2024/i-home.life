@@ -437,6 +437,9 @@ class AgentRuntime:
             trace.fallback_used = True
             trace.fallback_reason = "all_retries_exhausted"
             fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            # v1.15.5 失败学习：降级轨迹确定性沉淀失败 Case（零 LLM 成本），
+            # 供反模式 Skill 蒸馏（EdgeBench 借鉴：失败是最贵的学习信号）
+            await self._maybe_extract_case(trace, kwargs)
             await self._persist_trace(trace, kwargs, agent)
             logger.info(
                 "harness_run_fallback: agent=%s reason=%s latency_ms=%.1f workflow_id=%s",
@@ -455,6 +458,8 @@ class AgentRuntime:
                 agent.agent_name, e,
             )
             fallback_result = self._apply_fallback(agent.agent_name, user_message, trace, mock_fn)
+            # v1.15.5 失败学习：异常轨迹同样确定性沉淀失败 Case
+            await self._maybe_extract_case(trace, kwargs)
             await self._persist_trace(trace, kwargs, agent)
             logger.info(
                 "harness_run_fallback: agent=%s reason=%s latency_ms=%.1f workflow_id=%s",

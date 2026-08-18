@@ -111,7 +111,8 @@ export default function SmartHomePage() {
     body = <Empty message="该项目暂无智能家居方案" />
   } else {
     body = (
-      <table className="table">
+      <div className="table-wrap">
+        <table className="table">
         <thead>
           <tr>
             <th>方案名</th>
@@ -137,7 +138,8 @@ export default function SmartHomePage() {
             )
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     )
   }
 

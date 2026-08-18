@@ -13,9 +13,12 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { apiClient } from '../services/api-client';
+import { UserProvider } from '../context/UserContext';
+import type { User } from '../types/domain';
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +48,8 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         redirectToLogin();
         return;
       }
+      // 注入用户上下文（v1.15.4：SideNav 按角色过滤导航、供应商工作台）
+      setUser(r.data ?? null);
       setReady(true);
     })();
 
@@ -71,5 +76,5 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <UserProvider value={{ user, setUser }}>{children}</UserProvider>;
 }

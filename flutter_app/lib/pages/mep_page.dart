@@ -801,7 +801,7 @@ class _MepPageState extends State<MepPage> with SingleTickerProviderStateMixin {
                     children: [
                       _buildLegendItem(Colors.red, '电'),
                       const SizedBox(width: 16),
-                      _buildLegendItem(Colors.blue, '水'),
+                      _buildLegendItem(SuokeDesignTokens.info, '水'),
                       const SizedBox(width: 16),
                       _buildLegendItem(Colors.amber, '燃气'),
                     ],

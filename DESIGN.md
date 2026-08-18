@@ -6,6 +6,7 @@ colors:
   primary: "#C9973B"
   accent-bright: "#E0AA4A"
   on-accent: "#08080F"
+  accent-text: "#8A6415" # 浅色底金色文字/链接/星标加深变体（AA 4.99:1，浅色主题专用）
   bg-deep: "#08080F"
   surface1: "#12121D"
   surface2: "#1A1A2A"
@@ -133,6 +134,9 @@ components:
     textColor: "{colors.info}"
   muted-text:
     textColor: "{colors.text-muted}"
+  accent-text:
+    textColor: "{colors.accent-text}"
+    typography: "{typography.label}"
   bubble-user:
     backgroundColor: "{colors.bubble-user}"
     textColor: "{colors.text-primary}"

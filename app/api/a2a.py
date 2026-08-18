@@ -9,6 +9,7 @@
 
 所有非公开端点需 PASETO 鉴权；任务下发/查询受 settings.a2a_enabled feature flag 控制。
 """
+import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -49,6 +50,28 @@ REGISTERED_AGENT_NAMES: list[str] = [
 _BUSINESS_OPS_AGENT_KEYS = frozenset({
     "growth", "marketing", "competitor_research", "finance_recon",
 })
+
+
+def _build_evidence(trace, degraded: bool = False) -> dict[str, Any]:
+    """v1.15.5 协议信任层：从 harness trace 构建 A2A 执行证据链。
+
+    evidence 只含最小可核验字段（不序列化 live 对象）：
+    agent_name / workflow_id / status / duration_ms / degraded。
+    客户端可凭 trace_id 到 agent_traces 表回放溯源，核验执行真实性。
+    全程 getattr 防御（测试桩/异常轨迹缺字段时不抛错）。
+    """
+    if trace is None:
+        return {"degraded": degraded, "status": "no_trace"}
+    status_val = getattr(trace, "status", None)
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
+    return {
+        "agent_name": getattr(trace, "agent_name", "") or "",
+        "workflow_id": getattr(trace, "workflow_id", "") or "",
+        "status": str(status_val or ""),
+        "duration_ms": round(float(getattr(trace, "latency_ms", None) or 0.0), 1),
+        "degraded": degraded,
+    }
 
 
 def _resolve_agent_cls(harness, agent_name: str):
@@ -132,11 +155,18 @@ class A2ATaskRequest(BaseModel):
 
 
 class A2ATaskResponse(BaseModel):
-    """A2A 任务响应"""
+    """A2A 任务响应
+
+    v1.15.5 协议信任层（AAIF「可验证证据在协议边界」）：附执行证据链——
+    trace_id 关联 harness 轨迹（可回放溯源），evidence 含 agent_name/
+    workflow_id/duration_ms/degraded/status，客户端可核验执行真实性而非信任裸文案。
+    """
     task_id: str
     state: A2ATaskState
     result: Any = None
     error: str | None = None
+    trace_id: str | None = None
+    evidence: dict[str, Any] | None = None
 
 
 # ════════════════════════════════════════════════════════════════
@@ -160,12 +190,20 @@ async def _cleanup_expired_tasks(db: AsyncSession) -> None:
 
 
 def _task_to_dict(task: A2ATask) -> dict[str, Any]:
-    """将 A2ATask ORM 对象转为 API 返回字典。"""
+    """将 A2ATask ORM 对象转为 API 返回字典（v1.15.5 附证据链）。"""
+    evidence = None
+    if task.evidence:
+        try:
+            evidence = json.loads(task.evidence)
+        except (json.JSONDecodeError, TypeError):
+            evidence = None
     return {
         "task_id": task.task_id,
         "state": task.state,
         "result": task.result,
         "error": task.error,
+        "trace_id": task.trace_id,
+        "evidence": evidence,
     }
 
 
@@ -264,10 +302,15 @@ async def send_task(
     if not agent_cls:
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = f"Agent '{request.agent_name}' 未注册"
+        # v1.15.5 证据链：拒绝/失败也附证据（诚实标注降级原因）
+        db_task.evidence = json.dumps(
+            {"degraded": True, "reason": "agent_not_registered"}, ensure_ascii=False,
+        )
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED,
             error=f"Agent '{request.agent_name}' 未注册",
+            evidence={"degraded": True, "reason": "agent_not_registered"},
         )
 
     # v1.15.x 走查修复：商业运营 Agent（growth/marketing/competitor_research/
@@ -276,10 +319,14 @@ async def send_task(
     if getattr(agent_cls, "agent_name", "") in _BUSINESS_OPS_AGENT_KEYS and current_user.role != "admin":
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = "平台运营专用 Agent，仅管理员可用"
+        db_task.evidence = json.dumps(
+            {"degraded": True, "reason": "permission_denied"}, ensure_ascii=False,
+        )
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED,
             error=db_task.error,
+            evidence={"degraded": True, "reason": "permission_denied"},
         )
 
     trace = None
@@ -308,20 +355,32 @@ async def send_task(
             harness.finish_trace(trace, AgentRunStatus.FALLBACK)
             db_task.state = A2ATaskState.FAILED.value
             db_task.error = "Agent 执行降级（服务暂时不可用），请稍后重试"
+            db_task.trace_id = getattr(trace, "trace_id", None)
+            db_task.evidence = json.dumps(
+                _build_evidence(trace, degraded=True), ensure_ascii=False,
+            )
             await db.commit()
             return A2ATaskResponse(
                 task_id=task_id,
                 state=A2ATaskState.FAILED,
                 error=db_task.error,
+                trace_id=getattr(trace, "trace_id", None),
+                evidence=_build_evidence(trace, degraded=True),
             )
         harness.finish_trace(trace, AgentRunStatus.SUCCESS)
         db_task.state = A2ATaskState.COMPLETED.value
         db_task.result = reply_text
+        db_task.trace_id = getattr(trace, "trace_id", None)
+        db_task.evidence = json.dumps(
+            _build_evidence(trace, degraded=False), ensure_ascii=False,
+        )
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id,
             state=A2ATaskState.COMPLETED,
             result=reply_text,
+            trace_id=getattr(trace, "trace_id", None),
+            evidence=_build_evidence(trace, degraded=False),
         )
     except Exception as e:
         logger.error("a2a_task_failed: agent=%s error=%s", request.agent_name, e)
@@ -329,9 +388,16 @@ async def send_task(
             harness.finish_trace(trace, AgentRunStatus.FAILED)
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = str(e)
+        db_task.trace_id = getattr(trace, "trace_id", None) if trace else None
+        db_task.evidence = json.dumps(
+            {"degraded": True, "reason": "exception", "error_type": type(e).__name__},
+            ensure_ascii=False,
+        )
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED, error=str(e),
+            trace_id=getattr(trace, "trace_id", None),
+            evidence={"degraded": True, "reason": "exception", "error_type": type(e).__name__},
         )
 
 

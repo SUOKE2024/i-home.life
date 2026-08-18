@@ -754,7 +754,7 @@ export default function CurtainShowroom({ projectId }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <strong style={{ fontSize: 15 }}>{exhibit.name}</strong>
                 <button
-                  className="ghost"
+                  className="btn btn--ghost"
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
                   onClick={() => setExhibit(null)}
                   aria-label="关闭"
@@ -785,7 +785,7 @@ export default function CurtainShowroom({ projectId }) {
                 <div style={{
                   marginTop: 8, fontSize: 12, padding: '6px 8px', borderRadius: 6,
                   background: exhibit.action.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
-                  color: exhibit.action.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
+                  color: exhibit.action.ok ? 'var(--success)' : 'var(--danger)',
                 }}
                 >
                   {exhibit.action.msg}
@@ -820,7 +820,7 @@ export default function CurtainShowroom({ projectId }) {
                       <div style={{
                         marginTop: 4, fontSize: 11, padding: '4px 8px', borderRadius: 6,
                         background: msg.ok ? 'rgba(34, 197, 94, 0.12)' : 'rgba(220, 60, 60, 0.12)',
-                        color: msg.ok ? 'var(--success, #22c55e)' : 'var(--danger, #dc3c3c)',
+                        color: msg.ok ? 'var(--success)' : 'var(--danger)',
                       }}
                       >
                         {msg.msg}

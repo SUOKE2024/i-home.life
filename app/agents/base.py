@@ -201,7 +201,16 @@ class BaseAgent:
         """
         # v1.1.28: 构建本次调用的供应商链（主供应商 + fallback chain）
         # v1.4.x: 意图成本路由 — economy 档优先低成本供应商
-        chain = self._resolve_chain()
+        # v1.15.5: 复杂度自适应路由 — standard 档按任务复杂度动态调链（ARISE 借鉴）
+        complexity = "standard"
+        if settings.adaptive_reasoning_routing_enabled and self.cost_tier == "standard":
+            last_user = ""
+            for m in reversed(messages):
+                if m.get("role") == "user":
+                    last_user = str(m.get("content") or "")
+                    break
+            complexity = self._estimate_task_complexity(last_user)
+        chain = self._resolve_chain(complexity)
 
         # v1.12.x: LLM 响应缓存（对齐 2026「缓存确定性 subtask 结果」）
         # 仅缓存非工具调用的确定性请求（相同 agent+messages → 相同回复），
@@ -328,17 +337,63 @@ class BaseAgent:
         from app.services.cache_service import build_isolated_key
         return build_isolated_key(f"llm:{self.agent_name}:{digest}", public=True)
 
-    def _resolve_chain(self) -> list[str]:
-        """按 cost_tier 解析本次 LLM 调用的供应商链（v1.4.x 意图成本路由）。
+    # v1.15.5 复杂度自适应路由（ARISE 自适应分辨率借鉴）：领域关键词表
+    # （确定性规则判定，无 LLM 成本；与工具选择评估关键词消歧同一方法论）
+    _COMPLEXITY_DOMAINS: dict[str, tuple[str, ...]] = {
+        "design": ("设计", "户型", "布局", "风格", "效果图"),
+        "budget": ("预算", "报价", "费用", "价格", "多少钱"),
+        "procurement": ("采购", "材料", "清单", "下单", "供应商"),
+        "construction": ("施工", "工期", "水电", "防水", "开工"),
+        "inspection": ("验收", "质检", "整改", "监理"),
+        "settlement": ("结算", "尾款", "合同", "支付"),
+    }
+
+    @classmethod
+    def _estimate_task_complexity(cls, user_message: str) -> str:
+        """v1.15.5: 确定性任务复杂度判定 → high / low / standard。
+
+        high：≥3 个业务域关键词共现，或全流程/整体方案类请求，或消息 >300 字。
+        low：短消息（≤24 字）且无任何领域关键词（问候/简单 FAQ）。
+        standard：其余（单域任务）。
+        """
+        message = (user_message or "").strip()
+        if not message:
+            return "standard"
+        domain_hits = sum(
+            1 for kws in cls._COMPLEXITY_DOMAINS.values()
+            if any(k in message for k in kws)
+        )
+        if domain_hits >= 3 or len(message) > 300:
+            return "high"
+        if any(k in message for k in ("全流程", "整个流程", "完整方案", "全套设计", "全屋定制")):
+            return "high"
+        if domain_hits == 0 and len(message) <= 24:
+            return "low"
+        return "standard"
+
+    def _resolve_chain(self, complexity: str = "standard") -> list[str]:
+        """按 cost_tier + 任务复杂度解析本次 LLM 调用的供应商链。
 
         standard（默认）：主供应商 + DEFAULT_FALLBACK_CHAIN，行为与 v1.1.28 一致。
         economy + cost_tiered_routing_enabled：低成本供应商优先，
             原主供应商保留在链尾兜底，保证 economy 档不可用时仍能完成解析。
+        v1.15.5 standard + complexity=low（adaptive_reasoning_routing_enabled）：
+            低成本供应商优先（省成本降时延），主供应商保留链尾兜底——
+            与 economy 档同构，但由任务复杂度而非 Agent 档位触发（ARISE 借鉴）。
+        complexity=high：主供应商优先（默认行为，推理模型保质量）。
         """
         primary = self.provider
         chain = [primary]
         if settings.llm_fallback_enabled:
-            if self.cost_tier == "economy" and settings.cost_tiered_routing_enabled:
+            cheap_first = (
+                (self.cost_tier == "economy" and settings.cost_tiered_routing_enabled)
+                or (
+                    settings.adaptive_reasoning_routing_enabled
+                    and self.cost_tier == "standard"
+                    and complexity == "low"
+                )
+            )
+            if cheap_first:
                 economy = [p for p in settings.economy_provider_list if p in PROVIDER_REGISTRY]
                 chain = [p for p in economy if p != primary] or [primary]
                 if primary not in chain:
@@ -551,6 +606,24 @@ class BaseAgent:
                     "skill_id=%s skill=%s",
                     self.agent_name, scope, owner_id, skill.id, skill.name,
                 )
+            # v1.15.5 失败学习（EdgeBench 借鉴）：注入反模式提示（历史失败教训）。
+            # 不设 _injected_skill_id——反模式是警告不是待验证 Skill，不进 outcome 回写。
+            try:
+                from app.services.agent_skill_evolution_service import get_anti_pattern_hints
+                anti_hints = await get_anti_pattern_hints(
+                    db, agent_name=self.agent_name, owner_id=owner_id, scope=scope,
+                )
+                if anti_hints:
+                    hint_block = "⚠️ 历史失败教训（避免重复以下错误）：\n" + "\n".join(
+                        f"- {h}" for h in anti_hints
+                    )
+                    messages.append({"role": "system", "content": hint_block})
+                    logger.debug(
+                        "evolution.inject.anti_pattern_hit: agent=%s scope=%s owner_id=%s count=%d",
+                        self.agent_name, scope, owner_id, len(anti_hints),
+                    )
+            except Exception as e:
+                logger.debug("evolution.inject.anti_pattern_failed: %s", e)
             else:
                 logger.debug(
                     "evolution.inject.skill_miss: agent=%s scope=%s owner_id=%s",

@@ -93,7 +93,19 @@ async def test_harness_empty_reply_all_fail_fallback():
 
 
 class _StubTrace:
-    pass
+    """harness 轨迹测试桩（v1.15.6 补齐字段：v1.15.5 证据链/轨迹落库路径可能直接访问）"""
+
+    trace_id = ""
+    workflow_id = ""
+    agent_name = ""
+    agent_version = ""
+    provider = ""
+    model = ""
+    status = None
+    user_id = ""
+    project_id = ""
+    scope = ""
+    context_source = ""
 
 
 class _StubFallbackHarness:
