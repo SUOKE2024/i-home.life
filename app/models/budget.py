@@ -24,7 +24,11 @@ class Budget(Base):
     lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan")
 
     __table_args__ = (
-        CheckConstraint("status IN ('draft', 'approved', 'active', 'completed')", name="chk_budget_status"),
+        # 审批流状态机 5 态（draft/submitted/approved/executed/closed）+ legacy active/completed
+        CheckConstraint(
+            "status IN ('draft', 'submitted', 'approved', 'executed', 'closed', 'active', 'completed')",
+            name="chk_budget_status",
+        ),
         CheckConstraint("total_estimated >= 0", name="chk_budget_total_estimated_positive"),
         CheckConstraint("total_actual >= 0", name="chk_budget_total_actual_positive"),
     )

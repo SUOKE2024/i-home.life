@@ -1,11 +1,15 @@
 """F18 厨卫水电 API 端点"""
 
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.project import Project
 from app.models.user import User
+from app.models.kitchen_bath_mep import KitchenBathMEPPlan
 from app.schemas.kitchen_bath_mep import (
     KitchenBathMEPPlanCreate,
     KitchenBathMEPPlanResponse,
@@ -19,6 +23,37 @@ from app.services import kitchen_bath_mep_service as svc
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/mep-kb", tags=["厨卫水电"])
+
+
+class MEPCircuitCreate(BaseModel):
+    plan_id: str | None = None
+    circuit_number: str
+    circuit_type: str
+    load: str = ""
+    breaker: str = ""
+
+
+def _merge_manual_circuits(designed: list, plan: KitchenBathMEPPlan) -> list:
+    """合并点位自动设计回路与用户手动添加回路（按回路编号去重，手动回路追加在后）。"""
+    manual = plan.electrical_circuits or []
+    if not isinstance(manual, list):
+        try:
+            manual = json.loads(manual) if isinstance(manual, str) else []
+        except (TypeError, ValueError):
+            manual = []
+    seen = {(c.get("circuit_no") or c.get("circuit_number")) for c in designed}
+    merged = list(designed)
+    for item in manual:
+        key = item.get("circuit_number") or item.get("circuit_no")
+        if key and key not in seen:
+            merged.append({
+                "circuit_no": key,
+                "type": item.get("circuit_type") or "手动回路",
+                "load": item.get("load"),
+                "breaker": item.get("breaker"),
+                "source": "manual",
+            })
+    return merged
 
 
 @router.post("/plans", response_model=KitchenBathMEPPlanResponse, status_code=status.HTTP_201_CREATED)
@@ -141,7 +176,57 @@ async def design_circuits(
         # 默认厨房设备
         devices = ["烤箱", "洗碗机", "热水器", "垃圾处理器"]
     result = svc.design_kitchen_circuits(devices)
-    return {"plan_id": plan_id, **result}
+    # 合并用户手动添加的回路（electrical_circuits）
+    circuits = _merge_manual_circuits(result.get("circuits", []), plan)
+    return {"plan_id": plan_id, **result, "circuits": circuits}
+
+
+@router.post("/plans/{plan_id}/circuits")
+async def add_manual_circuit(
+    plan_id: str,
+    data: MEPCircuitCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """手动添加厨房回路（flutter mepAddCircuit 契约，落库到 plan.electrical_circuits）"""
+    plan = await svc.get_plan(db, plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="厨卫水电方案不存在")
+    await verify_project_access(project_id=plan.project_id, current_user=current_user, db=db)
+
+    manual = plan.electrical_circuits or []
+    if not isinstance(manual, list):
+        try:
+            manual = json.loads(manual) if isinstance(manual, str) else []
+        except (TypeError, ValueError):
+            manual = []
+    manual.append({
+        "circuit_number": data.circuit_number,
+        "circuit_type": data.circuit_type,
+        "load": data.load,
+        "breaker": data.breaker,
+        "source": "manual",
+    })
+    plan.electrical_circuits = manual
+    await db.commit()
+    await db.refresh(plan)
+
+    # 返回合并后的回路列表（设计 + 手动）
+    devices: list[str] = []
+    seen = set()
+    for p in plan.points:
+        if p.device and p.device not in seen:
+            devices.append(p.device)
+            seen.add(p.device)
+    if not devices:
+        devices = ["烤箱", "洗碗机", "热水器", "垃圾处理器"]
+    result = svc.design_kitchen_circuits(devices)
+    circuits = _merge_manual_circuits(result.get("circuits", []), plan)
+    await ws_manager.broadcast_to_project(plan.project_id, "mep_kb.circuit_added", {
+        "plan_id": plan_id,
+        "circuit": data.circuit_number,
+    })
+    return {"plan_id": plan_id, "circuits": circuits, "manual_count": len(manual)}
 
 
 @router.get("/plans/{plan_id}/equipotential")

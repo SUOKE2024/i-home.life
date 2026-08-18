@@ -1154,13 +1154,13 @@ export class ApiClient {
     return this.request<T>(`/api/workers/matches/${encodeURIComponent(projectId)}`);
   }
 
-  /** 更新匹配状态（PATCH /api/workers/matches/{matchId}/status?status=） */
+  /** 更新匹配状态（PATCH /api/workers/matches/{matchId}/status?new_status=） */
   async updateWorkerMatchStatus<T = import('../types/domain').WorkerMatch>(
     matchId: string,
     status: 'shortlisted' | 'hired' | 'rejected',
   ): Promise<ApiResult<T>> {
     return this.request<T>(
-      `/api/workers/matches/${encodeURIComponent(matchId)}/status?status=${encodeURIComponent(status)}`,
+      `/api/workers/matches/${encodeURIComponent(matchId)}/status?new_status=${encodeURIComponent(status)}`,
       { method: 'PATCH' },
     );
   }

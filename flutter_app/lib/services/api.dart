@@ -1630,7 +1630,7 @@ class ApiClient {
       get('/surveys/$surveyId');
 
   Future<Result<dynamic>> updateSurvey(String surveyId, Map<String, dynamic> body) =>
-      patch('/surveys/$surveyId', body);
+      put('/surveys/$surveyId', body);
 
   Future<Result<dynamic>> deleteSurvey(String surveyId) =>
       delete('/surveys/$surveyId');

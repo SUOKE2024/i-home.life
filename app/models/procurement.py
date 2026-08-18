@@ -121,7 +121,11 @@ class ProcurementOrder(Base):
 
     __table_args__ = (
         CheckConstraint("total_amount >= 0", name="chk_procurement_order_total_amount_positive"),
-        CheckConstraint("status IN ('draft', 'pending', 'confirmed', 'shipped', 'delivered', 'cancelled')", name="chk_procurement_order_status"),
+        # completed 为状态机终态（delivered→completed），曾缺失导致更新 500
+        CheckConstraint(
+            "status IN ('draft', 'pending', 'confirmed', 'shipped', 'delivered', 'completed', 'cancelled')",
+            name="chk_procurement_order_status",
+        ),
         CheckConstraint(
             "delivery_status IN ('pending', 'shipping', 'in_transit', 'delivered', 'delayed', 'cancelled')",
             name="chk_procurement_order_delivery_status",

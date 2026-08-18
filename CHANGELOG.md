@@ -2,6 +2,38 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.2] - 2026-08-17（业务链路全景走查修复，15 项发现）
+
+走查报告：`docs/fullchain-walkthrough-business-2026-08-17.md`（业务数据流 / 前端契约 /
+状态机闭环三路审计 + 主代理核验），回归测试 `tests/test_fullchain_walkthrough_20260817.py` 14 用例。
+
+- **P0 状态机-DB 约束冲突（写库即 500）**：① 采购 `delivered→completed` 合法终态不在
+  `chk_procurement_order_status` 允许集（收货后无法完结订单）；② 预算审批流 5 态
+  （draft/submitted/approved/executed/closed）与 `chk_budget_status` 4 态互异
+  （submit/execute/close 写入违反约束）；③ 验收 `failed→rework` 中间态不在
+  `chk_inspection_status`（整改复验链路崩）。三个模型约束仅扩允许集对齐状态机
+  （保留 legacy active/completed），新增迁移 `f8e7d6c5b4a3`（幂等，PG 直接
+  drop/create，SQLite batch 重建，downgrade 恢复旧约束）。
+- **P0 前端契约 4 处**：webapp 更新项目 PUT→PATCH（后端仅 PATCH，此前 405）；
+  flutter 更新量房 PATCH→PUT（后端仅 PUT）；console 更新工人匹配 `?status=`→`?new_status=`
+  （后端必填参数，此前 422）；flutter 添加 MEP 回路 405 → 后端补
+  `POST /mep-kb/plans/{id}/circuits`（手动回路落库 plan.electrical_circuits + GET 合并去重）。
+- **P1 生产零调用状态机接线（状态不可达）**：以销定产 `drive_procurement_from_bom` 接入
+  generate-from-bom 端点（flag 关时回退原行为）；结算补 `mark-paid`/`mark-disputed` 端点
+  （approved→paid / →disputed 可达）；任务补 `cancel`/`fail` 端点（cancelled/failed 可达）；
+  预算补 `submit`/`approve`/`execute`/`close` 审批流端点（非法流转 400）；质检验收补
+  `PATCH /construction/inspections/{id}/status`（failed→rework→passed + INSPECTION_PASSED
+  事件链激活）。
+- **P1 结算 confirm 409 恒真**：API 层条件 `status != "confirmed"`（状态机无此状态恒真）
+  且未检查 reviewed_by → 改 `review_required and not reviewed_by`（与服务层语义对齐）。
+- **P2 死代码/文档**：删除 `okf_export_service.py`（import 不存在的 app.models.knowledge /
+  app.services.knowledge_service，模块级零引用，import 即崩）；paseto_handler 撤销列表
+  docstring 更新（v1.14.1 起默认 True 的 Redis 描述）。
+- **基线校准**：2485 → 2499 passed（+14 走查用例；collect 2505 = 2499 + 2 skipped +
+  4 xfailed，2026-08-17 全量首跑零重试）。
+- **版本**：1.15.1 → 1.15.2 全链路同步（config/.env×4/Flutter 1.15.2+51/webapp+lock/
+  version.json/console 1.15.2.0+lock/ci×3/deploy/MCP SERVER_VERSION/测试断言×4）。
+
 ## [1.15.1] - 2026-08-17（智能体用户全流程走查修复，12 项发现）
 
 走查报告：`docs/agent-journey-walkthrough-2026-08-17.md`（真实用户旅程逐端点调用，

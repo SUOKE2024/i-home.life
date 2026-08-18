@@ -2,10 +2,16 @@
 
 > **索克家居 · AI 智能装修平台**
 >
-> v1.15.1 · 智能体全流程走查 12 项修复 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> v1.15.2 · 业务链路全景走查 15 项修复（状态机-约束对齐 + 前端契约 + 审批流接线）+ 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
 > 核心能力：66 页面 React Web 控制台 + Flutter 55 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-08-17 · 业务链路全景全量走查修复（v1.15.2）
+
+- **15 项走查修复**（报告 `docs/fullchain-walkthrough-business-2026-08-17.md`）：3 处状态机-DB 约束冲突（采购 completed / 预算审批 5 态 / 验收 rework，此前写库 500）；4 处前端契约（webapp PUT projects→PATCH、flutter PATCH surveys→PUT、console workers `?status=`→`new_status`、flutter mep circuits 后端补 POST）；6 条生产零调用状态机接线（以销定产 demand-driven、结算 mark-paid/disputed、任务 cancel/fail、预算审批流、验收状态端点、MEP 手动回路）；结算 confirm 409 恒真条件修复；删除 okf 断链死代码
+- **迁移**：`f8e7d6c5b4a3` 状态机约束对齐（幂等 + SQLite/PG 双兼容，仅扩允许集）
+- **回归测试**：新增 `tests/test_fullchain_walkthrough_20260817.py` 14 用例，全量 2499 passed + 2 skipped + 4 xfailed，0 失败
 
 ### 2026-08-17 · 智能体用户全流程走查修复（v1.15.1）
 

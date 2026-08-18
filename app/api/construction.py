@@ -9,7 +9,7 @@ import structlog
 from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
-from app.models.construction import ConstructionTask, ConstructionLog
+from app.models.construction import ConstructionTask, ConstructionLog, Inspection
 from app.schemas.construction import (
     TaskCreate,
     TaskResponse,
@@ -323,6 +323,46 @@ async def get_inspections(
     await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
     inspections = await construction_service.get_inspections(db, task_id)
     return [InspectionResponse.model_validate(i) for i in inspections]
+
+
+@router.patch(
+    "/inspections/{inspection_id}/status",
+    response_model=InspectionResponse,
+    summary="更新验收状态",
+    description="更新验收状态（pending→passed/failed→rework→pending/passed）。"
+    "验收通过自动触发后继任务链推进（lifecycle_orchestration_enabled 控制）。",
+    response_description="更新后的检查记录",
+    responses={
+        200: {"description": "更新成功"},
+        400: {"description": "非法状态流转"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "检查记录或任务不存在"},
+    },
+    tags=["施工管理"],
+)
+async def update_inspection_status_endpoint(
+    inspection_id: str,
+    status: str = Query(..., description="目标状态：pending/passed/failed/rework"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    inspection = await db.get(Inspection, inspection_id)
+    if not inspection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="检查记录不存在")
+    task = await db.get(ConstructionTask, inspection.task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await verify_project_access(project_id=task.project_id, current_user=current_user, db=db)
+    try:
+        updated = await construction_service.update_inspection_status(db, inspection_id, status)
+    except construction_service.InspectionStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="检查记录不存在")
+    resp = InspectionResponse.model_validate(updated)
+    await ws_manager.broadcast_to_project(task.project_id, "inspection.status_updated", resp.model_dump())
+    return resp
 
 
 # ── F37 施工计划生成（Gantt 排期） ──

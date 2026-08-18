@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
+from app.models.budget import Budget
 from app.schemas.budget import (
     BudgetCreate,
     BudgetResponse,
@@ -272,3 +274,125 @@ async def apply_budget_template(
 ):
     agent = BudgetAgent()
     return await agent.apply_template(data.template_code, data.area)
+
+
+# ── 预算审批流（draft→submitted→approved→executed→closed） ──
+
+
+async def _get_budget_or_404(
+    db: AsyncSession, budget_id: str, current_user: User,
+) -> Budget:
+    result = await db.execute(select(Budget).where(Budget.id == budget_id))
+    budget = result.scalar_one_or_none()
+    if not budget:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="预算不存在")
+    await verify_project_access(project_id=budget.project_id, current_user=current_user, db=db)
+    return budget
+
+
+@router.post(
+    "/{budget_id}/submit",
+    response_model=BudgetResponse,
+    summary="提交预算",
+    description="预算审批流第一步：draft → submitted。",
+    response_description="已提交的预算",
+    responses={
+        200: {"description": "提交成功"},
+        400: {"description": "当前状态不允许提交"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "预算不存在"},
+    },
+)
+async def submit_budget(
+    budget_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_budget_or_404(db, budget_id, current_user)
+    try:
+        budget = await budget_service.submit_budget(db, budget_id)
+    except budget_service.BudgetStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return BudgetResponse.model_validate(budget)
+
+
+@router.post(
+    "/{budget_id}/approve",
+    response_model=BudgetResponse,
+    summary="批准预算",
+    description="预算审批流第二步：submitted → approved。",
+    response_description="已批准的预算",
+    responses={
+        200: {"description": "批准成功"},
+        400: {"description": "当前状态不允许批准"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "预算不存在"},
+    },
+)
+async def approve_budget(
+    budget_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_budget_or_404(db, budget_id, current_user)
+    try:
+        budget = await budget_service.approve_budget(db, budget_id)
+    except budget_service.BudgetStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return BudgetResponse.model_validate(budget)
+
+
+@router.post(
+    "/{budget_id}/execute",
+    response_model=BudgetResponse,
+    summary="执行预算",
+    description="预算审批流第三步：approved → executed（预算进入执行阶段）。",
+    response_description="执行中的预算",
+    responses={
+        200: {"description": "执行成功"},
+        400: {"description": "当前状态不允许执行"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "预算不存在"},
+    },
+)
+async def execute_budget(
+    budget_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_budget_or_404(db, budget_id, current_user)
+    try:
+        budget = await budget_service.execute_budget(db, budget_id)
+    except budget_service.BudgetStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return BudgetResponse.model_validate(budget)
+
+
+@router.post(
+    "/{budget_id}/close",
+    response_model=BudgetResponse,
+    summary="关闭预算",
+    description="预算审批流终态：任意非终态 → closed。",
+    response_description="已关闭的预算",
+    responses={
+        200: {"description": "关闭成功"},
+        400: {"description": "当前状态不允许关闭"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "预算不存在"},
+    },
+)
+async def close_budget(
+    budget_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_budget_or_404(db, budget_id, current_user)
+    try:
+        budget = await budget_service.close_budget(db, budget_id)
+    except budget_service.BudgetStateError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return BudgetResponse.model_validate(budget)

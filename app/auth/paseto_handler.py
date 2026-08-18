@@ -18,8 +18,8 @@ settings = get_settings()
 
 # ── v1.8.1 P0-2: Token 撤销列表（logout 主动失效） ──────────────────
 # v1.8.2 P2.5: 加 Redis backend（受 paseto_revocation_redis_enabled 控制）
-# - False（默认）：进程内 dict[jti -> expires_at_timestamp]，FC 单实例场景 OK
-# - True：Redis 共享撤销列表（多 worker 必需），Redis 不可用时 best-effort 降级到内存
+# v1.14.1 起默认 True：Redis 共享撤销列表（多 worker 必需），Redis 不可用时
+# best-effort 降级到内存；显式设 False 回到进程内 dict[jti -> expires_at_timestamp]
 _revoked_tokens: dict[str, float] = {}
 _redis_client: Any = None
 _redis_init_attempted: bool = False

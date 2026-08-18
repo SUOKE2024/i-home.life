@@ -82,6 +82,7 @@ class Inspection(Base):
     task = relationship("ConstructionTask", back_populates="inspections")
 
     __table_args__ = (
-        CheckConstraint("status IN ('pending', 'passed', 'failed')", name="chk_inspection_status"),
+        # rework（整改）为状态机中间态（failed→rework→pending/passed），曾缺失导致更新 500
+        CheckConstraint("status IN ('pending', 'passed', 'failed', 'rework')", name="chk_inspection_status"),
         CheckConstraint("score IS NULL OR (score >= 0 AND score <= 100)", name="chk_inspection_score_range"),
     )

@@ -202,7 +202,7 @@ export async function createProject(data) {
 
 export async function updateProject(projectId, data) {
   return request(`/api/projects/${encodeURIComponent(projectId)}`, {
-    method: 'PUT',
+    method: 'PATCH',
     body: JSON.stringify(data),
   })
 }

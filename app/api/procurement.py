@@ -665,10 +665,17 @@ async def generate_from_bom(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """从 BOM 物料清单自动生成采购订单"""
+    """从 BOM 物料清单自动生成采购订单
+
+    以销定产（procurement_demand_driven_enabled 默认 True）：在生成采购订单的
+    基础上按金额标注需求优先级（紧急/常规/可缓）；flag 关闭时回退原行为。
+    """
     await _verify_project_owner(db, project_id, current_user)
     try:
-        result = await procurement_service.generate_from_bom(db, project_id)
+        if get_settings().procurement_demand_driven_enabled:
+            result = await procurement_service.drive_procurement_from_bom(db, project_id)
+        else:
+            result = await procurement_service.generate_from_bom(db, project_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     await ws_manager.broadcast_to_project(project_id, "procurement.bom_generated", result)

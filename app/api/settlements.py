@@ -186,8 +186,11 @@ async def confirm_settlement(
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
     resp = SettlementResponse.model_validate(settlement)
-    # F14：若存在严重异常未复核，返回 409 阻止确认
-    if settlement.review_required and settlement.status != "confirmed":
+    # F14：存在严重异常且未复核 → 409 阻止确认
+    # （2026-08-17 走查修复：原条件 `status != "confirmed"` 恒真且未检查 reviewed_by，
+    #  request-review 后 review_required=True 导致 confirm 永远 409，与服务层
+    #  confirm_settlement 的 critical_anomaly_count>0 and not reviewed_by 语义对齐）
+    if settlement.review_required and not settlement.reviewed_by:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
@@ -345,6 +348,62 @@ async def approve_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
     resp = SettlementResponse.model_validate(settlement)
     await ws_manager.broadcast_to_project(project_id, "settlement.review_approved", resp.model_dump())
+    return resp
+
+
+# ── 结算状态推进（approved → paid / 争议） ──
+@router.post(
+    "/{project_id}/mark-paid",
+    response_model=SettlementResponse,
+    summary="标记结算已支付",
+    description="项目结算复核通过后标记已支付（approved → paid），补全结算状态机闭环。",
+    response_description="已支付结算单",
+    responses={
+        200: {"description": "标记成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "结算单不存在"},
+    },
+)
+async def mark_settlement_paid(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    settlement = await settlement_service.mark_settlement_paid(db, project_id)
+    if not settlement:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
+    resp = SettlementResponse.model_validate(settlement)
+    await ws_manager.broadcast_to_project(project_id, "settlement.paid", resp.model_dump())
+    return resp
+
+
+@router.post(
+    "/{project_id}/mark-disputed",
+    response_model=SettlementResponse,
+    summary="标记结算争议",
+    description="标记项目结算存在争议（任意非终态 → disputed），可附争议原因。",
+    response_description="争议结算单",
+    responses={
+        200: {"description": "标记成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "结算单不存在"},
+    },
+)
+async def mark_settlement_disputed(
+    project_id: str,
+    reason: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    settlement = await settlement_service.mark_settlement_disputed(db, project_id, reason)
+    if not settlement:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
+    resp = SettlementResponse.model_validate(settlement)
+    await ws_manager.broadcast_to_project(project_id, "settlement.disputed", resp.model_dump())
     return resp
 
 

@@ -433,3 +433,74 @@ async def complete_task(
     })
 
     return _task_to_response(task)
+
+
+@router.post("/{task_id}/cancel", response_model=TaskResponse)
+async def cancel_task(
+    task_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """取消任务（任意非终态 → cancelled，项目所有者 / admin / 被分配者）"""
+    stmt = select(OrchestratorTask).options(
+        selectinload(OrchestratorTask.assigned_user)
+    ).where(OrchestratorTask.id == task_id)
+    row = await db.execute(stmt)
+    task = row.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    if current_user.role != "admin":
+        project = await db.get(Project, task.project_id)
+        if not project or (
+            project.owner_id != current_user.id
+            and task.assigned_user_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权取消该任务",
+            )
+    task = await task_service.cancel_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await db.commit()
+    await ws_manager.broadcast_to_project(task.project_id, "task.cancelled", {
+        "task_id": task.id,
+        "task_type": task.task_type,
+    })
+    return _task_to_response(task)
+
+
+@router.post("/{task_id}/fail", response_model=TaskResponse)
+async def fail_task(
+    task_id: str,
+    reason: str | None = Query(None, description="失败原因"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """标记任务失败（in_progress → failed，项目所有者 / admin / 被分配者）"""
+    stmt = select(OrchestratorTask).options(
+        selectinload(OrchestratorTask.assigned_user)
+    ).where(OrchestratorTask.id == task_id)
+    row = await db.execute(stmt)
+    task = row.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    if current_user.role != "admin":
+        project = await db.get(Project, task.project_id)
+        if not project or (
+            project.owner_id != current_user.id
+            and task.assigned_user_id != current_user.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="无权标记该任务",
+            )
+    task = await task_service.fail_task(db, task_id, reason)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="任务不存在")
+    await db.commit()
+    await ws_manager.broadcast_to_project(task.project_id, "task.failed", {
+        "task_id": task.id,
+        "task_type": task.task_type,
+    })
+    return _task_to_response(task)

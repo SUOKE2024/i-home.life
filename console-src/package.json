@@ -1,7 +1,7 @@
 {
   "name": "ihome-console",
   "private": true,
-  "version": "1.15.1.0",
+  "version": "1.15.2.0",
   "type": "module",
   "description": "索克家居 Web 控制台 v2 — React+Vite，UI/UX 对齐 Flutter 移动端",
   "scripts": {
