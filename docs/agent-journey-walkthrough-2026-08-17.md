@@ -129,4 +129,3 @@
 | 13 | 环境观察项：harness 超时/重试修复已消除 60s 误杀；qwen/glm key 缺配属环境配置，非代码缺陷 | — | 直连时延仍 60-140s（deepseek-reasoner 固有），无 60s 硬中断 ✅ |
 
 **回归测试**：新增 `tests/test_walkthrough_fixes.py` 31 用例（mock 确定性，全部通过）；更新 `tests/test_qa_inspector_concierge.py` 1 处旧断言（0 照片「合格」→「数据不足」，行为变更即修复目标本身）。**质量门禁**：flake8 / mypy / pre-commit（changed files）全绿；全量 pytest 最终轮 **2485 passed + 2 skipped + 4 xfailed，0 失败**（基线 2454 + 新增 31，零回退）。
-
