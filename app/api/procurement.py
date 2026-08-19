@@ -306,7 +306,8 @@ class PaymentIntentVerifyRequest(BaseModel):
     description=(
         "v1.15.5（2026 智能体支付协议 AP2「可验证意图」对齐）：对采购订单签发 "
         "HMAC-SHA256 意图 token（复用 PASETO 主密钥，短时有效），供结算/担保支付链"
-        "校验 Agent 建议付款的真实性。仅签发不扣款（诚实标注：escrow 绑定为 P2 路线图）。"
+        "校验 Agent 建议付款的真实性。仅签发不扣款（escrow 付款端点已绑定校验，"
+        "支付闭环仍为 P2 规划，诚实标注）。"
     ),
     responses={
         200: {"description": "签发成功，返回 token/expires_at"},

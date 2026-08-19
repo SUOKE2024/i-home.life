@@ -437,14 +437,17 @@ class OrchestratorAgent(BaseAgent):
 
         return briefing
 
-    async def generate_project_weekly_briefing(self, db, project_id: str) -> dict:
+    async def generate_project_weekly_briefing(
+        self, db, project_id: str, include_ai: bool = True,
+    ) -> dict:
         """v1.15.7 用户侧项目周报（Long-Horizon 主动服务，Vinci2 借鉴）。
 
         复用供应商每日简报的确定性聚合模式（v1.15.6），面向项目 owner：
         聚合项目/任务/预算/采购/验收/里程碑六段确定性数据（数据源逐段标注
         表名）+ Orchestrator AI 周度建议（economy 档，best-effort）。
         供 GET /api/agents/projects/{project_id}/weekly-briefing 调用；
-        可被 FC 定时触发器批量拉取（Long-Horizon 主动推送 P2 规划）。
+        v1.15.8 起支持 include_ai=False（批量 FC 推送默认省 LLM 成本，
+        ai_suggestions 段标注 skipped）。
         """
         from datetime import datetime, timezone, timedelta
         from sqlalchemy import func, select
@@ -561,6 +564,12 @@ class OrchestratorAgent(BaseAgent):
             briefing["sections"]["data_error"] = {"error": str(e)}
 
         # ── AI 周度建议（economy 档，best-effort；失败诚实标 error 不伪造）──
+        if not include_ai:
+            briefing["sections"]["ai_suggestions"] = {
+                "skipped": True,
+                "note": "批量模式（include_ai=False）省 LLM 成本，AI 建议请调单项目端点",
+            }
+            return briefing
         try:
             payload = {
                 "project": briefing["sections"].get("project"),

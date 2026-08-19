@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { Plus, FolderOpen } from 'lucide-react'
 import { Card, Badge, Stat, Spinner, Empty, ErrorBox } from '../components/ui'
 import { listProjects, createProject } from '../lib/api'
@@ -8,7 +9,9 @@ import { useApp } from '../lib/store'
 const STATUS_META = {
   draft: { tone: 'amber', label: '草稿' },
   in_progress: { tone: 'sky', label: '进行中' },
+  active: { tone: 'sky', label: '进行中' },
   completed: { tone: 'green', label: '已完成' },
+  cancelled: { tone: 'gray', label: '已取消' },
 }
 
 // 防御性日期格式化（非法值兜底为 —）
@@ -170,6 +173,7 @@ export default function ProjectsPage() {
                 <th>面积</th>
                 <th>地址</th>
                 <th>创建时间</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -179,7 +183,9 @@ export default function ProjectsPage() {
                 return (
                   <tr key={p.id ?? p.name}>
                     <td>
-                      {p.name || '未命名项目'}
+                      <Link to={`/projects/${p.id}`} style={{ color: 'var(--accent)', fontWeight: 500 }}>
+                        {p.name || '未命名项目'}
+                      </Link>
                       {/* 后端可能返回 phase 字段，防御性展示 */}
                       {p.phase && (
                         <div className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
@@ -193,6 +199,11 @@ export default function ProjectsPage() {
                     <td>{area > 0 ? `${area} ㎡` : '—'}</td>
                     <td>{p.address || '—'}</td>
                     <td>{fmtDate(p.created_at)}</td>
+                    <td>
+                      <Link to={`/projects/${p.id}`} className="btn btn--ghost" style={{ padding: '2px 10px', fontSize: 12 }}>
+                        详情 →
+                      </Link>
+                    </td>
                   </tr>
                 )
               })}

@@ -40,6 +40,51 @@ async def _create_project(client: AsyncClient, headers: dict, name: str = "走�
 
 
 # ════════════════════════════════════════════════════════════════
+# P1-6 项目创建/更新 total_area 边界校验（2026-08-19 三智能体验证 ISSUE-001）
+# ════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_project_create_rejects_negative_total_area(
+    client: AsyncClient, auth_headers,
+):
+    """#负面积 422 拒绝（此前 201 落库 -5.0，污染算量/预算/工期链路）。"""
+    resp = await client.post(
+        "/api/projects",
+        json={"name": "QA-非法面积", "total_area": -5.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_project_create_rejects_oversized_total_area(
+    client: AsyncClient, auth_headers,
+):
+    """#超大面积（>10000 ㎡）422 拒绝。"""
+    resp = await client.post(
+        "/api/projects",
+        json={"name": "QA-超大面积", "total_area": 20000.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.asyncio
+async def test_project_update_rejects_negative_total_area(
+    client: AsyncClient, auth_headers,
+):
+    """#PATCH 负面积 422 拒绝。"""
+    project_id = await _create_project(client, auth_headers, name="边界更新项目")
+    resp = await client.patch(
+        f"/api/projects/{project_id}",
+        json={"total_area": -1.0},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422, resp.text
+
+
+# ════════════════════════════════════════════════════════════════
 # P0-1 采购 delivered→completed 约束
 # ════════════════════════════════════════════════════════════════
 

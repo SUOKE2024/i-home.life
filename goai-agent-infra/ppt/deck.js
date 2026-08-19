@@ -100,10 +100,10 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     s.addText(L.d, { x: x + 0.25, y: 4.6, w: 3.15, h: 0.6, fontSize: 10.5, color: "99C9FF", fontFace: FONT });
   });
 
-  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.15.0(生产运行)", {
+  s.addText("队伍:索克家居 · i-home.life ｜ AgentTeams(开源 Hiclaw)× i-home.life v1.15.8(生产运行)", {
     x: 0.9, y: 6.3, w: 11.5, h: 0.35, fontSize: 12, color: "66ADFF", fontFace: FONT,
   });
-  s.addText("2026 · 初赛 V4.2(基于真实能力全景 v1.15.0 + 2026 最新技术对齐 + 空间数字底座 Robot-Ready Home)", { x: 0.9, y: 6.7, w: 9, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
+  s.addText("2026 · 初赛 V4.3(基于真实能力全景 v1.15.8 + 2026 最新技术对齐 + 空间数字底座 Robot-Ready Home)", { x: 0.9, y: 6.7, w: 9, h: 0.35, fontSize: 11, color: "66ADFF", fontFace: FONT });
 }
 
 // ════════════════════════════════════════════════════════
@@ -253,7 +253,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
     }
   });
 
-  s.addText("* 诚实边界:质检真实 CV 已启用(`real_cv_quality_enabled=True`),不可用时诚实降级到规则 mock 并标注 `cv_mode=\"mock\"`;VR 渲染、AI 渲染 L1/L2 为标注降级;前沿功能(材料溯源 HENF / AI 工地监理 / 局改快装 / 米家生态+L1-L5 / 方案 LLM 深化 / BOM 版本+几何算量)均已实装(实测 80 路由模块/140 模型/2454 测试基线全绿)", {
+  s.addText("* 诚实边界:质检真实 CV 已启用(`real_cv_quality_enabled=True`),不可用时诚实降级到规则 mock 并标注 `cv_mode=\"mock\"`;VR 渲染、AI 渲染 L1/L2 为标注降级;前沿功能(材料溯源 HENF / AI 工地监理 / 局改快装 / 米家生态+L1-L5 / 方案 LLM 深化 / BOM 版本+几何算量)均已实装(实测 80 路由模块/140 模型/2598 测试基线全绿)", {
     x: MARGIN, y: 6.35, w: 12.1, h: 0.4, fontSize: 10.5, color: C.gray, fontFace: FONT, align: "center",
   });
 }
@@ -691,7 +691,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   s.addText("部署环境(已在线)", { x: MARGIN + 0.25, y: 1.78, w: 5.4, h: 0.4, fontSize: 14.5, color: C.white, fontFace: FONT, bold: true });
   const deploys = [
     "开源 Hiclaw(controller / manager / dashboard / Element Web)",
-    "i-home.life v1.15.0(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
+    "i-home.life v1.15.8(FastAPI · 阿里云 FC 3.0,架构红线:禁 K8s)",
     "家装团队 ihome-team:1 Leader + 5 Worker 全部 Running",
     "演示数据:3 模拟项目(云栖雅苑 126㎡ 施工中 / 滇池湖畔 / 翠湖名邸),预算 ¥106,214 可逐项核对",
   ];
@@ -768,7 +768,7 @@ function bullet(slide, textLines, x, y, w, h, fontSize, color) {
   addFooter(s, 16);
 
   const phases = [
-    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V4.2)", c: C.success },
+    { v: "V1 初赛", t: "方案 + 链路验证", d: "AgentTeams 部署、Worker 建团、MCP 调用链路 ✅ 已完成(V4.3)", c: C.success },
     { v: "V1.5 复赛", t: "完整闭环 Demo", d: "三场景可演示 + 评测集 + Trace 看板 + A2A 委托证据", c: C.primary },
     { v: "V2 决赛", t: "真实项目试点", d: "真实项目接入、Agent-as-a-Judge 评测、开源工程化", c: C.warning },
   ];

@@ -61,6 +61,7 @@ def _load_floorplan_semantics(floorplan) -> dict:
     """从 FloorPlan.data / room_status JSON 提取语义字段（best-effort）。
 
     返回可判定的字段子集；缺字段一律缺失（insufficient_data），不伪造。
+    v1.15.8 起支持 data.robot_ready 嵌套字典展开（QA 采集字段入库后自动消费）。
     """
     out: dict = {}
     for src in (floorplan.room_status, floorplan.data):
@@ -70,7 +71,13 @@ def _load_floorplan_semantics(floorplan) -> dict:
             data = json.loads(src) if isinstance(src, str) else src
             if isinstance(data, dict):
                 for k, v in data.items():
-                    if k not in out and v is not None:
+                    if v is None:
+                        continue
+                    if k == "robot_ready" and isinstance(v, dict):
+                        for kk, vv in v.items():
+                            if kk not in out and vv is not None:
+                                out[kk] = vv
+                    elif k not in out:
                         out[k] = v
         except (json.JSONDecodeError, TypeError):
             continue
@@ -228,4 +235,96 @@ async def export_spatial_semantics(db: AsyncSession, project_id: str) -> dict:
         "gaps": gaps,
         "note": "spatial-semantics/0.1 为平台先行定义的导出格式（行业标准尚未统一）；"
                 "数据缺口已逐项诚实标注，未伪造任何实测值",
+    }
+
+
+# ── v1.15.8 P2-4：交付 QA 机器人友好字段采集 ──
+
+# 采集允许字段：ROBOT_READY_CHECKS 定义的可判定字段 + QA 元信息
+CHECKLIST_ALLOWED_FIELDS = {c["field"] for c in ROBOT_READY_CHECKS} | {
+    "note", "collected_at", "created_by",
+}
+
+
+def _latest_floorplan_query():
+    """按 is_active 优先 + 最近更新排序取项目最新户型方案。"""
+    from app.models.floorplan import FloorPlan
+
+    return (
+        select(FloorPlan)
+        .order_by(FloorPlan.is_active.desc(), FloorPlan.updated_at.desc())
+        .limit(1)
+    )
+
+
+async def save_robot_ready_checklist(
+    db: AsyncSession, project_id: str, fields: dict, created_by: str,
+) -> dict:
+    """保存施工 QA 机器人友好字段采集（v1.15.8 P2-4，存入 floorplans.data.robot_ready）。
+
+    只接受 CHECKLIST_ALLOWED_FIELDS 白名单字段，写入项目最新户型方案的
+    data.robot_ready 嵌套 JSON——assess_robot_ready 的 _load_floorplan_semantics
+    自动消费（采集闭环：QA 巡检 → 落库 → 评估可判定）。
+
+    Returns:
+        {"saved": bool, "project_id", "fields", "source", "error"?}
+    """
+    from app.models.floorplan import FloorPlan
+
+    fp = (
+        await db.execute(_latest_floorplan_query().where(FloorPlan.project_id == project_id))
+    ).scalars().first()
+    if not fp:
+        return {
+            "saved": False,
+            "project_id": project_id,
+            "error": "项目无户型方案（floorplan），无法存储机器人友好字段——请先创建户型",
+        }
+
+    try:
+        data = json.loads(fp.data) if fp.data else {}
+        if not isinstance(data, dict):
+            data = {}
+    except json.JSONDecodeError:
+        data = {}
+
+    robot: dict = dict(data.get("robot_ready") or {})
+    for k, v in fields.items():
+        if k in CHECKLIST_ALLOWED_FIELDS and v is not None:
+            robot[k] = v
+    robot["collected_at"] = datetime.now(timezone.utc).isoformat()
+    robot["created_by"] = created_by
+    data["robot_ready"] = robot
+    fp.data = json.dumps(data, ensure_ascii=False)
+    await db.commit()
+    return {
+        "saved": True,
+        "project_id": project_id,
+        "fields": robot,
+        "source": "floorplans.data.robot_ready",
+    }
+
+
+async def get_robot_ready_checklist(db: AsyncSession, project_id: str) -> dict:
+    """读取项目已采集的机器人友好字段（未采集字段为 null，诚实标注）。"""
+    from app.models.floorplan import FloorPlan
+
+    fp = (
+        await db.execute(_latest_floorplan_query().where(FloorPlan.project_id == project_id))
+    ).scalars().first()
+    if not fp:
+        return {
+            "collected": False,
+            "project_id": project_id,
+            "fields": {c["field"]: None for c in ROBOT_READY_CHECKS},
+            "note": "项目无户型方案，未采集任何字段",
+        }
+    semantics = _load_floorplan_semantics(fp)
+    fields = {c["field"]: semantics.get(c["field"]) for c in ROBOT_READY_CHECKS}
+    return {
+        "collected": any(v is not None for v in fields.values()),
+        "project_id": project_id,
+        "fields": fields,
+        "source": "floorplans.data.robot_ready",
+        "note": "未采集字段为 null（诚实标注，不伪造实测值）",
     }

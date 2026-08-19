@@ -10,12 +10,15 @@ function fmtMoney(v) {
   return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-/* 采购单状态 → Badge 映射 */
+/* 采购订单状态 → Badge 映射（对齐 chk_procurement_order_status 枚举） */
 const STATUS_MAP = {
-  pending: { tone: 'amber', label: '待审批' },
-  approved: { tone: 'sky', label: '已批准' },
+  draft: { tone: 'amber', label: '草稿' },
+  pending: { tone: 'amber', label: '待确认' },
+  confirmed: { tone: 'sky', label: '已确认' },
+  shipped: { tone: 'violet', label: '已发货' },
   delivered: { tone: 'violet', label: '已交付' },
   completed: { tone: 'green', label: '已完成' },
+  cancelled: { tone: 'gray', label: '已取消' },
 }
 
 /* 日期格式化：YYYY-MM-DD */

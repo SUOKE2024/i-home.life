@@ -16,8 +16,8 @@
 
 诚实标注（CLAUDE.md 红线）：
 - 本服务只做意图签发/验证，不触发任何真实扣款
-- escrow 支付端点绑定为 P2 路线图下一步（docs/frontier-borrowing 记录），
-  绑定前意图 token 为「可验证建议」而非支付凭据
+- escrow 买家付款端点已绑定意图 token（v1.15.8，P2 落地）：携带 token 时强制
+  校验真实性/未过期/order/amount/actor 比对（仅验证不扣款，支付闭环仍为 P2 规划）
 """
 from __future__ import annotations
 

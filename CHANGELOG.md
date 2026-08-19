@@ -2,6 +2,45 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.8] - 2026-08-19（全量 P2 路线图落地：escrow 意图绑定 / 任务达成率评测 / 周报批量推送 / QA 字段采集）
+
+执行记录：`docs/frontier-borrowing-2026-08-17.md` 与 `docs/frontier-borrowing-round2-2026-08-18.md`
+的 P2 路线图收尾（v1.15.5/v1.15.7 两轮诚实遗留项全量落地）。
+
+- **P2-1 escrow 买家付款绑定可验证支付意图 token**（v1.15.5 轮）：
+  `POST /procurement-enhanced/escrow/{id}/pay` 新增可选 `payment_intent_token`——
+  携带即强制校验（HMAC 签名/未过期/order/amount/actor 逐项比对，AP2 Verifiable Intent
+  对齐），拒绝篡改/过期 token（400 + reason 透传）；未携带保持旧行为（业主手动付款）。
+  **诚实红线不变**：仅验证不扣款，支付闭环仍为 P2 规划。
+- **P2-4 终端任务成功率评测**（v1.15.5 轮）：`llm_judge.py` 新增
+  `evaluate_task_success_rate`（ITBench-AA 式「用户目标达成率」：LLM 判定回复是否达成
+  用户目标，unknown 解析失败不计入分母诚实标注）+ `POST /api/eval/llm-judge/task-success`
+  （管理员，受 `llm_judge_enabled` 门控默认关闭）。
+- **P2-3 周报 FC 批量主动推送**（v1.15.7 轮）：`GET /api/admin/projects/weekly-briefings`
+  （`require_platform_manage`，FC 定时触发器复用 daily-briefing 模式，无 K8s/Cron）——
+  遍历 active 项目复用六段确定性聚合；`include_ai=False` 默认省 LLM 成本
+  （ai_suggestions 标注 skipped 诚实），AI 建议走单项目端点按需生成。
+- **P2-4 施工 QA 机器人友好字段采集**（v1.15.7 轮）：
+  `PUT/GET /construction/projects/{id}/robot-ready-checklist`——QA 巡检白名单写入
+  floorplans.data.robot_ready（零新表），`/robot-readiness` 评估自动消费
+  （insufficient_data → 可判定，采集闭环）；未知字段过滤防污染。
+- **版本**：1.15.7 → 1.15.8 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.8+56/webapp+lock+version.json build 56/console 1.15.8.0+lock/ci×3/deploy/
+  测试断言×4）。
+- **测试**：新增 `tests/test_frontier_v1158.py` 12 用例 + test_procurement_enhanced
+  escrow 绑定 1 用例 + test_eval_v1136 任务达成率 4 用例；全量 2598 passed（collect 2604 =
+  2598 + 2 skipped + 4 xfailed，2026-08-19 校准，2581 → 2598 +17，首跑零重试）。
+- **三智能体交叉验证修复**（2026-08-19，`qa-validation/` 三智能体全景验证）：
+  - P1 项目创建/更新 `total_area` 加 `ge=0, le=10000` 边界校验（此前负面积 201 落库，
+    污染算量/预算/工期链路），补 3 个 422 回归测试；
+  - P1 本地库 CHECK 约束落后模型修复（budgets/procurement_orders/inspections 状态机
+    允许集对齐 alembic f8e7d6c5b4a3，预算审批流 submit→execute 不再 500）；
+  - P2 施工任务列表前后端字段契约对齐（`name/phase/assigned_to/start_date/end_date`，
+    标题/负责人/日期此前全空）；
+  - P3 前端枚举中文化（项目/采购/结算/智能家居 状态与房间类型）、新增项目详情页
+    `/projects/:id`（全链路 7 阶段进度 + 统计 + 模块入口）、演示结算行 actual 回填
+    （明细合计 == 结算头金额）。
+
 ## [1.15.7] - 2026-08-18（第二轮 2026 前沿借鉴落地：ATH 信任层 / 记忆分级 / 项目周报 / Robot-Ready）
 
 执行记录：`docs/frontier-borrowing-round2-2026-08-18.md`（依据第二轮 2026 前沿

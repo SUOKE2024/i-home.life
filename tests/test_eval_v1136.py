@@ -214,6 +214,94 @@ async def test_judge_reply_pass_k_k1_degenerates():
     assert len(result["runs"]) == 1
 
 
+# ════════════════════════════════════════════════════════════════
+# v1.15.8 P2-4：终端任务成功率评测（ITBench-AA 式用户目标达成率）
+# ════════════════════════════════════════════════════════════════
+
+def test_parse_task_success_reply():
+    from app.eval.llm_judge import _parse_task_success_reply
+
+    assert _parse_task_success_reply('{"task_success": 1}') == 1
+    assert _parse_task_success_reply('```\n{"task_success": 0}\n```') == 0
+    # markdown 包裹 + 多余文本
+    assert _parse_task_success_reply('评估结果：\n{"task_success": 1}') == 1
+    # 解析失败 → None（诚实标注 unknown）
+    assert _parse_task_success_reply("invalid output") is None
+    assert _parse_task_success_reply('{"task_success": 5}') is None
+
+
+@pytest.mark.asyncio
+async def test_judge_task_success_injected_agent():
+    """注入 mock agent：LLM 输出解析为达成/未达成/unknown。"""
+    from unittest.mock import AsyncMock
+    from app.eval.llm_judge import judge_task_success
+
+    agent = AsyncMock()
+    agent.chat.return_value = '{"task_success": 1}'
+    assert (await judge_task_success("q", "r", agent=agent))["success"] is True
+
+    agent.chat.return_value = '{"task_success": 0}'
+    assert (await judge_task_success("q", "r", agent=agent))["success"] is False
+
+    agent.chat.return_value = "无法解析"
+    assert (await judge_task_success("q", "r", agent=agent))["success"] is None
+
+
+@pytest.mark.asyncio
+async def test_evaluate_task_success_rate_injected():
+    """注入 fake judge：聚合达成率 + unknown 不计入分母。"""
+    from app.eval.llm_judge import evaluate_task_success_rate
+
+    async def fake_judge(prompt: str, reply: str) -> dict:
+        # 按回复内容返回：达成/未达成/解析失败
+        if reply == "ok":
+            return {"success": True}
+        if reply == "fail":
+            return {"success": False}
+        return {"success": None}
+
+    samples = [
+        {"prompt": "q0", "reply": "ok"},
+        {"prompt": "q1", "reply": "ok"},
+        {"prompt": "q2", "reply": "fail"},
+        {"prompt": "q3", "reply": "unknown"},
+    ]
+    report = await evaluate_task_success_rate(
+        samples=samples, sample_size=10, judge=fake_judge,
+    )
+    assert report["report_type"] == "llm_judge_task_success_rate"
+    assert report["sample_size"] == 4
+    assert report["success_count"] == 2
+    assert report["failure_count"] == 1
+    assert report["unknown_count"] == 1
+    # 分母 = 2 成功 + 1 失败 = 3（unknown 排除）
+    assert report["success_rate"] == pytest.approx(2 / 3, abs=0.001)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_task_success_rate_sampling():
+    """random_seed 可复现抽样 + 空样本诚实返回 0。"""
+    from app.eval.llm_judge import evaluate_task_success_rate
+
+    async def fake_judge(prompt: str, reply: str) -> dict:
+        return {"success": True}
+
+    samples = [{"prompt": f"q{i}", "reply": "ok"} for i in range(10)]
+    r1 = await evaluate_task_success_rate(
+        samples=samples, sample_size=4, random_seed=7, judge=fake_judge,
+    )
+    r2 = await evaluate_task_success_rate(
+        samples=samples, sample_size=4, random_seed=7, judge=fake_judge,
+    )
+    assert r1["sample_size"] == 4
+    assert r1["success_count"] == r2["success_count"] == 4
+    assert r1["success_rate"] == 1.0
+
+    empty = await evaluate_task_success_rate(samples=[], judge=fake_judge)
+    assert empty["sample_size"] == 0
+    assert empty["success_rate"] == 0.0
+
+
 @pytest.mark.asyncio
 async def test_evaluate_judge_alignment():
     """金标对齐：judge 与金标完全一致 → overall_mae=0，agreement_rate=1.0。"""

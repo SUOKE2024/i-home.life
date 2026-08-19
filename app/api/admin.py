@@ -1,5 +1,6 @@
 """管理后台 API — RBAC 用户管理、角色权限、平台统计"""
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.models.permission import Permission
@@ -18,6 +20,7 @@ from app.rbac import (
     require_platform_manage,
     require_user_manage,
 )
+
 from app.schemas.user import UserResponse
 from app.schemas.permission import (
     PermissionResponse,
@@ -37,6 +40,8 @@ from app.services.admin_service import (
     update_role_permissions as _svc_update_role_permissions,
     get_platform_stats as _svc_get_platform_stats,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["管理后台"])
 
@@ -319,6 +324,81 @@ async def get_supplier_daily_briefing(
     finally:
         await orch.close()
     return briefing
+
+
+@router.get("/projects/weekly-briefings")
+async def batch_project_weekly_briefings(
+    limit: int = Query(20, ge=1, le=100, description="单批最大项目数（成本控制）"),
+    include_ai: bool = Query(False, description="是否生成 AI 周度建议（默认 False 省 LLM 成本）"),
+    current_user: User = Depends(require_platform_manage),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """批量项目周报（v1.15.8，P2-3：Long-Horizon 周报 FC 批量主动推送）。
+
+    遍历 active 项目，复用单项目周报的确定性聚合（六段数据逐段标注数据源）；
+    默认 include_ai=False 只产出确定性数据段（零 LLM 成本），AI 建议走单项目
+    端点按需生成。
+
+    阿里云 FC 定时触发器复用 daily-briefing 的触发模式调用本端点（部署侧配置
+    触发器 + invoker 鉴权，无 K8s/Cron；目标 URL 为域名 443）。
+    """
+    from app.agents.orchestrator import OrchestratorAgent
+    from app.models.project import Project
+
+    settings_local = get_settings()
+    if not settings_local.project_weekly_briefing_enabled:
+        return {
+            "enabled": False,
+            "note": "project_weekly_briefing_enabled=False",
+            "projects": [],
+            "total": 0,
+            "succeeded": 0,
+            "failed": 0,
+        }
+
+    result = await db.execute(
+        select(Project)
+        .where(Project.status == "active")
+        .order_by(Project.updated_at.desc())
+        .limit(limit)
+    )
+    projects = list(result.scalars().all())
+
+    orch = OrchestratorAgent()
+    items: list[dict] = []
+    succeeded = failed = 0
+    try:
+        for project in projects:
+            try:
+                briefing = await orch.generate_project_weekly_briefing(
+                    db, project.id, include_ai=include_ai,
+                )
+                briefing["owner_id"] = project.owner_id
+                items.append(briefing)
+                succeeded += 1
+            except Exception as e:
+                failed += 1
+                logger.warning(
+                    "admin.batch_weekly_briefing: project=%s failed: %s", project.id, e,
+                )
+                items.append({
+                    "enabled": True,
+                    "project_id": project.id,
+                    "owner_id": project.owner_id,
+                    "error": str(e),
+                })
+    finally:
+        await orch.close()
+
+    return {
+        "enabled": True,
+        "briefing_type": "project_weekly_batch",
+        "include_ai": include_ai,
+        "total": len(projects),
+        "succeeded": succeeded,
+        "failed": failed,
+        "projects": items,
+    }
 
 
 @router.get("/agent-governance-audit")

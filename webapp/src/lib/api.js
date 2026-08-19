@@ -178,6 +178,11 @@ export async function getProject(projectId) {
   return request(`/api/projects/${encodeURIComponent(projectId)}`)
 }
 
+// 项目全链路 7 阶段进度（立项→设计→预算→采购→施工→质检→结算）
+export async function getProjectTimeline(projectId) {
+  return request(`/api/projects/${encodeURIComponent(projectId)}/timeline`)
+}
+
 // 家的生命线：空间 / 预警 / 里程碑（健康分由预警严重度在前端估算）
 export async function getFloorplans(projectId) {
   return request(`/api/floorplans/project/${projectId}`)

@@ -6,9 +6,23 @@ import { listProjects, getSmartHomeSchemes, createSmartHomeScheme } from '../lib
 
 /* 方案状态 → Badge 映射 */
 const STATUS_MAP = {
-  active: { tone: 'green', label: '启用中' },
   draft: { tone: 'amber', label: '草稿' },
+  planned: { tone: 'sky', label: '规划中' },
+  active: { tone: 'green', label: '启用中' },
+  installing: { tone: 'amber', label: '安装中' },
+  completed: { tone: 'green', label: '已完成' },
   disabled: { tone: 'red', label: '已停用' },
+}
+
+/* 房间类型 → 中文文案 */
+const ROOM_META = {
+  living_room: '客厅',
+  bedroom: '卧室',
+  kitchen: '厨房',
+  bathroom: '卫生间',
+  study: '书房',
+  balcony: '阳台',
+  dining_room: '餐厅',
 }
 
 export default function SmartHomePage() {
@@ -128,7 +142,7 @@ export default function SmartHomePage() {
             return (
               <tr key={s.id || i}>
                 <td>{s.scheme_name || s.room_name || '—'}</td>
-                <td>{s.room_type || '—'}</td>
+                <td>{ROOM_META[s.room_type] || s.room_type || '—'}</td>
                 <td className="num">{s.device_count ?? '—'}</td>
                 <td>
                   <Badge tone={st.tone}>{st.label}</Badge>

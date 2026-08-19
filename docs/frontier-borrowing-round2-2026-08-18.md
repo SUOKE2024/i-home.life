@@ -52,9 +52,14 @@ milestone_code/actual_percent。4 用例（含 403/404/503）。FC 定时批量�
 |---|----|------|
 | P2-1 | 信通院认证正式申请 | ATH 自检材料就绪（audit 端点输出），提交时机由团队定 |
 | P2-2 | team 级共享记忆 | 无 Team 实体；需先建实体+成员治理再开 team scope 读 |
-| P2-3 | 周报主动推送（FC 批量拉取） | 端点就绪；触发器+订阅偏好待排期 |
-| P2-4 | 交付 QA 机器人友好字段采集 | schema 字段已预留；采集表单/巡检项待排期 |
+| P2-3 | 周报主动推送（FC 批量拉取） | ✅ **v1.15.8 已落地**：`GET /api/admin/projects/weekly-briefings` 批量端点（FC 复用 daily-briefing 触发模式，include_ai 省成本） |
+| P2-4 | 交付 QA 机器人友好字段采集 | ✅ **v1.15.8 已落地**：`PUT/GET /construction/projects/{id}/robot-ready-checklist` 采集闭环（存入 floorplans.data.robot_ready，评估自动消费） |
 | P2-5 | Agent Plugins 化 | 17 工具打包为可安装插件，生态需要时启动 |
+
+### v1.15.8 全量 P2 落地（2026-08-19，CHANGELOG [1.15.8] 详见版本记录）
+
+- **P2-3 周报 FC 批量推送**：批量端点遍历 active 项目复用六段确定性聚合；`include_ai=False` 默认省 LLM 成本（ai_suggestions 标注 skipped，诚实），AI 建议走单项目端点按需生成；FC 触发器复用 daily-briefing 模式（无 K8s/Cron）。
+- **P2-4 QA 机器人友好字段采集**：`save_robot_ready_checklist` 白名单写入 floorplans.data.robot_ready（零新表）；`_load_floorplan_semantics` 展开嵌套后 `/robot-readiness` 评估自动从 insufficient_data 转为可判定（采集闭环）。
 
 ## 三、质量门禁记录
 
@@ -62,3 +67,7 @@ milestone_code/actual_percent。4 用例（含 403/404/503）。FC 定时批量�
 - 回归：governance_audit / agent_case / agent_memory / frontier_v1153 全绿（166 用例）
 - 全量 pytest：**2581 passed + 2 skipped + 4 xfailed，0 失败**（含并发批次新增 8 用例）
 - 基线：2555 → **2581**（+18 本批次 + 8 并发批次，随 v1.15.7 校准，见 `scripts/test_baseline.json`）
+
+> v1.15.8 更新（2026-08-19）：P2 全量落地新增 `tests/test_frontier_v1158.py` 12 用例 +
+> escrow 绑定 1 用例 + 任务达成率 4 用例；全量 **2598 passed + 2 skipped + 4 xfailed，0 失败**
+> （基线 2581 → **2598** +17，随 v1.15.8 校准，首跑零重试）。

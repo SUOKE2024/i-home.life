@@ -8,6 +8,7 @@ import WeChatCallback from './pages/WeChatCallback'
 import DocsPage from './pages/DocsPage'
 import DashboardPage from './pages/Dashboard'
 import ProjectsPage from './pages/Projects'
+import ProjectDetailPage from './pages/ProjectDetail'
 import BudgetPage from './pages/Budget'
 import ConstructionPage from './pages/Construction'
 import QualityPage from './pages/Quality'
@@ -54,6 +55,7 @@ export default function App() {
         >
           <Route path="/" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/budget" element={<BudgetPage />} />
           <Route path="/construction" element={<ConstructionPage />} />
           <Route path="/quality" element={<QualityPage />} />

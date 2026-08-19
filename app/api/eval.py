@@ -257,6 +257,54 @@ async def run_llm_judge(
     return report
 
 
+@router.post("/llm-judge/task-success")
+async def run_llm_task_success(
+    request: LlmJudgeRequest,
+    current_user: User = Depends(require_admin),
+    db=Depends(get_db),
+):
+    """终端任务成功率抽样评估（管理员；v1.15.8 P2-4）。
+
+    ITBench-AA 式「用户目标达成率」：从 agent_traces 抽样近期有回复的轨迹，
+    逐条 LLM 判定用户目标是否达成，聚合达成率（unknown 解析失败不计入分母）。
+
+    受 ``settings.llm_judge_enabled`` 门控（默认 False，成本控制）；关闭时
+    返回 503 诚实降级。LLM 判定非确定性，仅作抽样金标准对比参考。
+    """
+    if not settings.llm_judge_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="LLM-as-judge 评估未启用（llm_judge_enabled=False，成本控制）",
+        )
+    from sqlalchemy import select
+    from app.models.agent_trace import AgentTraceRecord
+    from app.eval.llm_judge import evaluate_task_success_rate
+
+    result = await db.execute(
+        select(AgentTraceRecord.prompt_preview, AgentTraceRecord.response_preview)
+        .where(AgentTraceRecord.response_preview.isnot(None))
+        .where(AgentTraceRecord.response_preview != "")
+        .order_by(AgentTraceRecord.created_at.desc())
+        .limit(request.sample_size * 5)  # 预取 5x 再抽样，保证样本多样性
+    )
+    samples = [{"prompt": r[0] or "", "reply": r[1] or ""} for r in result.all()]
+    if not samples:
+        raise HTTPException(
+            status_code=422,
+            detail="无可评估的 Agent 轨迹样本（agent_traces 无 response_preview 数据）",
+        )
+    report = await evaluate_task_success_rate(
+        samples=samples,
+        sample_size=request.sample_size,
+        random_seed=request.random_seed,
+    )
+    logger.info(
+        "eval_llm_task_success: user=%s sample=%d success_rate=%s",
+        current_user.id, report["sample_size"], report["success_rate"],
+    )
+    return report
+
+
 @router.get("/drift")
 async def get_drift(
     window_days: int = Query(7, ge=1, le=90, description="漂移检测窗口天数"),

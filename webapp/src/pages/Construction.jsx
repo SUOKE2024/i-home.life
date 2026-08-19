@@ -9,6 +9,21 @@ const STATUS_META = {
   pending: { tone: 'amber', label: '待执行' },
   in_progress: { tone: 'sky', label: '进行中' },
   completed: { tone: 'green', label: '已完成' },
+  delayed: { tone: 'red', label: '已延期' },
+  cancelled: { tone: 'gray', label: '已取消' },
+}
+
+// 施工阶段（phase）→ 中文文案（对齐后端 TaskResponse.phase 枚举）
+const PHASE_META = {
+  preparation: { label: '准备阶段' },
+  demolition: { label: '拆改阶段' },
+  water_electricity: { label: '水电阶段' },
+  waterproof: { label: '水电防水' },
+  masonry: { label: '泥瓦阶段' },
+  carpentry: { label: '木工阶段' },
+  painting: { label: '油漆阶段' },
+  installation: { label: '安装阶段' },
+  inspection: { label: '验收阶段' },
 }
 
 // 防御性日期格式化（非法值兜底为 —）
@@ -26,8 +41,8 @@ function todayStr() {
 
 // 逾期：截止日期早于今天且未完成
 function isOverdue(task) {
-  if (!task.due_date || task.status === 'completed') return false
-  return String(task.due_date).slice(0, 10) < todayStr()
+  if (!task.end_date || task.status === 'completed') return false
+  return String(task.end_date).slice(0, 10) < todayStr()
 }
 
 export default function ConstructionPage() {
@@ -97,10 +112,10 @@ export default function ConstructionPage() {
     }
     setSubmitting(true)
     const r = await createConstructionTask(projectId, {
-      title: form.title.trim(),
-      task_type: form.task_type.trim() || undefined,
-      assignee: form.assignee.trim() || undefined,
-      due_date: form.due_date || undefined,
+      name: form.title.trim(),
+      phase: form.task_type.trim() || undefined,
+      assigned_to: form.assignee.trim() || undefined,
+      end_date: form.due_date || undefined,
     })
     setSubmitting(false)
     if (r.isSuccess) {
@@ -254,14 +269,15 @@ export default function ConstructionPage() {
                 <tbody>
                   {tasks.map((t) => {
                     const meta = STATUS_META[t.status] || {}
+                    const phaseMeta = PHASE_META[t.phase] || {}
                     return (
-                      <tr key={t.id ?? t.title}>
-                        <td>{t.title || '—'}</td>
-                        <td>{t.task_type || '—'}</td>
-                        <td>{t.assignee || '—'}</td>
-                        <td>{fmtDate(t.planned_date)}</td>
+                      <tr key={t.id ?? t.name}>
+                        <td>{t.name || '—'}</td>
+                        <td>{phaseMeta.label || t.phase || '—'}</td>
+                        <td>{t.assigned_to || '—'}</td>
+                        <td>{fmtDate(t.start_date)}</td>
                         <td>
-                          {fmtDate(t.due_date)}
+                          {fmtDate(t.end_date)}
                           {isOverdue(t) && (
                             <span style={{ marginLeft: 6 }}>
                               <Badge tone="red">逾期</Badge>

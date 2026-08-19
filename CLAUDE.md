@@ -53,7 +53,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 ## v1.15.5 前沿借鉴落地（2026 评估执行，详见 `docs/frontier-borrowing-2026-08-17.md`）
 
 - **失败学习**（`agent_failure_learning_enabled` 默认 True）：harness FAILED/FALLBACK 轨迹确定性沉淀失败 Case（`agent_cases.failure_type` 病理分类，零 LLM 成本）；同病理 ≥3 条蒸馏「[反模式] Skill」（名称前缀约定，与正向 Skill 分离，不进 outcome 回写）；执行前注入「历史失败教训」。关闭即回退失败不沉淀。
-- **协议信任层**：A2A 响应与 `a2a_tasks` 表含 `trace_id`/`evidence` 证据链（全路径诚实标注降级原因）；可验证支付意图端点（`agent_payment_intent_enabled` 默认 True + TTL 600s，HMAC 复用 PASETO 主密钥）——**仅签发/验证不扣款，escrow 绑定为 P2 路线图，禁止宣称支付闭环**。
+- **协议信任层**：A2A 响应与 `a2a_tasks` 表含 `trace_id`/`evidence` 证据链（全路径诚实标注降级原因）；可验证支付意图端点（`agent_payment_intent_enabled` 默认 True + TTL 600s，HMAC 复用 PASETO 主密钥）——escrow 买家付款端点已绑定 token 校验（v1.15.8，携带即强校验），**仍仅验证不扣款，禁止宣称支付闭环**。
 - **语境工程**（`chat_context_compaction_enabled` 默认 True / `chat_context_max_turns=24`）：/chat 与 /chat/stream 服务端压缩超长 history（头部 LLM 摘要 + 尾部保留，摘要失败回退截断）；摘要走 BaseAgent fallback chain（economy 档），勿绕过。
 - **复杂度自适应路由**（`adaptive_reasoning_routing_enabled` 默认 True）：`BaseAgent._estimate_task_complexity` 确定性规则（high/low/standard）动态调 `_resolve_chain(complexity)`；economy 档行为与无参旧调用完全兼容，改动链逻辑勿破坏该兼容。
 
@@ -81,7 +81,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2581 passed 不得回退（collect 2587 = 2581 passed + 2 skipped + 4 xfailed，2026-08-18 全量校准，首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2598 passed 不得回退（collect 2604 = 2598 passed + 2 skipped + 4 xfailed，2026-08-19 全量校准，首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

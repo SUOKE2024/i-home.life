@@ -1,9 +1,11 @@
 """F33/F34 增强 API — AI 比价 + 担保支付 + 物流追踪 + 样品索要"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.config import get_settings
 from app.models.user import User
 from app.models.project import Project
 from app.models.material import BOMItem
@@ -322,15 +324,29 @@ async def list_project_escrow_endpoint(
     return [EscrowPaymentResponse.model_validate(p) for p in items]
 
 
+class EscrowPayRequest(BaseModel):
+    """担保支付买家付款请求（v1.15.5 P2：可验证支付意图 token，可选）
+
+    payment_intent_token 为空表示业主手动付款（保持旧行为）；提供时强制校验
+    真实性/未过期/order/amount/actor 字段比对（AP2 Verifiable Intent 对齐）。
+    """
+
+    payment_intent_token: str | None = None
+
+
 @router.post(
     "/escrow/{escrow_id}/pay",
     response_model=EscrowPaymentResponse,
     summary="买家付款",
-    description="买家向担保账户付款，资金由平台托管。",
+    description=(
+        "买家向担保账户付款，资金由平台托管。可携带可验证支付意图 token "
+        "（v1.15.5 P2 绑定：AP2 Verifiable Intent 对齐）——提供即强制校验真实性与"
+        "字段比对（order/amount/actor），防 Agent 幻觉下单与金额篡改；未提供保持旧行为。"
+    ),
     response_description="付款成功，返回担保支付信息",
     responses={
         200: {"description": "付款成功"},
-        400: {"description": "支付失败"},
+        400: {"description": "支付失败 / 支付意图校验失败"},
         401: {"description": "未登录或 Token 无效"},
         403: {"description": "无权访问该项目"},
         404: {"description": "担保支付不存在"},
@@ -338,6 +354,7 @@ async def list_project_escrow_endpoint(
 )
 async def buyer_pay(
     escrow_id: str,
+    data: EscrowPayRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -348,6 +365,23 @@ async def buyer_pay(
     project = await db.get(Project, payment.project_id)
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
+    # v1.15.5 P2 绑定：携带意图 token 时强制校验（仅验证不扣款，诚实红线不变）
+    if data and data.payment_intent_token:
+        settings = get_settings()
+        if settings.agent_payment_intent_enabled:
+            from app.services.agent_payment_intent import verify_payment_intent
+
+            result = verify_payment_intent(
+                data.payment_intent_token,
+                order_id=payment.order_id,
+                amount=float(payment.total_amount),
+                actor_user_id=current_user.id,
+            )
+            if not result["valid"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"支付意图校验失败: {result['reason']}",
+                )
     try:
         payment = await svc.buyer_pay(db, escrow_id)
     except ValueError as e:

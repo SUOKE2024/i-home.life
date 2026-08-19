@@ -49,13 +49,16 @@
 
 ## 二、诚实遗留与 P2 路线图（未在本版本落地）
 
+> 更新（2026-08-19）：P2-1/P2-2/P2-3/P2-4 已在后续版本全部落地（v1.15.7 部分 +
+> v1.15.8 收尾），仅「语义级失败 LLM-judge 信号」保留（诚实标注）。
+
 | # | 项 | 现状 | 建议触发条件 |
 |---|----|------|-------------|
-| P2-1 | escrow 支付端点绑定意图 token | 意图服务已就绪，`payment/escrow` 链路未消费 | 采购 Agent 生产代客下单上线前 |
-| P2-2 | Long-Horizon 项目生命周期 | sessions/memory 已有，缺 project-scoped 持久任务清单 + 里程碑主动推送（用户侧周报，可复用 daily-briefing FC 触发器模式） | 用户留存数据支持时 |
-| P2-3 | 具身数据导出（Robot-Ready Home） | 空间语义底座已有，缺开放 JSON 导出格式 + 施工 QA「机器人友好校验项」（门宽/插座高度/无门槛）；对标尚品宅配×启元机器人同名生态 | 行业具身数据标准明朗后 |
-| P2-4 | 终端任务成功率评测 | IHomeEval 为启发式代理指标；ITBench-AA 式「用户目标达成率」需离线 LLM-judge 抽样扩围（llm_judge.py 已有雏形） | 评测预算允许时 |
-| 遗留 | `record_skill_outcome` 语义级失败仍需 LLM-judge 信号 | 确定性失败已闭环（v1.13.7 + 本版本 failure_type），语义失败抽样待接 | 同上 |
+| P2-1 | escrow 支付端点绑定意图 token | ✅ **v1.15.8 已落地**：`POST /procurement-enhanced/escrow/{id}/pay` 支持 `payment_intent_token`，提供即强制校验（签名/过期/order/amount/actor），仅验证不扣款 | 已绑定（采购 Agent 生产代客下单前可启用必填） |
+| P2-2 | Long-Horizon 项目生命周期 | ✅ **v1.15.7/1.15.8 已落地**：项目周报（六段确定性 + AI 建议）→ 批量 FC 推送端点 | 已落地（订阅偏好排期可选） |
+| P2-3 | 具身数据导出（Robot-Ready Home） | ✅ **v1.15.7/1.15.8 已落地**：`robot-ready-export`（spatial-semantics/0.1）+ QA 机器人友好字段采集闭环 | 已落地 |
+| P2-4 | 终端任务成功率评测 | ✅ **v1.15.8 已落地**：`evaluate_task_success_rate`（ITBench-AA 式达成率，unknown 诚实排除）+ `POST /api/eval/llm-judge/task-success` | 已落地（评测预算允许时启用） |
+| 遗留 | `record_skill_outcome` 语义级失败仍需 LLM-judge 信号 | 确定性失败已闭环（v1.13.7 + 本版本 failure_type）；语义失败抽样待接（judge 基础已就绪） | 评测预算允许时 |
 
 ## 三、质量门禁记录
 

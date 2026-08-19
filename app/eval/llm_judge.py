@@ -50,12 +50,12 @@ class _JudgeAgent:
     质量评分；成本受 llm_judge_enabled 门控（默认关闭）。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, system_prompt: str | None = None) -> None:
         from app.agents.base import BaseAgent
 
         self._agent = BaseAgent()
         self._agent.agent_name = "llm_judge_eval"
-        self._agent.system_prompt = _JUDGE_SYSTEM_PROMPT
+        self._agent.system_prompt = system_prompt or _JUDGE_SYSTEM_PROMPT
 
     async def chat(self, prompt: str, reply: str) -> str:
         result = await self._agent._chat([
@@ -322,4 +322,112 @@ async def evaluate_llm_judge(
             } for d in LLM_JUDGE_DIMENSIONS
         },
         "notes": notes,
+    }
+
+
+# ════════════════════════════════════════════════════════════════
+# 终端任务成功率评测（v1.15.8，P2-4：ITBench-AA 式用户目标达成率）
+# ════════════════════════════════════════════════════════════════
+
+# 任务达成判定 prompt（独立于三要素评分）：判定回复是否达成用户目标
+_TASK_SUCCESS_SYSTEM_PROMPT = (
+    "你是一个 Agent 任务完成度评估器。根据用户问题与 Agent 回复，判定 Agent "
+    "是否成功达成了用户的请求目标。注意：回复明确指出无法完成、仅给出占位/"
+    "降级说明（未提供任何实际结果）的视为未达成。\n"
+    '只返回 JSON 对象（形如 {"task_success": 1}），其中 task_success 为整数 '
+    "0（未达成）或 1（达成），不要输出任何其他内容。"
+)
+
+
+def _parse_task_success_reply(raw: str) -> int | None:
+    """解析任务达成判定回复 → 0/1；解析失败返回 None（诚实标注 unknown）。"""
+    text = (raw or "").strip()
+    try:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            data = json.loads(text[start:end + 1])
+        else:
+            data = json.loads(text)
+        val = int(data.get("task_success", -1))
+        return val if val in (0, 1) else None
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+async def judge_task_success(
+    prompt: str, reply: str, agent: _JudgeAgent | None = None,
+) -> dict:
+    """LLM 判定单条回复是否达成用户目标（0/1，解析失败 → success=None）。
+
+    Args:
+        agent: 可注入的 _JudgeAgent（测试用 mock；system_prompt 复用达成判定）
+
+    Returns:
+        {"success": bool | None}——None 表示 LLM 输出解析失败（unknown）
+    """
+    own = False
+    if agent is None:
+        agent = _JudgeAgent(system_prompt=_TASK_SUCCESS_SYSTEM_PROMPT)
+        own = True
+    try:
+        raw = await agent.chat(prompt, reply)
+        parsed = _parse_task_success_reply(raw)
+        return {"success": bool(parsed) if parsed is not None else None}
+    finally:
+        if own:
+            await agent.close()
+
+
+async def evaluate_task_success_rate(
+    samples: list[dict] | None = None,
+    sample_size: int = 12,
+    random_seed: int | None = None,
+    judge=None,
+) -> dict:
+    """终端任务成功率抽样评估（v1.15.8 P2-4，ITBench-AA 式用户目标达成率）。
+
+    对样本（[{prompt, reply}]）逐条用 LLM 判定「用户目标是否达成」，
+    聚合达成率。unknown（LLM 输出解析失败）不计入达成率分母，诚实标注。
+
+    Args:
+        samples: [{prompt, reply}]；None 时为空（诚实返回 0 样本）
+        sample_size: 抽样条数（LLM 调用成本 = sample_size 次）
+        random_seed: 抽样随机种子（可复现；None 每次不同）
+        judge: 可注入的异步判定器 f(prompt, reply) -> {"success": bool|None}
+
+    Returns:
+        {report_type, sample_size, success_count, failure_count, unknown_count,
+         success_rate, notes}
+    """
+    pool = list(samples or [])
+    if random_seed is not None:
+        random.seed(random_seed)
+    if len(pool) > sample_size:
+        pool = random.sample(pool, sample_size)
+
+    judge = judge or judge_task_success
+    success = failure = unknown = 0
+    for s in pool:
+        result = await judge(s.get("prompt", ""), s.get("reply", ""))
+        if result.get("success") is None:
+            unknown += 1
+        elif result["success"]:
+            success += 1
+        else:
+            failure += 1
+
+    judged = success + failure
+    return {
+        "report_type": "llm_judge_task_success_rate",
+        "sample_size": len(pool),
+        "success_count": success,
+        "failure_count": failure,
+        "unknown_count": unknown,
+        "success_rate": round(success / judged, 4) if judged else 0.0,
+        "notes": [
+            "ITBench-AA 式「用户目标达成率」：LLM 判定回复是否达成用户目标（抽样金标准，非确定性、有成本）",
+            "unknown 为 LLM 输出解析失败样本，不计入达成率分母（诚实标注）",
+            "受 llm_judge_enabled 门控（默认关闭）；样本不足时诚实标注 0 样本",
+        ],
     }

@@ -45,7 +45,7 @@ async def _create_project(client: AsyncClient, headers: dict, name: str = "采�
         json={"name": name, "total_area": 100.0},
         headers=headers,
     )
-    return resp.json()["id"]
+    return str(resp.json()["id"])
 
 
 async def _create_category_material_and_bom(
@@ -127,7 +127,7 @@ async def _create_order(
         },
         headers=headers,
     )
-    return resp.json()["id"]
+    return str(resp.json()["id"])
 
 
 # ── F33 比价报告 ──
@@ -1274,3 +1274,72 @@ async def test_comparison_multiple_bom_items(client: AsyncClient):
     for item in data["items"]:
         assert item["recommended_supplier_id"] is not None
         assert item["recommended_price"] > 0
+
+
+@pytest.mark.asyncio
+async def test_escrow_pay_binds_payment_intent(client: AsyncClient):
+    """v1.15.8 P2：escrow 买家付款绑定可验证支付意图 token（AP2 Verifiable Intent）"""
+    token, headers = await _register_and_login(client, "13900009061")
+    project_id = await _create_project(client, headers, "支付意图绑定测试")
+    supplier_ids = await _create_suppliers(client, headers, "flooring")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="flooring",
+        material_sku="PE-INTENT-001",
+        material_name="意图绑定测试瓷砖",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+
+    # 1. 创建担保支付
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    escrow_id = resp.json()["id"]
+    escrow_total = resp.json()["total_amount"]
+
+    # 2. 签发支付意图 token
+    resp = await client.post(
+        f"/api/procurement/orders/{order_id}/payment-intent",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    intent = resp.json()
+    assert intent["token"]
+    assert intent["order_id"] == order_id
+    assert intent["amount"] == escrow_total
+
+    # 3. 携带合法 token 付款 → 200（端到端闭环：签发 → escrow 绑定校验）
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/pay",
+        json={"payment_intent_token": intent["token"]},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "buyer_paid"
+
+    # 4. 篡改 token 付款 → 400（签名校验拒绝）
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    escrow2 = resp.json()["id"]
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow2}/pay",
+        json={"payment_intent_token": intent["token"] + "x"},
+        headers=headers,
+    )
+    assert resp.status_code == 400, resp.text
+    assert "支付意图校验失败" in resp.json()["detail"]
+
+    # 5. 未携带 token 付款 → 200（兼容旧行为：业主手动付款）
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow2}/pay",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "buyer_paid"

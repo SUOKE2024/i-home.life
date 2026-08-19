@@ -84,6 +84,52 @@ async def export_robot_ready(
     return await export_spatial_semantics(db, project_id)
 
 
+class RobotReadyChecklistRequest(BaseModel):
+    """v1.15.8 P2-4 施工 QA 机器人友好字段采集请求（字段对齐 ROBOT_READY_CHECKS）"""
+    door_width: float | None = None            # 门洞通行宽度 m
+    threshold_free: bool | None = None         # 无门槛通行
+    outlet_height_ok: bool | None = None       # 插座/开关可操作高度
+    pathway_width: float | None = None         # 主要动线宽度 m
+    floor_continuity: bool | None = None       # 地面材质连续性
+    note: str | None = None
+
+
+@router.put("/projects/{project_id}/robot-ready-checklist")
+async def save_robot_ready_checklist(
+    project_id: str,
+    data: RobotReadyChecklistRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """施工 QA 机器人友好字段采集（v1.15.8 P2-4，QA 巡检闭环）。
+
+    将五项机器人友好字段写入项目户型方案 data.robot_ready（白名单过滤），
+    /robot-readiness 评估自动消费——数据缺失 insufficient_data → 采集后可判定。
+    未采集字段不写库（保持 null，诚实标注）。
+    """
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    from app.services.robot_ready_service import save_robot_ready_checklist as _save
+
+    fields = data.model_dump(exclude_unset=True)
+    result = await _save(db, project_id, fields, created_by=current_user.id)
+    if not result["saved"]:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=result["error"])
+    return result
+
+
+@router.get("/projects/{project_id}/robot-ready-checklist")
+async def get_robot_ready_checklist(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """读取已采集的机器人友好字段（未采集为 null，诚实标注）。"""
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    from app.services.robot_ready_service import get_robot_ready_checklist as _get
+
+    return await _get(db, project_id)
+
+
 class ConstructionPlanRequest(BaseModel):
     total_area: float = 100.0
     tier: str = "comfort"

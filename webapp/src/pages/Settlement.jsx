@@ -9,11 +9,24 @@ function fmtMoney(v) {
   return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-/* 结算状态 → Badge 映射 */
+/* 结算状态（结算单头 + 明细行）→ Badge 映射 */
 const STATUS_MAP = {
   draft: { tone: 'amber', label: '草稿' },
   pending: { tone: 'sky', label: '待结算' },
+  in_progress: { tone: 'sky', label: '结算中' },
   settled: { tone: 'green', label: '已结算' },
+  paid: { tone: 'green', label: '已付' },
+  disputed: { tone: 'red', label: '争议中' },
+  cancelled: { tone: 'gray', label: '已取消' },
+}
+
+// 里程碑 → 中文文案（结算单 hint 展示）
+const MILESTONE_MAP = {
+  delivery: '交房开工',
+  mep: '水电验收',
+  masonry: '泥瓦验收',
+  completion: '竣工结算',
+  warranty: '质保期满',
 }
 
 export default function SettlementPage() {
@@ -95,7 +108,7 @@ export default function SettlementPage() {
           <Stat label="结算总额" value={fmtMoney(total)} hint="含变更与扣款" tone="amber" />
           <Stat label="已结算" value={fmtMoney(settled)} tone="green" />
           <Stat label="待结算" value={fmtMoney(pending)} tone="sky" />
-          <Stat label="结算状态" value={st.label} tone={st.tone} hint={s.milestone ? `里程碑：${s.milestone}` : undefined} />
+          <Stat label="结算状态" value={st.label} tone={st.tone} hint={s.milestone ? `里程碑：${MILESTONE_MAP[s.milestone] || s.milestone}` : undefined} />
         </div>
 
         <Card

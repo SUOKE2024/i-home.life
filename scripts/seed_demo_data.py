@@ -589,7 +589,12 @@ async def _seed_procurement(db, project_id: str, spec: dict) -> None:
 
 async def _seed_settlement(db, project_id: str, spec: dict,
                            total_estimated: float, total_actual: float) -> None:
-    """结算 + 明细（按里程碑比例生成）。"""
+    """结算 + 明细（按里程碑比例生成）。
+
+    P3-3（2026-08-19 三智能体验证）：已付明细行 actual_amount 按已付合同额占比
+    分摊结算单头实际金额（末位已付行吸收舍入残差），保证「明细实际合计 ==
+    结算头 actual_amount」，避免演示环境行/头金额不同步。
+    """
     settlement_cfg = spec.get("settlement")
     if not settlement_cfg:
         return
@@ -603,11 +608,32 @@ async def _seed_settlement(db, project_id: str, spec: dict,
     )
     db.add(settlement)
     await db.flush()
+    # 已付明细合同额合计（实际金额按此占比分摊到已付行）
+    paid_contract_total = round(
+        sum(total_estimated * ratio for _, _, ratio, status in settlement_cfg["lines"] if status == "paid"),
+        2,
+    )
+    rows: list[tuple] = []
+    paid_idx: list[int] = []
     for cat, name, ratio, status in settlement_cfg["lines"]:
+        contract = round(total_estimated * ratio, 2)
+        actual = 0.0
+        if status == "paid" and paid_contract_total > 0:
+            actual = round(total_actual * (contract / paid_contract_total), 2)
+        rows.append((cat, name, contract, actual, status))
+        if status == "paid":
+            paid_idx.append(len(rows) - 1)
+    # 末位已付行吸收舍入残差，保证 明细实际合计 == 头 actual_amount
+    if paid_idx and paid_contract_total > 0:
+        others = round(sum(rows[i][3] for i in paid_idx[:-1]), 2)
+        last = paid_idx[-1]
+        rows[last] = (rows[last][0], rows[last][1], rows[last][2],
+                      round(total_actual - others, 2), rows[last][4])
+    for cat, name, contract, actual, status in rows:
         db.add(SettlementLine(
             settlement_id=settlement.id, category=cat, name=name,
-            contract_amount=round(total_estimated * ratio, 2), change_amount=0.0,
-            actual_amount=0.0, status=status, note="演示数据",
+            contract_amount=contract, change_amount=0.0,
+            actual_amount=actual, status=status, note="演示数据",
         ))
     await db.flush()
     logger.info("settlement_seed_done project_id=%s settlement_id=%s contract=%s actual=%s payable=%s lines=%d",

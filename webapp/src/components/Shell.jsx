@@ -48,7 +48,10 @@ export default function Shell() {
   const [tick, setTick] = useState(0)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-  const meta = PAGE_TITLES[loc.pathname] || PAGE_TITLES['/']
+  const meta =
+    PAGE_TITLES[loc.pathname] ||
+    (loc.pathname.startsWith('/projects/') ? PAGE_TITLES['/projects'] : null) ||
+    PAGE_TITLES['/']
   // 路由变化时自动关闭移动端抽屉（点击导航项后抽屉应收起）
   useEffect(() => {
     setMobileNavOpen(false)

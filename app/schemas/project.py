@@ -57,7 +57,8 @@ class FloorResponse(BaseModel):
 class ProjectCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     address: str | None = None
-    total_area: float | None = None
+    # 边界校验：负面积/超大值 422 拒绝（对齐 b2b DeliveryRequest.area 口径）
+    total_area: float | None = Field(default=None, ge=0, le=10000)
     project_type: PROJECT_TYPE_VALUES = "full_renovation"
     source: Literal["manual", "ar_measure"] = "manual"
     description: str | None = Field(default=None, max_length=500)
@@ -73,7 +74,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = None
     address: str | None = None
-    total_area: float | None = None
+    total_area: float | None = Field(default=None, ge=0, le=10000)
     project_type: PROJECT_TYPE_VALUES | None = None
     status: str | None = None
     # 阶段推进（受 PHASE_ORDER 状态机校验，仅允许前进或 →cancelled）
