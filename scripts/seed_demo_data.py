@@ -459,6 +459,18 @@ async def _seed_construction(db, project_id: str, spec: dict) -> dict[str, str]:
     tasks = spec["construction_tasks"]
     if not tasks:
         return {}
+    # 阶段 → 负责班组（P3 观察项修复：演示任务负责人列此前全为 NULL 显示 "—"）
+    phase_assignee = {
+        "preparation": "开工班组",
+        "demolition": "拆改班组",
+        "water_electricity": "水电班组",
+        "waterproof": "水电班组",
+        "masonry": "泥瓦班组",
+        "carpentry": "木工班组",
+        "painting": "油漆班组",
+        "installation": "安装班组",
+        "inspection": "质检组",
+    }
     logger.info("construction_seed_start project_id=%s tasks=%d", project_id, len(tasks))
     task_ids: dict[str, str] = {}
     for name, phase, status, predecessor in tasks:
@@ -466,6 +478,7 @@ async def _seed_construction(db, project_id: str, spec: dict) -> dict[str, str]:
             project_id=project_id, name=name, phase=phase, status=status,
             priority={"completed": 3, "in_progress": 5, "pending": 1}.get(status, 1),
             predecessor_id=task_ids.get(predecessor) if predecessor else None,
+            assigned_to=phase_assignee.get(phase),
             description=f"演示数据：{name}",
             created_at=_days_ago(45),
         )
