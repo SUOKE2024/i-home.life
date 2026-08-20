@@ -228,7 +228,7 @@ export class ApiClient {
       },
       body: JSON.stringify({
         message: text,
-        agent_type: opts.agentType ?? 'master',
+        agent_type: opts.agentType ?? 'orchestrator',
         project_id: opts.projectId ?? null,
         history: opts.history ?? [],
         session_id: opts.sessionId ?? null,

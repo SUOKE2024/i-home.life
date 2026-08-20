@@ -2,6 +2,22 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.9] - 2026-08-20（WebApp 智能体对话体验 + Console 422 修复）
+
+- **WebApp AI 管家智能体体验增强**：回复气泡上方新增 Agent 身份徽章（身份色圆点 +
+  中文名，数据来自流式 `meta` 事件 `agent_type`，覆盖全部执行型/商业运营 Agent）；
+  busy 状态思考提示升级为步骤轨迹（意图分析 → 调度 XX Agent 按序展示，当前步骤
+  身份色高亮）。配套 `webapp/src/styles/tokens.css` 补齐 8 个 Agent 身份色 token
+  （对齐 DESIGN.md / console tokens.css / Flutter agentColor() 三端）。
+- **Console Workbench SSE 422 修复**：`agentToBackend('master')` 误映射为后端
+  不存在的 `master` agent_type，导致 `/api/agents/chat/stream` 报
+  「未知的 agent_type: master」422。对齐 Flutter `_agentToBackend` 改为
+  `master → orchestrator`，并补 `BACKEND_TO_AGENT` 反向映射 + `streamChat`
+  默认 agent_type 防御。
+- **版本**：1.15.8 → 1.15.9 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.9+57/webapp+lock/console 1.15.9.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：版本断言×3 同步；全量基线 2598 passed 不回归。
+
 ## [1.15.8] - 2026-08-19（全量 P2 路线图落地：escrow 意图绑定 / 任务达成率评测 / 周报批量推送 / QA 字段采集）
 
 执行记录：`docs/frontier-borrowing-2026-08-17.md` 与 `docs/frontier-borrowing-round2-2026-08-18.md`

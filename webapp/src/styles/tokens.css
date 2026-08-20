@@ -24,6 +24,16 @@
   /* 金色按钮/文字上的深墨前景色（跨主题恒定，对齐 DESIGN.md on-accent / console --on-accent / Flutter onPrimary） */
   --on-accent: #08080f;
 
+  /* Agent 身份色（对齐 DESIGN.md 8 执行型 Agent / console tokens.css / Flutter agentColor()，跨主题恒定） */
+  --agent-master: #c9973b;
+  --agent-design: #5a7ec9;
+  --agent-budget: #4a9e6e;
+  --agent-procurement: #c97a3b;
+  --agent-construction: #c94a4a;
+  --agent-quality: #4ac9a3;
+  --agent-settlement: #9b6ac9;
+  --agent-support: #6a9bc9;
+
   /* 语义色 */
   --success: #4a9e6e;
   --danger: #c94a4a;

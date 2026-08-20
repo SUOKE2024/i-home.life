@@ -78,6 +78,7 @@ export const CORE_AGENTS: string[] = [
 /** 后端 agent_type → 前端 agent key 映射（对齐 ai_chat_page.dart _backendToAgent） */
 const BACKEND_TO_AGENT: Record<string, string> = {
   master: 'master',
+  orchestrator: 'master',
   homeowner: 'master',
   design: 'design',
   designer: 'design',
@@ -105,9 +106,9 @@ export function backendToAgent(backendType: string): string {
 
 /** 前端 agent key → 后端 agent_type（对齐 ai_chat_page.dart _agentToBackend） */
 export function agentToBackend(agent: string): string {
-  // 多数 key 与后端一致，少数需映射
+  // 多数 key 与后端一致，少数需映射；master（总控）→ orchestrator（后端总管家）
   const map: Record<string, string> = {
-    master: 'master',
+    master: 'orchestrator',
     design: 'design',
     budget: 'budget',
     procurement: 'procurement',

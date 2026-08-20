@@ -4,6 +4,62 @@ import { useNavigate } from 'react-router-dom'
 import { streamChat, listProjects, processVoice } from '../lib/api'
 import useVoiceInput from '../hooks/useVoiceInput'
 
+/* 后端 /api/agents/chat/stream 的 agent_type → 身份（中文名 + 身份色 token，对齐 DESIGN.md Agent 身份色） */
+const AGENT_META = {
+  // 总管家（master 金）
+  orchestrator: { label: '总管家', color: 'var(--agent-master)' },
+  general: { label: '总管家', color: 'var(--agent-master)' },
+  // 设计类（design 蓝）
+  designer: { label: '设计顾问', color: 'var(--agent-design)' },
+  kitchen: { label: '厨房设计', color: 'var(--agent-design)' },
+  bathroom: { label: '卫浴设计', color: 'var(--agent-design)' },
+  lighting: { label: '灯光设计', color: 'var(--agent-design)' },
+  smart_home: { label: '智能家居', color: 'var(--agent-design)' },
+  scene_automation: { label: '场景自动化', color: 'var(--agent-design)' },
+  custom_furniture: { label: '定制家具', color: 'var(--agent-design)' },
+  soft_furnishing: { label: '软装搭配', color: 'var(--agent-design)' },
+  hard_decoration: { label: '硬装设计', color: 'var(--agent-design)' },
+  structural: { label: '结构设计', color: 'var(--agent-design)' },
+  furniture: { label: '家具选型', color: 'var(--agent-design)' },
+  door_window: { label: '门窗方案', color: 'var(--agent-design)' },
+  floorplans: { label: '户型图', color: 'var(--agent-design)' },
+  vr_panorama: { label: '全景漫游', color: 'var(--agent-design)' },
+  sketch_to_3d: { label: '草图转 3D', color: 'var(--agent-design)' },
+  cad_import: { label: 'CAD 导入', color: 'var(--agent-design)' },
+  ar_measurement: { label: 'AR 量房', color: 'var(--agent-design)' },
+  ai_render: { label: 'AI 效果图', color: 'var(--agent-design)' },
+  // 预算（budget 绿）
+  budget: { label: '预算顾问', color: 'var(--agent-budget)' },
+  // 采购（procurement 橙）
+  procurement: { label: '采购助手', color: 'var(--agent-procurement)' },
+  // 施工（construction 红）
+  construction: { label: '施工管家', color: 'var(--agent-construction)' },
+  tasks: { label: '任务管理', color: 'var(--agent-construction)' },
+  crews: { label: '施工班组', color: 'var(--agent-construction)' },
+  takeoff: { label: '工程量算量', color: 'var(--agent-construction)' },
+  mep: { label: '水电方案', color: 'var(--agent-construction)' },
+  appliance: { label: '家电选型', color: 'var(--agent-construction)' },
+  // 质检（quality 青）
+  qa_inspector: { label: '质检专员', color: 'var(--agent-quality)' },
+  points: { label: '验收要点', color: 'var(--agent-quality)' },
+  // 结算（settlement 紫）
+  settlement: { label: '结算顾问', color: 'var(--agent-settlement)' },
+  change_orders: { label: '变更单', color: 'var(--agent-settlement)' },
+  // 支持/运营（support 蓝灰）
+  content_publisher: { label: '内容发布', color: 'var(--agent-support)' },
+  files: { label: '文件管理', color: 'var(--agent-support)' },
+  products: { label: '产品助手', color: 'var(--agent-support)' },
+  identity: { label: '实名认证', color: 'var(--agent-support)' },
+  notifications: { label: '通知助手', color: 'var(--agent-support)' },
+  ifc_export: { label: 'IFC 导出', color: 'var(--agent-support)' },
+  voice: { label: '语音助手', color: 'var(--agent-support)' },
+  marketing: { label: '营销顾问', color: 'var(--agent-support)' },
+  competitor_research: { label: '竞品分析', color: 'var(--agent-support)' },
+  growth: { label: '增长顾问', color: 'var(--agent-support)' },
+  finance_recon: { label: '财务对账', color: 'var(--agent-support)' },
+}
+const resolveAgent = (type) => (type && AGENT_META[type]) || null
+
 export default function AiPage() {
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
@@ -13,7 +69,8 @@ export default function AiPage() {
   const [projects, setProjects] = useState([])
   const [projectId, setProjectId] = useState('')
   const [card, setCard] = useState(null)   // 当前回复的富卡片（ar_scan_trigger 等）
-  const [thinking, setThinking] = useState('')  // 后端 thinking_step 进度（意图分析/调度）
+  const [steps, setSteps] = useState([])   // 后端 thinking_step 进度轨迹（意图分析/Agent 调度）
+  const agentRef = useRef(null)            // 当前回复派发的 agent_type（来自 thinking_step/meta）
   const abortRef = useRef(null)
   const listRef = useRef(null)
 
@@ -36,7 +93,8 @@ export default function AiPage() {
     setInput('')
     setError(null)
     setCard(null)
-    setThinking('')
+    setSteps([])
+    agentRef.current = null
     setMessages((m) => [...m, { role: 'user', content: text }])
     setBusy(true)
 
@@ -50,9 +108,13 @@ export default function AiPage() {
         (evt) => {
           if (evt.event === 'thinking_step') {
             // 后端思考步骤（分析意图 → 调度 Agent），让等待有可见进度
-            setThinking(evt.data?.content || '')
+            const content = evt.data?.content || ''
+            const agentType = evt.data?.agent_type
+            if (agentType) agentRef.current = agentType
+            if (content) setSteps((s) => [...s, { content, agentType }])
           } else if (evt.event === 'meta') {
-            // 富卡片：ar_scan_trigger 等 message_type + card_payload
+            // 富卡片：ar_scan_trigger 等 message_type + card_payload；agent_type 标记回复身份
+            if (evt.data?.agent_type) agentRef.current = evt.data.agent_type
             if (evt.data?.card_payload) {
               setCard({ type: evt.data.message_type || 'text', payload: evt.data.card_payload })
             }
@@ -63,15 +125,15 @@ export default function AiPage() {
               setMessages((m) => {
                 const last = m[m.length - 1]
                 if (last && last.role === 'assistant' && last.raw === true) {
-                  return [...m.slice(0, -1), { role: 'assistant', content: last.content + chunk }]
+                  return [...m.slice(0, -1), { ...last, content: last.content + chunk }]
                 }
-                return [...m, { role: 'assistant', content: chunk, raw: true }]
+                return [...m, { role: 'assistant', content: chunk, raw: true, agent: agentRef.current }]
               })
             }
           } else if (evt.event === 'done') {
             const finalText = evt.data?.text ?? evt.data?.content ?? evt.data?.reply
             if (finalText && finalText !== acc) {
-              setMessages((m) => [...m, { role: 'assistant', content: finalText }])
+              setMessages((m) => [...m, { role: 'assistant', content: finalText, agent: agentRef.current }])
             }
           } else if (evt.event === 'error') {
             setError(evt.data?.message || evt.data?.detail || 'AI 响应出错')
@@ -156,26 +218,36 @@ export default function AiPage() {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div
-              style={{
-                maxWidth: '78%',
-                padding: '10px 14px',
-                borderRadius: 12,
-                fontSize: 13.5,
-                lineHeight: 1.65,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--bg-elev)',
-                border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
-                color: msg.role === 'user' ? 'var(--accent-text)' : 'var(--text)',
-              }}
-            >
-              {msg.content}
+        {messages.map((msg, i) => {
+          const agent = msg.role === 'assistant' ? resolveAgent(msg.agent) : null
+          return (
+            <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{ maxWidth: '78%' }}>
+                {agent && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 2px 5px' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: agent.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 11.5, color: 'var(--text-sub)', letterSpacing: 0.3 }}>{agent.label}</span>
+                  </div>
+                )}
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    fontSize: 13.5,
+                    lineHeight: 1.65,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    background: msg.role === 'user' ? 'var(--accent-dim)' : 'var(--bg-elev)',
+                    border: msg.role === 'user' ? 'none' : '1px solid var(--border)',
+                    color: msg.role === 'user' ? 'var(--accent-text)' : 'var(--text)',
+                  }}
+                >
+                  {msg.content}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {card && card.type === 'ar_scan_trigger' && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
@@ -214,9 +286,37 @@ export default function AiPage() {
 
         {busy && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
-              <Bot size={15} className="amber-text" />
-              <span style={{ fontSize: 13, color: 'var(--text-sub)' }}>{thinking || 'AI 思考中…'}</span>
+            <div style={{ padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elev)', border: '1px solid var(--border)' }}>
+              {steps.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {steps.map((s, i) => {
+                    const agent = resolveAgent(s.agentType)
+                    const active = i === steps.length - 1
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                            background: active ? (agent?.color || 'var(--accent)') : 'var(--border-strong)',
+                          }}
+                        />
+                        <span style={{ fontSize: 12.5, color: active ? 'var(--text)' : 'var(--text-sub)', lineHeight: 1.5 }}>
+                          {s.content}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Bot size={13} className="amber-text" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, color: 'var(--text-sub)' }}>正在生成回复…</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Bot size={15} className="amber-text" />
+                  <span style={{ fontSize: 13, color: 'var(--text-sub)' }}>AI 思考中…</span>
+                </div>
+              )}
             </div>
           </div>
         )}
