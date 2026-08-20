@@ -63,6 +63,14 @@ class AgentAHomeowner(Agent):
 
     # ── 3b. 新项目 BOM 生成（供预算/采购链路使用）────────────
     def bom_chain(self, project_id: str) -> bool:
+        # 先为项目创建户型（房间），使 BOM 自动生成可用（几何算量优先，经验法回退）
+        self.api(scenario="normal", step="新项目创建户型", method="POST",
+                 path="/floorplans", expect=201,
+                 payload={"project_id": project_id, "name": "QA-验证户型",
+                          "total_area": 118.0, "room_count": 5,
+                          "room_status": {"客厅": "in_progress", "主卧": "in_progress",
+                                          "次卧": "pending", "厨房": "pending",
+                                          "卫生间": "pending"}}, timeout=60)
         ok, st, body = self.api(scenario="normal", step="新项目自动生成BOM", method="POST",
                                 path=f"/materials/bom/generate/{project_id}", expect=201, timeout=60)
         if ok:

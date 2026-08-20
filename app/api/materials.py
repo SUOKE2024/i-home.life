@@ -124,6 +124,14 @@ async def add_bom_item(
     db: AsyncSession = Depends(get_db),
 ):
     await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
+    # 生产验证 ISSUE-001（2026-08-20）：material_id 不存在时 FK 冲突直崩 500，
+    # 边界校验先行返回 404（此前手动登记 BOM 传不存在物料 → IntegrityError 500）
+    material = await material_service.get_material_by_id(db, data.material_id)
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"物料不存在: {data.material_id}",
+        )
     bom_item = await material_service.add_bom_item(db, data.model_dump())
     from sqlalchemy import select as sa_select
 

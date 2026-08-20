@@ -7,12 +7,17 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
-BASE = "http://127.0.0.1:8000/api"
+# 目标环境：默认本地开发；生产验证设 IHOME_QA_BASE=https://i-home.life/api
+# IHOME_QA_DELAY=请求间隔秒数（生产限流 60/min/IP，节流防 429）
+BASE = os.environ.get("IHOME_QA_BASE", "http://127.0.0.1:8000/api")
+REQUEST_DELAY = float(os.environ.get("IHOME_QA_DELAY", "0"))
 EVIDENCE_DIR = Path(__file__).parent / "evidence"
 
 ISSUE_COUNTER = {"n": 0}
@@ -57,6 +62,8 @@ class Agent:
                 timeout: int = 90, auth: bool = True) -> tuple[int, dict | list | str]:
         """执行 HTTP 请求并返回 (status, body)。"""
         from urllib.parse import quote
+        if REQUEST_DELAY:
+            time.sleep(REQUEST_DELAY)
         # 路径中的非 ASCII（如中文查询参数）自动百分号编码
         url = BASE + quote(path, safe="/?:&=%")
         headers = {"Content-Type": "application/json"}

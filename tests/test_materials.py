@@ -155,6 +155,29 @@ async def test_add_bom_item(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_add_bom_item_material_not_found_404(client: AsyncClient):
+    """生产验证 ISSUE-001（2026-08-20）：不存在的 material_id 应 404 而非 500。
+
+    此前 FK 冲突未捕获 → IntegrityError 500；边界校验先行返回 404 诚实报错。
+    """
+    token = await _register_and_login(client)
+    proj_resp = await client.post(
+        "/api/projects",
+        json={"name": "BOM物料不存在项目", "address": "测试地址"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    proj_id = proj_resp.json()["id"]
+
+    response = await client.post(
+        "/api/materials/bom",
+        json={"project_id": proj_id, "material_id": "NO-SUCH-MATERIAL-999", "quantity": 1},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+    assert "物料不存在" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_get_project_bom(client: AsyncClient):
     token = await _register_and_login(client)
     cat_resp = await client.post(
