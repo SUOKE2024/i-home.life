@@ -54,6 +54,8 @@ class EvalReportResponse(BaseModel):
     ux_metrics: dict = {}
     # v1.13.6：LLM-as-judge 语义评分（受 llm_judge_enabled 门控，默认空）
     llm_judge: dict = {}
+    # 2026-08-20 评估闭环：IDOR 越权覆盖率明细（模块级分类 + 审计候选清单）
+    idor_coverage: dict = {}
     notes: list[str] = []
 
 

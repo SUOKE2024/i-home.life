@@ -320,3 +320,69 @@ def test_dimension_scores_omit_budget_without_data():
     assert "budget_accuracy" not in scores
     assert "hc_compliance_rate" in scores
     assert "idor_resistance" in scores
+
+
+# ── 2026-08-20 评估闭环：IDOR 覆盖率精确化 + 无数据维度诚实省略 ──
+
+
+def test_idor_coverage_details_classification():
+    """IDOR 覆盖率按 covered/admin_gated/public/needs_review 分类，管理员与公开模块不再误计为缺口。"""
+    import glob
+    import os
+    runner = IHomeEvalRunner()
+    details = runner._idor_coverage_details()
+    api_dir = os.path.join(os.path.dirname(__file__), "..", "app", "api")
+    expect_total = len(glob.glob(os.path.join(api_dir, "*.py"))) - 1  # 排除 __init__.py
+    assert details["total"] == expect_total
+    assert 0.0 < details["score"] <= 100.0
+    # 管理员门禁与公开模块正确分类（此前被误计为未覆盖缺口）
+    assert "admin.py" in details["admin_gated"]
+    assert "harness_api.py" in details["admin_gated"]
+    assert "analytics.py" in details["public"]
+    # 用户态模块未检出项目归属校验 → 审计候选（非漏洞结论）
+    assert "chat.py" in details["needs_review"]
+    assert "note" in details
+
+
+def test_idor_score_refined_above_string_heuristic():
+    """精确分类后覆盖率应高于旧的字符串存在性粗筛（管理员/公开模块不再被计为缺口）。"""
+    runner = IHomeEvalRunner()
+    # 旧启发式 = 含 verify_project_access 的模块占比
+    import glob
+    import os
+    api_dir = os.path.join(os.path.dirname(__file__), "..", "app", "api")
+    total = len(glob.glob(os.path.join(api_dir, "*.py"))) - 1  # 排除 __init__.py
+    covered = sum(
+        1 for p in glob.glob(os.path.join(api_dir, "*.py"))
+        if p.endswith("__init__.py") is False
+        and "verify_project_access" in open(p, encoding="utf-8", errors="ignore").read()
+    )
+    old_score = covered / total * 100
+    assert runner._idor_score() > old_score
+
+
+def test_empty_traces_omit_data_driven_dimensions():
+    """无轨迹样本时省略数据驱动维度（诚实标注），仅保留静态维度——不再输出「降级率 100/忠实性 0」失真混合。"""
+    runner = IHomeEvalRunner()
+    report = runner.run(traces=[])
+    scores = report.dimension_scores
+    data_dims = {
+        "fallback_rate", "reasoning_leak_rate", "sse_latency",
+        "tool_call_accuracy", "faithfulness", "completeness",
+        "sufficiency", "counter_argument_quality",
+    }
+    assert not (data_dims & set(scores)), f"无数据时不应输出数据驱动维度: {sorted(data_dims & set(scores))}"
+    assert "idor_resistance" in scores
+    assert "hc_compliance_rate" in scores
+    assert "material_contraindication" in scores
+    assert report.notes, "无数据时应含诚实标注 note"
+
+
+def test_report_to_dict_includes_idor_coverage():
+    """报告序列化应包含 idor_coverage 明细（可行动审计清单）。"""
+    runner = IHomeEvalRunner()
+    report = runner.run(traces=[])
+    d = report.to_dict()
+    assert "idor_coverage" in d
+    assert d["idor_coverage"]["total"] > 0
+    assert "needs_review" in d["idor_coverage"]

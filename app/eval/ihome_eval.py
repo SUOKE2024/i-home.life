@@ -182,6 +182,8 @@ class IHomeEvalReport:
     feedback_metrics: dict = field(default_factory=dict)  # v1.13.5 用户反馈满意度维度
     ux_metrics: dict = field(default_factory=dict)  # v1.13.6 用户体验维度
     llm_judge: dict = field(default_factory=dict)  # v1.13.6 LLM-as-judge 语义评分
+    # 2026-08-20 评估闭环：IDOR 越权覆盖率明细（模块级分类 + 审计候选清单，见 _idor_coverage_details）
+    idor_coverage: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -199,6 +201,7 @@ class IHomeEvalReport:
             "feedback_metrics": self.feedback_metrics,
             "ux_metrics": self.ux_metrics,
             "llm_judge": self.llm_judge,
+            "idor_coverage": self.idor_coverage,
             "dimension_benchmarks": DIMENSION_BENCHMARKS,
             "notes": self.notes,
         }
@@ -243,6 +246,14 @@ class IHomeEvalRunner:
         report.dimension_scores = self._compute_dimension_scores(traces, report.metrics)
         report.per_agent_scores = self._compute_per_agent_scores(traces)
         report.quality_targets = dict(QUALITY_TARGETS)
+        # 2026-08-20 评估闭环：IDOR 覆盖率明细始终提供（静态，不依赖轨迹）
+        report.idor_coverage = self._idor_coverage_details()
+        if not traces:
+            report.notes.append(
+                "traces=0：数据驱动维度（fallback/leak/sse/tool_call/faithfulness/"
+                "completeness/sufficiency/counter_argument）无样本已省略，仅保留静态"
+                "维度（诚实标注，对齐漂移检测 insufficient_samples 模式）"
+            )
         # v1.13.x：工具选择准确率基线报告（确定性，诚实标注非 LLM）
         try:
             from app.eval.tool_accuracy import get_tool_accuracy_report
@@ -301,6 +312,18 @@ class IHomeEvalRunner:
     ) -> dict[str, float]:
         scores: dict[str, float] = {}
         m = metrics
+
+        # 2026-08-20 评估闭环：无轨迹样本时不计算数据驱动维度（对齐漂移检测的
+        # insufficient_samples 诚实标注）——此前空轨迹会输出「降级率 100 / 忠实性 0」
+        # 的失真混合（无数据却貌似 0 分/满分），误导评估消费方。仅保留静态检查维度。
+        if not traces:
+            scores[IHomeEvalDimension.IDOR_RESISTANCE.value] = self._idor_score()
+            scores[IHomeEvalDimension.HC_COMPLIANCE_RATE.value] = self._hc_compliance_score()
+            scores[IHomeEvalDimension.DESIGN_SAFETY.value] = scores[
+                IHomeEvalDimension.HC_COMPLIANCE_RATE.value
+            ]
+            scores[IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value] = self._material_score()
+            return scores
 
         # 反向指标：rate 越低分数越高
         scores[IHomeEvalDimension.FALLBACK_RATE.value] = round(
@@ -459,11 +482,35 @@ class IHomeEvalRunner:
         return scores
 
     def _idor_score(self) -> float:
-        """越权防护：verify_project_access 覆盖的 app/api 路由模块占比。
+        """越权防护：模块级鉴权完备率（自维护分母，2026-08-20 评估闭环精确化）。
 
-        v1.13.7 P0 修复：废弃硬编码「基线 30 文件」+ subprocess grep（脆弱且随
-        路由增长失真），改为纯 Python 扫描 app/api/*.py 自维护分母。
+        此前仅统计源码含 verify_project_access 的模块占比（51%），把管理员门禁
+        （require_user_* / require_admin / allow_admin）与公开模块误计为缺口。
+        现按模块分类计算「已确认鉴权完备」占比：
+          - covered：含 verify_project_access（项目归属校验）
+          - admin_gated：含 RBAC 角色门禁（Depends(require_*|allow_admin)），
+            管理员级控制强于项目归属，视为已覆盖
+          - public：不含 get_current_user（无用户态数据，如埋点/公开配置）
+          - needs_review：用户态但静态无法确认项目归属校验 → 审计候选清单
+        （对齐 IETF BMWG 2026-07 Agent 安全评估基准的静态评估维度：安全控制
+        分类识别，而非字符串存在性粗筛。）
         """
+        return float(self._idor_coverage_details()["score"])
+
+    # RBAC 角色门禁依赖族（管理员级控制，强于项目归属校验）
+    _IDOR_RBAC_DEPS = (
+        "require_admin",
+        "allow_admin",
+        "require_user_read",
+        "require_user_write",
+        "require_platform_manage",
+        "require_user_manage",
+    )
+
+    def _idor_coverage_details(self) -> dict:
+        """IDOR 越权覆盖率明细：模块级分类 + 审计候选清单（可行动，供人工审计优先级）。"""
+        import re
+
         try:
             root = Path(__file__).resolve().parents[2]
             py_files = [
@@ -471,15 +518,38 @@ class IHomeEvalRunner:
                 if p.name != "__init__.py"
             ]
             if not py_files:
-                return 0.0
-            covered = sum(
-                1 for p in py_files
-                if "verify_project_access" in p.read_text(encoding="utf-8", errors="ignore")
+                return {"total": 0, "score": 0.0, "covered": [], "admin_gated": [], "public": [], "needs_review": []}
+            rbac_re = re.compile(
+                r"Depends\((" + "|".join(self._IDOR_RBAC_DEPS) + r")\)"
             )
-            return round(covered / len(py_files) * 100, 2)
+            covered, admin_gated, public, needs_review = [], [], [], []
+            for p in py_files:
+                text = p.read_text(encoding="utf-8", errors="ignore")
+                if "verify_project_access" in text:
+                    covered.append(p.name)
+                elif rbac_re.search(text):
+                    admin_gated.append(p.name)
+                elif "get_current_user" not in text:
+                    public.append(p.name)
+                else:
+                    needs_review.append(p.name)
+            total = len(py_files)
+            confirmed = len(covered) + len(admin_gated) + len(public)
+            return {
+                "total": total,
+                "score": round(confirmed / total * 100, 2),
+                "covered": sorted(covered),
+                "admin_gated": sorted(admin_gated),
+                "public": sorted(public),
+                "needs_review": sorted(needs_review),
+                "note": (
+                    "needs_review 为用户态且静态未检出项目归属校验的模块（审计候选，"
+                    "非漏洞结论）；部分模块按用户域隔离（如会话/积分）无需项目归属。"
+                ),
+            }
         except Exception as e:
-            logger.debug("idor_score 失败: %s", e)
-            return 0.0
+            logger.debug("idor_coverage 失败: %s", e)
+            return {"total": 0, "score": 0.0, "error": str(e)}
 
     def _hc_compliance_score(self) -> float:
         """HC 合规率（前置声明可达覆盖率）。
