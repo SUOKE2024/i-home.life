@@ -160,3 +160,47 @@ insufficient_samples 模式对齐。
 > 复跑全过（3.13s）；第三次全量（负载回落 2.13）零错误通过。属环境噪音，非代码回归。
 
 > 注：本轮不 bump 版本（改进均在 `eval_enabled` 门控内的评估框架层，非对外行为变更）。
+
+---
+
+## 七、审计收尾（needs_review 逐模块确认 + 分类器等价模式识别）
+
+承接第五节「诚实遗留」的 P2 人工审计：30 个 `needs_review` 模块由主代理逐模块 Read
+核验（不采信子代理结论，项目红线）。
+
+### 7.1 审计结论：0 个真实越权缺口
+
+30 个模块无一真实 IDOR 缺口，全部采用与 `verify_project_access` 语义等价的校验或
+属用户域隔离/只读目录，分类器此前仅因「字符串存在性」未识别而误计为候选：
+
+| 等价实现 | 代表模块 |
+|---|---|
+| `verify_project_collaborator_access`（协作访问校验） | files / feed |
+| 本地 `_verify_project_owner*` 辅助函数 | custom_furniture / tasks / voice_orchestrate |
+| 内联 `project.owner_id != current_user.id` | voice / voice_realtime / b2b_delivery |
+| 用户域隔离（`user_id` 强隔离或 `owner_id ==` 过滤，无项目归属需要） | chat / dashboard / agent_memory / agent_skills / sensor_snapshot / camera_scan 等 |
+| 只读公共目录 / 无私有数据 | ontology / location / curtain_showroom / ai_qa / standards / mep 等 |
+
+### 7.2 分类器改进（评估精度，延续 F1）
+
+`_idor_coverage_details()` 将等价校验模式识别为 `covered`：
+- 新增 `ownership_markers`：`verify_project_collaborator_access` / `_verify_project_owner`
+- 新增 `owner_check_re`：`owner_id\s*!=\s*(current_user|user)\.id`
+
+结果：覆盖率 **62.5% → 73.75%**（covered 41 → 51），`needs_review` 30 → 21（剩余均为
+用户域隔离/只读目录，note 已如实说明，无需项目归属）。
+
+### 7.3 验证
+
+- 新增 `tests/test_eval_upgrade.py::test_idor_coverage_recognizes_equivalent_ownership_checks`
+  （1 用例）；`test_eval_upgrade.py` 全文件 **26 passed**。
+- 回归：`test_eval.py` + `test_v1128_suoke_borrowed.py` + `test_agent_tool_discipline.py`
+  共 **100 passed**（36s）。
+- mypy（ihome_eval.py）：no issues；flake8：通过。
+- 全量 pytest：**2608 passed + 2 skipped + 4 xfailed，0 失败**（18m07s，`-n 4`）。
+  诚实标注：本机同期存在外部测试进程（suoke_life 仓库），loadavg 峰值 7.7 高于
+  ncpu/2（4）阈值；`--timeout=60` 兜底后结果零 ERROR/FAILED，无 flaky 污染，
+  结论可信但耗时偏长（外部争用）。
+- 基线：`scripts/test_baseline.json` 2607 → **2608**（本批次 +1，经全量校准）。
+
+> 注：仍不 bump 版本（评估框架层改进，非对外行为变更）。

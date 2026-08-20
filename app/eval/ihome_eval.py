@@ -522,10 +522,19 @@ class IHomeEvalRunner:
             rbac_re = re.compile(
                 r"Depends\((" + "|".join(self._IDOR_RBAC_DEPS) + r")\)"
             )
+            # 项目归属校验的等价实现（2026-08-20 审计收尾）：除 verify_project_access
+            # 外，协作访问校验、本地 _verify_project_owner* 辅助函数、内联
+            # `owner_id != current_user.id` 均为同一语义，不再误计为越权缺口。
+            ownership_markers = (
+                "verify_project_access",
+                "verify_project_collaborator_access",
+                "_verify_project_owner",
+            )
+            owner_check_re = re.compile(r"owner_id\s*!=\s*(?:current_user|user)\.id")
             covered, admin_gated, public, needs_review = [], [], [], []
             for p in py_files:
                 text = p.read_text(encoding="utf-8", errors="ignore")
-                if "verify_project_access" in text:
+                if any(m in text for m in ownership_markers) or owner_check_re.search(text):
                     covered.append(p.name)
                 elif rbac_re.search(text):
                     admin_gated.append(p.name)

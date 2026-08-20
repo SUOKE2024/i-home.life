@@ -386,3 +386,24 @@ def test_report_to_dict_includes_idor_coverage():
     assert "idor_coverage" in d
     assert d["idor_coverage"]["total"] > 0
     assert "needs_review" in d["idor_coverage"]
+
+
+def test_idor_coverage_recognizes_equivalent_ownership_checks():
+    """项目归属校验的等价实现（协作访问/内联 owner 比较/本地 helper）不再误计为缺口。
+
+    2026-08-20 人工审计 30 个 needs_review 模块结论：无一真实越权缺口，全部采用
+    verify_project_collaborator_access / _verify_project_owner* / 内联 owner_id != 等
+    等价校验。分类器识别这些模式后，相关模块应归入 covered（而非 needs_review）。
+    """
+    runner = IHomeEvalRunner()
+    details = runner._idor_coverage_details()
+    covered = details["covered"]
+    # 协作访问校验（files/feed 用 verify_project_collaborator_access）
+    assert "files.py" in covered
+    assert "feed.py" in covered
+    # 本地 helper 或内联 owner 比较（tasks/voice/custom_furniture）
+    assert "tasks.py" in covered
+    assert "voice.py" in covered
+    assert "custom_furniture.py" in covered
+    # 用户域隔离模块（会话/积分）仍留作审计候选，非漏洞结论
+    assert "chat.py" in details["needs_review"]
