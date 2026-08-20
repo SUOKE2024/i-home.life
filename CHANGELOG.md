@@ -46,6 +46,13 @@
   `POST /api/materials/bom` 不存在的 `material_id` 触发 FK 冲突直崩 500 → 处理器
   先行校验物料存在返回 404（边界校验，补回归测试）；生产演示结算行 actual 回填
   （明细合计 == 结算头金额，P3-3 生产侧落地）。
+- **生产观察项修复**（2026-08-20）：`generate_bom_for_project` 有户型占位
+  （FloorPlan room_count/room_status）但无 Room 行时，此前直接 404 无兜底；
+  现按户型面积×标准用量经验法生成（`quantity_source=empirical` + 「户型占位」
+  fallback_note 诚实标注，房间名→品类 `_guess_room_type` 推断），补回归测试。
+- **QA 清理沉淀**：`qa-validation/cleanup_prod.py`——生产验证残留清理脚本
+  （QA-* 项目 API 级联 + DB 先子后父事务清理演示项目残留/QA 交付单/org 记忆，
+  `--baseline/--dry-run/--apply/--verify`，默认只预览不执行）。
 
 ## [1.15.7] - 2026-08-18（第二轮 2026 前沿借鉴落地：ATH 信任层 / 记忆分级 / 项目周报 / Robot-Ready）
 

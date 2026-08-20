@@ -1,4 +1,6 @@
+import json
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +8,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.models.eco_material import MaterialEcoCert
+from app.models.floorplan import FloorPlan
 from app.models.material import MaterialCategory, Material, BOMItem
 from app.models.project import Floor, Room
 from app.models.budget import Budget
@@ -396,8 +399,8 @@ async def diff_bom_versions(
     }
 
 
-def _calc_material_quantity(category_code: str, material: Material, room: Room) -> float:
-    """根据品类、物料和房间计算用量"""
+def _calc_material_quantity(category_code: str, material: Material, room: Any) -> float:
+    """根据品类、物料和房间计算用量（room 可为 Room 或 SimpleNamespace 兜底对象）"""
     area = room.area or 10.0
 
     if category_code == "flooring":
@@ -442,6 +445,23 @@ def _calc_material_quantity(category_code: str, material: Material, room: Room) 
     return 1.0
 
 
+def _guess_room_type(name: str) -> str:
+    """房间名 → ROOM_CATEGORY_MAP key 粗略推断（无房间明细时的经验法兜底用）"""
+    if any(k in name for k in ("卧室", "主卧", "次卧", "儿童房", "客房")):
+        return "bedroom"
+    if "厨" in name:
+        return "kitchen"
+    if any(k in name for k in ("卫生", "浴室", "洗手间", "厕所")):
+        return "bathroom"
+    if "阳台" in name:
+        return "balcony"
+    if "餐" in name:
+        return "dining"
+    if any(k in name for k in ("书", "工作", "书房")):
+        return "study"
+    return "living"
+
+
 async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BOMItem]:  # noqa: C901
     """F6 BOM 自动生成
 
@@ -452,7 +472,9 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
        （quantity_source=empirical，fallback_note 标注）
 
     若项目已有 BOM 项则抛出 ValueError("PROJECT_ALREADY_HAS_BOM")。
-    若项目无房间则返回空列表。
+    若无房间且无户型占位则返回空列表。
+    （2026-08-20 生产验证观察项：有 FloorPlan 占位但无 Room 行时，此前直接 404
+    无兜底；现按户型面积×标准用量经验法生成，quantity_source=empirical + fallback_note。）
     """
     existing = await get_project_bom(db, project_id)
     if existing:
@@ -463,8 +485,29 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
         select(Room).join(Floor, Floor.id == Room.floor_id).where(Floor.project_id == project_id)
     )
     rooms = list(room_result.scalars().all())
+    # 无 Room 行时的经验法兜底标志（有户型占位则合成房间规格）
+    no_rooms_fallback = False
     if not rooms:
-        return []
+        fp_result = await db.execute(
+            select(FloorPlan)
+            .where(FloorPlan.project_id == project_id)
+            .order_by(FloorPlan.is_active.desc(), FloorPlan.created_at.desc())
+        )
+        floorplan = fp_result.scalars().first()
+        if not floorplan or (not floorplan.room_count and not floorplan.total_area):
+            return []
+        no_rooms_fallback = True
+        plan_area = floorplan.total_area or 0.0
+        per_room = round(plan_area / max(floorplan.room_count, 1), 2) if plan_area > 0 else 0.0
+        try:
+            status_map = json.loads(floorplan.room_status or "{}") or {}
+        except Exception:  # noqa: BLE001
+            status_map = {}
+        room_specs = [(name, _guess_room_type(name), per_room) for name in status_map]
+        if not room_specs:
+            room_specs = [("客厅", "living", per_room if per_room > 0 else plan_area)]
+    else:
+        room_specs = [(r.name or r.room_type, r.room_type, r.area or 0.0) for r in rooms]
 
     # 取所有启用物料，按品类 code 取首条作为默认物料
     mat_result = await db.execute(
@@ -510,24 +553,29 @@ async def generate_bom_for_project(db: AsyncSession, project_id: str) -> list[BO
     fallback_note = None
     if geometric is None:
         fallback_note = "无可用户型几何数据，采用面积×标准用量经验估算"
+    if no_rooms_fallback:
+        # 户型占位兜底优先：即使 forward_takeoff 返回空摘要（无房间几何），
+        # 也应标注「户型占位经验估算」而非仅 generic 提示
+        fallback_note = "项目仅有户型占位无房间明细，按户型面积×标准用量经验估算"
 
     # 聚合：material_id -> (quantity, rooms, source)
     aggregated: dict[str, dict] = {}
-    for room in rooms:
-        cats = ROOM_CATEGORY_MAP.get(room.room_type, ["flooring", "wall", "ceiling"])
+    for rname, rtype, r_area in room_specs:
+        cats = ROOM_CATEGORY_MAP.get(rtype, ["flooring", "wall", "ceiling"])
         for code in cats:
             if code in geometric_quantities:
                 continue  # 该品类已由几何算量填充（项目级汇总量）
             mat = materials_by_category.get(code)
             if not mat:
                 continue
-            qty = _calc_material_quantity(code, mat, room)
+            room_like = SimpleNamespace(area=r_area, room_type=rtype)
+            qty = _calc_material_quantity(code, mat, room_like)
             if qty <= 0:
                 continue
             if mat.id not in aggregated:
                 aggregated[mat.id] = {"quantity": 0.0, "rooms": [], "source": "empirical"}
             aggregated[mat.id]["quantity"] = round(aggregated[mat.id]["quantity"] + qty, 2)
-            aggregated[mat.id]["rooms"].append(room.name or room.room_type)
+            aggregated[mat.id]["rooms"].append(rname)
 
     for code, qty in geometric_quantities.items():
         mat = materials_by_category.get(code)
