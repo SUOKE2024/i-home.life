@@ -2,6 +2,35 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.10] - 2026-08-21（全景评估修复轮：验证脚本契约对齐 / QA 遗留回归锁定 / CI 部署门禁 / 前端清理）
+
+执行依据：2026-08-21 全景·全量·全链路评估报告（三端审计 + 门禁实测）发现项修复。
+
+- **verify_self_evolution.py 契约对齐**（评估 P2）：两处陈旧断言失效——
+  ①「db=None 时安全返回 None」断言 v1.10.x 旧契约，现 `extract_case_from_trace`
+  要求必传 AsyncSession，改断言「同一 trace_id 防双提取」；② health 版本断言
+  硬编码 1.12.0 致随版本升级必失败，改动态比对 `get_settings().app_version`。
+  修复后 66/66 全过（此前首项即 AttributeError）。
+- **QA 遗留回归锁定**（qa-report-prod-2026-08-20 §三-3 / §六-2）：新增
+  `test_generate_bom_placeholder_no_area`——有户型占位（room_count>0）但
+  无几何 data/total_area/room_status 时经验法兜底 201 且
+  `quantity_source=empirical` + 户型占位 fallback_note 诚实标注；27 passed 锁定。
+- **CI 部署门禁完善**：`deploy.needs` 由 3 项扩至 6 项，纳入 design-lint /
+  apk-size-budget / migration-test——此前这三项红灯不挡部署，会带红灯上线。
+- **console zustand 死依赖清理**：package.json + lock 移除 zustand；
+  vite.config.ts manualChunks 同步移除（残留引用致 rollup 解析失败，
+  修复后构建恢复）。
+- **Flutter 诚实红线**：`construction_page.dart` 移除硬编码 `mock://tile.jpg`
+  假图 URL，未上传照片时传空 images（后端 mock_cv_engine 返回 is_placeholder
+  诚实标注，image_count=0）。
+- **数据清理**：data/ 遗留 9 个 test_*.db + 2 个 journal + verify_evolution_*.db
+  + 空日志删除（均 gitignore，真实库/QA 备份保留）。
+- **产物重建**：webapp + console 生产产物重建至 1.15.10（version.json 1.15.10/58）。
+- **版本**：1.15.9 → 1.15.10 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.10+58/webapp+lock/console 1.15.10.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：版本断言×3 同步；全量基线校准 2609 passed（新增 1 例回归测试，
+  collect 2615 = 2609 passed + 2 skipped + 4 xfailed，首跑零重试）。
+
 ## [1.15.9] - 2026-08-20（WebApp 智能体对话体验 + Console 422 修复）
 
 - **WebApp AI 管家智能体体验增强**：回复气泡上方新增 Agent 身份徽章（身份色圆点 +
@@ -16,7 +45,7 @@
   默认 agent_type 防御。
 - **版本**：1.15.8 → 1.15.9 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
   1.15.9+57/webapp+lock/console 1.15.9.0+lock/ci×3/deploy/测试断言×3）。
-- **测试**：版本断言×3 同步；全量基线 2598 passed 不回归。
+- **测试**：版本断言×3 同步；全量基线 2608 passed 不回归。
 
 ## [1.15.8] - 2026-08-19（全量 P2 路线图落地：escrow 意图绑定 / 任务达成率评测 / 周报批量推送 / QA 字段采集）
 

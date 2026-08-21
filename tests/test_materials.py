@@ -408,6 +408,49 @@ async def test_generate_bom_floorplan_placeholder_fallback(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_generate_bom_placeholder_no_area(client: AsyncClient):
+    """生产验证观察项（2026-08-20 二轮 QA）：有户型占位但无几何 data（room_count>0、
+    total_area=0、room_status 为空）时，应经验法兜底 201 而非 404；
+    quantity_source=empirical + fallback_note 诚实标注（QA 建议 P3-2 回归锁定）。"""
+    token = await _register_and_login(client)
+    cat_ids = {}
+    for code, name in (("flooring", "地面材料"), ("wall", "墙面材料"), ("ceiling", "顶面材料")):
+        cat = await client.post(
+            "/api/materials/categories",
+            json={"name": name, "code": code},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        cat_ids[code] = cat.json()["id"]
+    for code, mat_name in (("flooring", "地板"), ("wall", "乳胶漆"), ("ceiling", "石膏板")):
+        await client.post(
+            "/api/materials",
+            json={"category_id": cat_ids[code], "name": mat_name, "sku": f"SKU-NOAREA-{code}",
+                  "unit_price": 100.0, "unit": "桶" if code == "wall" else "㎡"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    proj_id = await _create_project(client, token, "户型占位无面积项目")
+    # 与生产 QA 一致：仅 room_count>0，无 total_area/room_status/几何 data
+    fp_resp = await client.post(
+        "/api/floorplans",
+        json={"project_id": proj_id, "name": "占位户型", "room_count": 5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert fp_resp.status_code == 201
+
+    resp = await client.post(
+        f"/api/materials/bom/generate/{proj_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["quantity_source"] == "empirical"
+    assert "户型占位" in data["fallback_note"]
+    assert len(data["items"]) > 0
+    for item in data["items"]:
+        assert item["quantity_source"] == "empirical"
+
+
+@pytest.mark.asyncio
 async def test_generate_bom_auto(client: AsyncClient, db_session):
     """F6 BOM 自动生成 — 基于房间面积生成 BOM"""
     token = await _register_and_login(client)

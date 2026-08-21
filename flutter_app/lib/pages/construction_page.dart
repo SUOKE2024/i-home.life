@@ -467,9 +467,11 @@ class _ConstructionPageState extends State<ConstructionPage> with SingleTickerPr
   }
 
   Future<void> _runAiInspection() async {
+    // v1.15.10：移除硬编码 mock:// 假图 URL（诚实红线）——未上传现场照片时
+    // 传空 images，后端 mock_cv_engine 返回 is_placeholder 诚实标注，image_count=0。
     final result = await _api.post('/construction/inspections/analyze', {
       'phase': 'masonry',
-      'images': [{'url': 'mock://tile.jpg', 'type': 'tile_surface'}],
+      'images': <Map<String, String>>[],
     });
     if (result.isSuccess) {
       final data = result.data;

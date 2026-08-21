@@ -39,7 +39,7 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.9"
+          APP_VERSION: "1.15.10"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto
@@ -213,7 +213,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.9"
+          APP_VERSION: "1.15.10"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -335,8 +335,10 @@ jobs:
           path: flutter_app/build/app/outputs/flutter-apk/*.apk
 
   # ── 自动部署（仅 main 分支 push）──
+  # v1.15.10：deploy.needs 纳入 design-lint / apk-size-budget / migration-test——
+  # 此前这三项红灯不挡部署，会带红灯上线。
   deploy:
-    needs: [backend-test, frontend-smoke, lint]
+    needs: [backend-test, frontend-smoke, lint, design-lint, apk-size-budget, migration-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     timeout-minutes: 15
@@ -437,7 +439,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.15.9"
+      APP_VERSION: "1.15.10"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4

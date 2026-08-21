@@ -8,7 +8,7 @@
 | 体系 | 格式 | 范围 | 同步方式 |
 |------|------|------|---------|
 | **语义版本** | `1.3.0` (+ build号) | 跨全端（后端+Flutter+Web控制台+CI+部署脚本） | 手动逐处改 |
-| **Web 缓存版本** | `v=20260731c` | 仅 `web/` 静态资源 + `sw.js` | `./scripts/bump-version.sh` 一键同步 |
+| ~~Web 缓存版本~~（已废弃） | — | 旧 `web/` 已迁移至 `webapp/`（Vite 自动 hash） | 无需同步 |
 
 ---
 
@@ -29,7 +29,7 @@
 - [ ] `flutter_app/lib/pages/settings_page.dart` → 版本号字符串（line 272，硬编码）
 
 ### Web / 控制台（2 处）
-- [ ] `web/version.json` → `"version":"X.Y.Z","build_number":"NN"`（与 pubspec build 号一致）
+- [ ] `webapp/public/version.json` → `"version":"X.Y.Z","build_number":"NN"`（与 pubspec build 号一致）
 - [ ] `console-src/package.json` → `"version": "X.Y.Z.0"`（line 4，四位，末位固定 0）
 
 ### CI / 部署脚本（2 处，ci.yml 含 3 个 APP_VERSION）
@@ -43,21 +43,9 @@
 
 ---
 
-## 二、Web 缓存版本同步（用脚本，勿手改）
+## 二、Web 缓存版本同步（已废弃：web/ → webapp/）
 
-仅改 `web/` 静态资源时（HTML/CSS/JS 引用 `?v=YYYYMMDDx` + `sw.js` 的 `CACHE_VERSION`），用现成脚本：
-
-```bash
-# 自动生成新版本号（日期+字母递增）
-./scripts/bump-version.sh
-
-# 或手动指定
-./scripts/bump-version.sh v=20260731d
-```
-
-脚本自动同步：所有 `web/**/*.html` / `*.css` / `*.js` 的 `?v=` 参数 + `web/sw.js` 的 `CACHE_VERSION`。
-
-**注意**：语义版本升级时，Web 缓存版本也要顺便 bump 一次（强制客户端拉新资源）。
+> 2026-08-08 起旧 `web/` 静态多页迁移至 `webapp/`（Vite+React，构建产物自动 hash，无需手动 `?v=` / `sw.js` CACHE_VERSION）。本节仅作历史回滚参考；`scripts/bump-version.sh` 在 `web/` 目录不存在时直接提示退出。
 
 ---
 
@@ -77,16 +65,14 @@
 grep -rn "1\.3\.0" app/config.py .env .env.example .env.production .env.production.example \
   flutter_app/pubspec.yaml flutter_app/lib/config.dart \
   flutter_app/lib/pages/settings_page.dart \
-  web/version.json console-src/package.json \
+  webapp/public/version.json console-src/package.json \
   .github/workflows/ci.yml scripts/deploy-production.sh
 
 # 2. 检查是否有旧版本号残留（替换 X.Y.Z 为上一版本）
-grep -rn "1\.2\.9" app/config.py .env* flutter_app/ web/version.json console-src/ \
+grep -rn "1\.2\.9" app/config.py .env* flutter_app/ webapp/public/version.json console-src/ \
   .github/ scripts/ 2>/dev/null
 
-# 3. Web 缓存版本一致性
-grep -roh 'v=202[0-9]*[a-z]' web/ | sort -u   # 应只有一个值
-grep -n "CACHE_VERSION" web/sw.js
+# 3. Web 缓存版本（已废弃：web/ → webapp/，Vite 自动 hash，无需校验）
 
 # 4. 跑全量测试不得回退
 pytest

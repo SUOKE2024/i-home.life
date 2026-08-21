@@ -114,9 +114,10 @@ def make_trace_dict(
     response: str = "好的，根据您的需求，我推荐以下方案：硬装3万（地板+墙面），软装2万（沙发+窗帘+灯具）",
     agent_name: str = "designer",
     tool_calls: list | None = None,
+    trace_id: str | None = None,
 ) -> dict:
     return {
-        "trace_id": uuid.uuid4().hex[:12],
+        "trace_id": trace_id or uuid.uuid4().hex[:12],
         "agent_name": agent_name,
         "user_message": user_message,
         "user_message_truncated": user_message[:200],
@@ -219,13 +220,19 @@ async def test_p0_case_extraction(user_id: str):
             else:
                 fail("过短消息应被过滤")
 
-    # 5. db=None 时安全返回 None
-    with patch.object(settings, "agent_case_extraction_enabled", True):
-        result = await extract_case_from_trace(make_trace_dict(), None, owner_id=user_id)
-        if result is None:
-            ok("db=None 时安全返回 None")
-        else:
-            fail("db=None 应返回 None")
+    # 5. 同一 trace_id 防双提取（v1.10.x 契约：重复沉淀返回 None；db 为必传 AsyncSession）
+    with patch.object(settings, "agent_case_extraction_enabled", True), \
+         patch("app.agents.base.BaseAgent._chat", new_callable=AsyncMock, side_effect=mock_chat):
+        async with async_session() as db:
+            trace = make_trace_dict(trace_id="dedup-trace-001")
+            first = await extract_case_from_trace(trace, db, owner_id=user_id)
+            await db.commit()
+            second = await extract_case_from_trace(trace, db, owner_id=user_id)
+            await db.commit()
+            if first is not None and second is None:
+                ok("同一 trace_id 不重复提取（防双提取）")
+            else:
+                fail(f"防双提取失败: first={first is not None}, second={second is not None}")
 
 
 async def test_p0_case_search(user_id: str):
@@ -814,15 +821,16 @@ async def test_local_service_startup():
             else:
                 fail(f"GET /api/health → {resp.status_code} (应 200)")
 
-            # 验证 health 端点暴露版本号
+            # 验证 health 端点暴露版本号（动态比对当前配置，避免随版本升级失效）
             resp = await client.get("/api/health")
             if resp.status_code == 200:
                 data = resp.json()
                 version = data.get("version", "")
-                if version == "1.12.0":
-                    ok(f"GET /api/health → version={version} (v1.12.0 正确)")
+                expected = get_settings().app_version
+                if version == expected:
+                    ok(f"GET /api/health → version={version} (与配置一致)")
                 else:
-                    fail(f"version={version} (应 1.12.0)")
+                    fail(f"version={version} (应 {expected})")
             else:
                 fail(f"GET /api/health → {resp.status_code}")
 
@@ -862,7 +870,7 @@ async def main():
             print(f"    {YELLOW}⚠{RESET} {w}")
 
     if failed == 0:
-        print(f"\n  {GREEN}✅ 全部验证通过！自进化管线 v1.12.0 运行正常。{RESET}")
+        print(f"\n  {GREEN}✅ 全部验证通过！自进化管线运行正常（66 项）。{RESET}")
     else:
         print(f"\n  {RED}❌ 有 {failed} 项验证失败，需排查。{RESET}")
 
