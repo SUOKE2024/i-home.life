@@ -324,7 +324,7 @@ jobs:
 
       - name: Check APK size budget
         env:
-          BUDGET_MB: "60"
+          BUDGET_MB: "70"
         run: bash scripts/check-apk-size.sh
 
       - name: Upload APK

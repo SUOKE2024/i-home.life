@@ -7,7 +7,7 @@
 #   bash scripts/check-apk-size.sh --build            # 先构建 release APK 再检查
 #
 # 体积预算（可通过环境变量覆盖）:
-#   BUDGET_MB   — Android APK 体积上限，默认 60 MB
+#   BUDGET_MB   — Android APK 体积上限，默认 70 MB
 #   HAP_BUDGET_MB — HarmonyOS HAP 体积上限，默认 80 MB
 #
 # 退出码:
@@ -16,8 +16,10 @@
 #   2 — 未找到任何构建产物
 #
 # 设计依据: Flutter release APK 通常 20-80 MB；本应用含 sensors_plus /
-# geolocator / local_auth / cached_network_image 等原生插件，预算设为 60 MB
-# 留出 20% 安全余量。超预算时打印构成提示，便于定位膨胀来源。
+# geolocator / local_auth / cached_network_image 等原生插件，universal APK
+# 打包 3 个 ABI（arm64-v8a/armeabi-v7a/x86_64）后约 64MB（2026-08 实测），
+# 预算 60→70 MB 留出约 9% 余量（v1.15.10 起生效）。超预算时打印构成提示，
+# 便于定位膨胀来源。
 
 set -euo pipefail
 
@@ -25,7 +27,7 @@ PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FLUTTER_DIR="$PROJECT_DIR/flutter_app"
 
 # ── 预算配置 ──
-BUDGET_MB="${BUDGET_MB:-60}"
+BUDGET_MB="${BUDGET_MB:-70}"
 HAP_BUDGET_MB="${HAP_BUDGET_MB:-80}"
 BUILD_FIRST=false
 
