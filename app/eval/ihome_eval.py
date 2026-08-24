@@ -462,17 +462,24 @@ class IHomeEvalRunner:
                 sum(1 for t in group if t.get("token_budget_hit"))
                 / total * 100, 2
             )
+            # 2026-08-25 评估闭环：meets_targets 纳入延迟维度（avg/latency_p95），
+            # 与 detect_agent_drift 判定标准对齐——此前仅检查成功率/降级率/预算早停，
+            # 出现「延迟远超目标但 meets_targets=True」与漂移判定矛盾（实证：budget
+            # 120s 延迟 meets_targets=True 但 drift 标 avg_latency critical）。
+            latency_p95 = _percentile(latencies, 0.95)
             meets = (
                 success_rate >= QUALITY_TARGETS["success_rate_min"]
                 and fallback_rate <= QUALITY_TARGETS["fallback_rate_max"]
                 and budget_hit_rate <= QUALITY_TARGETS.get("token_budget_hit_rate_max", 100.0)
+                and avg_latency <= QUALITY_TARGETS["avg_latency_ms_max"]
+                and latency_p95 <= QUALITY_TARGETS.get("latency_p95_ms_max", 30000.0)
             )
             scores[name] = {
                 "sample_size": total,
                 "success_rate": success_rate,
                 "fallback_rate": fallback_rate,
                 "avg_latency_ms": round(avg_latency, 2),
-                "latency_p95_ms": round(_percentile(latencies, 0.95), 2),
+                "latency_p95_ms": round(latency_p95, 2),
                 "first_token_p95_ms": round(_percentile(first_tokens_nonzero, 0.95), 2),
                 "avg_tool_calls": avg_tool_calls,
                 "tool_success_rate": tool_success_rate,
@@ -1083,13 +1090,20 @@ async def compute_snapshot_trend(db, limit: int = 30) -> dict:
             "delta_baseline": {},
         }
         if prev_metrics:
-            entry["delta_prev"] = {
-                k: _delta(m.get(k) or 0, prev_metrics.get(k) or 0) for k in keys
-            }
+            for k in keys:
+                cur, prev = m.get(k), prev_metrics.get(k)
+                # 2026-08-25 评估闭环：任一侧指标缺失 → delta=None（诚实标注无对比），
+                # 不再用 0 作基数伪造「从 0 变化」失真（对齐 Anthropic 2026 评估指南
+                # 「对比须有有效基线」）。
+                entry["delta_prev"][k] = (
+                    _delta(cur, prev) if cur is not None and prev is not None else None
+                )
         if i > 0 and first_metrics:
-            entry["delta_baseline"] = {
-                k: _delta(m.get(k) or 0, first_metrics.get(k) or 0) for k in keys
-            }
+            for k in keys:
+                cur, base = m.get(k), first_metrics.get(k)
+                entry["delta_baseline"][k] = (
+                    _delta(cur, base) if cur is not None and base is not None else None
+                )
         trend.append(entry)
         prev_metrics = m
     return {"snapshot_count": len(trend), "trend": trend}
@@ -1138,6 +1152,13 @@ async def detect_drift_vs_history(
         fallback_rate = round(int(fallback_cnt or 0) / total * 100, 2)
         avg_latency = round(float(avg_latency or 0), 2)
         base = baseline_per_agent.get(name, {})
+        # 2026-08-25 评估闭环：基线快照缺该 Agent/指标 → delta=None（诚实标注无
+        # 对比），不再用 0 作基线伪造「当前值=变化量」失真（新 Agent 无历史基线
+        # 时 delta 不应显示为全量跳变）。
+
+        def _delta_vs_base(cur: float, base_val: float | None) -> float | None:
+            return _delta(cur, base_val) if base_val is not None else None
+
         records.append({
             "agent_name": name,
             "sample_size": total,
@@ -1152,9 +1173,9 @@ async def detect_drift_vs_history(
                 "avg_latency_ms": base.get("avg_latency_ms"),
             },
             "delta": {
-                "success_rate": _delta(success_rate, base.get("success_rate") or 0),
-                "fallback_rate": _delta(fallback_rate, base.get("fallback_rate") or 0),
-                "avg_latency_ms": _delta(avg_latency, base.get("avg_latency_ms") or 0),
+                "success_rate": _delta_vs_base(success_rate, base.get("success_rate")),
+                "fallback_rate": _delta_vs_base(fallback_rate, base.get("fallback_rate")),
+                "avg_latency_ms": _delta_vs_base(avg_latency, base.get("avg_latency_ms")),
             },
         })
     return {

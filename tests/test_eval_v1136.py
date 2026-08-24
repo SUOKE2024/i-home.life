@@ -525,3 +525,55 @@ async def test_eval_run_persists_snapshot(client: AsyncClient):
     data = resp.json()
     assert "ux_metrics" in data, "报告应包含 ux_metrics（v1.13.6）"
     assert any(n.startswith("snapshot_id=") for n in data["notes"]), data["notes"]
+
+
+# ── 2026-08-25 评估闭环：缺失基线 delta 诚实标注（无对比 → None，非 0 伪造）──
+
+
+@pytest.mark.asyncio
+async def test_snapshot_trend_missing_metric_delta_is_none(db_session):
+    """快照间缺失指标 → delta=None（诚实标注无对比），不再用 0 伪造「从 0 变化」。"""
+    await persist_eval_snapshot(db_session, _make_report(success_rate=90.0))
+    # 第二个快照仅含 success_rate + avg_latency_ms（缺 fallback_rate/first_token_p95_ms）
+    await persist_eval_snapshot(db_session, _make_report(success_rate=95.0))
+
+    trend = await compute_snapshot_trend(db_session)
+    entry = trend["trend"][1]
+    assert entry["delta_prev"]["success_rate"] == 5.0
+    # 缺失指标 delta 为 None（此前为 0，伪造「从 0 变化」）
+    assert entry["delta_prev"]["fallback_rate"] is None
+    assert entry["delta_prev"]["first_token_p95_ms"] is None
+    assert entry["delta_baseline"]["fallback_rate"] is None
+    assert entry["delta_baseline"]["first_token_p95_ms"] is None
+    # 双侧都有值的指标仍正常计算
+    assert entry["delta_prev"]["avg_latency_ms"] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_drift_vs_history_delta_none_without_baseline(db_session):
+    """基线快照缺该 Agent → delta=None（诚实标注无历史基线），不显示全量跳变。"""
+    from app.eval.ihome_eval import detect_drift_vs_history
+    from app.models.agent_trace import AgentTraceRecord
+
+    # 基线快照 per_agent_scores 仅含 designer（budget 无历史基线）
+    report = IHomeEvalReport(run_id="t", started_at=0.0)
+    report.per_agent_scores = {
+        "designer": {"success_rate": 90.0, "fallback_rate": 5.0, "avg_latency_ms": 1000.0},
+    }
+    await persist_eval_snapshot(db_session, report)
+    # 当前窗口有 budget 轨迹（基线中不存在）
+    for i in range(6):
+        db_session.add(AgentTraceRecord(
+            id=f"budget_dv_{i}", agent_name="budget", status="success",
+            fallback_used=False, latency_ms=1000.0,
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+
+    result = await detect_drift_vs_history(db_session, window_days=7, min_samples=5)
+    assert result["available"] is True
+    budget = next(r for r in result["records"] if r["agent_name"] == "budget")
+    # 无历史基线 → delta=None（此前用 0 作基线显示 +100/+0 全量跳变）
+    assert budget["delta"]["success_rate"] is None
+    assert budget["delta"]["fallback_rate"] is None
+    assert budget["delta"]["avg_latency_ms"] is None

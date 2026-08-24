@@ -407,3 +407,47 @@ def test_idor_coverage_recognizes_equivalent_ownership_checks():
     assert "custom_furniture.py" in covered
     # 用户域隔离模块（会话/积分）仍留作审计候选，非漏洞结论
     assert "chat.py" in details["needs_review"]
+
+
+# ── 2026-08-25 评估闭环：meets_targets 纳入延迟判定（与 drift 对齐）──
+
+
+def test_per_agent_meets_targets_false_on_high_latency():
+    """延迟远超目标 → meets_targets=False（此前漏检延迟，120s 延迟仍标 True 与 drift 矛盾）。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        _trace("budget", status="success", latency=120000.0),
+        _trace("budget", status="success", latency=1000.0),
+    ]
+    per = runner._compute_per_agent_scores(traces)
+    assert per["budget"]["avg_latency_ms"] == pytest.approx(60500.0, abs=0.1)
+    # p95 线性插值：1000 + (120000-1000)*0.95
+    assert per["budget"]["latency_p95_ms"] == pytest.approx(114050.0, abs=0.1)
+    # avg 60500 > avg_latency_ms_max(15000) → 不达标
+    assert per["budget"]["meets_targets"] is False
+
+
+def test_per_agent_meets_targets_true_with_low_latency():
+    """延迟达标 + 其余达标 → meets_targets=True。"""
+    runner = IHomeEvalRunner()
+    traces = [_trace("designer", status="success", latency=1000.0)]
+    per = runner._compute_per_agent_scores(traces)
+    assert per["designer"]["meets_targets"] is True
+
+
+def test_per_agent_meets_targets_false_on_high_p95_latency():
+    """avg 达标（14800 ≤ 15000）但 p95 超限（70000 > 30000）→ meets_targets=False。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        _trace("construction", status="success", latency=1000.0),
+        _trace("construction", status="success", latency=70000.0),
+        _trace("construction", status="success", latency=1000.0),
+        _trace("construction", status="success", latency=1000.0),
+        _trace("construction", status="success", latency=1000.0),
+    ]
+    per = runner._compute_per_agent_scores(traces)
+    # avg = (4000 + 70000) / 5 = 14800 ≤ avg_latency_ms_max(15000)，avg 维度达标
+    assert per["construction"]["avg_latency_ms"] == pytest.approx(14800.0, abs=0.1)
+    # p95 线性插值：1000 + (70000-1000)*0.8 = 56200 > latency_p95_ms_max(30000) → 尾延迟超标
+    assert per["construction"]["latency_p95_ms"] == pytest.approx(56200.0, abs=0.1)
+    assert per["construction"]["meets_targets"] is False
