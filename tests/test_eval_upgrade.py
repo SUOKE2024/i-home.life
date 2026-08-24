@@ -451,3 +451,55 @@ def test_per_agent_meets_targets_false_on_high_p95_latency():
     # p95 线性插值：1000 + (70000-1000)*0.8 = 56200 > latency_p95_ms_max(30000) → 尾延迟超标
     assert per["construction"]["latency_p95_ms"] == pytest.approx(56200.0, abs=0.1)
     assert per["construction"]["meets_targets"] is False
+
+
+# ── 2026-08-25 评估闭环（二）：design_safety 专项度量 + HC 别名反查 ──
+
+
+def test_design_safety_score_measures_hc001():
+    """design_safety 应专项度量 HC-001（承重结构）可达率，而非恒等于 hc_compliance_rate。
+
+    2026-08-25 评估闭环：此前 design_safety = hc_compliance_rate 复制赋值，两维度
+    恒同分无区分度。现对齐 _material_score（HC-003 专项）模式：HC-001 的 applies_to
+    = designer/structural/construction，其中 structural Agent 不存在 → 66.67%，
+    如实暴露 spec 与实现漂移。
+    """
+    runner = IHomeEvalRunner()
+    ds = runner._design_safety_score()
+    hc = runner._hc_compliance_score()
+    # 专项度量不再与整体 HC 合规率恒等
+    assert ds != hc
+    # HC-001 目标 3 个 Agent 中 designer/construction 真实、structural 缺失 → 66.67
+    assert ds == pytest.approx(66.67, abs=0.01)
+    assert hc == 100.0
+
+
+def test_design_safety_in_dimension_scores_no_longer_equals_hc():
+    """报告维度中 design_safety 与 hc_compliance_rate 应解耦（有区分度）。"""
+    runner = IHomeEvalRunner()
+    report = runner.run(traces=[])
+    scores = report.dimension_scores
+    assert "design_safety" in scores
+    assert scores["design_safety"] == pytest.approx(66.67, abs=0.01)
+    assert scores["design_safety"] != scores["hc_compliance_rate"]
+
+
+def test_hc_target_real_names_resolves_alias_reverse():
+    """HC 别名应反查（spec 名 → 真实 agent_name），HC-008 的 door_window_waterproof → door_window。
+
+    2026-08-25 评估闭环：aliases 方向为 {真实名: spec 名}（BaseAgent
+    _MODEL_SPEC_AGENT_ALIASES），applies_to 是 spec 侧名字，解析须反查——
+    此前正向查询把 HC-008 的 door_window_waterproof 误判为缺失 Agent。
+    """
+    from app.eval.ihome_eval import (
+        _hc_applies_to_aliases, _hc_target_real_names, _load_model_spec,
+    )
+
+    aliases = _hc_applies_to_aliases()
+    assert aliases == {"door_window": "door_window_waterproof"}
+    spec = _load_model_spec()
+    hc008 = next(h for h in spec["hard_constraints"] if h["id"] == "HC-008")
+    targets = _hc_target_real_names(hc008, aliases)
+    # 别名反查：spec 侧 door_window_waterproof → 真实 Agent door_window
+    assert "door_window" in targets
+    assert "door_window_waterproof" not in targets

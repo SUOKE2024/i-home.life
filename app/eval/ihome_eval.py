@@ -100,8 +100,16 @@ def _hc_applies_to_aliases() -> dict[str, str]:
 
 
 def _hc_target_real_names(hc: dict, aliases: dict[str, str]) -> set[str]:
-    """将 HC 的 applies_to 经别名映射解析为真实 agent_name 集合。"""
-    return {aliases.get(t, t) for t in (hc.get("applies_to") or [])}
+    """将 HC 的 applies_to 经别名映射解析为真实 agent_name 集合。
+
+    2026-08-25 评估闭环：aliases 方向为 {真实 agent_name: spec applies_to 名}
+    （见 BaseAgent._MODEL_SPEC_AGENT_ALIASES，真实名→spec 名），而 applies_to 里
+    是 spec 侧名字，解析时应**反查**得到真实名——此前正向 aliases.get(t) 方向
+    反了，导致 HC-008 的 door_window_waterproof 无法映射到真实 Agent door_window
+    （被误判为 spec 漂移）。
+    """
+    reverse = {v: k for k, v in aliases.items()}
+    return {reverse.get(t, t) for t in (hc.get("applies_to") or [])}
 
 
 class IHomeEvalDimension(str, Enum):
@@ -319,9 +327,7 @@ class IHomeEvalRunner:
         if not traces:
             scores[IHomeEvalDimension.IDOR_RESISTANCE.value] = self._idor_score()
             scores[IHomeEvalDimension.HC_COMPLIANCE_RATE.value] = self._hc_compliance_score()
-            scores[IHomeEvalDimension.DESIGN_SAFETY.value] = scores[
-                IHomeEvalDimension.HC_COMPLIANCE_RATE.value
-            ]
+            scores[IHomeEvalDimension.DESIGN_SAFETY.value] = self._design_safety_score()
             scores[IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value] = self._material_score()
             return scores
 
@@ -355,9 +361,7 @@ class IHomeEvalRunner:
         scores[IHomeEvalDimension.IDOR_RESISTANCE.value] = self._idor_score()
         scores[IHomeEvalDimension.HC_COMPLIANCE_RATE.value] = self._hc_compliance_score()
         scores[IHomeEvalDimension.COUNTER_ARGUMENT_QUALITY.value] = self._counter_argument_score(traces)
-        scores[IHomeEvalDimension.DESIGN_SAFETY.value] = scores[
-            IHomeEvalDimension.HC_COMPLIANCE_RATE.value
-        ]
+        scores[IHomeEvalDimension.DESIGN_SAFETY.value] = self._design_safety_score()
         scores[IHomeEvalDimension.MATERIAL_CONTRAINDICATION.value] = self._material_score()
         # v1.13.7 P0：无 budget 轨迹时跳过该维度（None），避免「无数据」误标为 0 分
         budget_score = self._budget_score(traces)
@@ -611,6 +615,31 @@ class IHomeEvalRunner:
             aliases = _hc_applies_to_aliases()
             for hc in _load_model_spec().get("hard_constraints", []):
                 if hc.get("id") != "HC-003":
+                    continue
+                targets = _hc_target_real_names(hc, aliases)
+                if not targets:
+                    return 0.0
+                wired = len(targets & real)
+                return round(wired / len(targets) * 100, 2)
+            return 0.0
+        except Exception:
+            return 0.0
+
+    def _design_safety_score(self) -> float:
+        """设计安全维度：HC-001（承重结构不可破坏）目标 Agent 可达率。
+
+        2026-08-25 评估闭环：此前 design_safety 恒等于 hc_compliance_rate（复制
+        赋值），两维度永远同分无区分度（对齐 Future AGI 2026「per-dimension
+        scoring, aggregate hides regression」）；现对齐 _material_score（HC-003
+        专项）模式，专项度量 HC-001 的 applies_to（designer/structural/
+        construction）中真实 Agent 占比——如实暴露 structural Agent 缺失
+        （spec 与实现漂移，评估诚实标注而非被粗粒度掩盖）。
+        """
+        try:
+            real = _real_agent_names()
+            aliases = _hc_applies_to_aliases()
+            for hc in _load_model_spec().get("hard_constraints", []):
+                if hc.get("id") != "HC-001":
                     continue
                 targets = _hc_target_real_names(hc, aliases)
                 if not targets:
