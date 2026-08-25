@@ -557,3 +557,86 @@ def test_run_no_tool_proxy_note_with_tool_traces():
     ]
     report = runner.run(traces=traces)
     assert not any("确定性关键词基线代理" in n for n in report.notes)
+
+
+# ── 2026-08-25 评估闭环（四）：延迟无数据诚实处理（不稀释/不伪造 0ms 达标）──
+
+
+async def test_drift_avg_latency_insufficient_without_latency_data(db_session):
+    """轨迹全无延迟数据（latency_ms=0 占位）→ avg_latency_ms 不判定（insufficient_samples）。"""
+    from datetime import datetime, timezone
+
+    from app.models.agent_trace import AgentTraceRecord
+
+    for i in range(10):
+        db_session.add(AgentTraceRecord(
+            id=f"nolat_{i}", agent_name="designer", status="success",
+            fallback_used=False, latency_ms=0.0,  # 0 = 无数据占位（模型 default=0.0）
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+    drift = await detect_agent_drift(db_session, window_days=7, min_samples=5)
+    avg = next(d for d in drift if d["metric"] == "avg_latency_ms")
+    # 此前 avg=0 → ok（0ms 达标假象）；现无真实延迟样本 → 不判定
+    assert avg["status"] == "insufficient_samples"
+    assert avg["current"] is None
+
+
+async def test_drift_avg_latency_ok_with_latency_data(db_session):
+    """有真实延迟数据 → avg_latency_ms 正常判定（对照：1000ms ≤ 15000 → ok）。"""
+    from datetime import datetime, timezone
+
+    from app.models.agent_trace import AgentTraceRecord
+
+    for i in range(10):
+        db_session.add(AgentTraceRecord(
+            id=f"lat_ok_{i}", agent_name="budget", status="success",
+            fallback_used=False, latency_ms=1000.0,
+            created_at=datetime.now(timezone.utc),
+        ))
+    await db_session.commit()
+    drift = await detect_agent_drift(db_session, window_days=7, min_samples=5)
+    avg = next(d for d in drift if d["metric"] == "avg_latency_ms")
+    assert avg["status"] == "ok"
+    assert avg["current"] == 1000.0
+
+
+def test_runtime_metrics_latency_nonzero_only():
+    """延迟聚合仅基于非零样本（latency=0 为无数据占位，不稀释均值）。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        {"agent_name": "a", "status": "success", "fallback_used": False,
+         "latency_ms": 1000.0, "response_truncated": "x",
+         "tool_call_count": 1, "token_budget_hit": False},
+        {"agent_name": "a", "status": "success", "fallback_used": False,
+         "latency_ms": 0.0, "response_truncated": "y",  # 无延迟数据占位
+         "tool_call_count": 0, "token_budget_hit": False},
+    ]
+    m = runner._compute_runtime_metrics(traces)
+    # 此前 avg = (1000+0)/2 = 500（被 0 稀释）；现仅非零样本 → 1000
+    assert m["avg_latency_ms"] == 1000.0
+    assert m["latency_samples"] == 1
+    assert m["latency_p95_ms"] == 1000.0
+
+
+def test_sse_latency_omitted_without_latency_data():
+    """有轨迹但无首 token 且无延迟样本 → 省略 sse_latency（此前 avg=0 → 100 满分假象）。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        {"agent_name": "a", "status": "success", "fallback_used": False,
+         "latency_ms": 0.0, "first_token_latency_ms": 0.0,
+         "response_truncated": "x", "tool_call_count": 1, "token_budget_hit": False},
+    ]
+    metrics = runner._compute_runtime_metrics(traces)
+    scores = runner._compute_dimension_scores(traces, metrics)
+    assert "sse_latency" not in scores
+    # 有延迟样本 → SSE 用 avg 伪代理（回退仍工作）
+    traces2 = [
+        {"agent_name": "a", "status": "success", "fallback_used": False,
+         "latency_ms": 1000.0, "first_token_latency_ms": 0.0,
+         "response_truncated": "x", "tool_call_count": 1, "token_budget_hit": False},
+    ]
+    m2 = runner._compute_runtime_metrics(traces2)
+    s2 = runner._compute_dimension_scores(traces2, m2)
+    assert "sse_latency" in s2
+    assert s2["sse_latency"] == pytest.approx(80.0, abs=0.01)  # 100 - 1000/50

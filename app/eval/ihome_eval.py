@@ -296,11 +296,13 @@ class IHomeEvalRunner:
             1 for t in traces
             if _looks_like_reasoning_leak(t.get("response_truncated") or "")
         )
-        avg_latency = (
-            sum(t.get("latency_ms", 0) for t in traces) / total
-        )
         # v1.13.6：延迟分位数（p50/p95/p99）+ 首 token p95 实测
         latencies = [t.get("latency_ms", 0) or 0 for t in traces]
+        # 2026-08-25 评估闭环（四）：延迟聚合仅基于非零样本——latency=0 为无数据占位
+        # （与 first_tokens_nonzero 模式一致）。此前含 0 样本的均值被稀释（部分轨迹无
+        # 延迟数据时 avg 偏低误判「达标」），且无延迟样本时 latency_samples=0 供消费方
+        # 区分「0ms」与「无数据」。
+        latencies_nonzero = [v for v in latencies if v > 0]
         first_tokens = [t.get("first_token_latency_ms", 0) or 0 for t in traces]
         first_tokens_nonzero = [v for v in first_tokens if v > 0]
         # v1.13.x 交付链路延迟（跨交付型 Agent 聚合，端到端「拿到方案/预算」响应速度）
@@ -308,16 +310,22 @@ class IHomeEvalRunner:
             t.get("latency_ms", 0) or 0 for t in traces
             if t.get("agent_name") in DELIVERY_AGENTS
         ]
+        delivery_nonzero = [v for v in delivery_latencies if v > 0]
+        avg_latency = (
+            sum(latencies_nonzero) / len(latencies_nonzero)
+            if latencies_nonzero else 0.0
+        )
         return {
             "success_rate": round(success / total * 100, 2),
             "fallback_rate": round(fallback / total * 100, 2),
             "reasoning_leak_rate": round(leaked / total * 100, 2),
             "avg_latency_ms": round(avg_latency, 2),
-            "latency_p50_ms": round(_percentile(latencies, 0.5), 2),
-            "latency_p95_ms": round(_percentile(latencies, 0.95), 2),
-            "latency_p99_ms": round(_percentile(latencies, 0.99), 2),
+            "latency_p50_ms": round(_percentile(latencies_nonzero, 0.5), 2),
+            "latency_p95_ms": round(_percentile(latencies_nonzero, 0.95), 2),
+            "latency_p99_ms": round(_percentile(latencies_nonzero, 0.99), 2),
+            "latency_samples": len(latencies_nonzero),
             "first_token_p95_ms": round(_percentile(first_tokens_nonzero, 0.95), 2),
-            "delivery_p95_ms": round(_percentile(delivery_latencies, 0.95), 2),
+            "delivery_p95_ms": round(_percentile(delivery_nonzero, 0.95), 2),
             "total_runs": total,
         }
 
@@ -348,12 +356,17 @@ class IHomeEvalRunner:
         )
         # v1.13.6：SSE_LATENCY 改用首 token p95 实测（8s = 0 分，对齐 first_token_p95_ms_max）；
         # 无首 token 数据时回退 avg_latency 伪代理（诚实降级，不伪造）。
+        # 2026-08-25 评估闭环（四）：无首 token 且无延迟样本时省略该维度——此前
+        # avg_latency=0（无数据占位）被算成 100 满分，伪造「秒回」；现省略对齐
+        # budget_accuracy 无数据省略模式。
         ft_p95 = m.get("first_token_p95_ms", 0) or 0
+        latency_samples = m.get("latency_samples", 0) or 0
         if ft_p95 > 0:
             sse_latency = max(0, 100 - ft_p95 / 80)
-        else:
+            scores[IHomeEvalDimension.SSE_LATENCY.value] = round(sse_latency, 2)
+        elif latency_samples > 0:
             sse_latency = max(0, 100 - m.get("avg_latency_ms", 0) / 50)
-        scores[IHomeEvalDimension.SSE_LATENCY.value] = round(sse_latency, 2)
+            scores[IHomeEvalDimension.SSE_LATENCY.value] = round(sse_latency, 2)
 
         # 正向指标
         scores[IHomeEvalDimension.TOOL_CALL_ACCURACY.value] = self._tool_call_score(traces)
@@ -454,11 +467,18 @@ class IHomeEvalRunner:
             total = len(group)
             success = sum(1 for t in group if t.get("status") == "success")
             fallback = sum(1 for t in group if t.get("fallback_used"))
-            avg_latency = sum(t.get("latency_ms", 0) for t in group) / total
             success_rate = round(success / total * 100, 2)
             fallback_rate = round(fallback / total * 100, 2)
             # v1.13.6 响应速度分位
             latencies = [t.get("latency_ms", 0) or 0 for t in group]
+            # 2026-08-25 评估闭环（四）：延迟聚合仅基于非零样本（latency=0 为无数据
+            # 占位，与 _compute_runtime_metrics 一致）——避免部分轨迹无延迟数据时
+            # avg/p95 被 0 稀释，导致 meets_targets 误判「达标」。
+            latencies_nonzero = [v for v in latencies if v > 0]
+            avg_latency = (
+                sum(latencies_nonzero) / len(latencies_nonzero)
+                if latencies_nonzero else 0.0
+            )
             first_tokens = [t.get("first_token_latency_ms", 0) or 0 for t in group]
             first_tokens_nonzero = [v for v in first_tokens if v > 0]
             # v1.13.0 工具维度
@@ -478,7 +498,7 @@ class IHomeEvalRunner:
             # 与 detect_agent_drift 判定标准对齐——此前仅检查成功率/降级率/预算早停，
             # 出现「延迟远超目标但 meets_targets=True」与漂移判定矛盾（实证：budget
             # 120s 延迟 meets_targets=True 但 drift 标 avg_latency critical）。
-            latency_p95 = _percentile(latencies, 0.95)
+            latency_p95 = _percentile(latencies_nonzero, 0.95)
             meets = (
                 success_rate >= QUALITY_TARGETS["success_rate_min"]
                 and fallback_rate <= QUALITY_TARGETS["fallback_rate_max"]
@@ -749,6 +769,10 @@ async def detect_agent_drift(
             func.sum(case((AgentTraceRecord.fallback_used.is_(True), 1), else_=0)).label("fallback_cnt"),
             func.sum(case((AgentTraceRecord.token_budget_hit.is_(True), 1), else_=0)).label("budget_hit_cnt"),
             func.avg(AgentTraceRecord.latency_ms).label("avg_latency"),
+            # 2026-08-25 评估闭环（四）：延迟样本计数（latency_ms > 0）——模型列
+            # nullable=False default=0.0，「无延迟数据」占位为 0 而非 NULL；此前 avg
+            # 全 0 时被判「0ms 达标」（ok 失真），现无真实延迟样本时不判定。
+            func.sum(case((AgentTraceRecord.latency_ms > 0, 1), else_=0)).label("latency_cnt"),
         )
         .where(AgentTraceRecord.created_at >= cutoff)
         .group_by(AgentTraceRecord.agent_name)
@@ -757,11 +781,12 @@ async def detect_agent_drift(
     rows = result.all()
 
     drift: list[dict] = []
-    for name, cnt, success_cnt, fallback_cnt, budget_hit_cnt, avg_latency in rows:
+    for name, cnt, success_cnt, fallback_cnt, budget_hit_cnt, avg_latency, latency_cnt in rows:
         total = int(cnt)
         success_cnt = int(success_cnt or 0)
         fallback_cnt = int(fallback_cnt or 0)
         budget_hit_cnt = int(budget_hit_cnt or 0)
+        latency_cnt = int(latency_cnt or 0)
         avg_latency = float(avg_latency or 0.0)
         if total < min_samples:
             drift.append({
@@ -794,7 +819,16 @@ async def detect_agent_drift(
 
         _judge("success_rate", success_rate, QUALITY_TARGETS["success_rate_min"])
         _judge("fallback_rate", fallback_rate, QUALITY_TARGETS["fallback_rate_max"], inverse=True)
-        _judge("avg_latency_ms", round(avg_latency, 2), QUALITY_TARGETS["avg_latency_ms_max"], inverse=True)
+        if latency_cnt == 0:
+            # 无任何延迟数据 → 不判定（诚实标注），避免「0ms 达标」假象
+            drift.append({
+                "agent_name": name, "sample_size": total,
+                "status": DRIFT_STATUS_INSUFFICIENT_SAMPLES,
+                "metric": "avg_latency_ms", "current": None,
+                "target": QUALITY_TARGETS["avg_latency_ms_max"],
+            })
+        else:
+            _judge("avg_latency_ms", round(avg_latency, 2), QUALITY_TARGETS["avg_latency_ms_max"], inverse=True)
         _judge(
             "token_budget_hit_rate", budget_hit_rate,
             QUALITY_TARGETS.get("token_budget_hit_rate_max", 20.0), inverse=True,
