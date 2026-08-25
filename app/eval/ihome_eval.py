@@ -262,6 +262,14 @@ class IHomeEvalRunner:
                 "completeness/sufficiency/counter_argument）无样本已省略，仅保留静态"
                 "维度（诚实标注，对齐漂移检测 insufficient_samples 模式）"
             )
+        elif not any(t.get("tool_call_count", 0) > 0 for t in traces):
+            # 2026-08-25 评估闭环（三）：有轨迹但全部无工具调用时，tool_call_accuracy
+            # 回退确定性关键词基线（_tool_call_score 的诚实降级），追加 note 供消费方
+            # 知悉该分数是基线代理而非真实轨迹工具调用度量。
+            report.notes.append(
+                "tool_call_accuracy 使用确定性关键词基线代理（轨迹无工具调用样本，"
+                "诚实标注：非真实轨迹工具调用度量）"
+            )
         # v1.13.x：工具选择准确率基线报告（确定性，诚实标注非 LLM）
         try:
             from app.eval.tool_accuracy import get_tool_accuracy_report
@@ -577,6 +585,11 @@ class IHomeEvalRunner:
         v1.13.7 P0 修复：废弃「spec 文件是否含 HC-001~HC-008」的存在性检查（恒 100
         无区分度），改为度量 HC 硬约束的 applies_to 经别名映射后是否至少命中一个
         真实 Agent——即「HC 前置声明实际可达」的比例。
+
+        2026-08-25 评估闭环（三）：从「至少命中一个即 wired」粗粒度改为**平均可达率**
+        ——每条 HC 的（真实命中 Agent 数 / 声明目标 Agent 数）取平均。此前 wired 口径
+        掩盖部分可达缺口（实证：HC-001 2/3、HC-006 1/2 仍计 100%），对齐 Future AGI
+        2026「aggregate hides regression」细粒度原则。
         """
         try:
             constraints = _load_model_spec().get("hard_constraints", [])
@@ -584,11 +597,14 @@ class IHomeEvalRunner:
                 return 0.0
             real = _real_agent_names()
             aliases = _hc_applies_to_aliases()
-            wired = sum(
-                1 for hc in constraints
-                if _hc_target_real_names(hc, aliases) & real
-            )
-            return round(wired / len(constraints) * 100, 2)
+            rates: list[float] = []
+            for hc in constraints:
+                targets = _hc_target_real_names(hc, aliases)
+                if not targets:
+                    rates.append(0.0)
+                    continue
+                rates.append(len(targets & real) / len(targets))
+            return round(sum(rates) / len(rates) * 100, 2)
         except Exception as e:
             logger.debug("hc_compliance_score 失败: %s", e)
             return 0.0

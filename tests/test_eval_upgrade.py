@@ -291,11 +291,16 @@ def test_idor_score_uses_actual_route_denominator():
 
 
 def test_hc_compliance_score_measures_wiring():
-    """HC 合规率 = 硬约束 applies_to 命中真实 Agent 的占比（经别名映射）。"""
+    """HC 合规率 = 硬约束 applies_to 命中真实 Agent 的占比（经别名映射）。
+
+    2026-08-25 评估闭环（三）：从 wired 粗粒度改为平均可达率——HC-001（2/3）与
+    HC-006（1/2，逃生通道）因 structural Agent 缺失，平均可达率 90.74%
+    （此前 wired 口径恒 100%，掩盖部分可达缺口）。
+    """
     runner = IHomeEvalRunner()
     score = runner._hc_compliance_score()
-    # 9 条 HC 均至少命中一个真实 Agent（door_window 经别名 door_window_waterproof）
-    assert score == 100.0
+    # 9 条 HC 平均可达率：(2/3 + 1 + 1 + 1 + 1 + 1/2 + 1 + 1 + 1) / 9 = 816.67/9 = 90.74
+    assert score == pytest.approx(90.74, abs=0.01)
 
 
 def test_material_score_graded_by_target_agents():
@@ -471,7 +476,8 @@ def test_design_safety_score_measures_hc001():
     assert ds != hc
     # HC-001 目标 3 个 Agent 中 designer/construction 真实、structural 缺失 → 66.67
     assert ds == pytest.approx(66.67, abs=0.01)
-    assert hc == 100.0
+    # 整体 HC 合规率（三轮起为平均可达率）：HC-001 2/3 + HC-006 1/2 拉低 → 90.74
+    assert hc == pytest.approx(90.74, abs=0.01)
 
 
 def test_design_safety_in_dimension_scores_no_longer_equals_hc():
@@ -503,3 +509,51 @@ def test_hc_target_real_names_resolves_alias_reverse():
     # 别名反查：spec 侧 door_window_waterproof → 真实 Agent door_window
     assert "door_window" in targets
     assert "door_window_waterproof" not in targets
+
+
+# ── 2026-08-25 评估闭环（三）：HC 合规平均可达率 + tool_call 代理标注 ──
+
+
+def test_hc_compliance_score_partial_reachability_exposed():
+    """wired 口径已废：部分可达 HC（HC-006 逃生通道 1/2）不再被掩盖为 100%。"""
+    from app.eval.ihome_eval import (
+        _hc_applies_to_aliases, _hc_target_real_names, _load_model_spec,
+    )
+
+    runner = IHomeEvalRunner()
+    score = runner._hc_compliance_score()
+    assert score < 100.0  # 平均可达率 < 100：暴露 HC-001/HC-006 的 structural 缺失
+
+    aliases = _hc_applies_to_aliases()
+    spec = _load_model_spec()
+    hc006 = next(h for h in spec["hard_constraints"] if h["id"] == "HC-006")
+    # HC-006（逃生通道）applies_to=[designer, structural]，structural 缺失 → 1/2
+    targets = _hc_target_real_names(hc006, aliases)
+    assert "structural" in targets  # spec 声明存在
+    assert score == pytest.approx(90.74, abs=0.01)
+
+
+def test_run_notes_tool_call_proxy_when_no_tool_traces():
+    """有轨迹但全部无工具调用 → tool_call_accuracy 用基线代理且 notes 诚实标注。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        {"agent_name": "designer", "status": "success", "fallback_used": False,
+         "latency_ms": 1000.0, "response_truncated": "根据数据，方案如下：\n1. 水电\n总结",
+         "tool_call_count": 0, "token_budget_hit": False},
+    ]
+    report = runner.run(traces=traces)
+    # 无工具调用轨迹 → 回退确定性基线 100%
+    assert report.dimension_scores["tool_call_accuracy"] == 100.0
+    assert any("确定性关键词基线代理" in n for n in report.notes)
+
+
+def test_run_no_tool_proxy_note_with_tool_traces():
+    """有工具调用轨迹 → 不追加代理标注 note（真实度量）。"""
+    runner = IHomeEvalRunner()
+    traces = [
+        {"agent_name": "designer", "status": "success", "fallback_used": False,
+         "latency_ms": 1000.0, "response_truncated": "根据数据，方案如下",
+         "tool_call_count": 2, "token_budget_hit": False},
+    ]
+    report = runner.run(traces=traces)
+    assert not any("确定性关键词基线代理" in n for n in report.notes)
