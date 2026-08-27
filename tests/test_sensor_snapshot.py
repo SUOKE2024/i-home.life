@@ -217,6 +217,7 @@ async def test_upload_sensor_snapshot_no_fake_ambient_trigger(
         scene_name="温度联动",
         scene_type="triggered",
         trigger_condition={"type": "sensor", "condition": {"temperature": {"gt": 28}}},
+        trigger_type="sensor",
         actions=[{"device_id": "light-1", "action": "turn_on", "params": {}}],
         enabled=True,
     )
@@ -281,6 +282,7 @@ async def test_upload_sensor_snapshot_env_trigger(client: AsyncClient, db_sessio
         scene_name="高温联动",
         scene_type="triggered",
         trigger_condition={"type": "sensor", "condition": {"temperature": {"gt": 28}}},
+        trigger_type="sensor",
         actions=[{"device_id": "light-1", "action": "turn_on", "params": {}}],
         enabled=True,
     )
@@ -400,6 +402,7 @@ async def test_upload_sensor_snapshot_temperature_zero_participates(
         scene_name="低温联动",
         scene_type="triggered",
         trigger_condition={"type": "sensor", "condition": {"temperature": {"lt": 5}}},
+        trigger_type="sensor",
         actions=[{"device_id": "light-1", "action": "turn_on", "params": {}}],
         enabled=True,
     )

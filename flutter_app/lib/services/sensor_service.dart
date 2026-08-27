@@ -31,6 +31,15 @@ class SensorService {
   /// 60Hz 采样周期（≈16667 微秒）
   static const Duration kSampleInterval = Duration(microseconds: 16667);
 
+  /// 静止降频采样周期：10Hz（自适应采样，2026-08-27 穿戴设备闭环增强）
+  static const Duration kIdleSampleInterval = Duration(milliseconds: 100);
+
+  /// 运动判定阈值：加速度模长变化量（m/s²），超过视为运动
+  static const double kMotionDeltaThreshold = 0.1;
+
+  /// 自适应切换防抖间隔：避免频繁重建传感器流
+  static const Duration kAdaptiveSwitchMinInterval = Duration(seconds: 2);
+
   // ── 静态能力字段（try-catch 检测，鸿蒙等平台默认 false）──
   static bool accelerometerAvailable = false;
   static bool gyroscopeAvailable = false;
@@ -51,20 +60,48 @@ class SensorService {
   bool _running = false;
   bool _capabilityDetected = false;
 
+  // ── 自适应采样状态（2026-08-27）──
+  bool _idleMode = false;
+  double? _lastMotionMag;
+  DateTime? _lastAdaptiveSwitch;
+
   /// 启动所有传感器监听
   ///
   /// 内部会先进行能力探测；不支持的平台/传感器会被跳过。
+  /// 自适应采样（2026-08-27）：运动时 60Hz，静止降频 10Hz 省电。
   Future<void> start() async {
     if (_running) return;
     _running = true;
 
     await _detectCapabilities();
+    _restartSensorStreams();
+  }
 
+  /// 当前生效的采样周期（自适应：静止降频 / 运动升频）
+  Duration get activeSamplingPeriod =>
+      _idleMode ? kIdleSampleInterval : kSampleInterval;
+
+  /// 是否处于静止降频模式
+  bool get isIdleMode => _idleMode;
+
+  /// 重启全部传感器流（应用当前采样周期）。防抖：切换间隔内不重复重建。
+  void _restartSensorStreams() {
+    _accelSub?.cancel();
+    _gyroSub?.cancel();
+    _magSub?.cancel();
+    _accelSub = null;
+    _gyroSub = null;
+    _magSub = null;
+    if (!_running) return;
+
+    final period = activeSamplingPeriod;
     if (accelerometerAvailable) {
       try {
-        _accelSub =
-            accelerometerEventStream(samplingPeriod: kSampleInterval).listen(
-          (event) => _lastAccel = event,
+        _accelSub = accelerometerEventStream(samplingPeriod: period).listen(
+          (event) {
+            _lastAccel = event;
+            _handleAccelMotion(event);
+          },
           onError: (Object e) {
             debugPrint('[SensorService] 加速度计流错误: $e');
             accelerometerAvailable = false;
@@ -78,8 +115,7 @@ class SensorService {
 
     if (gyroscopeAvailable) {
       try {
-        _gyroSub =
-            gyroscopeEventStream(samplingPeriod: kSampleInterval).listen(
+        _gyroSub = gyroscopeEventStream(samplingPeriod: period).listen(
           (event) => _lastGyro = event,
           onError: (Object e) {
             debugPrint('[SensorService] 陀螺仪流错误: $e');
@@ -94,8 +130,7 @@ class SensorService {
 
     if (magnetometerAvailable) {
       try {
-        _magSub =
-            magnetometerEventStream(samplingPeriod: kSampleInterval).listen(
+        _magSub = magnetometerEventStream(samplingPeriod: period).listen(
           (event) => _lastMag = event,
           onError: (Object e) {
             debugPrint('[SensorService] 磁力计流错误: $e');
@@ -107,6 +142,28 @@ class SensorService {
         magnetometerAvailable = false;
       }
     }
+  }
+
+  /// 自适应采样判定：加速度模长变化超过阈值视为运动，切换采样档位。
+  ///
+  /// 纯逻辑可单测：仅依赖加速度模长差与防抖间隔。
+  void _handleAccelMotion(AccelerometerEvent event) {
+    final mag = math.sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+    final prev = _lastMotionMag;
+    _lastMotionMag = mag;
+    if (prev == null) return;
+    final moving = (mag - prev).abs() > kMotionDeltaThreshold;
+    final wantIdle = !moving;
+    final now = DateTime.now();
+    if (wantIdle == _idleMode) return;
+    if (_lastAdaptiveSwitch != null &&
+        now.difference(_lastAdaptiveSwitch!) < kAdaptiveSwitchMinInterval) {
+      return; // 防抖：切换后 2s 内不再重建流
+    }
+    _idleMode = wantIdle;
+    _lastAdaptiveSwitch = now;
+    debugPrint('[SensorService] 自适应采样切换: ${wantIdle ? "静止(10Hz)" : "运动(60Hz)"}');
+    _restartSensorStreams();
   }
 
   /// 停止所有传感器监听（保留能力标志，便于后续 start 复用）

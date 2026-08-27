@@ -125,6 +125,8 @@ class DeviceCommandRequest(BaseModel):
     source: str = Field(default="app", description="触发来源: app/vr_overlay/voice")
     scene_id: str | None = Field(default=None, description="关联场景 id（手动触发场景时携带）")
     ecosystem: str = Field(default="matter", description="生态桥类型: matter/homekit/mijia/harmonyos/tuya")
+    # 2026-08-27 P2 遗留修复：异步执行模式（请求立即返回，后台执行 + WS 推送结果）
+    execute_async: bool = Field(default=False, description="true=后台异步执行，结果经 WebSocket 推送")
 
 
 class DeviceCommandResponse(BaseModel):
@@ -134,9 +136,10 @@ class DeviceCommandResponse(BaseModel):
     action: str
     params: dict[str, Any] = Field(default_factory=dict)
     accepted: bool
-    action_status: str = Field(description="pending(桥接未接真机)/success/failed")
+    action_status: str = Field(description="queued(异步已入队)/pending(桥接未接真机)/success/failed")
     note: str | None = None
     state: dict[str, Any] | None = Field(default=None, description="设备实时状态（真机执行成功时返回）")
+    async_queued: bool = Field(default=False, description="是否为异步执行模式（结果经 WS 推送）")
 
 
 # ── 计算结果 ──
@@ -159,6 +162,13 @@ class WiringPlanResult(BaseModel):
     scheme_id: str
     wiring_items: list[dict[str, Any]] = Field(default_factory=list, description="布线项清单")
     notes: list[str] = Field(default_factory=list, description="布线注意事项")
+    # 2026-08-27 P2 遗留修复：GB 50311 弱电箱合规 + 设备安全合规（可选字段，向后兼容）
+    weak_current_box: dict[str, Any] | None = Field(
+        default=None, description="弱电箱合规建议（GB 50311）",
+    )
+    safety: dict[str, Any] | None = Field(
+        default=None, description="设备安全合规检查",
+    )
 
 
 class ProtocolAdviceResult(BaseModel):

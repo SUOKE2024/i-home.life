@@ -172,19 +172,46 @@ class HomeKitBridge(EcosystemBridge):
 
 
 class MijiaBridge(EcosystemBridge):
-    """米家 MiIO 协议桥接 — 真实云登录 + 设备清单（诚实降级）。
+    """米家 MiIO 协议桥接 — 真实云登录 + python-miio 设备清单/状态/控制（2026-08-27 接入）。
 
     小米智能家居生态，MiIO 协议基于云登录 + 签名 JSON-RPC。
 
     实现原则（诚实降级）：
-    - 未配置凭据（MIJIA_ACCOUNT / MIJIA_PASSWORD 或缺 device_token）→ 明确报错，
-      绝不伪装真实设备联动能力；
-    - 配置凭据后走真实 HTTP 云登录（小米 IoT 开发者平台），登录失败如实报错。
+    - 未配置凭据 → 明确 ValueError，绝不伪装真实设备联动能力；
+    - 云登录走真实 HTTP（_xiaoai_login，保持既有路径）；
+    - 设备清单/状态/控制走 python-miio（`miio.cloud.CloudInterface` + `miio.MiotDevice`）：
+      云接口未初始化 → NotImplementedError（诚实标注未接入）；
+      云/局域网调用失败 → RuntimeError（如实报错，不伪装成功）。
+    - 局限（诚实标注）：云清单拉取依赖米家账号网络可达；设备控制（MiotDevice）
+      要求服务端与设备同网段（局域网 miio 协议），跨网段不可用。
     """
 
     # 小米云登录端点
     LOGIN_URL = "https://account.xiaomi.com/pass/serviceLoginAuth2"
     LOGIN_QUERY = "sid=miio&_json=true"
+
+    # 常见 miot 属性映射（通用约定：siid=2 为开关/亮度控制域；具体型号可能不同，
+    # 失败如实报错；高级用法可在 params 传 siid/piid/value 直连）
+    _MIOT_DEFAULT_MAPPING: dict[str, dict] = {
+        "power": {"siid": 2, "piid": 1},
+        "brightness": {"siid": 2, "piid": 2},
+    }
+    # 动作 → (属性名, 固定值或 None=取 params)
+    _ACTION_MIOT: dict[str, tuple[str, object | None]] = {
+        "turn_on": ("power", True),
+        "turn_off": ("power", False),
+        "set_brightness": ("brightness", None),
+        "set_volume": ("volume", None),
+        "set_temperature": ("target_temperature", None),
+    }
+
+    def __init__(self, credentials: dict | None = None):
+        super().__init__(credentials)
+        self._session_cookie: str | None = None
+        self._username: str | None = None
+        self._password: str | None = None
+        self._cloud: object | None = None          # miio.cloud.CloudInterface（惰性）
+        self._devices: dict = {}                    # did → CloudDeviceInfo 缓存
 
     async def connect(self, credentials: dict) -> bool:
         if not credentials:
@@ -199,6 +226,8 @@ class MijiaBridge(EcosystemBridge):
         if not session:
             raise RuntimeError("米家云登录失败：凭据无效或网络不可达，请检查后重试")
         self._session_cookie = session
+        self._username = username
+        self._password = password
         self._connected = True
         return True
 
@@ -242,14 +271,70 @@ class MijiaBridge(EcosystemBridge):
         logger.info("MijiaBridge.disconnect")
         self._connected = False
         self._session_cookie = None
+        self._devices = {}
+
+    def _get_cloud(self) -> object | None:
+        """惰性初始化 python-miio CloudInterface（构造不登录，登录在 get_devices 内 to_thread）。"""
+        if self._cloud is None and self._username and self._password:
+            try:
+                from miio.cloud import CloudInterface
+                self._cloud = CloudInterface(self._username, self._password)
+            except Exception as e:  # noqa: BLE001 — 库缺失/初始化失败诚实降级
+                logger.warning("MijiaBridge.cloud_init_failed: %s", e)
+                self._cloud = None
+        return self._cloud
 
     async def get_devices(self) -> list[dict]:
         if not self.is_connected():
             raise RuntimeError("米家未连接，请先 connect（需要有效凭据）")
-        logger.info("MijiaBridge.get_devices: 需 /app/device_list 签名请求（依赖 python-miio）")
-        raise NotImplementedError(
-            "米家设备清单需接 python-miio 库签名请求，当前未接入；"
-            "已连接态仅代表云登录成功，不伪装设备数据。"
+        cloud = self._get_cloud()
+        if cloud is None:
+            raise NotImplementedError(
+                "米家云接口（python-miio）未初始化，设备清单不可用；"
+                "请确认凭据与网络后重试。"
+            )
+        try:
+            devices = await asyncio.to_thread(cloud.get_devices, "cn")
+        except Exception as e:  # noqa: BLE001 — 云调用失败如实报错
+            logger.error("MijiaBridge.get_devices cloud failed: %s", e)
+            raise RuntimeError(f"米家云设备清单拉取失败: {e}")
+        self._devices = devices
+        return self._list_devices()
+
+    def _list_devices(self) -> list[dict]:
+        """CloudDeviceInfo → 平台统一设备结构（token 为敏感字段，仍返回供桥内部使用）。"""
+        result = []
+        for did, info in self._devices.items():
+            result.append({
+                "id": str(did),
+                "did": getattr(info, "did", str(did)),
+                "name": getattr(info, "name", None),
+                "model": getattr(info, "model", None),
+                "ip": getattr(info, "ip", None),
+                "token": getattr(info, "token", None),
+                "parent_id": getattr(info, "parent_id", None),
+                "mac": getattr(info, "mac", None),
+            })
+        return result
+
+    async def _find_device(self, device_id: str) -> object | None:
+        """按 did/mac/id 定位云设备（首次拉取清单）。"""
+        if not self._devices:
+            await self.get_devices()
+        for did, info in self._devices.items():
+            if str(did) == str(device_id) or str(getattr(info, "did", "")) == str(device_id):
+                return info
+            if str(getattr(info, "mac", "")) == str(device_id):
+                return info
+        return None
+
+    def _new_miot_device(self, info) -> object:
+        """构造局域网 MiotDevice（python-miio）。"""
+        from miio import MiotDevice
+        return MiotDevice(
+            ip=getattr(info, "ip", None),
+            token=getattr(info, "token", None),
+            mapping=dict(self._MIOT_DEFAULT_MAPPING),
         )
 
     async def get_device_state(self, device_id: str) -> dict:
@@ -257,8 +342,23 @@ class MijiaBridge(EcosystemBridge):
             raise ValueError("device_id 不能为空")
         if not self.is_connected():
             raise RuntimeError("米家未连接，请先 connect")
-        logger.info(f"MijiaBridge.get_device_state: device_id={device_id}")
-        raise NotImplementedError("米家设备状态查询需接 python-miio 签名请求")
+        info = await self._find_device(device_id)
+        if info is None:
+            raise ValueError(f"米家设备未找到: {device_id}")
+        try:
+            dev = self._new_miot_device(info)
+            dev_info = await asyncio.to_thread(dev.info)
+            return {
+                "online": True,
+                "did": str(getattr(info, "did", device_id)),
+                "name": getattr(info, "name", None),
+                "model": getattr(dev_info, "model", None),
+                "firmware_version": getattr(dev_info, "firmware_version", None),
+                "ip": getattr(info, "ip", None),
+            }
+        except Exception as e:  # noqa: BLE001 — 局域网查询失败如实报错
+            logger.error("MijiaBridge.get_device_state failed: %s", e)
+            raise RuntimeError(f"米家设备状态查询失败（需与设备同网段）: {e}")
 
     async def send_command(self, device_id: str, command: str, params: dict) -> bool:
         if not device_id:
@@ -267,11 +367,44 @@ class MijiaBridge(EcosystemBridge):
             raise ValueError("command 不能为空")
         if not self.is_connected():
             raise RuntimeError("米家未连接，请先 connect")
-        logger.info(
-            f"MijiaBridge.send_command: device_id={device_id}, "
-            f"command={command}, params={params}"
-        )
-        raise NotImplementedError("米家设备控制需接 python-miio 签名请求")
+        info = await self._find_device(device_id)
+        if info is None:
+            raise ValueError(f"米家设备未找到: {device_id}")
+        params = params or {}
+        try:
+            dev = self._new_miot_device(info)
+            # 高级用法：params 显式 siid/piid/value 直连（绕过动作映射）
+            if "siid" in params and "piid" in params:
+                await asyncio.to_thread(
+                    dev.set_property_by, params["siid"], params["piid"], params.get("value"),
+                )
+                logger.info(
+                    "MijiaBridge.send_command(by_id): device=%s siid=%s piid=%s value=%s",
+                    device_id, params["siid"], params["piid"], params.get("value"),
+                )
+                return True
+            spec = self._ACTION_MIOT.get(command)
+            if spec is None:
+                raise NotImplementedError(
+                    f"米家桥暂不支持动作 {command}（支持: {', '.join(self._ACTION_MIOT)}）"
+                )
+            prop, fixed = spec
+            value = params.get(prop) if fixed is None else fixed
+            if value is None:
+                raise ValueError(f"动作 {command} 缺少参数 {prop}")
+            await asyncio.to_thread(dev.set_property, prop, value)
+            logger.info(
+                "MijiaBridge.send_command: device=%s command=%s prop=%s value=%s",
+                device_id, command, prop, value,
+            )
+            return True
+        except NotImplementedError:
+            raise
+        except ValueError:
+            raise
+        except Exception as e:  # noqa: BLE001 — 局域网控制失败如实报错
+            logger.error("MijiaBridge.send_command failed: %s", e)
+            raise RuntimeError(f"米家设备控制失败（需与设备同网段）: {e}")
 
     async def sync_scenes(self, scenes: list[dict]) -> bool:
         if not scenes:
@@ -279,7 +412,7 @@ class MijiaBridge(EcosystemBridge):
         if not self.is_connected():
             raise RuntimeError("米家未连接，请先 connect")
         logger.info(f"MijiaBridge.sync_scenes: {len(scenes)} scenes")
-        raise NotImplementedError("米家场景同步需接 python-miio 签名请求")
+        raise NotImplementedError("米家场景同步需米家云场景 API，当前未接入")
 
 
 class HarmonyOSBridge(EcosystemBridge):

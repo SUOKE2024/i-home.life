@@ -2,6 +2,48 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.11] - 2026-08-27（设备链路加固：穿戴/智能家居接入评估报告落地）
+
+执行依据：2026-08-27 生产三轮三智能体验证发现 ISSUE-001（传感器越界未校验，部署漂移）
++ 穿戴/智能家居接入评估报告（详见 `docs/reports/device-link-hardening-20260827.md`）。
+
+- **数据完整性校验**：`SensorSnapshotRequest` 数值范围约束（温度 -40~80 / 湿度 0~100 /
+  光照 0~200000 lux / GPS 纬度 ±90、经度 ±180、accuracy ≥0，越界 422）；
+  `HealthMonitorCreate` 的 `monitor_type` 收窄为 Literal 枚举 + `value` 必需键校验
+  （heart_rate→bpm、spo2→spo2、sleep_quality→sleep_score、fall_detection→fall_detected、
+  activity_tracking→steps；air_quality 兼容历史键不强制）。
+- **桥命令超时与重试**：`scene_automation_service._bridge_send_command` 统一桥命令超时
+  （10s）+ 瞬时错误重试 1 次（确定性失败 NotImplementedError/ValueError 不重试）；
+  `pool.get` 建连同样限时，防第三方桥挂起拖垮请求/场景。
+- **触发扫描索引化**：`scene_automations.trigger_type` 冗余派生列（写路径统一：
+  create_scene/update_scene/accept_prediction）+ 索引（迁移 `c2d3e4f5a6b7`），
+  `check_sensor_triggers` SQL 层按 `trigger_type == "sensor"` 预过滤。
+- **凭据加密**：`app/services/device_credentials.py` 用 SHA-256(paseto_secret_key)
+  派生 AES-256-GCM 密钥，加密 Matter `wifi_credentials`/`thread_credentials` 落库，
+  解密失败诚实返回 None。
+- **per-user 限流**：`POST /api/sensors/snapshot` 按用户滑动窗口限流
+  （`sensor_snapshot_rate_limit_per_minute` 默认 30/min，0/负值不限流），
+  补通用 IP 限流与设备高频上报场景的错配。
+- **state 并发保护**：`scene_automation_service._device_lock(device_id)` per-device
+  asyncio.Lock 串行化，命令/场景状态更新锁内 `db.refresh` 再合并。
+- **命令/场景异步化**：`DeviceCommandRequest`/`SceneExecuteRequest.execute_async=True`
+  → 请求立即返回 `queued`，BackgroundTasks 独立 session 执行 + WS 回填（`async: true`）。
+- **GB 50311 布线合规**：`plan_wiring` 返回 `weak_current_box`/`safety` 可选字段。
+- **可观测性**：metrics 新增 `device_command_total/duration_seconds`、
+  `scene_execute_total/duration_seconds`、`sensor_snapshot_upload_total`。
+- **穿戴 BLE 接入（Flutter）**：`flutter_blue_plus ^2.3.12`；`wearable_ble_service.dart`
+  扫描/连接/心率（0x180D/0x2A37）/电量订阅；`wearable_devices_page.dart` 页面 +
+  一键上报 health-monitor；`SensorService` 自适应采样（静止 10Hz / 运动 60Hz）；
+  smart_home_page 加穿戴入口 + WS 订阅设备状态事件。
+- **米家真机化（后端）**：`python-miio>=0.5.12`；`MijiaBridge.get_devices` 云清单 /
+  `get_device_state` 局域网 / `send_command` 动作映射；云接口未初始化
+  `NotImplementedError`、调用失败 `RuntimeError` 诚实报错。
+- **版本**：1.15.10 → 1.15.11 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.11+59/webapp+lock/console 1.15.11.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：新增 `test_device_link_hardening.py`（传感器越界 422 回归锁定）；全量
+  基线校准 2652 passed（collect 2658 = 2652 passed + 2 skipped + 4 xfailed，
+  首跑零重试，9 分 27 秒）。
+
 ## [1.15.10] - 2026-08-21（全景评估修复轮：验证脚本契约对齐 / QA 遗留回归锁定 / CI 部署门禁 / 前端清理）
 
 执行依据：2026-08-21 全景·全量·全链路评估报告（三端审计 + 门禁实测）发现项修复。

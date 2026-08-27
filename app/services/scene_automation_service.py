@@ -1,12 +1,20 @@
 """F32 场景编辑服务层 — 场景联动 + 生态对接 + 自然语言解析 + A4 预测式推荐"""
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from time import monotonic
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.metrics import (
+    device_command_duration_seconds,
+    device_command_total,
+    scene_execute_duration_seconds,
+    scene_execute_total,
+)
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
 from app.models.smart_home import SmartDevice
 
@@ -21,10 +29,78 @@ _BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 logger = logging.getLogger("ihome.scene_automation")
 
 
+# ── 生态桥命令超时与重试（2026-08-27 设备链路加固）──
+# 桥接 send_command 是真实第三方 I/O，可能 hang 或瞬时失败：
+# - asyncio.wait_for 保证单次调用有上界，防桥挂起拖垮整场景/请求
+# - 确定性失败（NotImplementedError/ValueError，stub/凭据问题）不重试
+# - 超时/瞬时网络错误重试 1 次（共 2 次尝试），仍失败由调用方标注 failed
+BRIDGE_COMMAND_TIMEOUT_SECONDS: float = 10.0
+BRIDGE_COMMAND_RETRY_ATTEMPTS: int = 2
+
+
+async def _bridge_send_command(bridge, device_id: str, action: str, params: dict) -> bool:
+    """带超时与重试的桥接 send_command（确定性失败不重试）。"""
+    last_error: Exception = RuntimeError("未知桥接错误")
+    for attempt in range(1, BRIDGE_COMMAND_RETRY_ATTEMPTS + 1):
+        try:
+            return await asyncio.wait_for(
+                bridge.send_command(device_id, action, params),
+                timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
+            )
+        except (NotImplementedError, ValueError):
+            raise
+        except asyncio.TimeoutError:
+            last_error = TimeoutError(
+                f"桥接命令超时（>{BRIDGE_COMMAND_TIMEOUT_SECONDS}s）"
+            )
+            logger.warning(
+                "bridge_command_timeout: device=%s action=%s attempt=%d/%d",
+                device_id, action, attempt, BRIDGE_COMMAND_RETRY_ATTEMPTS,
+            )
+        except Exception as e:  # noqa: BLE001 — 瞬时错误重试，最终失败由调用方标注 failed
+            last_error = e
+            logger.warning(
+                "bridge_command_retry: device=%s action=%s attempt=%d/%d error=%s",
+                device_id, action, attempt, BRIDGE_COMMAND_RETRY_ATTEMPTS, e,
+            )
+    raise last_error
+
+
+# ── 设备状态并发保护（2026-08-27 P2 遗留修复）──
+# 单设备命令/场景状态更新按 device_id 串行化：进程内 asyncio.Lock 互斥，
+# 防两个并发请求对 SmartDevice.state 做 read-modify-write 竞争（last-write-wins 状态错乱）。
+# 局限：uvicorn 多 worker（--workers 4）下锁不跨进程共享（与 per-user 限流同局限，
+# best-effort 诚实标注；多 worker 严格一致需 DB 乐观锁，列为后续项）。
+_device_locks: dict[str, asyncio.Lock] = {}
+_device_locks_guard = asyncio.Lock()
+
+
+async def _device_lock(device_id: str) -> asyncio.Lock:
+    """获取设备级串行化锁（按需创建，同一设备共享同一锁实例）。"""
+    async with _device_locks_guard:
+        lock = _device_locks.get(device_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            _device_locks[device_id] = lock
+        return lock
+
+
 # ── 场景 CRUD ──
 
 
+def _derive_trigger_type(condition: dict | None) -> str | None:
+    """从 trigger_condition 派生 trigger_type（冗余列，供 SQL 层索引过滤）。"""
+    if not isinstance(condition, dict):
+        return None
+    t = condition.get("type")
+    if isinstance(t, str) and t in ("time", "device", "geo", "sensor"):
+        return t
+    return None
+
+
 async def create_scene(db: AsyncSession, data: dict) -> SceneAutomation:
+    data = dict(data)
+    data["trigger_type"] = _derive_trigger_type(data.get("trigger_condition"))
     scene = SceneAutomation(**data)
     db.add(scene)
     await db.commit()
@@ -53,6 +129,8 @@ async def update_scene(db: AsyncSession, scene_id: str, data: dict) -> SceneAuto
     for k, v in data.items():
         if v is not None:
             setattr(scene, k, v)
+    # trigger_condition 变更后重派 trigger_type（冗余列一致性）
+    scene.trigger_type = _derive_trigger_type(scene.trigger_condition)
     await db.commit()
     await db.refresh(scene)
     return scene
@@ -665,13 +743,15 @@ async def check_sensor_triggers(
 
     log = logging.getLogger("ihome.scene_automation")
 
-    # 1. 查询用户所有项目下启用的 sensor 触发场景
+    # 1. 查询用户所有项目下启用的 sensor 触发场景（trigger_type 索引列 SQL 层预过滤，
+    #    避免每次快照上传全量扫描所有 enabled 场景再 Python 过滤——2026-08-27 加固）
     result = await db.execute(
         select(SceneAutomation)
         .join(Project, Project.id == SceneAutomation.project_id)
         .where(
             Project.owner_id == user_id,
             SceneAutomation.enabled.is_(True),
+            SceneAutomation.trigger_type == "sensor",
         )
     )
     scenes = list(result.scalars().all())
@@ -930,54 +1010,63 @@ async def execute_device_command(
         "设备动作执行依赖生态桥接（ecosystem_bridge），当前未配置 API key，"
         "已记录触发意图，待桥接接入真机后执行"
     )
-    pool = None
-    try:
-        from app.services.ecosystem_bridge import BridgeConnectionPool
-        pool = BridgeConnectionPool()
-        logger.info(
-            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → connect(池化)",
-            device.id, action, ecosystem,
-        )
-        bridge = await pool.get(ecosystem)
-        logger.info(
-            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → send_command",
-            device.id, action, ecosystem,
-        )
-        ok = await bridge.send_command(device.id, action, params or {})
-        logger.info(
-            "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → result=%s",
-            device.id, action, ecosystem, ok,
-        )
-        if ok:
-            action_status = "success"
-            note = None
-            # 真机执行成功才写入实时状态（诚实数据源，pending 不写）
-            delta = _action_state_delta(action, params or {})
-            if delta:
-                device.state = {**(device.state or {}), **delta}
-                logger.info(
-                    "device_command_state_applied: device=%s action=%s delta=%s",
-                    device.id, action, delta,
-                )
-    except (NotImplementedError, ValueError) as e:
-        # 桥未实现 / 凭据未配置 → 未接真机，诚实标注 pending（不伪装已执行）
-        note = f"bridge_not_configured: {e}"
-        logger.info(
-            "device_command_bridge_not_configured: device=%s action=%s ecosystem=%s error=%s",
-            device.id, action, ecosystem, e,
-        )
-    except Exception as e:
-        action_status = "failed"
-        note = f"bridge_error: {e}"
-        logger.warning(
-            "device_command_bridge_error: device=%s action=%s ecosystem=%s error=%s",
-            device.id, action, ecosystem, e,
-        )
-    finally:
-        if pool:
-            await pool.close_all()
+    _cmd_start = monotonic()
+    # 同设备命令串行化（防 state read-modify-write 竞争，best-effort 跨 worker）
+    lock = await _device_lock(device.id)
+    async with lock:
+        pool = None
+        try:
+            from app.services.ecosystem_bridge import BridgeConnectionPool
+            pool = BridgeConnectionPool()
+            logger.info(
+                "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → connect(池化)",
+                device.id, action, ecosystem,
+            )
+            bridge = await asyncio.wait_for(
+                pool.get(ecosystem), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
+            )
+            logger.info(
+                "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → send_command",
+                device.id, action, ecosystem,
+            )
+            ok = await _bridge_send_command(bridge, device.id, action, params or {})
+            logger.info(
+                "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → result=%s",
+                device.id, action, ecosystem, ok,
+            )
+            if ok:
+                action_status = "success"
+                note = None
+                # 真机执行成功才写入实时状态（诚实数据源，pending 不写）
+                delta = _action_state_delta(action, params or {})
+                if delta:
+                    device.state = {**(device.state or {}), **delta}
+                    logger.info(
+                        "device_command_state_applied: device=%s action=%s delta=%s",
+                        device.id, action, delta,
+                    )
+        except (NotImplementedError, ValueError) as e:
+            # 桥未实现 / 凭据未配置 → 未接真机，诚实标注 pending（不伪装已执行）
+            note = f"bridge_not_configured: {e}"
+            logger.info(
+                "device_command_bridge_not_configured: device=%s action=%s ecosystem=%s error=%s",
+                device.id, action, ecosystem, e,
+            )
+        except Exception as e:
+            action_status = "failed"
+            note = f"bridge_error: {e}"
+            logger.warning(
+                "device_command_bridge_error: device=%s action=%s ecosystem=%s error=%s",
+                device.id, action, ecosystem, e,
+            )
+        finally:
+            if pool:
+                await pool.close_all()
 
     await db.commit()
+    # 可观测性：命令耗时分布 + 状态计数（2026-08-27 加固）
+    device_command_duration_seconds.observe(monotonic() - _cmd_start)
+    device_command_total.labels(status=action_status).inc()
     logger.info(
         "device_command_executed: user=%s device=%s name=%s action=%s "
         "status=%s source=%s note=%s",
@@ -1073,12 +1162,14 @@ async def _run_scene_action(pool, scene: SceneAutomation, item: dict) -> dict:
             "scene_execute_action_bridge: scene=%s device=%s action=%s ecosystem=%s → connect(池化)",
             scene.id, device.id, action, ecosystem,
         )
-        bridge = await pool.get(ecosystem)
+        bridge = await asyncio.wait_for(
+            pool.get(ecosystem), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
+        )
         logger.info(
             "scene_execute_action_bridge: scene=%s device=%s action=%s → send_command",
             scene.id, device.id, action,
         )
-        ok = await bridge.send_command(device.id, action, params)
+        ok = await _bridge_send_command(bridge, device.id, action, params)
         logger.info(
             "scene_execute_action_bridge: scene=%s device=%s action=%s → result=%s",
             scene.id, device.id, action, ok,
@@ -1129,8 +1220,7 @@ async def execute_scene_actions(
     - 阶段 B（串行，有 DB）：SceneBehaviorLog 逐条 add + 单次 commit
     - 连接复用：BridgeConnectionPool 场景级 1 次 connect，N 动作共享
     """
-    import asyncio
-
+    _scene_start = monotonic()
     from app.models.scene_behavior import SceneBehaviorLog
 
     logger.info(
@@ -1209,7 +1299,8 @@ async def execute_scene_actions(
                 "note": item["note"],
             })
 
-    # 真机执行成功的动作写实时状态（诚实数据源，pending 不写）
+    # 真机执行成功的动作写实时状态（诚实数据源，pending 不写；
+    # 同设备 state 更新加锁串行化，防与单设备命令 read-modify-write 竞争）
     for r in final_results:
         if r["action_status"] != "success":
             continue
@@ -1217,7 +1308,12 @@ async def execute_scene_actions(
         if not device:
             continue
         delta = _action_state_delta(r["action"], r["params"] or {})
-        if delta:
+        if not delta:
+            continue
+        lock = await _device_lock(device.id)
+        async with lock:
+            # 锁内刷新最新 state 再合并：防独立 session 快照陈旧互相覆盖
+            await db.refresh(device)
             device.state = {**(device.state or {}), **delta}
             logger.info(
                 "scene_execute_state_applied: scene=%s device=%s action=%s delta=%s",
@@ -1235,7 +1331,9 @@ async def execute_scene_actions(
         user_id, scene.id, scene.scene_name, trigger_source, len(final_results),
         status_summary,
     )
-    from datetime import datetime
+    # 可观测性：场景执行耗时分布 + 触发源计数（2026-08-27 加固）
+    scene_execute_duration_seconds.observe(monotonic() - _scene_start)
+    scene_execute_total.labels(trigger_source=trigger_source).inc()
     return {
         "scene_id": scene.id,
         "scene_name": scene.scene_name,

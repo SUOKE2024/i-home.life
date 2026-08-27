@@ -1,6 +1,8 @@
 """F32 场景编辑 API + A4 预测式智能场景推荐"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -143,23 +145,69 @@ async def simulate_scene(
     return SceneSimulateResult(**result)
 
 
+# ── 场景执行（P0 3D 场景/语音触发入口，2026-08-12）──
+
+
+async def _run_scene_bg(scene_id: str, user_id: str, trigger_source: str) -> None:
+    """异步执行场景（2026-08-27 P2 遗留修复）：独立 session 执行 + WS 回填结果。
+
+    场景动作为真实第三方桥 I/O，异步化避免 HTTP 请求被桥响应拖慢；
+    结果经 WS scene.triggered 推送（多 worker 下仅同进程连接可达，best-effort）。
+    """
+    import logging
+
+    from datetime import datetime, timezone
+
+    from app.database import async_session
+    from app.ws import ws_manager
+
+    log = logging.getLogger("ihome.scene_automation")
+    async with async_session() as db:
+        scene = await svc.get_scene(db, scene_id)
+        if not scene:
+            log.warning("scene_execute_async_skipped: scene=%s 不存在", scene_id)
+            return
+        result = await svc.execute_scene_actions(db, scene, user_id, trigger_source)
+        result["async_queued"] = True
+        result["triggered_at"] = datetime.now(timezone.utc).isoformat()
+        await ws_manager.broadcast_to_project(
+            scene.project_id, "scene.triggered",
+            {"scene_id": scene.id, "scene_name": scene.scene_name, "result": result, "async": True},
+        )
+        log.info("scene_execute_async_done: scene=%s source=%s", scene_id, trigger_source)
+
+
 @router.post("/scenes/{scene_id}/execute", response_model=SceneExecuteResult)
 async def execute_scene(
     scene_id: str,
     body: SceneExecuteRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """执行场景（P0 3D 场景/语音触发入口，2026-08-12）。
 
     - 与传感器自动触发（check_sensor_triggers）共用执行语义
     - 每个动作写 SceneBehaviorLog(action_type=manual_trigger)
     - 生态桥逐个执行，未接真机 action_status=pending 诚实标注
+    - execute_async=True：请求立即返回，后台执行 + WS 推送结果（2026-08-27）
     """
     scene = await svc.get_scene(db, scene_id)
     if not scene:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="场景不存在")
     await verify_project_access(project_id=scene.project_id, current_user=current_user, db=db)
+
+    # ── 异步模式：请求立即返回，后台执行 + WS 回填（防桥慢拖垮请求）──
+    if body.execute_async:
+        background_tasks.add_task(_run_scene_bg, scene.id, current_user.id, body.trigger_source)
+        return SceneExecuteResult(
+            scene_id=scene.id,
+            scene_name=scene.scene_name,
+            executed=True,
+            actions=[],
+            triggered_at=datetime.now(timezone.utc).isoformat(),
+            async_queued=True,
+        )
 
     result = await svc.execute_scene_actions(
         db, scene, current_user.id, trigger_source=body.trigger_source,

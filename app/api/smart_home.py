@@ -1,6 +1,6 @@
 """F31 智能家居方案设计器 API"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -274,18 +274,72 @@ async def update_device(
 # ── 设备命令（P0 3D 场景/语音控制入口，2026-08-12）──
 
 
+async def _run_device_command_bg(
+    device_id: str,
+    project_id: str,
+    action: str,
+    params: dict,
+    user_id: str,
+    source: str,
+    scene_id: str | None,
+    ecosystem: str,
+) -> None:
+    """异步执行设备命令（2026-08-27 P2 遗留修复）：独立 session 执行 + WS 回填结果。
+
+    桥命令为真实第三方 I/O，异步化避免 HTTP 请求被桥响应拖慢；
+    结果经 WS smart.device.state 推送（多 worker 下仅同进程连接可达，best-effort）。
+    """
+    import logging
+
+    from sqlalchemy import select
+
+    from app.database import async_session
+    from app.models.smart_home import SmartDevice
+    from app.services.scene_automation_service import execute_device_command
+    from app.ws import ws_manager
+
+    log = logging.getLogger("ihome.smart_home")
+    async with async_session() as db:
+        result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
+        device = result.scalar_one_or_none()
+        if not device:
+            log.warning("device_command_async_skipped: device=%s 不存在", device_id)
+            return
+        outcome = await execute_device_command(
+            db=db, device=device, project_id=project_id, action=action,
+            params=params, user_id=user_id, source=source, scene_id=scene_id,
+            ecosystem=ecosystem,
+        )
+        await ws_manager.broadcast_to_project(
+            project_id, "smart.device.state",
+            {
+                "device_id": device_id,
+                "action": action,
+                "action_status": outcome["action_status"],
+                "state": outcome.get("state"),
+                "async": True,
+            },
+        )
+        log.info(
+            "device_command_async_done: device=%s action=%s status=%s",
+            device_id, action, outcome["action_status"],
+        )
+
+
 @router.post("/devices/{device_id}/command", response_model=DeviceCommandResponse)
 async def device_command(
     device_id: str,
     data: DeviceCommandRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """执行设备命令（3D 漫游/语音入口）。
 
     - 动作白名单校验（复用 DEVICE_ACTION_WHITELIST）
     - 写入 SceneBehaviorLog(action_type=device_command)，ambient_data 取最近真实传感器快照
     - 生态桥执行，未接真机 action_status=pending 诚实标注（不伪装已执行）
+    - execute_async=True：请求立即返回 queued，后台执行 + WS 推送结果（2026-08-27）
     """
     from sqlalchemy import select
     from app.models.smart_home import SmartDevice
@@ -299,6 +353,38 @@ async def device_command(
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+
+    # ── 异步模式：请求立即返回，后台执行 + WS 回填（防桥慢拖垮请求）──
+    if data.execute_async:
+        from app.models.scene_behavior import SceneBehaviorLog
+        db.add(SceneBehaviorLog(
+            project_id=scheme.project_id,
+            user_id=current_user.id,
+            action_type="device_command",
+            scene_id=data.scene_id,
+        ))
+        await db.commit()
+        background_tasks.add_task(
+            _run_device_command_bg,
+            device_id=device.id,
+            project_id=scheme.project_id,
+            action=data.action,
+            params=data.params,
+            user_id=current_user.id,
+            source=data.source,
+            scene_id=data.scene_id,
+            ecosystem=data.ecosystem,
+        )
+        return DeviceCommandResponse(
+            device_id=device.id,
+            device_name=device.device_name,
+            action=data.action,
+            params=data.params,
+            accepted=True,
+            action_status="queued",
+            note="命令已加入异步执行队列，执行结果将通过 WebSocket 推送",
+            async_queued=True,
+        )
 
     outcome = await execute_device_command(
         db=db,
@@ -652,8 +738,9 @@ async def commission_matter_device(
             detail=str(e),
         )
 
-    # ── 写入 matter_devices 表 ──
+    # ── 写入 matter_devices 表（凭据加密存储，2026-08-27 加固）──
     from app.models.matter_device import MatterDevice
+    from app.services.device_credentials import encrypt_device_credentials
 
     matter_unique_id = (
         f"{body.vendor_id or 0}:{body.product_id or 0}:passcode-{body.passcode}"
@@ -669,8 +756,8 @@ async def commission_matter_device(
         fabric_index=result.get("fabric_index"),
         clusters=result.get("clusters"),
         endpoints=result.get("endpoints"),
-        thread_credentials=body.thread_credentials,
-        wifi_credentials=body.wifi_credentials,
+        thread_credentials=encrypt_device_credentials(body.thread_credentials),
+        wifi_credentials=encrypt_device_credentials(body.wifi_credentials),
     )
     db.add(matter_device)
     await db.commit()

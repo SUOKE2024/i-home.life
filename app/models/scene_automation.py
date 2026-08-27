@@ -23,6 +23,10 @@ class SceneAutomation(Base):
     # scene_type: manual(手动) / scheduled(定时) / triggered(触发) / geo(地理围栏)
     trigger_condition: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 触发条件 JSON: {"type": "time", "cron": "0 7 * * *"} 或 {"type": "device", "device_id": "xxx", "state": "on"}
+    trigger_type: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    # 触发类型派生列（2026-08-27 设备链路加固）：从 trigger_condition.type 冗余派生，
+    # 供 check_sensor_triggers 在 SQL 层按 "sensor" 预过滤，避免每次快照上传全量扫描。
+    # 写路径（create_scene/update_scene/accept_prediction）统一派生，勿直接改 JSON 匹配逻辑。
     actions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # 执行动作列表 JSON: [{"device_id": "xxx", "action": "turn_on", "params": {"brightness": 80}}]
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

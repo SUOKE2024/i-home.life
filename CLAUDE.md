@@ -65,6 +65,22 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **项目周报**（`project_weekly_briefing_enabled` 默认 True）：`GET /agents/projects/{id}/weekly-briefing` 六段确定性数据逐段标注数据源 + AI 建议 economy 档 best-effort；关闭 503。
 - **Robot-Ready**：`robot_ready_service` 五项确定性校验——数据缺失逐项 `insufficient_data`，**全缺不得判不合格**（诚实降级红线）；`spatial-semantics/0.1` 为平台先行定义导出 schema（行业无标准，改 schema 须 bump 版本号并同步文档）。
 
+## 设备链路加固（2026-08-27，穿戴/智能家居接入评估报告落地，详见 `docs/reports/device-link-hardening-20260827.md`）
+
+- **数据完整性校验**：`SensorSnapshotRequest` 数值范围约束（温度 -40~80 / 湿度 0~100 / 光照 0~200000 lux / GPS 纬度 ±90、经度 ±180、accuracy ≥0，越界 422）；`HealthMonitorCreate` 的 `monitor_type` 收窄为 Literal 枚举 + `value` 必需键校验（heart_rate→bpm、spo2→spo2、sleep_quality→sleep_score、fall_detection→fall_detected、activity_tracking→steps；air_quality 兼容历史键不强制）。**改这两处 schema 须同步 Flutter 端上传字段**。
+- **桥命令超时与重试**：`scene_automation_service._bridge_send_command` 统一桥命令超时（`BRIDGE_COMMAND_TIMEOUT_SECONDS=10s`）+ 瞬时错误重试 1 次（共 2 次；确定性失败 NotImplementedError/ValueError 不重试）；`pool.get` 建连同样限时。防第三方桥挂起拖垮请求/场景。
+- **触发扫描索引化**：`scene_automations.trigger_type` 冗余派生列（从 `trigger_condition.type` 派生，写路径统一：`create_scene`/`update_scene`/`accept_prediction`，测试直构须补该列）+ 索引（迁移 `c2d3e4f5a6b7`），`check_sensor_triggers` 改为 SQL 层按 `trigger_type == "sensor"` 预过滤。
+- **凭据加密**：`app/services/device_credentials.py` 用 SHA-256(paseto_secret_key) 派生 AES-256-GCM 密钥，加密 Matter `wifi_credentials`/`thread_credentials` 落库（JSON 存 `{"encrypted": b64}`），解密失败诚实返回 None 不伪装。
+- **per-user 限流**：`POST /api/sensors/snapshot` 按用户滑动窗口限流（`sensor_snapshot_rate_limit_per_minute` 默认 30/min，0/负值不限流），补通用 IP 限流与设备高频上报场景的错配；进程内存储，多 worker 不共享（best-effort）。
+- **可观测性**：metrics 新增 `device_command_total/duration_seconds`、`scene_execute_total/duration_seconds`、`sensor_snapshot_upload_total`。
+
+**第二批（2026-08-27 P2 遗留修复 + 穿戴/智能家居接入）**：
+- **state 并发保护**：`scene_automation_service._device_lock(device_id)` per-device asyncio.Lock 串行化（进程内，多 worker best-effort），命令/场景状态更新锁内 `db.refresh` 再合并。
+- **命令/场景异步化**：`DeviceCommandRequest`/`SceneExecuteRequest.execute_async=True` → 请求立即返回 `queued`，BackgroundTasks 独立 session 执行 + WS 回填（`async: true`）；同步路径保持兼容。
+- **GB 50311 布线合规**：`plan_wiring` 返回 `weak_current_box`/`safety` 可选字段（接入 `check_weak_current_box`/`check_safety_compliance`）。
+- **穿戴 BLE 接入（Flutter）**：`flutter_blue_plus ^2.3.12`（connect 需 `License.nonprofit` 免费档；鸿蒙能力探测降级）；`wearable_ble_service.dart` 扫描/连接/心率（0x180D/0x2A37）/电量订阅；`wearable_devices_page.dart` 页面 + 一键上报 health-monitor（device_id=BLE MAC）。`SensorService` 自适应采样（静止 10Hz / 运动 60Hz，加速度模长差 + 2s 防抖）；smart_home_page 加穿戴入口 + WS 订阅设备状态事件 + 快照 30s 周期上报。
+- **米家真机化（后端）**：`python-miio>=0.5.12`；`MijiaBridge.get_devices`（`miio.cloud.CloudInterface` 云清单）/`get_device_state`（`MiotDevice.info` 局域网）/`send_command`（`MiotDevice.set_property` 动作映射 + siid/piid/value 直连）；云接口未初始化 `NotImplementedError`、调用失败 `RuntimeError` 诚实报错；**控制要求服务端与设备同网段**（诚实标注）。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
@@ -81,7 +97,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2624 passed 不得回退（collect 2630 = 2624 passed + 2 skipped + 4 xfailed，2026-08-25 评估闭环四轮全量校准，首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2652 passed 不得回退（collect 2658 = 2652 passed + 2 skipped + 4 xfailed，2026-08-27 设备链路加固+穿戴/米家接入后全量校准，15 分钟首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

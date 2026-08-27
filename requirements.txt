@@ -13,6 +13,7 @@ pydantic-settings>=2.0.0
 httpx>=0.28.0
 python-dotenv>=1.2.0
 alembic>=1.18.0
+python-miio>=0.5.12  # 米家智能家居真机接入（MijiaBridge 云清单/局域网控制，2026-08-27）
 openpyxl>=3.0.0
 python-multipart>=0.0.5
 Pillow>=10.0.0

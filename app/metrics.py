@@ -149,6 +149,35 @@ agent_trace_persisted_total = Counter(
     ["agent", "status"],  # status: success / fallback / error
 )
 
+# ── 设备链路指标（2026-08-27 加固）──
+# 设备命令 / 场景执行 / 传感器上报的可观测性：耗时分布可告警（桥挂起/场景慢），
+# 计数按状态分布可看真实执行 vs pending 降级比例（诚实降级可观测）。
+device_command_total = Counter(
+    "device_command_total",
+    "Device commands executed by status",
+    ["status"],  # status: pending / success / failed
+)
+device_command_duration_seconds = Histogram(
+    "device_command_duration_seconds",
+    "Device command duration in seconds",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+)
+scene_execute_total = Counter(
+    "scene_execute_total",
+    "Scene executions by trigger source",
+    ["trigger_source"],
+)
+scene_execute_duration_seconds = Histogram(
+    "scene_execute_duration_seconds",
+    "Scene execution duration in seconds",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
+)
+sensor_snapshot_upload_total = Counter(
+    "sensor_snapshot_upload_total",
+    "Sensor snapshot uploads by platform",
+    ["platform"],
+)
+
 
 def metrics_response() -> Response:
     """返回 Prometheus 格式的指标数据。"""

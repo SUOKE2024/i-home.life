@@ -133,7 +133,7 @@ async def test_mijia_bridge_login_failure_is_honest(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_mijia_bridge_login_success(monkeypatch):
-    """云登录成功 → 已连接；未接设备签名请求仍诚实 NotImplementedError"""
+    """云登录成功 → 已连接；云接口未初始化时设备清单诚实 NotImplementedError"""
     bridge = MijiaBridge()
 
     async def _ok(username, password):
@@ -143,7 +143,8 @@ async def test_mijia_bridge_login_success(monkeypatch):
     assert await bridge.connect({"username": "u", "password": "p"}) is True
     assert bridge.is_connected() is True
 
-    # 设备清单未接 python-miio，诚实报错而非伪装数据
+    # 云接口未初始化（python-miio 不可用/凭据未就绪）→ 诚实 NotImplementedError，不伪装数据
+    monkeypatch.setattr(bridge, "_get_cloud", lambda: None)
     with pytest.raises(NotImplementedError):
         await bridge.get_devices()
 
@@ -153,6 +154,142 @@ async def test_bridge_factory_mijia():
     """工厂能创建米家桥接实例"""
     bridge = BridgeFactory.get_bridge("mijia")
     assert isinstance(bridge, MijiaBridge)
+
+
+# ── 米家桥真机化（python-miio 接入，2026-08-27）──
+
+
+class _FakeDevInfo:
+    """fake MiotDevice.info() 返回对象"""
+
+    def __init__(self, model="yeelink.light.xxx", firmware="1.0.0"):
+        self.model = model
+        self.firmware_version = firmware
+
+
+class _FakeDeviceInfo:
+    """fake miio.cloud.CloudDeviceInfo（仅暴露桥访问的属性）"""
+
+    def __init__(self, did, name, model, ip, token, mac=None):
+        self.did = did
+        self.name = name
+        self.model = model
+        self.ip = ip
+        self.token = token
+        self.mac = mac
+        self.parent_id = None
+
+
+class _FakeMiotDevice:
+    """fake MiotDevice（记录 set_property 调用）"""
+
+    def __init__(self):
+        self.calls = []
+
+    def set_property(self, prop, value):
+        self.calls.append(("set", prop, value))
+
+    def set_property_by(self, siid, piid, value):
+        self.calls.append(("by_id", siid, piid, value))
+
+    def info(self):
+        return _FakeDevInfo()
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_get_devices_cloud_success(monkeypatch):
+    """云清单成功：返回平台统一设备结构（python-miio CloudInterface.get_devices）"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+
+    class _FakeCloud:
+        def get_devices(self, locale):
+            return {
+                "123456": _FakeDeviceInfo("123456", "客厅灯", "yeelink.light.xxx", "192.168.1.10", "tok123"),
+                "654321": _FakeDeviceInfo("654321", "智能插座", "chuangmi.plug.v3", "192.168.1.11", "tok456", mac="AA:BB"),
+            }
+
+    monkeypatch.setattr(bridge, "_get_cloud", lambda: _FakeCloud())
+    devices = await bridge.get_devices()
+    assert len(devices) == 2
+    d0 = devices[0]
+    assert d0["id"] == "123456"
+    assert d0["name"] == "客厅灯"
+    assert d0["model"] == "yeelink.light.xxx"
+    assert d0["ip"] == "192.168.1.10"
+    assert d0["token"] == "tok123"
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_get_devices_cloud_failure(monkeypatch):
+    """云清单失败：如实 RuntimeError，不伪装数据"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+
+    class _BoomCloud:
+        def get_devices(self, locale):
+            raise RuntimeError("network unreachable")
+
+    monkeypatch.setattr(bridge, "_get_cloud", lambda: _BoomCloud())
+    with pytest.raises(RuntimeError, match="拉取失败"):
+        await bridge.get_devices()
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_send_command_mapped_action(monkeypatch):
+    """映射动作（turn_on→power=True）经 MiotDevice.set_property 下发"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+    bridge._devices = {"123456": _FakeDeviceInfo("123456", "客厅灯", "yeelink.light.xxx", "192.168.1.10", "tok123")}
+    fake_dev = _FakeMiotDevice()
+    monkeypatch.setattr(bridge, "_new_miot_device", lambda info: fake_dev)
+
+    ok = await bridge.send_command("123456", "turn_on", {})
+    assert ok is True
+    assert ("set", "power", True) in fake_dev.calls
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_send_command_unknown_action(monkeypatch):
+    """未映射动作：诚实 NotImplementedError"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+    bridge._devices = {"123456": _FakeDeviceInfo("123456", "客厅灯", "yeelink.light.xxx", "192.168.1.10", "tok123")}
+    fake_dev = _FakeMiotDevice()
+    monkeypatch.setattr(bridge, "_new_miot_device", lambda info: fake_dev)
+
+    with pytest.raises(NotImplementedError, match="暂不支持动作"):
+        await bridge.send_command("123456", "start_record", {})
+    assert fake_dev.calls == []
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_send_command_by_siid_piid(monkeypatch):
+    """高级用法：params 传 siid/piid/value 直连 MiotDevice"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+    bridge._devices = {"123456": _FakeDeviceInfo("123456", "客厅灯", "yeelink.light.xxx", "192.168.1.10", "tok123")}
+    fake_dev = _FakeMiotDevice()
+    monkeypatch.setattr(bridge, "_new_miot_device", lambda info: fake_dev)
+
+    ok = await bridge.send_command("123456", "custom", {"siid": 3, "piid": 1, "value": 80})
+    assert ok is True
+    assert ("by_id", 3, 1, 80) in fake_dev.calls
+
+
+@pytest.mark.asyncio
+async def test_mijia_bridge_get_device_state(monkeypatch):
+    """设备状态：MiotDevice.info() 真实查询"""
+    bridge = MijiaBridge()
+    bridge._connected = True
+    bridge._devices = {"123456": _FakeDeviceInfo("123456", "客厅灯", "yeelink.light.xxx", "192.168.1.10", "tok123")}
+    fake_dev = _FakeMiotDevice()
+    monkeypatch.setattr(bridge, "_new_miot_device", lambda info: fake_dev)
+
+    state = await bridge.get_device_state("123456")
+    assert state["online"] is True
+    assert state["model"] == "yeelink.light.xxx"
+    assert state["ip"] == "192.168.1.10"
 
 
 # ── API 集成 ──

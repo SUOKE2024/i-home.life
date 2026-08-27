@@ -428,6 +428,8 @@ async def accept_prediction(
         scene_type="scheduled" if (pred.trigger_condition or {}).get("type") == "time"
         else "triggered",
         trigger_condition=pred.trigger_condition,
+        trigger_type=(pred.trigger_condition or {}).get("type")
+        if isinstance(pred.trigger_condition, dict) else None,
         actions=pred.actions,
         enabled=True,
     )

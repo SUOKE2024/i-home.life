@@ -694,7 +694,8 @@ async def test_scene_execute_bridge_error_cleanup(monkeypatch, client: AsyncClie
     # close_all 清理：连接被归还（disconnect 调用 1 次，不泄漏）
     assert fake.connect_calls == 1
     assert fake.disconnect_calls == 1
-    assert fake.send_calls == 1
+    # 2026-08-27 加固：send_command 瞬时错误重试 1 次（共 2 次）后才判定 failed
+    assert fake.send_calls == 2
     # 触发日志仍落库（failed 也记录意图）
     logs = (await db_session.execute(
         select(SceneBehaviorLog).where(SceneBehaviorLog.scene_id == scene_id)

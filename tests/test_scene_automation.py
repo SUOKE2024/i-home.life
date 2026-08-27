@@ -135,6 +135,7 @@ async def _create_sensor_scene(db_session, user_id: str, project_id: str, condit
         scene_name="传感器联动",
         scene_type="triggered",
         trigger_condition={"type": "sensor", "condition": condition},
+        trigger_type="sensor",
         actions=[{"device_id": "light-1", "action": "turn_on", "params": {}}],
         enabled=True,
     )

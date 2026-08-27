@@ -1,9 +1,25 @@
 """A2 智能家居健康监测系统 Pydantic 模型"""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+# monitor_type 枚举（对齐 Flutter smart_home_page 健康监测上报 + THRESHOLDS）
+HealthMonitorType = Literal[
+    "sleep_quality", "air_quality", "fall_detection",
+    "activity_tracking", "heart_rate", "spo2",
+]
+
+# 各类型 value 必需字段（仅校验代码/客户端实际读取的键；
+# air_quality 兼容 test_health 的 pm25_ugm3 等历史键，不强制）
+_REQUIRED_VALUE_KEYS: dict[str, tuple[str, ...]] = {
+    "sleep_quality": ("sleep_score",),
+    "heart_rate": ("bpm",),
+    "spo2": ("spo2",),
+    "fall_detection": ("fall_detected",),
+    "activity_tracking": ("steps",),
+}
 
 
 # ── 健康监测记录 ──
@@ -12,7 +28,7 @@ from pydantic import BaseModel, Field
 class HealthMonitorCreate(BaseModel):
     project_id: str
     scheme_id: str
-    monitor_type: str = Field(
+    monitor_type: HealthMonitorType = Field(
         description="监测类型: sleep_quality / air_quality / fall_detection / activity_tracking / heart_rate / spo2"
     )
     value: dict[str, Any]
@@ -20,6 +36,16 @@ class HealthMonitorCreate(BaseModel):
     alert_message: str | None = None
     device_id: str | None = None
     recorded_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validate_value_structure(self) -> "HealthMonitorCreate":
+        """校验 value 结构：monitor_type 对应必需键必须存在（防脏数据污染阈值检测）。"""
+        for key in _REQUIRED_VALUE_KEYS.get(self.monitor_type, ()):
+            if key not in self.value:
+                raise ValueError(
+                    f"monitor_type={self.monitor_type} 的 value 缺少必需字段 {key}"
+                )
+        return self
 
 
 class HealthMonitorResponse(BaseModel):

@@ -27,9 +27,9 @@ class MagnetometerReadout(SensorAxisReadout):
 
 class GpsReadout(BaseModel):
     """GPS 定位读数"""
-    latitude: float = 0.0
-    longitude: float = 0.0
-    accuracy: float = 0.0
+    latitude: float = Field(0.0, ge=-90.0, le=90.0, description="纬度 [-90, 90]")
+    longitude: float = Field(0.0, ge=-180.0, le=180.0, description="经度 [-180, 180]")
+    accuracy: float = Field(0.0, ge=0.0, description="定位精度（米）")
     altitude: float | None = None
     available: bool = False
 
@@ -44,9 +44,9 @@ class SensorSnapshotRequest(BaseModel):
     gyroscope: SensorAxisReadout | None = None
     magnetometer: MagnetometerReadout | None = None
     gps: GpsReadout | None = None
-    temperature: float | None = Field(default=None, description="温度 (°C)，环境传感器真实上报")
-    humidity: float | None = Field(default=None, description="湿度 (%)，环境传感器真实上报")
-    light_lux: float | None = Field(default=None, description="光照度 (lux)，环境传感器真实上报")
+    temperature: float | None = Field(default=None, ge=-40.0, le=80.0, description="温度 (°C)，环境传感器真实上报")
+    humidity: float | None = Field(default=None, ge=0.0, le=100.0, description="湿度 (%)，环境传感器真实上报")
+    light_lux: float | None = Field(default=None, ge=0.0, le=200000.0, description="光照度 (lux)，环境传感器真实上报")
     timestamp: str = Field(description="ISO8601 时间戳")
     platform: str = Field(default="unknown", description="ios / android / harmonyos / web")
     device_id: str | None = Field(default=None, description="设备推送令牌 ID（可选）")

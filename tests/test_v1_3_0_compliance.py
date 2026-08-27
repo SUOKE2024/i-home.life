@@ -32,14 +32,14 @@ from app.services.ai_render_service import (
 
 
 def test_app_version_is_1_14_1():
-    """app_version == 1.15.10"""
-    assert get_settings().app_version == "1.15.10"
+    """app_version == 1.15.11"""
+    assert get_settings().app_version == "1.15.11"
 
 
 def test_mcp_server_version_is_1_14_1():
-    """MCP SERVER_VERSION == 1.15.10"""
+    """MCP SERVER_VERSION == 1.15.11"""
     from app.mcp.server import mcp_server
-    assert mcp_server.SERVER_VERSION == "1.15.10"
+    assert mcp_server.SERVER_VERSION == "1.15.11"
 
 
 # === 新增 feature flag 默认值 ===

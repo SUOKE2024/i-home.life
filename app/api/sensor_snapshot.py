@@ -9,6 +9,9 @@
 - POST /api/sensors/snapshot — 上传传感器快照（真实落库）
 - GET  /api/sensors/capabilities — 查询传感器能力
 """
+import logging
+import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -28,6 +31,46 @@ from app.schemas.sensor_snapshot import (
 router = APIRouter(prefix="/sensors", tags=["传感器"])
 
 settings = get_settings()
+
+logger = logging.getLogger("ihome.sensors")
+
+# ── 传感器快照 per-user 上传限流（2026-08-27 设备链路加固）──
+# 通用 rate_limit 中间件按 IP 限流（60/min），与设备高频上报场景错配：
+# 多设备共享出口 IP 会互相挤占配额，伪造上传又可按 IP 轮换绕过。
+# 此处按用户维度滑动窗口限流（user_id → deque[ts]），配额取
+# settings.sensor_snapshot_rate_limit_per_minute（0/负值不限流）。
+# 局限：进程内存储，多 worker 不共享（与 rate_limit 中间件同局限，best-effort）。
+_UPLOAD_WINDOW_SECONDS = 60
+_upload_windows: dict[str, deque[float]] = defaultdict(deque)
+_upload_check_counter = 0
+
+
+def reset_sensor_upload_rate_store() -> None:
+    """清空传感器上传限流存储（测试隔离用）。"""
+    _upload_windows.clear()
+
+
+def _check_upload_rate(user_id: str, limit: int) -> bool:
+    """按用户限流传感器快照上传；窗口内超限返回 False（调用方返回 429）。"""
+    global _upload_check_counter
+    if limit <= 0:
+        return True  # 0/负值视为不限流
+    _upload_check_counter += 1
+    if _upload_check_counter % 100 == 0:
+        # 按需清理过期条目，防内存无限增长
+        cutoff = time.time() - _UPLOAD_WINDOW_SECONDS
+        stale = [u for u, w in _upload_windows.items() if not w or w[-1] < cutoff]
+        for u in stale:
+            del _upload_windows[u]
+    now = time.time()
+    cutoff = now - _UPLOAD_WINDOW_SECONDS
+    window = _upload_windows[user_id]
+    while window and window[0] < cutoff:
+        window.popleft()
+    if len(window) >= limit:
+        return False
+    window.append(now)
+    return True
 
 
 def _require_feature():
@@ -68,15 +111,24 @@ async def upload_sensor_snapshot(
     """
     _require_feature()
 
-    import logging
-    log = logging.getLogger("ihome.sensors")
+    # per-user 上传限流（2026-08-27 加固）：防伪造上传刷场景触发
+    limit = getattr(settings, "sensor_snapshot_rate_limit_per_minute", 30)
+    if not _check_upload_rate(current_user.id, limit):
+        logger.warning(
+            "sensor_snapshot_rate_limited: user=%s limit=%d/min",
+            current_user.id, limit,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="传感器快照上传过于频繁，请稍后再试",
+        )
 
     accel = body.accelerometer
     gyro = body.gyroscope
     mag = body.magnetometer
     gps = body.gps
 
-    log.info(
+    logger.info(
         "sensor_snapshot_received: user=%s platform=%s timestamp=%s accel=%s gyro=%s mag=%s gps=%s",
         current_user.id,
         body.platform,
@@ -88,7 +140,7 @@ async def upload_sensor_snapshot(
     )
 
     # ── 1. 真实落库：仅存储客户端实际采集到的读数 ──
-    log.debug(
+    logger.debug(
         "sensor_snapshot_raw: user=%s device_id=%s accel=%s gyro=%s mag=%s gps=%s",
         current_user.id,
         body.device_id,
@@ -140,7 +192,7 @@ async def upload_sensor_snapshot(
     )
     db.add(snapshot)
     await db.commit()
-    log.info(
+    logger.info(
         "sensor_snapshot_persisted: snapshot_id=%s user=%s platform=%s "
         "accel=%s gyro=%s mag=%s gps=%s temp=%s humidity=%s lux=%s sampled_at=%s",
         snapshot.id,
@@ -174,7 +226,7 @@ async def upload_sensor_snapshot(
             ambient_data["latitude"] = gps.latitude
             ambient_data["longitude"] = gps.longitude
             ambient_data["accuracy"] = gps.accuracy
-        log.info(
+        logger.info(
             "sensor_trigger_check_start: snapshot_id=%s user=%s ambient_data=%s",
             snapshot.id, current_user.id, ambient_data,
         )
@@ -185,20 +237,24 @@ async def upload_sensor_snapshot(
                 ambient_data=ambient_data,
                 device_id=body.device_id,
             )
-            log.info(
+            logger.info(
                 "sensor_trigger_check_done: snapshot_id=%s triggered=%d",
                 snapshot.id, len(triggered),
             )
         else:
-            log.info(
+            logger.info(
                 "sensor_trigger_check_skipped: snapshot_id=%s 无可用环境/GPS 数据，跳过场景匹配",
                 snapshot.id,
             )
     except Exception as e:
-        log.exception(
+        logger.exception(
             "sensor_trigger_check_failed: snapshot_id=%s error=%s",
             snapshot.id, e,
         )
+
+    # 可观测性：上报计数按平台（2026-08-27 加固）
+    from app.metrics import sensor_snapshot_upload_total
+    sensor_snapshot_upload_total.labels(platform=body.platform or "unknown").inc()
 
     return SensorSnapshotResponse(
         received=True,

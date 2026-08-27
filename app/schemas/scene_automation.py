@@ -147,6 +147,8 @@ class SceneExecuteRequest(BaseModel):
     """场景执行请求"""
 
     trigger_source: str = Field(default="vr_overlay", description="触发来源: vr_overlay/voice/app")
+    # 2026-08-27 P2 遗留修复：异步执行模式（请求立即返回，后台执行 + WS 推送结果）
+    execute_async: bool = Field(default=False, description="true=后台异步执行，结果经 WebSocket 推送")
 
 
 class SceneActionResult(BaseModel):
@@ -168,3 +170,4 @@ class SceneExecuteResult(BaseModel):
     executed: bool
     actions: list[SceneActionResult] = Field(default_factory=list)
     triggered_at: str
+    async_queued: bool = Field(default=False, description="是否为异步执行模式（结果经 WS 推送）")

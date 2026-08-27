@@ -424,10 +424,28 @@ async def plan_wiring(db: AsyncSession, scheme: SmartHomeScheme) -> dict:
 
         items.append(wiring_item)
 
+    # 弱电箱合规（GB 50311）+ 设备安全合规（2026-08-27 P2 遗留修复：接入此前未接线的 helper）
+    weak_box = check_weak_current_box(
+        room_count=len({d.room_name for d in devices if d.room_name}),
+        network_points=sum(1 for d in devices if d.device_type == "camera"),
+        smart_device_count=len(devices),
+    )
+    safety = check_safety_compliance([
+        {
+            "device_name": d.device_name,
+            "device_type": d.device_type,
+            "room_name": d.room_name or "",
+            "features": d.features or {},
+        }
+        for d in devices
+    ])
+
     return {
         "scheme_id": scheme.id,
         "wiring_items": items,
         "notes": notes,
+        "weak_current_box": weak_box,
+        "safety": safety,
     }
 
 

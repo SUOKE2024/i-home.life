@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../services/sensor_service.dart';
+import '../services/websocket_service.dart';
 import '../widgets/loading_skeleton.dart';
 import '../widgets/error_retry.dart';
 import '../widgets/floor_plan_canvas.dart';
+import 'wearable_devices_page.dart';
 
 class SmartHomePage extends StatefulWidget {
   final String projectId;
@@ -48,6 +50,11 @@ class _SmartHomePageState extends State<SmartHomePage>
   String? _selectedFloorArea;
   bool _showAreaDeviceList = false;
 
+  // 设备链路增强（2026-08-27）：周期上报 + WS 设备状态订阅
+  Timer? _sensorUploadTimer;
+  final WebSocketService _ws = WebSocketService();
+  VoidCallback? _wsUnsubscribe;
+
   @override
   void initState() {
     super.initState();
@@ -55,11 +62,43 @@ class _SmartHomePageState extends State<SmartHomePage>
     _nlController = TextEditingController();
     _loadSchemes();
     _loadEcosystems();
-    // 设备链路接入：页面打开时上传一次真实传感器快照（触发场景传感器检查）
-    unawaited(_uploadSensorSnapshot());
+    // 设备链路接入：周期上报真实传感器快照（首次立即 + 每 30s，触发场景传感器检查）
+    _startPeriodicSensorUpload();
+    // WS 设备状态订阅：smart.device.state / scene.triggered 实时刷新（P2 遗留修复）
+    _connectDeviceWs();
   }
 
-  // ── 设备链路：传感器快照真实上传 ──
+  // ── 设备链路：传感器快照周期上报 + WS 状态订阅 ──
+
+  void _startPeriodicSensorUpload() {
+    _sensorUploadTimer?.cancel();
+    unawaited(_uploadSensorSnapshot());
+    _sensorUploadTimer =
+        Timer.periodic(const Duration(seconds: 30), (_) => unawaited(_uploadSensorSnapshot()));
+  }
+
+  /// 连接设备 WS 并订阅状态事件；收到 smart.device.state / scene.triggered 后刷新设备列表。
+  Future<void> _connectDeviceWs() async {
+    final token = ApiClient().token;
+    if (token == null) return;
+    _wsUnsubscribe?.call();
+    _ws.close();
+    try {
+      await _ws.connect(pasetoToken: token, projectId: widget.projectId);
+      final unsubState = _ws.on('smart.device.state', (_) => _refreshDevicesAfterEvent());
+      final unsubScene = _ws.on('scene.triggered', (_) => _refreshDevicesAfterEvent());
+      _wsUnsubscribe = () {
+        unsubState();
+        unsubScene();
+      };
+    } catch (_) {}
+  }
+
+  void _refreshDevicesAfterEvent() {
+    final schemeId = _selectedSchemeId;
+    if (schemeId == null) return;
+    unawaited(_loadDevices(schemeId));
+  }
 
   Future<void> _uploadSensorSnapshot() async {
     final sensor = SensorService();
@@ -81,6 +120,9 @@ class _SmartHomePageState extends State<SmartHomePage>
 
   @override
   void dispose() {
+    _sensorUploadTimer?.cancel();
+    _wsUnsubscribe?.call();
+    _ws.close();
     _tabController.dispose();
     _nlController.dispose();
     super.dispose();
@@ -545,6 +587,26 @@ class _SmartHomePageState extends State<SmartHomePage>
         foregroundColor: SuokeDesignTokens.text(context),
         title: const Text('智能家居管理'),
         actions: [
+          // 设备链路：穿戴设备（BLE 手表/手环）接入入口（2026-08-27）
+          IconButton(
+            tooltip: '穿戴设备接入',
+            icon: const Icon(Icons.watch),
+            onPressed: () {
+              if (_selectedSchemeId == null) {
+                _showError('请先在"智能方案"中选择一个方案');
+                _tabController.animateTo(0);
+                return;
+              }
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => WearableDevicesPage(
+                    projectId: widget.projectId,
+                    schemeId: _selectedSchemeId!,
+                  ),
+                ),
+              );
+            },
+          ),
           // 设备链路：穿戴设备健康监测上报入口
           IconButton(
             tooltip: '健康监测上报',

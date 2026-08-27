@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.15.10"
+    app_version: str = "1.15.11"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -602,6 +602,11 @@ class Settings(BaseSettings):
     # 启用后 /api/sensors/* 端点可用（Flutter SensorService 真实读数落库 + 场景触发）
     # 此前缺失该字段，_require_feature 靠 getattr 兜底默认 True，flag 形同虚设
     sensor_snapshot_enabled: bool = True
+    # 传感器快照 per-user 上传限流（2026-08-27 设备链路加固）：
+    # 通用 rate_limit 按 IP 限流与设备高频上报场景错配，此处按用户维度滑动窗口限流。
+    # 默认 30 次/分钟（页面打开一次性上报 + 未来自适应采样约 1/s 均远低于此值），
+    # 防伪造上传刷场景触发；0/负值视为不限流（测试/特殊场景）。
+    sensor_snapshot_rate_limit_per_minute: int = 30
 
     # ── A5 采购交付透明度 ──
     # 启用后 /api/procurement/orders/{order_id}/delivery 等端点可使用
