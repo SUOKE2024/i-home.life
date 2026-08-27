@@ -89,8 +89,8 @@ class Agent:
 
     def api(self, *, scenario: str, step: str, method: str, path: str,
             payload: dict | None = None, expect: int = 200, check: callable | None = None,
-            timeout: int = 90, auth: bool = True) -> tuple[bool, int, dict | list | str]:
-        """请求 + 记录证据 + 期望校验，返回 (ok, status, body)。"""
+            timeout: int = 90, auth: bool = True, silent: bool = False) -> tuple[bool, int, dict | list | str]:
+        """请求 + 记录证据 + 期望校验，返回 (ok, status, body)。silent=True 不落证据（轮询用）。"""
         status, body = self.request(method, path, payload, timeout=timeout, auth=auth)
         ok = status == expect
         detail, issue = "", None
@@ -106,9 +106,10 @@ class Agent:
                 issue = self.issue("UNEXPECTED_STATUS")
             else:
                 issue = "expected_rejection"
-        self.record(scenario=scenario, step=step, method=method, path=path,
-                    status=status, ok=ok, detail=detail or self._summarize(body),
-                    issue=issue)
+        if not silent:
+            self.record(scenario=scenario, step=step, method=method, path=path,
+                        status=status, ok=ok, detail=detail or self._summarize(body),
+                        issue=issue)
         return ok, status, body
 
     @staticmethod

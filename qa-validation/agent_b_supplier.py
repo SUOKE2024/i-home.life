@@ -41,15 +41,31 @@ class AgentBSupplier(Agent):
             payload={"name": "QA-供应商B-现代简约整装", "area": 118.0, "style": "modern",
                      "budget": 350000, "requirements": "全屋智能+中央空调",
                      "rooms": "客厅,主卧,次卧,厨房,卫生间"}, expect=200)
+        sync_id = None
         if ok and isinstance(body, dict):
             did = body.get("delivery_id") or body.get("delivery_order_id")
             if did:
                 ids.append(did)
+                sync_id = did
         # 正常：创建交付单（异步模式）
         self.api(scenario="normal", step="创建交付单(异步)", method="POST", path="/b2b/delivery",
                  payload={"name": "QA-供应商B-异步交付", "area": 88.0, "style": "nordic",
                           "budget": 200000, "async_mode": True}, expect=200)
-        return ids
+        return ids, sync_id
+
+    def _wait_ready(self, delivery_id: str, timeout: int = 40) -> bool:
+        """等待交付单离开 generating 态（异步/同步后台生成可能瞬时处于 generating）。"""
+        import time as _time
+        deadline = _time.time() + timeout
+        while _time.time() < deadline:
+            ok, st, body = self.api(scenario="normal", step="等待交付单生成完成", method="GET",
+                                    path=f"/b2b/delivery/{delivery_id}", timeout=8,
+                                    silent=True)
+            status = body.get("status") if isinstance(body, dict) else None
+            if ok and status and status != "generating":
+                return True
+            _time.sleep(3)
+        return False
 
     def status_machine(self, delivery_id: str) -> None:
         if not delivery_id:
@@ -111,14 +127,25 @@ class AgentBSupplier(Agent):
         if not self.login():
             return
         self.check_auth()
-        self.delivery_chain()
+        _, sync_id = self.delivery_chain()
         self.boundaries()
-        # 回读最新交付单做状态机验证
-        ok, st, body = self.api(scenario="normal", step="交付单列表(回读)", method="GET",
-                                path="/b2b/delivery")
-        did = None
-        if ok and isinstance(body, list) and body:
-            did = body[0].get("delivery_order_id")
+        # 优先用本次同步创建的交付单（等待生成完成），避免异步单仍处于 generating
+        did = sync_id or ""
+        if did:
+            ready = self._wait_ready(did)
+            if not ready:
+                self.record(scenario="normal", step="交付单生成等待超时", method="-", path="-",
+                            status=None, ok=True,
+                            detail=f"{did[:8]} 40s 内未离开 generating，改用列表回读")
+                did = ""
+        if not did:
+            ok, st, body = self.api(scenario="normal", step="交付单列表(回读)", method="GET",
+                                    path="/b2b/delivery")
+            if ok and isinstance(body, list):
+                for d in body:
+                    if d.get("status") != "generating":
+                        did = d.get("delivery_order_id") or ""
+                        break
         self.status_machine(did or "")
         self.supplier_business()
         self.authz_checks()

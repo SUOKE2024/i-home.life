@@ -205,12 +205,67 @@ class AgentAHomeowner(Agent):
     def smart_home_chain(self, project_id: str) -> None:
         ok, st, body = self.api(scenario="normal", step="智能家居方案列表", method="GET",
                                 path=f"/smart-home/schemes/project/{project_id}")
+        sid = None
         if ok and isinstance(body, list) and body:
             sid = body[0]["id"]
+        else:
+            # 自建方案，保证设备链路可全量走通（不回退演示项目）
+            ok2, st2, body2 = self.api(scenario="normal", step="创建智能家居方案", method="POST",
+                                       path="/smart-home/schemes", expect=201,
+                                       payload={"project_id": project_id, "room_name": "客厅",
+                                                "room_type": "living_room", "protocol": "zigbee",
+                                                "hub_brand": "xiaomi"})
+            if ok2 and isinstance(body2, dict):
+                sid = body2.get("id")
+        if sid:
             self.api(scenario="normal", step=f"方案价格计算 {sid[:8]}", method="GET",
                      path=f"/smart-home/schemes/{sid}/price")
             self.api(scenario="normal", step=f"方案AI推荐 {sid[:8]}", method="POST",
                      path=f"/smart-home/schemes/{sid}/auto-recommend", payload={}, timeout=120)
+            self.device_chain(sid, project_id)
+
+    # ── 10b. 设备链路（2026-08-27 设备加固/穿戴接入后新增覆盖）───
+    def device_chain(self, scheme_id: str, project_id: str) -> None:
+        # 设备列表
+        ok, st, body = self.api(scenario="normal", step="方案设备列表", method="GET",
+                                path=f"/smart-home/schemes/{scheme_id}/devices")
+        # 创建设备（灯）→ 列表应含新设备 → 下发命令
+        ok2, st2, body2 = self.api(scenario="normal", step="方案新增设备(灯)", method="POST",
+                                   path=f"/smart-home/schemes/{scheme_id}/devices", expect=201,
+                                   payload={"device_type": "light", "device_name": "QA-客厅主灯",
+                                            "room_name": "客厅", "protocol": "zigbee"})
+        if ok2 and isinstance(body2, dict):
+            did = body2.get("id")
+            if did:
+                self.api(scenario="normal", step=f"设备开灯 {str(did)[:8]}", method="POST",
+                         path=f"/smart-home/devices/{did}/command",
+                         payload={"action": "turn_on", "source": "app"}, timeout=60)
+                # 异步执行模式（2026-08-27 P2 修复：立即返回 queued）
+                self.api(scenario="normal", step=f"设备异步关灯 {str(did)[:8]}", method="POST",
+                         path=f"/smart-home/devices/{did}/command",
+                         payload={"action": "turn_off", "source": "app", "execute_async": True},
+                         timeout=60)
+        # 场景：项目场景列表 + 自然语言解析（自包含边界）
+        self.api(scenario="normal", step="项目场景列表", method="GET",
+                 path=f"/scene-automation/scenes/project/{project_id}")
+        self.api(scenario="boundary", step="场景自然语言解析(空文本)", method="POST",
+                 path="/scene-automation/scenes/parse", payload={"text": ""}, timeout=60)
+        # 传感器快照（设备链路加固：数值范围约束）
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        self.api(scenario="normal", step="传感器快照上传(有效)", method="POST",
+                 path="/sensors/snapshot", expect=201,
+                 payload={"temperature": 25.5, "humidity": 60.0, "light_lux": 500.0,
+                          "timestamp": now, "platform": "web"})
+        self.api(scenario="boundary", step="传感器快照温度越界(-50)", method="POST",
+                 path="/sensors/snapshot", expect=422,
+                 payload={"temperature": -50.0, "timestamp": now, "platform": "web"})
+        self.api(scenario="boundary", step="传感器快照湿度越界(150)", method="POST",
+                 path="/sensors/snapshot", expect=422,
+                 payload={"humidity": 150.0, "timestamp": now, "platform": "web"})
+        self.api(scenario="boundary", step="传感器快照缺时间戳", method="POST",
+                 path="/sensors/snapshot", expect=422, payload={"temperature": 25.0})
+        self.api(scenario="normal", step="传感器能力列表", method="GET", path="/sensors/capabilities")
 
     # ── 11. 变更单 ─────────────────────────────────────────
     def change_order_chain(self, project_id: str) -> None:

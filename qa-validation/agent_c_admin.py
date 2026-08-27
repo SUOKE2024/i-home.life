@@ -80,7 +80,7 @@ class AgentCAdmin(Agent):
             self.evidence[-1]["detail"] += f" skipped={body['skipped_reasons']}"
 
     # ── MCP 协议 ────────────────────────────────────────────
-    def mcp_protocol(self) -> None:
+    def mcp_protocol(self, project_id: str = "") -> None:
         ok, st, body = self.api(scenario="normal", step="MCP manifest(公开)", method="GET",
                                 path="/mcp/manifest", auth=False)
         if ok and isinstance(body, dict):
@@ -88,11 +88,15 @@ class AgentCAdmin(Agent):
         self.api(scenario="normal", step="MCP 工具列表", method="GET", path="/mcp/tools",
                  check=lambda b: (_ for _ in ()).throw(AssertionError("无工具"))
                  if not isinstance(b, dict) or not b.get("tools") else None)
-        # MCP 工具调用（真实工具 get_design_layout，管理员可访问任意项目）
-        self.api(scenario="normal", step="MCP 工具调用", method="POST", path="/mcp/tools/call",
-                 payload={"name": "get_design_layout",
-                          "arguments": {"project_id": "9b549486-9b77-4f09-9382-f1dec9cd6136"}},
-                 timeout=120)
+        # MCP 工具调用（真实工具 get_design_layout，管理员可访问任意项目；动态取真实项目 ID）
+        if project_id:
+            self.api(scenario="normal", step="MCP 工具调用", method="POST", path="/mcp/tools/call",
+                     payload={"name": "get_design_layout",
+                              "arguments": {"project_id": project_id}},
+                     timeout=120)
+        else:
+            self.record(scenario="normal", step="MCP 工具调用", method="-", path="-",
+                        status=None, ok=True, detail="无项目可调用，跳过（诚实降级）")
         self.api(scenario="normal", step="MCP MRTR 列表", method="GET", path="/mcp/mrtr")
         # 边界：MCP 未知工具（协议约定 200 + isError 诚实报错）
         ok, st, body = self.api(scenario="boundary", step="MCP 调用未知工具", method="POST",
@@ -134,7 +138,13 @@ class AgentCAdmin(Agent):
         self.check_auth()
         self.stats_and_briefings()
         self.governance_and_evolution()
-        self.mcp_protocol()
+        # 动态取真实项目 ID（MCP 工具调用载荷，避免硬编码本地项目）
+        pid = ""
+        ok, st, body = self.api(scenario="normal", step="项目列表(管理员)", method="GET",
+                                path="/projects")
+        if ok and isinstance(body, list) and body:
+            pid = body[0].get("id") or ""
+        self.mcp_protocol(pid)
         self.agent_memory()
         self.eval_framework()
         self.weekly_briefings()
