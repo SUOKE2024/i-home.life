@@ -11,7 +11,8 @@ export default defineConfig({
     outDir: '../webapp/dist/console',
     emptyOutDir: true,
     assetsDir: 'assets',
-    sourcemap: true,
+    // 生产不产出 source map：避免 dist/console 体积膨胀 + 源码公开可下载
+    sourcemap: false,
     rollupOptions: {
       output: {
         // 拆分 react 全家桶为独立 vendor chunk：缩小主包体积 + 利用浏览器长缓存

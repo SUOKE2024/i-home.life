@@ -20,9 +20,11 @@ if _is_sqlite:
     _engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
     # PostgreSQL 生产配置：连接池参数
+    # v1.15.11 防超卖收紧：4 worker × (10+5) = 峰值 60 < PG 默认 max_connections=100
+    # （旧值 20+10 峰值 120 可能耗尽 PG 连接）；pool_timeout 兜底排队
     _engine_kwargs["poolclass"] = AsyncAdaptedQueuePool
-    _engine_kwargs["pool_size"] = 20          # 持久连接数
-    _engine_kwargs["max_overflow"] = 10       # 突发可溢出连接数
+    _engine_kwargs["pool_size"] = 10          # 持久连接数
+    _engine_kwargs["max_overflow"] = 5        # 突发可溢出连接数
     _engine_kwargs["pool_pre_ping"] = True    # 连接前探活，避免使用已断开的连接
     _engine_kwargs["pool_recycle"] = 1800     # 30 分钟回收，避免 MySQL/PG wait_timeout
     _engine_kwargs["pool_timeout"] = 10       # 获取连接超时 10s

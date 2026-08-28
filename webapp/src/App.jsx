@@ -7,18 +7,20 @@ import LoginPage from './pages/Login'
 import WeChatCallback from './pages/WeChatCallback'
 import DocsPage from './pages/DocsPage'
 import DashboardPage from './pages/Dashboard'
-import ProjectsPage from './pages/Projects'
-import ProjectDetailPage from './pages/ProjectDetail'
-import BudgetPage from './pages/Budget'
-import ConstructionPage from './pages/Construction'
-import QualityPage from './pages/Quality'
-import SettlementPage from './pages/Settlement'
-import ProcurementPage from './pages/Procurement'
-import SmartHomePage from './pages/SmartHome'
-import AiPage from './pages/Ai'
-import ProfilePage from './pages/Profile'
-import DiagnosticsPage from './pages/Diagnostics'
-import DesignFlowPage from './pages/DesignFlow'
+
+// 路由级懒加载：Login / Dashboard（首屏）与公开文档页保持静态，其余按需加载减小首屏 bundle
+const ProjectsPage = lazy(() => import('./pages/Projects'))
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetail'))
+const BudgetPage = lazy(() => import('./pages/Budget'))
+const ConstructionPage = lazy(() => import('./pages/Construction'))
+const QualityPage = lazy(() => import('./pages/Quality'))
+const SettlementPage = lazy(() => import('./pages/Settlement'))
+const ProcurementPage = lazy(() => import('./pages/Procurement'))
+const SmartHomePage = lazy(() => import('./pages/SmartHome'))
+const AiPage = lazy(() => import('./pages/Ai'))
+const ProfilePage = lazy(() => import('./pages/Profile'))
+const DiagnosticsPage = lazy(() => import('./pages/Diagnostics'))
+const DesignFlowPage = lazy(() => import('./pages/DesignFlow'))
 // VR 全景页依赖 three.js，懒加载避免拖慢首屏 bundle
 const VirtualTourPage = lazy(() => import('./pages/VirtualTour'))
 const ARScanPage = lazy(() => import('./pages/ARScan'))
@@ -26,6 +28,11 @@ const ShowroomPage = lazy(() => import('./pages/ShowroomPage'))
 
 function SuspenseFallback() {
   return <div className="page-loading mono">加载中…</div>
+}
+
+// 懒加载页面统一包装，避免每条路由手写 Suspense
+function Lazy({ children }) {
+  return <Suspense fallback={<SuspenseFallback />}>{children}</Suspense>
 }
 
 function RequireAuth({ children }) {
@@ -54,42 +61,42 @@ export default function App() {
           }
         >
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/budget" element={<BudgetPage />} />
-          <Route path="/construction" element={<ConstructionPage />} />
-          <Route path="/quality" element={<QualityPage />} />
-          <Route path="/settlement" element={<SettlementPage />} />
-          <Route path="/procurement" element={<ProcurementPage />} />
-          <Route path="/smart-home" element={<SmartHomePage />} />
+          <Route path="/projects" element={<Lazy><ProjectsPage /></Lazy>} />
+          <Route path="/projects/:id" element={<Lazy><ProjectDetailPage /></Lazy>} />
+          <Route path="/budget" element={<Lazy><BudgetPage /></Lazy>} />
+          <Route path="/construction" element={<Lazy><ConstructionPage /></Lazy>} />
+          <Route path="/quality" element={<Lazy><QualityPage /></Lazy>} />
+          <Route path="/settlement" element={<Lazy><SettlementPage /></Lazy>} />
+          <Route path="/procurement" element={<Lazy><ProcurementPage /></Lazy>} />
+          <Route path="/smart-home" element={<Lazy><SmartHomePage /></Lazy>} />
           <Route
             path="/virtual-tour"
             element={
-              <Suspense fallback={<SuspenseFallback />}>
+              <Lazy>
                 <VirtualTourPage />
-              </Suspense>
+              </Lazy>
             }
           />
           <Route
             path="/ar-scan"
             element={
-              <Suspense fallback={<SuspenseFallback />}>
+              <Lazy>
                 <ARScanPage />
-              </Suspense>
+              </Lazy>
             }
           />
           <Route
             path="/showroom"
             element={
-              <Suspense fallback={<SuspenseFallback />}>
+              <Lazy>
                 <ShowroomPage />
-              </Suspense>
+              </Lazy>
             }
           />
-          <Route path="/ai" element={<AiPage />} />
-          <Route path="/design-flow" element={<DesignFlowPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/diagnostics" element={<DiagnosticsPage />} />
+          <Route path="/ai" element={<Lazy><AiPage /></Lazy>} />
+          <Route path="/design-flow" element={<Lazy><DesignFlowPage /></Lazy>} />
+          <Route path="/profile" element={<Lazy><ProfilePage /></Lazy>} />
+          <Route path="/diagnostics" element={<Lazy><DiagnosticsPage /></Lazy>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

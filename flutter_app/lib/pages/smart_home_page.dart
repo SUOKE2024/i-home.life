@@ -55,6 +55,11 @@ class _SmartHomePageState extends State<SmartHomePage>
   final WebSocketService _ws = WebSocketService();
   VoidCallback? _wsUnsubscribe;
 
+  // 传感器常驻化（2026-08-28 功耗优化）：SensorService 为单例，页面活跃期 start 一次
+  // 复用自适应采样（静止 10Hz/运动 60Hz），不再每 30s 重建传感器流 + 600ms 探测等待
+  final SensorService _sensor = SensorService();
+  bool _sensorStarted = false;
+
   @override
   void initState() {
     super.initState();
@@ -101,26 +106,27 @@ class _SmartHomePageState extends State<SmartHomePage>
   }
 
   Future<void> _uploadSensorSnapshot() async {
-    final sensor = SensorService();
     try {
-      await sensor.start();
-      // 等待能力探测完成（约 300ms），确保 available 标志准确
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      final snapshot = sensor.getSnapshot();
-      sensor.stop();
+      if (!_sensorStarted) {
+        // 仅首次：能力探测（约 300-900ms）+ 首帧数据到位，之后快照直接读常驻缓存
+        await _sensor.start();
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        _sensorStarted = true;
+      }
+      final snapshot = _sensor.getSnapshot();
       final result = await _api.uploadSensorSnapshot(snapshot);
       if (!result.isSuccess) {
         debugPrint('传感器快照上传失败: ${result.error}');
       }
     } catch (e) {
       debugPrint('传感器快照上传异常: $e');
-      sensor.stop();
     }
   }
 
   @override
   void dispose() {
     _sensorUploadTimer?.cancel();
+    _sensor.stop(); // 页面退出停止常驻传感器流，交还功耗
     _wsUnsubscribe?.call();
     _ws.close();
     _tabController.dispose();

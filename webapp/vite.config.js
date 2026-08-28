@@ -11,7 +11,16 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsDir: 'assets',
-    sourcemap: true,
+    // 生产不产出 source map：避免 dist 体积膨胀 + 源码公开可下载
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        // react 全家桶独立 vendor chunk：缩小主包 + 浏览器长缓存命中
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
   },
   server: {
     port: 5273,
