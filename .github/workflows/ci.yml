@@ -10,7 +10,9 @@ jobs:
   # ── 后端测试 ──
   backend-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # v1.15.11 起 30→45：GitHub 共享 runner 性能波动（同配置 4 workers 15~37 分钟），
+    # 测试集增至 2658 用例后 30 分钟上限曾致 78% 时超时取消（run 32759327295）。
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 

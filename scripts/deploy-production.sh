@@ -110,12 +110,8 @@ fi
 NGINX_CONF="/etc/nginx/sites-available/ihome"
 echo "  🌐 同步 nginx 配置..."
 sudo cp "$PROJECT_DIR/scripts/nginx-ihome.conf" "$NGINX_CONF"
-# 跨平台 sed: 兼容 BSD (macOS) 与 GNU (Linux)
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  sudo sed -i '' "s|/opt/ihome/web|$DEPLOY_DIR/webapp/dist|g" "$NGINX_CONF"
-else
-  sudo sed -i "s|/opt/ihome/web|$DEPLOY_DIR/webapp/dist|g" "$NGINX_CONF"
-fi
+# 模板 root 已写死 /opt/ihome/webapp/dist（与默认 DEPLOY_DIR 一致），勿再做路径 sed——
+# 曾因二次替换产出 /opt/ihome/webapp/distapp/dist 致 try_files 循环 500（2026-08-28）
 sudo ln -sf "$NGINX_CONF" /etc/nginx/sites-enabled/
 sudo nginx -t && sudo nginx -s reload
 echo "  ✅ nginx 已同步并重载（含 8081 HTTP+HTTPS 兼容、/ws/ WebSocket、gzip、安全头）"
