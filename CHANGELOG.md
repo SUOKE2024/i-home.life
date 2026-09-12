@@ -2,6 +2,22 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.15] - 2026-09-12（P3 施工存档前端落地：上传 + 时间线 + 3DGS 回看）
+
+执行依据：2026-09-12 评估报告 P3「施工进度 3DGS 数字存档」前端补全——后端
+`ConstructionSnapshot` 模型/端点已在 v1.15.13 交付，本轮补施工页 UI，闭环业主侧可见。
+
+- **施工页存档区块**（`webapp/src/pages/Construction.jsx`）：
+  - 上传：施工阶段下拉（对齐后端 `STAGES` 12 值域）+ 房间名（可选）+ `.spz/.ply/.glb` 文件
+  - 时间线：按拍摄时间倒序展示节点快照（阶段徽章 + 房间 + 日期 + 备注）
+  - 回看：点击「回看 3D」弹窗复用 `GaussianViewer` 漫游实景快照（双轨渲染）
+- **api.js**：新增 `getConstructionSnapshots` / `uploadConstructionSnapshot`
+  （复用 `uploadFormData` multipart 上传）。
+- **诚实边界（遗留）**：竣工比对（实景 3DGS vs 设计模型）需视觉/几何比对管线
+  （`spatial_perception_enabled` 未启用），暂缓，不伪装比对能力。
+- **版本**：1.15.14 → 1.15.15 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.15+63/webapp version.json/console 1.15.15.0+lock/ci×3/deploy/测试断言×3）。
+
 ## [1.15.14] - 2026-09-12（Three.js r186 原生高斯泼溅落地：升级引擎 + 双轨渲染）
 
 执行依据：2026-09-12《Three.js r186 原生支持高斯泼溅》调研评估。r186（2026-09-09）

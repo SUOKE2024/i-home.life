@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { Plus, Hammer } from 'lucide-react'
+import { Plus, Hammer, X } from 'lucide-react'
 import { Card, Badge, Stat, Spinner, Empty, ErrorBox } from '../components/ui'
-import { listProjects, getConstructionTasks, createConstructionTask } from '../lib/api'
+import GaussianViewer from '../components/GaussianViewer'
+import {
+  listProjects, getConstructionTasks, createConstructionTask,
+  getConstructionSnapshots, uploadConstructionSnapshot,
+} from '../lib/api'
 import { useApp } from '../lib/store'
 
 // 任务状态 → 徽章颜色/文案映射
@@ -24,6 +28,22 @@ const PHASE_META = {
   painting: { label: '油漆阶段' },
   installation: { label: '安装阶段' },
   inspection: { label: '验收阶段' },
+}
+
+// 施工存档阶段（stage）→ 中文文案（对齐后端 construction_snapshot_service.STAGES，P3）
+const STAGE_META = {
+  preparation: '准备阶段',
+  demolition: '拆改阶段',
+  water_electricity: '水电阶段',
+  electrical: '电气阶段',
+  waterproof: '防水阶段',
+  masonry: '泥瓦阶段',
+  mep: '机电阶段',
+  carpentry: '木工阶段',
+  painting: '油漆阶段',
+  installation: '安装阶段',
+  completion: '竣工阶段',
+  inspection: '验收阶段',
 }
 
 // 防御性日期格式化（非法值兜底为 —）
@@ -58,6 +78,16 @@ export default function ConstructionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({ title: '', task_type: '', assignee: '', due_date: '' })
 
+  // P3 施工 3DGS 数字存档：时间线 + 上传 + 回看
+  const [snapshots, setSnapshots] = useState([])
+  const [snapLoading, setSnapLoading] = useState(false)
+  const [snapError, setSnapError] = useState(null)
+  const [snapStage, setSnapStage] = useState('masonry')
+  const [snapRoom, setSnapRoom] = useState('')
+  const [snapFile, setSnapFile] = useState(null)
+  const [snapUploading, setSnapUploading] = useState(false)
+  const [viewingSnapshot, setViewingSnapshot] = useState(null) // 3DGS 回看弹窗
+
   // 加载可选项目（下拉选项）
   const loadProjects = useCallback(async () => {
     setProjectsLoading(true)
@@ -88,16 +118,49 @@ export default function ConstructionPage() {
     setLoading(false)
   }, [])
 
-  // 项目切换时重新加载任务
+  // P3：加载施工 3DGS 存档时间线
+  const loadSnapshots = useCallback(async (id) => {
+    setSnapLoading(true)
+    setSnapError(null)
+    const r = await getConstructionSnapshots(id)
+    if (r.isSuccess) {
+      setSnapshots(Array.isArray(r.data) ? r.data : [])
+    } else {
+      setSnapError(r.error || '加载施工存档失败')
+    }
+    setSnapLoading(false)
+  }, [])
+
+  // 项目切换时重新加载任务 + 存档
   useEffect(() => {
     if (projectId) {
       loadTasks(projectId)
+      loadSnapshots(projectId)
     } else {
       setTasks([])
+      setSnapshots([])
     }
-  }, [projectId, loadTasks])
+  }, [projectId, loadTasks, loadSnapshots])
 
   const currentProject = projects.find((p) => p.id === projectId)
+
+  // P3：上传施工节点 3DGS 快照
+  const submitSnapshot = async () => {
+    if (!projectId || !snapFile || snapUploading) return
+    setSnapUploading(true)
+    const r = await uploadConstructionSnapshot(projectId, snapStage, snapFile, {
+      roomName: snapRoom.trim() || undefined,
+    })
+    setSnapUploading(false)
+    if (r.isSuccess) {
+      toast('施工存档上传成功', 'success')
+      setSnapRoom('')
+      setSnapFile(null)
+      loadSnapshots(projectId)
+    } else {
+      toast(r.error || '上传失败', 'error')
+    }
+  }
 
   // 提交新建任务，成功后刷新任务列表
   const submit = async (e) => {
@@ -295,7 +358,95 @@ export default function ConstructionPage() {
               </div>
             )}
           </Card>
+
+          {/* P3 施工 3DGS 数字存档 */}
+          <Card title="施工 3DGS 存档" sub={`${snapshots.length} 个节点快照`} icon={<Hammer size={15} className="ico" />} style={{ marginTop: 16 }}>
+            {/* 上传表单 */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+              <select className="select" value={snapStage} onChange={(e) => setSnapStage(e.target.value)} style={{ width: 130 }}>
+                {Object.entries(STAGE_META).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              <input
+                className="input"
+                style={{ width: 160 }}
+                placeholder="房间名（可选）"
+                value={snapRoom}
+                onChange={(e) => setSnapRoom(e.target.value)}
+              />
+              <input
+                type="file"
+                accept=".spz,.ply,.glb"
+                onChange={(e) => setSnapFile(e.target.files?.[0] || null)}
+              />
+              <button className="btn btn--primary" disabled={!snapFile || snapUploading} onClick={submitSnapshot}>
+                {snapUploading ? '上传中…' : '上传快照'}
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>
+              施工节点实景扫描存档（.spz/.ply/.glb），形成施工时间线，支持竣工验收比对与业主远程查看。
+            </div>
+
+            {/* 时间线 */}
+            {snapLoading ? (
+              <Spinner label="加载施工存档…" />
+            ) : snapError ? (
+              <ErrorBox message={snapError} onRetry={() => loadSnapshots(projectId)} />
+            ) : snapshots.length === 0 ? (
+              <Empty message="暂无施工存档" />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {snapshots.map((s) => (
+                  <div
+                    key={s.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                      border: '1px solid var(--border)', borderRadius: 8,
+                    }}
+                  >
+                    <Badge tone="sky">{STAGE_META[s.stage] || s.stage}</Badge>
+                    <span style={{ flex: 1, fontSize: 13 }}>{s.room_name || '未标注房间'}</span>
+                    <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>{fmtDate(s.captured_at)}</span>
+                    {s.notes && <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.notes}</span>}
+                    <button className="btn btn--ghost" onClick={() => setViewingSnapshot(s)}>回看 3D</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </>
+      )}
+
+      {/* 3DGS 回看弹窗 */}
+      {viewingSnapshot && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(10,10,12,0.92)',
+            display: 'flex', flexDirection: 'column',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', color: '#fff' }}>
+            <b style={{ flex: 1 }}>
+              施工存档回看 · {STAGE_META[viewingSnapshot.stage] || viewingSnapshot.stage}
+              {viewingSnapshot.room_name ? ` · ${viewingSnapshot.room_name}` : ''}
+            </b>
+            <button
+              className="icon-btn"
+              style={{ color: '#fff', background: 'rgba(255,255,255,0.12)' }}
+              onClick={() => setViewingSnapshot(null)}
+              title="关闭"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div style={{ flex: 1 }}>
+            <GaussianViewer
+              splatUrl={viewingSnapshot.splat_url}
+              onFallback={() => setViewingSnapshot(null)}
+            />
+          </div>
+        </div>
       )}
     </div>
   )

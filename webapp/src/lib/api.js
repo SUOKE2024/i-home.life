@@ -520,6 +520,22 @@ export async function restagePanorama(panoramaId, style, prompt) {
   })
 }
 
+/** 施工进度 3DGS 数字存档时间线（评估报告 2026-09-12 P3） */
+export async function getConstructionSnapshots(projectId) {
+  return request(`/api/construction/projects/${encodeURIComponent(projectId)}/snapshots`)
+}
+
+/** 上传施工节点 3DGS 实景快照（.spz/.ply/.glb，multipart，评估报告 P3） */
+export async function uploadConstructionSnapshot(projectId, stage, file, opts = {}) {
+  const form = new FormData()
+  form.append('stage', stage)
+  if (opts.taskId) form.append('task_id', opts.taskId)
+  if (opts.roomName) form.append('room_name', opts.roomName)
+  if (opts.notes) form.append('notes', opts.notes)
+  form.append('file', file)
+  return uploadFormData(`/api/construction/projects/${encodeURIComponent(projectId)}/snapshots`, form)
+}
+
 // ── P0 设备热点联动（2026-08-12）──
 
 /** 3D 设备图层聚合：设备锚点 + 状态 + 关联场景 + 最近传感器快照 */
