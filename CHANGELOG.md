@@ -24,9 +24,16 @@
 - **诚实边界**：原生 GaussianSplat 仅支持 WebGPURenderer（WebGL2 为 CPU 排序回退，
   性能弱于 Spark GPU 排序），故不做「原生替换 Spark」，而是检测分流双轨并存；
   鸿蒙/低端 Android 的 WebGPU 覆盖需真机实测（未实测不宣称支持）。
+- **P2 格式扩展（glTF KHR_gaussian_splatting）**：前端 `loadNativeSplat` 支持
+  `.glb/.gltf`（GLTFLoader + `GLTFGaussianSplatLoaderExtension`，对接 LCC2 生态
+  glTF 导出）；后端 `validate_splat_file` 支持 `.glb`（魔数 `glTF`），upload-splat
+  accept 扩展。SH1-SH3 视角相关颜色已由原生 `GaussianSplat` 自动支持（无需额外
+  代码）；`GaussianSplatGroup`（多 splat 相交排序）未合并进 r186（PR #34290
+  Open），遗留待 r187，诚实标注不硬套。
 - **版本**：1.15.13 → 1.15.14 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
   1.15.14+62/webapp version.json/console 1.15.14.0+lock/ci×3/deploy/测试断言×3）。
-- **测试**：纯前端改动（后端仅版本号字符串），无新增后端用例；全量基线 2679 不回退。
+- **测试**：新增 `test_upload_glb_accepted`（.glb 魔数校验，P2）；全量基线 2680
+  （P0 阶段纯前端改动后端仅版本号字符串，P2 补充 .glb 后端魔数 + 1 用例）。
 
 ## [1.15.13] - 2026-09-12（3DGS/LCC 借鉴落地 P1+P2+P3：云端重建骨架 + AI 换装 + 施工存档）
 

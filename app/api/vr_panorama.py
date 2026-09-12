@@ -93,7 +93,7 @@ async def upload_splat_panorama(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """上传外部采集的 3DGS 场景（.spz/.ply）并登记为高斯全景（评估报告 2026-09-12 P0）。
+    """上传外部采集的 3DGS 场景（.spz/.ply/.glb）并登记为高斯全景（评估报告 2026-09-12 P0）。
 
     内容管线：由外部工具（LCC Scan / Polycam 等）端侧重建导出，平台负责资产托管
     + Spark 渲染漫游；不做 2D→3D 重建（该管线待 GPU 立项，诚实标注）。

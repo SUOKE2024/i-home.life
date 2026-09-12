@@ -45,24 +45,39 @@ const supportsWebGPU = async () => {
   }
 }
 
-// 按扩展名选 Three.js 原生加载器（均返回 BufferGeometry，直接 new GaussianSplat）
-const pickNativeLoader = async (url) => {
+// 加载原生 splat 对象（返回可直接 scene.add 的对象）：
+// - .spz/.ply/.splat/.ksplat → BufferGeometry → new GaussianSplat（直接返回）
+// - .glb/.gltf → GLTFLoader + KHR_gaussian_splatting 扩展 → 返回 gltf.scene
+//   （对接 LCC2 生态的 glTF 导出，P2 落地）
+const loadNativeSplat = async (url) => {
   const clean = url.split('?')[0] || ''
   const ext = (clean.split('.').pop() || '').toLowerCase()
+  const { GaussianSplat } = await import('three/addons/objects/GaussianSplat.js')
+
+  if (ext === 'glb' || ext === 'gltf') {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js')
+    const { GLTFGaussianSplatLoaderExtension } = await import('three/addons/loaders/GLTFGaussianSplatLoaderExtension.js')
+    const loader = new GLTFLoader()
+    loader.register((parser) => new GLTFGaussianSplatLoaderExtension(parser))
+    const gltf = await loader.loadAsync(url)
+    return gltf.scene
+  }
+
+  let geometry
   if (ext === 'ply') {
     const { GaussianSplatPLYLoader } = await import('three/addons/loaders/GaussianSplatPLYLoader.js')
-    return new GaussianSplatPLYLoader()
-  }
-  if (ext === 'splat') {
+    geometry = await new GaussianSplatPLYLoader().loadAsync(url)
+  } else if (ext === 'splat') {
     const { SPLATLoader } = await import('three/addons/loaders/SPLATLoader.js')
-    return new SPLATLoader()
-  }
-  if (ext === 'ksplat') {
+    geometry = await new SPLATLoader().loadAsync(url)
+  } else if (ext === 'ksplat') {
     const { KSPLATLoader } = await import('three/addons/loaders/KSPLATLoader.js')
-    return new KSPLATLoader()
+    geometry = await new KSPLATLoader().loadAsync(url)
+  } else {
+    const { SPZLoader } = await import('three/addons/loaders/SPZLoader.js')
+    geometry = await new SPZLoader().loadAsync(url)
   }
-  const { SPZLoader } = await import('three/addons/loaders/SPZLoader.js')
-  return new SPZLoader()
+  return new GaussianSplat(geometry)
 }
 
 const LOAD_TIMEOUT_MS = 20_000 // Splat 加载超时（无 onError 事件，超时兜底降级）
@@ -280,11 +295,8 @@ export default function GaussianViewer({
       mount.appendChild(r.domElement)
       finalizeRenderer(r)
 
-      const loader = await pickNativeLoader(splatUrl)
-      const { GaussianSplat } = await import('three/addons/objects/GaussianSplat.js')
-      const geometry = await loader.loadAsync(splatUrl)
+      const splat = await loadNativeSplat(splatUrl)
       if (disposed) return
-      const splat = new GaussianSplat(geometry)
       scene.add(splat)
       splatObj = splat
       clearTimeout(fallbackTimer)

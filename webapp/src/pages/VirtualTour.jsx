@@ -166,7 +166,7 @@ export default function VirtualTourPage() {
             />
             <input
               type="file"
-              accept=".spz,.ply"
+              accept=".spz,.ply,.glb"
               onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
             />
             <button className="btn primary" disabled={!uploadFile || uploading} onClick={doUpload}>
@@ -174,8 +174,8 @@ export default function VirtualTourPage() {
             </button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
-            支持 .spz / .ply（≤64MB，推荐 SPZ 压缩格式）。由外部工具采集重建后导出
-            （如 LCC Scan / Polycam），平台负责托管与 3D 漫游渲染，不做 2D→3D 重建。
+            支持 .spz / .ply / .glb（≤64MB，推荐 SPZ 压缩格式）。由外部工具采集重建后导出
+            （如 LCC Scan / Polycam / LCC2 glTF），平台负责托管与 3D 漫游渲染，不做 2D→3D 重建。
           </div>
           {uploadError && (
             <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 6 }}>{uploadError}</div>

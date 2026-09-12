@@ -114,8 +114,9 @@ async def update_panorama(db: AsyncSession, panorama_id: str, data: dict) -> VRP
 # 3DGS 实景资产（P0：外部采集上传登记，2026-09-12）
 # ──────────────────────────────────────────────────────────────
 
-# 支持的 3DGS 格式与魔数：SPZ（Niantic 压缩格式，头部 "NGSP"）、PLY（头部 "ply"）
-SPLAT_MAGIC_BYTES: dict[str, bytes] = {".spz": b"NGSP", ".ply": b"ply"}
+# 支持的 3DGS 格式与魔数：SPZ（Niantic 压缩格式，头部 "NGSP"）、PLY（头部 "ply"）、
+# glTF 二进制（.glb，头部 "glTF"，KHR_gaussian_splatting 扩展，P2 对接 LCC2 生态）
+SPLAT_MAGIC_BYTES: dict[str, bytes] = {".spz": b"NGSP", ".ply": b"ply", ".glb": b"glTF"}
 # 单房间 SPZ 通常 3–15MB；PLY 未压缩体积更大，建议上传 SPZ
 MAX_SPLAT_FILE_BYTES = 64 * 1024 * 1024  # 64MB
 
@@ -123,12 +124,12 @@ MAX_SPLAT_FILE_BYTES = 64 * 1024 * 1024  # 64MB
 def validate_splat_file(filename: str, data: bytes) -> str | None:
     """校验 3DGS 资产文件（扩展名 + 大小 + 魔数），返回错误消息或 None。
 
-    魔数校验防止改后缀伪装上传，保证落库资产可被 Spark 真实渲染。
+    魔数校验防止改后缀伪装上传，保证落库资产可被 Spark / 原生 GaussianSplat 真实渲染。
     """
     ext = os.path.splitext(filename or "")[1].lower()
     magic = SPLAT_MAGIC_BYTES.get(ext)
     if magic is None:
-        return f"不支持的 3DGS 格式: {ext or '(无扩展名)'}，仅支持 .spz / .ply"
+        return f"不支持的 3DGS 格式: {ext or '(无扩展名)'}，仅支持 .spz / .ply / .glb"
     if len(data) > MAX_SPLAT_FILE_BYTES:
         return f"文件超过大小限制 {MAX_SPLAT_FILE_BYTES // (1024 * 1024)}MB"
     if not data.startswith(magic):

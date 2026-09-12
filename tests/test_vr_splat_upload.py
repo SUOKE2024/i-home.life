@@ -15,6 +15,8 @@ from httpx import AsyncClient
 # 最小合法样本：后端仅校验魔数，不解析内容
 SPZ_BYTES = b"NGSP" + b"\x02\x00\x00\x00" + b"\x00" * 64
 PLY_BYTES = b"ply\nformat binary_little_endian 1.0\n" + b"\x00" * 64
+# glTF 二进制（KHR_gaussian_splatting 扩展，P2 落地）：魔数 "glTF" + version 2
+GLB_BYTES = b"glTF" + b"\x02\x00\x00\x00" + b"\x00" * 64
 
 
 async def _auth_headers(client: AsyncClient, phone: str) -> dict:
@@ -86,6 +88,21 @@ async def test_upload_ply_accepted(client: AsyncClient):
         "/api/vr/panoramas/upload-splat",
         headers=headers,
         **_upload(project_id, "scan.ply", PLY_BYTES, room_name="主卧"),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["panorama_type"] == "gaussian"
+
+
+@pytest.mark.asyncio
+async def test_upload_glb_accepted(client: AsyncClient):
+    """合法 glTF 二进制（.glb，KHR_gaussian_splatting）上传 → 201（P2 落地）"""
+    headers = await _auth_headers(client, "13970070009")
+    project_id = await _create_project(client, headers)
+
+    resp = await client.post(
+        "/api/vr/panoramas/upload-splat",
+        headers=headers,
+        **_upload(project_id, "scene.glb", GLB_BYTES, room_name="书房"),
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["panorama_type"] == "gaussian"
