@@ -463,20 +463,18 @@ export async function getCurtainShowroomProducts(filters = {}) {
   return request(`/api/curtain-showroom/products${q ? `?${q}` : ''}`)
 }
 
-/** 上传真实面料贴图（multipart，三件套：texture/normal/roughness） */
-export async function uploadCurtainMap(productId, mapType, file) {
+/**
+ * 统一 multipart 上传（PASETO 头，不走 JSON request）。
+ * 返回 { isSuccess, status, data, error }，与 request 契约一致。
+ */
+async function uploadFormData(path, form) {
   const token = getToken()
-  const form = new FormData()
-  form.append('file', file)
   try {
-    const res = await fetch(
-      `/api/curtain-showroom/products/${encodeURIComponent(productId)}/maps/${encodeURIComponent(mapType)}`,
-      {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      },
-    )
+    const res = await fetch(buildUrl(path), {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    })
     if (res.status === 401) {
       clearToken()
       if (onUnauthorizedCb) onUnauthorizedCb()
@@ -492,6 +490,34 @@ export async function uploadCurtainMap(productId, mapType, file) {
   } catch (err) {
     return { isSuccess: false, status: 0, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/** 上传真实面料贴图（multipart，三件套：texture/normal/roughness） */
+export async function uploadCurtainMap(productId, mapType, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return uploadFormData(
+    `/api/curtain-showroom/products/${encodeURIComponent(productId)}/maps/${encodeURIComponent(mapType)}`,
+    form,
+  )
+}
+
+/** 上传 3DGS 实景场景（.spz/.ply，multipart）并登记为高斯全景（评估报告 2026-09-12 P0） */
+export async function uploadSplatPanorama(projectId, roomName, file, floorplanId) {
+  const form = new FormData()
+  form.append('project_id', projectId)
+  form.append('room_name', roomName)
+  if (floorplanId) form.append('floorplan_id', floorplanId)
+  form.append('file', file)
+  return uploadFormData('/api/vr/panoramas/upload-splat', form)
+}
+
+/** 对全景（含 3DGS 实景）做 AI 换装（virtual staging，评估报告 2026-09-12 P2） */
+export async function restagePanorama(panoramaId, style, prompt) {
+  return request(`/api/vr/panoramas/${encodeURIComponent(panoramaId)}/restage`, {
+    method: 'POST',
+    body: JSON.stringify({ style, prompt: prompt || undefined }),
+  })
 }
 
 // ── P0 设备热点联动（2026-08-12）──

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 
 # 空间语义导出 schema 版本（v0.1 先行定义，行业标准明朗后迭代）
 SPATIAL_SCHEMA_VERSION = "spatial-semantics/0.1"
+
+# LCC2 语义映射 sidecar schema 版本（v0.1 先行定义，评估报告 2026-09-12 P3 余项）
+# 平台不产出 LCC2 二进制（.lcc2 为 XGRIDS 专有格式），仅导出空间语义 ↔ 3DGS 资产映射元数据。
+LCC2_MAPPING_SCHEMA_VERSION = "lcc2-semantic-mapping/0.1"
 
 # 机器人友好校验项（确定性阈值，居家机器人通行/操作基础参数；
 # 阈值参考公开报道的人形机器人通行宽度与家用设备通用可及性，数据缺失即 insufficient_data）
@@ -327,4 +331,110 @@ async def get_robot_ready_checklist(db: AsyncSession, project_id: str) -> dict:
         "fields": fields,
         "source": "floorplans.data.robot_ready",
         "note": "未采集字段为 null（诚实标注，不伪造实测值）",
+    }
+
+
+# ── LCC2 语义映射 sidecar（评估报告 2026-09-12 P3 余项）──
+
+
+async def export_lcc2_mapping(db: AsyncSession, project_id: str) -> dict:
+    """导出 LCC2 语义映射 sidecar（schema v0.1 先行定义）。
+
+    将空间语义（spatial-semantics/0.1）+ 空间数字底座（房间邻接/导航/毫米尺度）+
+    项目 3DGS 资产清单（施工快照 / 高斯全景）打包，并给出「语义实体 ↔ 3DGS 场景
+    资产」的确定性映射关系。
+
+    诚实边界：平台不产出 LCC2 二进制（.lcc2 为 XGRIDS 专有格式，需其 SDK/重建管线）；
+    本文件为语义映射元数据，供 LCC Studio / Spark / 具身智能下游消费。
+    """
+    from app.models.construction_snapshot import ConstructionSnapshot
+    from app.models.floorplan import FloorPlan
+    from app.models.vr_panorama import VRPanorama
+    from app.services.spatial_semantics_service import build_spatial_foundation
+
+    _bj_tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
+
+    # 1. 空间语义（复用 export_spatial_semantics：户型/房间 + robot_ready + gaps）
+    semantics = await export_spatial_semantics(db, project_id)
+
+    # 2. 空间数字底座（房间邻接/导航/毫米尺度，复用 build_spatial_foundation）
+    floorplans = (
+        await db.execute(
+            select(FloorPlan)
+            .where(FloorPlan.project_id == project_id)
+            .order_by(FloorPlan.is_active.desc(), FloorPlan.updated_at.desc())
+        )
+    ).scalars().all()
+    foundation = None
+    if floorplans and floorplans[0].data:
+        foundation = build_spatial_foundation(floorplans[0].data)
+
+    # 3. 3DGS 资产清单（施工快照 + 高斯全景，均为 splat_url 指向 .spz/.ply）
+    snapshots = list(
+        (
+            await db.execute(
+                select(ConstructionSnapshot)
+                .where(ConstructionSnapshot.project_id == project_id)
+                .order_by(ConstructionSnapshot.captured_at.desc())
+            )
+        ).scalars().all()
+    )
+    gaussian_panos = list(
+        (
+            await db.execute(
+                select(VRPanorama)
+                .where(
+                    VRPanorama.project_id == project_id,
+                    VRPanorama.panorama_type == "gaussian",
+                    VRPanorama.splat_url.isnot(None),
+                )
+            )
+        ).scalars().all()
+    )
+
+    assets: list[dict] = []
+    for s in snapshots:
+        assets.append({
+            "asset_id": s.id,
+            "kind": "construction_snapshot",
+            "stage": s.stage,
+            "room_name": s.room_name,
+            "splat_url": s.splat_url,
+            "captured_at": s.captured_at.isoformat() if s.captured_at else None,
+        })
+    for p in gaussian_panos:
+        assets.append({
+            "asset_id": p.id,
+            "kind": "vr_panorama",
+            "stage": None,
+            "room_name": p.room_name,
+            "splat_url": p.splat_url,
+            "captured_at": None,
+        })
+
+    # 4. 语义实体 ↔ 3DGS 资产 映射（确定性：优先施工阶段，其次房间名，兜底项目级）
+    room_names = {r.get("name") for r in semantics.get("rooms", []) if isinstance(r, dict)}
+    mapping: list[dict] = []
+    for a in assets:
+        if a.get("kind") == "construction_snapshot" and a.get("stage"):
+            entity = {"type": "construction_stage", "stage": a["stage"], "room_name": a.get("room_name")}
+        elif a.get("room_name") and a["room_name"] in room_names:
+            entity = {"type": "room", "name": a["room_name"]}
+        else:
+            entity = {"type": "project", "note": "未匹配到房间语义（房间名缺失或不在空间语义中）"}
+        mapping.append({"asset_id": a["asset_id"], "semantic_entity": entity})
+
+    return {
+        "schema_version": LCC2_MAPPING_SCHEMA_VERSION,
+        "project_id": project_id,
+        "generated_at": datetime.now(_bj_tz).isoformat(),
+        "spatial_semantics": semantics,
+        "spatial_foundation": foundation,
+        "gaussian_assets": assets,
+        "mapping": mapping,
+        "note": (
+            "lcc2-semantic-mapping/0.1 为平台先行定义的语义映射 sidecar（行业无标准，随标准明朗迭代）；"
+            "平台不产出 LCC2 二进制（.lcc2 为 XGRIDS 专有格式，需其 SDK/重建管线），"
+            "本文件描述空间语义实体 ↔ 3DGS 场景资产(splat) 的确定性映射，供 LCC Studio/Spark/具身智能下游消费"
+        ),
     }

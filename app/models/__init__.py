@@ -8,6 +8,7 @@ from app.models.material import MaterialCategory, Material, BOMItem
 from app.models.budget import Budget, BudgetLine
 from app.models.procurement import Supplier, Quotation, ProcurementOrder, OrderLine
 from app.models.construction import ConstructionTask, ConstructionLog, Inspection
+from app.models.construction_snapshot import ConstructionSnapshot
 from app.models.settlement import Settlement, SettlementLine
 from app.models.floorplan import FloorPlan
 from app.models.file_attachment import FileAttachment
@@ -26,6 +27,7 @@ from app.models.bathroom import BathroomDesign, BathroomFixture
 from app.models.custom_furniture import CustomFurnitureDesign, FurnitureModule, FurnitureBOM
 from app.models.soft_furnishing import SoftFurnishingScheme, SoftFurnishingItem, StorageSystem
 from app.models.vr_panorama import VRPanorama, VRScene
+from app.models.gaussian_recon import GaussianReconstructionJob
 from app.models.ai_image import AIImageJob, AIImagePreset
 from app.models.kitchen_bath_mep import KitchenBathMEPPlan, MEPPoint
 from app.models.hard_decoration import HardDecorationScheme, HardDecorationFloor, WallFinish, CeilingDesign
@@ -134,6 +136,7 @@ __all__ = [
     "ConstructionTask",
     "ConstructionLog",
     "Inspection",
+    "ConstructionSnapshot",
     "Settlement",
     "SettlementLine",
     "FloorPlan",
@@ -171,6 +174,7 @@ __all__ = [
     "StorageSystem",
     "VRPanorama",
     "VRScene",
+    "GaussianReconstructionJob",
     "AIImageJob",
     "AIImagePreset",
     "KitchenBathMEPPlan",

@@ -8,6 +8,7 @@
 """
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -104,6 +105,63 @@ async def update_panorama(db: AsyncSession, panorama_id: str, data: dict) -> VRP
     for key, value in data.items():
         if value is not None:
             setattr(panorama, key, value)
+    await db.commit()
+    await db.refresh(panorama)
+    return panorama
+
+
+# ──────────────────────────────────────────────────────────────
+# 3DGS 实景资产（P0：外部采集上传登记，2026-09-12）
+# ──────────────────────────────────────────────────────────────
+
+# 支持的 3DGS 格式与魔数：SPZ（Niantic 压缩格式，头部 "NGSP"）、PLY（头部 "ply"）
+SPLAT_MAGIC_BYTES: dict[str, bytes] = {".spz": b"NGSP", ".ply": b"ply"}
+# 单房间 SPZ 通常 3–15MB；PLY 未压缩体积更大，建议上传 SPZ
+MAX_SPLAT_FILE_BYTES = 64 * 1024 * 1024  # 64MB
+
+
+def validate_splat_file(filename: str, data: bytes) -> str | None:
+    """校验 3DGS 资产文件（扩展名 + 大小 + 魔数），返回错误消息或 None。
+
+    魔数校验防止改后缀伪装上传，保证落库资产可被 Spark 真实渲染。
+    """
+    ext = os.path.splitext(filename or "")[1].lower()
+    magic = SPLAT_MAGIC_BYTES.get(ext)
+    if magic is None:
+        return f"不支持的 3DGS 格式: {ext or '(无扩展名)'}，仅支持 .spz / .ply"
+    if len(data) > MAX_SPLAT_FILE_BYTES:
+        return f"文件超过大小限制 {MAX_SPLAT_FILE_BYTES // (1024 * 1024)}MB"
+    if not data.startswith(magic):
+        return f"文件内容与 {ext} 格式不符（魔数校验失败），请上传真实 3DGS 资产"
+    return None
+
+
+async def create_gaussian_panorama(
+    db: AsyncSession,
+    project_id: str,
+    room_name: str,
+    splat_url: str,
+    file_size_bytes: int,
+    floorplan_id: str | None = None,
+) -> VRPanorama:
+    """外部采集的 3DGS 实景（.spz/.ply）登记为高斯全景，Spark 渲染（M3/P0）。
+
+    内容来源诚实标注：由外部工具（LCC Scan / Polycam 等）采集重建后上传，
+    平台不做 2D→3D 重建（该管线待 GPU 立项，M3 余项）。
+    status 直接 completed（外部产出即为成品，无需排队渲染）。
+    """
+    panorama = VRPanorama(
+        project_id=project_id,
+        floorplan_id=floorplan_id,
+        room_name=room_name,
+        panorama_type="gaussian",
+        content_source="actual",
+        splat_url=splat_url,
+        status="completed",
+        completed_at=datetime.now(timezone.utc),
+        file_size_mb=round(file_size_bytes / (1024 * 1024), 2),
+    )
+    db.add(panorama)
     await db.commit()
     await db.refresh(panorama)
     return panorama

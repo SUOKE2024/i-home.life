@@ -64,6 +64,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **org 共享记忆**：`GET /agents/memory/org` 全平台可读；scope=org 写入仅管理员（403）。team 级因无 Team 实体暂缓（P2，禁止伪称已实现）。
 - **项目周报**（`project_weekly_briefing_enabled` 默认 True）：`GET /agents/projects/{id}/weekly-briefing` 六段确定性数据逐段标注数据源 + AI 建议 economy 档 best-effort；关闭 503。
 - **Robot-Ready**：`robot_ready_service` 五项确定性校验——数据缺失逐项 `insufficient_data`，**全缺不得判不合格**（诚实降级红线）；`spatial-semantics/0.1` 为平台先行定义导出 schema（行业无标准，改 schema 须 bump 版本号并同步文档）。
+- **LCC2 语义映射**（2026-09-12 3DGS/LCC 借鉴 P3 余项）：`GET /api/construction/projects/{id}/lcc2-mapping` 导出 `lcc2-semantic-mapping/0.1`（平台先行定义）——空间语义 + 空间数字底座 + 3DGS 资产清单 + 语义实体↔资产确定性映射；**平台不产出 LCC2 二进制**（.lcc2 为 XGRIDS 专有格式，需其 SDK/重建管线，诚实边界），仅语义映射 sidecar。
 
 ## 设备链路加固（2026-08-27，穿戴/智能家居接入评估报告落地，详见 `docs/reports/device-link-hardening-20260827.md`）
 

@@ -84,6 +84,24 @@ async def export_robot_ready(
     return await export_spatial_semantics(db, project_id)
 
 
+@router.get("/projects/{project_id}/lcc2-mapping")
+async def export_lcc2_mapping(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """LCC2 语义映射 sidecar 导出（评估报告 2026-09-12 P3 余项）。
+
+    导出空间语义 + 空间数字底座 + 项目 3DGS 资产清单（施工快照/高斯全景），
+    并给出「语义实体 ↔ 3DGS 场景资产」的确定性映射。诚实边界：平台不产出
+    LCC2 二进制（.lcc2 为 XGRIDS 专有格式），本文件为语义映射元数据。
+    """
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    from app.services.robot_ready_service import export_lcc2_mapping as _export
+
+    return await _export(db, project_id)
+
+
 class RobotReadyChecklistRequest(BaseModel):
     """v1.15.8 P2-4 施工 QA 机器人友好字段采集请求（字段对齐 ROBOT_READY_CHECKS）"""
     door_width: float | None = None            # 门洞通行宽度 m

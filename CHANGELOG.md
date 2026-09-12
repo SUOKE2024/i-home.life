@@ -2,6 +2,88 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.15.14] - 2026-09-12（Three.js r186 原生高斯泼溅落地：升级引擎 + 双轨渲染）
+
+执行依据：2026-09-12《Three.js r186 原生支持高斯泼溅》调研评估。r186（2026-09-09）
+起 3D 高斯泼溅成为引擎原生一等公民（GaussianSplat 网格 + 5 种加载器），此前依赖
+@sparkjsdev/spark（4.9MB 懒加载 chunk）。本轮落地 P0 升级 + P1 双轨渲染。
+
+- **P0 引擎升级**：webapp `three` `^0.185.1` → `^0.186.0`；核验 r186 破坏性变更
+  （`Object3D.dispose()` / `Source→TextureSource` 等）均不涉及 PanoramaViewer /
+  CurtainShowroom / GaussianViewer 现有用法，build 回归通过。
+- **P1 双轨渲染**（`webapp/src/components/GaussianViewer.jsx`）：
+  - 轨道一（优先）：WebGPU 可用 → Three.js 原生 `GaussianSplat` + `WebGPURenderer`
+    （GPU 计数排序 + SH1-SH3 视角相关颜色），按扩展名选 `SPZLoader` /
+    `GaussianSplatPLYLoader` / `SPLATLoader` / `KSPLATLoader`，免加载 4.9MB Spark
+    （原生路径合计 ~770KB gzip ~226KB）。
+  - 轨道二（回退）：无 WebGPU → 现有 `@sparkjsdev/spark`（WebGL2 GPU 排序，覆盖低端
+    移动设备）。
+  - 兜底：无 WebGL2 / 轨道加载失败 / 资源超时 → `onFallback()` 贴图全景，延续项目
+    4 级降级链（WebGPU → WebGL2/Spark → 贴图全景 → 静态图）。
+  - 交互/热点 Sprite/设备锚点/按需渲染逻辑抽为两条轨道共享，避免重复。
+- **诚实边界**：原生 GaussianSplat 仅支持 WebGPURenderer（WebGL2 为 CPU 排序回退，
+  性能弱于 Spark GPU 排序），故不做「原生替换 Spark」，而是检测分流双轨并存；
+  鸿蒙/低端 Android 的 WebGPU 覆盖需真机实测（未实测不宣称支持）。
+- **版本**：1.15.13 → 1.15.14 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.14+62/webapp version.json/console 1.15.14.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：纯前端改动（后端仅版本号字符串），无新增后端用例；全量基线 2679 不回退。
+
+## [1.15.13] - 2026-09-12（3DGS/LCC 借鉴落地 P1+P2+P3：云端重建骨架 + AI 换装 + 施工存档）
+
+执行依据：2026-09-12《3D 高斯泼溅技术、LCC》调研评估后续阶段落地。P0 已打通外部采集
+.spz/.ply 上传 → Spark 漫游；本轮补齐 P1（云端重建骨架）/ P2（AI 换装）/ P3（施工存档）。
+
+- **P1 云端重建骨架**（`gaussian_recon_enabled` 默认 False + `gaussian_recon_backend_url`）：
+  新模型 `GaussianReconstructionJob`（`gaussian_recon_jobs` 表，复用 ar_scan 状态机语义
+  queued→processing→completed/failed）；`POST /api/vr/reconstructions` 提交重建任务，
+  `GET /api/vr/reconstructions/{id}` 查询（触发后端状态轮询）。未配置后端时诚实 503
+  （`ReconUnavailableError`，平台不自建 GPU、不做 2D→3D 重建）；后端契约
+  `POST/GET {backend}/jobs` 固化（对标 ai_render_service 的接入契约范式）。
+- **P2 AI 换装**（virtual staging）：`POST /api/vr/panoramas/{id}/restage` 复用
+  ai_render 降级链对全景（含 3DGS 实景）生成换装效果图，返回 `image_url` +
+  `render_backend`/`reconstruction_available` 诚实标注；webapp VirtualTour 查看器加
+  「AI 换装」按钮 + 风格下拉 + 效果图/实景双视图对比浮层（效果图标注「AI 生成非实景」）。
+- **P3 施工存档**：新模型 `ConstructionSnapshot`（`construction_snapshots` 表，关联
+  construction_tasks + 施工阶段 stage 对齐 phase 值域）；`POST /api/construction/
+  projects/{id}/snapshots` 上传施工节点 3DGS 快照（复用 P0 的 .spz/.ply 校验 + FileAttachment
+  托管），`GET .../snapshots` 施工时间线（竣工验收比对 + 业主远程查看 + settlement 存证）。
+- **LCC2 语义映射 sidecar**（P3 余项）：`GET /api/construction/projects/{id}/lcc2-mapping`
+  导出 `lcc2-semantic-mapping/0.1`（平台先行定义）——空间语义 + 空间数字底座（邻接/导航/毫米尺度）
+  + 项目 3DGS 资产清单 + 「语义实体 ↔ 3DGS 资产」确定性映射（施工阶段/房间名/项目兜底）。
+  诚实边界：平台不产出 LCC2 二进制（.lcc2 为 XGRIDS 专有格式，需其 SDK/重建管线），
+  仅导出语义映射元数据供 LCC Studio/Spark/具身智能下游消费。
+- **版本**：1.15.12 → 1.15.13 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.13+61/webapp+lock/console 1.15.13.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：新增 `test_gaussian_recon.py`（6）/ `test_vr_restage.py`（4）/
+  `test_construction_snapshot.py`（5）/ `test_lcc2_mapping.py`（4）；迁移
+  downgrade/upgrade 全链路本地验证通过。
+
+## [1.15.12] - 2026-09-12（3DGS/LCC 借鉴落地 P0：外部采集 .spz/.ply 上传 → Spark 漫游全链路打通）
+
+执行依据：2026-09-12《3D 高斯泼溅技术、LCC》调研评估——项目已有 GaussianViewer 渲染骨架
+（M3）与 `vr_panoramas.splat_url` 字段，缺内容生产入口；P0 采纳「借生态落地」路线
+（外部工具端侧重建导出 → 平台托管 + 渲染漫游），不自建 GPU、不引入新架构。
+
+- **后端上传端点**：`POST /api/vr/panoramas/upload-splat`（multipart）——扩展名
+  （.spz/.ply）+ 魔数（SPZ "NGSP" / PLY "ply"）+ 64MB 大小三重校验，防改后缀伪装上传；
+  `verify_project_collaborator_access` 协作权限（设计师/施工方可上传扫描资产）；
+  复用 FileAttachment 存储（`category=gaussian_splat`），`splat_url` 指向
+  `/api/files/download/{id}`；落库 `panorama_type=gaussian / content_source=actual /
+  status=completed`，WS 广播 `vr.panorama.created`。
+- **诚实标注**：平台不做 2D→3D 重建（该管线待 GPU 立项，M3 余项）；端点 docstring
+  与前端上传面板均明确标注内容来自外部工具（LCC Scan / Polycam 等）。
+- **webapp 全链路**：VirtualTour 页新增「上传 3DGS 场景」面板（房间名可缺省取文件名）；
+  修复卡片 `rendered` 判定——splat_url 成品此前因 `image_url` 为空被误禁「进入」按钮；
+  gaussian 类型卡片/查看器标题标注「高斯泼溅 3DGS · 实景漫游 / 3D 实景漫游」。
+- **冗余清理**：api.js 抽取公共 `uploadFormData`（消除 multipart 上传逻辑第三处重复，
+  `uploadCurtainMap` 同步重构）。
+- **Flutter 端**：WebView 嵌 webapp 漫游页路线暂缓——鸿蒙 WebView WebGL2 兼容性
+  需真机实测（诚实遗留，未实测算不得宣称支持）。
+- **版本**：1.15.11 → 1.15.12 全链路同步（config/.env×4/MCP SERVER_VERSION/Flutter
+  1.15.12+60/webapp+lock/console 1.15.12.0+lock/ci×3/deploy/测试断言×3）。
+- **测试**：新增 `test_vr_splat_upload.py` 8 用例（401/SPZ 登记+字节级回读/PLY/
+  坏扩展名/魔数伪装/超限/越权 403/列表可见）。
+
 ## [1.15.11] - 2026-08-27（设备链路加固：穿戴/智能家居接入评估报告落地）
 
 执行依据：2026-08-27 生产三轮三智能体验证发现 ISSUE-001（传感器越界未校验，部署漂移）

@@ -6,7 +6,7 @@ import GaussianViewer from '../components/GaussianViewer'
 import DeviceCommandPanel from '../components/DeviceCommandPanel'
 import SceneTriggerOverlay from '../components/SceneTriggerOverlay'
 import useDeviceOverlay from '../hooks/useDeviceOverlay'
-import { listProjects, getVRPanoramas } from '../lib/api'
+import { listProjects, getVRPanoramas, uploadSplatPanorama, restagePanorama } from '../lib/api'
 
 const STATUS_LABELS = {
   queued: ['排队中', 'amber'],
@@ -25,6 +25,17 @@ export default function VirtualTourPage() {
   const [error, setError] = useState(null)
   const [viewing, setViewing] = useState(null)
   const [selectedDevice, setSelectedDevice] = useState(null)
+  // 3DGS 实景上传（P0：外部工具采集 .spz/.ply 登记，2026-09-12）
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploadRoom, setUploadRoom] = useState('')
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+  // P2 AI 换装（virtual staging）：效果图与实景双视图对比
+  const [restageStyle, setRestageStyle] = useState('modern')
+  const [restaging, setRestaging] = useState(false)
+  const [restageResult, setRestageResult] = useState(null)
+  const [restageError, setRestageError] = useState(null)
 
   // P0 设备热点联动：当前项目设备图层（加载 + 30s 轮询 + 命令/场景触发）
   const { devices, latestSensor, sendCommand, triggerScene, sceneFlash } = useDeviceOverlay(selectedId)
@@ -62,6 +73,44 @@ export default function VirtualTourPage() {
     load(id)
   }
 
+  const doUpload = async () => {
+    if (!selectedId || !uploadFile || uploading) return
+    setUploading(true)
+    setUploadError(null)
+    // 未填房间名时用文件名兜底（去扩展名）
+    const room = uploadRoom.trim() || uploadFile.name.replace(/\.[^.]+$/, '')
+    const r = await uploadSplatPanorama(selectedId, room, uploadFile)
+    setUploading(false)
+    if (!r.isSuccess) {
+      setUploadError(r.error || '上传失败')
+      return
+    }
+    setShowUpload(false)
+    setUploadRoom('')
+    setUploadFile(null)
+    load(selectedId)
+  }
+
+  const doRestage = async () => {
+    if (!viewing || restaging) return
+    setRestaging(true)
+    setRestageError(null)
+    setRestageResult(null)
+    const r = await restagePanorama(viewing.pano.id, restageStyle, '')
+    setRestaging(false)
+    if (!r.isSuccess) {
+      setRestageError(r.error || '换装失败')
+      return
+    }
+    setRestageResult(r.data)
+  }
+
+  const closeViewer = () => {
+    setViewing(null)
+    setRestageResult(null)
+    setRestageError(null)
+  }
+
   const openViewer = (pano) => {
     // 后端列表项 initial_view 为解析后的 dict {heading, pitch, fov}
     let initialView = null
@@ -82,19 +131,57 @@ export default function VirtualTourPage() {
           <h2>VR 全景</h2>
           <div className="desc">全景看房 · 拖拽环视 / 滚轮缩放 / 点击热点跳转（AI 效果图为 2D 平面预览）</div>
         </div>
-        <select
-          className="select"
-          value={selectedId}
-          onChange={(e) => switchProject(e.target.value)}
-          style={{ width: 240 }}
-        >
-          {projects.map((pr) => (
-            <option key={pr.id} value={pr.id}>
-              {pr.name || pr.id}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            className="btn"
+            disabled={!selectedId}
+            onClick={() => { setShowUpload((v) => !v); setUploadError(null) }}
+          >
+            上传 3DGS 场景
+          </button>
+          <select
+            className="select"
+            value={selectedId}
+            onChange={(e) => switchProject(e.target.value)}
+            style={{ width: 240 }}
+          >
+            {projects.map((pr) => (
+              <option key={pr.id} value={pr.id}>
+                {pr.name || pr.id}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {showUpload && (
+        <div className="card" style={{ marginBottom: 14, padding: '12px 14px' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              className="input"
+              style={{ width: 180 }}
+              placeholder="房间名（默认取文件名）"
+              value={uploadRoom}
+              onChange={(e) => setUploadRoom(e.target.value)}
+            />
+            <input
+              type="file"
+              accept=".spz,.ply"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+            />
+            <button className="btn primary" disabled={!uploadFile || uploading} onClick={doUpload}>
+              {uploading ? '上传中…' : '确认上传'}
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 8 }}>
+            支持 .spz / .ply（≤64MB，推荐 SPZ 压缩格式）。由外部工具采集重建后导出
+            （如 LCC Scan / Polycam），平台负责托管与 3D 漫游渲染，不做 2D→3D 重建。
+          </div>
+          {uploadError && (
+            <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 6 }}>{uploadError}</div>
+          )}
+        </div>
+      )}
 
       {loading && <Spinner label="正在加载全景图…" />}
       {!loading && error && <ErrorBox message={error} onRetry={() => load(selectedId)} />}
@@ -111,7 +198,9 @@ export default function VirtualTourPage() {
         >
           {panoramas.map((p) => {
             const st = STATUS_LABELS[p.status] || ['未知', 'sky']
-            const rendered = !!p.image_url
+            const isGaussian = p.panorama_type === 'gaussian'
+            // 3DGS 实景（splat_url）与贴图全景（image_url）均为可渲染成品
+            const rendered = !!(p.image_url || p.splat_url)
             return (
               <div
                 key={p.id}
@@ -158,7 +247,9 @@ export default function VirtualTourPage() {
                       <span style={{ color: 'var(--accent-text)' }}>AI 效果图 · 2D 平面预览（非 360° 实景）</span>
                     ) : (
                       <>
-                        {p.panorama_type === 'equirectangular' ? '球面全景' : p.panorama_type || '-'} · {p.resolution} · {p.hotspots?.length ?? 0} 热点
+                        {isGaussian
+                          ? '高斯泼溅 3DGS · 实景漫游'
+                          : `${p.panorama_type === 'equirectangular' ? '球面全景' : p.panorama_type || '-'} · ${p.resolution} · ${p.hotspots?.length ?? 0} 热点`}
                       </>
                     )}
                   </div>
@@ -169,7 +260,13 @@ export default function VirtualTourPage() {
                       disabled={!rendered}
                       onClick={() => openViewer(p)}
                     >
-                      {rendered ? (p.content_source === 'effect' ? '效果图预览' : '进入 360° 全景') : '等待渲染'}
+                      {rendered
+                        ? p.content_source === 'effect'
+                          ? '效果图预览'
+                          : isGaussian
+                            ? '进入 3D 漫游'
+                            : '进入 360° 全景'
+                        : '等待渲染'}
                     </button>
                   </div>
                 </div>
@@ -188,11 +285,40 @@ export default function VirtualTourPage() {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', color: '#fff' }}>
-            <b style={{ flex: 1 }}>{viewing.pano.room_name} · {viewing.pano.content_source === 'effect' ? '效果图预览' : '360° 全景'}</b>
+            <b style={{ flex: 1 }}>
+              {viewing.pano.room_name} · {viewing.pano.content_source === 'effect'
+                ? '效果图预览'
+                : viewing.pano.panorama_type === 'gaussian'
+                  ? '3D 实景漫游'
+                  : '360° 全景'}
+            </b>
+            {viewing.pano.content_source !== 'effect' && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginRight: 8 }}>
+                <select
+                  className="select"
+                  value={restageStyle}
+                  onChange={(e) => setRestageStyle(e.target.value)}
+                  style={{ width: 110, color: '#fff', background: 'rgba(255,255,255,0.12)', borderColor: 'transparent' }}
+                >
+                  {['modern', 'nordic', 'japanese', 'luxury', 'chinese', 'industrial'].map((s) => (
+                    <option key={s} value={s} style={{ color: '#000' }}>{s}</option>
+                  ))}
+                </select>
+                <button
+                  className="icon-btn"
+                  style={{ color: '#fff', background: 'rgba(255,255,255,0.12)', width: 'auto', padding: '0 12px' }}
+                  onClick={doRestage}
+                  disabled={restaging}
+                  title="AI 换装（生成效果图与实景对比）"
+                >
+                  {restaging ? '生成中…' : 'AI 换装'}
+                </button>
+              </div>
+            )}
             <button
               className="icon-btn"
               style={{ color: '#fff', background: 'rgba(255,255,255,0.12)' }}
-              onClick={() => setViewing(null)}
+              onClick={closeViewer}
               title="关闭"
             >
               <X size={18} />
@@ -260,6 +386,47 @@ export default function VirtualTourPage() {
               />
             )}
             <SceneTriggerOverlay flash={sceneFlash} />
+            {restaging && (
+              <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(10,12,16,0.8)', color: '#fff', fontSize: 12, padding: '6px 12px', borderRadius: 8 }}>
+                AI 换装生成中…
+              </div>
+            )}
+            {restageError && (
+              <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(200,60,60,0.9)', color: '#fff', fontSize: 12, padding: '6px 12px', borderRadius: 8 }}>
+                {restageError}
+              </div>
+            )}
+            {restageResult && restageResult.image_url && (
+              <div style={{
+                position: 'absolute', top: 14, right: 14, width: 260,
+                background: 'rgba(10,12,16,0.92)', borderRadius: 10, overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.15)',
+              }}
+              >
+                <div style={{ padding: '8px 10px', fontSize: 12, color: '#fff', fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>AI 换装效果 · {restageStyle}</span>
+                  <button
+                    className="icon-btn"
+                    style={{ color: '#fff', background: 'transparent' }}
+                    onClick={() => setRestageResult(null)}
+                    title="关闭对比"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <img
+                  src={restageResult.image_url}
+                  alt={`${viewing.pano.room_name} AI 换装效果图`}
+                  style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none' }}
+                />
+                <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-dim)' }}>
+                  {restageResult.reconstruction_available === false
+                    ? '效果图预览 · AI 生成非实景（不做 2D→3D）'
+                    : 'AI 换装效果图（实景结构保留）'}
+                </div>
+              </div>
+            )}
             {viewing.pano.content_source === 'effect' ? (
               <div style={{ position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>
                 静态效果图预览 · 无 360° 交互（实景 360° 漫游查看 actual 全景）

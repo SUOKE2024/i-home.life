@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.15.11"
+    app_version: str = "1.15.14"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -657,6 +657,12 @@ class Settings(BaseSettings):
     ai_render_backend_type: str = "controlnet"
     # 契约严格模式：True 时客户端 require_real=True 且后端不可用 → 503 诚实报错（不走占位图）
     ai_render_contract_strict: bool = True
+
+    # ── P1: 3DGS 云端重建（2026-09-12 评估落地，对标 LCC Cloud / 同类重建 API）──
+    # 启用后可将采集照片/视频提交至云端重建为 .spz/.ply 并登记为高斯全景；
+    # 未配置 backend_url 时诚实 503（平台不自建 GPU，不做 2D→3D 重建）。
+    gaussian_recon_enabled: bool = False  # 默认关闭，需配置重建后端 URL
+    gaussian_recon_backend_url: str = ""  # 云端重建后端地址（如 XGRIDS LCC Cloud 或同类 API）
 
     # ── S4: IFC 真实坐标 + Pset 属性集 + 门窗洞口扣减 ──
     # 启用后 ifc_export 用 floorplan 真实坐标放置构件，附加 Pset_WallCommon 等

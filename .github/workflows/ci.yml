@@ -41,7 +41,7 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.11"
+          APP_VERSION: "1.15.14"
         run: |
           mkdir -p data
           python -m pytest tests/ -v --tb=short -n auto
@@ -215,7 +215,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.11"
+          APP_VERSION: "1.15.14"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -441,7 +441,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.15.11"
+      APP_VERSION: "1.15.14"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4

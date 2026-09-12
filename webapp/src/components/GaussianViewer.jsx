@@ -3,13 +3,17 @@ import * as THREE from 'three'
 import { paintDeviceSprite } from './PanoramaViewer'
 
 /**
- * GaussianViewer — Spark 3DGS 漫游查看器（M3 组件基石，2026-08-12）
+ * GaussianViewer — 3DGS 漫游查看器（M3 组件基石，2026-08-12）
  *
- * - SparkRenderer + SplatMesh 渲染 .spz/.ply（@sparkjsdev/spark，WebGL2）
- * - 双轨降级：无 WebGL2 / Spark 加载失败 / 资源超时 → onFallback()
- *   （调用方回退 PanoramaViewer 贴图全景，延续 4 级降级链）
- * - 设备锚点叠加：复用 P0 热点 yaw/pitch 球面坐标换算（THREE.Sprite，
- *   在线绿 / 离线灰 / 激活橙，onDeviceClick 回调）
+ * v1.15.14 双轨渲染（Three.js r186 原生高斯泼溅落地）：
+ * - 轨道一（优先）：WebGPU 可用 → Three.js 原生 GaussianSplat + WebGPURenderer
+ *   （免 4.9MB Spark 依赖，GPU 计数排序 + SH1-SH3 视角相关颜色，按扩展名选
+ *   SPZLoader / GaussianSplatPLYLoader / SPLATLoader / KSPLATLoader）
+ * - 轨道二（回退）：无 WebGPU → 现有 @sparkjsdev/spark（WebGL2 GPU 排序，
+ *   覆盖低端移动设备）
+ * - 兜底：无 WebGL2 / 两条轨道加载失败 / 资源超时 → onFallback()（贴图全景）
+ *   延续项目 4 级降级链（WebGPU → WebGL2/Spark → 贴图全景 → 静态图）
+ * - 设备锚点叠加：复用 P0 热点 yaw/pitch 球面坐标换算（THREE.Sprite）
  * - 按需渲染省电路径（静止停帧）+ 拖拽环视 / 滚轮缩放
  */
 const isLowEndDevice = () => {
@@ -30,7 +34,38 @@ const supportsWebGL2 = () => {
   }
 }
 
-const LOAD_TIMEOUT_MS = 20_000 // SplatMesh 加载超时（无 onError 事件，超时兜底降级）
+// WebGPU 检测（异步：navigator.gpu 存在且能拿到 adapter）
+const supportsWebGPU = async () => {
+  if (typeof navigator === 'undefined' || !navigator.gpu) return false
+  try {
+    const adapter = await navigator.gpu.requestAdapter()
+    return !!adapter
+  } catch {
+    return false
+  }
+}
+
+// 按扩展名选 Three.js 原生加载器（均返回 BufferGeometry，直接 new GaussianSplat）
+const pickNativeLoader = async (url) => {
+  const clean = url.split('?')[0] || ''
+  const ext = (clean.split('.').pop() || '').toLowerCase()
+  if (ext === 'ply') {
+    const { GaussianSplatPLYLoader } = await import('three/addons/loaders/GaussianSplatPLYLoader.js')
+    return new GaussianSplatPLYLoader()
+  }
+  if (ext === 'splat') {
+    const { SPLATLoader } = await import('three/addons/loaders/SPLATLoader.js')
+    return new SPLATLoader()
+  }
+  if (ext === 'ksplat') {
+    const { KSPLATLoader } = await import('three/addons/loaders/KSPLATLoader.js')
+    return new KSPLATLoader()
+  }
+  const { SPZLoader } = await import('three/addons/loaders/SPZLoader.js')
+  return new SPZLoader()
+}
+
+const LOAD_TIMEOUT_MS = 20_000 // Splat 加载超时（无 onError 事件，超时兜底降级）
 
 export default function GaussianViewer({
   splatUrl, devices = [], hotspots = [], initialView, onDeviceClick, onHotspotClick, onFallback,
@@ -56,22 +91,16 @@ export default function GaussianViewer({
     let idleTimer = null
     let needsRender = true
     let fallbackTimer = null
+    let renderer = null
+    let splatObj = null
     let spark = null
-    let splat = null
+    const cleanupFns = []
 
     const width = mount.clientWidth || 640
     const height = mount.clientHeight || 360
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.01, 500)
     camera.position.set(0, 0, 0)
-
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !lowEnd,
-      powerPreference: 'low-power',
-    })
-    renderer.setSize(width, height)
-    renderer.setPixelRatio(lowEnd ? 1 : Math.min(window.devicePixelRatio, 2))
-    mount.appendChild(renderer.domElement)
 
     // 按需渲染：静止 600ms 停帧（低配省电）
     const scheduleRender = () => {
@@ -81,7 +110,7 @@ export default function GaussianViewer({
       idleTimer = setTimeout(() => { needsRender = false }, 600)
     }
     const loop = () => {
-      if (needsRender) renderer.render(scene, camera)
+      if (needsRender && renderer) renderer.render(scene, camera)
       raf = needsRender ? requestAnimationFrame(loop) : 0
     }
 
@@ -136,113 +165,6 @@ export default function GaussianViewer({
     })
     deviceSpritesRef.current = deviceSprites
 
-    // Spark 加载（动态导入，按需加载 5MB+ 模块，低端设备/失败不拖慢首屏）
-    import('@sparkjsdev/spark')
-      .then(({ SparkRenderer, SplatMesh }) => {
-        if (disposed) return
-        spark = new SparkRenderer({ renderer })
-        scene.add(spark)
-        splat = new SplatMesh({
-          url: splatUrl,
-          onProgress: () => scheduleRender(),
-          onLoad: () => {
-            if (disposed) return
-            clearTimeout(fallbackTimer)
-            setStatus('ready')
-            scheduleRender()
-          },
-        })
-        scene.add(splat)
-        scheduleRender()
-      })
-      .catch((e) => {
-        console.warn('[GaussianViewer] Spark 加载失败，降级全景:', e)
-        setStatus('error')
-        onFallback?.()
-      })
-
-    // 加载超时兜底（SplatMesh 无 onError 事件）
-    fallbackTimer = setTimeout(() => {
-      if (disposed) return
-      console.warn('[GaussianViewer] 3DGS 资源加载超时，降级全景')
-      setStatus('error')
-      onFallback?.()
-    }, LOAD_TIMEOUT_MS)
-
-    // 交互：拖拽环视 + 滚轮缩放
-    let dragging = false
-    let lastX = 0
-    let lastY = 0
-    let dragYaw = 0
-    let dragPitch = 0
-    const onDown = (e) => {
-      dragging = true
-      lastX = e.clientX
-      lastY = e.clientY
-      scheduleRender()
-    }
-    const onMove = (e) => {
-      if (!dragging) return
-      const dx = e.clientX - lastX
-      const dy = e.clientY - lastY
-      lastX = e.clientX
-      lastY = e.clientY
-      dragYaw += dx * 0.005
-      dragPitch += dy * 0.005
-      dragPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, dragPitch))
-      camera.rotation.order = 'YXZ'
-      camera.rotation.y = -dragYaw + ((initialView?.heading ?? 0) * Math.PI) / 180
-      camera.rotation.x = dragPitch + ((initialView?.pitch ?? 0) * Math.PI) / 180
-      scheduleRender()
-    }
-    const onUp = () => { dragging = false }
-    const onWheel = (e) => {
-      e.preventDefault()
-      camera.fov = Math.max(30, Math.min(110, camera.fov + e.deltaY * 0.05))
-      camera.updateProjectionMatrix()
-      scheduleRender()
-    }
-    const raycaster = new THREE.Raycaster()
-    const onClick = (e) => {
-      const rect = renderer.domElement.getBoundingClientRect()
-      const ndc = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1,
-      )
-      raycaster.setFromCamera(ndc, camera)
-      const hitAll = raycaster.intersectObjects([...hotSprites, ...deviceSprites])
-      if (hitAll.length === 0) return
-      const obj = hitAll[0].object
-      const hsIdx = hotSprites.indexOf(obj)
-      if (hsIdx >= 0) {
-        if (onHotspotClick) onHotspotClick(hotspots[hsIdx])
-        return
-      }
-      const idx = deviceSprites.indexOf(obj)
-      if (idx >= 0 && onDeviceClick) onDeviceClick(devicesRef.current[idx])
-    }
-
-    const el = renderer.domElement
-    el.addEventListener('pointerdown', onDown)
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    el.addEventListener('wheel', onWheel, { passive: false })
-    el.addEventListener('click', onClick)
-    el.style.cursor = 'grab'
-    el.style.touchAction = 'none'
-
-    const resize = () => {
-      const w = mount.clientWidth || width
-      const h = mount.clientHeight || height
-      camera.aspect = w / h
-      camera.updateProjectionMatrix()
-      renderer.setSize(w, h)
-      scheduleRender()
-    }
-    resize()
-    const ro = new ResizeObserver(resize)
-    ro.observe(mount)
-
     // 设备状态刷新（轮询/WS 更新时仅重绘颜色）
     const refreshSprites = () => {
       deviceSpritesRef.current.forEach((s, i) => {
@@ -255,30 +177,204 @@ export default function GaussianViewer({
     }
     refreshSprites()
 
-    scheduleRender()
+    // 交互绑定（两条轨道共享）：拖拽环视 + 滚轮缩放 + 点击热点/设备
+    const bindInteraction = (el) => {
+      let dragging = false
+      let lastX = 0
+      let lastY = 0
+      let dragYaw = 0
+      let dragPitch = 0
+      const onDown = (e) => {
+        dragging = true
+        lastX = e.clientX
+        lastY = e.clientY
+        scheduleRender()
+      }
+      const onMove = (e) => {
+        if (!dragging) return
+        const dx = e.clientX - lastX
+        const dy = e.clientY - lastY
+        lastX = e.clientX
+        lastY = e.clientY
+        dragYaw += dx * 0.005
+        dragPitch += dy * 0.005
+        dragPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, dragPitch))
+        camera.rotation.order = 'YXZ'
+        camera.rotation.y = -dragYaw + ((initialView?.heading ?? 0) * Math.PI) / 180
+        camera.rotation.x = dragPitch + ((initialView?.pitch ?? 0) * Math.PI) / 180
+        scheduleRender()
+      }
+      const onUp = () => { dragging = false }
+      const onWheel = (e) => {
+        e.preventDefault()
+        camera.fov = Math.max(30, Math.min(110, camera.fov + e.deltaY * 0.05))
+        camera.updateProjectionMatrix()
+        scheduleRender()
+      }
+      const raycaster = new THREE.Raycaster()
+      const onClick = (e) => {
+        const rect = el.getBoundingClientRect()
+        const ndc = new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1,
+        )
+        raycaster.setFromCamera(ndc, camera)
+        const hitAll = raycaster.intersectObjects([...hotSprites, ...deviceSprites])
+        if (hitAll.length === 0) return
+        const obj = hitAll[0].object
+        const hsIdx = hotSprites.indexOf(obj)
+        if (hsIdx >= 0) {
+          if (onHotspotClick) onHotspotClick(hotspots[hsIdx])
+          return
+        }
+        const idx = deviceSprites.indexOf(obj)
+        if (idx >= 0 && onDeviceClick) onDeviceClick(devicesRef.current[idx])
+      }
+      el.addEventListener('pointerdown', onDown)
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      el.addEventListener('wheel', onWheel, { passive: false })
+      el.addEventListener('click', onClick)
+      el.style.cursor = 'grab'
+      el.style.touchAction = 'none'
+      return () => {
+        el.removeEventListener('pointerdown', onDown)
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        el.removeEventListener('wheel', onWheel)
+        el.removeEventListener('click', onClick)
+      }
+    }
+
+    // 尺寸自适应 + 初始渲染（两条轨道共享）
+    const finalizeRenderer = (r) => {
+      renderer = r
+      const el = r.domElement
+      cleanupFns.push(bindInteraction(el))
+      const resize = () => {
+        const w = mount.clientWidth || width
+        const h = mount.clientHeight || height
+        camera.aspect = w / h
+        camera.updateProjectionMatrix()
+        r.setSize(w, h)
+        scheduleRender()
+      }
+      resize()
+      const ro = new ResizeObserver(resize)
+      ro.observe(mount)
+      cleanupFns.push(() => ro.disconnect())
+      scheduleRender()
+    }
+
+    // 轨道一：Three.js 原生 GaussianSplat（WebGPU）
+    const setupNative = async () => {
+      const { WebGPURenderer } = await import('three/webgpu')
+      const r = new WebGPURenderer({
+        antialias: !lowEnd,
+        powerPreference: 'low-power',
+      })
+      await r.init()
+      if (disposed) { r.dispose(); return }
+      r.setSize(width, height)
+      r.setPixelRatio(lowEnd ? 1 : Math.min(window.devicePixelRatio, 2))
+      mount.appendChild(r.domElement)
+      finalizeRenderer(r)
+
+      const loader = await pickNativeLoader(splatUrl)
+      const { GaussianSplat } = await import('three/addons/objects/GaussianSplat.js')
+      const geometry = await loader.loadAsync(splatUrl)
+      if (disposed) return
+      const splat = new GaussianSplat(geometry)
+      scene.add(splat)
+      splatObj = splat
+      clearTimeout(fallbackTimer)
+      setStatus('ready')
+      scheduleRender()
+    }
+
+    // 轨道二：Spark（WebGL2，动态导入 5MB+ 模块，低端设备/失败不拖慢首屏）
+    const setupSpark = () => {
+      const r = new THREE.WebGLRenderer({
+        antialias: !lowEnd,
+        powerPreference: 'low-power',
+      })
+      r.setSize(width, height)
+      r.setPixelRatio(lowEnd ? 1 : Math.min(window.devicePixelRatio, 2))
+      mount.appendChild(r.domElement)
+      finalizeRenderer(r)
+
+      return import('@sparkjsdev/spark')
+        .then(({ SparkRenderer, SplatMesh }) => {
+          if (disposed) return
+          spark = new SparkRenderer({ renderer: r })
+          scene.add(spark)
+          const splat = new SplatMesh({
+            url: splatUrl,
+            onProgress: () => scheduleRender(),
+            onLoad: () => {
+              if (disposed) return
+              clearTimeout(fallbackTimer)
+              setStatus('ready')
+              scheduleRender()
+            },
+          })
+          scene.add(splat)
+          splatObj = splat
+          scheduleRender()
+        })
+    }
+
+    // 双轨分流：WebGPU 原生优先，无 WebGPU 回退 Spark
+    ;(async () => {
+      let useNative = false
+      try {
+        useNative = await supportsWebGPU()
+      } catch {
+        useNative = false
+      }
+      if (disposed) return
+      try {
+        if (useNative) {
+          await setupNative()
+        } else {
+          await setupSpark()
+        }
+      } catch (e) {
+        console.warn('[GaussianViewer] 3DGS 渲染失败，降级全景:', e)
+        setStatus('error')
+        onFallback?.()
+      }
+    })()
+
+    // 加载超时兜底（加载器无 onError 事件）
+    fallbackTimer = setTimeout(() => {
+      if (disposed) return
+      console.warn('[GaussianViewer] 3DGS 资源加载超时，降级全景')
+      setStatus('error')
+      onFallback?.()
+    }, LOAD_TIMEOUT_MS)
 
     return () => {
       disposed = true
       cancelAnimationFrame(raf)
       clearTimeout(idleTimer)
       clearTimeout(fallbackTimer)
-      ro.disconnect()
-      el.removeEventListener('pointerdown', onDown)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      el.removeEventListener('wheel', onWheel)
-      el.removeEventListener('click', onClick)
+      cleanupFns.forEach((fn) => fn())
       hotSprites.forEach((s) => s.material.map?.dispose())
       deviceSprites.forEach((s) => s.material.map?.dispose())
       deviceSpritesRef.current = []
-      splat?.dispose?.()
-      scene.remove(splat)
+      if (splatObj) {
+        splatObj.dispose?.()
+        scene.remove(splatObj)
+      }
       if (spark) {
         scene.remove(spark)
         spark.dispose?.()
       }
-      renderer.dispose()
-      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement)
+      if (renderer) {
+        renderer.dispose()
+        if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement)
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [splatUrl])

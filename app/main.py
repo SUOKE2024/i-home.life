@@ -45,6 +45,8 @@ from app.api import (
     dashboard, feed, curtain_showroom,
 )
 from app.api import ar_scan  # F1 AR 空间测量（v1.14.x 自 surveys 拆分，前缀 /surveys/ar/*）
+from app.api import gaussian_recon  # P1 3DGS 云端重建（前缀 /api/vr/reconstructions/*）
+from app.api import construction_snapshot  # P3 施工进度 3DGS 存档（前缀 /api/construction/*）
 from app.api import identity, products, tasks, points
 from app.api import notifications
 from app.api import admin
@@ -481,6 +483,7 @@ api_router.include_router(materials.router)     # /api/materials/*
 api_router.include_router(budgets.router)       # /api/budgets/*
 api_router.include_router(procurement.router)   # /api/procurement/*
 api_router.include_router(construction.router)  # /api/construction/*
+api_router.include_router(construction_snapshot.router)  # /api/construction/*（P3 施工 3DGS 存档）
 api_router.include_router(settlements.router)   # /api/settlements/*
 api_router.include_router(floorplans.router)    # /api/floorplans/*
 api_router.include_router(feed.router)          # /api/feed/* (首页 A2UI 主动卡片流)
@@ -510,6 +513,7 @@ api_router.include_router(bathroom.router)     # /api/bathroom/*
 api_router.include_router(custom_furniture.router)  # /api/custom-furniture/*
 api_router.include_router(soft_furnishing.router)   # /api/soft-furnishing/*
 api_router.include_router(vr_panorama.router)  # /api/vr/*
+api_router.include_router(gaussian_recon.router)  # /api/vr/reconstructions/* (P1 3DGS 云端重建)
 api_router.include_router(ai_image.router)     # /api/ai-image/*
 api_router.include_router(kitchen_bath_mep.router)        # /api/mep-kb/* (F18)
 api_router.include_router(hard_decoration.router)         # /api/hard-decoration/* (F21)

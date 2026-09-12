@@ -141,6 +141,17 @@ class EffectRenderPublishRequest(BaseModel):
     image_url: str = Field(..., max_length=1000)
 
 
+class PanoramaRestageRequest(BaseModel):
+    """对全景（含 3DGS 实景）做 AI 换装（virtual staging，评估报告 P2）。
+
+    复用 ai_render 降级链生成换装效果图，前端与实景扫描双视图对比；
+    style 自由文本，prompt 为换装补充描述（可选）。
+    """
+
+    style: str = Field(default="modern", description="装修风格")
+    prompt: str | None = Field(default=None, max_length=1000, description="换装补充描述（可选）")
+
+
 class HotspotCreate(BaseModel):
     """添加热点"""
 

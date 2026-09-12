@@ -1,11 +1,11 @@
 """视觉表现层 VR 全景 API — 全景图渲染 + 热点管理 + VR 场景漫游"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth import get_current_user
-from app.rbac import verify_project_access
+from app.rbac import verify_project_access, verify_project_collaborator_access
 from app.models.user import User
 from app.schemas.vr_panorama import (
     VRPanoramaCreate,
@@ -13,13 +13,16 @@ from app.schemas.vr_panorama import (
     VRPanoramaResponse,
     VRPanoramaListItem,
     EffectRenderPublishRequest,
+    PanoramaRestageRequest,
     HotspotCreate,
     RenderPanoramaRequest,
     VRSceneCreate,
     VRSceneUpdate,
     VRSceneResponse,
 )
-from app.services import vr_panorama_service
+from app.services import file_service, vr_panorama_service
+from app.services.ai_render_service import ai_render_service
+from app.config import get_settings
 from app.ws import ws_manager
 
 router = APIRouter(prefix="/vr", tags=["VR 全景"])
@@ -75,6 +78,98 @@ async def publish_effect_render(
         panorama.project_id, "vr.panorama.created", resp.model_dump()
     )
     return resp
+
+
+@router.post(
+    "/panoramas/upload-splat",
+    response_model=VRPanoramaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_splat_panorama(
+    project_id: str = Form(...),
+    room_name: str = Form(..., max_length=100),
+    floorplan_id: str | None = Form(default=None),
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """上传外部采集的 3DGS 场景（.spz/.ply）并登记为高斯全景（评估报告 2026-09-12 P0）。
+
+    内容管线：由外部工具（LCC Scan / Polycam 等）端侧重建导出，平台负责资产托管
+    + Spark 渲染漫游；不做 2D→3D 重建（该管线待 GPU 立项，诚实标注）。
+    复用文件附件存储（category=gaussian_splat），splat_url 指向文件下载端点。
+    """
+    contents = await file.read()
+    error = vr_panorama_service.validate_splat_file(file.filename or "", contents)
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    # 设计师/施工方均可上传扫描资产（与文件上传一致的协作权限）
+    await verify_project_collaborator_access(project_id=project_id, current_user=user, db=db)
+    attachment = await file_service.upload_file(
+        db,
+        project_id=project_id,
+        filename=file.filename or "scene.spz",
+        file_data=contents,
+        content_type="application/octet-stream",
+        category="gaussian_splat",
+    )
+    panorama = await vr_panorama_service.create_gaussian_panorama(
+        db,
+        project_id=project_id,
+        room_name=room_name,
+        splat_url=f"/api/files/download/{attachment.id}",
+        file_size_bytes=len(contents),
+        floorplan_id=floorplan_id,
+    )
+    resp = VRPanoramaResponse.model_validate(panorama)
+    await ws_manager.broadcast_to_project(
+        panorama.project_id, "vr.panorama.created", resp.model_dump()
+    )
+    return resp
+
+
+@router.post("/panoramas/{panorama_id}/restage")
+async def restage_panorama(
+    panorama_id: str,
+    body: PanoramaRestageRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """对全景（含 3DGS 实景）做 AI 换装（virtual staging，评估报告 P2）。
+
+    复用 ai_render 降级链生成换装效果图，返回 image_url + 诚实标注
+    （render_backend / reconstruction_available / degradation_chain_level），
+    前端与实景扫描（splat）双视图对比；不做 2D→3D，效果图为 2D 平面图。
+    """
+    if not get_settings().ai_render_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="AI 渲染未启用")
+    panorama = await vr_panorama_service.get_panorama(db, panorama_id)
+    if not panorama:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="全景图不存在")
+    await verify_project_access(project_id=panorama.project_id, current_user=user, db=db)
+
+    # 用全景元数据构建 layout（诚实：无户型几何时仅房间名 + 实景标记）
+    layout_json = {
+        "room_name": panorama.room_name,
+        "content_source": panorama.content_source,
+        "panorama_type": panorama.panorama_type,
+        "splat_url": panorama.splat_url,
+    }
+    if body.prompt:
+        layout_json["restage_prompt"] = body.prompt
+
+    result = await ai_render_service.render_2d(
+        layout_json=layout_json,
+        style=body.style,
+        user_id=user.id,
+        db=db,
+    )
+    result["panorama_id"] = panorama_id
+    result["restage_prompt"] = body.prompt
+    await ws_manager.broadcast_to_project(
+        panorama.project_id, "vr.panorama.restaged", {"panorama_id": panorama_id}
+    )
+    return result
 
 
 @router.get("/panoramas/project/{project_id}", response_model=list[VRPanoramaListItem])
