@@ -1,11 +1,22 @@
 # i-home.life
 
-> **索克家居 · AI 智能装修平台**
+> **索克家居 · 空间健康资产运营商**（AI 存量空间改造 + 智能运营）
 >
-> v1.15.6 · 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
-> 核心能力：66 页面 React Web 控制台 + Flutter 58 页面 + 25 Agent（21 执行型 + 4 商业运营）+ 1 Orchestrator + 112 Service + 140 ORM 模型 + 80 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> 对外定位：面向云南区域存量空间资源（康养 / 疗愈 / 旅居 / 文旅 / 适老住宅）提供 AI 智能化改造与长期健康运营，是索克生活生态的空间供应链与引流入口。AI 装修全链路（设计→算量→报价→采购→施工→质检→结算）为**交付底座**，不对外主打。轻资产改造服务商定位：不持有房产、不做物业运营、不做房地产经纪。
+>
+> v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 120 Service + 143 ORM 模型 + 84 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-09-15 · 适老改造套餐 + 补贴资格预检（v1.17.0，政策落地）
+
+- **政策依据**：商务部等八部门《促进智能家居消费行动方案》（2026-09-02，第四条「发展适老化智能家居」）+ 民发〔2025〕66号 + 2026 以旧换新适老化补贴公开报道口径（成交价 15% / 单件上限 / 五大刚需场景）
+- **适老套餐产品化**（复用 F49 模式，无新表）：`PKG-ELDERLY-BATH` 适老卫浴 48h / `PKG-ELDERLY-ROOM` 适老卧室 72h / `PKG-ELDERLY-FULL` 全屋适老智能化 7 天，均一口价 + 干法施工 + 0 搬家；适老元数据（无障碍标准 / 适用人群 / 适老化设计维度 / 补贴场景）仅适老套餐输出
+- **补贴资格预检**：`POST /api/elderly-adaptation/subsidy-precheck`（按拟购清单或套餐编码估算逐项补贴与落地价）+ `GET /api/elderly-adaptation/subsidy-profiles`；受 `elderly_subsidy_precheck_enabled`（默认 True）门控；**不内置地方目录、个人资格不参与判定、恒带 `is_estimate=True`**
+- **控制台界面**：`/elderly-adaptation` 新增适老套餐目录（仅 `elderly_theme=true`）+「补贴预估」→ 展示一口价/预估补贴/预估落地价与口径免责，标注「非资格认定」
+- **设备类型扩展**：`smart_devices.device_type` 新增 `fall_radar`/`emergency_call`/`care_bed`/`health_monitor`/`service_robot`（允许集单源 `DEVICE_TYPES`，迁移 `a3b4c5d6e7f8` 幂等扩集）
+- **测试**：新增补贴预检 23 用例 + 适老套餐 4 用例 + 设备类型 3 用例 + 控制台 batch14（3 用例 ×2 断点）；版本号 1.16.0 → 1.17.0 全链路同步
 
 ### 2026-08-18 · 供应商经营简报 + B2B 角色语义（v1.15.6）
 
@@ -564,8 +575,8 @@ i-home.life/
 | 后端 | Python 3.12 + FastAPI + SQLAlchemy 2.0 (async) + SQLite / PostgreSQL |
 | 认证 | PASETO v4 (local) |
 | 数据库迁移 | Alembic (双库切换) |
-| AI Agent | DeepSeek + GLM (LLM) + 规则混合路由 (mock + LLM 双模式) |
-| 前端 | Vanilla JS + Canvas 2D + Three.js r128 (响应式 + 无障碍) |
+| AI Agent | DeepSeek → Qwen → GLM → Doubao 多 LLM fallback 链 + 规则混合路由（mock + LLM 双模式）+ 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营） |
+| 前端 | webapp（Vite + React 18 + Three.js r186，19 页）+ 管理控制台 console-src（React + Vite + TSX，73 页）；旧 Vanilla JS 静态站已于 2026-08-08 下线 |
 | 移动端 | Flutter 3.35.7-ohos-0.0.3 (iOS/iPadOS/Android/HarmonyOS) |
 | 导出 | DXF R12 + Excel (openpyxl) |
 | 缓存 | Redis 缓存支持（可选，内存字典降级） |
@@ -661,9 +672,15 @@ i-home.life/
 | 身份 | /identity/verify, /identity/status | 4端点 |
 | 位置 | /location/ip, /location/nearby | 3端点 |
 | 语音 | /voice/asr | 1端点 |
-| **合计** | | **630+ 路由（70 模块）** |
+| **合计** | | **777 路由（84 模块，2026-09-15 实测）** |
 
-> 注：上表为模块级端点快照；v1.5.0 实测 `app/api/` 70 个路由模块 / 630+ 路由（含 /health、/metrics、/docs、/ws 等，2026-08-03 实测 631）。
+> 注：上表为模块级端点快照（v1.5.0 口径，后续新增模块未逐行补录）。v1.17.0 实测
+> `app/api/` 84 个路由模块 / `main.py` 87 处 `include_router` / FastAPI 注册路由 777
+> 条（其中 `/api` 前缀 772 条，余为 /health、/metrics、/docs、/ws、/.well-known 等）。
+> v1.16.0 新增模块：`space-assets`（空间资产台账 9 端点）、`agents/handshake`
+> （ATH 握手凭证 issue/verify/verify-agent 3 端点）。
+> v1.17.0 新增端点（挂在既有 `elderly-adaptation` 模块）：
+> `POST /api/elderly-adaptation/subsidy-precheck`、`GET /api/elderly-adaptation/subsidy-profiles`。
 
 ## 验收标准
 
@@ -674,7 +691,7 @@ i-home.life/
 | AC-3 | 3D 墙体拉伸 < 3s | ✅ Three.js sync3D |
 | AC-4 | 平立剖自动生成 | ✅ 6 视图 (俯视 + 4向立面 + 任意剖切面) |
 | AC-5 | DXF 导出兼容 | ✅ R12 POLYLINE |
-| AC-6 | Agent 响应 < 3s | 10 Agent + 混合路由 |
+| AC-6 | Agent 响应 < 3s | 27 Agent + 多 LLM fallback 链 + 确定性响应缓存 |
 | AC-7 | Agent 完成率 85% | ✅ 9套布局 + NL指令 |
 | AC-8 | iPad 30fps | ✅ 基准测试就绪 |
 | AC-9 | 崩溃率 < 0.1% | ✅ 验收脚本就绪 |
@@ -686,7 +703,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 750 passed, 9 skipped, 0 failed (2026-07-19 v1.1.10 基线, +12 新增 CAD 导入 + L4 注入测试)
+# 当前: 2760 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-15 v1.17.0 基线, -n auto)
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异

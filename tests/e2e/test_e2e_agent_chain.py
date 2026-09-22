@@ -191,7 +191,7 @@ async def test_e2e_ontology_api_readonly(client: AsyncClient):
     body = agent_onto.json()
     assert body["ontology"] == "agent"
     agents = body.get("agents", [])
-    assert len(agents) == 26  # 25 Agent + 1 Orchestrator
+    assert len(agents) == 27  # 26 Agent + 1 Orchestrator（v1.16.0 新增 care）
 
 
 @pytest.mark.asyncio

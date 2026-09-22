@@ -32,14 +32,14 @@ from app.services.ai_render_service import (
 
 
 def test_app_version_is_1_14_1():
-    """app_version == 1.15.15"""
-    assert get_settings().app_version == "1.15.15"
+    """app_version == 1.17.1"""
+    assert get_settings().app_version == "1.17.1"
 
 
 def test_mcp_server_version_is_1_14_1():
-    """MCP SERVER_VERSION == 1.15.15"""
+    """MCP SERVER_VERSION == 1.17.1"""
     from app.mcp.server import mcp_server
-    assert mcp_server.SERVER_VERSION == "1.15.15"
+    assert mcp_server.SERVER_VERSION == "1.17.1"
 
 
 # === 新增 feature flag 默认值 ===
@@ -61,6 +61,8 @@ def test_new_feature_flags_defaults():
     # SVG 纯 Python 生成零外部依赖，规则派生 + 占位示意诚实标注）
     assert s.ifc_h_ifc_extension_enabled is True
     assert s.construction_drawing_mep_enabled is True
+    # v1.17.0：F41 适老改造补贴资格预检（确定性估算，默认启用）
+    assert s.elderly_subsidy_precheck_enabled is True
 
 
 # === 国标合规：standards.json ===

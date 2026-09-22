@@ -768,6 +768,7 @@ def get_harness() -> AgentRuntime:
             KitchenAgent, BathroomAgent, MepAgent, ApplianceAgent,
             FurnitureAgent, DoorWindowAgent, FilesAgent, ProductsAgent,
             IdentityAgent, NotificationsAgent, TakeoffAgent, IfcExportAgent,
+            CareAgent,
         )
         _harness.register_agent("orchestrator", OrchestratorAgent)
         _harness.register_agent("designer", DesignerAgent)
@@ -794,6 +795,7 @@ def get_harness() -> AgentRuntime:
         _harness.register_agent("notifications", NotificationsAgent)
         _harness.register_agent("takeoff", TakeoffAgent)
         _harness.register_agent("ifc_export", IfcExportAgent)
+        _harness.register_agent("care", CareAgent)
         # v1.15.x 走查修复：商业运营 Agent（growth/marketing/competitor_research/
         # finance_recon）此前未注册——flag 默认 True 但 A2A/编排/聊天均无入口，
         # 显式 agent_type 被静默路由到 orchestrator/budget 答非所问。

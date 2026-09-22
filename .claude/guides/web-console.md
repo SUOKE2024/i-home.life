@@ -150,11 +150,35 @@ const useStore = create((set) => ({ ... }));
 
 ```bash
 cd console-src
+npx playwright install chromium   # 环境前置：下载浏览器（见下）
 npm run test:visual    # playwright test
 ```
 
 - 测试文件在 `console-src/tests/`
 - 无单元测试框架（无 Jest/Vitest），测试靠 Playwright + 后端 pytest
+
+**环境前置（首次安装 / 升级 Playwright 后必做）**：
+
+```bash
+cd console-src
+npx playwright install chromium   # Chrome for Testing + chrome-headless-shell，约 270MB → ~/Library/Caches/ms-playwright（本机实测 554MB）
+```
+
+- 未安装浏览器直接跑会报 `browserType.launch: Executable doesn't exist at .../chrome-headless-shell`。Playwright 升级会更换 build 号（当前 `@playwright/test` 1.62 → `chromium-1234` / `chromium_headless_shell-1234`），**换版本后必须重装**，否则旧 build 目录不匹配。
+- 下载源默认 `cdn.playwright.dev`（本机实测可达；`cdn.npmmirror.com/binaries/playwright/builds/...` 对该路径返回 404，勿用）。
+- **CI 不跑 Playwright**（`.github/workflows/` 无相关 job），仅本地执行。
+- 截图基线 `tests/visual/**/*-snapshots/*-darwin.png` **与浏览器 build 绑定**：换浏览器版本后历史基线会大面积像素漂移。先判「真实 UI 变更」还是「浏览器版本漂移」（现状与判定依据见下节），再决定是否 `--update-snapshots`，**禁止无脑重建基线**（会掩盖真实回归）。
+- `tests/visual/tokens.spec.ts` 断言的 `/tokens` 路由与 PlaceholderHome 已在 v1.15.4 删除，该 spec 已按陈旧用例删除（2026-09-15）；令牌值覆盖由 `scripts/check-token-sync.mjs` + `npx @google/design.md lint DESIGN.md`（CI design-lint）继续守住。
+- 交互/契约类断言（如 `batch14.spec.ts`）不依赖截图基线，环境装好即可稳定通过。
+
+**基线漂移与重建记录**：
+
+- **2026-09-15 已执行重建**（`@playwright/test` 1.62 / Chrome for Testing 151 / chromium-1234）：`npx playwright test --update-snapshots` → **226 passed**，复跑验证模式仍 **226 passed**；共改写 **53 张** `*-darwin.png` 基线（与重建前 53 项失败一一对应，无多余改写、无新增基线文件）。
+- 重建时的状态说明：v1.16.0 空间资产台账（后端 + 迁移 + console 接线）**当时仍未提交**，基线已按该 UI 状态固化——**若该批改动后续被 stash/reset，基线会立即再次漂移**。故重建后应尽快把这批改动与 53 张重建基线**放在同一次提交**里落定。
+- 重建前置三条（本次已满足）：① 待定 UI 改动明确归属（本次选择「不提交直接重建」，接受与未提交状态绑定）；② 本地后端在跑（本次临时后端 8000 提供 `/api/config/feature-flags`，避免代理 ECONNREFUSED 干扰渲染）；③ 重建后人工抽查。
+- 抽查结果（4 张，跨 desktop/mobile 与不同页面族，逐张确认结构完整、无重叠、无缺失）：`construction-desktop`（侧栏导航为当前版本：装企交付 / 协作IM / 量房·AR扫描 / AI生图）、`construction-mobile`（抽屉头部 ≡ + 面包屑 + 筛选 chips 两行折行 + 3 卡片）、`layout-mobile-desktop`（375px 无侧栏，与 DOM 断言一致）、`workbench-empty-desktop`（侧栏 + Agent chips + 空态 hero + 输入区）。
+
+**历史漂移根因（供下次判断，勿无脑重建）**：基线最后更新于 2026-08-01（layout 08-13），而 2026-08-18「三端 UI/UX 布局系统性修复」改动了 SideNav 导航项（新增 装企交付 / 协作IM / 量房·AR扫描 / AI生图）与移动端抽屉导航头部；叠加未提交的「存量空间资产化（v1.16.0）」导航组，以及浏览器 build 换代带来的全页文字渲染差异（diff 覆盖所有文本字形，桌面端 diff 比例仅 2-8%、移动端 14-40%）。
 
 ## 构建与部署
 

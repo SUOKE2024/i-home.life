@@ -17,6 +17,10 @@ class SceneAutomationCreate(BaseModel):
     # scene_type: manual / scheduled / triggered / geo
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
+    ecosystem: str | None = Field(
+        default=None,
+        description="执行动作所用生态桥: mijia/homekit/harmonyos/tuya/matter；不传则按项目已配置凭据的生态解析",
+    )
     enabled: bool = True
     priority: int = 0
 
@@ -34,6 +38,7 @@ class SceneAutomationUpdate(BaseModel):
     scene_type: str | None = None
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
+    ecosystem: str | None = None
     enabled: bool | None = None
     priority: int | None = None
 
@@ -54,6 +59,7 @@ class SceneAutomationResponse(BaseModel):
     scene_type: str
     trigger_condition: dict[str, Any] | None
     actions: list[dict[str, Any]] | None
+    ecosystem: str | None = None
     enabled: bool
     priority: int
     created_at: datetime

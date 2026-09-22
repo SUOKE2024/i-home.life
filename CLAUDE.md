@@ -1,9 +1,15 @@
 # CLAUDE.md — i-home.life AI 协作契约
 
-> 索克家居 · AI 智能装修平台。本文件是项目级 AI 协作硬约束，随代码版本控制。
+> 索克家居 · **空间健康资产运营商**（AI 存量空间改造 + 智能运营）。本文件是项目级 AI 协作硬约束，随代码版本控制。
 > 改 AI 行为请走 PR，可追溯、可 review。**只写 AI 无法从代码推断的项目特有规则。**
 
 ## 项目定位
+
+**对外定位**：空间健康资产运营商 ——「一次改造交付，长期健康运营」。面向云南区域内**存量**空间资源（康养 / 疗愈 / 旅居 / 文旅 / 适老住宅）提供 AI 智能化改造与长期运营，是索克生活（`/Users/netsong/Developer/suoke_life/`）生态的**空间供应链与引流入口**。
+
+**装修链路的定位（重要，勿误解为「废弃」）**：AI 装修全链路（设计 → 算量 → 报价 → 采购 → 施工 → 质检 → 结算）是**交付底座**，不对外主打但不得削弱。存量空间改造的唯一交付引擎就是这条链路——砍掉它，「AI 智能化改造」就只剩叙事。对外表述统一为「空间改造交付能力」，而非「装修平台」。
+
+**商业模式约束**：轻资产改造服务商定位——**不持有房产、不做物业运营、不做房地产经纪**。资产由业主/运营方持有，平台提供改造交付 + 智能运营 + 数据服务。写业务代码/文案时不得暗示平台持有或运营不动产。
 
 模块化单体（modular monolith，非微服务，见 `app/config.py` `service_role` 澄清）。
 Python(FastAPI) 后端 + Flutter 多端(iOS/Android/HarmonyOS) + webapp(Vite+React，`webapp/`，2026-08-08 起替代旧 `web/` 静态多页，构建产物 `webapp/dist/` 由 Nginx root 服务) + 管理控制台(`console-src/`，React+Vite+TSX，构建至 `webapp/dist/console/`)。
@@ -92,13 +98,14 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **AI 渲染**：4 级降级链 L0(ControlNet) → L1(mock) → L2(占位) → L3(error)。`ai_render_contract_strict=True` 时客户端 `require_real=True` 且后端不可用 → 503 诚实报错，**禁止移除降级路径**。
 - **会话加密**：`allow_plaintext_session=False`（默认）。PASETO 密钥不可用时拒绝明文存储会话消息，防 PII 泄露。
 - **诚实降级**：禁止用硬编码假数据伪装真实能力。不可用就明确 503/占位 + 标注（历史教训：v1.1.31 修复 6 处硬编码假数据）。
+- **健康声明合规**（Phase 0，继承索克生活口径）：康养/疗愈/适老相关文案**禁止疗效词**（治疗/治愈/降压/降糖/控血糖/消炎/抗癌/根治 等，词表见 `app/services/health_claim_compliance.py` `PROHIBITED_CLAIM_WORDS`），命中即阻断（`health_claim_compliance_enabled` 默认 True）。所有健康相关输出必须携带「非医疗诊断」免责口径（`assets/legal/health-claim-disclaimer.md`）。**平台不做医疗诊断/处方/疗效承诺**，CareAgent 等仅做监测与提醒。此红线与索克生活 `assets/legal/fifteenth_five_year_plan_disclaimer.md` + HC-001~HC-010 对齐，改词表须同步索克侧 `wellness_claim_compliance`。
 
 ## 协作四原则（改编自 Karpathy LLM 编程四铁律）
 
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2652 passed 不得回退（collect 2658 = 2652 passed + 2 skipped + 4 xfailed，2026-08-27 设备链路加固+穿戴/米家接入后全量校准，15 分钟首跑零重试；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2760 passed 不得回退（collect 2766 = 2760 passed + 2 skipped + 4 xfailed，2026-09-15 v1.17.0 适老套餐产品化 + 补贴资格预检 + 控制台接线 + 适老设备类型扩展后全量校准，本机高负载下 28 分 08 秒零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -107,6 +114,26 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - `mypy`（`mypy.ini`，改后端代码必跑；v1.14.1 起 CI 阻塞门禁，非 allow-failure）
 - 新增 API 必须补 `tests/test_*.py`（v1.2.5 教训：曾 37 个 API 模块零测试）
 - 版本号全链路一致，见 `.claude/templates/version-bump.md`（v1.2.9 教训：曾 11 处漏改）
+- 测试基线不得回退：`python scripts/check_test_baseline.py`（v1.17.1 起接入 CI `backend-test` 的 "Check pytest baseline" 步骤，以 `--from-output pytest-ci.log` 复用同一份全量日志不重复跑；pre-commit 侧为手动阶段钩子 `pre-commit run --hook-stage manual test-baseline`）。新增测试后用 `--update` 校准 `scripts/test_baseline.json`，并同步本节基线数字
+
+## 存量空间资产化（Phase 3，2026-09-13）
+
+`space_assets` 台账（`app/models/space_asset.py` + `space_asset_service.py` + `app/api/space_assets.py`，受 `space_asset_ledger_enabled` 默认 True 控制）承载康养/疗愈/旅居/文旅/适老住宅存量空间的「评估 → 改造 → 交付 → 运营」全周期。
+
+- **业态枚举与索克生活单源对齐**：`BUSINESS_FORMATS` 前四项（herb_food_courtyard/forest_herbal_bath/kangyang_study/seasonal_stay）取自索克生活 `lib/screens/suoke/lodge_manager_registration_screen.dart` `_lodgeTypes`，**改任一侧须同步另一侧**，禁止另造口径。
+- **轻资产约束在三层强制**（勿绕过任何一层）：schema `model_validator` → service `_validate_holder` → model `platform_role` 默认值；`platform_role` 恒为 `service_provider`，API 层不接受写入（update 时被 pop）。
+- **改造状态机不可跳跃**：`_STATUS_TRANSITIONS` 明确禁止 `assessed → operating`（必须经 `in_renovation → delivered`），非法流转返回 409 而非静默改写。
+- **就绪度评分只算真实数据**：`compute_smart_readiness` 四维（设备 30/感知 25/场景 25/合规 20），无数据项计 0 分并在 breakdown 标注，禁止虚增。
+- 台账归属按 `owner_id` 隔离（非 admin 仅见自己的资产）；`summary?all_owners=true` 仅 admin，否则 403。
+
+## 适老改造政策落地（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）
+
+- **适老套餐与 F41 方案分工**：`PKG-ELDERLY-BATH` / `PKG-ELDERLY-ROOM` / `PKG-ELDERLY-FULL`（`partial_renovation_service.QUICK_INSTALL_PACKAGES`，一口价 + 干法 + 0 搬家）出**可售定价**，F41 `elderly_adaptation_service` 出**合规条目**（GB 50763-2012 + HC-006）；两者经 `space_assets.retrofit_package_code` 关联，勿另造一套适老条目口径。
+- **适老元数据只挂适老套餐**：`elderly_theme` / `target_occupant` / `accessibility_standard` / `subsidy_category` / `elderly_design`（政策四维：尺寸适配/操作便利/方言识别/安全性能）；`elderly_design` **只声明适用维度**——方言识别仅「全屋」套餐声明，卫浴/卧室不硬凑（禁为凑齐四维编造能力）。
+- **补贴预检诚实红线**（`elderly_subsidy_service`，受 `elderly_subsidy_precheck_enabled` 默认 True 控制）：不内置任何地方官方目录（`max_subsidy_per_unit` 未知即留空并在 warnings 强制标注）；个人资格（年龄/失能等级/困难身份）**不参与确定性判定**；输出恒带 `is_estimate=True`，禁止宣称「已获补贴/已通过核定」；新增地方档案走 `SUBSIDY_POLICY_PROFILES` 配置 + 版本号，禁止把地方标准写死进逻辑。
+- 补贴五大刚需场景枚举（`SUBSIDY_CATEGORIES` 前五项）与地方补贴目录口径对齐，改词表须同步公开政策口径来源；无 LLM、无外部调用，纯确定性规则。
+- **控制台接线**：`console-src/src/pages/ElderlyAdaptationPage.tsx` 承载套餐目录（只渲染 `elderly_theme=true`，非适老套餐不误标）+ 补贴预估；按钮与结果**必须标注「非资格认定」**，UI 不得读作补贴资格结论。视觉/交互契约见 `console-src/tests/visual/batch14.spec.ts`。
+- **适老设备类型**：`smart_devices.device_type` 允许集单源为 `app/models/smart_home.py` 模块级 `DEVICE_TYPES`（CheckConstraint SQL 由单源派生），含 5 类适老/康养设备（fall_radar/emergency_call/care_bed/health_monitor/service_robot）；**改允许集必须同步 alembic 迁移**（SQLite 无原生 DROP CONSTRAINT，走 batch_alter_table，参考 `a3b4c5d6e7f8`），否则模型与 DB 漂移。
 
 ## 分端规则索引（按需加载，勿全读）
 

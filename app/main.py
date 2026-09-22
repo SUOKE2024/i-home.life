@@ -78,6 +78,8 @@ from app.api import solution_first
 from app.api import ecosystem
 from app.api import ai_qa
 from app.api import agent_identity  # v1.9.0 GB/Z 185 智能体身份码/ACDL（flag 门控）
+from app.api import agent_handshake  # v1.16.x ATH 握手凭证（flag 门控）
+from app.api import space_assets  # Phase 3 空间资产台账（flag 门控）
 from app.api import diagnostics as diagnostics_api  # v1.10.x 全链路诊断管理端
 from app.api import design_flow  # 设计流程编排（风格/预算选供应商 → VR → 可行性分析）
 
@@ -497,6 +499,8 @@ api_router.include_router(agent_approvals.router)  # /api/agents/approvals/* (Ag
 api_router.include_router(agent_skills.router)  # /api/agents/skills/* (Agent Skill 资产, v1.8.0)
 api_router.include_router(agents.router)        # /api/agents/*
 api_router.include_router(agent_identity.router)  # /api/agents/identity/* (GB/Z 185 身份卡, v1.9.0)
+api_router.include_router(agent_handshake.router)  # /api/agents/handshake/* (ATH 握手凭证, v1.16.x)
+api_router.include_router(space_assets.router)  # /api/space-assets/* (Phase 3 空间资产台账)
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(ar_scan.router)       # /api/surveys/ar/* (F1 AR 空间测量)
 api_router.include_router(location.router)      # /api/location/*

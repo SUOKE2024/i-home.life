@@ -41,10 +41,17 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.15"
+          APP_VERSION: "1.17.1"
         run: |
           mkdir -p data
-          python -m pytest tests/ -v --tb=short -n auto
+          # set -o pipefail：tee 会吞掉 pytest 退出码，缺它则测试失败仍判成功
+          set -o pipefail
+          python -m pytest tests/ -v --tb=short -n auto 2>&1 | tee pytest-ci.log
+
+      # v1.17.1：测试基线门禁（复用上一步日志，不重复跑全量；CLAUDE.md「基线不得回退」可执行化）
+      - name: Check pytest baseline
+        if: always()
+        run: python scripts/check_test_baseline.py --from-output pytest-ci.log
 
       - name: Upload test results
         if: always()
@@ -69,10 +76,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: webapp/package-lock.json
 
-      - name: Build webapp
+      - name: Install webapp deps
         run: |
           cd webapp
           npm ci
+
+      # webapp 单元测试（v1.17.1：Vitest + jsdom，覆盖 3DGS 交互双指缩放/陀螺仪）
+      - name: Unit test webapp
+        run: |
+          cd webapp
+          npm test
+
+      - name: Build webapp dist
+        run: |
+          cd webapp
           npm run build
 
       - name: Start web server
@@ -215,7 +232,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.15.15"
+          APP_VERSION: "1.17.1"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -441,7 +458,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.15.15"
+      APP_VERSION: "1.17.1"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4

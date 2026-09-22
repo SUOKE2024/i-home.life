@@ -16,7 +16,7 @@ from app.metrics import (
     scene_execute_total,
 )
 from app.models.scene_automation import SceneAutomation, EcosystemIntegration
-from app.models.smart_home import SmartDevice
+from app.models.smart_home import SmartDevice, SmartHomeScheme
 
 # A4 预测式智能场景推荐服务（可选导入，由 feature flag 控制使用）
 from app.services import predictive_scene_service as predictive_scene  # noqa: F401
@@ -85,6 +85,88 @@ async def _device_lock(device_id: str) -> asyncio.Lock:
         return lock
 
 
+# ── 生态桥凭据通道（2026-09-22 P0 断链修复 + 生态凭据加密）──
+# 背景：此前 execute_device_command / _run_scene_action 调 pool.get(ecosystem) 不传凭据，
+# 而米家等桥 connect() 必需凭据 → 恒 ValueError("米家连接需要 username 和 password")
+# → action_status 永远 pending，已实现的真机代码在两条生产路径上均不可达。
+# 现统一：EcosystemIntegration.config（AES-256-GCM 密文）→ 解密 → pool.get(ecosystem, creds)。
+
+# 场景未显式指定生态时的兜底生态（保持历史行为：仍尝试该桥，stub 桥诚实返回 pending）
+_DEFAULT_SCENE_ECOSYSTEM = "matter"
+
+
+def _encrypt_ecosystem_config(config: dict | None) -> dict | None:
+    """生态凭据落库前加密；加密失败 fail-closed 抛错（拒绝明文落库，禁降级存明文）。"""
+    if not config:
+        return None
+    from app.services.device_credentials import encrypt_device_credentials
+
+    encrypted = encrypt_device_credentials(config)
+    if encrypted is None:
+        raise ValueError("生态凭据加密失败（PASETO 密钥不可用），已拒绝明文落库")
+    return encrypted
+
+
+def _decrypt_ecosystem_config(config: dict | None) -> dict | None:
+    """读取生态凭据：密文解密；无 encrypted 键的历史明文行原样兼容返回。
+
+    解密失败（篡改/密钥轮换）返回 None，调用方不得伪装连接成功（诚实降级）。
+    """
+    if not isinstance(config, dict) or not config:
+        return None
+    if "encrypted" not in config:
+        return config  # 历史明文行（未迁移），兼容保留
+    from app.services.device_credentials import decrypt_device_credentials
+
+    return decrypt_device_credentials(config)
+
+
+def redact_ecosystem_config(config: dict | None) -> dict | None:
+    """API 响应脱敏：只回露凭据字段名，不回露任何值（防生态账号密码经接口外泄）。"""
+    plain = _decrypt_ecosystem_config(config)
+    if not plain:
+        return None
+    return {"redacted": True, "keys": sorted(str(k) for k in plain.keys())}
+
+
+async def _resolve_ecosystem_credentials(
+    db: AsyncSession, project_id: str | None, ecosystem: str
+) -> dict:
+    """取指定生态在项目下的桥凭据（解密后）；无记录/无凭据返回 {}。"""
+    if not project_id:
+        return {}
+    result = await db.execute(
+        select(EcosystemIntegration).where(
+            EcosystemIntegration.project_id == project_id,
+            EcosystemIntegration.ecosystem == ecosystem,
+        )
+    )
+    eco = result.scalar_one_or_none()
+    return _decrypt_ecosystem_config(eco.config) or {} if eco else {}
+
+
+async def _resolve_scene_ecosystem(db: AsyncSession, scene: SceneAutomation) -> tuple[str, dict]:
+    """解析场景执行使用的生态与凭据（串行调用，持有 db，禁止在并行波次内调用）。
+
+    优先级：场景显式 ecosystem → 项目下首个已配置凭据的生态对接 → 兜底 matter。
+    返回 (ecosystem, credentials)，credentials 为空 dict 时桥仍被调用（stub/缺凭据
+    由桥自身诚实抛错，调用方标 pending，不伪造执行）。
+    """
+    if scene.ecosystem:
+        return scene.ecosystem, await _resolve_ecosystem_credentials(db, scene.project_id, scene.ecosystem)
+    if scene.project_id:
+        result = await db.execute(
+            select(EcosystemIntegration)
+            .where(EcosystemIntegration.project_id == scene.project_id)
+            .order_by(EcosystemIntegration.created_at.asc())
+        )
+        for eco in result.scalars().all():
+            creds = _decrypt_ecosystem_config(eco.config)
+            if creds:
+                return eco.ecosystem, creds
+    return _DEFAULT_SCENE_ECOSYSTEM, {}
+
+
 # ── 场景 CRUD ──
 
 
@@ -149,6 +231,9 @@ async def delete_scene(db: AsyncSession, scene_id: str) -> bool:
 
 
 async def create_ecosystem(db: AsyncSession, data: dict) -> EcosystemIntegration:
+    data = dict(data)
+    # 生态凭据加密落库（2026-09-22 P1 修复）：此前 config 明文入库且经 API 原样回露
+    data["config"] = _encrypt_ecosystem_config(data.get("config"))
     eco = EcosystemIntegration(**data)
     db.add(eco)
     await db.commit()
@@ -551,7 +636,7 @@ async def sync_to_ecosystem(
     reason = None
     try:
         bridge = BridgeFactory.get_bridge(ecosystem)
-        creds = eco.config or {}
+        creds = _decrypt_ecosystem_config(eco.config) or {}
         await bridge.connect(creds)
 
         # 构造场景数据
@@ -726,8 +811,9 @@ async def check_sensor_triggers(
     2. 将 ambient_data 与场景触发条件逐项匹配（值可为标量精确匹配，
        或 {"gt"/"gte"/"lt"/"lte"/"eq"} 比较符）
     3. 命中场景写入 scene_behavior_logs（action_type=sensor_trigger），记录真实触发
-    4. 设备动作执行依赖生态桥接（EcosystemBridge，HomeKit/Matter/米家等），
-       未接入真机/未配置 API key 前诚实标注 action_status=pending，不伪装为已执行
+    4. **命中后真实执行动作**（2026-09-22 P0 修复）：复用 execute_scene_actions
+       （含生态凭据解析 / 波次并行 / 设备状态回写），此前仅写日志不执行，
+       "温度>30 开空调"类核心卖点在代码层不成立；桥未接真机时动作仍诚实标 pending
 
     Returns:
         被触发的场景列表（含触发时间与动作执行状态）
@@ -796,13 +882,44 @@ async def check_sensor_triggers(
             ambient_data=ambient_data,
         )
         db.add(log_entry)
+        await db.commit()
 
-        # 4. 动作执行依赖生态桥接，未接入前诚实标注 pending
+        # 4. 真实执行场景动作（P0 修复：此前仅标注 pending 不执行）
+        #    串行调用（持 db）——execute_scene_actions 内部自行完成生态凭据解析与落库
         action_status = "pending"
-        action_note = (
-            "设备动作执行依赖生态桥接（ecosystem_bridge），当前未配置 API key，"
-            "已记录触发意图，待桥接接入真机后执行"
-        )
+        action_note = None
+        try:
+            exec_result = await execute_scene_actions(
+                db, scene, user_id,
+                trigger_source="sensor",
+                log_action_type="sensor_trigger",
+            )
+            statuses = {
+                s: sum(1 for a in exec_result["actions"] if a["action_status"] == s)
+                for s in ("success", "pending", "failed", "skipped", "rejected")
+            }
+            if statuses["success"]:
+                action_status = "success"
+                action_note = f"已执行成功 {statuses['success']} 个动作"
+            elif statuses["failed"]:
+                action_status = "failed"
+                action_note = f"执行失败 {statuses['failed']} 个动作（其余 pending/skipped）"
+            else:
+                action_note = (
+                    "生态桥未接真机或未配置凭据，已记录触发意图未实际执行"
+                    f"（pending={statuses['pending']}）"
+                )
+            log.info(
+                "sensor_trigger_action_executed: user=%s scene=%s status=%s summary=%s",
+                user_id, scene.id, action_status, statuses,
+            )
+        except Exception as e:  # noqa: BLE001 — 动作执行失败不阻断其余场景匹配
+            action_status = "failed"
+            action_note = f"场景动作执行异常: {e}"
+            log.warning(
+                "sensor_trigger_action_error: user=%s scene=%s error=%s",
+                user_id, scene.id, e,
+            )
         log.info(
             "sensor_trigger_hit: user=%s scene=%s scene_name=%s actions=%s action_status=%s device_id=%s",
             user_id,
@@ -1022,8 +1139,17 @@ async def execute_device_command(
                 "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → connect(池化)",
                 device.id, action, ecosystem,
             )
+            # 凭据注入（P0 修复）：项目下该生态的 config 解密后传入桥，
+            # 否则米家等真机桥恒因缺凭据抛 ValueError，真机路径不可达
+            # 注：SmartDevice 无 project_id 列，经 scheme 反查（串行，持 db）
+            _scheme = (await db.execute(
+                select(SmartHomeScheme).where(SmartHomeScheme.id == device.scheme_id)
+            )).scalar_one_or_none()
+            bridge_creds = await _resolve_ecosystem_credentials(
+                db, _scheme.project_id if _scheme else None, ecosystem,
+            )
             bridge = await asyncio.wait_for(
-                pool.get(ecosystem), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
+                pool.get(ecosystem, bridge_creds), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
             )
             logger.info(
                 "device_command_bridge_dispatch: device=%s action=%s ecosystem=%s → send_command",
@@ -1141,8 +1267,15 @@ def _plan_scene_actions(
     return waves, plan
 
 
-async def _run_scene_action(pool, scene: SceneAutomation, item: dict) -> dict:
-    """单动作桥命令执行（阶段 A，无 DB 操作，可并行）。返回含 idx 的结果 dict。"""
+async def _run_scene_action(
+    pool, scene: SceneAutomation, item: dict, ecosystem: str, credentials: dict,
+) -> dict:
+    """单动作桥命令执行（阶段 A，无 DB 操作，可并行）。
+
+    ecosystem / credentials 由调用方在并行波次前串行解析传入（P0 修复）：
+    此前此处 getattr(scene, "ecosystem", None) or "matter" 且 pool.get 不传凭据，
+    导致米家等真机桥恒 pending。
+    """
     device = item["device"]
     action = item["action"]
     params = item["params"]
@@ -1157,13 +1290,12 @@ async def _run_scene_action(pool, scene: SceneAutomation, item: dict) -> dict:
         "已记录触发意图，待桥接接入真机后执行"
     )
     try:
-        ecosystem = getattr(scene, "ecosystem", None) or "matter"
         logger.info(
             "scene_execute_action_bridge: scene=%s device=%s action=%s ecosystem=%s → connect(池化)",
             scene.id, device.id, action, ecosystem,
         )
         bridge = await asyncio.wait_for(
-            pool.get(ecosystem), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
+            pool.get(ecosystem, credentials), timeout=BRIDGE_COMMAND_TIMEOUT_SECONDS,
         )
         logger.info(
             "scene_execute_action_bridge: scene=%s device=%s action=%s → send_command",
@@ -1211,6 +1343,7 @@ async def execute_scene_actions(
     scene: SceneAutomation,
     user_id: str,
     trigger_source: str = "vr_overlay",
+    log_action_type: str = "manual_trigger",
 ) -> dict:
     """执行场景动作（手动触发入口，两阶段并行重构 2026-08-12）。
 
@@ -1243,6 +1376,12 @@ async def execute_scene_actions(
         scene.id, len(devices),
     )
     ambient = await _latest_sensor_context(db, user_id)
+    # 生态与凭据解析（串行，持 db；严禁移入并行波次内 —— 共享 AsyncSession 并行会触发 ISCE）
+    ecosystem, scene_creds = await _resolve_scene_ecosystem(db, scene)
+    logger.info(
+        "scene_execute_ecosystem: scene=%s ecosystem=%s credentials=%s",
+        scene.id, ecosystem, "configured" if scene_creds else "none",
+    )
 
     # ── 动作规划（白名单校验 + 波次拆分）──
     waves, plan = _plan_scene_actions(scene.actions or [], device_map)
@@ -1262,7 +1401,10 @@ async def execute_scene_actions(
                 scene.id, wave_idx, len(wave),
             )
             wave_results = await asyncio.gather(
-                *(_run_scene_action(pool, scene, item) for item in wave),
+                *(
+                    _run_scene_action(pool, scene, item, ecosystem, scene_creds)
+                    for item in wave
+                ),
                 return_exceptions=True,  # 单动作未捕获异常不中断整波，结果组装仍可达
             )
             # 过滤非 dict 结果（异常对象由 _run_scene_action 内部 except 兜底，此处防万一）
@@ -1278,7 +1420,7 @@ async def execute_scene_actions(
         db.add(SceneBehaviorLog(
             project_id=scene.project_id,
             user_id=user_id,
-            action_type="manual_trigger",
+            action_type=log_action_type,
             scene_id=scene.id,
             ambient_data=ambient or None,
         ))

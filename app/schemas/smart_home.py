@@ -51,7 +51,9 @@ class SmartHomeSchemeUpdate(BaseModel):
 class SmartDeviceCreate(BaseModel):
     device_type: str = Field(
         description="设备类型: light/switch/socket/sensor/camera/lock/curtain/"
-                    "speaker/thermostat/air_purifier/robot_vacuum"
+                    "speaker/thermostat/air_purifier/robot_vacuum/"
+                    "fall_radar/care_bed/service_robot/health_monitor/emergency_call"
+                    "（末尾 5 类为适老/康养设备）"
     )
     device_name: str
     brand: str | None = None

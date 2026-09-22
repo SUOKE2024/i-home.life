@@ -15,7 +15,40 @@ import { paintDeviceSprite } from './PanoramaViewer'
  *   延续项目 4 级降级链（WebGPU → WebGL2/Spark → 贴图全景 → 静态图）
  * - 设备锚点叠加：复用 P0 热点 yaw/pitch 球面坐标换算（THREE.Sprite）
  * - 按需渲染省电路径（静止停帧）+ 拖拽环视 / 滚轮缩放
+ *
+ * v1.17.1 移动端交互补齐（2026-09-22，评估报告 P1-2）：
+ * - 双指捏合缩放（此前仅滚轮 → 触屏设备无任何缩放手段）
+ * - 陀螺仪环视（DeviceOrientation，需用户显式开启；iOS 需 requestPermission）
+ * - 纯函数 clampFov / fovFromPinch / orientationToRotation 导出供单测直接断言
  */
+const MIN_FOV = 30
+const MAX_FOV = 110
+
+/** FOV 夹取到 [30°, 110°]（与滚轮缩放同一区间，防畸变/穿模）。 */
+export const clampFov = (fov) => Math.max(MIN_FOV, Math.min(MAX_FOV, fov))
+
+/**
+ * 双指捏合 → FOV 换算（张开=拉近=FOV 变小，捏合=拉远=FOV 变大）。
+ * 用手势起始距离做基准，避免逐帧累积误差；非法距离回退起始 FOV。
+ */
+export const fovFromPinch = (startFov, startDist, currentDist) => {
+  if (!startDist || !currentDist || startDist <= 0 || currentDist <= 0) {
+    return clampFov(startFov)
+  }
+  return clampFov(startFov * (startDist / currentDist))
+}
+
+/**
+ * 设备姿态 → 相机旋转增量（相对式：由调用方减去开启时的基准姿态，
+ * 使开启陀螺仪的瞬间视角不跳变）。
+ * alpha 为罗盘角（度，逆时针为正）→ yaw 取反使转动方向与真实一致；
+ * beta 为前后倾角，夹取 ±90° 防翻转。
+ */
+export const orientationToRotation = ({ alpha = 0, beta = 0 } = {}) => ({
+  yaw: (-alpha * Math.PI) / 180,
+  pitch: (Math.max(-90, Math.min(90, beta)) * Math.PI) / 180,
+})
+
 const isLowEndDevice = () => {
   if (typeof navigator === 'undefined') return false
   const cores = navigator.hardwareConcurrency || 8
@@ -89,6 +122,32 @@ export default function GaussianViewer({
   const devicesRef = useRef(devices)
   const deviceSpritesRef = useRef([])
   const [status, setStatus] = useState('loading') // loading / ready / error
+  // 陀螺仪环视（需用户显式开启；iOS 13+ 需 requestPermission，拒绝则诚实保持关闭）
+  const gyroEnabledRef = useRef(false)
+  const [gyroOn, setGyroOn] = useState(false)
+  const [gyroSupported] = useState(
+    () => typeof window !== 'undefined' && 'DeviceOrientationEvent' in window,
+  )
+  const toggleGyro = async () => {
+    if (gyroEnabledRef.current) {
+      gyroEnabledRef.current = false
+      setGyroOn(false)
+      return
+    }
+    try {
+      const DOE = typeof window !== 'undefined' ? window.DeviceOrientationEvent : null
+      if (DOE && typeof DOE.requestPermission === 'function') {
+        const granted = await DOE.requestPermission()
+        if (granted !== 'granted') return // 用户拒绝 → 不开启，不伪称已开启
+      }
+      gyroEnabledRef.current = true
+      setGyroOn(true)
+    } catch {
+      // 不支持/权限异常 → 保持关闭（诚实降级）
+      gyroEnabledRef.current = false
+      setGyroOn(false)
+    }
+  }
   useEffect(() => { devicesRef.current = devices }, [devices])
 
   useEffect(() => {
@@ -192,20 +251,49 @@ export default function GaussianViewer({
     }
     refreshSprites()
 
-    // 交互绑定（两条轨道共享）：拖拽环视 + 滚轮缩放 + 点击热点/设备
+    // 交互绑定（两条轨道共享）：单指拖拽环视 + 双指捏合缩放 + 滚轮缩放 + 点击热点/设备
     const bindInteraction = (el) => {
       let dragging = false
       let lastX = 0
       let lastY = 0
       let dragYaw = 0
       let dragPitch = 0
+      // 活动指针表（多指手势判定）：size===1 拖拽环视，size>=2 捏合缩放
+      const pointers = new Map()
+      let pinchStartDist = 0
+      let pinchStartFov = camera.fov
+      const pinchDistance = () => {
+        const pts = [...pointers.values()]
+        if (pts.length < 2) return 0
+        return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+      }
       const onDown = (e) => {
-        dragging = true
-        lastX = e.clientX
-        lastY = e.clientY
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pointers.size === 1) {
+          dragging = true
+          lastX = e.clientX
+          lastY = e.clientY
+        } else if (pointers.size === 2) {
+          // 进入捏合：停用拖拽，记录手势基准（FOV 与距离）
+          dragging = false
+          pinchStartDist = pinchDistance()
+          pinchStartFov = camera.fov
+        }
         scheduleRender()
       }
       const onMove = (e) => {
+        if (!pointers.has(e.pointerId)) return
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pointers.size >= 2) {
+          // 双指捏合缩放（触屏设备唯一的缩放手段）
+          const dist = pinchDistance()
+          if (pinchStartDist > 0 && dist > 0) {
+            camera.fov = fovFromPinch(pinchStartFov, pinchStartDist, dist)
+            camera.updateProjectionMatrix()
+            scheduleRender()
+          }
+          return
+        }
         if (!dragging) return
         const dx = e.clientX - lastX
         const dy = e.clientY - lastY
@@ -219,10 +307,23 @@ export default function GaussianViewer({
         camera.rotation.x = dragPitch + ((initialView?.pitch ?? 0) * Math.PI) / 180
         scheduleRender()
       }
-      const onUp = () => { dragging = false }
+      const onUp = (e) => {
+        pointers.delete(e.pointerId)
+        if (pointers.size < 2) pinchStartDist = 0
+        if (pointers.size === 1) {
+          // 捏合结束仍有一指在屏 → 以该指针为基准恢复拖拽环视
+          // （否则必须全部抬指才能再环视，双指缩放后视角操作会「死」住）
+          const [p] = [...pointers.values()]
+          dragging = true
+          lastX = p.x
+          lastY = p.y
+        } else if (pointers.size === 0) {
+          dragging = false
+        }
+      }
       const onWheel = (e) => {
         e.preventDefault()
-        camera.fov = Math.max(30, Math.min(110, camera.fov + e.deltaY * 0.05))
+        camera.fov = clampFov(camera.fov + e.deltaY * 0.05)
         camera.updateProjectionMatrix()
         scheduleRender()
       }
@@ -259,6 +360,31 @@ export default function GaussianViewer({
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('click', onClick)
       }
+    }
+
+    // 陀螺仪环视（相对式：以开启瞬间姿态为基准，避免开启时视角跳变）
+    // 关闭状态直接 return 并清空基准 → 重新开启自动重新取基准
+    let gyroBase = null
+    const onDeviceOrientation = (e) => {
+      if (!gyroEnabledRef.current) {
+        gyroBase = null
+        return
+      }
+      const { yaw, pitch } = orientationToRotation({ alpha: e.alpha ?? 0, beta: e.beta ?? 0 })
+      if (!gyroBase) gyroBase = { yaw, pitch }
+      const limit = Math.PI / 2
+      camera.rotation.order = 'YXZ'
+      camera.rotation.y =
+        -(yaw - gyroBase.yaw) + ((initialView?.heading ?? 0) * Math.PI) / 180
+      camera.rotation.x = Math.max(
+        -limit,
+        Math.min(limit, pitch - gyroBase.pitch + ((initialView?.pitch ?? 0) * Math.PI) / 180),
+      )
+      scheduleRender()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('deviceorientation', onDeviceOrientation)
+      cleanupFns.push(() => window.removeEventListener('deviceorientation', onDeviceOrientation))
     }
 
     // 尺寸自适应 + 初始渲染（两条轨道共享）
@@ -409,6 +535,24 @@ export default function GaussianViewer({
       style={{ position: 'relative', width: '100%', height: '100%' }}
     >
       <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
+      {gyroSupported && status === 'ready' && (
+        <button
+          type="button"
+          data-gyro-toggle={gyroOn ? 'on' : 'off'}
+          onClick={toggleGyro}
+          title={gyroOn ? '关闭陀螺仪环视' : '开启陀螺仪环视'}
+          style={{
+            position: 'absolute', top: 8, right: 8, zIndex: 2,
+            padding: '4px 10px', fontSize: 12, lineHeight: '18px',
+            borderRadius: 12, cursor: 'pointer',
+            border: '1px solid rgba(255,255,255,0.35)',
+            background: gyroOn ? 'rgba(52,199,89,0.85)' : 'rgba(10,12,16,0.55)',
+            color: '#fff',
+          }}
+        >
+          {gyroOn ? '陀螺仪已开' : '陀螺仪环视'}
+        </button>
+      )}
       {status === 'loading' && (
         <div style={{
           position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',

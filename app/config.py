@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.15.15"
+    app_version: str = "1.17.1"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -488,6 +488,32 @@ class Settings(BaseSettings):
     agent_payment_intent_enabled: bool = True
     payment_intent_ttl_seconds: int = 600
 
+    # v1.16.x ATH 可信互联握手凭证（信通院 ATH 1.0 对齐）：
+    # 补全九步握手中的身份凭证环节（④应用核验智能体身份 / ⑤智能体核验应用身份 /
+    # ⑦独立握手凭证签发）。凭证 HMAC-SHA256 复用 PASETO 主密钥，短时有效，
+    # 与 PASETO 会话鉴权互补（PASETO 证明「你是谁」，握手凭证证明「获授权与
+    # 哪个智能体在哪个 scope 交互」——最小权限 + 时效）。关闭即端点 503 诚实降级。
+    agent_handshake_enabled: bool = True
+    agent_handshake_ttl_seconds: int = 600
+    # v1.17.x ATH 强制握手闸门（对齐 ATH「双向身份验证」强制语义）：
+    # True → A2A 下发任务必须携带握手凭证（缺省 403 拒绝，不再兼容放行）。
+    # False → 回退 v1.16.0 旧行为（token 可选携带，缺省放行 + evidence 标注 absent），
+    # 作为该改动的生产回滚开关（改 .env 即可，无需回滚代码）。
+    agent_handshake_required: bool = True
+
+    # Phase 0（2026-09-13 定位收口）健康声明合规闸门：继承索克生活口径，
+    # 康养/疗愈/适老文案 prohibited 疗效词命中即阻断，caution 词附加标准免责声明。
+    # 词表见 app/services/health_claim_compliance.py，口径见
+    # assets/legal/health-claim-disclaimer.md。关闭即放行并诚实标注未校验。
+    health_claim_compliance_enabled: bool = True
+
+    # Phase 3（2026-09-13 存量空间资产化）空间资产台账：
+    # /api/space-assets/* —— 康养/疗愈/旅居/文旅/适老住宅存量空间台账，串联
+    # 资产评估 → AI 智能化改造 → 交付 → 运营指标。业态枚举与索克生活 lodge
+    # 业态对齐。轻资产约束：platform_role 恒为 service_provider，asset_holder
+    # 不得为平台自身。关闭即端点 503 诚实降级。
+    space_asset_ledger_enabled: bool = True
+
     @property
     def economy_provider_list(self) -> list[str]:
         """解析 economy_providers 为列表。"""
@@ -687,6 +713,9 @@ class Settings(BaseSettings):
 
     # ── F41 适老改造（适老卫浴/无障碍动线/适老智能设备）──
     elderly_adaptation_enabled: bool = True
+
+    # ── F41 适老改造补贴资格预检（确定性估算，非资格认定；关闭即 404 诚实不可用）──
+    elderly_subsidy_precheck_enabled: bool = True
 
     # ── F42 局部焕新模式（厨卫焕新/墙面刷新/单空间短周期改造）──
     partial_renovation_enabled: bool = True

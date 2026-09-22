@@ -147,9 +147,11 @@ test.describe('工作台 WorkbenchPage', () => {
     await expect(page.getByTestId('wb-feedback-sent--like')).toBeVisible({ timeout: 5000 });
 
     // 请求体字段对齐后端 AgentFeedbackRequest（agent_name/feedback_type/user_message/agent_reply）
-    // 默认 SSE mock 的 meta 事件 agent_type="master"（后端 meta 权威覆盖路由 agent）
+    // agent_name 走 agentToBackend 映射：前端 key 'master'（总控）→ 后端 'orchestrator'
+    // （services/agent-router.ts agentToBackend；mock 的 meta agent_type="master" 先经
+    //  backendToAgent 归一为本地 key 'master'，出站再映射为 'orchestrator'）
     expect(feedbackBody).toMatchObject({
-      agent_name: 'master',
+      agent_name: 'orchestrator',
       feedback_type: 'like',
       user_message: '帮我看看预算',
       agent_reply: '你好，我是总控 Agent，随时为你服务。',

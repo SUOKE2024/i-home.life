@@ -2,6 +2,160 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.17.0] - 2026-09-15（政策落地：适老改造套餐产品化 + 补贴资格预检）
+
+执行依据：2026-09-15 政策评估 —— 商务部等八部门《促进智能家居消费行动方案》（2026-09-02
+印发，第四条「发展适老化智能家居」）、民发〔2025〕66号《关于培育养老服务经营主体 促进银发
+经济发展的若干措施》、2026 消费品以旧换新适老化补贴地方细则的公开报道口径。本轮落地 P0-1 +
+P0-2：复用 F49 快装套餐与 F41 适老改造既有资产，**不新增表、不新增路由模块**。
+
+### P0-1 — 适老改造套餐产品化（`app/services/partial_renovation_service.py`）
+
+- 新增 3 个适老套餐，与 F41 适老方案配套（方案出条目清单、套餐出可售一口价）：
+  `PKG-ELDERLY-BATH` 适老卫浴（48h）、`PKG-ELDERLY-ROOM` 适老卧室（72h）、
+  `PKG-ELDERLY-FULL` 全屋适老智能化（7 天）；均一口价 + 干法施工 + 0 搬家
+- 适老元数据仅适老套餐输出（非适老套餐不误标）：`elderly_theme` / `target_occupant` /
+  `accessibility_standard`（GB 50763-2012）/ `subsidy_category` / `elderly_design`
+- `elderly_design` 按政策四维（尺寸适配/操作便利/方言识别/安全性能）**只声明适用维度**——
+  仅「全屋」套餐声明方言识别，卫浴/卧室不硬凑
+- 套餐公开视图收敛为 `_public_package_view` 单一实现（消除目录/详情两处重复）
+- 一口价为平台标准定价（与 F49 同口径），区域差异化定价由业务侧维护
+
+### P0-2 — 适老改造补贴资格预检（`app/services/elderly_subsidy_service.py`）
+
+- `POST /api/elderly-adaptation/subsidy-precheck`：按拟购清单或标准套餐编码，确定性估算
+  逐项可补贴判定 + 成交价 15%（全国基准档案）补贴额 + 落地价；支持按套餐一口价直接预检
+- `GET /api/elderly-adaptation/subsidy-profiles`：政策档案（口径来源 + 免责声明），供前端展示
+- 受 `elderly_subsidy_precheck_enabled`（默认 True）门控，关闭即 404 诚实不可用
+- **诚实红线**：不内置任何地方官方目录（`max_subsidy_per_unit` 未知时留空并强制警告）；
+  个人资格（年龄/失能等级/困难身份）不参与确定性判定；输出恒带 `is_estimate=True`，
+  禁止用于宣称「已获补贴」「已通过核定」；无 LLM、无外部调用
+
+### UI 接线 — 控制台适老套餐 + 补贴预检（`console-src/src/pages/ElderlyAdaptationPage.tsx`）
+
+- 适老套餐目录区块：仅渲染 `elderly_theme=true` 套餐（一口价/工期/干法/0 搬家/无障碍标准/
+  适老化设计维度/适用人群/质保），非适老套餐不误标；与项目无关，恒展示
+- 「补贴预估」按钮 → `POST /api/elderly-adaptation/subsidy-precheck`（套餐编码 + 选填地区），
+  展示一口价/预估补贴/预估落地价 + 逐项可补贴判定 + 警示 + 免责声明与口径来源
+- 按钮与结果均标注「非资格认定」，UI 层不得读作补贴资格结论（诚实红线落到界面）
+- 新增 `console-src/tests/visual/batch14.spec.ts`（3 用例 ×2 断点，mock 契约断言，不做快照；本机 6/6 通过）
+
+### P0-3 — 适老/康养设备类型扩展（`app/models/smart_home.py` + 迁移 `a3b4c5d6e7f8`）
+
+- `device_type` 允许集扩 5 类：`fall_radar`（毫米波跌倒监测雷达）/ `emergency_call`（紧急呼叫）/
+  `care_bed`（智能护理床）/ `health_monitor`（健康监测终端）/ `service_robot`（家庭服务机器人）
+- 允许集收敛为模型模块级单源 `DEVICE_TYPES`，CheckConstraint SQL 由单源派生（杜绝模型/迁移漂移）
+- 迁移 `a3b4c5d6e7f8`：仅扩允许集（不缩，存量安全）+ 幂等守卫（约束缺失即 skip，无约束库不报错），
+  SQLite 走 `batch_alter_table`；本地实测 up/down 全周期——约束替换生效、`ix_smart_devices_scheme_id`
+  索引保留、无 `_alembic_tmp_*` 残留
+- `SmartDeviceCreate` 字段描述同步；测试 +3（单源一致性 / 新类型落库 / 原 11 类不回归）
+
+### 测试与门禁
+
+- 新增 `tests/test_elderly_subsidy_precheck.py`（23 用例）+ `test_partial_renovation.py`
+  适老套餐 4 用例；既有 `test_quick_install_packages_list` 断言同步为 6 套餐
+- 全量 pytest 2760 passed / 2 skipped / 4 xfailed / 0 failed（-n auto 零失败）；
+  flake8 / mypy 0 issue；迁移 `a3b4c5d6e7f8` 本地实测 up/down 全周期
+- 版本号 1.16.0 → 1.17.0 全链路同步（config / .env×4 / MCP SERVER_VERSION /
+  Flutter 1.17.0+65 / config.dart / settings_page / webapp version.json build 65 /
+  console 1.17.0.0 / ci.yml×3 / deploy-production.sh / 测试断言×3）
+- 明确未做（后续）：webapp（C 端）适老套餐/补贴后价格接线、银发产品认证自检、
+  互联互通评分维度、陪诊/居家照护服务 SKU
+
+## [1.16.0] - 2026-09-13（定位收口：空间健康资产运营商 + ATH 握手凭证生产接入 + 空间资产台账）
+
+执行依据：2026-09-13 商业模式修订可行性评估（弱化「装修」主线；升级改造云南区域存量
+康养/疗愈/旅居/文旅空间资源，成为索克生活生态的空间供应链与引流入口）。评估结论：
+方向与索克生活 BP `:66`「四翼非等权——俱乐部/家居是耗材供应链与获客场景延伸」一致，
+非新转向而是把已写好的定位落地。本轮执行 Phase 0（定位与合规收口）+ Phase 3（存量空间资产化）。
+
+### Phase 0 — 定位与叙事收口
+
+- **项目定位改写**：`CLAUDE.md` / `README.md` / `DESIGN.md` 从「AI 智能装修平台」→
+  「**空间健康资产运营商**（AI 存量空间改造 + 智能运营）」。明确装修全链路为
+  **交付底座**（不对外主打但不得削弱）；新增轻资产商业模式约束（不持有房产、
+  不做物业运营、不做房地产经纪）。
+- **健康声明合规闸门**（继承索克生活口径）：新增 `app/services/health_claim_compliance.py`
+  ——prohibited 疗效词（治疗/降压/控血糖/通便/减肥…）命中即阻断，caution 保健词
+  （调理/祛湿/补气…）放行但附加标准免责声明，否定语境（「不具治疗功效」）豁免不误报。
+  受 `health_claim_compliance_enabled`（默认 True）控制，关闭即放行并诚实标注未校验。
+- **法务口径资产**：新增 `assets/legal/health-claim-disclaimer.md`——5 条能力边界
+  （不构成医疗诊断/不替代专业评估/不承诺疗效/不替代精神科诊疗/紧急优先就医）+
+  对外表述规范对照表。与索克生活 `fifteenth_five_year_plan_disclaimer.md` + HC-001~HC-010 对齐。
+- **CareAgent 接入闸门**：`apply_claim_compliance` 拦截违规回复，替换为安全提示。
+
+### ATH 可信互联握手凭证（④⑤⑦ 落地 + 生产链路接入）
+
+- **握手凭证服务**（`app/services/agent_handshake.py`）：`create_handshake_credential`
+  （⑦ 签发，HMAC-SHA256 复用 PASETO 主密钥，payload=app_id|agent|actor|scope|exp，
+  TTL 600s）/ `verify_handshake_credential`（⑤ 双向核验，compare_digest 防时序攻击）/
+  `verify_agent_identity`（④ 应用核验智能体 AID/ACDL）。受 `agent_handshake_enabled`
+  默认 True 控制，关闭即 503。
+- **端点**（`app/api/agent_handshake.py`）：`POST /api/agents/handshake/{issue,verify,verify-agent}`。
+- **接入 A2A 生产链路**（`app/api/a2a.py::send_task`）：**携带即强校验**（对齐 escrow
+  付款端点 v1.15.8 口径）——`handshake_token` 存在时校验签名/三方字段/过期/scope，
+  任一不符 403 拒绝下发且不创建任务记录；缺省时向后兼容放行但 `evidence.handshake`
+  诚实标注 `absent`；flag 关闭标注 `gate_disabled`。scope 非 `a2a:*` 域视为越权拒绝。
+- **九步握手对照**：`docs/competitions/ath-trust-evaluation.md` ①-⑨ 全部 ✅（此前 6/9）。
+  治理审计 ATH2 证据同步更新为「已接入 send_task 生产链路」。
+- **诚实边界**：握手凭证为中心化 HMAC 签发，对齐凭证语义但**非** ATH「去中心化/
+  分布式认证」完整实现；运行沙盒未实现（信通院另一独立标准）。
+
+### CareAgent 康养管家（TERA-Award 康养场景落地）
+
+- 新增 `app/agents/care.py`：`evaluate_care_actions` 确定性编排，六类健康告警
+  （跌倒/心率/血氧/睡眠/空气/活动）→ 场景联动动作（起夜照明/通知家属/新风净化/
+  环境自适应/人工转接）。复用已有 `health_monitor_service.check_thresholds` 分级结果。
+- 注册：harness `care` + A2A Agent Card（`REGISTERED_AGENT_NAMES` 22→23）+
+  ACDL `type_code=08` + 能力描述。
+- **诚实边界**：仅监测与提醒，不做医疗诊断/处方；LLM 不可用走确定性兜底不伪装医疗结论。
+
+### Phase 3 — 存量空间资产化
+
+- **空间资产台账**（`space_assets` 表，迁移 `f1a2b3c4d5e6`）：承载康养/疗愈/旅居/文旅/
+  适老住宅存量空间的「评估 → 改造 → 交付 → 运营」全周期。含区域/物理属性/类别业态/
+  持有方/改造状态/智能化就绪度/合规状态/运营指标。
+- **业态枚举与索克生活单源对齐**：`BUSINESS_FORMATS` 前四项（herb_food_courtyard /
+  forest_herbal_bath / kangyang_study / seasonal_stay）取自索克生活
+  `lodge_manager_registration_screen.dart` `_lodgeTypes`，改任一侧须同步。
+- **轻资产约束三层强制**：schema `model_validator` → service `_validate_holder` →
+  model `platform_role` 默认值。`asset_holder` 命中平台主体关键词即 422；
+  `platform_role` 恒为 `service_provider`，API 层不接受写入。
+- **改造状态机不可跳跃**：`_STATUS_TRANSITIONS` 禁止 `assessed → operating`
+  （须经 `in_renovation → delivered`），非法流转 409 而非静默改写。
+- **就绪度确定性评分**：`compute_smart_readiness` 四维（设备 30/感知 25/场景 25/合规 20），
+  无数据计 0 分并在 breakdown 标注，禁止虚增；≥60 分判 `smart_ready`。
+- **API**（`app/api/space_assets.py`，受 `space_asset_ledger_enabled` 默认 True 控制）：
+  9 端点（enums/summary/CRUD/status/readiness）。归属按 `owner_id` 隔离，
+  `summary?all_owners=true` 仅 admin 否则 403；传 `project_id` 走 `verify_project_access`。
+- **Console 工作台页面**（`console-src/src/pages/SpaceAssetsPage.tsx`，路由 `/space-assets`，
+  React.lazy 懒加载）：轻资产定位声明 + 组合汇总 + 类别/状态筛选 + 登记表单 +
+  台账表格 + 状态机流转按钮。api-client 新增 8 个方法，domain.ts 新增 5 个类型。
+
+### 质量门禁
+
+- **测试**：+27 用例（handshake service 10 + handshake/A2A 端点 13 + CareAgent 7 +
+  台账 20，其中 A2A 接入 7 项为本轮新增）；修正 `test_registered_agents_count` 22→23。
+  全量 **2730 passed + 2 skipped + 4 xfailed**，0 失败。
+- **基线同步**：`scripts/test_baseline.json` 2680→2730；`CLAUDE.md` 基线数字同步。
+- flake8 / mypy / pre-commit 全绿；console `tsc --noEmit` + `vite build` 通过；
+  webapp `vite build` 通过；迁移 upgrade→downgrade→re-upgrade 实测干净；
+  `check_schema_drift.py` DB 缺失表 0。
+- **版本**：1.15.15 → 1.16.0 全链路同步（config / .env×4 / MCP SERVER_VERSION /
+  Flutter 1.16.0+64 / config.dart / settings_page / webapp version.json build 64 /
+  console 1.16.0.0 / ci.yml×3 / deploy-production.sh / 测试断言×3）。
+
+### 遗留（诚实标注）
+
+- 台账技术底座已就绪，但**业务前置条件未满足**：尚无云南本地地产/物业/文旅合作方，
+  资质归属（装修施工/消防/养老机构备案/民宿特种行业许可）未落实，台账数据为空。
+- 健康声明词表按索克侧测试用例语义重建（`shared/wellness_claim_compliance.py` 源文件
+  不在 suoke_life 仓库），上线前须与索克侧核对词表一致性。
+- 索克生活侧 A2A 为 JSON-RPC 2.0 + HS256 Agent Card 签名 + `eco_guard`，与本平台
+  REST Task Machine 协议不对齐，且对方 `A2A_ENABLED` 默认 false——生态对接适配层未启动。
+- 分账/佣金引擎对方为空白（`get_store_dashboard` 全 0），若做引流抽成须本平台自建
+  （可复用 escrow + `agent_payment_intent`）。
+
 ## [1.15.15] - 2026-09-12（P3 施工存档前端落地：上传 + 时间线 + 3DGS 回看）
 
 执行依据：2026-09-12 评估报告 P3「施工进度 3DGS 数字存档」前端补全——后端

@@ -393,7 +393,10 @@ class TestA2AEvidenceChain:
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["state"] == "failed"
-        assert body["evidence"] == {"degraded": True, "reason": "agent_not_registered"}
+        # v1.16.0：evidence 增补 handshake 字段（未携带握手凭证 → absent，诚实标注）
+        assert body["evidence"] == {
+            "degraded": True, "reason": "agent_not_registered", "handshake": "absent",
+        }
 
     async def test_task_query_returns_evidence_fields(self, client, auth_headers):
         resp = await client.post(
@@ -416,7 +419,10 @@ class TestA2AEvidenceChain:
         assert resp.status_code == 200
         body = resp.json()
         assert body["state"] == "failed"
-        assert body["evidence"] == {"degraded": True, "reason": "permission_denied"}
+        # v1.16.0：evidence 增补 handshake 字段（未携带握手凭证 → absent）
+        assert body["evidence"] == {
+            "degraded": True, "reason": "permission_denied", "handshake": "absent",
+        }
 
 
 # ════════════════════════════════════════════════════════════════

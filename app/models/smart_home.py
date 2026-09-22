@@ -8,6 +8,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+# device_type 允许集（单源：DB CheckConstraint chk_smart_device_type）。
+# 末尾 5 类为适老/康养设备（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）；
+# **新增类型须同步 alembic 迁移**（SQLite 不支持原生 DROP CONSTRAINT，走 batch_alter_table）。
+DEVICE_TYPES: tuple[str, ...] = (
+    "light", "switch", "socket", "sensor", "camera", "lock", "curtain",
+    "speaker", "thermostat", "air_purifier", "robot_vacuum",
+    "fall_radar", "care_bed", "service_robot", "health_monitor", "emergency_call",
+)
+
+_DEVICE_TYPE_ALLOWED_SQL = ", ".join(f"'{t}'" for t in DEVICE_TYPES)
+
 
 class SmartHomeScheme(Base):
     """智能家居方案"""
@@ -71,7 +82,11 @@ class SmartDevice(Base):
     scheme_id: Mapped[str] = mapped_column(String(36), ForeignKey("smart_home_schemes.id"), nullable=False, index=True)
     device_type: Mapped[str] = mapped_column(String(50), nullable=False)
     # device_type: light / switch / socket / sensor / camera / lock / curtain /
-    #   speaker / thermostat / air_purifier / robot_vacuum
+    #   speaker / thermostat / air_purifier / robot_vacuum /
+    #   fall_radar(毫米波跌倒监测雷达) / care_bed(智能护理床) /
+    #   service_robot(家庭服务机器人) / health_monitor(健康监测终端) /
+    #   emergency_call(紧急呼叫按钮)   ← 末尾 5 类为适老/康养设备
+    #   允许集单源见模块级 DEVICE_TYPES，改须同步 alembic 迁移
     device_name: Mapped[str] = mapped_column(String(200), nullable=False)
     brand: Mapped[str | None] = mapped_column(String(100), nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -103,7 +118,7 @@ class SmartDevice(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "device_type IN ('light', 'switch', 'socket', 'sensor', 'camera', 'lock', 'curtain', 'speaker', 'thermostat', 'air_purifier', 'robot_vacuum')",
+            f"device_type IN ({_DEVICE_TYPE_ALLOWED_SQL})",
             name="chk_smart_device_type",
         ),
         CheckConstraint(

@@ -170,6 +170,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: '存量空间资产化（v1.16.0）',
+    items: [
+      { label: '空间资产台账', path: '/space-assets', emoji: '🏘' },
+    ],
+  },
+  {
     title: '新增功能（v1.5.0）',
     items: [
       { label: '适老改造', path: '/elderly-adaptation', emoji: '🧓' },

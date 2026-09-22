@@ -9,7 +9,7 @@ import pytest
 # 全部 26 个 Agent（25 + 1 Orchestrator），与 app/agents/__init__.py 对齐
 _ALL_AGENT_IDS = {
     "orchestrator", "designer", "budget", "procurement", "construction",
-    "settlement", "qa_inspector", "concierge", "content_publisher", "admin",
+    "settlement", "qa_inspector", "concierge", "care", "content_publisher", "admin",
     "kitchen", "bathroom", "mep", "appliance", "furniture", "door_window",
     "files", "products", "identity", "notifications", "takeoff", "ifc_export",
     "growth", "marketing", "competitor_research", "finance_recon",
@@ -45,13 +45,13 @@ async def test_load_renovation_ontology(client, auth_headers):
 
 @pytest.mark.asyncio
 async def test_agent_ontology_covers_all_agents(client, auth_headers):
-    """Agent 本体须覆盖全部 26 个 Agent"""
+    """Agent 本体须覆盖全部 27 个 Agent（v1.16.0 新增 care 康养管家）"""
     resp = await client.get("/api/ontology/agent", headers=auth_headers)
     assert resp.status_code == 200
     agents = resp.json()["agents"]
     ids = {a["id"] for a in agents}
     assert ids == _ALL_AGENT_IDS
-    assert len(agents) == 26
+    assert len(agents) == 27
     # 每个 Agent 必须有分类/角色/能力/边界字段
     for a in agents:
         assert a["category"] in {"orchestration", "execution", "business_ops"}

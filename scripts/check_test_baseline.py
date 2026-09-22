@@ -13,6 +13,13 @@
   python scripts/check_test_baseline.py            # 核对基线（不通过则退出码 1）
   python scripts/check_test_baseline.py --update   # 以当前通过数更新基线
   python scripts/check_test_baseline.py --tests tests/test_agent_memory.py  # 仅跑指定路径
+  python scripts/check_test_baseline.py --from-output pytest-ci.log  # 解析既有输出（CI 复用）
+
+接入点:
+  - CI: .github/workflows/ci.yml `backend-test` job 的 "Check pytest baseline" 步骤，
+    以 `--from-output` 复用该 job 已产出的全量日志（不重复执行 pytest，CI 时长不翻倍）
+  - pre-commit: .pre-commit-config.yaml `test-baseline` 钩子（stages: [manual]，
+    全量耗时较长故不随每次 commit 触发；发布前手动 `pre-commit run --hook-stage manual test-baseline`）
 
 退出码:
   0 = 全量测试通过且 passed >= 基线
@@ -82,11 +89,20 @@ def save_baseline(counts: dict) -> None:
     data = {
         "passed": counts["passed"],
         "skipped": counts["skipped"],
+        # xfailed 不参与门禁（pytest 汇总行不含该计数），但属基线文件既有字段，
+        # 更新时沿用旧值，避免 --update 静默丢弃
+        "xfailed": load_baseline().get("xfailed", 0),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     with open(_BASELINE_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"已更新基线: {_BASELINE_FILE} -> {data}")
+
+
+def read_output_file(path: str) -> str:
+    """读取既有 pytest 输出文件（CI 复用同一份全量日志，避免重复跑）。"""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
 
 
 def resolve_python() -> str:
@@ -101,22 +117,36 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="pytest 测试基线核对")
     parser.add_argument("--update", action="store_true", help="以当前通过数更新基线")
     parser.add_argument("--tests", default="", help="仅跑指定测试路径（默认全量 tests/）")
+    parser.add_argument(
+        "--from-output",
+        default="",
+        help="解析既有 pytest 输出文件（不再自行运行 pytest，供 CI 复用同一份全量日志）",
+    )
     args = parser.parse_args()
 
-    cmd = [resolve_python(), "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider"]
-    if args.tests:
-        cmd.append(args.tests)
+    if args.from_output:
+        try:
+            output = read_output_file(args.from_output)
+        except OSError as e:
+            print(f"ERROR: 无法读取输出文件 {args.from_output}: {e}", file=sys.stderr)
+            return 2
+        print(f"解析已有输出: {args.from_output}")
     else:
-        cmd.append("tests")
+        cmd = [resolve_python(), "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider"]
+        if args.tests:
+            cmd.append(args.tests)
+        else:
+            cmd.append("tests")
 
-    print(f"运行: {' '.join(cmd)}")
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, cwd=_ROOT)
-    except FileNotFoundError:
-        print("ERROR: 无法运行 pytest（未安装或环境异常）", file=sys.stderr)
-        return 2
+        print(f"运行: {' '.join(cmd)}")
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True, cwd=_ROOT)
+        except FileNotFoundError:
+            print("ERROR: 无法运行 pytest（未安装或环境异常）", file=sys.stderr)
+            return 2
 
-    output = proc.stdout + proc.stderr
+        output = proc.stdout + proc.stderr
+
     counts = find_summary(output)
     # pytest 退出码 5 = 无测试收集（视为异常）
     if counts["passed"] == 0 and counts["failed"] == 0 and counts["errors"] == 0:

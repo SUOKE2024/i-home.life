@@ -11,6 +11,7 @@
 #   - debug-statements: 调试代码检查 (breakpoint/pdb)
 #   - flake8: Python 代码风格 (max-line-length=120, max-complexity=15)
 #   - mypy: 静态类型检查 (可选, 需手动启用)
+#   - test-baseline: 测试基线门禁 (v1.17.1, 手动阶段; 全量 pytest 耗时较长)
 
 repos:
   # ── 通用文件修复 ──
@@ -52,4 +53,20 @@ repos:
   #       additional_dependencies:
   #         - types-redis
   #         - types-python-dateutil
-  #       exclude: ^(alembic/|tests/)
+      #       exclude: ^(alembic/|tests/)
+
+  # ── 测试基线门禁（v1.17.1，手动阶段）──
+  # 全量 pytest 本机约 30 分钟，不宜随每次 commit 触发；发布前手动执行：
+  #   pre-commit run --hook-stage manual test-baseline
+  # 脚本自行解析 .venv/bin/python（见 scripts/check_test_baseline.py resolve_python）
+  # 注意：pre-commit 运行时会 stash 未提交改动，故须在 test_baseline.json 已提交后运行，
+  # 否则比对的是 HEAD 里的旧基线（实测曾比对 2680 而非工作树的 2768）
+  - repo: local
+    hooks:
+      - id: test-baseline
+        name: pytest baseline check
+        entry: python scripts/check_test_baseline.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [manual]

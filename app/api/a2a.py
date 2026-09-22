@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +42,7 @@ REGISTERED_AGENT_NAMES: list[str] = [
     "ContentPublisherAgent", "AdminAgent", "KitchenAgent", "BathroomAgent",
     "MepAgent", "ApplianceAgent", "FurnitureAgent", "DoorWindowAgent",
     "FilesAgent", "ProductsAgent", "IdentityAgent", "NotificationsAgent",
-    "TakeoffAgent", "IfcExportAgent",
+    "TakeoffAgent", "IfcExportAgent", "CareAgent",
 ]
 
 # v1.15.x: 平台运营专用 Agent（注册在 harness，但不进 A2A 公开技能卡；
@@ -52,26 +52,86 @@ _BUSINESS_OPS_AGENT_KEYS = frozenset({
 })
 
 
-def _build_evidence(trace, degraded: bool = False) -> dict[str, Any]:
+def _build_evidence(trace, degraded: bool = False, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     """v1.15.5 协议信任层：从 harness trace 构建 A2A 执行证据链。
 
     evidence 只含最小可核验字段（不序列化 live 对象）：
     agent_name / workflow_id / status / duration_ms / degraded。
     客户端可凭 trace_id 到 agent_traces 表回放溯源，核验执行真实性。
     全程 getattr 防御（测试桩/异常轨迹缺字段时不抛错）。
+
+    v1.16.0：extra 用于并入 ATH 握手凭证校验结果（handshake/handshake_scope/
+    handshake_app_id），诚实标注本次下发是否经握手核验。
     """
     if trace is None:
-        return {"degraded": degraded, "status": "no_trace"}
-    status_val = getattr(trace, "status", None)
-    if hasattr(status_val, "value"):
-        status_val = status_val.value
-    return {
-        "agent_name": getattr(trace, "agent_name", "") or "",
-        "workflow_id": getattr(trace, "workflow_id", "") or "",
-        "status": str(status_val or ""),
-        "duration_ms": round(float(getattr(trace, "latency_ms", None) or 0.0), 1),
-        "degraded": degraded,
-    }
+        base: dict[str, Any] = {"degraded": degraded, "status": "no_trace"}
+    else:
+        status_val = getattr(trace, "status", None)
+        if hasattr(status_val, "value"):
+            status_val = status_val.value
+        base = {
+            "agent_name": getattr(trace, "agent_name", "") or "",
+            "workflow_id": getattr(trace, "workflow_id", "") or "",
+            "status": str(status_val or ""),
+            "duration_ms": round(float(getattr(trace, "latency_ms", None) or 0.0), 1),
+            "degraded": degraded,
+        }
+    if extra:
+        base.update(extra)
+    return base
+
+
+def _verify_task_handshake(
+    request: "A2ATaskRequest", actor_user_id: str
+) -> tuple[str, str | None, dict[str, Any] | None]:
+    """ATH 握手凭证校验（⑤ 智能体核验应用/用户身份 + ⑥ 最小权限 scope）。
+
+    v1.17.x 强制握手（对齐 ATH「双向身份验证」强制语义）：
+    - agent_handshake_enabled=False → ("gate_disabled", None, note)，诚实标注闸门关闭
+      （子系统整体关闭时无法强制，放行并标注，不伪装已握手）
+    - handshake_token 缺省 → agent_handshake_required=True 时 403 拒绝
+      （required=False 为回滚开关，退回 v1.16.0 行为：放行 + 标注 absent）
+    - 携带 token → 校验签名/app 登记/agent/actor/过期，任一不符返回 error（调用方 403）
+
+    Returns:
+        (handshake_state, error_message, extra_evidence)
+        handshake_state ∈ {"verified", "required_missing", "absent", "gate_disabled"}
+    """
+    token = request.handshake_token
+
+    if not settings.agent_handshake_enabled:
+        return "gate_disabled", None, {"handshake_note": "agent_handshake_enabled=False，凭证未校验"}
+
+    if not token:
+        if settings.agent_handshake_required:
+            return (
+                "required_missing",
+                "ATH 握手凭证缺失：agent_handshake_required=True 时下发任务必须携带 "
+                "handshake_token（先 POST /api/agents/handshake/issue 签发）",
+                None,
+            )
+        return "absent", None, None
+
+    if not request.app_id:
+        return "absent", "携带 handshake_token 时 app_id 必填（无法核验调用方身份）", None
+
+    from app.services.agent_handshake import verify_handshake_credential
+
+    result = verify_handshake_credential(
+        token,
+        app_id=request.app_id,
+        agent_name=request.agent_name,
+        actor_user_id=actor_user_id,
+    )
+    if not result["valid"]:
+        return "absent", f"ATH 握手凭证校验失败：{result['reason']}", None
+
+    # ⑥ 最小权限：scope 须为 a2a 任务域（默认 a2a:task），非 a2a 域凭证不得下发任务
+    scope = result.get("scope") or ""
+    if scope and not scope.startswith("a2a"):
+        return "absent", f"ATH 握手凭证 scope 越权：{scope}（需 a2a:* 域）", None
+
+    return "verified", None, {"handshake_scope": scope, "handshake_app_id": request.app_id}
 
 
 def _resolve_agent_cls(harness, agent_name: str):
@@ -115,6 +175,7 @@ _AGENT_DESCRIPTIONS: dict[str, str] = {
     "NotificationsAgent": "通知推送，多渠道消息",
     "TakeoffAgent": "工程量计算，算量",
     "IfcExportAgent": "BIM/IFC 模型导出",
+    "CareAgent": "康养管家，健康监测告警与场景联动",
 }
 
 
@@ -148,10 +209,24 @@ class A2AAgentCard(BaseModel):
 
 
 class A2ATaskRequest(BaseModel):
-    """A2A 任务请求"""
+    """A2A 任务请求
+
+    v1.17.x ATH 强制握手（信通院 ATH「双向身份验证」）：
+    `agent_handshake_required=True`（默认）时 **必须**携带 handshake_token + app_id，
+    缺省即 403 拒绝（不再兼容放行）；token 校验签名/应用登记/三方字段/过期/scope，
+    任一不符即 403。`agent_handshake_required=False` 为该改动的回滚开关。
+    """
     agent_name: str
     message: str
     project_id: str | None = None
+    app_id: str | None = Field(
+        default=None,
+        description="调用方应用标识（须为 agent_handshake.REGISTERED_APPS 已登记应用，如 console）",
+    )
+    handshake_token: str | None = Field(
+        default=None,
+        description="ATH 握手凭证（POST /api/agents/handshake/issue 签发）；强制握手时必填，缺省 403",
+    )
 
 
 class A2ATaskResponse(BaseModel):
@@ -160,6 +235,8 @@ class A2ATaskResponse(BaseModel):
     v1.15.5 协议信任层（AAIF「可验证证据在协议边界」）：附执行证据链——
     trace_id 关联 harness 轨迹（可回放溯源），evidence 含 agent_name/
     workflow_id/duration_ms/degraded/status，客户端可核验执行真实性而非信任裸文案。
+    v1.16.0：evidence 增补 handshake 字段（verified/absent/gate_disabled），
+    诚实标注本次下发是否经 ATH 握手凭证校验。
     """
     task_id: str
     state: A2ATaskState
@@ -227,7 +304,7 @@ async def get_agent_card() -> A2AAgentCard:
     return A2AAgentCard(
         name=settings.app_name,
         version=settings.app_version,
-        description="i-home.life 智能家居/室内设计平台 A2A 节点 — 22 个专业 Agent 协同",
+        description="i-home.life 空间健康资产运营平台 A2A 节点 — 23 个专业 Agent 协同",
         capabilities={
             "streaming": False,
             "pushNotifications": False,
@@ -270,12 +347,28 @@ async def send_task(
 
     通过 Harness 运行 Agent 并返回结果。受 settings.a2a_enabled feature flag 控制。
     任务状态持久化到 a2a_tasks 表，默认 TTL 24 小时后自动过期。
+
+    v1.16.0：接入 ATH 握手凭证校验；v1.17.x 起**强制**——agent_handshake_required=True
+    时缺省凭证 403 拒绝（不再兼容放行），校验失败同样 403 且不创建任务记录。
     """
     if not settings.a2a_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="A2A 协议未启用",
         )
+
+    # ── v1.16.0 ATH 握手凭证校验（⑤ 双向身份核验 + ⑥ 最小权限 scope）──
+    handshake_state, handshake_error, handshake_extra = _verify_task_handshake(
+        request, current_user.id
+    )
+    if handshake_error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=handshake_error,
+        )
+    hs_evidence = {"handshake": handshake_state}
+    if handshake_extra:
+        hs_evidence.update(handshake_extra)
 
     task_id = f"a2a_{uuid.uuid4().hex[:12]}"
     expires_at = datetime.now(timezone.utc) + timedelta(hours=A2A_TASK_DEFAULT_TTL_HOURS)
@@ -303,14 +396,13 @@ async def send_task(
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = f"Agent '{request.agent_name}' 未注册"
         # v1.15.5 证据链：拒绝/失败也附证据（诚实标注降级原因）
-        db_task.evidence = json.dumps(
-            {"degraded": True, "reason": "agent_not_registered"}, ensure_ascii=False,
-        )
+        ev_not_registered = {**hs_evidence, "degraded": True, "reason": "agent_not_registered"}
+        db_task.evidence = json.dumps(ev_not_registered, ensure_ascii=False)
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED,
             error=f"Agent '{request.agent_name}' 未注册",
-            evidence={"degraded": True, "reason": "agent_not_registered"},
+            evidence=ev_not_registered,
         )
 
     # v1.15.x 走查修复：商业运营 Agent（growth/marketing/competitor_research/
@@ -319,14 +411,13 @@ async def send_task(
     if getattr(agent_cls, "agent_name", "") in _BUSINESS_OPS_AGENT_KEYS and current_user.role != "admin":
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = "平台运营专用 Agent，仅管理员可用"
-        db_task.evidence = json.dumps(
-            {"degraded": True, "reason": "permission_denied"}, ensure_ascii=False,
-        )
+        ev_perm = {**hs_evidence, "degraded": True, "reason": "permission_denied"}
+        db_task.evidence = json.dumps(ev_perm, ensure_ascii=False)
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED,
             error=db_task.error,
-            evidence={"degraded": True, "reason": "permission_denied"},
+            evidence=ev_perm,
         )
 
     trace = None
@@ -356,31 +447,29 @@ async def send_task(
             db_task.state = A2ATaskState.FAILED.value
             db_task.error = "Agent 执行降级（服务暂时不可用），请稍后重试"
             db_task.trace_id = getattr(trace, "trace_id", None)
-            db_task.evidence = json.dumps(
-                _build_evidence(trace, degraded=True), ensure_ascii=False,
-            )
+            ev_fallback = _build_evidence(trace, degraded=True, extra=hs_evidence)
+            db_task.evidence = json.dumps(ev_fallback, ensure_ascii=False)
             await db.commit()
             return A2ATaskResponse(
                 task_id=task_id,
                 state=A2ATaskState.FAILED,
                 error=db_task.error,
                 trace_id=getattr(trace, "trace_id", None),
-                evidence=_build_evidence(trace, degraded=True),
+                evidence=ev_fallback,
             )
         harness.finish_trace(trace, AgentRunStatus.SUCCESS)
         db_task.state = A2ATaskState.COMPLETED.value
         db_task.result = reply_text
         db_task.trace_id = getattr(trace, "trace_id", None)
-        db_task.evidence = json.dumps(
-            _build_evidence(trace, degraded=False), ensure_ascii=False,
-        )
+        ev_ok = _build_evidence(trace, degraded=False, extra=hs_evidence)
+        db_task.evidence = json.dumps(ev_ok, ensure_ascii=False)
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id,
             state=A2ATaskState.COMPLETED,
             result=reply_text,
             trace_id=getattr(trace, "trace_id", None),
-            evidence=_build_evidence(trace, degraded=False),
+            evidence=ev_ok,
         )
     except Exception as e:
         logger.error("a2a_task_failed: agent=%s error=%s", request.agent_name, e)
@@ -389,15 +478,16 @@ async def send_task(
         db_task.state = A2ATaskState.FAILED.value
         db_task.error = str(e)
         db_task.trace_id = getattr(trace, "trace_id", None) if trace else None
-        db_task.evidence = json.dumps(
-            {"degraded": True, "reason": "exception", "error_type": type(e).__name__},
-            ensure_ascii=False,
-        )
+        ev_exc = {
+            **hs_evidence, "degraded": True, "reason": "exception",
+            "error_type": type(e).__name__,
+        }
+        db_task.evidence = json.dumps(ev_exc, ensure_ascii=False)
         await db.commit()
         return A2ATaskResponse(
             task_id=task_id, state=A2ATaskState.FAILED, error=str(e),
             trace_id=getattr(trace, "trace_id", None),
-            evidence={"degraded": True, "reason": "exception", "error_type": type(e).__name__},
+            evidence=ev_exc,
         )
 
 

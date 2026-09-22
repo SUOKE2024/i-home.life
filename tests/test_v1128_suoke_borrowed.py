@@ -437,9 +437,9 @@ class TestA2AProtocol:
         assert a2a_api.public_router is not None
 
     def test_registered_agents_count(self):
-        """22 个 Agent 已注册"""
+        """23 个 Agent 已注册（v1.16.x 新增 CareAgent 康养管家）"""
         from app.api.a2a import REGISTERED_AGENT_NAMES
-        assert len(REGISTERED_AGENT_NAMES) == 22
+        assert len(REGISTERED_AGENT_NAMES) == 23
 
     def test_agent_card_endpoint_exists(self):
         """Agent Card 端点存在"""
@@ -471,6 +471,6 @@ class TestFeatureFlags:
         assert hasattr(s, "tts_enabled")
 
     def test_app_version_bumped(self):
-        """app_version 已升至 1.15.15（v1.15.15 发版）"""
+        """app_version 已升至 1.17.1（v1.17.1 发版）"""
         from app.config import get_settings
-        assert get_settings().app_version == "1.15.15"
+        assert get_settings().app_version == "1.17.1"

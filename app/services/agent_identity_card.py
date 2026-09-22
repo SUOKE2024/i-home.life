@@ -14,7 +14,7 @@ _VENDOR_CODE = "91330000SOKE9"  # 若需 9 位可调整为 "91330000S"，保持�
 # 智能体类型编码表（2 位）
 AGENT_TYPE_CODES = {
     "designer": "01", "budget": "02", "procurement": "03", "construction": "04",
-    "qa_inspector": "05", "settlement": "06", "concierge": "07",
+    "qa_inspector": "05", "settlement": "06", "concierge": "07", "care": "08",
     "growth": "81", "marketing": "82", "competitor_research": "83", "finance_recon": "84",
 }
 
@@ -30,6 +30,7 @@ DEFAULT_CAPABILITIES: dict[str, list[str]] = {
     "qa_inspector": ["分项验收", "图纸比对", "工艺缺陷检测"],
     "settlement": ["工程结算", "节点放款建议", "结算明细导出"],
     "concierge": ["装修知识问答", "常见问题解答", "人工客服转接"],
+    "care": ["健康监测预警", "跌倒检测告警", "环境自适应联动", "康养空间设计建议", "家属护工通知"],
     "growth": ["功能使用率周报", "Agent 调用统计", "增长洞察"],
     "marketing": ["营销素材生成", "社媒文案草稿", "活动策划建议"],
     "competitor_research": ["竞品调研简报", "市场趋势分析", "差异化建议"],

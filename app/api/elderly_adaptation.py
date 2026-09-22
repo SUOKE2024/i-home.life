@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.rbac import verify_project_access
-from app.services import elderly_adaptation_service
+from app.services import elderly_adaptation_service, elderly_subsidy_service
 
 router = APIRouter(prefix="/elderly-adaptation", tags=["适老改造"])
 
@@ -20,6 +20,11 @@ settings = get_settings()
 
 def _check_enabled() -> None:
     if not settings.elderly_adaptation_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该功能未启用")
+
+
+def _check_subsidy_enabled() -> None:
+    if not settings.elderly_subsidy_precheck_enabled:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该功能未启用")
 
 
@@ -167,3 +172,58 @@ async def delete_scheme(
     deleted = await elderly_adaptation_service.delete_scheme(db, scheme_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="适老改造方案不存在")
+
+
+# ── 适老改造补贴资格预检（政策：2026 以旧换新适老化补贴，成交价 15% 口径）──
+
+
+class SubsidyItemInput(BaseModel):
+    """拟购清单行"""
+    name: str = Field(min_length=1, max_length=200)
+    # 五大刚需场景: fall_prevention / fire_water_safety / housework_relief /
+    #               health_emergency / mobility_rehab，兜底 other
+    category: str
+    unit_price: float = Field(ge=0)
+    quantity: int = Field(default=1, ge=1)
+
+
+class SubsidyPrecheckRequest(BaseModel):
+    """补贴资格预检请求（items 与 package_code 二选一）"""
+    items: list[SubsidyItemInput] | None = None
+    # 标准快装套餐编码（如 PKG-ELDERLY-BATH），取套餐一口价作为清单行
+    package_code: str | None = None
+    policy_profile: str = "national_baseline"
+    region: str | None = Field(default=None, max_length=50)
+
+
+@router.post("/subsidy-precheck")
+async def subsidy_precheck(
+    data: SubsidyPrecheckRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """适老改造补贴资格预检（确定性估算，非资格认定）
+
+    输出逐项可补贴判定 + 按成交价 15%（全国基准档案）估算的补贴额与落地价，
+    并强制标注：未接入地方官方目录、单件上限未知、个人资格不参与判定。
+    """
+    _check_enabled()
+    _check_subsidy_enabled()
+    try:
+        return elderly_subsidy_service.precheck_subsidy(
+            items=[item.model_dump() for item in data.items] if data.items else None,
+            package_code=data.package_code,
+            policy_profile=data.policy_profile,
+            region=data.region,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.get("/subsidy-profiles")
+async def list_subsidy_profiles(
+    current_user: User = Depends(get_current_user),
+):
+    """可用的补贴政策档案（含口径来源与免责声明，供前端展示）"""
+    _check_enabled()
+    _check_subsidy_enabled()
+    return elderly_subsidy_service.list_policy_profiles()

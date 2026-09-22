@@ -119,6 +119,9 @@ from app.models.sensor_snapshot import SensorSnapshot
 # 设计流程编排 — 风格/预算选供应商 → VR 效果图 → 可行性分析
 from app.models.design_flow import DesignFlow, DesignFlowFeasibility, DesignFlowDrawing
 
+# Phase 3 存量空间资产化 — 空间资产台账（康养/疗愈/旅居/文旅/适老住宅）
+from app.models.space_asset import SpaceAsset
+
 __all__ = [
     "User",
     "Project",
@@ -275,6 +278,7 @@ __all__ = [
     "DesignFlow",
     "DesignFlowFeasibility",
     "DesignFlowDrawing",
+    "SpaceAsset",
 ]
 
 

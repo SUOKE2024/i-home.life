@@ -17,6 +17,7 @@
     {"id": "qa_inspector", "name": "质检 Agent", "category": "execution", "role": "质量检测/验收报告", "capabilities": ["验收报告", "图纸比对", "缺陷识别"], "decision_boundary": "质检不代验收；缺陷如实标注"},
     {"id": "settlement", "name": "结算 Agent", "category": "execution", "role": "财务结算/付款管理", "capabilities": ["里程碑结算", "对账", "异常检测"], "decision_boundary": "结算须业主确认(H5)"},
     {"id": "concierge", "name": "客服 Agent", "category": "execution", "role": "7×24 知识问答/咨询", "capabilities": ["知识问答", "咨询接待", "问题升级"], "decision_boundary": "复杂问题升级转人工"},
+    {"id": "care", "name": "康养管家 Agent", "category": "execution", "role": "康养/疗愈/旅居空间健康监测告警与场景联动编排", "capabilities": ["六类健康监测告警编排", "跌倒/心率/血氧异常联动", "起夜照明与新风场景联动", "家属护工通知", "人工服务转接"], "decision_boundary": "仅监测与提醒，不做医疗诊断/处方；健康文案过 health_claim_compliance 疗效词闸门；critical 告警强制引导就医"},
     {"id": "content_publisher", "name": "内容发布 Agent", "category": "execution", "role": "供应商产品/服务发布", "capabilities": ["产品/服务发布", "内容生成"], "decision_boundary": "AI 生成草稿需人工审核"},
     {"id": "admin", "name": "平台管理 Agent", "category": "execution", "role": "用户/角色/平台统计", "capabilities": ["用户/角色/权限查询", "平台统计"], "decision_boundary": "AI 不做平台管理写操作，仅引导管理 API"},
     {"id": "kitchen", "name": "厨房设计 Agent", "category": "execution", "role": "橱柜布局/黄金三角/水电", "capabilities": ["橱柜布局", "黄金三角", "水电走线"], "decision_boundary": "燃气安全间距 HC-007"},

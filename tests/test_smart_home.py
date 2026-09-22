@@ -338,3 +338,62 @@ async def test_smart_home_cross_user_access_blocked(client: AsyncClient):
         headers=headers_b,
     )
     assert resp.status_code == 403
+
+
+# ── 适老/康养设备类型（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）──
+
+ELDERLY_DEVICE_TYPES = [
+    "fall_radar", "care_bed", "service_robot", "health_monitor", "emergency_call",
+]
+
+BASE_DEVICE_TYPES = [
+    "light", "switch", "socket", "sensor", "camera", "lock", "curtain",
+    "speaker", "thermostat", "air_purifier", "robot_vacuum",
+]
+
+
+def test_device_types_single_source_contains_elderly():
+    """允许集单源 DEVICE_TYPES：原 11 类 + 5 类适老/康养设备，CheckConstraint SQL 由单源派生"""
+    from app.models.smart_home import DEVICE_TYPES, _DEVICE_TYPE_ALLOWED_SQL
+
+    assert list(DEVICE_TYPES) == BASE_DEVICE_TYPES + ELDERLY_DEVICE_TYPES
+    for device_type in ELDERLY_DEVICE_TYPES:
+        assert f"'{device_type}'" in _DEVICE_TYPE_ALLOWED_SQL
+
+
+@pytest.mark.asyncio
+async def test_create_elderly_devices(client: AsyncClient):
+    """5 类适老/康养设备可创建并落库（CheckConstraint 允许集已扩展）"""
+    headers = await _auth_headers(client, "13920020015")
+    project_id = await _create_project(client, headers, "适老设备测试项目")
+    scheme = await _create_scheme(client, headers, project_id, "长辈房")
+
+    for device_type in ELDERLY_DEVICE_TYPES:
+        resp = await client.post(
+            f"/api/smart-home/schemes/{scheme['id']}/devices",
+            json={"device_type": device_type, "device_name": f"适老设备-{device_type}"},
+            headers=headers,
+        )
+        assert resp.status_code == 201, (device_type, resp.text)
+        assert resp.json()["device_type"] == device_type
+
+    # 落库可读回（真实 DB 约束已接受新类型）
+    resp = await client.get(f"/api/smart-home/schemes/{scheme['id']}/devices", headers=headers)
+    assert resp.status_code == 200
+    assert {d["device_type"] for d in resp.json()} == set(ELDERLY_DEVICE_TYPES)
+
+
+@pytest.mark.asyncio
+async def test_existing_device_types_still_accepted(client: AsyncClient):
+    """扩展允许集不缩小——原 11 类仍可创建"""
+    headers = await _auth_headers(client, "13920020016")
+    project_id = await _create_project(client, headers, "原设备类型回归项目")
+    scheme = await _create_scheme(client, headers, project_id, "客厅")
+
+    for device_type in BASE_DEVICE_TYPES:
+        resp = await client.post(
+            f"/api/smart-home/schemes/{scheme['id']}/devices",
+            json={"device_type": device_type, "device_name": f"设备-{device_type}"},
+            headers=headers,
+        )
+        assert resp.status_code == 201, (device_type, resp.text)

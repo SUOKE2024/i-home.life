@@ -313,46 +313,153 @@ QUICK_INSTALL_PACKAGES: dict[str, dict] = {
         "excludes": ["墙纸/软包类", "外墙", "全屋拆改"],
         "warranty": "涂料 3 年质保，返修免费",
     },
+    # ── 适老改造套餐（政策：商务部等八部门《促进智能家居消费行动方案》第四条
+    #    「发展适老化智能家居」+ 推广家庭服务机器人/健康监测/智能照护，
+    #    推行产品尺寸/操作便利/方言识别/安全性能适老化设计）──
+    #
+    # 与 F41 适老改造方案（GB 50763-2012 无障碍尺寸 + HC-006 逃生通道）配套：
+    # 方案出条目清单，套餐出可售一口价，两者经 space_assets.retrofit_package_code 关联。
+    # 定价为平台标准一口价（与 F49 同口径），区域差异化定价由业务侧维护。
+    "PKG-ELDERLY-BATH": {
+        "name": "适老卫浴改造（48h）",
+        "scope_type": "bathroom_refresh",
+        "duration_hours": 48,
+        "duration_days": 2,
+        "fixed_price": 16800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "旧洁具/瓷砖保护性拆除清运",
+            "干法墙板 + 快装防水（免剔凿）",
+            "坐便器旁/淋浴区/浴缸出口不锈钢扶手（φ35mm，高 700mm）",
+            "湿区防滑处理（摩擦系数 ≥ 0.5）+ 无门槛化（高差 ≤ 15mm）",
+            "门洞净宽校核 ≥ 800mm（轮椅通行）",
+            "夜间感应照明（低照度、防眩光）",
+            "成品保护 + 卫生间封闭施工",
+        ],
+        "excludes": ["结构改造", "排水主管移位", "全屋施工", "护理床等重度失能辅具"],
+        "warranty": "整包 2 年质保，防水 5 年，扶手五金 5 年",
+        "elderly_theme": True,
+        "target_occupant": ["elderly_living", "semi_selfcare", "nursing", "family"],
+        "accessibility_standard": "GB 50763-2012",
+        "subsidy_category": "fall_prevention",
+        "elderly_design": {
+            "尺寸适配": "门洞净宽 ≥ 800mm、扶手高度 700mm、地面高差 ≤ 15mm（GB 50763-2012）",
+            "操作便利": "保留机械式冲水/阀门作为断电可用冗余，避免纯感应式操作",
+            "安全性能": "防滑地面 + 防烫伤限温 + 夜间感应照明，降低湿区跌倒与烫伤风险",
+        },
+    },
+    "PKG-ELDERLY-ROOM": {
+        "name": "适老卧室改造（72h）",
+        "scope_type": "single_room",
+        "duration_hours": 72,
+        "duration_days": 3,
+        "fixed_price": 12800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "家具移位与地面保护",
+            "床头扶手 + 走廊双侧连续扶手（φ35mm，高 700mm）",
+            "无门槛化处理（高差 ≤ 15mm，消除绊倒点）",
+            "紧急呼叫按钮（床头 + 卫生间联动）",
+            "夜间感应地脚照明（低照度、不刺眼）",
+            "护理床/移位机通行与回转空间校核",
+            "成品保护 + 逐间施工逐间恢复",
+        ],
+        "excludes": ["结构改造", "护理床/移位机设备本体", "全屋施工"],
+        "warranty": "整包 2 年质保，扶手五金 5 年",
+        "elderly_theme": True,
+        "target_occupant": ["elderly_living", "semi_selfcare", "nursing", "family"],
+        "accessibility_standard": "GB 50763-2012",
+        "subsidy_category": "health_emergency",
+        "elderly_design": {
+            "尺寸适配": "扶手高度 700mm、通道净宽满足助行器/轮椅回转、无门槛化",
+            "操作便利": "紧急呼叫采用大按键实体按钮，支持拉绳/按键双方式，无需学习成本",
+            "安全性能": "起夜路径全程感应照明 + 一键紧急呼叫，缩短跌倒后响应时间",
+        },
+    },
+    "PKG-ELDERLY-FULL": {
+        "name": "全屋适老智能化改造（7 天）",
+        "scope_type": "full_renovation",
+        "duration_hours": 168,
+        "duration_days": 7,
+        "fixed_price": 39800.0,
+        "dry_construction": True,
+        "zero_relocation": True,
+        "inclusions": [
+            "全屋无障碍动线改造（门洞/走廊/高差，GB 50763-2012）",
+            "入户门与逃生通道畅通性整改（HC-006：净宽 + 禁止封闭）",
+            "卫生间/走廊/卧室扶手系统 + 地面防滑处理",
+            "跌倒报警器 + 紧急呼叫按钮（全屋多点）",
+            "燃气泄漏报警 + 夜间感应照明",
+            "适老智能家居配置（智能开关/语音控制/环境联动）",
+            "无障碍动线复测报告（含逃生通道专项检查）",
+        ],
+        "excludes": ["结构改造", "电梯加装", "护理机器人等设备本体"],
+        "warranty": "整包 2 年质保，防水 5 年，扶手五金 5 年",
+        "elderly_theme": True,
+        "target_occupant": ["elderly_living", "semi_selfcare", "nursing", "family"],
+        "accessibility_standard": "GB 50763-2012",
+        "subsidy_category": "fall_prevention",
+        "elderly_design": {
+            "尺寸适配": "全屋门洞 ≥ 800mm、走廊 ≥ 900mm、高差 ≤ 15mm（GB 50763-2012）",
+            "操作便利": "实体大按键 + 语音控制双通道，保留断电可用的机械操作路径",
+            "方言识别": "语音交互支持方言识别（需所选智能家居网关/音箱能力支持，选型时逐项确认）",
+            "安全性能": "跌倒报警 + 一键呼叫 + 燃气泄漏报警 + 夜间照明，覆盖三大高频风险场景",
+        },
+    },
 }
+
+# 公众视图基础字段（套餐目录/详情统一输出）
+_PUBLIC_PACKAGE_FIELDS: tuple[str, ...] = (
+    "name", "scope_type", "duration_hours", "duration_days", "fixed_price",
+    "dry_construction", "zero_relocation", "inclusions", "excludes", "warranty",
+)
+
+# 适老套餐附加字段（非适老套餐不输出，避免误标）
+_ELDERLY_PACKAGE_FIELDS: tuple[str, ...] = (
+    "elderly_theme", "target_occupant", "accessibility_standard",
+    "subsidy_category", "elderly_design",
+)
+
+
+def _public_package_view(package_code: str) -> dict:
+    """构造套餐对外的公开视图（基础字段 + 存在时附加适老元数据）"""
+    pkg = QUICK_INSTALL_PACKAGES[package_code]
+    view = {"package_code": package_code}
+    view.update({field: pkg[field] for field in _PUBLIC_PACKAGE_FIELDS})
+    view.update({field: pkg[field] for field in _ELDERLY_PACKAGE_FIELDS if field in pkg})
+    return view
 
 
 def list_quick_install_packages() -> list[dict]:
     """返回标准快装套餐目录（不含任务/干扰方案等私有结构）"""
-    return [
-        {
-            "package_code": code,
-            "name": pkg["name"],
-            "scope_type": pkg["scope_type"],
-            "duration_hours": pkg["duration_hours"],
-            "duration_days": pkg["duration_days"],
-            "fixed_price": pkg["fixed_price"],
-            "dry_construction": pkg["dry_construction"],
-            "zero_relocation": pkg["zero_relocation"],
-            "inclusions": pkg["inclusions"],
-            "excludes": pkg["excludes"],
-            "warranty": pkg["warranty"],
-        }
-        for code, pkg in QUICK_INSTALL_PACKAGES.items()
-    ]
+    return [_public_package_view(code) for code in QUICK_INSTALL_PACKAGES]
 
 
 def get_quick_install_package(package_code: str) -> dict | None:
     """按编码取单个快装套餐"""
+    if package_code not in QUICK_INSTALL_PACKAGES:
+        return None
+    return _public_package_view(package_code)
+
+
+def get_package_subsidy_line(package_code: str) -> dict:
+    """把套餐折算为补贴预检清单行（一口价 × 1，品类取套餐声明的补贴场景）
+
+    Raises:
+        ValueError: package_code 非法
+    """
     pkg = QUICK_INSTALL_PACKAGES.get(package_code)
     if pkg is None:
-        return None
+        raise ValueError(
+            f"未知快装套餐: {package_code}，可选: {', '.join(QUICK_INSTALL_PACKAGES.keys())}"
+        )
     return {
-        "package_code": package_code,
         "name": pkg["name"],
-        "scope_type": pkg["scope_type"],
-        "duration_hours": pkg["duration_hours"],
-        "duration_days": pkg["duration_days"],
-        "fixed_price": pkg["fixed_price"],
-        "dry_construction": pkg["dry_construction"],
-        "zero_relocation": pkg["zero_relocation"],
-        "inclusions": pkg["inclusions"],
-        "excludes": pkg["excludes"],
-        "warranty": pkg["warranty"],
+        "category": pkg.get("subsidy_category", "other"),
+        "unit_price": pkg["fixed_price"],
+        "quantity": 1,
     }
 
 

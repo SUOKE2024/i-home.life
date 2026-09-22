@@ -892,6 +892,22 @@ export class ApiClient {
     });
   }
 
+  /** 适老改造补贴资格预检（POST /api/elderly-adaptation/subsidy-precheck，确定性估算非资格认定） */
+  async precheckElderlySubsidy<T = import('../types/domain').SubsidyPrecheckResult>(
+    data: { package_code?: string; policy_profile?: string; region?: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/elderly-adaptation/subsidy-precheck', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 标准快装套餐目录（GET /api/partial-renovation/quick-install/packages，含适老套餐） */
+  async getQuickInstallPackages<T = import('../types/domain').ElderlyRetrofitPackage[]>(
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/partial-renovation/quick-install/packages');
+  }
+
   // ── F42 局部焕新（app/api/partial_renovation.py）──
 
   /** 局部焕新模板列表（GET /api/partial-renovation/templates） */
@@ -1450,16 +1466,48 @@ export class ApiClient {
     return this.request<T>('/api/a2a/agents');
   }
 
-  /** 下发任务到指定 Agent（POST /api/a2a/tasks/send；flag 关闭返回 503） */
+  /** 签发 ATH 握手凭证（POST /api/agents/handshake/issue；flag 关闭返回 503）
+   *
+   * app_id 须为已登记应用（后端 agent_handshake.REGISTERED_APPS），
+   * 未登记/越权 scope 后端返回 400。
+   */
+  async issueAgentHandshake<T = { token: string; scope: string; expires_at: number }>(
+    data: { app_id: string; agent_name: string; scope?: string },
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/agents/handshake/issue', {
+      method: 'POST',
+      body: JSON.stringify({
+        app_id: data.app_id,
+        agent_name: data.agent_name,
+        scope: data.scope ?? 'a2a:task',
+      }),
+    });
+  }
+
+  /** 下发任务到指定 Agent（POST /api/a2a/tasks/send；flag 关闭返回 503）
+   *
+   * v1.17.x ATH 强制握手：先签发握手凭证（app_id=console / scope=a2a:task）再随任务
+   * 携带——缺省凭证后端 403 拒绝。签发失败时直接返回签发错误（不静默降级重试）。
+   */
   async sendA2ATask<T = import('../types/domain').A2ATaskResponse>(
     data: { agent_name: string; message: string; project_id?: string | null },
   ): Promise<ApiResult<T>> {
+    const issue = await this.issueAgentHandshake({ app_id: 'console', agent_name: data.agent_name });
+    if (!issue.isSuccess || !issue.data?.token) {
+      return {
+        isSuccess: false,
+        status: issue.status,
+        error: issue.error ?? 'ATH 握手凭证签发失败',
+      };
+    }
     return this.request<T>('/api/a2a/tasks/send', {
       method: 'POST',
       body: JSON.stringify({
         agent_name: data.agent_name,
         message: data.message,
         project_id: data.project_id ?? null,
+        app_id: 'console',
+        handshake_token: issue.data.token,
       }),
     });
   }
@@ -1577,6 +1625,89 @@ export class ApiClient {
   /** Agent 治理安全审计（GET /api/admin/agent-governance-audit，平台管理员；v1.12.x） */
   async getGovernanceAudit<T = import('../types/domain').GovernanceAuditResponse>(): Promise<ApiResult<T>> {
     return this.request<T>('/api/admin/agent-governance-audit');
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  空间资产台账（Phase 3，app/api/space_assets.py，前缀 /api/space-assets）
+  // ──────────────────────────────────────────────────────────────────
+
+  /** 枚举字典（GET /api/space-assets/enums） */
+  async getSpaceAssetEnums<T = import('../types/domain').SpaceAssetEnums>(): Promise<ApiResult<T>> {
+    return this.request<T>('/api/space-assets/enums');
+  }
+
+  /** 资产组合汇总（GET /api/space-assets/summary?all_owners=） */
+  async getSpaceAssetSummary<T = import('../types/domain').SpaceAssetSummary>(
+    allOwners = false,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/space-assets/summary?all_owners=${allOwners}`);
+  }
+
+  /** 台账列表（GET /api/space-assets?asset_category=&renovation_status=&city=&limit=） */
+  async getSpaceAssets<T = import('../types/domain').SpaceAsset[]>(params?: {
+    asset_category?: string;
+    renovation_status?: string;
+    city?: string;
+    limit?: number;
+  }): Promise<ApiResult<T>> {
+    const qs = new URLSearchParams();
+    if (params?.asset_category) qs.set('asset_category', params.asset_category);
+    if (params?.renovation_status) qs.set('renovation_status', params.renovation_status);
+    if (params?.city) qs.set('city', params.city);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<T>(`/api/space-assets${suffix}`);
+  }
+
+  /** 资产详情（GET /api/space-assets/{id}） */
+  async getSpaceAsset<T = import('../types/domain').SpaceAsset>(assetId: string): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/space-assets/${encodeURIComponent(assetId)}`);
+  }
+
+  /** 登记资产（POST /api/space-assets；轻资产：持有方不得为平台自身） */
+  async createSpaceAsset<T = import('../types/domain').SpaceAsset>(
+    data: import('../types/domain').SpaceAssetCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/space-assets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 更新资产（PATCH /api/space-assets/{id}；状态流转须走 transitionSpaceAssetStatus） */
+  async updateSpaceAsset<T = import('../types/domain').SpaceAsset>(
+    assetId: string,
+    data: Partial<import('../types/domain').SpaceAssetCreateInput>,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/space-assets/${encodeURIComponent(assetId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** 改造状态机流转（POST /api/space-assets/{id}/status；非法流转 409） */
+  async transitionSpaceAssetStatus<T = import('../types/domain').SpaceAsset>(
+    assetId: string,
+    newStatus: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/space-assets/${encodeURIComponent(assetId)}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ new_status: newStatus }),
+    });
+  }
+
+  /** 智能化就绪度评分明细（GET /api/space-assets/{id}/readiness） */
+  async getSpaceAssetReadiness<T = import('../types/domain').SpaceAssetReadiness>(
+    assetId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(`/api/space-assets/${encodeURIComponent(assetId)}/readiness`);
+  }
+
+  /** 删除资产（DELETE /api/space-assets/{id}） */
+  async deleteSpaceAsset(assetId: string): Promise<ApiResult<null>> {
+    return this.request<null>(`/api/space-assets/${encodeURIComponent(assetId)}`, {
+      method: 'DELETE',
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────

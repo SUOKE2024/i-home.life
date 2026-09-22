@@ -2,10 +2,13 @@
  * ElderlyAdaptationPage — 适老改造（F41, v1.5.0）
  *
  * 结构：Scaffold > AppBar(适老改造) > [项目选择器] > 创建表单 + 方案卡片列表
+ *      + 适老改造套餐（一口价）+ 补贴资格预检（v1.17.0，政策适老化供给）
  * API（对齐 app/api/elderly_adaptation.py）：
  *   GET  /api/elderly-adaptation/schemes/project/{projectId}
  *   POST /api/elderly-adaptation/schemes
  *   POST /api/elderly-adaptation/schemes/{id}/validate
+ *   POST /api/elderly-adaptation/subsidy-precheck（确定性估算，非资格认定）
+ *   GET  /api/partial-renovation/quick-install/packages（适老套餐 elderly_theme=true）
  *
  * occupant_type: elderly_living / semi_selfcare / nursing / family
  * compliance_status: pass / warning / fail（GB 50763-2012）
@@ -20,7 +23,9 @@ import { apiClient } from '../services/api-client';
 import type {
   ElderlyAdaptationScheme,
   ElderlyAdaptationValidation,
+  ElderlyRetrofitPackage,
   Project,
+  SubsidyPrecheckResult,
 } from '../types/domain';
 
 type ChipTone = 'muted' | 'info' | 'success' | 'warning' | 'danger' | 'accent';
@@ -44,6 +49,10 @@ export default function ElderlyAdaptationPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [validations, setValidations] = useState<Record<string, ElderlyAdaptationValidation>>({});
+  // 适老套餐 + 补贴预检（v1.17.0）
+  const [subsidyRegion, setSubsidyRegion] = useState('');
+  const [precheckingCode, setPrecheckingCode] = useState<string | null>(null);
+  const [prechecks, setPrechecks] = useState<Record<string, SubsidyPrecheckResult>>({});
 
   const { data: projects } = useAsync<Project[]>(async () => {
     const r = await apiClient.listProjects<Project[]>();
@@ -104,6 +113,30 @@ export default function ElderlyAdaptationPage() {
       setFormError(err instanceof Error ? err.message : String(err));
     } finally {
       setValidatingId(null);
+    }
+  }
+
+  // 适老套餐目录（仅取 elderly_theme=true，非适老套餐不展示）
+  const { data: packages } = useAsync<ElderlyRetrofitPackage[]>(async () => {
+    const r = await apiClient.getQuickInstallPackages<ElderlyRetrofitPackage[]>();
+    if (!r.isSuccess || !r.data) return [];
+    return r.data.filter((p) => p.elderly_theme === true);
+  }, []);
+
+  async function handlePrecheck(packageCode: string) {
+    setPrecheckingCode(packageCode);
+    setFormError(null);
+    try {
+      const r = await apiClient.precheckElderlySubsidy<SubsidyPrecheckResult>({
+        package_code: packageCode,
+        region: subsidyRegion.trim() || undefined,
+      });
+      if (!r.isSuccess || !r.data) throw new Error(r.error ?? '补贴预检失败');
+      setPrechecks((prev) => ({ ...prev, [packageCode]: r.data! }));
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPrecheckingCode(null);
     }
   }
 
@@ -240,6 +273,95 @@ export default function ElderlyAdaptationPage() {
               })}
             </div>
           )}
+
+          {/* 适老改造套餐 + 补贴资格预检（v1.17.0，政策适老化供给；与项目无关，恒展示） */}
+          <div className="wb-section-label" style={{ marginTop: 20 }} data-testid="wb-elderly-packages-label">
+            适老改造套餐（{packages?.length ?? 0}）
+          </div>
+          <div className="wb-smart-card__meta" style={{ marginBottom: 8 }}>
+            <span>🧓 政策口径：八部门《促进智能家居消费行动方案》—— 推广家庭服务机器人/健康监测/智能照护，推行适老化设计</span>
+          </div>
+          <div className="wb-create-form__field">
+            <label className="wb-create-form__label" htmlFor="wb-elderly-subsidy-region">补贴地区（选填，仅用于标注口径）</label>
+            <input
+              id="wb-elderly-subsidy-region"
+              className="wb-input"
+              value={subsidyRegion}
+              onChange={(e) => setSubsidyRegion(e.target.value)}
+              placeholder="如：昆明市"
+              data-testid="wb-elderly-subsidy-region-input"
+            />
+          </div>
+
+          {(packages?.length ?? 0) === 0 && (
+            <div className="wb-state" data-testid="wb-elderly-packages-empty">
+              <div className="wb-state__icon">🧓</div><div>暂无适老改造套餐</div>
+              <div style={{ fontSize: 'var(--font-size-sm)' }}>套餐目录为空，或相关功能未启用（partial_renovation_enabled）</div>
+            </div>
+          )}
+
+          {(packages ?? []).map((p, i) => {
+            const pre = prechecks[p.package_code];
+            return (
+              <div key={p.package_code} className="wb-smart-card" data-testid={`wb-elderly-package--${i}`}>
+                <div className="wb-smart-card__head">
+                  <div className="wb-smart-card__room">{p.name}</div>
+                  <span className="wb-status-chip wb-status-chip--accent">一口价 ¥{p.fixed_price.toLocaleString()}</span>
+                  <span className="wb-status-chip wb-status-chip--muted">{p.duration_hours}h 交付</span>
+                </div>
+                <div className="wb-smart-card__meta">
+                  <span>📦 含 {p.inclusions.length} 项</span>
+                  {p.dry_construction && <span>干法施工</span>}
+                  {p.zero_relocation && <span>0 搬家</span>}
+                  {p.accessibility_standard && <span>无障碍 {p.accessibility_standard}</span>}
+                </div>
+                {Object.entries(p.elderly_design ?? {}).map(([dim, desc]) => (
+                  <div className="wb-smart-card__meta" key={dim}>
+                    <span>♿ {dim}：{desc}</span>
+                  </div>
+                ))}
+                <div className="wb-smart-card__meta">
+                  <span>适用：{(p.target_occupant ?? []).map((t) => OCCUPANT_TYPES[t]?.label ?? t).join(' / ')}</span>
+                  <span>质保：{p.warranty}</span>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    className="wb-theme-option wb-theme-option--active"
+                    type="button"
+                    onClick={() => handlePrecheck(p.package_code)}
+                    disabled={precheckingCode === p.package_code}
+                    data-testid={`wb-elderly-package-precheck--${i}`}
+                  >
+                    {precheckingCode === p.package_code ? '预检中…' : '💰 补贴预估（非资格认定）'}
+                  </button>
+                </div>
+                {pre && (
+                  <div data-testid={`wb-elderly-package-subsidy--${i}`}>
+                    <div className="wb-smart-card__meta" style={{ marginTop: 8 }}>
+                      <span>一口价 ¥{pre.total_price.toLocaleString()}</span>
+                      <span>预估补贴 ¥{pre.total_subsidy.toLocaleString()}</span>
+                      <span>预估落地价 ¥{pre.net_payable.toLocaleString()}</span>
+                      <span className="wb-status-chip wb-status-chip--warning">预估 · 非资格认定</span>
+                    </div>
+                    {(pre.items ?? []).map((it, j) => (
+                      <div className="wb-smart-card__meta" key={`${it.name}-${j}`}>
+                        <span>{it.eligible ? '✅' : '—'} {it.name}（{it.category_label}）</span>
+                        <span>补贴 ¥{it.subsidy_amount.toLocaleString()}</span>
+                        {it.reason && <span>{it.reason}</span>}
+                      </div>
+                    ))}
+                    <div className="wb-smart-card__meta" style={{ marginTop: 8, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+                      {(pre.warnings ?? []).map((w) => (
+                        <span key={w} style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>⚠ {w}</span>
+                      ))}
+                      <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>{pre.disclaimer}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 'var(--font-size-sm)' }}>口径来源：{pre.source}（{pre.policy_version}）</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </SuokeLayout>

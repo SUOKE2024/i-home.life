@@ -1,7 +1,7 @@
 ---
 version: "alpha"
 name: Suoke
-description: "索克家居（Suoke Home）AI 智能装修平台统一视觉身份 —— 深色工程台美学、单一暗金强调色，跨 WebApp / 管理控制台 / Flutter 多端（iOS/Android/HarmonyOS）"
+description: "索克家居（Suoke Home）空间健康资产运营商统一视觉身份 —— 深色工程台美学、单一暗金强调色，跨 WebApp / 管理控制台 / Flutter 多端（iOS/Android/HarmonyOS）"
 colors:
   primary: "#C9973B"
   accent-bright: "#E0AA4A"

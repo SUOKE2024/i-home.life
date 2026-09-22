@@ -48,13 +48,35 @@ async def test_send_task_requires_auth(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_send_task_authenticated(auth_headers: dict, client: AsyncClient):
-    """已认证用户可下发 A2A 任务"""
+    """已认证用户可下发 A2A 任务（v1.17.x 强制 ATH 握手：先签发凭证再携带）。"""
+    issue = await client.post(
+        "/api/agents/handshake/issue",
+        json={"app_id": "console", "agent_name": "DesignerAgent", "scope": "a2a:task"},
+        headers=auth_headers,
+    )
+    assert issue.status_code == 200
+    resp = await client.post(
+        "/api/a2a/tasks/send",
+        json={
+            "agent_name": "DesignerAgent",
+            "message": "设计吧台",
+            "app_id": "console",
+            "handshake_token": issue.json()["token"],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code in (200, 201, 503)
+
+
+@pytest.mark.asyncio
+async def test_send_task_requires_handshake_token(auth_headers: dict, client: AsyncClient):
+    """强制握手：已认证但缺凭证 → 403（不再兼容放行）。"""
     resp = await client.post(
         "/api/a2a/tasks/send",
         json={"agent_name": "DesignerAgent", "message": "设计吧台"},
         headers=auth_headers,
     )
-    assert resp.status_code in (200, 201, 503)
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

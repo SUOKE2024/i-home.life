@@ -1284,6 +1284,60 @@ export interface ElderlyAdaptationValidation {
   summary: string;
 }
 
+// ── 适老改造套餐（对齐 partial_renovation_service.QUICK_INSTALL_PACKAGES 公开视图）──
+// 适老元数据（elderly_theme 等）仅适老套餐返回
+export interface ElderlyRetrofitPackage {
+  package_code: string;
+  name: string;
+  scope_type: string;
+  duration_hours: number;
+  duration_days: number;
+  fixed_price: number;
+  dry_construction: boolean;
+  zero_relocation: boolean;
+  inclusions: string[];
+  excludes: string[];
+  warranty: string;
+  elderly_theme?: boolean;
+  target_occupant?: string[];
+  accessibility_standard?: string;
+  subsidy_category?: string;
+  elderly_design?: Record<string, string>;
+}
+
+/** POST /api/elderly-adaptation/subsidy-precheck 返回项（确定性估算，非资格认定） */
+export interface SubsidyPrecheckItem {
+  name: string;
+  category: string;
+  category_label: string;
+  unit_price: number;
+  quantity: number;
+  subtotal: number;
+  eligible: boolean;
+  subsidy_rate: number;
+  subsidy_per_unit: number;
+  subsidy_amount: number;
+  cap_applied: boolean;
+  reason?: string | null;
+}
+
+/** POST /api/elderly-adaptation/subsidy-precheck 返回（is_estimate 恒为 true） */
+export interface SubsidyPrecheckResult {
+  policy_profile: string;
+  policy_version: string;
+  region?: string | null;
+  is_estimate: boolean;
+  subsidy_rate: number;
+  max_subsidy_per_unit: number | null;
+  source: string;
+  disclaimer: string;
+  items: SubsidyPrecheckItem[];
+  total_price: number;
+  total_subsidy: number;
+  net_payable: number;
+  warnings: string[];
+}
+
 // ── F42 局部焕新（对齐 app/api/partial_renovation.py:PlanResponse）──
 // scope_type: kitchen_refresh / bathroom_refresh / wall_refresh / single_room / full_renovation
 // budget_level: economic / comfort / quality
@@ -2080,6 +2134,103 @@ export interface GovernanceAuditResponse {
   summary: { total: number; pass: number; warn: number; fail: number; score: string };
   findings: GovernanceFinding[];
   recommendations: string[];
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  空间资产台账（Phase 3，对齐 app/schemas/space_asset.py，前缀 /api/space-assets）
+// ──────────────────────────────────────────────────────────────────
+
+/** GET /api/space-assets/enums 枚举字典（业态与索克生活 lodge 口径对齐） */
+export interface SpaceAssetEnums {
+  asset_categories: string[];
+  business_formats: string[];
+  holder_types: string[];
+  renovation_statuses: string[];
+  platform_role: string;
+}
+
+/** GET/POST/PATCH /api/space-assets 台账记录（SpaceAssetResponse） */
+export interface SpaceAsset {
+  id: string;
+  owner_id: string;
+  project_id: string | null;
+  name: string;
+  province: string;
+  city: string;
+  district: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  building_area_sqm: number | null;
+  room_count: number | null;
+  floor_info: string | null;
+  built_year: number | null;
+  structure_type: string | null;
+  asset_category: string;
+  business_format: string;
+  asset_holder: string;
+  holder_type: string;
+  /** 恒为 service_provider（轻资产约束，平台不持有房产） */
+  platform_role: string;
+  renovation_status: string;
+  renovation_scope: unknown[] | null;
+  retrofit_package_code: string | null;
+  elderly_scheme_id: string | null;
+  smart_ready: boolean;
+  smart_readiness_score: number;
+  matter_device_count: number;
+  sensor_count: number;
+  scene_automation_count: number;
+  fire_safety_status: string;
+  accessibility_status: string;
+  operation_metrics: Record<string, unknown> | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** POST /api/space-assets 登记入参（SpaceAssetCreate） */
+export interface SpaceAssetCreateInput {
+  name: string;
+  asset_holder: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  building_area_sqm?: number;
+  room_count?: number;
+  built_year?: number;
+  asset_category?: string;
+  business_format?: string;
+  holder_type?: string;
+  project_id?: string;
+  matter_device_count?: number;
+  sensor_count?: number;
+  scene_automation_count?: number;
+  fire_safety_status?: string;
+  accessibility_status?: string;
+  notes?: string;
+}
+
+/** GET /api/space-assets/summary 组合汇总（PortfolioSummaryResponse） */
+export interface SpaceAssetSummary {
+  total_assets: number;
+  by_category: Record<string, number>;
+  by_status: Record<string, number>;
+  by_city: Record<string, number>;
+  avg_smart_readiness: number;
+  smart_ready_count: number;
+  total_area_sqm: number;
+  platform_role?: string | null;
+  note?: string | null;
+}
+
+/** GET /api/space-assets/{id}/readiness 就绪度评分明细 */
+export interface SpaceAssetReadiness {
+  asset_id: string;
+  score: number;
+  smart_ready: boolean;
+  breakdown: Record<string, unknown>;
 }
 
 // ──────────────────────────────────────────────────────────────────

@@ -261,6 +261,16 @@ async def sync_scene(
 # ── 生态对接 ──
 
 
+def _redacted_ecosystem_response(eco) -> EcosystemIntegrationResponse:
+    """生态对接响应构造：config 脱敏（只回露字段名，绝不回露凭据值）。
+
+    2026-09-22：此前直接 model_validate 会把明文凭据（米家账号密码等）原样回露给前端。
+    """
+    resp = EcosystemIntegrationResponse.model_validate(eco)
+    resp.config = svc.redact_ecosystem_config(eco.config)
+    return resp
+
+
 @router.post("/ecosystems", response_model=EcosystemIntegrationResponse, status_code=status.HTTP_201_CREATED)
 async def create_ecosystem(
     data: EcosystemIntegrationCreate,
@@ -268,8 +278,12 @@ async def create_ecosystem(
     db: AsyncSession = Depends(get_db),
 ):
     await verify_project_access(project_id=data.project_id, current_user=current_user, db=db)
-    eco = await svc.create_ecosystem(db, data.model_dump())
-    resp = EcosystemIntegrationResponse.model_validate(eco)
+    try:
+        eco = await svc.create_ecosystem(db, data.model_dump())
+    except ValueError as e:
+        # 凭据加密失败（密钥不可用）→ fail-closed，拒绝明文落库
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
+    resp = _redacted_ecosystem_response(eco)
     await ws_manager.broadcast_to_project(eco.project_id, "scene.ecosystem.added", resp.model_dump())
     return resp
 
@@ -282,7 +296,7 @@ async def list_ecosystems_by_project(
 ):
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
     ecos = await svc.list_ecosystems_by_project(db, project_id)
-    return [EcosystemIntegrationResponse.model_validate(e) for e in ecos]
+    return [_redacted_ecosystem_response(e) for e in ecos]
 
 
 @router.delete("/ecosystems/{ecosystem_id}", status_code=status.HTTP_204_NO_CONTENT)

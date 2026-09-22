@@ -26,6 +26,7 @@ from app.agents.growth import GrowthAgent
 from app.agents.marketing import MarketingAgent
 from app.agents.competitor_research import CompetitorResearchAgent
 from app.agents.finance_recon import FinanceReconAgent
+from app.agents.care import CareAgent
 from app.agents.harness import (
     AgentRuntime, AgentTrace, AgentRunStatus, HarnessConfig,
     FallbackStrategy, get_harness,
@@ -42,6 +43,7 @@ __all__ = [
     "IdentityAgent", "NotificationsAgent", "TakeoffAgent", "IfcExportAgent",
     # v1.6.0 平台商业运营 Agent
     "GrowthAgent", "MarketingAgent", "CompetitorResearchAgent", "FinanceReconAgent",
+    "CareAgent",
     # Harness 层（v1.2.0）
     "AgentRuntime", "AgentTrace", "AgentRunStatus", "HarnessConfig",
     "FallbackStrategy", "get_harness",

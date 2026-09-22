@@ -29,6 +29,11 @@ class SceneAutomation(Base):
     # 写路径（create_scene/update_scene/accept_prediction）统一派生，勿直接改 JSON 匹配逻辑。
     actions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # 执行动作列表 JSON: [{"device_id": "xxx", "action": "turn_on", "params": {"brightness": 80}}]
+    ecosystem: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 执行动作所用生态桥（2026-09-22 P0 修复）：此前无此列，_run_scene_action 用
+    # getattr(scene, "ecosystem", None) or "matter" 兜底 → 恒走 Matter stub 桥 →
+    # 所有场景动作永远 pending。现显式可指定（mijia/homekit/...），未指定时按项目下
+    # 首个已配置凭据的生态对接解析，仍无则兜底 matter（见 _resolve_scene_ecosystem）。
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # 优先级,数值越大越优先
@@ -53,7 +58,9 @@ class EcosystemIntegration(Base):
     device_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    # 配置 JSON: {"token": "xxx", "hub_id": "xxx"}
+    # 配置 JSON（2026-09-22 起 AES-256-GCM 加密落库，见 device_credentials）：
+    # 存 {"encrypted": "<base64(nonce+ct)>"}，禁止明文写入；读取用
+    # scene_automation_service._decrypt_ecosystem_config，API 响应经 redact_ecosystem_config 脱敏。
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

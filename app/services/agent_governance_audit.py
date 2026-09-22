@@ -110,13 +110,17 @@ def _verify_project_access_coverage() -> int:
 ATH_TRUST_CHECKS: list[dict] = [
     {
         "id": "ATH1", "name": "智能体身份可信声明",
-        "desc": "Agent Card 声明可核验的身份与能力（ATH 握手前置）",
-        "control": "A2A Agent Card（/.well-known/agent-card 公开发现 + REGISTERED_AGENT_NAMES）",
+        "desc": "Agent Card 声明可核验的身份与能力 + 应用侧身份可核验（ATH 三方参与前置）",
+        "control": "A2A Agent Card（/.well-known/agent-card 公开发现 + REGISTERED_AGENT_NAMES）"
+                   "+ 应用侧核验智能体身份（agent_handshake.verify_agent_identity，ATH ④）"
+                   "+ 应用注册表（agent_handshake.REGISTERED_APPS，app_id/scope 白名单，ATH 三方参与）",
     },
     {
         "id": "ATH2", "name": "握手互认与任务状态机",
-        "desc": "跨 Agent 任务下发遵循标准状态机（submitted→working→completed/failed）",
-        "control": "A2A Task Machine（/api/a2a/tasks/send + 状态查询 + TTL 过期清理）",
+        "desc": "跨 Agent 任务下发遵循标准状态机（submitted→working→completed/failed）+ 强制握手",
+        "control": "A2A Task Machine（/api/a2a/tasks/send + 状态查询 + TTL 过期清理）"
+                   "+ 握手凭证签发/校验（agent_handshake，ATH ⑤⑦）"
+                   "+ 强制握手（agent_handshake_required=True，缺省凭证 403 拒绝）",
     },
     {
         "id": "ATH3", "name": "执行证据链可回放",
@@ -154,15 +158,33 @@ def _audit_ath_trust_layer() -> dict:
             "evidence": evidence, "recommendation": recommendation,
         })
 
-    # ATH1 身份声明：A2A Agent Card 公开发现
-    _check(0, "pass",
-           f"a2a_enabled={settings.a2a_enabled}：/.well-known/agent-card 公开发现端点"
-           " + REGISTERED_AGENT_NAMES 能力清单（22 执行型 Agent）")
+    # ATH1 身份声明：A2A Agent Card 公开发现 + 应用侧核验（ATH ④）
+    if settings.agent_handshake_enabled:
+        _check(0, "pass",
+               f"a2a_enabled={settings.a2a_enabled}：/.well-known/agent-card 公开发现端点"
+               " + REGISTERED_AGENT_NAMES 能力清单 + 应用侧核验智能体身份"
+               "（agent_handshake.verify_agent_identity，ATH ④；23 执行型 Agent）"
+               " + 应用注册表 REGISTERED_APPS（app_id/scope 白名单，三方参与）")
+    else:
+        _check(0, "warn",
+               f"agent_handshake_enabled={settings.agent_handshake_enabled}："
+               "应用侧核验智能体身份（ATH ④）未启用",
+               "开启 agent_handshake_enabled=True")
 
-    # ATH2 状态机
-    _check(1, "pass",
-           f"a2a_enabled={settings.a2a_enabled}：Task Machine 状态机（submitted/working/"
-           "completed/failed）+ 24h TTL 过期清理 + 越权/降级诚实标注")
+    # ATH2 状态机 + 握手凭证（ATH ⑤⑦）
+    if settings.agent_handshake_enabled:
+        _check(1, "pass",
+               f"a2a_enabled={settings.a2a_enabled}：Task Machine 状态机（submitted/working/"
+               "completed/failed）+ 24h TTL 过期清理 + 握手凭证签发/校验"
+               "（agent_handshake，ATH ⑤⑦）已接入 send_task 生产链路"
+               f"（agent_handshake_required={settings.agent_handshake_required}："
+               "True 时缺省凭证即 403 拒绝；false 时放行并 evidence 标注 absent）"
+               " + 越权/降级诚实标注")
+    else:
+        _check(1, "warn",
+               f"agent_handshake_enabled={settings.agent_handshake_enabled}："
+               "握手凭证签发/校验（ATH ⑤⑦）未启用",
+               "开启 agent_handshake_enabled=True")
 
     # ATH3 证据链（v1.15.5 落地）
     if settings.agent_trace_persist_enabled:

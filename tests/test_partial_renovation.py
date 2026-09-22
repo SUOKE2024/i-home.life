@@ -13,7 +13,19 @@ from httpx import AsyncClient
 ALL_SCOPE_TYPES = ["kitchen_refresh", "bathroom_refresh", "wall_refresh",
                    "single_room", "full_renovation"]
 
-ALL_PACKAGE_CODES = ["PKG-48H-KITCHEN", "PKG-48H-BATHROOM", "PKG-7D-WALL"]
+BASE_PACKAGE_CODES = ["PKG-48H-KITCHEN", "PKG-48H-BATHROOM", "PKG-7D-WALL"]
+
+# F49 适老改造套餐（v1.17.0，落实《促进智能家居消费行动方案》第四条适老化供给）
+ELDERLY_PACKAGE_CODES = ["PKG-ELDERLY-BATH", "PKG-ELDERLY-ROOM", "PKG-ELDERLY-FULL"]
+
+ALL_PACKAGE_CODES = BASE_PACKAGE_CODES + ELDERLY_PACKAGE_CODES
+
+ELDERLY_OCCUPANT_TYPES = ["elderly_living", "semi_selfcare", "nursing", "family"]
+
+SUBSIDY_CATEGORY_CODES = [
+    "fall_prevention", "fire_water_safety", "housework_relief",
+    "health_emergency", "mobility_rehab", "other",
+]
 
 
 async def _auth_headers(client: AsyncClient, phone: str = "13960010001") -> dict:
@@ -189,7 +201,7 @@ async def test_partial_renovation_cross_user_access_blocked(client: AsyncClient)
 
 @pytest.mark.asyncio
 async def test_quick_install_packages_list(client: AsyncClient):
-    """标准快装套餐目录含 3 个套餐，均一口价 + 干法 + 0 搬家"""
+    """标准快装套餐目录含 6 个套餐（3 基础 + 3 适老），均一口价 + 干法 + 0 搬家"""
     headers = await _auth_headers(client, "13960010010")
     resp = await client.get("/api/partial-renovation/quick-install/packages", headers=headers)
     assert resp.status_code == 200
@@ -277,3 +289,81 @@ async def test_instantiate_quick_install_invalid_code(client: AsyncClient):
     )
     assert resp.status_code == 400
     assert "未知快装套餐" in resp.json()["detail"]
+
+
+# ── F49 适老改造套餐（v1.17.0：政策「发展适老化智能家居 + 全屋适老改造」产品化）──
+
+
+@pytest.mark.asyncio
+async def test_elderly_packages_in_catalog(client: AsyncClient):
+    """套餐目录含 3 个适老套餐，均一口价 + 干法 + 0 搬家 + 适老元数据完整"""
+    headers = await _auth_headers(client, "13960010020")
+    resp = await client.get("/api/partial-renovation/quick-install/packages", headers=headers)
+    assert resp.status_code == 200
+    packages = {p["package_code"]: p for p in resp.json()}
+
+    for code in ELDERLY_PACKAGE_CODES:
+        assert code in packages
+        pkg = packages[code]
+        assert pkg["fixed_price"] > 0
+        assert pkg["dry_construction"] is True
+        assert pkg["zero_relocation"] is True
+        assert pkg["duration_hours"] > 0
+        assert pkg["elderly_theme"] is True
+        assert pkg["accessibility_standard"] == "GB 50763-2012"
+        assert pkg["subsidy_category"] in SUBSIDY_CATEGORY_CODES
+        assert isinstance(pkg["target_occupant"], list) and pkg["target_occupant"]
+        assert set(pkg["target_occupant"]) <= set(ELDERLY_OCCUPANT_TYPES)
+        assert isinstance(pkg["elderly_design"], dict) and pkg["elderly_design"]
+
+
+@pytest.mark.asyncio
+async def test_non_elderly_packages_carry_no_elderly_metadata(client: AsyncClient):
+    """非适老套餐不携带适老元数据（避免误标）"""
+    headers = await _auth_headers(client, "13960010021")
+    resp = await client.get("/api/partial-renovation/quick-install/packages", headers=headers)
+    packages = {p["package_code"]: p for p in resp.json()}
+    for code in BASE_PACKAGE_CODES:
+        assert "elderly_theme" not in packages[code]
+
+
+@pytest.mark.asyncio
+async def test_elderly_package_detail(client: AsyncClient):
+    """适老卫浴套餐详情：一口价 / 无障碍标准 / 适老设计维度"""
+    headers = await _auth_headers(client, "13960010022")
+    resp = await client.get(
+        "/api/partial-renovation/quick-install/packages/PKG-ELDERLY-BATH", headers=headers,
+    )
+    assert resp.status_code == 200
+    pkg = resp.json()
+    assert pkg["package_code"] == "PKG-ELDERLY-BATH"
+    assert "适老" in pkg["name"]
+    assert pkg["elderly_theme"] is True
+    assert pkg["scope_type"] == "bathroom_refresh"
+    assert "warranty" in pkg and "excludes" in pkg
+
+
+@pytest.mark.asyncio
+async def test_instantiate_elderly_package_plan(client: AsyncClient):
+    """实例化适老卫浴套餐 → 计划落库（package_code / 一口价 / 干法 / 0 搬家）"""
+    headers = await _auth_headers(client, "13960010023")
+    project_id = await _create_project(client, headers, name="适老套餐测试项目")
+
+    resp = await client.post(
+        "/api/partial-renovation/quick-install/plans",
+        json={"project_id": project_id, "package_code": "PKG-ELDERLY-BATH"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    plan = resp.json()
+    assert plan["package_code"] == "PKG-ELDERLY-BATH"
+    assert plan["fixed_price"] > 0
+    assert plan["budget_lower"] == plan["budget_upper"] == plan["fixed_price"]
+    assert plan["dry_construction"] is True
+    assert plan["zero_relocation"] is True
+    assert plan["status"] == "draft"
+
+    # 持久化后可读回
+    resp = await client.get(f"/api/partial-renovation/plans/{plan['id']}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["package_code"] == "PKG-ELDERLY-BATH"
