@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import {
   LayoutDashboard, FolderKanban, Wallet, HardHat, ShieldCheck, FileCheck2,
   ShoppingCart, Home, Bot, UserCircle, LogOut, Menu, ChevronDown,
-  Activity, Rotate3D, ScanLine, Store, Sparkles,
+  Activity, Rotate3D, ScanLine, Store, Sparkles, Building2, HeartHandshake,
 } from 'lucide-react'
 import { Logo, Avatar } from './ui'
 import { useApp } from '../lib/store'
@@ -17,6 +17,8 @@ const NAV = [
   { to: '/settlement', label: '结算管理', icon: FileCheck2 },
   { to: '/procurement', label: '采购管理', icon: ShoppingCart },
   { to: '/smart-home', label: '智能家居', icon: Home },
+  { to: '/elderly-packages', label: '适老改造', icon: HeartHandshake },
+  { to: '/space-assets', label: '空间资产', icon: Building2 },
   { to: '/virtual-tour', label: 'VR 全景', icon: Rotate3D },
   { to: '/design-flow', label: '设计流程', icon: Sparkles },
   { to: '/ar-scan', label: 'AR 量房', icon: ScanLine },
@@ -32,6 +34,8 @@ const PAGE_TITLES = {
   '/settlement': ['结算管理', 'SETTLEMENT'],
   '/procurement': ['采购管理', 'PROCUREMENT'],
   '/smart-home': ['智能家居', 'SMART HOME'],
+  '/elderly-packages': ['适老改造', 'ELDERLY ADAPTATION'],
+  '/space-assets': ['空间资产', 'SPACE ASSETS'],
   '/virtual-tour': ['VR 全景', 'VIRTUAL TOUR'],
   '/design-flow': ['设计流程', 'DESIGN FLOW'],
   '/ar-scan': ['AR 量房', 'AR SCAN'],

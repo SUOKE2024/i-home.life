@@ -21,17 +21,58 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
   List<dynamic> _ecosystems = [];
   bool _loading = false;
   String? _error;
+  String? _ecosystemError;
 
-  static const _sceneIcons = {
-    'wake_up': Icons.wb_sunny,
-    'leave_home': Icons.directions_walk,
-    'go_home': Icons.home,
-    'sleep': Icons.nightlight,
-    'movie': Icons.movie,
-    'dinner': Icons.restaurant,
-    'cleaning': Icons.cleaning_services,
-    'security': Icons.security,
+  // scene_type 合法语义（后端 app/schemas/scene_automation.py）：
+  // manual / scheduled / triggered / geo —— 「起床/睡眠」等语义属于 scene_name，
+  // 触发方式属于 scene_type，「何时触发」属于 trigger_condition.type。
+  static const _sceneTypeIcons = {
+    'manual': Icons.touch_app,
+    'scheduled': Icons.schedule,
+    'triggered': Icons.sensors,
+    'geo': Icons.location_on,
   };
+
+  static const _sceneTypeLabels = {
+    'manual': '手动触发',
+    'scheduled': '定时触发',
+    'triggered': '条件触发',
+    'geo': '位置触发',
+  };
+
+  static const _ecoAuthLabels = {
+    'connected': '已连接',
+    'disconnected': '未连接',
+  };
+
+  /// 快捷创建预设（对齐后端 LIFESTYLE_SCENE_PRESETS 口径：
+  /// 起床/睡眠=定时，回家/离家=设备条件触发，观影=手动）
+  static const _scenePresets = <Map<String, dynamic>>[
+    {
+      'scene_name': '起床模式',
+      'scene_type': 'scheduled',
+      'trigger_condition': {'type': 'time', 'cron': '0 7 * * *'},
+    },
+    {
+      'scene_name': '睡眠模式',
+      'scene_type': 'scheduled',
+      'trigger_condition': {'type': 'time', 'cron': '0 23 * * *'},
+    },
+    {
+      'scene_name': '离家模式',
+      'scene_type': 'triggered',
+      'trigger_condition': {'type': 'device', 'device_id': 'lock', 'state': 'lock'},
+    },
+    {
+      'scene_name': '回家模式',
+      'scene_type': 'triggered',
+      'trigger_condition': {'type': 'device', 'device_id': 'lock', 'state': 'unlock'},
+    },
+    {
+      'scene_name': '观影模式',
+      'scene_type': 'manual',
+    },
+  ];
 
   @override
   void initState() {
@@ -50,32 +91,46 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
     setState(() {
       _loading = true;
       _error = null;
+      _ecosystemError = null;
     });
-    final scenesResult = await _api.getList('/scene-automation/scenes/${widget.projectId}');
-    if (scenesResult.isSuccess) _scenes = scenesResult.data;
-
-    final ecoResult = await _api.getList('/scene-automation/ecosystems');
-    if (ecoResult.isSuccess) _ecosystems = ecoResult.data;
-
-    if (!scenesResult.isSuccess && !ecoResult.isSuccess) {
-      _error = '加载场景数据失败';
-    }
-    if (mounted) setState(() => _loading = false);
+    // 契约：GET /scene-automation/scenes/project/{id}、/ecosystems/project/{id}
+    final scenesResult = await _api.sceneListScenes(widget.projectId);
+    final ecoResult = await _api.sceneListEcosystems(widget.projectId);
+    if (!mounted) return;
+    setState(() {
+      if (scenesResult.isSuccess) {
+        _scenes = _asList(scenesResult.data);
+      } else {
+        // 诚实错误态：失败不再伪装成「暂无场景」空列表
+        _scenes = [];
+        _error = '加载场景失败：${scenesResult.error}';
+      }
+      if (ecoResult.isSuccess) {
+        _ecosystems = _asList(ecoResult.data);
+      } else {
+        _ecosystems = [];
+        _ecosystemError = '加载生态对接失败：${ecoResult.error}';
+      }
+      _loading = false;
+    });
   }
 
+  List<dynamic> _asList(dynamic data) => data is List ? data : <dynamic>[];
+
   Future<void> _createScene() async {
-    final scenes = ['wake_up', 'leave_home', 'go_home', 'sleep', 'movie', 'dinner'];
-    final randomIndex = DateTime.now().millisecond % scenes.length;
-    final result = await _api.post('/scene-automation/scenes', {
+    final preset = _scenePresets[DateTime.now().millisecond % _scenePresets.length];
+    final result = await _api.sceneCreateScene({
       'project_id': widget.projectId,
-      'name': '智能场景',
-      'scene_type': scenes[randomIndex],
+      'scene_name': preset['scene_name'],
+      'scene_type': preset['scene_type'],
+      if (preset['trigger_condition'] != null)
+        'trigger_condition': preset['trigger_condition'],
     });
     if (result.isSuccess) {
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('场景已创建')),
+          SnackBar(content: Text('场景已创建：${preset['scene_name']}')),
         );
       }
     } else {
@@ -88,7 +143,7 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
   }
 
   Future<void> _simulateScene(String sceneId) async {
-    final result = await _api.post('/scene-automation/scenes/$sceneId/simulate', {});
+    final result = await _api.sceneSimulate(sceneId);
     if (result.isSuccess && mounted) {
       unawaited(showDialog(
         context: context,
@@ -100,6 +155,10 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
           ],
         ),
       ));
+    } else if (!result.isSuccess && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('模拟失败：${result.error}')),
+      );
     }
   }
 
@@ -164,23 +223,27 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
         itemCount: _scenes.length,
         itemBuilder: (_, i) {
           final scene = _scenes[i];
-          final type = scene['scene_type'] ?? '';
+          final type = (scene is Map ? scene['scene_type'] : null)?.toString() ?? '';
+          final name = (scene is Map ? scene['scene_name'] : null)?.toString();
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: colors.primary.withValues(alpha: 0.1),
                 child: Icon(
-                  _sceneIcons[type] ?? Icons.auto_awesome,
+                  _sceneTypeIcons[type] ?? Icons.auto_awesome,
                   color: colors.primary,
                   size: 22,
                 ),
               ),
-              title: Text(scene['name'] ?? '未命名场景', style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(type),
+              title: Text(
+                (name == null || name.isEmpty) ? '未命名场景' : name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(_sceneTypeLabels[type] ?? type),
               trailing: IconButton(
                 icon: Icon(Icons.play_circle_outline, color: colors.primary),
-                onPressed: () => _simulateScene(scene['id']),
+                onPressed: () => _simulateScene((scene['id'] ?? '').toString()),
               ),
             ),
           );
@@ -227,6 +290,10 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
   }
 
   Widget _buildEcosystemPanel(ColorScheme colors) {
+    // 加载失败：诚实错误态 + 重试，而非伪装「暂无生态对接」
+    if (_ecosystemError != null) {
+      return ErrorRetryWidget(message: _ecosystemError!, onRetry: _loadData);
+    }
     if (_ecosystems.isEmpty) {
       return Center(child: Text('暂无生态对接', style: TextStyle(color: colors.onSurfaceVariant)));
     }
@@ -238,14 +305,27 @@ class _SceneAutomationPageState extends State<SceneAutomationPage> with SingleTi
         itemCount: _ecosystems.length,
         itemBuilder: (_, i) {
           final eco = _ecosystems[i];
+          if (eco is! Map) return const SizedBox.shrink();
+          // 契约字段（EcosystemIntegrationResponse）：
+          // ecosystem / auth_status / device_count，无 name / type / status
+          final ecosystem = (eco['ecosystem'] ?? '').toString();
+          final authStatus = (eco['auth_status'] ?? '').toString();
+          final deviceCount = eco['device_count'] ?? 0;
+          final authLabel = _ecoAuthLabels[authStatus] ?? authStatus;
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
               leading: Icon(Icons.link, color: colors.primary),
-              title: Text(eco['name'] ?? '未命名', style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text(eco['type'] ?? ''),
+              title: Text(
+                ecosystem.isEmpty ? '未命名生态' : ecosystem,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text('授权状态：${authLabel.isEmpty ? '未知' : authLabel} · 已接入 $deviceCount 台设备'),
               trailing: Chip(
-                label: Text(eco['status'] ?? 'offline', style: const TextStyle(fontSize: 11)),
+                label: Text(
+                  (authStatus.isEmpty ? 'unknown' : authStatus),
+                  style: const TextStyle(fontSize: 11),
+                ),
               ),
             ),
           );

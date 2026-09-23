@@ -338,12 +338,14 @@ async def device_command(
 
     - 动作白名单校验（复用 DEVICE_ACTION_WHITELIST）
     - 写入 SceneBehaviorLog(action_type=device_command)，ambient_data 取最近真实传感器快照
+    - ecosystem 缺省时按项目下已配置凭据的生态自动解析（与场景执行为同一解析函数；
+      此前硬默认 matter stub 会导致已配凭据的项目仍恒 pending，2026-09-23 修复）
     - 生态桥执行，未接真机 action_status=pending 诚实标注（不伪装已执行）
     - execute_async=True：请求立即返回 queued，后台执行 + WS 推送结果（2026-08-27）
     """
     from sqlalchemy import select
     from app.models.smart_home import SmartDevice
-    from app.services.scene_automation_service import execute_device_command
+    from app.services.scene_automation_service import execute_device_command, resolve_project_ecosystem
 
     result = await db.execute(select(SmartDevice).where(SmartDevice.id == device_id))
     device = result.scalar_one_or_none()
@@ -353,6 +355,8 @@ async def device_command(
     if not scheme:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="方案不存在")
     await verify_project_access(project_id=scheme.project_id, current_user=current_user, db=db)
+
+    ecosystem = data.ecosystem or await resolve_project_ecosystem(db, scheme.project_id)
 
     # ── 异步模式：请求立即返回，后台执行 + WS 回填（防桥慢拖垮请求）──
     if data.execute_async:
@@ -373,7 +377,7 @@ async def device_command(
             user_id=current_user.id,
             source=data.source,
             scene_id=data.scene_id,
-            ecosystem=data.ecosystem,
+            ecosystem=ecosystem,
         )
         return DeviceCommandResponse(
             device_id=device.id,
@@ -395,7 +399,7 @@ async def device_command(
         user_id=current_user.id,
         source=data.source,
         scene_id=data.scene_id,
-        ecosystem=data.ecosystem,
+        ecosystem=ecosystem,
     )
     if not outcome.get("accepted"):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=outcome.get("error"))
@@ -427,11 +431,15 @@ async def device_command(
 
 
 @router.get("/matter/device-types")
-async def get_matter_device_types():
+async def get_matter_device_types(
+    current_user: User = Depends(get_current_user),
+):
     """返回支持的 Matter 设备类型列表。
 
     Matter 2.0（2026.05）已实现全品类覆盖，本端点提供可在户型图上
     标注的 Matter 兼容设备类型，供设计工作台使用。
+
+    2026-09-23：补 PASETO 鉴权（此前为匿名可调，违反「所有端点必须鉴权」约束）。
     """
     return {
         "protocol": "Matter 2.0",

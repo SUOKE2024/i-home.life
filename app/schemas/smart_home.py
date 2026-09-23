@@ -126,7 +126,13 @@ class DeviceCommandRequest(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict, description="动作参数，如 {'brightness': 80}")
     source: str = Field(default="app", description="触发来源: app/vr_overlay/voice")
     scene_id: str | None = Field(default=None, description="关联场景 id（手动触发场景时携带）")
-    ecosystem: str = Field(default="matter", description="生态桥类型: matter/homekit/mijia/harmonyos/tuya")
+    ecosystem: str | None = Field(
+        default=None,
+        description=(
+            "生态桥类型: mijia/homekit/harmonyos/matter/tuya；"
+            "缺省时按项目下已配置凭据的生态自动解析（无凭据则兜底 matter，桥自身诚实标 pending）"
+        ),
+    )
     # 2026-08-27 P2 遗留修复：异步执行模式（请求立即返回，后台执行 + WS 推送结果）
     execute_async: bool = Field(default=False, description="true=后台异步执行，结果经 WebSocket 推送")
 

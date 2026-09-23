@@ -1455,8 +1455,13 @@ export interface SolutionFirstPackage {
 }
 
 // ── F46 生态桥接优先级（对齐 app/services/ecosystem_bridge_status.py）──
-/** GET /api/ecosystem/status 返回（含诚实降级标注） */
+/** GET /api/ecosystem/status 返回（含诚实降级标注）
+ *
+ *  2026-09-23：新增 project_id 维度字段。`configured` 仅为环境变量历史检测口径（除本模块外
+ *  无代码读取这些 env），**真机就绪度看 has_credentials / project_configured**；
+ *  project_configured 为 null 表示「未查询项目」（区别于 false=查询后无凭据）。 */
 export interface EcosystemBridgeStatus {
+  project_id?: string | null;
   bridges: Array<{
     key: string;
     name: string;
@@ -1465,9 +1470,19 @@ export interface EcosystemBridgeStatus {
     status: string; // ready | requires_api_key
     required_env_keys: string[];
     note: string;
+    /** 桥是否已接真机（false=stub，方法仍抛 NotImplementedError） */
+    implemented?: boolean;
+    /** 项目级真实凭据就绪度；null=未查询项目 */
+    project_configured?: boolean | null;
+    project_auth_status?: string | null;
+    has_credentials?: boolean | null;
+    /** 已配置凭据的字段名（只回露字段名，绝不回露值） */
+    credential_keys?: string[];
   }>;
   updated_at: string;
   honest_note: string;
+  /** 凭据通道澄清：真机凭据以项目级生态对接为唯一生效通道 */
+  credential_channel_note?: string;
 }
 
 /** GET /api/ecosystem/bridges 返回（优先级列表 + 策略说明） */
@@ -1478,8 +1493,34 @@ export interface EcosystemBridges {
     priority: number;
     required_env_keys: string[];
     bridge: string;
+    implemented?: boolean;
   }>;
   priority_strategy: string;
+}
+
+// ── 生态对接（对齐 app/schemas/scene_automation.py:EcosystemIntegrationResponse）──
+/** 项目级生态对接记录；config 已被后端脱敏为 {redacted, keys}，不含凭据值 */
+export interface EcosystemIntegration {
+  id: string;
+  project_id: string;
+  ecosystem: string;
+  auth_status: string;
+  device_count: number;
+  last_synced_at: string | null;
+  config: { redacted?: boolean; keys?: string[] } | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** POST /api/scene-automation/ecosystems 请求体 */
+export interface EcosystemIntegrationCreateInput {
+  project_id: string;
+  /** 仅接受有桥接实现的生态：mijia / harmonyos / homekit / tuya / matter */
+  ecosystem: string;
+  auth_status?: string;
+  config?: Record<string, string> | null;
+  notes?: string | null;
 }
 
 // ── F47 AI 装修问答（对齐 app/services/ai_qa_search_service.py）──

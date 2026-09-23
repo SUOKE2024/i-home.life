@@ -384,24 +384,34 @@ class TestPaymentIntentEndpoints:
 
 
 class TestA2AEvidenceChain:
-    async def test_unregistered_agent_evidence(self, client, auth_headers):
+    async def test_unregistered_agent_evidence(self, client, auth_headers, a2a_handshake):
         """未注册 Agent → FAILED + evidence 诚实标注降级原因"""
+        token = await a2a_handshake(auth_headers, "NotExistAgent")
         resp = await client.post(
             "/api/a2a/tasks/send", headers=auth_headers,
-            json={"agent_name": "NotExistAgent", "message": "hi"},
+            json={
+                "agent_name": "NotExistAgent", "message": "hi",
+                "app_id": "console", "handshake_token": token,
+            },
         )
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["state"] == "failed"
-        # v1.16.0：evidence 增补 handshake 字段（未携带握手凭证 → absent，诚实标注）
+        # v1.17.x：ATH 强制握手，凭证已核验 → evidence 如实标注 verified + scope/app
         assert body["evidence"] == {
-            "degraded": True, "reason": "agent_not_registered", "handshake": "absent",
+            "handshake": "verified", "handshake_scope": "a2a:task",
+            "handshake_app_id": "console",
+            "degraded": True, "reason": "agent_not_registered",
         }
 
-    async def test_task_query_returns_evidence_fields(self, client, auth_headers):
+    async def test_task_query_returns_evidence_fields(self, client, auth_headers, a2a_handshake):
+        token = await a2a_handshake(auth_headers, "NotExistAgent")
         resp = await client.post(
             "/api/a2a/tasks/send", headers=auth_headers,
-            json={"agent_name": "NotExistAgent", "message": "hi"},
+            json={
+                "agent_name": "NotExistAgent", "message": "hi",
+                "app_id": "console", "handshake_token": token,
+            },
         )
         task_id = resp.json()["task_id"]
         resp2 = await client.get(f"/api/a2a/tasks/{task_id}", headers=auth_headers)
@@ -410,18 +420,24 @@ class TestA2AEvidenceChain:
         assert "trace_id" in body
         assert body["evidence"]["degraded"] is True
 
-    async def test_business_ops_non_admin_evidence(self, client, auth_headers):
+    async def test_business_ops_non_admin_evidence(self, client, auth_headers, a2a_handshake):
         """商业运营 Agent 非管理员下发 → 权限证据"""
+        token = await a2a_handshake(auth_headers, "growth")
         resp = await client.post(
             "/api/a2a/tasks/send", headers=auth_headers,
-            json={"agent_name": "growth", "message": "查增长"},
+            json={
+                "agent_name": "growth", "message": "查增长",
+                "app_id": "console", "handshake_token": token,
+            },
         )
         assert resp.status_code == 200
         body = resp.json()
         assert body["state"] == "failed"
-        # v1.16.0：evidence 增补 handshake 字段（未携带握手凭证 → absent）
+        # v1.17.x：ATH 强制握手，凭证已核验 → evidence 如实标注 verified + scope/app
         assert body["evidence"] == {
-            "degraded": True, "reason": "permission_denied", "handshake": "absent",
+            "handshake": "verified", "handshake_scope": "a2a:task",
+            "handshake_app_id": "console",
+            "degraded": True, "reason": "permission_denied",
         }
 
 

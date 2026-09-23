@@ -145,6 +145,25 @@ async def _resolve_ecosystem_credentials(
     return _decrypt_ecosystem_config(eco.config) or {} if eco else {}
 
 
+async def resolve_project_ecosystem(db: AsyncSession, project_id: str | None) -> str:
+    """项目级生态解析：返回项目下首个已配置凭据的生态，无凭据则兜底 _DEFAULT_SCENE_ECOSYSTEM。
+
+    2026-09-23：设备命令路径此前把 ecosystem 硬默认成 matter（stub）→ 即使项目已配置米家
+    真机凭据，3D/语音单设备命令也永远 pending，而同一项目的场景执行却按项目凭据解析到真机桥，
+    两条路径行为不对称。现两条路径共用本函数，消除该不对称。
+    """
+    if project_id:
+        result = await db.execute(
+            select(EcosystemIntegration)
+            .where(EcosystemIntegration.project_id == project_id)
+            .order_by(EcosystemIntegration.created_at.asc())
+        )
+        for eco in result.scalars().all():
+            if _decrypt_ecosystem_config(eco.config):
+                return eco.ecosystem
+    return _DEFAULT_SCENE_ECOSYSTEM
+
+
 async def _resolve_scene_ecosystem(db: AsyncSession, scene: SceneAutomation) -> tuple[str, dict]:
     """解析场景执行使用的生态与凭据（串行调用，持有 db，禁止在并行波次内调用）。
 
@@ -152,19 +171,8 @@ async def _resolve_scene_ecosystem(db: AsyncSession, scene: SceneAutomation) -> 
     返回 (ecosystem, credentials)，credentials 为空 dict 时桥仍被调用（stub/缺凭据
     由桥自身诚实抛错，调用方标 pending，不伪造执行）。
     """
-    if scene.ecosystem:
-        return scene.ecosystem, await _resolve_ecosystem_credentials(db, scene.project_id, scene.ecosystem)
-    if scene.project_id:
-        result = await db.execute(
-            select(EcosystemIntegration)
-            .where(EcosystemIntegration.project_id == scene.project_id)
-            .order_by(EcosystemIntegration.created_at.asc())
-        )
-        for eco in result.scalars().all():
-            creds = _decrypt_ecosystem_config(eco.config)
-            if creds:
-                return eco.ecosystem, creds
-    return _DEFAULT_SCENE_ECOSYSTEM, {}
+    ecosystem = scene.ecosystem or await resolve_project_ecosystem(db, scene.project_id)
+    return ecosystem, await _resolve_ecosystem_credentials(db, scene.project_id, ecosystem)
 
 
 # ── 场景 CRUD ──
@@ -604,12 +612,28 @@ async def sync_to_ecosystem(
 
     通过 BridgeFactory 获取对应生态桥接实例, 调用真实接口完成场景同步。
     若桥接层抛出 NotImplementedError, 返回 stubbed 结果并标注 not_implemented。
+
+    归因纪律（2026-09-23）：生态无桥接实现（BridgeFactory ValueError）与「凭据不合规」
+    是两类原因，此前混为一谈导致前端看到「凭据未配置或不完整」的错误归因；现分列
+    unsupported_ecosystem / invalid_credentials，且无桥生态不再落库生态对接记录。
     """
     import logging
 
     from app.services.ecosystem_bridge import BridgeFactory
 
     log = logging.getLogger("ihome.scene_automation")
+
+    try:
+        bridge = BridgeFactory.get_bridge(ecosystem)
+    except ValueError as e:
+        log.warning(f"sync_to_ecosystem: {ecosystem} 无桥接实现 — {e}")
+        return {
+            "scene_id": scene.id,
+            "ecosystem": ecosystem,
+            "synced": False,
+            "message": f"不支持的生态类型（无桥接实现），同步未完成：{e}",
+            "reason": f"unsupported_ecosystem: {e}",
+        }
 
     eco = await _get_or_create_ecosystem(db, scene.project_id, ecosystem)
     if not eco:
@@ -625,17 +649,14 @@ async def sync_to_ecosystem(
         "homekit": "场景已同步至 HomeKit,可通过家庭 App 触发",
         "mijia": "场景已同步至米家,可通过小爱同学语音触发",
         "harmonyos": "场景已同步至华为鸿蒙,可通过小艺语音触发",
-        "alexa": "场景已同步至 Alexa,可通过 Alexa 语音触发",
-        "google_home": "场景已同步至 Google Home,可通过 Hey Google 触发",
         "tuya": "场景已同步至涂鸦智能,可通过 Smart Life App 触发",
         "matter": "场景已同步至 Matter Fabric,跨生态互通",
     }
 
-    # ── 通过 BridgeFactory 获取桥接实例并调用真机接口 ──
+    # ── 调用真机接口 ──
     success = False
     reason = None
     try:
-        bridge = BridgeFactory.get_bridge(ecosystem)
         creds = _decrypt_ecosystem_config(eco.config) or {}
         await bridge.connect(creds)
 
@@ -683,7 +704,6 @@ async def sync_to_ecosystem(
         # 仍返回成功文案，造成"已同步"假象。现按失败类型给出诚实描述。
         eco_display = {
             "homekit": "HomeKit", "mijia": "米家", "harmonyos": "华为鸿蒙",
-            "alexa": "Alexa", "google_home": "Google Home",
             "tuya": "涂鸦智能", "matter": "Matter Fabric",
         }.get(ecosystem, ecosystem)
         if reason and reason.startswith("not_implemented"):

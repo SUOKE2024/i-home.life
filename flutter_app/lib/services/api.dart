@@ -161,8 +161,9 @@ class ApiClient {
       }
       final decoded = jsonDecode(res.body);
       if (res.statusCode >= 400) {
+        final detail = decoded is Map ? decoded['detail'] : null;
         return Result.failure(
-          decoded['detail'] ?? '请求失败 (${res.statusCode})',
+          _normalizeErrorDetail(detail, res.statusCode),
           statusCode: res.statusCode,
         );
       }
@@ -460,8 +461,10 @@ class ApiClient {
       get('/scene-automation/ecosystems/project/$projectId');
   Future<Result<dynamic>> sceneRecommend(Map<String, dynamic> query) =>
       get('/scene-automation/scenes/recommend?${query.entries.map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value.toString())}').join('&')}');
-  Future<Result<dynamic>> sceneSync(String sceneId) =>
-      post('/scene-automation/scenes/$sceneId/sync', {});
+  /// 同步场景到生态桥。[ecosystem] 为后端必填参数（mijia/homekit/harmonyos/tuya/matter），
+  /// 缺失会返回 400「缺少 ecosystem 参数」。
+  Future<Result<dynamic>> sceneSync(String sceneId, String ecosystem) =>
+      post('/scene-automation/scenes/$sceneId/sync', {'ecosystem': ecosystem});
   Future<Result<dynamic>> sceneCreateEcosystem(Map<String, dynamic> body) =>
       post('/scene-automation/ecosystems', body);
   Future<Result<dynamic>> sceneDeleteEcosystem(String ecosystemId) =>
@@ -1933,12 +1936,39 @@ class ApiClient {
     }
     final data = jsonDecode(res.body);
     if (res.statusCode >= 400) {
+      final detail = data is Map ? data['detail'] : null;
       return Result.failure(
-        data['detail'] ?? '请求失败 (${res.statusCode})',
+        _normalizeErrorDetail(detail, res.statusCode),
         statusCode: res.statusCode,
       );
     }
     return Result.success(data);
+  }
+
+  /// 归一化后端错误详情为可读文案。
+  ///
+  /// FastAPI 校验失败（422）的 `detail` 是对象数组（loc/msg/type），
+  /// 直接当字符串用会在运行时抛类型错误，故此处展开为「字段: 说明」列表。
+  String _normalizeErrorDetail(dynamic detail, int statusCode) {
+    if (detail is String && detail.isNotEmpty) return detail;
+    if (detail is List) {
+      final messages = <String>[];
+      for (final item in detail) {
+        if (item is Map) {
+          final loc = item['loc'] is List
+              ? (item['loc'] as List).skip(1).join('.')
+              : '';
+          final msg = (item['msg'] ?? '').toString();
+          messages.add(loc.isEmpty ? msg : '$loc: $msg');
+        } else if (item != null) {
+          messages.add(item.toString());
+        }
+      }
+      final joined = messages.where((m) => m.isNotEmpty).join('; ');
+      if (joined.isNotEmpty) return joined;
+    }
+    if (detail != null) return detail.toString();
+    return '请求失败 ($statusCode)';
   }
 
   Future<void> _onUnauthorized() async {

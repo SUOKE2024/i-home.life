@@ -196,12 +196,15 @@ class _SmartHomePageState extends State<SmartHomePage>
   // ── 方案操作 ──
 
   Future<void> _createScheme(
-      String name, String protocolType, String description) async {
+      String roomName, String roomType, String protocol, String notes) async {
+    // 契约（SmartHomeSchemeCreate）：project_id/room_name 必填，
+    // room_type/protocol/hub_brand 为受限枚举，无 name/protocol_type/description 字段
     final result = await _api.smartHomeCreateScheme({
       'project_id': widget.projectId,
-      'name': name,
-      'protocol_type': protocolType,
-      'description': description,
+      'room_name': roomName,
+      'room_type': roomType,
+      'protocol': protocol,
+      if (notes.isNotEmpty) 'notes': notes,
     });
     if (result.isSuccess) {
       _showSuccess('方案已创建');
@@ -281,18 +284,19 @@ class _SmartHomePageState extends State<SmartHomePage>
     _loadDevices(id);
     _loadScenes();
     _tabController.animateTo(1);
-    _showSuccess('已选择方案：${scheme['name'] ?? ''}');
+    _showSuccess('已选择方案：${scheme['room_name'] ?? ''}');
   }
 
   // ── 设备操作 ──
 
   Future<void> _addDevice(
-      String name, String type, String location) async {
+      String deviceName, String deviceType, String roomName) async {
     if (_selectedSchemeId == null) return;
+    // 契约（SmartDeviceCreate）：device_type/device_name 必填，无 name/type/location 字段
     final result = await _api.smartHomeAddDevice(_selectedSchemeId!, {
-      'name': name,
-      'type': type,
-      'location': location,
+      'device_name': deviceName,
+      'device_type': deviceType,
+      if (roomName.isNotEmpty) 'room_name': roomName,
     });
     if (result.isSuccess) {
       _showSuccess('设备已添加');
@@ -735,7 +739,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    scheme['name'] ?? '未命名方案',
+                    scheme['room_name'] ?? '未命名方案',
                     style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
@@ -753,7 +757,7 @@ class _SmartHomePageState extends State<SmartHomePage>
               runSpacing: 4,
               children: [
                 _buildInfoChip(
-                    '协议', scheme['protocol_type'] ?? '-'),
+                    '协议', scheme['protocol'] ?? '-'),
                 _buildInfoChip(
                     '设备数', '${scheme['device_count'] ?? 0}'),
                 _buildInfoChip(
@@ -832,7 +836,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '当前方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
+                      '当前方案：${_selectedScheme?['room_name'] ?? _selectedSchemeId}',
                       style: TextStyle(
                           color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
                     ),
@@ -912,7 +916,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           child: const Icon(Icons.devices_other, color: SuokeDesignTokens.accent, size: 22),
         ),
         title: Text(
-          device['name'] ?? '未命名设备',
+          device['device_name'] ?? '未命名设备',
           style: TextStyle(
               color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600),
         ),
@@ -921,10 +925,10 @@ class _SmartHomePageState extends State<SmartHomePage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('类型：${device['type'] ?? '-'}',
+              Text('类型：${device['device_type'] ?? '-'}',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
               const SizedBox(height: 2),
-              Text('位置：${device['location'] ?? '-'}',
+              Text('位置：${device['room_name'] ?? '-'}',
                   style: TextStyle(color: SuokeDesignTokens.textSub(context), fontSize: 13)),
             ],
           ),
@@ -1073,7 +1077,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    scene['name'] ?? '未命名场景',
+                    scene['scene_name'] ?? '未命名场景',
                     style: TextStyle(
                         color: SuokeDesignTokens.text(context),
                         fontSize: 16,
@@ -1274,7 +1278,7 @@ class _SmartHomePageState extends State<SmartHomePage>
               spacing: 8,
               runSpacing: 8,
               children: _ecosystems.map((e) {
-                final name = (e is Map) ? (e['name'] ?? e.toString()) : e.toString();
+                final name = (e is Map) ? (e['ecosystem'] ?? e.toString()) : e.toString();
                 return Chip(
                   label: Text(name,
                       style: TextStyle(color: SuokeDesignTokens.text(context))),
@@ -1363,19 +1367,50 @@ class _SmartHomePageState extends State<SmartHomePage>
 
   // ── 对话框 ──
 
+  // 后端受限枚举单源：room_type/protocol 见 app/models/smart_home.py
+  // CheckConstraint，device_type 见 app/models/smart_home.py DEVICE_TYPES。
+  // 取值必须是上述枚举原值，否则写库会触发约束错误。
+  static const _roomTypeLabels = {
+    'living_room': '客厅',
+    'bedroom': '卧室',
+    'kitchen': '厨房',
+    'bathroom': '卫生间',
+    'entrance': '玄关',
+    'study': '书房',
+  };
+
+  static const _protocolLabels = {
+    'zigbee': 'Zigbee',
+    'wifi': 'Wi-Fi',
+    'bluetooth': '蓝牙',
+    'matter': 'Matter',
+    'homekit': 'HomeKit',
+  };
+
+  static const _deviceTypeLabels = {
+    'light': '灯具',
+    'switch': '开关',
+    'socket': '插座',
+    'sensor': '传感器',
+    'camera': '摄像头',
+    'lock': '智能门锁',
+    'curtain': '窗帘电机',
+    'speaker': '智能音箱',
+    'thermostat': '温控器',
+    'air_purifier': '空气净化器',
+    'robot_vacuum': '扫地机器人',
+    'fall_radar': '跌倒监测雷达',
+    'care_bed': '智能护理床',
+    'service_robot': '家庭服务机器人',
+    'health_monitor': '健康监测终端',
+    'emergency_call': '紧急呼叫按钮',
+  };
+
   void _showCreateSchemeDialog() {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    String protocol = 'Zigbee';
-    const protocols = [
-      'Zigbee',
-      'Z-Wave',
-      'Wi-Fi',
-      'Bluetooth',
-      'Matter',
-      'Thread',
-      'RF'
-    ];
+    String roomType = 'living_room';
+    String protocol = 'zigbee';
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -1390,7 +1425,24 @@ class _SmartHomePageState extends State<SmartHomePage>
                 TextField(
                   controller: nameCtrl,
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
-                  decoration: _inputDecoration('方案名称'),
+                  decoration: _inputDecoration('房间名称（如：客厅）'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: roomType,
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: _inputDecoration('房间类型'),
+                  items: _roomTypeLabels.entries
+                      .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Text('${e.value}（${e.key}）',
+                              style:
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => roomType = v);
+                  },
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -1398,10 +1450,10 @@ class _SmartHomePageState extends State<SmartHomePage>
                   dropdownColor: SuokeDesignTokens.card(context),
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
                   decoration: _inputDecoration('协议类型'),
-                  items: protocols
-                      .map((p) => DropdownMenuItem(
-                          value: p,
-                          child: Text(p,
+                  items: _protocolLabels.entries
+                      .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Text(e.value,
                               style:
                                   TextStyle(color: SuokeDesignTokens.text(context)))))
                       .toList(),
@@ -1414,7 +1466,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                   controller: descCtrl,
                   maxLines: 3,
                   style: TextStyle(color: SuokeDesignTokens.text(context)),
-                  decoration: _inputDecoration('方案描述'),
+                  decoration: _inputDecoration('备注（可选）'),
                 ),
               ],
             ),
@@ -1431,11 +1483,12 @@ class _SmartHomePageState extends State<SmartHomePage>
               onPressed: () {
                 final name = nameCtrl.text.trim();
                 if (name.isEmpty) {
-                  _showError('请输入方案名称');
+                  _showError('请输入房间名称');
                   return;
                 }
                 Navigator.pop(ctx);
-                _createScheme(name, protocol, descCtrl.text.trim());
+                _createScheme(
+                    name, roomType, protocol, descCtrl.text.trim());
               },
               child: const Text('创建'),
             ),
@@ -1447,61 +1500,73 @@ class _SmartHomePageState extends State<SmartHomePage>
 
   void _showAddDeviceDialog() {
     final nameCtrl = TextEditingController();
-    final typeCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
+    String deviceType = 'light';
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: SuokeDesignTokens.card(context),
-        title:
-            Text('添加设备', style: TextStyle(color: SuokeDesignTokens.text(context))),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                style: TextStyle(color: SuokeDesignTokens.text(context)),
-                decoration: _inputDecoration('设备名称'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: typeCtrl,
-                style: TextStyle(color: SuokeDesignTokens.text(context)),
-                decoration: _inputDecoration(
-                    '设备类型（如：灯、窗帘、传感器）'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: locationCtrl,
-                style: TextStyle(color: SuokeDesignTokens.text(context)),
-                decoration: _inputDecoration('安装位置（如：客厅、卧室）'),
-              ),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: SuokeDesignTokens.card(context),
+          title:
+              Text('添加设备', style: TextStyle(color: SuokeDesignTokens.text(context))),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: _inputDecoration('设备名称'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: deviceType,
+                  dropdownColor: SuokeDesignTokens.card(context),
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: _inputDecoration('设备类型'),
+                  items: _deviceTypeLabels.entries
+                      .map((e) => DropdownMenuItem(
+                          value: e.key,
+                          child: Text('${e.value}（${e.key}）',
+                              style:
+                                  TextStyle(color: SuokeDesignTokens.text(context)))))
+                      .toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => deviceType = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: locationCtrl,
+                  style: TextStyle(color: SuokeDesignTokens.text(context)),
+                  decoration: _inputDecoration('房间名称（如：客厅、卧室）'),
+                ),
+              ],
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('取消',
+                  style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
+              onPressed: () {
+                final name = nameCtrl.text.trim();
+                if (name.isEmpty) {
+                  _showError('请输入设备名称');
+                  return;
+                }
+                Navigator.pop(ctx);
+                _addDevice(
+                    name, deviceType, locationCtrl.text.trim());
+              },
+              child: const Text('添加'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('取消',
-                style: TextStyle(color: SuokeDesignTokens.textSub(context))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: SuokeDesignTokens.accent, foregroundColor: SuokeDesignTokens.bg(context)),
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              if (name.isEmpty) {
-                _showError('请输入设备名称');
-                return;
-              }
-              Navigator.pop(ctx);
-              _addDevice(name, typeCtrl.text.trim(),
-                  locationCtrl.text.trim());
-            },
-            child: const Text('添加'),
-          ),
-        ],
       ),
     );
   }
@@ -1821,7 +1886,7 @@ class _SmartHomePageState extends State<SmartHomePage>
   Widget _buildFloorDeviceCard(Map<String, dynamic> device) {
     final status = device['status'] ?? 'offline';
     final isOnline = status == 'online' || status == true;
-    final type = (device['type'] ?? '').toString();
+    final type = (device['device_type'] ?? '').toString();
     final IconData icon = _deviceIcon(type);
 
     return GestureDetector(
@@ -1850,7 +1915,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    device['name'] ?? '未命名设备',
+                    device['device_name'] ?? '未命名设备',
                     style: TextStyle(color: SuokeDesignTokens.text(context), fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   const SizedBox(height: 2),
@@ -1883,8 +1948,8 @@ class _SmartHomePageState extends State<SmartHomePage>
   void _showDeviceDetail(Map<String, dynamic> device) {
     final status = device['status'] ?? 'offline';
     final isOnline = status == 'online' || status == true;
-    final type = (device['type'] ?? '-').toString();
-    final name = (device['name'] ?? '未命名设备').toString();
+    final type = (device['device_type'] ?? '-').toString();
+    final name = (device['device_name'] ?? '未命名设备').toString();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1903,7 +1968,7 @@ class _SmartHomePageState extends State<SmartHomePage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _detailRow('类型', type),
-            _detailRow('位置', (device['location'] ?? '-').toString()),
+            _detailRow('位置', (device['room_name'] ?? '-').toString()),
             _detailRow('状态', isOnline ? '在线' : '离线'),
             _detailRow('协议', (device['protocol'] ?? '-').toString()),
             if (device['model'] != null) _detailRow('型号', device['model'].toString()),
@@ -1943,7 +2008,7 @@ class _SmartHomePageState extends State<SmartHomePage>
     }
     for (final device in _devices) {
       if (device is! Map<String, dynamic>) continue;
-      final location = (device['location'] ?? '').toString();
+      final location = (device['room_name'] ?? '').toString();
       final areaKey = _matchArea(location);
       grouped[areaKey]?.add(device);
     }
@@ -2131,10 +2196,10 @@ class _SmartHomePageState extends State<SmartHomePage>
 
     for (int i = 0; i < _devices.length; i++) {
       final device = _devices[i] as Map<String, dynamic>;
-      final location = (device['location'] ?? '').toString();
+      final location = (device['room_name'] ?? '').toString();
       final areaKey = _matchArea(location);
-      final deviceType = (device['type'] ?? '').toString();
-      final deviceName = (device['name'] ?? '').toString();
+      final deviceType = (device['device_type'] ?? '').toString();
+      final deviceName = (device['device_name'] ?? '').toString();
       final color = _deviceCategoryColor(deviceType);
 
       final basePos = areaPositions[areaKey]!;
@@ -2160,7 +2225,7 @@ class _SmartHomePageState extends State<SmartHomePage>
 
     final Map<String, int> categoryCounts = {};
     for (final device in _devices) {
-      final dt = (device as Map<String, dynamic>)['type']?.toString() ?? '';
+      final dt = (device as Map<String, dynamic>)['device_type']?.toString() ?? '';
       final label = _deviceCategoryLabel(dt);
       categoryCounts[label] = (categoryCounts[label] ?? 0) + 1;
     }
@@ -2186,7 +2251,7 @@ class _SmartHomePageState extends State<SmartHomePage>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '方案：${_selectedScheme?['name'] ?? _selectedSchemeId}',
+                          '方案：${_selectedScheme?['room_name'] ?? _selectedSchemeId}',
                           style: TextStyle(
                               color: SuokeDesignTokens.text(context),
                               fontWeight: FontWeight.w600),
@@ -2244,7 +2309,7 @@ class _SmartHomePageState extends State<SmartHomePage>
               roomWidth: roomW,
               roomHeight: roomH,
               roomLabel:
-                  '${_selectedScheme?['name'] ?? '智能方案'} · 设备布局',
+                  '${_selectedScheme?['room_name'] ?? '智能方案'} · 设备布局',
               components: components,
             ),
           ),

@@ -77,7 +77,7 @@ async def test_bridges_priority_order(client: AsyncClient):
     data = resp.json()
     priorities = [b["priority"] for b in data["bridges"]]
     assert priorities == sorted(priorities)
-    assert [b["key"] for b in data["bridges"]] == ["mijia", "harmony", "homekit", "tuya"]
+    assert [b["key"] for b in data["bridges"]] == ["mijia", "harmonyos", "homekit", "tuya"]
     assert "priority_strategy" in data
     assert "米家" in data["priority_strategy"] and "华为鸿蒙" in data["priority_strategy"]
 

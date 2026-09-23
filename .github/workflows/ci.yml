@@ -5,6 +5,15 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # v1.17.2：console 视觉回归的 Linux 基线引导入口（见 console-visual job）
+  #   gh workflow run ci.yml -f update_snapshots=true
+  workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: '以 --update-snapshots 生成 Linux 视觉基线并上传 artifact（引导用，不校验）'
+        type: choice
+        default: 'false'
+        options: ['false', 'true']
 
 jobs:
   # ── 后端测试 ──
@@ -41,7 +50,7 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.17.1"
+          APP_VERSION: "1.17.3"
         run: |
           mkdir -p data
           # set -o pipefail：tee 会吞掉 pytest 退出码，缺它则测试失败仍判成功
@@ -81,7 +90,8 @@ jobs:
           cd webapp
           npm ci
 
-      # webapp 单元测试（v1.17.1：Vitest + jsdom，覆盖 3DGS 交互双指缩放/陀螺仪）
+      # webapp 单元测试（v1.17.1：Vitest + jsdom，覆盖 3DGS 交互双指缩放/陀螺仪
+      # 与空间资产台账/适老套餐页红线断言）
       - name: Unit test webapp
         run: |
           cd webapp
@@ -110,6 +120,67 @@ jobs:
       - name: Stop server
         if: always()
         run: pkill -f "http.server 8766" || true
+
+  # ── 控制台视觉回归（Playwright + vite preview，v1.17.2 接入 CI）──
+  console-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # ⚠ 引导期非阻塞：仓库现有 70 个快照基线均为 `*-darwin.png`（macOS 生成），
+    # Playwright 在 ubuntu 只认 `*-linux.png`，未提交 Linux 基线前截图断言必然全红。
+    # 引导步骤（一次）：gh workflow run ci.yml -f update_snapshots=true → 下载
+    # artifact `console-visual-linux-snapshots` → 提交进 console-src/tests/visual/*-snapshots/
+    # → 之后把下一行改为 continue-on-error: false 并加入 deploy.needs（转阻塞，纳入部署门禁）。
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: console-src/package-lock.json
+
+      - name: Install console deps
+        run: npm ci
+        working-directory: console-src
+
+      # chromium-headless-shell + 系统依赖（ubuntu 无预装中文字体渲染依赖时截图会抖动）
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: console-src
+
+      # tsc --noEmit + vite build → webapp/dist/console（playwright webServer 的 vite preview 根）
+      - name: Build console
+        run: npm run build
+        working-directory: console-src
+
+      - name: Run console visual tests
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.update_snapshots != 'true' }}
+        run: npx playwright test
+        working-directory: console-src
+
+      # 引导模式：生成 Linux 基线（不校验通过与否；darwin 基线不受影响）
+      - name: Update snapshots (linux baseline bootstrap)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.update_snapshots == 'true' }}
+        run: npx playwright test --update-snapshots
+        working-directory: console-src
+
+      - name: Upload linux snapshots (bootstrap)
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.update_snapshots == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-visual-linux-snapshots
+          path: console-src/tests/visual/**/*-linux.png
+          if-no-files-found: warn
+
+      - name: Upload visual artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-visual-results
+          path: console-src/test-results/
+          if-no-files-found: ignore
 
   # ── Python 代码检查（v1.1.26: 新增 mypy 类型检查）──
   lint:
@@ -232,7 +303,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.17.1"
+          APP_VERSION: "1.17.3"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -458,7 +529,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.17.1"
+      APP_VERSION: "1.17.3"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4

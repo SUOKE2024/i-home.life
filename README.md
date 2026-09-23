@@ -4,10 +4,26 @@
 >
 > 对外定位：面向云南区域存量空间资源（康养 / 疗愈 / 旅居 / 文旅 / 适老住宅）提供 AI 智能化改造与长期健康运营，是索克生活生态的空间供应链与引流入口。AI 装修全链路（设计→算量→报价→采购→施工→质检→结算）为**交付底座**，不对外主打。轻资产改造服务商定位：不持有房产、不做物业运营、不做房地产经纪。
 >
-> v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
 > 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 120 Service + 143 ORM 模型 + 84 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-09-23 · 智能家居生态全链路接入修复（v1.17.3）
+
+- **后端断链修复**：生态注册表 key `harmony` → `harmonyos`（`BridgeFactory` 只认后者，此前按注册表配置即 `ValueError` → 命令恒 pending）；`GET /api/ecosystem/status?project_id=` 附项目级真实凭据就绪度（`project_configured`/`has_credentials`/`credential_keys`，只回露字段名）；`DeviceCommandRequest.ecosystem` 去掉 `default="matter"`，缺省按项目已配置凭据的生态自动解析（与场景执行对称）；生态 schema 收窄为 Literal（无桥的 `alexa`/`google_home` 422）；sync 无桥生态归因 `unsupported_ecosystem` 不落库；`/scenes/parse`、`/matter/device-types` 补鉴权
+- **前端契约修复**：webapp 新建方案改 `POST /api/smart-home/schemes` + `room_name/room_type/notes` 字段（原路由不存在）；Flutter 场景/生态列表路径修正、`scene_type` 改合法枚举、建方案/加设备字段与受限枚举对齐（协议下拉原值不在 DB 约束内）、`sceneSync` 补 ecosystem、422 详情数组不再致崩溃；console `EcosystemPage` 接入项目维度就绪度 + 生态凭据录入/删除，**打通米家真机 UI 入口**
+- **测试**：后端新增 `tests/test_smart_home_ecosystem_chain.py`（10 用例），全量 pytest **2790 passed**（基线 2780 → 2790）；console 视觉 **248 → 262 passed**；webapp Vitest **29 → 36 passed**；Flutter `flutter test` **115 passed** + analyze 0 issue
+- **诚实边界**：`matter/commission` 仍 stub 501；homekit/harmonyos/tuya 桥未接真机（`implemented=false` 在三端 UI 显式标注），保存凭据不带来真机联动
+- **版本号** 1.17.2 → 1.17.3 全链路同步（17 处）；清理源码目录 15 个 `.DS_Store`
+
+### 2026-09-23 · 业主端接线 + 台账补测（v1.17.2）
+
+- **WebApp 业主端接线**：新增 `/elderly-packages`（适老改造，仅渲染 `elderly_theme=true` 套餐 + 补贴预估，按钮与结果恒标「非资格认定」）与 `/space-assets`（空间资产台账，流转选项与后端 `_STATUS_TRANSITIONS` 对齐，`assessed` 不出「运营中」）；`webapp/src/lib/api.js` 新增 8 个端点封装
+- **控制台补测**：`console-src/tests/visual/batch15.spec.ts` 覆盖 `SpaceAssetsPage`（轻资产定位声明 + 状态机收敛契约 + 请求体契约 + 409/422/503 降级），并修复成功提示被自身刷新抹除的真实缺陷
+- **测试**：控制台视觉 248 passed（batch15 新增 11 用例）+ webapp vitest 29 passed（新增 9 用例）；pytest 基线 2780 不变
+- **CI 接入**：新增 `console-visual` job（ubuntu + Playwright chromium + `vite preview`）；因视觉基线仅 `*-darwin.png`，引导期 `continue-on-error: true`，用 `gh workflow run ci.yml -f update_snapshots=true` 生成 Linux 基线提交后转阻塞
+- **版本号** 1.17.1 → 1.17.2 全链路同步（17 处）
 
 ### 2026-09-15 · 适老改造套餐 + 补贴资格预检（v1.17.0，政策落地）
 
@@ -703,7 +719,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 2760 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-15 v1.17.0 基线, -n auto)
+# 当前: 2790 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-23 v1.17.3 基线, -n auto)
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异

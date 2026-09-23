@@ -17,6 +17,8 @@ const QualityPage = lazy(() => import('./pages/Quality'))
 const SettlementPage = lazy(() => import('./pages/Settlement'))
 const ProcurementPage = lazy(() => import('./pages/Procurement'))
 const SmartHomePage = lazy(() => import('./pages/SmartHome'))
+const ElderlyPackagesPage = lazy(() => import('./pages/ElderlyPackages'))
+const SpaceAssetsPage = lazy(() => import('./pages/SpaceAssets'))
 const AiPage = lazy(() => import('./pages/Ai'))
 const ProfilePage = lazy(() => import('./pages/Profile'))
 const DiagnosticsPage = lazy(() => import('./pages/Diagnostics'))
@@ -69,6 +71,22 @@ export default function App() {
           <Route path="/settlement" element={<Lazy><SettlementPage /></Lazy>} />
           <Route path="/procurement" element={<Lazy><ProcurementPage /></Lazy>} />
           <Route path="/smart-home" element={<Lazy><SmartHomePage /></Lazy>} />
+          <Route
+            path="/elderly-packages"
+            element={
+              <Lazy>
+                <ElderlyPackagesPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="/space-assets"
+            element={
+              <Lazy>
+                <SpaceAssetsPage />
+              </Lazy>
+            }
+          />
           <Route
             path="/virtual-tour"
             element={

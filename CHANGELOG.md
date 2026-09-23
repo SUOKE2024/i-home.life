@@ -2,6 +2,211 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.17.3] - 2026-09-23（智能家居生态全链路接入修复）
+
+执行依据：2026-09-23「智能家居生态全景全量全链路接入」审计报告的 P0/P1/P2 断链清单。
+本轮不新增数据表、不新增路由（仅补鉴权与字段），修复目标是让「已配置凭据 → 真机可下发」
+这条链路在前后端三端（webapp / Flutter / console）全部可达且不误报。
+
+### 后端修复
+
+- **生态 key 对齐**（`app/services/ecosystem_bridge_status.py`）：注册表 key `harmony` →
+  `harmonyos`（`BridgeFactory._bridges` 只认后者，此前按注册表配置即 `ValueError` → 命令恒
+  pending），`bridge` 字段同步；新增 `implemented` 真机标记（仅 `mijia` 已接真机）
+- **项目级真实凭据就绪度**（`app/api/ecosystem.py` + `build_project_readiness`）：
+  `GET /api/ecosystem/status?project_id=` 经 `verify_project_access` 后附
+  `project_configured` / `has_credentials` / `credential_keys`（只回露字段名，凭据值永不出接口），
+  并新增 `credential_channel_note` 显式澄清「env 口径 ≠ 真机通道」；
+  `project_configured=null` 表示「未查询该项目」，与「查询后未配置」区分
+- **设备命令生态自动解析**（`app/api/smart_home.py` + `scene_automation_service.resolve_project_ecosystem`）：
+  `DeviceCommandRequest.ecosystem` 由 `default="matter"` 改为 `None`，缺省按项目下首个已配置
+  凭据的生态解析（无凭据兜底 matter）——消除「已配米家凭据的项目命令恒 pending」及与场景执行的
+  行为不对称
+- **生态白名单收窄**（`app/schemas/scene_automation.py`）：新增 `EcosystemName` Literal
+  （mijia/harmonyos/homekit/tuya/matter，小写归一），无桥的 `alexa`/`google_home` 直接 422
+- **sync 归因修正**（`scene_automation_service.sync_to_ecosystem`）：无桥生态提前返回
+  `reason="unsupported_ecosystem"` 且不落库生态对接，不再误报 `invalid_credentials`
+- **补鉴权**：`POST /scenes/parse` 与 `GET /matter/device-types` 增加 `get_current_user`
+  （此前匿名可读）
+
+### 前端契约修复
+
+- **webapp 业主端**（`webapp/src/lib/api.js` / `pages/SmartHome.jsx`）：新建方案改
+  `POST /api/smart-home/schemes`（原打向不存在的 `POST /schemes/project/{id}`），字段改
+  `project_id` + `room_name` + `room_type` + `notes`（后端无 `scheme_name`/`description`）；
+  房间类型下拉对齐 DB 约束（去掉非法 `balcony`/`dining_room`，补 `entrance`）；
+  `extractErrorMessage` 拍平 FastAPI 422 的 `detail` 数组（原实现会渲染对象）
+- **Flutter 场景页**（`pages/scene_automation_page.dart`）：场景/生态列表改
+  `/scenes/project/{id}`、`/ecosystems/project/{id}`（原两个路径均 404）；场景读取
+  `scene_name`；`scene_type` 改用合法枚举（`manual/scheduled/triggered/geo`，对齐后端
+  `LIFESTYLE_SCENE_PRESETS`）；生态卡片改读 `ecosystem`/`auth_status`/`device_count`；
+  加载失败改诚实错误态 + 重试（不再伪装空列表）
+- **Flutter 智能家居页**（`pages/smart_home_page.dart`）：建方案体改
+  `project_id/room_name/room_type/protocol/notes`，加设备体改 `device_name/device_type/room_name`；
+  协议下拉改受限枚举（原值 Zigbee/Wi-Fi 等不在 DB 约束内，实际永远落默认 zigbee）、
+  设备类型改 16 项 `DEVICE_TYPES` 下拉、新增房间类型下拉
+- **Flutter API 层**（`services/api.dart`）：`sceneSync(sceneId, ecosystem)` 补必填 ecosystem
+  （原发空 body → 400）；新增 `_normalizeErrorDetail`，422 的 detail 对象数组展开为
+  「字段: 说明」（原实现把 List 塞进 `String?` 参数，运行时抛类型错误）
+- **console 生态桥接页**（`pages/EcosystemPage.tsx` 重写）：项目选择器 + 项目维度真机就绪度
+  （「桥接实现」与「项目凭据」两列，stub 生态显式告警）+ 项目生态对接列表（凭据录入/删除）——
+  打通米家真机 UI 入口（此前真机路径在任何前端都不可达）；空凭据前端拦截、保存后不回显凭据值
+
+### 测试
+
+- 后端新增 `tests/test_smart_home_ecosystem_chain.py`（10 用例）：注册表 key ↔ `BridgeFactory`
+  ↔ schema Literal 三方一致、`implemented` 标记、项目真实凭据就绪度（断言凭据值不外泄）、
+  IDOR 403、无桥生态 422、sync 归因 `unsupported_ecosystem` 且不落库、设备命令项目生态解析
+  与 matter 兜底、`/scenes/parse` 与 `/matter/device-types` 鉴权
+- console 新增 `tests/visual/batch16.spec.ts`（7 用例 × desktop/mobile）：视觉套件
+  **248 → 262 passed**
+- webapp 新增 `src/pages/SmartHome.test.jsx`（7 用例，含房间类型枚举约束断言）：
+  Vitest **29 → 36 passed**
+- Flutter 新增 `test/pages/smart_home_page_test.dart`（4）/ `scene_automation_page_test.dart`（6）：
+  `flutter test` **115 passed**、`flutter analyze` 0 issue
+- 后端全量 pytest **2790 passed / 2 skipped / 4 xfailed / 0 failed**（`-n auto` 8 worker），
+  基线 2780 → **2790**（`scripts/test_baseline.json` 已校准，门禁 PASS；版本号 bump 后复跑
+  同一结果，确认无版本断言遗漏）
+
+### 文档与版本
+
+- CLAUDE.md「设备链路加固」新增第三批：生态 key 三处单源 / 凭据唯一生效通道 / 命令与场景生态
+  解析对称 / sync 归因 / 受限枚举前端逐字对齐
+- 版本号 **1.17.2 → 1.17.3** 全链路同步（17 处）；`.claude/templates/version-bump.md`
+  校准 ci.yml 三处行号（v1.17.1 记的 44/228/454 实为 53/306/532）
+- 冗余清理：删除源码目录下 15 个 `.DS_Store`（`app/`/`tests/`/`scripts/`/`docs/`/`alembic/`/
+  `assets/`/`.claude/`/`webapp/`/`console-src/`/`flutter_app/`(×3)/`goai-agent-infra/`(×2)/
+  `dogfood-output/`，均未被 git 跟踪）；`data/test_*.db` 与 `console-src/test-results` 由测试
+  进程自身清理，无残留需人工删除
+
+### 诚实遗留（未修复，不伪装）
+
+- `POST /matter/commission` 仍为 stub 501，无前端调用；实现前不补假 UI
+- `homekit`/`harmonyos`/`tuya` 桥方法仍抛 `NotImplementedError`（`implemented=false` 已在
+  接口与三端 UI 显式标注），保存凭据不带来真机联动能力
+
+## [1.17.2] - 2026-09-23（补测 + 业主端接线：适老套餐/空间资产页 + console 台账补测）
+
+执行依据：2026-09-22 系统检查评估的 P2 收尾项 —— X3「前端零自动化测试」仅覆盖 3DGS，
+v1.17.0 新增的 `SpaceAssetsPage` 零视觉/交互覆盖，且适老套餐与空间资产台账只有控制台入口、
+业主端（webapp）不可达。本轮不新增后端路由、不新增数据表。
+
+### 前端修复 — console 空间资产台账（`console-src/src/pages/SpaceAssetsPage.tsx`）
+
+- 修复成功提示被自身刷新抹除：`refreshAll()` 原在登记/状态流转成功回调内被调用时先
+  `setNotice(null)`，导致「已登记…就绪度 N 分」「状态 → 改造中」提示瞬时消失不可见；
+  改为 `refreshAll()` 不清理提示，手动「刷新」入口单独清空
+
+### 前端测试 — console 空间资产台账视觉/交互补测（X3 收敛）
+
+- 新增 `console-src/tests/visual/batch15.spec.ts`（11 用例）：轻资产定位声明
+  （`platform_role` 恒为 `service_provider` / 不持有房产）+ 资产组合汇总 + 改造状态机
+  **assessed 不可直达 operating** 的按钮收敛契约 + 流转/登记请求体契约 + 409/422 后端
+  detail 透出 + 筛选 query 透传 + 空态 + 500 重试 + 503 诚实降级（不伪装空数据）
+- console 视觉套件全量 **248 passed**（batch5-15，desktop + mobile，0 failed）
+
+### 前端接线 — webapp 业主端适老套餐页 + 空间资产台账页
+
+- `webapp/src/lib/api.js` 新增 8 个端点封装：`getQuickInstallPackages` /
+  `getElderlySubsidyProfiles` / `precheckElderlySubsidy`（适老）与 `getSpaceAssetEnums` /
+  `getSpaceAssetSummary` / `getSpaceAssets` / `createSpaceAsset` /
+  `transitionSpaceAssetStatus`（空间资产）
+- 新增 `webapp/src/pages/ElderlyPackages.jsx`：只渲染 `elderly_theme=true` 适老套餐
+  （非适老套餐不误标），补贴预估按钮与结果**强制标注「非资格认定」**，warnings/disclaimer/
+  口径来源原样展示；目录不可用（404/503）诚实报错不伪造套餐
+- 新增 `webapp/src/pages/SpaceAssets.jsx`：轻资产定位声明 + 组合汇总 + 类别/状态筛选 +
+  登记表单（持有方不得为平台自身）+ 状态机流转按钮按当前状态收敛；503 明示
+  `space_asset_ledger_enabled=False`，不回退空态伪装「无数据」
+- 路由与导航接入：`App.jsx` 两条路由（`/elderly-packages`、`/space-assets`，均 lazy +
+  统一 Suspense）、`Shell.jsx` 两项导航与页标题；Footer ICP 备案号不变
+
+### 前端测试 — webapp 业主端页面单测
+
+- 新增 `webapp/src/pages/ElderlyPackages.test.jsx`（4 用例）、
+  `webapp/src/pages/SpaceAssets.test.jsx`（5 用例），共 9 例；webapp Vitest 套件
+  **29 passed**（含 3DGS 20 例）
+- CI `frontend-smoke` 的 `npm test` 自动纳入（无需改 workflow 步骤，仅同步步骤注释）
+
+### 文档与版本
+
+- 版本号 **1.17.1 → 1.17.2** 全链路同步（17 处：config.py / app/mcp/server.py / .env×4 /
+  ci.yml×3 / deploy-production.sh / pubspec 1.17.2+67 / config.dart / settings_page.dart /
+  webapp version.json / webapp package.json / console-src package.json / 3 个测试断言文件）
+- `docs/reports/partner-franchise-tech-assessment-20260922.md`（X2）与
+  `partner-franchise-fix-plan-20260922.md`（遗留 5/6）补 2026-09-23 状态标注，保留快照表述
+- CLAUDE.md「存量空间资产化」「适老改造政策落地」两节补 webapp 业主端接线说明；
+  README.md「最近更新」新增本版本条目
+- 冗余清理：删除 `.DS_Store`×2 / `.coverage` / `qa-validation/__pycache__` /
+  `data/debug_wechat.db`（无任何代码引用）/ `data/ihome.db.bak-qa`（备份，用户批准清理）/
+  `console-src/test-results`；`qa-validation/qa-report-2026-08-19.md` 中备份提及补状态标注
+
+### CI — 控制台视觉回归接入（`console-visual` job）
+
+- 新增 CI job `console-visual`（ubuntu-latest + `npx playwright install --with-deps chromium`
+  + `npm run build` → `vite preview` webServer + `npx playwright test`），失败时上传
+  `console-src/test-results/` artifact；`deploy` job 的 `needs` 暂不含它
+- **引导期非阻塞**：仓库 70 个快照基线均为 `*-darwin.png`（macOS 生成），Playwright 在
+  ubuntu 只认 `*-linux.png`，未提交 Linux 基线前截图断言必然全红，故 `continue-on-error: true`
+- **引导入口**：`on.workflow_dispatch.inputs.update_snapshots`（choice）——
+  `gh workflow run ci.yml -f update_snapshots=true` 走 `--update-snapshots` 生成 Linux 基线
+  并上传 artifact `console-visual-linux-snapshots`，下载提交后把 `continue-on-error` 改
+  `false` 并加入 `deploy.needs`（转阻塞）
+- 本地以 `CI=1 npx playwright test` 模拟 CI（webServer 自启链路）验证：**248 passed / 44.6s**
+
+### 验证（2026-09-23 本地全量）
+
+- pytest **2780 passed / 2 skipped / 4 xfailed / 0 failed**（13:42，`-n auto`），
+  `check_test_baseline.py` RESULT: PASS（基线不变，本轮未新增后端测试）
+- 控制台视觉套件 **248 passed**；webapp Vitest **29 passed**；两端 `npm run build` 通过
+- `flake8` / `mypy app/`（393 文件 0 issue）/ `pre-commit run --all-files` 全绿
+
+## [1.17.1] - 2026-09-22（ATH 信任层 P0：A2A 强制握手 + 应用注册表）
+
+执行依据：2026-09-22 合作方加盟技术评估 —— ATH 九步可信握手流程中「⑤ 智能体核验应用
+身份」此前为可选放行，调用方可自报任意 `app_id`/`scope` 且缺凭证仍能下发任务，不满足
+信通院 ATH「双向身份验证」强制语义。本轮补齐两处 P0（不新增表、不新增路由模块）。
+
+### P0-1 — A2A 任务下发强制握手（`app/api/a2a.py`）
+
+- `POST /api/a2a/tasks/send` 接入握手凭证校验：`agent_handshake_required=True`（默认）
+  时缺 `handshake_token` 直接 403 拒绝，**不再兼容放行**
+- 携带 token 时逐项核验签名 / 应用登记 / `agent_name` / `actor_user_id` / 过期 / scope
+  域（非 `a2a:*` 视为越权），任一不符 403 且不创建任务记录
+- `agent_handshake_required=False` 为 .env 级回滚开关（退回 v1.16.0 行为：token 可选、
+  缺省放行并 evidence 标注 `absent`），无需回滚代码
+- evidence 链如实标注 `handshake` 状态（`verified` / `absent` / `gate_disabled`）
+  + `handshake_scope` + `handshake_app_id`
+
+### P0-2 — 应用注册表（`app/services/agent_handshake.py`）
+
+- 新增 `REGISTERED_APPS`：`app_id` → 允许 scope 白名单（flutter / webapp / console /
+  suoke_life），**应用侧身份不得自报**；未登记 app 或越权 scope 在签发端点 400 拒签
+- 校验侧新增 `app_unregistered` 分支：已退登记 app 的存量凭证一并拒绝，防注册表收紧后被绕过
+- 治理审计 `agent_governance_audit` ATH1/ATH2 两项改写为按 `agent_handshake_enabled`
+  条件判定（未启用时 warn 并给出开启建议，不伪装已握手）
+
+### 测试与门禁
+
+- 新增 `tests/test_agent_handshake.py`（13 用例）+ `tests/test_agent_handshake_api.py`
+  （16 用例）；`tests/test_a2a.py` 同步为「先签发再下发」模式
+- 补齐 3 个既有测试文件的 6 个 A2A 用例（此前漏改致红灯）：`test_agent_registry_complete.py`
+  / `test_frontier_v1153.py`（3 例，evidence 断言由 `handshake: absent` 改为 `verified`）
+  / `test_walkthrough_fixes.py`（2 例）；`tests/conftest.py` 新增 `a2a_handshake` 工厂 fixture
+- 全量 pytest **2780 passed / 2 skipped / 4 xfailed / 0 failed**（-n auto 8 worker，8 分 30 秒）；
+  flake8 / mypy（393 源文件）0 issue
+- 基线三处对齐：`scripts/test_baseline.json` 校准至 2780（此前 2768），CLAUDE.md 与
+  README.md 基线数字同步（此前均为 2760，collect 口径 2766 → 2786）
+- 版本号 1.17.0 → 1.17.1 全链路同步（config / .env / Flutter 1.17.1+66 / config.dart /
+  webapp version.json / console 1.17.1.0 / ci.yml×3）
+
+### 诚实边界（遗留）
+
+- 握手为模块化单体**中心化签发**，非 ATH「去中心化/分布式认证」完整实现，仅对齐
+  握手凭证语义（架构形态差异已标注于 `agent_handshake.py` 模块 docstring）
+- `suoke_life` 已登记入注册表但对方 `A2A_ENABLED` 默认 false，跨主体对接适配层未启动
+- Flutter / webapp 端尚未接线握手签发（当前仅 console 先签发再下发），用户端走
+  A2A 下发需补同一模式
+
 ## [1.17.0] - 2026-09-15（政策落地：适老改造套餐产品化 + 补贴资格预检）
 
 执行依据：2026-09-15 政策评估 —— 商务部等八部门《促进智能家居消费行动方案》（2026-09-02

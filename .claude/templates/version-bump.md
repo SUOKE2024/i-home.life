@@ -39,7 +39,8 @@
 - [ ] `console-src/package.json` → `"version": "X.Y.Z.0"`（line 4，四位，末位固定 0）
 
 ### CI / 部署脚本（2 处，ci.yml 含 3 个 APP_VERSION）
-- [ ] `.github/workflows/ci.yml` → `APP_VERSION: "X.Y.Z"`（**共 3 处**：line 44 / 228 / 454，全改）
+- [ ] `.github/workflows/ci.yml` → `APP_VERSION: "X.Y.Z"`（**共 3 处**：line 53 / 306 / 532，全改；
+      v1.17.3 校准——v1.17.1 记的 44/228/454 已漂移）
 - [ ] `scripts/deploy-production.sh` → `APP_VERSION=X.Y.Z`（line 21）
 
 ### 测试文件硬编码版本断言（3 文件 / 6 断言）

@@ -122,12 +122,19 @@ class _StubFallbackHarness:
 
 
 @pytest.mark.asyncio
-async def test_a2a_fallback_state_failed_not_completed(client: AsyncClient, auth_headers, monkeypatch):
-    """#2 harness 降级 → A2A state=failed（此前 state=completed 掩盖执行失败）。"""
+async def test_a2a_fallback_state_failed_not_completed(client: AsyncClient, auth_headers, monkeypatch, a2a_handshake):
+    """#2 harness 降级 → A2A state=failed（此前 state=completed 掩盖执行失败）。
+
+    v1.17.x：ATH 强制握手，须先签发凭证再随任务下发。
+    """
     monkeypatch.setattr("app.api.a2a.get_harness", lambda: _StubFallbackHarness())
+    token = await a2a_handshake(auth_headers, "KitchenAgent")
     resp = await client.post(
         "/api/a2a/tasks/send",
-        json={"agent_name": "KitchenAgent", "message": "4平米小厨房怎么布局"},
+        json={
+            "agent_name": "KitchenAgent", "message": "4平米小厨房怎么布局",
+            "app_id": "console", "handshake_token": token,
+        },
         headers=auth_headers,
     )
     assert resp.status_code == 200
@@ -137,11 +144,18 @@ async def test_a2a_fallback_state_failed_not_completed(client: AsyncClient, auth
 
 
 @pytest.mark.asyncio
-async def test_a2a_business_ops_agent_non_admin_rejected(client: AsyncClient, auth_headers):
-    """#4 商业运营 Agent 经 A2A 下发时非管理员 → failed + 仅管理员。"""
+async def test_a2a_business_ops_agent_non_admin_rejected(client: AsyncClient, auth_headers, a2a_handshake):
+    """#4 商业运营 Agent 经 A2A 下发时非管理员 → failed + 仅管理员。
+
+    v1.17.x：ATH 强制握手，须先签发凭证再随任务下发。
+    """
+    token = await a2a_handshake(auth_headers, "MarketingAgent")
     resp = await client.post(
         "/api/a2a/tasks/send",
-        json={"agent_name": "MarketingAgent", "message": "分析获客数据"},
+        json={
+            "agent_name": "MarketingAgent", "message": "分析获客数据",
+            "app_id": "console", "handshake_token": token,
+        },
         headers=auth_headers,
     )
     assert resp.status_code == 200

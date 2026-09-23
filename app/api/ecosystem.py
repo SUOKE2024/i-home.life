@@ -25,13 +25,25 @@ settings = get_settings()
 
 @router.get("/status")
 async def get_status(
+    project_id: str | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """生态桥接状态报告（未配置 API key 的生态诚实标注 requires_api_key）。"""
+    """生态桥接状态报告（未配置 API key 的生态诚实标注 requires_api_key）。
+
+    传 project_id（须有项目归属权限）时附加**项目级真实凭据就绪度**：真机凭据的唯一
+    生效通道是 EcosystemIntegration.config（AES-256-GCM），`configured` 仅为环境变量历史
+    检测口径。凭据值永不出接口，只回露字段名。
+    """
     if not settings.ecosystem_bridge_priority_enabled:
         raise HTTPException(status_code=404, detail="该功能未启用")
-    return ecosystem_bridge_status.status_report()
+    readiness = None
+    if project_id:
+        await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+        readiness = await ecosystem_bridge_status.build_project_readiness(db, project_id)
+    report = ecosystem_bridge_status.status_report(readiness)
+    report["project_id"] = project_id
+    return report
 
 
 @router.get("/bridges")

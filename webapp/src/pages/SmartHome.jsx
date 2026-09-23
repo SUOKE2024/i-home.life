@@ -14,16 +14,21 @@ const STATUS_MAP = {
   disabled: { tone: 'red', label: '已停用' },
 }
 
-/* 房间类型 → 中文文案 */
+/* 房间类型 → 中文文案。
+   取值必须逐字等于后端 CheckConstraint chk_smart_home_scheme_room_type
+   （app/models/smart_home.py：living_room/bedroom/kitchen/bathroom/entrance/study），
+   表单下拉直接由本表生成，多一个键即写出库约束错误（曾含 balcony/dining_room 且缺 entrance）。 */
 const ROOM_META = {
   living_room: '客厅',
   bedroom: '卧室',
   kitchen: '厨房',
   bathroom: '卫生间',
+  entrance: '玄关',
   study: '书房',
-  balcony: '阳台',
-  dining_room: '餐厅',
 }
+
+/* 新建方案表单（后端方案按房间组织：room_name 必填，room_type 默认 living_room） */
+const EMPTY_FORM = { room_name: '', room_type: 'living_room', notes: '' }
 
 export default function SmartHomePage() {
   const { toast } = useApp()
@@ -35,7 +40,7 @@ export default function SmartHomePage() {
   const [projectsError, setProjectsError] = useState(null)
   const [schemesError, setSchemesError] = useState(null)
   const [showForm, setShowForm] = useState(false) // 内联新建表单开关
-  const [form, setForm] = useState({ scheme_name: '', room_type: '', description: '' }) // 表单数据
+  const [form, setForm] = useState(EMPTY_FORM) // 表单数据（room_name/room_type/notes）
   const [submitting, setSubmitting] = useState(false)
 
   /* 加载项目列表 */
@@ -76,31 +81,27 @@ export default function SmartHomePage() {
     loadSchemes(projectId)
   }, [projectId, loadSchemes])
 
-  /* 新建方案 */
+  /* 新建方案（POST /api/smart-home/schemes：project_id + room_name 必填） */
   const submitScheme = async (e) => {
     e.preventDefault()
-    if (!form.scheme_name.trim()) {
-      toast('请填写方案名称', 'error')
-      return
-    }
-    if (!form.room_type.trim()) {
-      toast('请填写房间类型', 'error')
+    if (!form.room_name.trim()) {
+      toast('请填写房间名称', 'error')
       return
     }
     setSubmitting(true)
     const r = await createSmartHomeScheme(projectId, {
-      scheme_name: form.scheme_name.trim(),
-      room_type: form.room_type.trim(),
-      description: form.description.trim(),
+      room_name: form.room_name.trim(),
+      room_type: form.room_type,
+      notes: form.notes.trim() || undefined,
     })
     setSubmitting(false)
     if (r.isSuccess) {
-      toast('方案创建成功', 'success')
+      toast(`已创建「${r.data?.room_name || form.room_name.trim()}」智能方案`, 'success')
       setShowForm(false)
-      setForm({ scheme_name: '', room_type: '', description: '' })
+      setForm(EMPTY_FORM)
       loadSchemes(projectId) // 成功后刷新列表
     } else {
-      toast(r.error || '创建失败，请重试', 'error')
+      toast(`方案创建失败：${r.error || '请重试'}`, 'error')
     }
   }
 
@@ -129,25 +130,25 @@ export default function SmartHomePage() {
         <table className="table">
         <thead>
           <tr>
-            <th>方案名</th>
+            <th>房间名称</th>
             <th>房间类型</th>
             <th>设备数</th>
             <th>状态</th>
-            <th>描述</th>
+            <th>备注</th>
           </tr>
         </thead>
         <tbody>
           {schemes.map((s, i) => {
             const st = STATUS_MAP[s.status] || { tone: undefined, label: s.status || '—' }
             return (
-              <tr key={s.id || i}>
-                <td>{s.scheme_name || s.room_name || '—'}</td>
+              <tr key={s.id || i} data-testid={`smart-home-scheme-row--${s.id || i}`}>
+                <td>{s.room_name || '—'}</td>
                 <td>{ROOM_META[s.room_type] || s.room_type || '—'}</td>
                 <td className="num">{s.device_count ?? '—'}</td>
                 <td>
                   <Badge tone={st.tone}>{st.label}</Badge>
                 </td>
-                <td className="dim">{s.description || s.notes || '—'}</td>
+                <td className="dim">{s.notes || '—'}</td>
               </tr>
             )
           })}
@@ -169,6 +170,8 @@ export default function SmartHomePage() {
           className="select"
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
+          aria-label="选择项目"
+          data-testid="smart-home-project-select"
         >
           <option value="">选择项目…</option>
           {projects.map((p) => (
@@ -179,7 +182,11 @@ export default function SmartHomePage() {
         </select>
 
         {projectId && (
-          <button className="btn btn--primary" onClick={() => setShowForm(!showForm)}>
+          <button
+            className="btn btn--primary"
+            onClick={() => setShowForm(!showForm)}
+            data-testid="smart-home-toggle-form"
+          >
             {showForm ? <X size={15} /> : <Plus size={15} />}
             {showForm ? '取消' : '新建方案'}
           </button>
@@ -190,43 +197,58 @@ export default function SmartHomePage() {
       {showForm && projectId && (
         <Card
           title="新建方案"
-          sub={projectId}
+          sub="方案按房间组织，一个房间一份方案"
           icon={<Home size={16} className="ico" />}
           style={{ marginBottom: 16 }}
         >
           <form onSubmit={submitScheme} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="field">
-              <label>方案名称</label>
+              <label htmlFor="sh-room-name">房间名称 *</label>
               <input
+                id="sh-room-name"
                 className="input"
-                value={form.scheme_name}
-                onChange={(e) => setForm({ ...form, scheme_name: e.target.value })}
-                placeholder="如：客厅全屋智能方案"
+                value={form.room_name}
+                onChange={(e) => setForm({ ...form, room_name: e.target.value })}
+                placeholder="如：客厅 / 主卧"
                 maxLength={100}
+                data-testid="smart-home-room-name"
               />
             </div>
             <div className="field">
-              <label>房间类型</label>
-              <input
-                className="input"
+              <label htmlFor="sh-room-type">房间类型</label>
+              <select
+                id="sh-room-type"
+                className="select"
                 value={form.room_type}
                 onChange={(e) => setForm({ ...form, room_type: e.target.value })}
-                placeholder="如：living_room / 卧室 / 厨房"
-                maxLength={50}
-              />
+                data-testid="smart-home-room-type"
+              >
+                {Object.entries(ROOM_META).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
-              <label>方案描述</label>
+              <label htmlFor="sh-notes">备注（可选）</label>
               <textarea
+                id="sh-notes"
                 className="textarea"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                placeholder="简述方案亮点与设备规划（可选）"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="简述设备规划（可选）"
                 maxLength={500}
+                data-testid="smart-home-notes"
               />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button className="btn btn--primary" type="submit" disabled={submitting}>
+              <button
+                className="btn btn--primary"
+                type="submit"
+                disabled={submitting}
+                data-testid="smart-home-scheme-submit"
+              >
                 {submitting ? '提交中…' : '提交'}
               </button>
               <button className="btn btn--ghost" type="button" onClick={() => setShowForm(false)}>

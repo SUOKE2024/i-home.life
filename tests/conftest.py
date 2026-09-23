@@ -100,6 +100,26 @@ async def auth_headers(auth_token: str) -> dict:
     return {"Authorization": f"Bearer {auth_token}"}
 
 
+@pytest_asyncio.fixture
+async def a2a_handshake(client: AsyncClient):
+    """返回「签发 ATH 握手凭证」的异步工厂，供 A2A 下发任务测试复用。
+
+    v1.17.x 起 agent_handshake_required=True 为默认，POST /api/a2a/tasks/send
+    缺 handshake_token 直接 403；所有下发任务的用例须先经本工厂签发凭证。
+    用法：token = await a2a_handshake(auth_headers, "KitchenAgent")
+    """
+    async def _issue(headers: dict, agent_name: str, app_id: str = "console") -> str:
+        resp = await client.post(
+            "/api/agents/handshake/issue",
+            json={"app_id": app_id, "agent_name": agent_name, "scope": "a2a:task"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, f"握手凭证签发失败: {resp.text}"
+        return resp.json()["token"]
+
+    return _issue
+
+
 def pytest_sessionfinish(session, exitstatus):
     """会话结束清理本进程的测试数据库文件，防 data/ 残留累积。
 

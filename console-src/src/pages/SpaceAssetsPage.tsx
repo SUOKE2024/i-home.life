@@ -127,8 +127,9 @@ export default function SpaceAssetsPage() {
     [filterCategory, filterStatus],
   );
 
+  // 注意：此处不清空 notice —— 登记/流转成功提示紧接着就会调用本函数刷新，
+  // 在此清空会把成功反馈自身抹除（手动「刷新」入口单独清空）。
   const refreshAll = async () => {
-    setNotice(null);
     await Promise.all([reload(), reloadSummary()]);
   };
 
@@ -284,7 +285,14 @@ export default function SpaceAssetsPage() {
             >
               {formOpen ? '收起登记' : '+ 登记资产'}
             </button>
-            <button className="wb-btn wb-btn--sm wb-btn--ghost" type="button" onClick={refreshAll}>
+            <button
+              className="wb-btn wb-btn--sm wb-btn--ghost"
+              type="button"
+              onClick={() => {
+                setNotice(null);
+                refreshAll();
+              }}
+            >
               刷新
             </button>
           </div>

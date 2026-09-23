@@ -32,6 +32,27 @@ function buildUrl(path) {
 }
 
 /**
+ * 从错误响应体提取可读文案。
+ * FastAPI 422 的 detail 为数组（[{loc, msg, type}]），须拍平为字符串，
+ * 否则 toast 直接渲染对象会报错——错误信息必须能透出给用户，不得静默。
+ */
+function extractErrorMessage(errorBody, status) {
+  const detail = errorBody && (errorBody.detail || errorBody.message)
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((d) => {
+        if (typeof d === 'string') return d
+        const loc = Array.isArray(d?.loc) ? d.loc.filter((p) => p !== 'body').join('.') : ''
+        return [loc, d?.msg || d?.type || ''].filter(Boolean).join(': ')
+      })
+      .filter(Boolean)
+    return parts.length ? parts.join('；') : `HTTP ${status}`
+  }
+  if (detail && typeof detail === 'object') return JSON.stringify(detail)
+  return detail || `HTTP ${status}`
+}
+
+/**
  * 统一请求。返回 { isSuccess, status, data, error }。
  * 401 → 清 token + 触发全局未授权回调（跳登录）。
  */
@@ -51,9 +72,7 @@ export async function request(path, options = {}) {
       return { isSuccess: true, status: res.status, data }
     }
     const errorBody = await res.json().catch(() => undefined)
-    const error =
-      (errorBody && (errorBody.detail || errorBody.message)) || `HTTP ${res.status}`
-    return { isSuccess: false, status: res.status, error }
+    return { isSuccess: false, status: res.status, error: extractErrorMessage(errorBody, res.status) }
   } catch (err) {
     return { isSuccess: false, status: 0, error: err instanceof Error ? err.message : String(err) }
   }
@@ -279,17 +298,23 @@ export async function getSettlementByProject(projectId) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// 智能家居
+// 智能家居（app/api/smart_home.py：方案按房间组织）
 // ──────────────────────────────────────────────────────────────
 
+/** 按项目列出智能家居方案（GET /api/smart-home/schemes/project/{project_id}） */
 export async function getSmartHomeSchemes(projectId) {
   return request(`/api/smart-home/schemes/project/${encodeURIComponent(projectId)}`)
 }
 
+/**
+ * 新建智能家居方案（POST /api/smart-home/schemes）。
+ * 请求体对齐 SmartHomeSchemeCreate：project_id 必填 + room_name 必填，
+ * 后端无 scheme_name/description 字段（按房间组织，勿误用）。
+ */
 export async function createSmartHomeScheme(projectId, data) {
-  return request(`/api/smart-home/schemes/project/${encodeURIComponent(projectId)}`, {
+  return request('/api/smart-home/schemes', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, project_id: projectId }),
   })
 }
 
@@ -485,8 +510,7 @@ async function uploadFormData(path, form) {
       return { isSuccess: true, status: res.status, data }
     }
     const errorBody = await res.json().catch(() => undefined)
-    const error = (errorBody && (errorBody.detail || errorBody.message)) || `HTTP ${res.status}`
-    return { isSuccess: false, status: res.status, error }
+    return { isSuccess: false, status: res.status, error: extractErrorMessage(errorBody, res.status) }
   } catch (err) {
     return { isSuccess: false, status: 0, error: err instanceof Error ? err.message : String(err) }
   }
@@ -771,4 +795,68 @@ export function reportWebVitals(metrics = {}) {  try {
   } catch {
     /* RUM 上报失败静默 */
   }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 适老改造套餐 + 补贴资格预检（v1.17.0 政策适老化供给）
+//   GET  /api/partial-renovation/quick-install/packages
+//   GET  /api/elderly-adaptation/subsidy-profiles
+//   POST /api/elderly-adaptation/subsidy-precheck（确定性估算，非资格认定）
+// ──────────────────────────────────────────────────────────────
+
+/** 标准快装套餐目录（含适老套餐 elderly_theme=true，前端自行过滤） */
+export async function getQuickInstallPackages() {
+  return request('/api/partial-renovation/quick-install/packages')
+}
+
+/** 可用补贴政策档案（含口径来源与免责声明） */
+export async function getElderlySubsidyProfiles() {
+  return request('/api/elderly-adaptation/subsidy-profiles')
+}
+
+/** 补贴资格预检（输出恒为估算值，is_estimate=true，非资格认定） */
+export async function precheckElderlySubsidy(payload) {
+  return request('/api/elderly-adaptation/subsidy-precheck', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+// ──────────────────────────────────────────────────────────────
+// 空间资产台账（Phase 3 存量空间资产化，app/api/space_assets.py）
+//   轻资产红线：platform_role 恒为 service_provider，持有方不得为平台自身
+// ──────────────────────────────────────────────────────────────
+
+/** 枚举字典（类别/业态/持有方类型/改造状态） */
+export async function getSpaceAssetEnums() {
+  return request('/api/space-assets/enums')
+}
+
+/** 资产组合汇总（all_owners 仅管理员可跨 owner 汇总） */
+export async function getSpaceAssetSummary(allOwners = false) {
+  return request(`/api/space-assets/summary?all_owners=${allOwners}`)
+}
+
+/** 台账列表（按 owner 归属隔离） */
+export async function getSpaceAssets({ asset_category, renovation_status, city, limit } = {}) {
+  const qs = new URLSearchParams()
+  if (asset_category) qs.set('asset_category', asset_category)
+  if (renovation_status) qs.set('renovation_status', renovation_status)
+  if (city) qs.set('city', city)
+  if (limit) qs.set('limit', String(limit))
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+  return request(`/api/space-assets${suffix}`)
+}
+
+/** 登记存量空间资产 */
+export async function createSpaceAsset(data) {
+  return request('/api/space-assets', { method: 'POST', body: JSON.stringify(data) })
+}
+
+/** 改造状态机流转（非法流转后端返回 409，不可跳跃） */
+export async function transitionSpaceAssetStatus(assetId, newStatus) {
+  return request(`/api/space-assets/${encodeURIComponent(assetId)}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ new_status: newStatus }),
+  })
 }

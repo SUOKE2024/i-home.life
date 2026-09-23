@@ -88,6 +88,14 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **穿戴 BLE 接入（Flutter）**：`flutter_blue_plus ^2.3.12`（connect 需 `License.nonprofit` 免费档；鸿蒙能力探测降级）；`wearable_ble_service.dart` 扫描/连接/心率（0x180D/0x2A37）/电量订阅；`wearable_devices_page.dart` 页面 + 一键上报 health-monitor（device_id=BLE MAC）。`SensorService` 自适应采样（静止 10Hz / 运动 60Hz，加速度模长差 + 2s 防抖）；smart_home_page 加穿戴入口 + WS 订阅设备状态事件 + 快照 30s 周期上报。
 - **米家真机化（后端）**：`python-miio>=0.5.12`；`MijiaBridge.get_devices`（`miio.cloud.CloudInterface` 云清单）/`get_device_state`（`MiotDevice.info` 局域网）/`send_command`（`MiotDevice.set_property` 动作映射 + siid/piid/value 直连）；云接口未初始化 `NotImplementedError`、调用失败 `RuntimeError` 诚实报错；**控制要求服务端与设备同网段**（诚实标注）。
 
+**第三批（2026-09-23 智能家居生态全链路接入修复，测试见 `tests/test_smart_home_ecosystem_chain.py`）**：
+- **生态 key 三处单源**：`ecosystem_bridge_status.ECOSYSTEMS[].key` 必须与 `BridgeFactory._bridges` 键逐字一致（`tests/test_ecosystem_bridge.py` 断言），`app/schemas/scene_automation.py` 的 `EcosystemName` Literal 是其白名单——**新增/改名生态须同步这三处**（历史上注册表写 `harmony` 而工厂只认 `harmonyos`，按注册表配置即 ValueError → 恒 pending）。无桥生态（alexa/google_home）已在 schema 层 422 拒绝，不得再放回。
+- **凭据唯一生效通道**：项目级 `EcosystemIntegration.config`（AES-256-GCM）。`ECOSYSTEMS[].required_env_keys` 只是历史 env 检测口径（除本模块外无代码读取），**UI/接口不得把它读作项目可用性**；`GET /api/ecosystem/status?project_id=` 才附 `project_configured/has_credentials/credential_keys`（只回露字段名，凭据值永不出接口），`project_configured=null` 语义是「未查询该项目」，前端须与「查询后未配置」区分。
+- **命令/场景生态解析必须对称**：`scene_automation_service.resolve_project_ecosystem(db, project_id)` 为单源（项目下首个已配置凭据的生态，无凭据兜底 `matter`）；**不要再给 `DeviceCommandRequest.ecosystem` 加 `default` 硬兜底**——已配米家凭据的项目会被判给 matter stub，命令恒 pending（场景执行同因该默认值而行为不对称）。
+- **sync 归因**：`sync_to_ecosystem` 遇无桥生态提前返回 `reason="unsupported_ecosystem"` 且不落库生态对接；**不得归因 `invalid_credentials`**（凭据问题与「生态不存在」是两类故障，归错会误导排查）。
+- **鉴权**：`POST /scenes/parse` 与 `GET /matter/device-types` 均需 `get_current_user`（曾匿名可读）；`matter/commission` 仍为 stub 501，实现前不得补假 UI。
+- **受限枚举前端须逐字对齐**：`room_type`/`protocol`（`chk_smart_home_scheme_room_type` / `chk_smart_home_scheme_protocol`）与 `device_type`（`DEVICE_TYPES`）在 webapp/Flutter 下拉里多一个键即写库约束错误；`scene_type` 合法值为 `manual/scheduled/triggered/geo`（起床/睡眠等语义属 `scene_name`，触发时机属 `trigger_condition.type`）。
+
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
@@ -105,7 +113,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2760 passed 不得回退（collect 2766 = 2760 passed + 2 skipped + 4 xfailed，2026-09-15 v1.17.0 适老套餐产品化 + 补贴资格预检 + 控制台接线 + 适老设备类型扩展后全量校准，本机高负载下 28 分 08 秒零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2790 passed 不得回退（collect 2796 = 2790 passed + 2 skipped + 4 xfailed，2026-09-23 生态链路契约用例补齐后全量校准，-n auto 8 worker 实测 9~12 分钟零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -113,6 +121,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - `pre-commit run --all-files`（flake8 max-line-length=120, max-complexity=15；含 `detect-private-key`）
 - `mypy`（`mypy.ini`，改后端代码必跑；v1.14.1 起 CI 阻塞门禁，非 allow-failure）
 - 新增 API 必须补 `tests/test_*.py`（v1.2.5 教训：曾 37 个 API 模块零测试）
+- 控制台视觉回归（`console-src/tests/visual/*`，Playwright + `vite preview`）由 CI job `console-visual` 承载；因基线仅 `*-darwin.png`，**引导期 `continue-on-error: true` 非阻塞**，Linux 基线经 `gh workflow run ci.yml -f update_snapshots=true` 引导提交后须转阻塞并加入 `deploy.needs`（勿长期停留非阻塞）。跑该套件前必须先 `cd console-src && npm run build`——`webapp` 的 `npm run build` 会清空 `webapp/dist/`（含 `console/`），顺序颠倒会让 preview 服务空产物、用例全红假象
 - 版本号全链路一致，见 `.claude/templates/version-bump.md`（v1.2.9 教训：曾 11 处漏改）
 - 测试基线不得回退：`python scripts/check_test_baseline.py`（v1.17.1 起接入 CI `backend-test` 的 "Check pytest baseline" 步骤，以 `--from-output pytest-ci.log` 复用同一份全量日志不重复跑；pre-commit 侧为手动阶段钩子 `pre-commit run --hook-stage manual test-baseline`）。新增测试后用 `--update` 校准 `scripts/test_baseline.json`，并同步本节基线数字
 
@@ -125,6 +134,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **改造状态机不可跳跃**：`_STATUS_TRANSITIONS` 明确禁止 `assessed → operating`（必须经 `in_renovation → delivered`），非法流转返回 409 而非静默改写。
 - **就绪度评分只算真实数据**：`compute_smart_readiness` 四维（设备 30/感知 25/场景 25/合规 20），无数据项计 0 分并在 breakdown 标注，禁止虚增。
 - 台账归属按 `owner_id` 隔离（非 admin 仅见自己的资产）；`summary?all_owners=true` 仅 admin，否则 403。
+- **业主端接线（v1.17.2）**：webapp `webapp/src/pages/SpaceAssets.jsx`（路由 `/space-assets`，导航「空间资产」）承载业主侧台账——`NEXT_STATUSES` 与后端 `_STATUS_TRANSITIONS` 对齐（`assessed` 不出「运营中」），策略 503 时透出 `space_asset_ledger_enabled=False` 不回退空态；单测 `SpaceAssets.test.jsx`。控制台侧契约见 `console-src/tests/visual/batch15.spec.ts`。
 
 ## 适老改造政策落地（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）
 
@@ -133,6 +143,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **补贴预检诚实红线**（`elderly_subsidy_service`，受 `elderly_subsidy_precheck_enabled` 默认 True 控制）：不内置任何地方官方目录（`max_subsidy_per_unit` 未知即留空并在 warnings 强制标注）；个人资格（年龄/失能等级/困难身份）**不参与确定性判定**；输出恒带 `is_estimate=True`，禁止宣称「已获补贴/已通过核定」；新增地方档案走 `SUBSIDY_POLICY_PROFILES` 配置 + 版本号，禁止把地方标准写死进逻辑。
 - 补贴五大刚需场景枚举（`SUBSIDY_CATEGORIES` 前五项）与地方补贴目录口径对齐，改词表须同步公开政策口径来源；无 LLM、无外部调用，纯确定性规则。
 - **控制台接线**：`console-src/src/pages/ElderlyAdaptationPage.tsx` 承载套餐目录（只渲染 `elderly_theme=true`，非适老套餐不误标）+ 补贴预估；按钮与结果**必须标注「非资格认定」**，UI 不得读作补贴资格结论。视觉/交互契约见 `console-src/tests/visual/batch14.spec.ts`。
+- **业主端接线（v1.17.2）**：webapp `webapp/src/pages/ElderlyPackages.jsx`（路由 `/elderly-packages`，导航「适老改造」）同口径只渲染 `elderly_theme=true`，按钮「补贴预估（非资格认定）」+ 结果恒带 `Badge` 「预估 · 非资格认定」并原样透出 `pre.warnings` / `pre.disclaimer`；单测 `ElderlyPackages.test.jsx`。
 - **适老设备类型**：`smart_devices.device_type` 允许集单源为 `app/models/smart_home.py` 模块级 `DEVICE_TYPES`（CheckConstraint SQL 由单源派生），含 5 类适老/康养设备（fall_radar/emergency_call/care_bed/health_monitor/service_robot）；**改允许集必须同步 alembic 迁移**（SQLite 无原生 DROP CONSTRAINT，走 batch_alter_table，参考 `a3b4c5d6e7f8`），否则模型与 DB 漂移。
 
 ## 分端规则索引（按需加载，勿全读）

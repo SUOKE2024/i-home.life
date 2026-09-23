@@ -30,8 +30,11 @@ async def _create_project(client: AsyncClient, headers: dict, name: str = "Matte
 
 @pytest.mark.asyncio
 async def test_get_matter_device_types(client: AsyncClient):
-    """获取 Matter 设备类型列表（无需认证）"""
-    resp = await client.get("/api/smart-home/matter/device-types")
+    """获取 Matter 设备类型列表（2026-09-23 起需认证）"""
+    unauth = await client.get("/api/smart-home/matter/device-types")
+    assert unauth.status_code == 401
+    headers = await _auth_headers(client, "13900030009")
+    resp = await client.get("/api/smart-home/matter/device-types", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["protocol"] == "Matter 2.0"

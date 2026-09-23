@@ -246,6 +246,10 @@ bridge = await asyncio.wait_for(pool.get(ecosystem), timeout=...)
 | X3 | **前端零自动化测试**（webapp） | 无 tests 目录 | 3DGS 渲染分支与智能家居面板均无回归保护 |
 | X4 | **诚实降级文档与代码不同步** | 加固文档未记 P0-2 断链 | 内部决策基于错误能力判断 |
 
+> **状态更新（2026-09-23）**：X2 已于 2026-09-23 处理 —— `scripts/test_baseline.json` 校准至 2780（collect 2786），并已接入 CI `backend-test` 的 "Check pytest baseline" 步骤（`--from-output pytest-ci.log` 复用同一份全量日志，不重复跑）。
+>
+> **状态更新（2026-09-23，CI 补口）**：控制台视觉回归（`console-src/tests/visual/*`，248 用例）已接入 CI 新 job `console-visual`（ubuntu + Playwright chromium + `vite preview`）。因仓库基线仅含 `*-darwin.png`，job 暂设 `continue-on-error: true`（非阻塞），Linux 基线经 `gh workflow run ci.yml -f update_snapshots=true` 引导后转阻塞并纳入 `deploy.needs`。
+
 ---
 
 ## 六、优先级路线图

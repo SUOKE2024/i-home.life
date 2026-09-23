@@ -75,8 +75,14 @@ async def recommend_scenes(
 
 
 @router.post("/scenes/parse", response_model=SceneParseResult)
-async def parse_scene(body: dict):
-    """自然语言解析场景 (body: text)"""
+async def parse_scene(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """自然语言解析场景 (body: text)
+
+    2026-09-23：补 PASETO 鉴权（此前为匿名可调的计算端点，违反「所有端点必须鉴权」约束）。
+    """
     text = body.get("text") or ""
     result = svc.parse_natural_language_scene(text)
     return SceneParseResult(**result)

@@ -1041,14 +1041,46 @@ export class ApiClient {
 
   // ── F46 生态桥接优先级（app/api/ecosystem.py）──
 
-  /** 生态桥接状态报告（GET /api/ecosystem/status，含诚实降级标注） */
-  async getEcosystemStatus<T = import('../types/domain').EcosystemBridgeStatus>(): Promise<ApiResult<T>> {
-    return this.request<T>('/api/ecosystem/status');
+  /** 生态桥接状态报告（GET /api/ecosystem/status，含诚实降级标注）
+   *  传 projectId 时附加项目级**真实凭据就绪度**（EcosystemIntegration.config 解密后只回露字段名） */
+  async getEcosystemStatus<T = import('../types/domain').EcosystemBridgeStatus>(
+    projectId?: string,
+  ): Promise<ApiResult<T>> {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return this.request<T>(`/api/ecosystem/status${query}`);
   }
 
   /** 生态桥接优先级列表（GET /api/ecosystem/bridges） */
   async getEcosystemBridges<T = import('../types/domain').EcosystemBridges>(): Promise<ApiResult<T>> {
     return this.request<T>('/api/ecosystem/bridges');
+  }
+
+  /** 项目生态对接列表（GET /api/scene-automation/ecosystems/project/{projectId}，config 已脱敏） */
+  async listEcosystemIntegrations<T = import('../types/domain').EcosystemIntegration[]>(
+    projectId: string,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>(
+      `/api/scene-automation/ecosystems/project/${encodeURIComponent(projectId)}`,
+    );
+  }
+
+  /** 创建/更新生态对接（POST /api/scene-automation/ecosystems）
+   *  config（米家账号密码等）由后端 AES-256-GCM 加密落库，响应只回露字段名 */
+  async createEcosystemIntegration<T = import('../types/domain').EcosystemIntegration>(
+    body: import('../types/domain').EcosystemIntegrationCreateInput,
+  ): Promise<ApiResult<T>> {
+    return this.request<T>('/api/scene-automation/ecosystems', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** 删除生态对接（DELETE /api/scene-automation/ecosystems/{ecosystemId}） */
+  async deleteEcosystemIntegration(ecosystemId: string): Promise<ApiResult<null>> {
+    return this.request<null>(
+      `/api/scene-automation/ecosystems/${encodeURIComponent(ecosystemId)}`,
+      { method: 'DELETE' },
+    );
   }
 
   // ── F47 AI 装修问答（app/api/ai_qa.py）──

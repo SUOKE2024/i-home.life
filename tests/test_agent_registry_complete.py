@@ -60,15 +60,23 @@ def test_a2a_resolve_unknown_returns_none():
 
 
 @pytest.mark.asyncio
-async def test_a2a_send_task_new_agent_registered(auth_headers: dict, client: AsyncClient):
+async def test_a2a_send_task_new_agent_registered(auth_headers: dict, client: AsyncClient, a2a_handshake):
     """A2A 任务下发到新注册 Agent（类名 KitchenAgent）不再报「未注册」。
 
     修复前：harness 未注册 kitchen + 类名/小写名不匹配 → 直接返回「Agent 'KitchenAgent' 未注册」。
     修复后：可解析并进入执行（LLM 无 key 走 mock 降级，仍为成功/降级响应而非未注册）。
+
+    v1.17.x：ATH 强制握手，须先签发凭证再随任务下发。
     """
+    token = await a2a_handshake(auth_headers, "KitchenAgent")
     resp = await client.post(
         "/api/a2a/tasks/send",
-        json={"agent_name": "KitchenAgent", "message": "帮我看看厨房布局"},
+        json={
+            "agent_name": "KitchenAgent",
+            "message": "帮我看看厨房布局",
+            "app_id": "console",
+            "handshake_token": token,
+        },
         headers=auth_headers,
     )
     assert resp.status_code in (200, 201, 503)

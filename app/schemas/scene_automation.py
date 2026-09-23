@@ -1,9 +1,18 @@
 """F32 场景编辑 Pydantic 模型"""
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, model_validator
+
+# 有桥接实现的生态白名单（与 app/services/ecosystem_bridge.py BridgeFactory._bridges 逐字一致，
+# 由 tests/test_smart_home_ecosystem_chain.py 断言防漂移）。
+# 2026-09-23：此前为自由字符串且文档列出 alexa/google_home，但两者根本没有桥 → 创建成功却永远
+# 无法同步（假能力）。现收窄到有桥生态；传入值统一小写（保持此前 BridgeFactory 大小写不敏感行为）。
+EcosystemName = Annotated[
+    Literal["mijia", "harmonyos", "homekit", "tuya", "matter"],
+    BeforeValidator(lambda v: v.lower() if isinstance(v, str) else v),
+]
 
 
 # ── 场景 ──
@@ -17,7 +26,7 @@ class SceneAutomationCreate(BaseModel):
     # scene_type: manual / scheduled / triggered / geo
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
-    ecosystem: str | None = Field(
+    ecosystem: EcosystemName | None = Field(
         default=None,
         description="执行动作所用生态桥: mijia/homekit/harmonyos/tuya/matter；不传则按项目已配置凭据的生态解析",
     )
@@ -38,7 +47,7 @@ class SceneAutomationUpdate(BaseModel):
     scene_type: str | None = None
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
-    ecosystem: str | None = None
+    ecosystem: EcosystemName | None = None
     enabled: bool | None = None
     priority: int | None = None
 
@@ -73,7 +82,9 @@ class SceneAutomationResponse(BaseModel):
 
 class EcosystemIntegrationCreate(BaseModel):
     project_id: str
-    ecosystem: str = Field(description="生态: homekit/mijia/harmonyos/alexa/google_home/tuya")
+    ecosystem: EcosystemName = Field(
+        description="生态: mijia/harmonyos/homekit/tuya/matter（仅接受有桥接实现的生态，无桥生态 422 而非假能力）"
+    )
     auth_status: str = "disconnected"
     device_count: int = 0
     config: dict[str, Any] | None = None

@@ -370,4 +370,6 @@ curl -s -X POST $HOST/api/scene-automation/scenes/$SCENE_ID/execute \
 3. **P1**：非米家生态（Matter/HomeKit/涂鸦/鸿蒙）仍为 stub，token 一致校验等真机能力未接入。
 4. **P2**：3DGS 内容生产链（真实 SPZ 资产、非 mock 全景渲染、WebXR）不在本次范围。
 5. **跨模块**：本仓仍有 129 项未提交改动（含两个完整版本）与 `scripts/test_baseline.json` 记录 `2768` vs 实测 `2760` 的漂移，建议在本次改动提交前一并处理（评估文档 X1/X2）。
+   > 状态更新（2026-09-23）：基线漂移部分已处理（校准至 2780 + 接入 CI 门禁）；未提交改动仍待提交决策。
 6. **版本号**：本次改动注释标记为 v1.17.1，`app/config.py` 仍为 `1.17.0`；正式发版须按 `.claude/templates/version-bump.md` 全链路同步（含 `webapp/package.json` 现为 `1.15.10` 的历史漂移）。
+   > 状态更新（2026-09-23）：已按 `version-bump.md` 全链路同步至 **1.17.2**（17 处，含 `app/mcp/server.py` 与 `webapp/package.json` 两处补登位置）。

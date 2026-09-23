@@ -802,10 +802,20 @@ async def test_scene_recommend(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_scene_parse_natural_language(client: AsyncClient):
+    # 2026-09-23 起需认证（此前匿名可调）
+    unauth = await client.post(
+        "/api/scene-automation/scenes/parse",
+        json={"text": "每天早上 7 点打开客厅灯"},
+    )
+    assert unauth.status_code == 401
+    token = await _register_and_login(client, "13900300029", "场景解析")
+    headers = {"Authorization": f"Bearer {token}"}
+
     # 定时 + 动作
     resp = await client.post(
         "/api/scene-automation/scenes/parse",
         json={"text": "每天早上 7 点打开客厅灯"},
+        headers=headers,
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()
@@ -820,6 +830,7 @@ async def test_scene_parse_natural_language(client: AsyncClient):
     resp2 = await client.post(
         "/api/scene-automation/scenes/parse",
         json={"text": "回家时打开灯"},
+        headers=headers,
     )
     assert resp2.status_code == 200
     data2 = resp2.json()
@@ -830,6 +841,7 @@ async def test_scene_parse_natural_language(client: AsyncClient):
     resp3 = await client.post(
         "/api/scene-automation/scenes/parse",
         json={"text": ""},
+        headers=headers,
     )
     assert resp3.status_code == 200
     assert resp3.json()["parsed"] is False
