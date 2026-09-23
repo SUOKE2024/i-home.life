@@ -113,7 +113,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2826 passed 不得回退（collect 2832 = 2826 passed + 2 skipped + 4 xfailed，2026-09-23 AI 应用服务商政策落地 34 用例 + CHECK 约束对齐 2 用例补齐后全量校准，-n auto 8 worker 实测约 10 分钟零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2842 passed 不得回退（collect 2848 = 2842 passed + 2 skipped + 4 xfailed，2026-09-23 AI 应用服务商政策落地 34 用例 + CHECK 约束对齐 2 用例 + IntegrityError 转译 16 用例补齐后全量校准，-n auto 8 worker 实测约 10 分钟零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -152,6 +152,7 @@ v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模
 - **`scripts/check_schema_drift.py` 现已比对 CHECK 约束**（`compare_check_constraints`）——此前只比对表/列，是该漂移长期未被发现的**盲区根因**；**改模型约束须同步迁移，否则 drift 检查会拦下**。
 - `scripts/deploy-remote.sh` 两处 rsync 带 `--exclude='backups'`：原 `--delete` 会整目录删除生产 `/opt/ihome/backups`（含部署备份），**勿移除该排除**。
 - 生产实测 32 → 198 条（45 表，`convalidated=t`），越界枚举被拒；`tests/test_schema_constraint_parity.py` 守护冻结清单与模型逐字一致。
+- **IntegrityError 全局转译**（`app/main.py` `integrity_error_handler`）：约束生效后越界写入按类型给出可操作提示——CHECK / NOT NULL / FK → 422、UNIQUE → 409；PG 与 SQLite 文案差异按 `str(exc.orig)` 确定性解析，**不依赖方言专属异常类**。**未识别的约束违反保持 500 兜底**（勿把内部缺陷伪装成用户输入错误）；新增受限枚举写入路径无需各自 try/except。
 
 ## 适老改造政策落地（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）
 

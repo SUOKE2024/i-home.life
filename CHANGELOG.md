@@ -68,6 +68,10 @@ v1.17.3 部署核查发现：生产 PostgreSQL 仅有 **32 条** CHECK 约束（
 - 上线前置实测：166 条约束对生产存量数据**零违规**（逐条 `WHERE (sqltext) IS FALSE` 计数均 0）
 - 生产实测：32 → **198 条**（45 张表，全部 `convalidated=t`）；幂等复跑不变；
   越界 `balcony` / `zwave` / `unknown_status` 三者**全部被拒**；`check_schema_drift.py` 零差异
+- **IntegrityError 语义化转译**（`app/main.py` 全局异常处理器）：约束生效后越界写入不再返回
+  500「服务器内部错误」，而是按约束类型给出可操作提示 —— CHECK / NOT NULL / FK → **422**、
+  UNIQUE → **409**；PG(asyncpg) 与 SQLite 文案差异均按 `str(exc.orig)` 确定性解析（不依赖方言
+  专属异常类）。**未识别的约束违反仍走 500 兜底**，避免把内部缺陷伪装成用户输入错误
 
 ### 测试与门禁
 
@@ -76,7 +80,9 @@ v1.17.3 部署核查发现：生产 PostgreSQL 仅有 **32 条** CHECK 约束（
   Token 聚合与「仅计量非计费」、FDE 归属隔离与枚举校验
 - 新增 `tests/test_schema_constraint_parity.py`（2 用例）：迁移冻结清单 166 条与模型声明逐字
   一致 + drift 脚本缺失约束检出能力
-- 全量 pytest **2826 passed, 2 skipped, 4 xfailed, 0 failed**（基线 2790 → 2826，已校准
+- 新增 `tests/test_integrity_error_translation.py`（16 用例）：PG/SQLite 双方言约束消息解析、
+  handler 状态码与 detail 映射、未识别保持 500、真实端点越界写入 422（合法值不受误伤）
+- 全量 pytest **2842 passed, 2 skipped, 4 xfailed, 0 failed**（基线 2790 → 2842，已校准
   `scripts/test_baseline.json`）；pre-commit 全绿；mypy 0 issue
 - alembic `upgrade head → downgrade -3 → upgrade head` 实测通过（+166 / −166 / +166，单 head）
 - 版本号 1.17.3 → 1.17.4 全链路同步（17 处）

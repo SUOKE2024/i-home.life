@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import time
 import uuid
 from collections import deque
@@ -14,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from starlette.middleware.gzip import GZipMiddleware
+from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
 from app.database import init_db, engine
@@ -683,6 +685,73 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "error": True,
             "detail": "服务器内部错误，请稍后重试",
             "status_code": 500,
+            "path": request.url.path,
+        },
+    )
+
+
+# 约束类型 → 语义化文案。仅收录**可归因于请求数据**的违反类型；未识别者走 500 兜底，
+# 避免把内部缺陷（如模型/迁移不一致）伪装成用户输入错误。
+_INTEGRITY_MESSAGES: dict[str, tuple[int, str]] = {
+    "check": (422, "字段取值不在允许范围内"),
+    "not_null": (422, "缺少必填字段"),
+    "foreign_key": (422, "引用的关联记录不存在"),
+    "unique": (409, "记录已存在"),
+}
+
+# (约束类型, 消息正则)。PG(asyncpg) 与 SQLite 文案不同，均按 str(exc.orig) 确定性解析，
+# 不依赖方言专属异常类（驱动差异会导致漏判）。
+_INTEGRITY_PATTERNS: tuple[tuple[str, str], ...] = (
+    ("check", r'violates check constraint "([^"]+)"'),
+    ("check", r"CHECK constraint failed:\s*(.+)"),
+    ("unique", r'violates unique constraint "([^"]+)"'),
+    ("unique", r"UNIQUE constraint failed:\s*(.+)"),
+    ("foreign_key", r'violates foreign key constraint "([^"]+)"'),
+    ("foreign_key", r"FOREIGN KEY constraint failed"),
+    ("not_null", r'null value in column "([^"]+)"'),
+    ("not_null", r"NOT NULL constraint failed:\s*(.+)"),
+)
+
+
+def classify_integrity_error(exc: IntegrityError) -> tuple[str, str] | None:
+    """从 IntegrityError 提取 (约束类型, 约束名/列名)；无法归因时返回 None。"""
+    message = str(getattr(exc, "orig", exc))
+    for kind, pattern in _INTEGRITY_PATTERNS:
+        matched = re.search(pattern, message, re.IGNORECASE)
+        if matched:
+            name = matched.group(1).strip() if matched.groups() else ""
+            return kind, name
+    return None
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(request: Request, exc: IntegrityError):
+    """数据库完整性约束违反 → 语义化状态码（而非一律 500）。
+
+    v1.17.4 生产库补齐 166 条 CHECK 约束后，受限枚举越界值由 DB 拒绝（此前无约束可写库）。
+    若不转译，客户端只会看到「服务器内部错误」——约束虽生效但提示不可操作。
+    """
+    classified = classify_integrity_error(exc)
+    if classified is None:
+        logger.error(
+            f"Unclassified IntegrityError at {request.method} {request.url.path}: {exc}",
+            exc_info=True,
+        )
+        status_code, detail = 500, "服务器内部错误，请稍后重试"
+    else:
+        kind, name = classified
+        status_code, detail = _INTEGRITY_MESSAGES[kind]
+        if name:
+            detail = f"{detail}（{name}）"
+        logger.warning(
+            f"IntegrityError at {request.method} {request.url.path} → {status_code}: {detail}"
+        )
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": True,
+            "detail": detail,
+            "status_code": status_code,
             "path": request.url.path,
         },
     )
