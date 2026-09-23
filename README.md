@@ -4,10 +4,21 @@
 >
 > 对外定位：面向云南区域存量空间资源（康养 / 疗愈 / 旅居 / 文旅 / 适老住宅）提供 AI 智能化改造与长期健康运营，是索克生活生态的空间供应链与引流入口。AI 装修全链路（设计→算量→报价→采购→施工→质检→结算）为**交付底座**，不对外主打。轻资产改造服务商定位：不持有房产、不做物业运营、不做房地产经纪。
 >
-> v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
-> 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 120 Service + 143 ORM 模型 + 84 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> v1.17.4 · AI 应用服务商培育政策落地（工信厅科函〔2026〕414号：服务商能力档案 + Token 计量口径 + FDE 现场服务记录）：v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/
+健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
+> 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 123 Service + 144 ORM 模型 + 86 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-09-23 · AI 应用服务商培育政策落地（v1.17.4）
+
+- **政策依据**：工信厅科函〔2026〕414号《关于开展人工智能应用服务商培育专项行动的通知》（服务商定义＝咨询规划/交付实施/运营管理/安全治理四类 + 配套服务；省级报送截止 2026-12-01；任务四＝FDE 前线部署工程师团队；任务三＝大模型/智能体/Token 三类采购）；评估报告 `docs/frontier-borrowing-2026-09-23-ai-service-provider.md`
+- **P0 服务商能力档案**（`ai_service_provider_profile_enabled`）：`GET /api/admin/ai-service-provider-profile` 按政策五类服务组织，每条能力挂**真实模块路径作为 evidence**（按文件存在性确定性核验）；复用 `run_governance_audit`（OWASP 10 + ATH 5）；**`maturity_level` 恒为 `not_assessed`**（不自评国标等级）+ 恒带「非第三方认证结论、不构成资源池入库证明」
+- **P1 Token 计量口径**（`ai_token_metering_enabled`）：`GET /api/ai-usage/tokens`（本人，项目维度走归属校验）+ `GET /api/admin/ai-usage/tokens`；基于 `agent_traces` 聚合 tokens 与执行次数，**计量 ≠ 计费**（恒带 `billing_ready=False`），数据源不可用时 `data_source_available=False` 而非返回 0
+- **P2 FDE 现场服务记录**（`fde_field_service_enabled`）：新表 `fde_field_visits` + 迁移 `l4d5e6f7a8b9`（双向可逆、schema drift 零差异）+ `/api/fde-field-visits` 全 CRUD + `/enums`；`service_type`/`mode`/`capability_tags`（政策 FDE 四维，**只声明实际具备维度，不硬凑四维**）；owner 归属隔离
+- **测试**：新增 `tests/test_ai_service_provider.py`（34 用例），全量 pytest **2790 → 2824 passed**（0 failed）；pre-commit 全绿；mypy 0 issue
+- **诚实遗留**：资源池正式申报（材料底座已备，申报属团队事务）、成熟度等级自评（需第三方）、Token 计费结算闭环（无国标口径）、「服务团」多主体封装
+- **版本号** 1.17.3 → 1.17.4 全链路同步（17 处）
 
 ### 2026-09-23 · 智能家居生态全链路接入修复（v1.17.3）
 
@@ -719,7 +730,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 2790 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-23 v1.17.3 基线, -n auto)
+# 当前: 2824 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-23 v1.17.4 基线, -n auto)
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异

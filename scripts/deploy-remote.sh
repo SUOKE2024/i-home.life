@@ -48,6 +48,7 @@ case "$cmd" in
       --exclude='assets/legal' \
       --exclude='data' \
       --exclude='logs' \
+      --exclude='backups' \
       "$PROJECT_DIR/" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/"
 
     rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
@@ -130,6 +131,7 @@ REMOTE_SCRIPT
       --exclude='assets/legal' \
       --exclude='data' \
       --exclude='logs' \
+      --exclude='backups' \
       "$PROJECT_DIR/" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/"
 
     rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"

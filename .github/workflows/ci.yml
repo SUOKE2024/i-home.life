@@ -50,7 +50,7 @@ jobs:
           PASETO_STRICT_MODE: "false"
           ALLOW_PLAINTEXT_SESSION: "true"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.17.3"
+          APP_VERSION: "1.17.4"
         run: |
           mkdir -p data
           # set -o pipefail：tee 会吞掉 pytest 退出码，缺它则测试失败仍判成功
@@ -303,7 +303,7 @@ jobs:
           DEBUG: "true"
           PASETO_SECRET_KEY: "ci-bench-paseto-key-32-bytes-random-xxxxxxxx"
           APP_NAME: "i-home.life"
-          APP_VERSION: "1.17.3"
+          APP_VERSION: "1.17.4"
         run: |
           mkdir -p data
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8766 > backend.log 2>&1 &
@@ -529,7 +529,7 @@ jobs:
       PASETO_STRICT_MODE: "false"
       ALLOW_PLAINTEXT_SESSION: "true"
       APP_NAME: "i-home.life"
-      APP_VERSION: "1.17.3"
+      APP_VERSION: "1.17.4"
       DEBUG: "true"
     steps:
       - uses: actions/checkout@v4

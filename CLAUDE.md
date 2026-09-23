@@ -113,7 +113,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2790 passed 不得回退（collect 2796 = 2790 passed + 2 skipped + 4 xfailed，2026-09-23 生态链路契约用例补齐后全量校准，-n auto 8 worker 实测 9~12 分钟零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2826 passed 不得回退（collect 2832 = 2826 passed + 2 skipped + 4 xfailed，2026-09-23 AI 应用服务商政策落地 34 用例 + CHECK 约束对齐 2 用例补齐后全量校准，-n auto 8 worker 实测约 10 分钟零失败；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -135,6 +135,23 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **就绪度评分只算真实数据**：`compute_smart_readiness` 四维（设备 30/感知 25/场景 25/合规 20），无数据项计 0 分并在 breakdown 标注，禁止虚增。
 - 台账归属按 `owner_id` 隔离（非 admin 仅见自己的资产）；`summary?all_owners=true` 仅 admin，否则 403。
 - **业主端接线（v1.17.2）**：webapp `webapp/src/pages/SpaceAssets.jsx`（路由 `/space-assets`，导航「空间资产」）承载业主侧台账——`NEXT_STATUSES` 与后端 `_STATUS_TRANSITIONS` 对齐（`assessed` 不出「运营中」），策略 503 时透出 `space_asset_ledger_enabled=False` 不回退空态；单测 `SpaceAssets.test.jsx`。控制台侧契约见 `console-src/tests/visual/batch15.spec.ts`。
+
+## AI 应用服务商培育政策落地（v1.17.4，工信厅科函〔2026〕414号）
+
+工信部《关于开展人工智能应用服务商培育专项行动的通知》把「人工智能应用服务商」定义为提供咨询规划/交付实施/运营管理/安全治理（+配套服务）的企业或机构，任务一要求建资源池、建服务商档案，**省级报送截止 2026-12-01**。项目能力结构与四类服务逐项对应，本轮补三个缺口（详见 `docs/frontier-borrowing-2026-09-23-ai-service-provider.md`）。三个 flag 默认 True，关闭即 503 诚实降级，全部**确定性实现、零 LLM 成本**。
+
+- **P0 服务商能力档案**（`ai_service_provider_profile_enabled`）：`GET /api/admin/ai-service-provider-profile`（admin）。`app/services/ai_service_provider_profile.py` 按五类服务组织能力条目，**`evidence` 为仓库内真实模块路径，`status` 由文件存在性确定性核验**（`evidenced`/`missing`/`not_evidenced`），禁止编造能力充数；治理证据**复用 `run_governance_audit()`**（OWASP 10 + ATH 5），不重复实现；**`maturity_level` 恒为 `not_assessed`**（GB/T 45907-2025 等级判定须第三方评估机构，平台不得自评）；`disclaimer` 恒带「非第三方认证结论，不构成资源池入库证明」。
+- **P1 Token 计量口径**（`ai_token_metering_enabled`）：`GET /api/ai-usage/tokens`（本人，带 `project_id` 走 `verify_project_access`）+ `GET /api/admin/ai-usage/tokens`（admin）。数据源 `agent_traces` 聚合（`group_by` ∈ agent_name/model/provider，无迁移）；**计量 ≠ 计费**——输出恒带 `metering_only=True` / `billing_ready=False` / billing_note，禁止对外宣称「Token 账单」；`agent_trace_persist_enabled=False` 时标 `data_source_available=False` 并说明，**不得返回 0 伪装无用量**。
+- **P2 FDE 现场服务记录**（`fde_field_service_enabled`）：表 `fde_field_visits`（迁移 `l4d5e6f7a8b9`），`POST/GET/GET{id}/PATCH/DELETE /api/fde-field-visits`（+ `/enums`）。补齐 G3「谁在现场、做了什么、耗时多少、解决与否」（`space_assets` 只有状态机维度）。`service_type` ∈ installation/commissioning/training/maintenance/safety_walkthrough/consulting，`mode` ∈ on_site/remote_support；**`capability_tags` 只声明实际具备的维度**（business/model/security/delivery，允许空），不硬凑四维；`owner_id` 隔离 + `project_id` 走 `verify_project_access`。`resolved` 是现场闭环状态，**不是交付验收结论**。
+
+## 生产 schema 约束对齐（v1.17.4，CHECK 约束回填）
+
+v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模型声明 174 条（37 表）—— **缺 166 条**。根因：旧表由 `database.init_db` 的 `create_all` 建立时模型尚未声明约束，此后模型补约束只对少数表配套迁移。**「受限枚举前端逐字对齐」在生产长期无 DB 层兜底**（`room_type='balcony'` 曾 201 通过）。
+
+- 迁移 `b8c8d9e0f1a2` 回填 166 条（**清单冻结在迁移内，不 import `app.models`** —— 迁移一旦发布不应随模型漂移，downgrade 需确定性可逆集合）；幂等守卫 + 表/列缺失记日志 skip 不静默失败；SQLite `batch_alter_table` / PG 原生；downgrade 逐条 drop。
+- **`scripts/check_schema_drift.py` 现已比对 CHECK 约束**（`compare_check_constraints`）——此前只比对表/列，是该漂移长期未被发现的**盲区根因**；**改模型约束须同步迁移，否则 drift 检查会拦下**。
+- `scripts/deploy-remote.sh` 两处 rsync 带 `--exclude='backups'`：原 `--delete` 会整目录删除生产 `/opt/ihome/backups`（含部署备份），**勿移除该排除**。
+- 生产实测 32 → 198 条（45 表，`convalidated=t`），越界枚举被拒；`tests/test_schema_constraint_parity.py` 守护冻结清单与模型逐字一致。
 
 ## 适老改造政策落地（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）
 

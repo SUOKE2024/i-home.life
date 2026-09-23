@@ -415,6 +415,29 @@ async def get_agent_governance_audit(
     return run_governance_audit()
 
 
+@router.get("/ai-service-provider-profile")
+async def get_ai_service_provider_profile(
+    current_user: User = Depends(require_platform_manage),
+) -> dict:
+    """AI 应用服务商能力档案（v1.17.4，工信厅科函〔2026〕414号 资源池材料底座）。
+
+    只读确定性：按政策五类服务（咨询规划/交付实施/运营管理/安全治理/配套服务）
+    组织平台确有代码证据的能力条目，证据由文件存在性确定性核验；治理证据复用
+    run_governance_audit()（OWASP 10 项 + ATH 5 项），不重复实现。
+
+    诚实红线：maturity_level 恒为 not_assessed（等级判定须第三方评估机构），
+    disclaimer 恒带「非第三方认证结论，不构成资源池入库证明」。
+    详见 app/services/ai_service_provider_profile.py。
+    """
+    if not get_settings().ai_service_provider_profile_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI 应用服务商能力档案未启用（ai_service_provider_profile_enabled=False）",
+        )
+    from app.services.ai_service_provider_profile import build_service_provider_profile
+    return build_service_provider_profile()
+
+
 @router.get("/skill-evolution")
 async def run_skill_evolution(
     current_user: User = Depends(require_platform_manage),

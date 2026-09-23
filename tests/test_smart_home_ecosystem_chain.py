@@ -304,7 +304,7 @@ async def test_device_command_auto_resolve_fallback_matter(
     device = await _create_device(client, headers, scheme["id"])
 
     captured: list = []
-    fake = _patch_bridge(monkeypatch, _CapturingBridge(), captured)
+    _patch_bridge(monkeypatch, _CapturingBridge(), captured)
 
     resp = await client.post(
         f"/api/smart-home/devices/{device['id']}/command",

@@ -2,6 +2,94 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.17.4] - 2026-09-23（AI 应用服务商培育政策落地）
+
+执行依据：工信厅科函〔2026〕414号《关于开展人工智能应用服务商培育专项行动的通知》
+（省级报送截止 2026-12-01）+ `docs/frontier-borrowing-2026-09-23-ai-service-provider.md`
+缺口 G1/G2/G3。三个独立 feature flag 灰度，确定性实现、零 LLM 成本，关闭即回退。
+本版本**不新增外部调用、不改既有链路行为**，仅补「档案出口 / 计量口径 / 现场登记」三类缺口。
+
+### P0 服务商能力档案（`ai_service_provider_profile_enabled`，默认 True）
+
+- 新增 `app/services/ai_service_provider_profile.py`：按政策定义的**五类服务**
+  （咨询规划 / 交付实施 / 运营管理 / 安全治理 / 配套服务）组织能力档案，每条能力挂
+  `evidence` —— 指向**真实仓库模块路径/端点**，并按文件存在性做确定性核验
+  （`evidenced` / `missing` / `not_evidenced`）；`governance_evidence` 复用
+  `run_governance_audit()`（OWASP 10 项 + ATH 信任层 5 项），不重复实现
+- `policy_basis` 只记文号与名称、**不含来源 URL**（避免编造链接）；`standards_reference`
+  引 GB/T 45907-2025 编号与名称
+- **`maturity_level` 恒为 `not_assessed`** —— 国标等级判定需第三方评估机构，平台自检
+  不自评等级；`disclaimer` 恒带「非第三方认证结论，不构成资源池入库证明」
+- 端点：`GET /api/admin/ai-service-provider-profile`（平台管理员 `require_platform_manage`，
+  flag 关闭 503）
+
+### P1 Token 计量口径（`ai_token_metering_enabled`，默认 True）
+
+- 新增 `app/services/ai_token_metering.py`：基于 `agent_traces` 聚合
+  `prompt_tokens` / `completion_tokens` / `total_tokens` / 执行次数，支持按
+  `agent_name` / `model` / `provider` 分组 + 时间窗（默认 30 天）
+- 端点：`GET /api/ai-usage/tokens`（本人；`project_id` 走 `verify_project_access`）
+  + `GET /api/admin/ai-usage/tokens`（平台级）
+- **诚实红线：计量 ≠ 计费**。输出恒带 `metering_only=True` / `billing_ready=False` /
+  `billing_note`，并附 `sampling_note`（`agent_trace_sample_rate`）；
+  `agent_trace_persist_enabled=False` 时如实标注 `data_source_available=False` 且
+  `totals=None`（含「不代表用量为 0」提示），不返回 0 伪装无用量
+
+### P2 FDE 现场服务记录（`fde_field_service_enabled`，默认 True）
+
+- 新增模型 `app/models/fde_field_service.py`（表 `fde_field_visits`，owner/project/
+  space_asset 三个归属维度）+ 迁移 `l4d5e6f7a8b9`（幂等建表 + 5 索引，已实测
+  upgrade → downgrade → upgrade 双向可逆，`check_schema_drift.py` 零差异）
+- 新增 `app/services/fde_field_service.py` + `app/schemas/fde_field_service.py` +
+  `app/api/fde_field_service.py`：`POST/GET/GET{id}/PATCH/DELETE /api/fde-field-visits`
+  + `GET /api/fde-field-visits/enums`；`owner_id` 归属隔离（非 owner 且非 admin → 403）
+- 字段口径：`service_type` ∈ installation / commissioning / training / maintenance /
+  safety_walkthrough / consulting；`mode` ∈ on_site / remote_support（对齐政策
+  「现场驻守 + 远程专家支持」）；`capability_tags` 为政策 FDE 四维
+  （business 懂业务 / model 通模型 / security 知安全 / delivery 能交付），
+  **只声明实际具备的维度，不硬凑四维**（与 `elderly_design` 同纪律）
+
+### 生产 schema 对齐（CHECK 约束回填）
+
+v1.17.3 部署核查发现：生产 PostgreSQL 仅有 **32 条** CHECK 约束（13 张表），而模型声明
+**174 条**（37 张表）—— 缺 **166 条**（32 张表：`budgets` / `quotations` /
+`smart_home_schemes` / `smart_devices` / `scene_automations` 等）。根因：这些表早期由
+`database.init_db` 的 `create_all` 建立（当时模型尚未声明约束），此后模型补约束只对少数表
+配套迁移，其余从未落库 —— **「受限枚举前端逐字对齐」在生产并无 DB 层兜底**，越界值可写库
+（实测 `room_type='balcony'` 返回 201 而非 IntegrityError）。
+
+- 新增迁移 `b8c8d9e0f1a2`：**冻结清单**回填 166 条约束（不 import `app.models`，迁移不随
+  模型漂移）；幂等（`_has_constraint` 守卫，已存在即 skip）；表/列缺失记日志 skip 不静默失败；
+  SQLite 走 `batch_alter_table`、PG 原生 `create_check_constraint`；downgrade 逐条 drop 可逆
+- **`scripts/check_schema_drift.py` 补 CHECK 约束比对**（新增 `compare_check_constraints`）：
+  此前只比对表/列、**不比对约束**，正是本次漂移长期未被发现的盲区根因
+- `scripts/deploy-remote.sh` 两处 rsync 补 `--exclude='backups'` —— 原 `--delete` 会整目录
+  删除生产 `/opt/ihome/backups`（含部署备份）
+- 上线前置实测：166 条约束对生产存量数据**零违规**（逐条 `WHERE (sqltext) IS FALSE` 计数均 0）
+- 生产实测：32 → **198 条**（45 张表，全部 `convalidated=t`）；幂等复跑不变；
+  越界 `balcony` / `zwave` / `unknown_status` 三者**全部被拒**；`check_schema_drift.py` 零差异
+
+### 测试与门禁
+
+- 新增 `tests/test_ai_service_provider.py`（34 用例）：档案结构与诚实红线、证据确定性核验、
+  治理证据复用（OWASP total=10 / ATH 5 项）、三个端点鉴权（401/403/422/503）、
+  Token 聚合与「仅计量非计费」、FDE 归属隔离与枚举校验
+- 新增 `tests/test_schema_constraint_parity.py`（2 用例）：迁移冻结清单 166 条与模型声明逐字
+  一致 + drift 脚本缺失约束检出能力
+- 全量 pytest **2826 passed, 2 skipped, 4 xfailed, 0 failed**（基线 2790 → 2826，已校准
+  `scripts/test_baseline.json`）；pre-commit 全绿；mypy 0 issue
+- alembic `upgrade head → downgrade -3 → upgrade head` 实测通过（+166 / −166 / +166，单 head）
+- 版本号 1.17.3 → 1.17.4 全链路同步（17 处）
+
+### 诚实遗留（本版本不落地）
+
+- 资源池正式申报（P0 仅提供材料底座，实际申报由团队在 2026-12-01 前提交省工信厅）
+- 成熟度等级自评（需第三方评估机构）
+- Token 计费结算闭环（政策要求「加快形成统一 Token 计量口径与结算规范」，当前无国标口径，
+  只做内部计量披露，不做对外计价承诺）
+- 「人工智能应用服务团」多主体封装（现有 `OrchestratorAgent` + A2A 可承载，但缺平台侧
+  多主体实体，与 L3 同类）
+
 ## [1.17.3] - 2026-09-23（智能家居生态全链路接入修复）
 
 执行依据：2026-09-23「智能家居生态全景全量全链路接入」审计报告的 P0/P1/P2 断链清单。

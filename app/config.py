@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.17.3"
+    app_version: str = "1.17.4"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -513,6 +513,25 @@ class Settings(BaseSettings):
     # 业态对齐。轻资产约束：platform_role 恒为 service_provider，asset_holder
     # 不得为平台自身。关闭即端点 503 诚实降级。
     space_asset_ledger_enabled: bool = True
+
+    # ── v1.17.4 人工智能应用服务商（工信厅科函〔2026〕414号 培育专项行动）──
+    # GET /api/admin/ai-service-provider-profile：按政策五类服务（咨询规划/交付实施/
+    # 运营管理/安全治理/配套服务）组织平台**确有代码证据**的能力档案，作为省级资源池
+    # 报送（2026-12-01 前）的材料底座。详见
+    # app/services/ai_service_provider_profile.py。诚实红线：maturity_level 恒为
+    # not_assessed（等级判定须第三方评估），disclaimer 恒带"非第三方认证结论"。
+    # 关闭即端点 503 诚实降级。
+    ai_service_provider_profile_enabled: bool = True
+    # GET /api/ai-usage/tokens + /api/admin/ai-usage/tokens：基于 agent_traces
+    # 聚合的 Token 用量计量口径（政策任务三将大模型/智能体/Token 并列为采购对象，
+    # 要求可量化/可核算/可审计）。仅计量非计费，接口恒带 billing_ready=False。
+    # 关闭即端点 503 诚实降级。
+    ai_token_metering_enabled: bool = True
+    # /api/fde-field-visits/*：FDE（前线部署工程师）现场服务记录——政策任务四
+    # "鼓励服务商搭建前线部署工程师（FDE）团队，扎根用户现场"。owner 归属隔离，
+    # capability_tags 只声明实际具备的维度（business/model/security/delivery）。
+    # 关闭即端点 503 诚实降级。
+    fde_field_service_enabled: bool = True
 
     @property
     def economy_provider_list(self) -> list[str]:

@@ -121,6 +121,8 @@ from app.models.design_flow import DesignFlow, DesignFlowFeasibility, DesignFlow
 
 # Phase 3 存量空间资产化 — 空间资产台账（康养/疗愈/旅居/文旅/适老住宅）
 from app.models.space_asset import SpaceAsset
+# v1.17.4 人工智能应用服务商培育行动 — FDE 现场服务记录
+from app.models.fde_field_service import FdeFieldVisit
 
 __all__ = [
     "User",
@@ -279,6 +281,7 @@ __all__ = [
     "DesignFlowFeasibility",
     "DesignFlowDrawing",
     "SpaceAsset",
+    "FdeFieldVisit",
 ]
 
 
