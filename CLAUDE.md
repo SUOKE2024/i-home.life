@@ -94,12 +94,19 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **命令/场景生态解析必须对称**：`scene_automation_service.resolve_project_ecosystem(db, project_id)` 为单源（项目下首个已配置凭据的生态，无凭据兜底 `matter`）；**不要再给 `DeviceCommandRequest.ecosystem` 加 `default` 硬兜底**——已配米家凭据的项目会被判给 matter stub，命令恒 pending（场景执行同因该默认值而行为不对称）。
 - **sync 归因**：`sync_to_ecosystem` 遇无桥生态提前返回 `reason="unsupported_ecosystem"` 且不落库生态对接；**不得归因 `invalid_credentials`**（凭据问题与「生态不存在」是两类故障，归错会误导排查）。
 - **鉴权**：`POST /scenes/parse` 与 `GET /matter/device-types` 均需 `get_current_user`（曾匿名可读）；`matter/commission` 仍为 stub 501，实现前不得补假 UI。
-- **受限枚举前端须逐字对齐**：`room_type`/`protocol`（`chk_smart_home_scheme_room_type` / `chk_smart_home_scheme_protocol`）与 `device_type`（`DEVICE_TYPES`）在 webapp/Flutter 下拉里多一个键即写库约束错误；`scene_type` 合法值为 `manual/scheduled/triggered/geo`（起床/睡眠等语义属 `scene_name`，触发时机属 `trigger_condition.type`）。
+- **受限枚举前端须逐字对齐**：`room_type`/`protocol`（`chk_smart_home_scheme_room_type` / `chk_smart_home_scheme_protocol`）与 `device_type`（`DEVICE_TYPES`）在 webapp/Flutter 下拉里多一个键即写库约束错误；`scene_type` 合法值为 `manual/scheduled/triggered/geo`（起床/睡眠等语义属 `scene_name`，触发时机属 `trigger_condition.type`），**三层单源**：`app/schemas/scene_automation.py` `SceneType` Literal + `app/models/scene_automation.py` `chk_scene_automation_scene_type` + 迁移 `b5c6d7e8f9a0`（2026-09-24 交叉验证 A-1 修复：此前只写在注释里、模型无 `__table_args__`、且 `b8c8d9e0f1a2` 的 166 条回填清单漏收录，非法值可 201 落库）。
+- **health_monitors 设备两列分离**（2026-09-24 交叉验证 A-2 修复，迁移 `c6d7e8f9a0b1`）：`device_id` 是**外部设备标识（BLE MAC / 第三方设备号），已去外键**，穿戴 BLE 上报依赖此放开（此前与 `smart_devices.id` 外键互斥 → 适老/穿戴心率真实上报恒 422）；平台内设备关联须用 `smart_device_id`（保留外键）。**勿把 `device_id` 误当 UUID 校验，也勿把 BLE MAC 写进 `smart_device_id`**。改任一侧须同步 `flutter_app/lib/pages/wearable_devices_page.dart` 上传字段。
 
 ## 不可违反的硬约束（架构红线，违反即 reject）
 
 - **部署**：生产 = 阿里云 ECS + Nginx（stream ssl_preread 分流 8081 + 80→443 + LE 证书，模板 `scripts/nginx-ihome.conf`）+ systemd uvicorn（8001，`scripts/ihome.service`）。阿里云 FC 函数计算仅用于定时触发器（`/api/admin/daily-briefing`）。**禁止引入 K8s/Helm/容器编排方案**。
 - **鉴权**：PASETO v4.local。**禁止使用 JWT/JWS**。密钥 ≥32 字节，`paseto_strict_mode=True` 时硬校验（见 `app/config.py` `_validate_paseto_key`）。
+- **项目访问权（三套语义，禁止再新增第四套）**：2026-09-24 生产交叉验证 C-01（Critical）发现并修复——`verify_project_collaborator_access` 曾**只校验角色、不校验成员关系**，而全库无「用户 ↔ 项目」实体，等价于「任何 designer/contractor/supplier 可读全平台任意项目」（实测供应商读业主项目 feed 拿到 budget_breakdown 逐项单价与 settlement_summary 结算金额），同根因波及 9 个协作类模块。现三者职责如下，**新增端点必须显式选定其中一个，禁止再写自定义 `_verify_project_*`**：
+  - `verify_project_access`（`app/rbac.py`）：**仅 admin + owner**。财务/采购/结算等敏感端点用。
+  - `verify_project_collaborator_access`（同文件）：admin + owner + **`project_members` 显式成员**。协作类端点（feed/chat/files/floorplans/construction_drawing/construction_snapshot/hard_decoration/gaussian_recon/vr_panorama）用。**角色与成员关系缺一不可**。
+  - 成员授权唯一入口：`GET/POST /api/projects/{id}/members`、`DELETE /api/projects/{id}/members/{user_id}`（仅 owner/admin）。协作角色单源 `app/models/project_member.py` `MEMBER_ROLES`，与 `chk_project_member_role` 约束、`app/schemas/project.py` `ProjectMemberRole` 三处逐字一致。
+  - **admin 口径**：`get_user_projects(is_admin=True)` / `/api/dashboard/overview` / `app/api/procurement.py:_verify_project_owner` 均须放行 admin（此前管理员看不到项目、控制台 20+ 项目维度页全空、读采购订单被 403）。改归属校验时三处一并核对。
+  - 评估器盲区：`app/eval/ihome_eval.py` 的 IDOR 覆盖检测把上述前两个函数**等同视为已覆盖**（按函数名白名单），使该缺口长期未告警；修该函数语义时须同步复核该白名单。
 - **MCP**：遵循 2026-07-28 规范 8 项（stateless / discover / header-routing / cacheable / MRTR / RFC9207 / Tasks / Server Card）。改 MCP 看齐 `app/mcp/`。
 - **缓存隔离**：私有数据 cache key 必须含 `user_id`。`cache_user_isolation_strict=True`（默认），未传 user_id 直接 raise。用 `build_isolated_key` / `get_isolated` / `set_isolated`。
 - **配置单例**：`get_settings()` 是 `@lru_cache` 单例（`app/config.py`）。测试中**禁止 `get_settings.cache_clear()`**——它使其他模块 import 时的 `settings = get_settings()` 模块级绑定变成陈旧引用，导致跨文件测试隔离失败（曾致 test_v1129 audit + test_webauthn 全量跑失败、单独跑通过）。改 feature flag 用 `monkeypatch.setattr(get_settings(), "flag", value)`，teardown 自动还原。
@@ -113,7 +120,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2842 passed 不得回退（collect 2848 = 2842 passed + 2 skipped + 4 xfailed，2026-09-23 AI 应用服务商政策落地 34 用例 + CHECK 约束对齐 2 用例 + IntegrityError 转译 16 用例补齐后全量校准，-n auto 8 worker 实测约 10 分钟零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2864 passed 不得回退（collect 2870 = 2864 passed + 2 skipped + 4 xfailed，2026-09-24 生产交叉验证修复落地：项目成员授权 18 用例 + 周报/商品/采购口径 4 用例，全量校准，`-n 4` 实测 12 分 50 秒零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -153,6 +160,18 @@ v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模
 - `scripts/deploy-remote.sh` 两处 rsync 带 `--exclude='backups'`：原 `--delete` 会整目录删除生产 `/opt/ihome/backups`（含部署备份），**勿移除该排除**。
 - 生产实测 32 → 198 条（45 表，`convalidated=t`），越界枚举被拒；`tests/test_schema_constraint_parity.py` 守护冻结清单与模型逐字一致。
 - **IntegrityError 全局转译**（`app/main.py` `integrity_error_handler`）：约束生效后越界写入按类型给出可操作提示——CHECK / NOT NULL / FK → 422、UNIQUE → 409；PG 与 SQLite 文案差异按 `str(exc.orig)` 确定性解析，**不依赖方言专属异常类**。**未识别的约束违反保持 500 兜底**（勿把内部缺陷伪装成用户输入错误）；新增受限枚举写入路径无需各自 try/except。
+
+## i-home FC 定时触发器运维须知（2026-09-24 实勘）
+
+**生产 FC 定时触发器存在且已运行**（2026-08-17 建，2026-09-24 实勘复核）。**排查前先读本节，勿凭函数列表下结论**。
+
+- **实体**：cn-hangzhou，账号 `1649428036880653`。FC 2.0 视图 = service `ihome-timer` / function `ihome-timer`；FC 3.0 API 中函数名为 **`ihome-timer$ihome-timer`**（含 `$`，命令行需引号）。runtime python3.10，timeout 300s。
+- **触发器**：`daily-briefing-timer`，type `timer`，cron **`CRON_TZ=Asia/Shanghai 0 0 8 * * *`**（每日 08:00），`enable: true`。触发器 config 里的 `payload:"daily-briefing"` **是装饰性的**——函数代码 `handler(event, context)` 从不读 `event`，实际调哪些端点只看环境变量 `TARGET_URLS`。**勿据 payload 推断「只调 daily-briefing」**。
+- **实际调用三个端点**（`TARGET_URLS`，逗号分隔）：`/api/admin/daily-briefing`、`/api/admin/skill-evolution`、`/api/admin/supplier-daily-briefing`。函数内 UA 硬编码 **`ihome-fc-timer/1.0`**，是日志侧最可靠的判别标识。
+- **鉴权**：环境变量 `API_TOKEN` 为**手工签发的静态 PASETO v4.local**（`role: admin`，**exp 2027-08-17**）。**无自动轮换**——到期当天三个定时任务会静默变 401，届时须重签并更新 FC 环境变量。签发即一年期，中途若轮换 `PASETO_SECRET_KEY` 会立即失效。
+- **验证方法**（比查 FC 控制台更快，且不依赖分页）：`ssh 生产 'grep ihome-fc-timer /var/log/nginx/access.log*'`，可见三个端点的状态码与字节数；手动触发用 `aliyun fc InvokeFunction --functionName 'ihome-timer$ihome-timer'`（**CLI 客户端超时短于函数 300s，会报 context deadline exceeded——请求已发出，去 nginx 日志看真实结果**）。
+- **⚠️ 排查陷阱（2026-09-24 实测踩过）**：`aliyun fc ListFunctions` 与 `aliyun fc-open ListServices` **默认每页仅返回 20 条并带 `nextToken`**（本账号实为 **92 个函数 / 69 个 service**）。不翻页会得出「不存在 i-home 定时触发器」的错误结论——`ihome-timer` 排在字母序中段，前 20 条中天然看不到。翻页须用 **ApiName 形式**（`aliyun fc ListFunctions --nextToken <token>`）；把 query string 拼进 path（`GET /2023-03-30/functions?nextToken=...`）会被 CLI 拒绝。
+- **当前空转状态（非故障，数据侧原因）**：三个端点均 200，但 `skill-evolution` 恒返回 `clusters_found: 0` / `evaluated: 0`（连续 11 天响应体均为 368 字节）。实测根因：`agent_cases` 仅 10 条、`agent_skills` 为 0，且 10 条的 `task_intent` **两两不同**（每类 count=1）——聚类阈值 ≥3 恒不达成。`daily-briefing` 同为空转（`agent_feedbacks` 0 条）。属「被调用但无输入」，**勿误判为触发器未调用**。
 
 ## 适老改造政策落地（v1.17.0，八部门《促进智能家居消费行动方案》适老化供给）
 
