@@ -77,11 +77,18 @@ async def create_product(
     if current_user.role not in ("supplier", "admin"):
         raise HTTPException(status_code=403, detail="仅供应商角色可发布产品")
 
-    # 获取供应商信息
+    # 获取供应商信息（供应商档案以预留手机号关联账号；
+    # 反查失败必须显式报错——此前回退空串 supplier_id 会撞 products_supplier_id_fkey
+    # 外键（该列 NOT NULL + FK，见 models/product.py），错误文案只暴露外键名不可诊断）
     stmt = select(Supplier).where(Supplier.phone == current_user.phone)
     result = await db.execute(stmt)
     supplier = result.scalar_one_or_none()
-    supplier_id = supplier.id if supplier else ""
+    if not supplier:
+        raise HTTPException(
+            status_code=422,
+            detail="当前账号未绑定供应商档案，无法发布产品：请用供应商档案预留手机号注册/更新账号手机号后重试",
+        )
+    supplier_id = supplier.id
 
     product = await _svc_create_product(db, current_user.id, supplier_id, data)
 

@@ -21,16 +21,25 @@ async def _create_project(client: AsyncClient, headers: dict) -> str:
     return resp.json()["id"]
 
 
-async def _supplier_headers(client: AsyncClient) -> dict:
-    """注册供应商角色用户（v1.2.x 起创建产品要求 supplier 或已认证）"""
+async def _supplier_headers(client: AsyncClient, db_session=None) -> dict:
+    """注册供应商角色用户（v1.2.x 起创建产品要求 supplier 或已认证）。
+
+    v1.17.x：POST /api/products 要求账号已绑定 suppliers 档案（手机号反查），
+    无档案返回 422，故传入 db_session 时同步建档案（产品创建用例需走通）。
+    """
+    phone = f"1398801{uuid.uuid4().int % 10000:04d}"
     resp = await client.post(
         "/api/auth/register",
         json={
-            "phone": f"1398801{uuid.uuid4().int % 10000:04d}",
+            "phone": phone,
             "name": "供应商", "password": "test123456", "role": "supplier",
         },
     )
     assert resp.status_code == 201
+    if db_session is not None:
+        from app.models.procurement import Supplier
+        db_session.add(Supplier(name="测试供应商", phone=phone, category="flooring"))
+        await db_session.commit()
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
@@ -50,9 +59,9 @@ async def test_list_products(auth_headers: dict, client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_create_product(client: AsyncClient):
-    """创建产品（供应商角色）"""
-    headers = await _supplier_headers(client)
+async def test_create_product(client: AsyncClient, db_session):
+    """创建产品（供应商角色，已绑定供应商档案）"""
+    headers = await _supplier_headers(client, db_session)
     project_id = await _create_project(client, headers)
     resp = await client.post(
         "/api/products",
@@ -77,9 +86,9 @@ async def test_get_product_not_found(auth_headers: dict, client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_get_product(client: AsyncClient):
+async def test_get_product(client: AsyncClient, db_session):
     """获取单个产品"""
-    headers = await _supplier_headers(client)
+    headers = await _supplier_headers(client, db_session)
     project_id = await _create_project(client, headers)
     create_resp = await client.post(
         "/api/products",
@@ -100,9 +109,9 @@ async def test_get_product(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_update_product(client: AsyncClient):
+async def test_update_product(client: AsyncClient, db_session):
     """更新产品信息"""
-    headers = await _supplier_headers(client)
+    headers = await _supplier_headers(client, db_session)
     project_id = await _create_project(client, headers)
     create_resp = await client.post(
         "/api/products",
@@ -126,9 +135,9 @@ async def test_update_product(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_delete_product(client: AsyncClient):
+async def test_delete_product(client: AsyncClient, db_session):
     """产品生命周期：v1.2.x 移除 DELETE（405），以下架/发布动作端点替代"""
-    headers = await _supplier_headers(client)
+    headers = await _supplier_headers(client, db_session)
     project_id = await _create_project(client, headers)
     create_resp = await client.post(
         "/api/products",
@@ -149,3 +158,48 @@ async def test_delete_product(client: AsyncClient):
     # 发布动作端点作为生命周期管理替代
     pub = await client.post(f"/api/products/{pid}/publish", headers=headers)
     assert pub.status_code == 200
+
+
+async def _register_supplier(client: AsyncClient, phone: str) -> dict:
+    """注册指定手机号的供应商账号（用于验证供应商档案手机号反查）"""
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "供应商", "password": "test123456", "role": "supplier"},
+    )
+    assert resp.status_code == 201, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.mark.asyncio
+async def test_create_product_without_supplier_profile_422(client: AsyncClient):
+    """供应商角色但无 suppliers 档案 → 422 且文案可诊断（不再回退空串撞外键）"""
+    headers = await _register_supplier(client, "13700139001")
+    resp = await client.post(
+        "/api/products",
+        json={"name": "无档案产品", "category": "flooring", "unit": "m2", "price_min": 100.0},
+        headers=headers,
+    )
+    assert resp.status_code == 422, resp.text
+    assert "未绑定供应商档案" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_product_with_supplier_profile_ok(client: AsyncClient, db_session):
+    """有 Supplier 档案（手机号匹配账号）→ 创建成功且 supplier_id 取档案 id"""
+    from app.models.procurement import Supplier
+
+    headers = await _register_supplier(client, "13700139002")
+    supplier = Supplier(name="有档案供应商", phone="13700139002", category="flooring")
+    db_session.add(supplier)
+    await db_session.commit()
+    await db_session.refresh(supplier)
+
+    resp = await client.post(
+        "/api/products",
+        json={"name": "瓷砖现货", "category": "flooring", "unit": "m2", "price_min": 120.0},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["supplier_id"] == supplier.id
+    assert body["status"] == "draft"

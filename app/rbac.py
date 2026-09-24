@@ -6,6 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
 from app.models.permission import RolePermission
+from app.models.project_member import MEMBER_ROLES, ProjectMember
 from app.auth import get_current_user
 
 
@@ -107,8 +108,28 @@ async def verify_project_chat_access(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Project:
-    """验证项目聊天访问权限：admin/owner/所有认证角色（F40 三方协作）"""
+    """验证项目聊天访问权限：admin / owner / 该项目成员（F40 三方协作）
+
+    语义与 verify_project_collaborator_access 完全一致（直接委托），
+    保留本别名仅为兼容既有 chat 端点调用点。
+    """
     return await verify_project_collaborator_access(project_id, current_user, db)
+
+
+async def is_project_member(db: AsyncSession, project_id: str, user_id: str) -> bool:
+    """判定用户是否为该项目的显式成员（project_members 表）。
+
+    协作类访问的唯一授权依据（见 verify_project_collaborator_access 的说明）。
+    """
+    result = await db.execute(
+        select(ProjectMember.id)
+        .where(
+            ProjectMember.project_id == project_id,
+            ProjectMember.user_id == user_id,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def verify_project_collaborator_access(
@@ -116,10 +137,24 @@ async def verify_project_collaborator_access(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Project:
-    """验证项目协作访问权限：admin/owner/designer/contractor/supplier（F40 三方协作）
+    """验证项目协作访问权限：admin / owner / **该项目成员**
 
     chat、文件共享、设计查看等协作场景使用此函数。
-    与 verify_project_access 的区别：允许非 owner 的认证角色访问。
+
+    安全修复（2026-09-24 生产交叉验证 C-01，Critical）：
+      此前判定为「角色 ∈ {designer, contractor, supplier} 即放行」，**完全不校验该用户
+      与该项目是否存在成员关系**，而全库并无任何「用户 ↔ 项目」关系实体 → 等价于
+      「任何协作角色可访问全平台任意项目」。生产实测：供应商令牌（与目标项目无任何关联）
+      读 ``/api/feed/{project_id}`` 返回 200，泄漏预算逐项材料单价与结算金额
+      （total/paid/balance）；同根因波及 9 个 API 模块。
+
+      现改为**必须存在 ``project_members`` 显式成员记录**。空表时非 owner / 非 admin
+      一律 403 —— 这是有意的安全收严：协作前需先经成员管理端点授权
+      （``POST /api/projects/{project_id}/members``）。
+
+    与 ``verify_project_access`` 的区别：
+      - ``verify_project_access``：仅 admin + owner（财务/采购/结算等敏感端点用）
+      - 本函数：在 admin + owner 之上，额外放行**已授权的项目成员**（协作类端点用）
     """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project: Project | None = result.scalar_one_or_none()
@@ -132,15 +167,15 @@ async def verify_project_collaborator_access(
     if project.owner_id == current_user.id:
         return project
 
-    # F40 三方协作：允许协作角色（designer/contractor/supplier）查看项目
-    # 注意：homeowner 不在协作角色列表中，非 owner 的 homeowner 无权访问
-    allowed_roles = {"designer", "contractor", "supplier"}
-    if current_user.role in allowed_roles:
+    # F40 三方协作：要求「协作角色」且「存在显式成员关系」，两者缺一不可。
+    # 角色集合与 app/models/project_member.MEMBER_ROLES 及 chk_project_member_role
+    # 约束逐字一致，改任一处须三处同步。
+    if current_user.role in MEMBER_ROLES and await is_project_member(db, project_id, current_user.id):
         return project
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="无权访问此项目",
+        detail="无权访问此项目（非项目所有者或已授权成员）",
     )
 
 

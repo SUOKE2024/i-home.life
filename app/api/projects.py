@@ -9,6 +9,8 @@ from app.schemas.project import (
     ProjectResponse,
     ProjectListResponse,
     AcceptanceRequest,
+    ProjectMemberAdd,
+    ProjectMemberResponse,
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access
@@ -21,6 +23,12 @@ from app.services.project_service import (
     delete_project,
     ProjectStateError,
     ProjectPhaseError,
+)
+from app.services.project_member_service import (
+    ProjectMemberError,
+    add_member,
+    list_members,
+    remove_member,
 )
 from app.ws import ws_manager
 
@@ -47,7 +55,7 @@ async def list_projects(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    projects = await get_user_projects(db, current_user.id)
+    projects = await get_user_projects(db, current_user.id, is_admin=current_user.role == "admin")
     return [ProjectListResponse.model_validate(p) for p in projects]
 
 
@@ -403,3 +411,87 @@ async def accept_project(
         _ws_logger.warning("project.accepted broadcast failed", project_id=project_id, exc_info=True)
 
     return resp
+
+
+# ── 项目成员管理（2026-09-24 交叉验证 C-01 修复）──
+# 授予/撤销协作方对单个项目的访问权。无成员记录时，非 owner / 非 admin 访问协作类
+# 端点（feed / chat / files / floorplans / 施工图等 9 模块）一律 403 —— 修复前是
+# 「任何 designer/contractor/supplier 可读全平台任意项目」，故本组端点是协作功能的
+# 唯一授权入口。权限口径：项目 owner 或 admin（verify_project_access）。
+
+
+@router.get(
+    "/{project_id}/members",
+    response_model=list[ProjectMemberResponse],
+    summary="获取项目成员列表",
+    description="返回项目的协作成员（不含 owner / admin，二者由角色与 owner_id 判定）。",
+    responses={
+        200: {"description": "获取成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+    },
+)
+async def list_project_members(
+    project_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    members = await list_members(db, project_id)
+    return [ProjectMemberResponse.model_validate(m) for m in members]
+
+
+@router.post(
+    "/{project_id}/members",
+    response_model=ProjectMemberResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="添加项目成员",
+    description=(
+        "为项目授予协作方访问权。目标用户须为 designer/contractor/supplier 角色；"
+        "同用户重复添加将更新其协作角色而非新建记录。"
+    ),
+    responses={
+        201: {"description": "添加成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目不存在"},
+        422: {"description": "用户不存在或角色不是协作角色"},
+    },
+)
+async def add_project_member(
+    project_id: str,
+    data: ProjectMemberAdd,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    try:
+        member = await add_member(db, project_id, data.user_id, data.role)
+    except ProjectMemberError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.message)
+    return ProjectMemberResponse.model_validate(member)
+
+
+@router.delete(
+    "/{project_id}/members/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="移除项目成员",
+    description="撤销协作方对该项目的访问权；成员不存在返回 404。",
+    responses={
+        204: {"description": "移除成功"},
+        401: {"description": "未登录或 Token 无效"},
+        403: {"description": "无权访问该项目"},
+        404: {"description": "项目或成员不存在"},
+    },
+)
+async def remove_project_member(
+    project_id: str,
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_project_access(project_id=project_id, current_user=current_user, db=db)
+    removed = await remove_member(db, project_id, user_id)
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="成员不存在")

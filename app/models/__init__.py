@@ -124,6 +124,9 @@ from app.models.space_asset import SpaceAsset
 # v1.17.4 人工智能应用服务商培育行动 — FDE 现场服务记录
 from app.models.fde_field_service import FdeFieldVisit
 
+# 2026-09-24 生产交叉验证 C-01 修复 — 项目成员（F40 三方协作授权载体）
+from app.models.project_member import ProjectMember
+
 __all__ = [
     "User",
     "Project",
@@ -282,6 +285,7 @@ __all__ = [
     "DesignFlowDrawing",
     "SpaceAsset",
     "FdeFieldVisit",
+    "ProjectMember",
 ]
 
 

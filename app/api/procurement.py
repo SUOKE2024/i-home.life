@@ -34,10 +34,17 @@ _BJ_TZ = timezone(timedelta(hours=8), name="Asia/Shanghai")
 
 
 async def _verify_project_owner(db: AsyncSession, project_id: str, user: User) -> Project:
-    """校验当前用户是项目所有者，否则抛 403"""
+    """校验当前用户是项目所有者或平台管理员，否则抛 403
+
+    admin 口径修复（2026-09-24 生产交叉验证 H-06）：此前无 admin 分支，导致管理员
+    读 ``GET /api/procurement/orders/detail/{order_id}`` 被 403，而同仓 ``verify_project_access``
+    明确放行 admin —— 同一份「项目访问权」在不同函数下结论相反。现与后者对齐。
+    """
     project = await project_service.get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="项目不存在")
+    if user.role == "admin":
+        return project
     if project.owner_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     return project

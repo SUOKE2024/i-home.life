@@ -17,6 +17,7 @@ from sqlalchemy import select
 from app.config import get_settings
 from app.models.agent_case import AgentCase
 from app.models.agent_memory import AgentMemory
+from app.models.budget import Budget
 from app.models.project import Project
 from app.models.user import User
 from app.services.agent_case_service import search_cases
@@ -163,6 +164,14 @@ class TestProjectWeeklyBriefing:
     async def test_briefing_owner_ok(self, client, auth_headers, db_session):
         user = await self._latest_user(db_session)
         project = await self._make_project(db_session, user.id)
+        # 建预算记录：必须命中预算段（此前该段引用不存在的 Budget.total_amount
+        # 抛 AttributeError 被一个大 try 吞掉，六段只剩两段；旧用例因 fixture
+        # 不建 Budget 恰好绕开出错分支，长期为绿）
+        db_session.add(Budget(
+            project_id=project.id, total_estimated=128000.0,
+            total_actual=96000.0, status="approved",
+        ))
+        await db_session.flush()
         resp = await client.get(
             f"/api/agents/projects/{project.id}/weekly-briefing", headers=auth_headers,
         )
@@ -173,10 +182,41 @@ class TestProjectWeeklyBriefing:
         sections = body["sections"]
         for key in ("project", "tasks", "budget", "procurement", "inspections", "milestones"):
             assert key in sections, f"缺数据段 {key}"
+        # 六段齐备 = 无任一段异常（异常段会标 available=False 且进 data_error）
+        assert "data_error" not in sections, sections
+        assert all(sections[k].get("available") is not False for k in (
+            "project", "tasks", "budget", "procurement", "inspections", "milestones",
+        )), sections
         assert sections["project"]["name"] == "周报测试项目"
         assert "source" in sections["project"]
+        # 预算段字段与 models/budget.py 对齐
+        assert sections["budget"]["total_estimated"] == 128000.0
+        assert sections["budget"]["total_actual"] == 96000.0
+        assert sections["budget"]["status"] == "approved"
+        assert sections["budget"]["note"] is None
         # AI 段 best-effort：无 key 时 mock 或 error，绝不抛 500
         assert "ai_suggestions" in sections
+
+    async def test_briefing_single_section_failure_does_not_drop_others(
+        self, client, auth_headers, db_session, monkeypatch,
+    ):
+        """单段失败只标该段 available=False，不吞掉其余段（可观测性回归）"""
+        import app.models.progress_alert as progress_alert
+
+        user = await self._latest_user(db_session)
+        project = await self._make_project(db_session, user.id)
+        # 里程碑模型替换为无 project_id 属性的占位对象 → 该段 select 构造即抛错
+        monkeypatch.setattr(progress_alert, "MilestoneTracker", object())
+        resp = await client.get(
+            f"/api/agents/projects/{project.id}/weekly-briefing", headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        sections = resp.json()["sections"]
+        assert sections["milestones"]["available"] is False
+        assert "error" in sections["milestones"]
+        for key in ("project", "tasks", "budget", "procurement", "inspections"):
+            assert key in sections, f"缺数据段 {key}"
+            assert sections[key].get("available") is not False, sections[key]
 
     async def test_briefing_non_owner_403(self, client, auth_headers, db_session):
         project = await self._make_project(db_session, "other_user_777")

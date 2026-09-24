@@ -250,27 +250,33 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
     if not bom_items:
         raise ValueError(f"项目 {project_id} 没有 BOM 物料清单，请先生成 BOM")
 
-    # 按物料分类分组
+    # 按物料分类分组（键用 MaterialCategory.code：suppliers.category 存的是代码，
+    # 如 flooring / appliances；此前用 name 中文名致同品类匹配恒不命中，
+    # 全品类静默落到兜底任意活跃供应商。对照 procurement_enhanced_service）
     category_groups: dict[str, list[BOMItem]] = {}
+    category_names: dict[str, str] = {}
     for item in bom_items:
-        cat_name = item.material.category.name if item.material and item.material.category else "未分类"
-        if cat_name not in category_groups:
-            category_groups[cat_name] = []
-        category_groups[cat_name].append(item)
+        category = item.material.category if item.material else None
+        cat_code = category.code if category else "未分类"
+        if cat_code not in category_groups:
+            category_groups[cat_code] = []
+            category_names[cat_code] = category.name if category else "未分类"
+        category_groups[cat_code].append(item)
 
     created_orders: list[ProcurementOrder] = []
 
-    for cat_name, items in category_groups.items():
+    for cat_code, items in category_groups.items():
+        cat_name = category_names[cat_code]
         # 找该品类下评分最高的活跃供应商
         supplier_result = await db.execute(
             select(Supplier)
-            .where(Supplier.category == cat_name, Supplier.is_active.is_(True))
+            .where(Supplier.category == cat_code, Supplier.is_active.is_(True))
             .order_by(Supplier.rating.desc())
             .limit(1)
         )
         supplier = supplier_result.scalar_one_or_none()
         if not supplier:
-            # 如果没有同品类供应商，找任意活跃供应商
+            # 如果没有同品类供应商，找任意活跃供应商（回落可感知：日志标注）
             fallback_result = await db.execute(
                 select(Supplier)
                 .where(Supplier.is_active.is_(True))
@@ -279,7 +285,16 @@ async def generate_from_bom(db: AsyncSession, project_id: str) -> dict:
             )
             supplier = fallback_result.scalar_one_or_none()
             if not supplier:
+                logger.warning(
+                    "procurement.generate_from_bom: 品类 %s（%s）无活跃供应商，跳过该品类采购单",
+                    cat_code, cat_name,
+                )
                 continue
+            logger.warning(
+                "procurement.generate_from_bom: 品类 %s（%s）无同品类活跃供应商，"
+                "回落任意活跃供应商 %s（非同类匹配，需人工确认）",
+                cat_code, cat_name, supplier.name,
+            )
 
         # 创建采购订单（draft 状态）
         order = ProcurementOrder(

@@ -14,6 +14,13 @@ EcosystemName = Annotated[
     BeforeValidator(lambda v: v.lower() if isinstance(v, str) else v),
 ]
 
+# 场景类型白名单（2026-09-24 交叉验证 A-1/B-3 修复）：合法值此前只写在字段注释里，
+# 而字段类型是裸 str → 非法值可 201 落库（生产实测 wakeup/sleep/QA_GARBAGE_XYZ）。
+# 现收窄为 Literal，与 app/models/scene_automation.py 的 chk_scene_automation_scene_type
+# CHECK 约束、迁移 b5c6d7e8f9a0 三处逐字一致。
+# 注意：起床/睡眠属 scene_name 语义，触发时机属 trigger_condition.type，均不在此枚举。
+SceneType = Literal["manual", "scheduled", "triggered", "geo"]
+
 
 # ── 场景 ──
 
@@ -22,8 +29,7 @@ class SceneAutomationCreate(BaseModel):
     project_id: str
     scheme_id: str | None = None
     scene_name: str = Field(description="场景名称（如：回家模式）。也支持传 name 字段作为别名）")
-    scene_type: str = "manual"
-    # scene_type: manual / scheduled / triggered / geo
+    scene_type: SceneType = Field(default="manual", description="场景类型: manual / scheduled / triggered / geo")
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
     ecosystem: EcosystemName | None = Field(
@@ -44,7 +50,7 @@ class SceneAutomationCreate(BaseModel):
 
 class SceneAutomationUpdate(BaseModel):
     scene_name: str | None = None
-    scene_type: str | None = None
+    scene_type: SceneType | None = None
     trigger_condition: dict[str, Any] | None = None
     actions: list[dict[str, Any]] | None = None
     ecosystem: EcosystemName | None = None

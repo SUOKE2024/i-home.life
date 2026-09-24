@@ -14,6 +14,21 @@ PROCESS_OVERVIEW_KEYWORDS = (
 )
 
 
+def _section_unavailable(briefing: dict, key: str, exc: Exception) -> None:
+    """项目周报单段数据获取失败 → 该段诚实标注，不阻断其它段。
+
+    v1.17.x 缺陷修复：此前六段共用一个 try，任一段异常（曾因 Budget.total_amount
+    字段名漂移抛 AttributeError）会吞掉其后所有段，端点只剩两段且监控不可见
+    （批量端点仍报 succeeded/failed 正常）。改为逐段 try 后单段失败可见。
+    """
+    logger.warning("orchestrator.project_weekly_briefing: 数据段 %s 失败: %s", key, exc)
+    briefing["sections"][key] = {
+        "available": False,
+        "error": str(exc),
+        "note": "该段数据获取失败（诚实标注，非空数据）",
+    }
+
+
 class OrchestratorAgent(BaseAgent):
     agent_name = "orchestrator"
     # v1.12.x: 意图分类/任务分解为低价值解析任务，优先低成本供应商
@@ -450,7 +465,6 @@ class OrchestratorAgent(BaseAgent):
         ai_suggestions 段标注 skipped）。
         """
         from datetime import datetime, timezone, timedelta
-        from sqlalchemy import func, select
         from app.config import get_settings
         _settings = get_settings()
 
@@ -467,98 +481,7 @@ class OrchestratorAgent(BaseAgent):
         }
 
         try:
-            from app.models.project import Project
-            from app.models.orchestrator_task import OrchestratorTask
-            from app.models.budget import Budget
-            from app.models.procurement import ProcurementOrder
-            from app.models.construction import Inspection, ConstructionTask
-            from app.models.progress_alert import MilestoneTracker
-
-            project = (
-                await db.execute(select(Project).where(Project.id == project_id))
-            ).scalars().first()
-            briefing["sections"]["project"] = {
-                "source": "projects",
-                "name": project.name if project else None,
-                "status": project.status if project else None,
-                "phase": getattr(project, "phase", None) if project else None,
-                "total_area": getattr(project, "total_area", None) if project else None,
-            }
-
-            task_rows = (
-                await db.execute(
-                    select(OrchestratorTask.status, func.count(OrchestratorTask.id))
-                    .where(OrchestratorTask.project_id == project_id)
-                    .group_by(OrchestratorTask.status)
-                )
-            ).all()
-            briefing["sections"]["tasks"] = {
-                "source": "orchestrator_tasks",
-                "by_status": {row[0]: row[1] for row in task_rows},
-            }
-
-            budget_row = (
-                await db.execute(
-                    select(Budget).where(Budget.project_id == project_id)
-                    .order_by(Budget.created_at.desc()).limit(1)
-                )
-            ).scalars().first()
-            briefing["sections"]["budget"] = {
-                "source": "budgets",
-                "total_amount": float(budget_row.total_amount) if budget_row else None,
-                "status": budget_row.status if budget_row else None,
-                "note": None if budget_row else "该项目尚无预算记录（数据不足，诚实标注）",
-            }
-
-            order_rows = (
-                await db.execute(
-                    select(ProcurementOrder.status, func.count(ProcurementOrder.id),
-                           func.coalesce(func.sum(ProcurementOrder.total_amount), 0.0))
-                    .where(ProcurementOrder.project_id == project_id)
-                    .group_by(ProcurementOrder.status)
-                )
-            ).all()
-            briefing["sections"]["procurement"] = {
-                "source": "procurement_orders",
-                "by_status": {
-                    row[0]: {"count": row[1], "total_amount": float(row[2])}
-                    for row in order_rows
-                },
-            }
-
-            inspection_rows = (
-                await db.execute(
-                    select(Inspection.status, func.count(Inspection.id))
-                    .join(ConstructionTask, Inspection.task_id == ConstructionTask.id)
-                    .where(ConstructionTask.project_id == project_id)
-                    .group_by(Inspection.status)
-                )
-            ).all()
-            briefing["sections"]["inspections"] = {
-                "source": "inspections（经 construction_tasks 关联项目）",
-                "by_status": {row[0]: row[1] for row in inspection_rows},
-            }
-
-            milestone_rows = (
-                await db.execute(
-                    select(MilestoneTracker.milestone_code, MilestoneTracker.name,
-                           MilestoneTracker.status, MilestoneTracker.planned_date,
-                           MilestoneTracker.actual_percent)
-                    .where(MilestoneTracker.project_id == project_id)
-                    .order_by(MilestoneTracker.planned_date)
-                )
-            ).all()
-            briefing["sections"]["milestones"] = {
-                "source": "milestone_trackers",
-                "items": [
-                    {
-                        "milestone_code": row[0], "name": row[1], "status": row[2],
-                        "planned_date": row[3].isoformat() if row[3] else None,
-                        "actual_percent": row[4],
-                    }
-                    for row in milestone_rows
-                ],
-            }
+            await self._collect_weekly_sections(db, project_id, briefing)
         except Exception as e:
             logger.warning("orchestrator.project_weekly_briefing: 数据段失败: %s", e)
             briefing["sections"]["data_error"] = {"error": str(e)}
@@ -595,6 +518,126 @@ class OrchestratorAgent(BaseAgent):
             briefing["sections"]["ai_suggestions"] = {"error": str(e)}
 
         return briefing
+
+    async def _collect_weekly_sections(self, db, project_id: str, briefing: dict) -> None:
+        """项目周报六段确定性聚合，逐段 try（单段失败只标该段，不吞掉其它段）。
+
+        v1.17.x 缺陷修复：此前六段共用一个 try，任一段异常会使其后所有段静默丢失。
+        """
+        from sqlalchemy import func, select
+        from app.models.project import Project
+        from app.models.orchestrator_task import OrchestratorTask
+        from app.models.budget import Budget
+        from app.models.procurement import ProcurementOrder
+        from app.models.construction import Inspection, ConstructionTask
+        from app.models.progress_alert import MilestoneTracker
+
+        try:
+            project = (
+                await db.execute(select(Project).where(Project.id == project_id))
+            ).scalars().first()
+            briefing["sections"]["project"] = {
+                "source": "projects",
+                "name": project.name if project else None,
+                "status": project.status if project else None,
+                "phase": getattr(project, "phase", None) if project else None,
+                "total_area": getattr(project, "total_area", None) if project else None,
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "project", e)
+
+        try:
+            task_rows = (
+                await db.execute(
+                    select(OrchestratorTask.status, func.count(OrchestratorTask.id))
+                    .where(OrchestratorTask.project_id == project_id)
+                    .group_by(OrchestratorTask.status)
+                )
+            ).all()
+            briefing["sections"]["tasks"] = {
+                "source": "orchestrator_tasks",
+                "by_status": {row[0]: row[1] for row in task_rows},
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "tasks", e)
+
+        try:
+            budget_row = (
+                await db.execute(
+                    select(Budget).where(Budget.project_id == project_id)
+                    .order_by(Budget.created_at.desc()).limit(1)
+                )
+            ).scalars().first()
+            # 字段名对齐 models/budget.py：total_estimated / total_actual
+            # （此前误写 total_amount，模型无此属性 → AttributeError 被吞）
+            briefing["sections"]["budget"] = {
+                "source": "budgets",
+                "total_estimated": float(budget_row.total_estimated) if budget_row else None,
+                "total_actual": float(budget_row.total_actual) if budget_row else None,
+                "status": budget_row.status if budget_row else None,
+                "note": None if budget_row else "该项目尚无预算记录（数据不足，诚实标注）",
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "budget", e)
+
+        try:
+            order_rows = (
+                await db.execute(
+                    select(ProcurementOrder.status, func.count(ProcurementOrder.id),
+                           func.coalesce(func.sum(ProcurementOrder.total_amount), 0.0))
+                    .where(ProcurementOrder.project_id == project_id)
+                    .group_by(ProcurementOrder.status)
+                )
+            ).all()
+            briefing["sections"]["procurement"] = {
+                "source": "procurement_orders",
+                "by_status": {
+                    row[0]: {"count": row[1], "total_amount": float(row[2])}
+                    for row in order_rows
+                },
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "procurement", e)
+
+        try:
+            inspection_rows = (
+                await db.execute(
+                    select(Inspection.status, func.count(Inspection.id))
+                    .join(ConstructionTask, Inspection.task_id == ConstructionTask.id)
+                    .where(ConstructionTask.project_id == project_id)
+                    .group_by(Inspection.status)
+                )
+            ).all()
+            briefing["sections"]["inspections"] = {
+                "source": "inspections（经 construction_tasks 关联项目）",
+                "by_status": {row[0]: row[1] for row in inspection_rows},
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "inspections", e)
+
+        try:
+            milestone_rows = (
+                await db.execute(
+                    select(MilestoneTracker.milestone_code, MilestoneTracker.name,
+                           MilestoneTracker.status, MilestoneTracker.planned_date,
+                           MilestoneTracker.actual_percent)
+                    .where(MilestoneTracker.project_id == project_id)
+                    .order_by(MilestoneTracker.planned_date)
+                )
+            ).all()
+            briefing["sections"]["milestones"] = {
+                "source": "milestone_trackers",
+                "items": [
+                    {
+                        "milestone_code": row[0], "name": row[1], "status": row[2],
+                        "planned_date": row[3].isoformat() if row[3] else None,
+                        "actual_percent": row[4],
+                    }
+                    for row in milestone_rows
+                ],
+            }
+        except Exception as e:
+            _section_unavailable(briefing, "milestones", e)
 
     # ── P3: 多智能体协作编排（v1.12.x，对齐 2026 hub-spoke/pipeline 范式）──
 

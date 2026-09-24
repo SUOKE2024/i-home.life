@@ -24,13 +24,24 @@ class HealthMonitor(Base):
     alert_level: Mapped[str] = mapped_column(String(20), nullable=False, default="normal")
     # alert_level: normal / warning / critical
     alert_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    device_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("smart_devices.id"), nullable=True, index=True)
+    device_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    # 外部设备标识（BLE MAC / 第三方设备号）。2026-09-24 交叉验证 A-2 修复：
+    # 此前为 ForeignKey("smart_devices.id")，而穿戴 BLE 链路传的正是 BLE MAC
+    # （flutter_app/lib/pages/wearable_devices_page.dart 传 _ble.device?.remoteId.str，
+    # CLAUDE.md 亦明确「device_id=BLE MAC」）→ 三处口径互斥，生产实测恒 422
+    # （health_monitors_device_id_fkey），适老/穿戴心率真实上报不可用。
+    # 现放开外键（迁移 c6d7e8f9a0b1），仅作标识；需关联平台设备时用 smart_device_id。
+    smart_device_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("smart_devices.id"), nullable=True, index=True
+    )
+    # 平台内 smart_devices 的可选关联（保留外键约束；与 device_id 互不强制）
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     project = relationship("Project")
     scheme = relationship("SmartHomeScheme")
-    device = relationship("SmartDevice")
+    # 关系显式绑定 smart_device_id（device_id 已去外键、不再是可推断的 join 依据）
+    device = relationship("SmartDevice", foreign_keys=[smart_device_id])
 
 
 class AirQualityRecord(Base):

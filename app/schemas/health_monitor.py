@@ -34,7 +34,14 @@ class HealthMonitorCreate(BaseModel):
     value: dict[str, Any]
     alert_level: str = Field(default="normal", description="预警级别: normal / warning / critical")
     alert_message: str | None = None
-    device_id: str | None = None
+    device_id: str | None = Field(
+        default=None,
+        description="外部设备标识（BLE MAC / 第三方设备号），不做平台内存在性校验",
+    )
+    smart_device_id: str | None = Field(
+        default=None,
+        description="平台内 smart_devices 的可选关联（须为该项目真实设备 UUID）",
+    )
     recorded_at: datetime | None = None
 
     @model_validator(mode="after")
@@ -57,6 +64,7 @@ class HealthMonitorResponse(BaseModel):
     alert_level: str
     alert_message: str | None
     device_id: str | None
+    smart_device_id: str | None = None
     recorded_at: datetime
     created_at: datetime
 

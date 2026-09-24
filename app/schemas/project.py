@@ -143,3 +143,26 @@ class AcceptanceResponse(BaseModel):
     accepted_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ── 项目成员（2026-09-24 交叉验证 C-01 修复：F40 三方协作授权载体）──
+
+# 与 app/models/project_member.MEMBER_ROLES 及 chk_project_member_role 约束逐字一致。
+# 不含 owner / admin —— 两者由 projects.owner_id 与 users.role 直接判定。
+ProjectMemberRole = Literal["designer", "contractor", "supplier"]
+
+
+class ProjectMemberAdd(BaseModel):
+    """添加项目成员请求"""
+    user_id: str = Field(description="成员用户 ID（须为 designer/contractor/supplier 角色）")
+    role: ProjectMemberRole = Field(description="该成员在项目中的协作角色")
+
+
+class ProjectMemberResponse(BaseModel):
+    id: str
+    project_id: str
+    user_id: str
+    role: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

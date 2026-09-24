@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Text, JSON, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, func, Integer, Text, JSON, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -42,6 +42,19 @@ class SceneAutomation(Base):
 
     project = relationship("Project")
     scheme = relationship("SmartHomeScheme")
+
+    __table_args__ = (
+        # 受限枚举 DB 层兜底（2026-09-24 交叉验证 A-1/B-3 修复）：此前本表**无任何**
+        # __table_args__，且 b8c8d9e0f1a2 的 166 条 CHECK 回填清单未收录本表（仅在
+        # docstring 提及），故 scene_type 非法值可 201 落库（生产实测 wakeup/sleep/
+        # QA_GARBAGE_XYZ 全部通过，PATCH 亦 200）。
+        # 合法值与 app/schemas/scene_automation.py 的 SceneType Literal 逐字一致；
+        # 配套迁移 b5c6d7e8f9a0。改枚举须三处同步（schema / 本约束 / 迁移）。
+        CheckConstraint(
+            "scene_type IN ('manual', 'scheduled', 'triggered', 'geo')",
+            name="chk_scene_automation_scene_type",
+        ),
+    )
 
 
 class EcosystemIntegration(Base):

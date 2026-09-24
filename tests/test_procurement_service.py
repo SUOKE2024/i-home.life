@@ -439,3 +439,32 @@ async def test_drive_procurement_from_bom_no_bom_raises(
     monkeypatch.setattr(get_settings(), "procurement_demand_driven_enabled", True)
     with pytest.raises(ValueError, match="没有 BOM"):
         await drive_procurement_from_bom(db_session, test_project.id)
+
+
+@pytest.mark.asyncio
+async def test_generate_from_bom_matches_supplier_by_category_code(
+    db_session: AsyncSession, test_project, test_material, test_suppliers,
+):
+    """BOM→采购单须按物料分类 code（flooring）匹配供应商，而非中文名。
+
+    反证：另建一个评分更高的「非同品类」供应商，若按 MaterialCategory.name
+    匹配（中文名「地面材料」永不等于 suppliers.category 代码）则恒落兜底，
+    订单会归到该非同品类供应商。
+    """
+    from app.services.procurement_service import generate_from_bom
+
+    other = Supplier(name="大金空调", category="appliances", rating=5.0)
+    db_session.add(other)
+    db_session.add(BOMItem(
+        project_id=test_project.id, material_id=test_material.id,
+        quantity=10.0, unit_price=198.0, total_price=1980.0, version=1,
+    ))
+    await db_session.commit()
+
+    result = await generate_from_bom(db_session, test_project.id)
+    assert result["generated_orders"] == 1
+    assert result["total_categories"] == 1
+    order = result["orders"][0]
+    # test_material 分类 code=flooring，评分最高者为「优质供应商A」(4.8)
+    assert order["supplier_name"] == "优质供应商A"
+    assert order["supplier_name"] != other.name

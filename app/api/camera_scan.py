@@ -89,10 +89,16 @@ async def confirm_scan_product(
     if current_user.role != "supplier" and not current_user.is_verified:
         raise HTTPException(status_code=403, detail="仅已认证的供应商可发布产品")
 
-    # 获取供应商
+    # 获取供应商（与 POST /api/products 同口径：无档案显式 422 可诊断，
+    # 不再回退空串 supplier_id 去撞 products_supplier_id_fkey 外键）
     stmt = select(Supplier).where(Supplier.phone == current_user.phone)
     result = await db.execute(stmt)
     supplier = result.scalar_one_or_none()
+    if not supplier:
+        raise HTTPException(
+            status_code=422,
+            detail="当前账号未绑定供应商档案，无法发布产品：请用供应商档案预留手机号注册/更新账号手机号后重试",
+        )
 
     # 处理标签
     tags_list = None
@@ -108,7 +114,7 @@ async def confirm_scan_product(
     product = Product(
         id=str(uuid.uuid4()),
         user_id=current_user.id,
-        supplier_id=supplier.id if supplier else "",
+        supplier_id=supplier.id,
         name=name,
         category=category,
         description=description or None,

@@ -115,13 +115,20 @@ async def get_project(db: AsyncSession, project_id: str) -> Project | None:
     return result.scalar_one_or_none()
 
 
-async def get_user_projects(db: AsyncSession, user_id: str) -> list[Project]:
-    result = await db.execute(
-        select(Project)
-        .where(Project.owner_id == user_id)
-        .options(selectinload(Project.floors))
-        .order_by(Project.created_at.desc())
-    )
+async def get_user_projects(db: AsyncSession, user_id: str, is_admin: bool = False) -> list[Project]:
+    """获取用户可见的项目列表。
+
+    admin 口径修复（2026-09-24 生产交叉验证 H-06）：
+      此前恒按 ``owner_id == user_id`` 过滤，而 admin 通常不拥有任何项目 → 管理员
+      ``GET /api/projects`` 恒返回 0 条，与 ``/api/admin/stats`` 的「项目总数 5」
+      自相矛盾，并导致控制台 20+ 项目维度页面全部停在「请先选择项目」。
+      而 ``verify_project_access`` 明确放行 admin，可见是列表口径与角色模型不一致。
+      现 admin 返回全平台项目（与 ``verify_project_access`` 语义对齐）。
+    """
+    stmt = select(Project).options(selectinload(Project.floors))
+    if not is_admin:
+        stmt = stmt.where(Project.owner_id == user_id)
+    result = await db.execute(stmt.order_by(Project.created_at.desc()))
     return list(result.scalars().all())
 
 

@@ -71,8 +71,16 @@ async def test_create_product_rejects_homeowner(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_create_product_allows_supplier(client: AsyncClient):
-    """供应商创建产品 → 200/201（行为保持：实名认证由身份认证流程独立管理）"""
+    """供应商创建产品 → 200/201（行为保持：实名认证由身份认证流程独立管理）
+    v1.17.x：需账号手机号已绑定 suppliers 档案（否则 422 而非外键 500）。"""
+    from app.models.procurement import Supplier
+
     headers = await _register(client, "supplier")
+    me = await client.get("/api/auth/me", headers=headers)
+    async with async_session() as db:
+        db.add(Supplier(name="RBAC 供应商", phone=me.json()["phone"], category="flooring"))
+        await db.commit()
+
     resp = await client.post(
         "/api/products",
         json={"name": "品牌瓷砖", "category": "flooring", "quantity": 50, "unit": "m2"},
