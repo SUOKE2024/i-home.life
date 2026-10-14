@@ -24,6 +24,9 @@ from app.models.user import User
 
 # 索克生活的签发者标识（与 suoke_life auth-service iss 一致）
 _ECOSYSTEM_ISSUERS = ("suoke-life-auth",)
+# 索克生活用户访问令牌的受众（与 suoke_life auth-service aud 一致）；
+# 校验受众可防"同 issuer 但面向其它受众"的令牌被跨用途消费。
+_ECOSYSTEM_AUDIENCES = ("suoke-life-app",)
 _V4_PUBLIC_PREFIX = "k4.public."
 # 生态来源标记（写入 users.sub_role，便于区分生态引流账号）
 ECOSYSTEM_SOURCE = "ecosystem_life"
@@ -70,6 +73,8 @@ def verify_life_token(token: str, public_paserk: str | None) -> dict:
 
     if claims.get("iss") not in _ECOSYSTEM_ISSUERS:
         raise EcosystemAuthError("ECOSYSTEM_ISSUER_MISMATCH", "生态令牌签发者不符")
+    if claims.get("aud") not in _ECOSYSTEM_AUDIENCES:
+        raise EcosystemAuthError("ECOSYSTEM_AUDIENCE_MISMATCH", "生态令牌受众不符")
     if claims.get("type") != "access":
         raise EcosystemAuthError("ECOSYSTEM_TYPE_MISMATCH", "生态令牌类型不符（仅接受 access）")
 

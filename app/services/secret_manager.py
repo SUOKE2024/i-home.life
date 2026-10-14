@@ -36,16 +36,29 @@ VAULT_FIELD_ECOSYSTEM_PUBLIC = "suoke-life-public-paserk"
 
 @lru_cache(maxsize=1)
 def get_paseto_key_fingerprint() -> str:
-    """计算 PASETO secret key 的指纹（SHA256 前 8 位 hex）。
+    """计算 PASETO 密钥指纹（SHA256 前 8 位 hex）。
 
-    用于 /api/health/detail 暴露，运维通过比对 fingerprint 确认密钥轮换状态。
-    永不返回密钥明文。
+    认证改造（v4.public）后取**验签公钥**的材料字节——它才是决定跨服务验签一致性的密钥；
+    未配置/不可用非对称密钥时回退对称 `paseto_secret_key`（legacy）。永不返回密钥明文。
+
+    用于 /api/health/detail 暴露，运维通过比对 fingerprint 确认密钥一致/轮换状态。
 
     Returns:
         8 字符 hex 指纹，如 "a1b2c3d4"
     """
-    key_bytes = settings.paseto_secret_key.encode()
-    return hashlib.sha256(key_bytes).hexdigest()[:8]
+    material: bytes | None = None
+    try:
+        # 延迟导入，避免 services → auth 的模块级依赖环
+        from app.auth.paseto_handler import _get_verify_key
+
+        raw = getattr(_get_verify_key(), "key", None)
+        if isinstance(raw, (bytes, bytearray)) and raw:
+            material = bytes(raw)
+    except Exception:
+        material = None  # 非对称密钥不可用 → 回退 legacy 对称密钥
+    if material is None:
+        material = settings.paseto_secret_key.encode()
+    return hashlib.sha256(material).hexdigest()[:8]
 
 
 def clear_fingerprint_cache() -> None:

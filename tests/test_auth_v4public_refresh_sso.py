@@ -147,6 +147,7 @@ def _life_signer():
         iss: str = "suoke-life-auth",
         typ: str = "access",
         user_id: str = "life-user-1",
+        aud: str = "suoke-life-app",
         exp_delta_minutes: int = 30,
     ) -> str:
         exp = datetime.now(timezone.utc) + timedelta(minutes=exp_delta_minutes)
@@ -156,7 +157,7 @@ def _life_signer():
             "roles": ["user"],
             "type": typ,
             "iss": iss,
-            "aud": "suoke-life-app",
+            "aud": aud,
             "jti": str(uuid.uuid4()),
             "exp": exp.isoformat(),
             "iat": datetime.now(timezone.utc).isoformat(),
@@ -189,6 +190,17 @@ async def test_ecosystem_login_rejects_bad_issuer(client, monkeypatch):
     monkeypatch.setattr(settings, "ecosystem_public_paserk", paserk)
     resp = await client.post(
         "/api/auth/ecosystem/login", json={"ecosystem_token": sign(iss="evil-issuer")}
+    )
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_ecosystem_login_rejects_wrong_audience(client, monkeypatch):
+    """受众不符（同 issuer 但 aud 非 suoke-life-app）的令牌必须拒绝。"""
+    paserk, sign = _life_signer()
+    monkeypatch.setattr(settings, "ecosystem_public_paserk", paserk)
+    resp = await client.post(
+        "/api/auth/ecosystem/login", json={"ecosystem_token": sign(aud="evil-aud")}
     )
     assert resp.status_code == 401
 
@@ -227,6 +239,25 @@ async def test_ecosystem_login_missing_key_returns_503(client, monkeypatch):
 # ═══════════════════════════════════════════
 #  运维专用长效令牌 + 生产密钥校验（修复 1/2）
 # ═══════════════════════════════════════════
+
+
+def test_access_and_refresh_tokens_emit_ecosystem_aliases():
+    """生态契约统一（增量别名）：access/refresh 同时携带 user_id(=sub)、type、iss/aud。"""
+    from app.auth.paseto_handler import (
+        create_refresh_token,
+        create_token,
+        verify_refresh_token,
+        verify_token,
+    )
+
+    p = verify_token(create_token("u1", "homeowner"))
+    assert p["sub"] == p["user_id"] == "u1"
+    assert p["type"] == "access"
+    assert p["iss"] == "i-home-auth" and p["aud"] == "i-home-app"
+
+    pr = verify_refresh_token(create_refresh_token("u1", "homeowner"))
+    assert pr["sub"] == pr["user_id"] == "u1"
+    assert pr["type"] == "refresh"
 
 
 def test_ops_token_long_ttl_verifiable():
@@ -282,3 +313,37 @@ def test_config_rejects_short_secret_key_in_prod():
 
     with pytest.raises(ValidationError):
         _prod_settings(paseto_secret_key="short")
+
+
+# ═══════════════════════════════════════════
+#  health 指纹口径（问题 6）
+# ═══════════════════════════════════════════
+
+
+def test_fingerprint_derived_from_verify_key():
+    """指纹应基于验签公钥材料（非对称），而非 legacy 对称密钥。"""
+    import hashlib
+
+    from app.auth.paseto_handler import _get_verify_key
+    from app.services import secret_manager
+
+    secret_manager.clear_fingerprint_cache()
+    raw = bytes(_get_verify_key().key)
+    assert secret_manager.get_paseto_key_fingerprint() == hashlib.sha256(raw).hexdigest()[:8]
+
+
+def test_fingerprint_falls_back_to_secret_key(monkeypatch):
+    """验签公钥不可用时回退对称 paseto_secret_key，且仍为 8 位 hex。"""
+    import hashlib
+
+    from app.auth import paseto_handler
+    from app.services import secret_manager
+
+    def _boom():
+        raise ValueError("no asymmetric key")
+
+    monkeypatch.setattr(paseto_handler, "_get_verify_key", _boom)
+    secret_manager.clear_fingerprint_cache()
+    expected = hashlib.sha256(settings.paseto_secret_key.encode()).hexdigest()[:8]
+    assert secret_manager.get_paseto_key_fingerprint() == expected
+    secret_manager.clear_fingerprint_cache()  # 防缓存污染后续用例

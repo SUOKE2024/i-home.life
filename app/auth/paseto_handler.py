@@ -302,12 +302,21 @@ def _legacy_local_accepted() -> bool:
 
 
 def create_token(user_id: str, role: str) -> str:
-    """创建 v4.public 访问令牌（access）。payload 字段与旧版一致（sub/role/iat/exp/jti）。"""
+    """创建 v4.public 访问令牌（access）。
+
+    生态契约统一（增量别名）：在保留本品牌 claim（sub/role）的同时，
+    一并写入 `user_id`（=sub）与 `type`（="access"，对应俱乐部 typ="at"）及 iss/aud，
+    使三品牌令牌可被彼此的验签侧以统一命名消费；不使在途令牌失效。
+    """
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=settings.paseto_token_expire_minutes)
     payload = {
         "sub": user_id,
+        "user_id": user_id,  # 生态契约别名（统一 sub/user_id）
         "role": role,
+        "type": "access",  # 生态契约（统一 typ/type；对应俱乐部 typ="at"）
+        "iss": "i-home-auth",
+        "aud": "i-home-app",
         "iat": now.isoformat(),
         "exp": exp.isoformat(),
         # v1.8.1 P1-1: jti 唯一标识，支持 logout 主动撤销。
@@ -320,14 +329,19 @@ def create_token(user_id: str, role: str) -> str:
 def create_refresh_token(user_id: str, role: str, jti: str | None = None) -> str:
     """创建 v4.public 刷新令牌（refresh）。
 
-    刷新令牌与访问令牌同 claim 结构，用 PASETO footer {"typ": "rt"} 区分——
-    footer 经签名认证但不属于 claims，避免改动令牌 claim 契约（本轮约定）。
+    刷新令牌与访问令牌同 claim 结构，用 PASETO footer {"typ": "rt"} 区分（footer 经签名
+    认证但不属于 claims）。生态契约统一（增量别名）：一并写入 `user_id`（=sub）、
+    `type="refresh"`（对应俱乐部 typ="rt"）及 iss/aud，便于跨品牌统一命名识别。
     """
     now = datetime.now(timezone.utc)
     exp = now + timedelta(days=settings.paseto_refresh_token_expire_days)
     payload = {
         "sub": user_id,
+        "user_id": user_id,  # 生态契约别名（统一 sub/user_id）
         "role": role,
+        "type": "refresh",  # 生态契约（统一 typ/type；对应俱乐部 typ="rt"）
+        "iss": "i-home-auth",
+        "aud": "i-home-app",
         "iat": now.isoformat(),
         "exp": exp.isoformat(),
         "jti": jti or str(uuid.uuid4()),
@@ -374,7 +388,11 @@ def create_ops_token(subject: str, role: str, ttl_seconds: int) -> str:
     exp = now + timedelta(seconds=ttl)
     payload = {
         "sub": subject,
+        "user_id": subject,  # 生态契约别名（统一 sub/user_id）
         "role": role,
+        "type": "access",  # 生态契约（统一 typ/type）
+        "iss": "i-home-auth",
+        "aud": "i-home-app",
         "iat": now.isoformat(),
         "exp": exp.isoformat(),
         "jti": str(uuid.uuid4()),
@@ -444,7 +462,8 @@ def verify_token(token: str) -> dict:
     """
     if token.startswith("v4.public."):
         payload, footer = _decode_public(token)
-        if (footer or {}).get("typ") == "rt":
+        # 刷新令牌不可作访问令牌：footer typ=rt 或 type=refresh（生态契约别名）任一命中即拒
+        if (footer or {}).get("typ") == "rt" or payload.get("type") == "refresh":
             raise TokenInvalidError("刷新令牌不可用于访问接口")
         return payload
     if token.startswith("v4.local.") or token.startswith("v2.local."):
