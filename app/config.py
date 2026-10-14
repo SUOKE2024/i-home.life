@@ -104,6 +104,11 @@ class Settings(BaseSettings):
     paseto_revocation_redis_enabled: bool = True
     paseto_revocation_redis_url: str = ""  # 留空则降级到内存（不自动复用 cache_service）
 
+    # 撤销查询降级收口（2026-10-15）：Redis 不可达/查询失败时是否按「已撤销」处理（fail-closed）。
+    # 默认 False 保可用性（沿用 best-effort 降级到内存 + warning）；生产可通过
+    # TOKEN_REVOCATION_FAIL_CLOSED=1 显式开启 fail-closed（高敏场景强一致）。
+    token_revocation_fail_closed: bool = False
+
     # ── PASETO v4.public 非对称密钥（认证改造）──
     # 签发侧配置 PASETO_PRIVATE_KEY（Ed25519 私钥）；验签侧配置 PASETO_PUBLIC_KEY（Ed25519 公钥）。
     # 支持 PEM 或 PASERK（k4.secret./k4.public.）；dev/test 未配置时自动生成临时密钥对。

@@ -1,0 +1,46 @@
+# 索克家居 FC 定时器 IaC（将控制台外部配置收敛为可复现描述）
+#
+# 背景：该定时器此前**仅在阿里云控制台**手工配置（见 CLAUDE.md「FC 运维须知」），
+# 仓库内无 IaC，可复现性差。本文件以 Serverless Devs（s.yaml，edition 3.0.0 / fc3）
+# 描述其形态，便于版本化管理与重建；**首次采用前请与既有控制台函数核对下列待核对项**：
+#   - region / access（默认占位 cn-shanghai / default）
+#   - handler 形态（本目录 handler.py 为等价实现；如控制台用的是其它运行时，请对齐）
+#   - IHOME_BASE_URL（生产域名）
+#
+# 部署：`s deploy`（需本地已 export IHOME_TIMER_API_TOKEN；
+# 该令牌由 scripts/mint_paseto_token.py 签发，见 handler.py 顶部说明）
+
+edition: 3.0.0
+name: ihome-timer
+access: default
+
+vars:
+  region: cn-shanghai
+
+resources:
+  ihome-timer:
+    component: fc3
+    props:
+      region: ${vars.region}
+      functionName: ihome-timer
+      description: "i-home 平台管理端点定时器（daily-briefing / skill-evolution / supplier-daily-briefing）"
+      runtime: python3.12
+      code: ./
+      handler: handler.handler
+      timeout: 300
+      memorySize: 256
+      environmentVariables:
+        IHOME_BASE_URL: https://api.ihome.life
+        # 静态 PASETO v4.public admin 令牌（长 TTL，无自动轮换）——部署前须 export
+        API_TOKEN: ${env('IHOME_TIMER_API_TOKEN')}
+        TARGET_URLS: >-
+          /api/admin/daily-briefing,
+          /api/admin/skill-evolution,
+          /api/admin/supplier-daily-briefing
+      triggers:
+        - triggerName: daily-0800
+          triggerType: timer
+          triggerConfig:
+            cronExpression: "0 0 8 * * *"
+            timeZone: Asia/Shanghai
+            payload: "{}"

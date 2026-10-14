@@ -108,6 +108,12 @@ def is_token_revoked(jti: str) -> bool:
             client = _get_redis_client()
             return int(client.exists(f"revoked_jti:{jti}")) > 0
         except Exception as e:
+            if settings.token_revocation_fail_closed:
+                # 收口：Redis 不可达时按已撤销处理（fail-closed），优先撤销一致性而非可用性
+                logger.error(
+                    "paseto_revocation: Redis 查询失败，fail-closed 已启用，按已撤销处理: %s", e
+                )
+                return True
             logger.warning("paseto_revocation: Redis 查询失败，降级到内存: %s", e)
     # 内存 backend
     exp_ts = _revoked_tokens.get(jti)

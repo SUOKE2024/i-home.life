@@ -347,3 +347,26 @@ def test_fingerprint_falls_back_to_secret_key(monkeypatch):
     expected = hashlib.sha256(settings.paseto_secret_key.encode()).hexdigest()[:8]
     assert secret_manager.get_paseto_key_fingerprint() == expected
     secret_manager.clear_fingerprint_cache()  # 防缓存污染后续用例
+
+
+# ═══════════════════════════════════════════
+#  撤销降级收口（问题 4 / 2026-10-15）
+# ═══════════════════════════════════════════
+
+
+def test_revocation_fail_closed_on_redis_error(monkeypatch):
+    """Redis 后端查询失败：fail-closed 开启 → 按已撤销；关闭 → 降级到内存（未撤销）。"""
+    from app.auth import paseto_handler as ph
+
+    monkeypatch.setattr(ph, "_use_redis_backend", lambda: True)
+
+    def _boom():
+        raise RuntimeError("redis down")
+
+    monkeypatch.setattr(ph, "_get_redis_client", _boom)
+
+    monkeypatch.setattr(settings, "token_revocation_fail_closed", True)
+    assert ph.is_token_revoked("jti-fail-closed-probe") is True
+
+    monkeypatch.setattr(settings, "token_revocation_fail_closed", False)
+    assert ph.is_token_revoked("jti-fail-closed-probe") is False
