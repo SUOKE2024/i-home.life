@@ -153,7 +153,10 @@ class _LoginPageState extends State<LoginPage> {
             });
       if (result.isSuccess) {
         final res = result.data as Map<String, dynamic>;
-        await api.saveToken(res['access_token'] as String);
+        await api.saveToken(
+          res['access_token'] as String,
+          refreshToken: res['refresh_token'] as String?,
+        );
         // 保存手机号用于下次生物识别提示（不保存密码）
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('last_phone', _phoneCtrl.text.trim());

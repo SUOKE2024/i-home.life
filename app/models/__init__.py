@@ -127,6 +127,12 @@ from app.models.fde_field_service import FdeFieldVisit
 # 2026-09-24 生产交叉验证 C-01 修复 — 项目成员（F40 三方协作授权载体）
 from app.models.project_member import ProjectMember
 
+# v1.18.0 从 Vibe Coding 到 Vibe Business — 站点修复清单（诊断→执行→复检→回滚留痕）
+from app.models.remediation_plan import RemediationPlan
+
+# 认证改造 v4.public — 刷新令牌会话（轮换 + 复用检测 + 族撤销）
+from app.models.refresh_token import RefreshToken
+
 __all__ = [
     "User",
     "Project",
@@ -286,6 +292,8 @@ __all__ = [
     "SpaceAsset",
     "FdeFieldVisit",
     "ProjectMember",
+    "RemediationPlan",
+    "RefreshToken",
 ]
 
 

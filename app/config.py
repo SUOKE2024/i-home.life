@@ -8,28 +8,25 @@ class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "allow"}
 
     @model_validator(mode="after")
-    def _validate_paseto_key(self):
-        # v1.2.1 P0-1 修复：原 debug=True 默认 + 仅 not debug 校验 → 生产误用默认配置跳过密钥校验
-        # 现默认 debug=False，且 paseto_strict_mode=True 时无论 debug 都硬校验
-        is_default_key = self.paseto_secret_key == "change-me-to-a-random-32-byte-key-minimum"
-        key_too_short = len(self.paseto_secret_key.encode()) < 32
-        # 校验条件：生产（not debug）或 strict_mode 开启
-        enforce = (not self.debug) or self.paseto_strict_mode
-        if enforce and is_default_key:
+    def _validate_paseto_keys(self):
+        # 认证改造（PASETO v4.public）：生产（strict_mode=True 且 debug=False）必须配置
+        # Ed25519 非对称密钥——签发侧 PASETO_PRIVATE_KEY、验签侧 PASETO_PUBLIC_KEY 至少其一。
+        # dev/test（debug=True 或 strict_mode=False）由 paseto_handler 自动生成临时密钥对，跳过校验。
+        # 对称 paseto_secret_key 仅用于过渡期验签 legacy v4.local 令牌，不再作为唯一密钥来源。
+        enforce = self.paseto_strict_mode and not self.debug
+        if not enforce:
+            return self
+        has_private = bool((self.paseto_private_key or "").strip())
+        has_public = bool((self.paseto_public_key or "").strip())
+        if not (has_private or has_public):
             raise ValueError(
-                "PASETO_SECRET_KEY 不能使用默认值。请在 .env 中设置 >=32 字节的强密钥。"
-                "（开发环境可设 PASETO_STRICT_MODE=false 跳过，但生产必须配置强密钥）"
-            )
-        if enforce and key_too_short:
-            raise ValueError(
-                "PASETO_SECRET_KEY 长度不足 32 字节（当前 %d 字节）。"
-                "生产环境必须配置强密钥；开发环境可设 PASETO_STRICT_MODE=false。"
-                % len(self.paseto_secret_key.encode())
+                "生产环境必须配置 PASETO_PRIVATE_KEY（Ed25519 私钥，签发）或 "
+                "PASETO_PUBLIC_KEY（Ed25519 公钥，验签）。支持 PEM 或 PASERK（k4.secret./k4.public.）。"
             )
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.17.4"
+    app_version: str = "1.18.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -73,7 +70,10 @@ class Settings(BaseSettings):
     waterproof_strict_check: bool = True  # True=真校验 design 字段；False=回滚旧行为（紧急回滚用）
 
     paseto_secret_key: str = "change-me-to-a-random-32-byte-key-minimum"
-    paseto_token_expire_minutes: int = 60 * 24
+    # 认证改造：access 令牌 TTL 由 24h 收紧到 45min（对齐索克生态基线 30–60min），
+    # 长会话改由 refresh 令牌轮换承担（paseto_refresh_token_expire_days）。
+    # ⚠️ 上线顺序：必须先放量客户端 refresh 能力，再缩短本 TTL，否则旧客户端 45min 后集体掉线。
+    paseto_token_expire_minutes: int = 45
     # v1.2.1 P1-8：Agent 会话加密硬校验开关。
     # False（默认）= PASETO 密钥不可用（默认/过短/未配置）时拒绝明文存储会话消息，
     #   _get_fernet() 直接 raise，防止 PII 泄露；
@@ -87,6 +87,25 @@ class Settings(BaseSettings):
     #   URL 未配置或 Redis 不可用时 best-effort 降级到内存（行为与 False 一致，仅多一次 warning）
     paseto_revocation_redis_enabled: bool = True
     paseto_revocation_redis_url: str = ""  # 留空则降级到内存（不自动复用 cache_service）
+
+    # ── PASETO v4.public 非对称密钥（认证改造）──
+    # 签发侧配置 PASETO_PRIVATE_KEY（Ed25519 私钥）；验签侧配置 PASETO_PUBLIC_KEY（Ed25519 公钥）。
+    # 支持 PEM 或 PASERK（k4.secret./k4.public.）；dev/test 未配置时自动生成临时密钥对。
+    paseto_private_key: str = ""
+    paseto_public_key: str = ""
+    # 密钥来源标记（vault|env），仅用于 /health 展示与运维核对
+    paseto_key_source: str = "env"
+    # legacy v4.local 令牌接受截止时间（epoch 秒；0=不接受）。
+    # 切换为 v4.public 后设为「切换时刻 + 48h」以覆盖存量 24h TTL；窗口到期后 legacy 分支即失效。
+    paseto_local_accept_until: float = 0.0
+    # 刷新令牌有效天数（配合家族/复用检测轮换）
+    paseto_refresh_token_expire_days: int = 30
+    # 刷新令牌轮换 grace 窗口（秒）：旧 RT 轮换后该窗口内重放视为网络抖动重试，
+    # 返回轮换后的新 RT（不撤销族）；超窗重放视为被盗 → 撤销整族。
+    paseto_refresh_grace_seconds: int = 5
+    # 生态互通（索克生活 SSO）：suoke_life 侧公开公钥 PASERK（k4.public.）。
+    # 优先 settings/env（生态公钥可公开）；未配置且启用 Vault 时从 KV suoke/ecosystem 读取。
+    ecosystem_public_paserk: str = ""
 
     # ── WebAuthn / FIDO2 / Passkey ──
     webauthn_enabled: bool = True
@@ -347,6 +366,8 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True              # 全局开关，关闭时直接放行
     rate_limit_per_minute: int = 60              # 普通 API：每 IP 每分钟 60 次
     rate_limit_auth_per_minute: int = 10         # 认证端点（/login、/register）：每 IP 每分钟 10 次
+    # 认证改造：刷新端点放宽（SPA 多组件并发刷新会瞬时放大，30/min 避免误伤）
+    rate_limit_refresh_per_minute: int = 30      # /api/auth/refresh：每 IP 每分钟 30 次
     # v1.2.1：基准测试/压测专用旁路令牌。
     # 非空时，请求携带 header `X-Bench-Token: <token>` 即跳过速率限制，
     # 用于 scripts/bench-api.py 测量原始吞吐（不受限流干扰）。
@@ -532,6 +553,24 @@ class Settings(BaseSettings):
     # capability_tags 只声明实际具备的维度（business/model/security/delivery）。
     # 关闭即端点 503 诚实降级。
     fde_field_service_enabled: bool = True
+
+    # ── v1.18.0 从 Vibe Coding 到 Vibe Business（站点 AI 可见度与阵地经营）──
+    # 借鉴《万小智，让AI从网站生成走向企业经营》（数智前线 2026-09-24）：
+    # 「AI 让网站生成变得非常容易，但围绕企业自有阵地的长期经营仍缺解法」。
+    # GET /api/ai-visibility：站点（webapp 静态产物）AI 可见度就绪度确定性审计——
+    # 可抓取 30 / 可理解 25 / 可引用 25 / 新鲜度 20 四维评分，逐项附实测证据。
+    # 诚实红线：**不做真实模型探测**，不承诺 AI 引用/排名（见
+    # app/services/ai_visibility_service.py）。关闭即端点 503 诚实降级。
+    ai_visibility_audit_enabled: bool = True
+    # /api/remediation-plans/*：把审计结果转成修复清单并支持「确认 → 执行 → 复检 →
+    # 回滚」闭环（原文最强调的断点：「诊断完成，并不意味着问题得到解决」）。
+    # 只执行白名单「说明书层」动作（生成 llms.txt / 追加 robots.txt AI 爬虫声明块），
+    # 涉及企业事实与品牌承诺的条目一律 human_only 只出清单。关闭即 503。
+    remediation_plan_enabled: bool = True
+    # GET /api/content-freshness：公开内容陈旧度（「长草」）清单——按 updated_at
+    # 与 `memory_decay_half_life_days` 同口径半衰期做确定性衰减，只提示更新不代写。
+    # 关闭即端点 503 诚实降级。
+    content_freshness_monitor_enabled: bool = True
 
     @property
     def economy_provider_list(self) -> list[str]:

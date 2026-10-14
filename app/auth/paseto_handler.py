@@ -1,4 +1,6 @@
+import base64
 import logging
+import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -6,6 +8,7 @@ from functools import lru_cache
 from typing import Any, cast
 
 import paseto
+from paseto.keys.asymmetric_key import AsymmetricPublicKey, AsymmetricSecretKey
 from paseto.keys.symmetric_key import SymmetricKey
 from paseto.protocols.v4 import ProtocolVersion4 as v4
 
@@ -132,84 +135,309 @@ class TokenInvalidError(Exception):
     """Token 无效（签名错误/格式错误等）"""
 
 
+# ── PASETO v4.public（Ed25519 非对称）密钥加载 ──────────────────────
+# 项目约定：PASETO 而非 JWT。签发用私钥、验签用公钥。
+# 密钥来源（优先级 settings → 环境变量）；支持 Ed25519 PEM 或 PASERK（k4.secret./k4.public.）。
+# 说明：paseto 2.0.0 的非对称密钥 from_encoded_string 存在缺陷，故统一用 cryptography
+# 解析 PEM 得到原始字节、PASERK 手工 base64url 解码，再以原始字节构造 Key。
+_V4_SECRET_PREFIX = "k4.secret."
+_V4_PUBLIC_PREFIX = "k4.public."
+
+# legacy v4.local 令牌命中计数（观测用；过渡窗口到期后可据此提前摘除兼容分支）
+_legacy_local_hits = 0
+
+
+def _b64url_decode_material(s: str) -> bytes:
+    s = s.strip()
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def _secret64_from_seed(seed: bytes) -> bytes:
+    """由 32 字节种子构造 libsodium 64 字节私钥（seed||pub）。
+
+    注意：paseto 2.0.0 的 AsymmetricSecretKey 种子分支误取 keypair[0]（实为公钥），
+    会得到 32 字节私钥并触发 'Truncated secret key'，故此处直接传入完整 64 字节。
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    sk = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+    pk = sk.public_key().public_bytes(
+        serialization.Encoding.Raw, serialization.PublicFormat.Raw
+    )
+    return seed + pk
+
+
+def _normalize_secret(raw: bytes) -> bytes:
+    """规整私钥材料为 64 字节：64 直接用；32 视为种子扩展；96 截取前 64。"""
+    if len(raw) == 64:
+        return raw
+    if len(raw) == 32:
+        return _secret64_from_seed(raw)
+    if len(raw) == 96:
+        return raw[:64]
+    raise ValueError(f"PASETO_PRIVATE_KEY 材料长度非法: {len(raw)} 字节")
+
+
+def _secret_key_from_material(value: str) -> AsymmetricSecretKey:
+    v = value.strip()
+    if v.startswith(_V4_SECRET_PREFIX):
+        raw = _b64url_decode_material(v[len(_V4_SECRET_PREFIX):])
+        return AsymmetricSecretKey(key_material=_normalize_secret(raw), protocol=v4)
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    key = serialization.load_pem_private_key(v.encode(), password=None)
+    if not isinstance(key, ed25519.Ed25519PrivateKey):
+        raise ValueError("PASETO_PRIVATE_KEY 必须是 Ed25519 私钥 PEM 或 k4.secret. PASERK")
+    seed = key.private_bytes(
+        serialization.Encoding.Raw,
+        serialization.PrivateFormat.Raw,
+        serialization.NoEncryption(),
+    )
+    return AsymmetricSecretKey(key_material=_secret64_from_seed(seed), protocol=v4)
+
+
+def _public_key_from_material(value: str) -> AsymmetricPublicKey:
+    v = value.strip()
+    if v.startswith(_V4_PUBLIC_PREFIX):
+        raw = _b64url_decode_material(v[len(_V4_PUBLIC_PREFIX):])
+        return AsymmetricPublicKey(key_material=raw, protocol=v4)
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    key = serialization.load_pem_public_key(v.encode())
+    if not isinstance(key, ed25519.Ed25519PublicKey):
+        raise ValueError("PASETO_PUBLIC_KEY 必须是 Ed25519 公钥 PEM 或 k4.public. PASERK")
+    raw = key.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return AsymmetricPublicKey(key_material=raw, protocol=v4)
+
+
+def _is_dev_env() -> bool:
+    """是否处于 dev/test 环境（未配置密钥时允许自动生成临时 Ed25519 密钥对）。
+
+    判据：debug=True、paseto_strict_mode=False（显式放宽）或 ENVIRONMENT 明确为开发/测试。
+    """
+    env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
+    return (
+        settings.debug
+        or not getattr(settings, "paseto_strict_mode", True)
+        or env in {"dev", "development", "test", "local"}
+    )
+
+
+def _configured_private() -> str:
+    return (getattr(settings, "paseto_private_key", "") or os.getenv("PASETO_PRIVATE_KEY") or "").strip()
+
+
+def _configured_public() -> str:
+    return (getattr(settings, "paseto_public_key", "") or os.getenv("PASETO_PUBLIC_KEY") or "").strip()
+
+
 @lru_cache(maxsize=1)
-def _get_key() -> SymmetricKey:
-    """缓存 SymmetricKey 对象，避免每次请求重建。
+def _get_sign_key() -> AsymmetricSecretKey:
+    """签发私钥（仅签发侧）。生产必须配置；dev/test 未配置时自动生成临时 Ed25519 密钥对。"""
+    private = _configured_private()
+    if private:
+        return _secret_key_from_material(private)
+    if _is_dev_env():
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import ed25519
 
-    密钥内容来自 settings.paseto_secret_key，进程生命周期内不变，
-    使用 lru_cache(maxsize=1) 实现模块级单例。
+        logger.warning(
+            "PASETO_PRIVATE_KEY 未配置，dev/test 自动生成临时 Ed25519 密钥对（进程重启即失效）"
+        )
+        dev_key = ed25519.Ed25519PrivateKey.generate()
+        seed = dev_key.private_bytes(
+            serialization.Encoding.Raw,
+            serialization.PrivateFormat.Raw,
+            serialization.NoEncryption(),
+        )
+        return AsymmetricSecretKey(key_material=_secret64_from_seed(seed), protocol=v4)
+    raise ValueError(
+        "生产环境必须配置 PASETO_PRIVATE_KEY（Ed25519 私钥 PEM 或 k4.secret. PASERK）"
+    )
 
-    v1.2.1 P1-7 修复：原密钥 <32 字节时用 \\x00 填充（弱化密钥，安全风险）。
-    现 paseto_strict_mode=True 时硬 raise，仅 strict_mode=False 时回退 \\x00 填充（紧急回滚用）。
-    注意：config.py 的 model_validator 已在启动时拦截默认/过短密钥，此处为运行期二次防御。
+
+@lru_cache(maxsize=1)
+def _get_verify_key() -> AsymmetricPublicKey:
+    """验签公钥。优先显式公钥；否则用签发私钥派生；dev/test 无配置时与签发侧共享临时密钥。"""
+    public = _configured_public()
+    if public:
+        return _public_key_from_material(public)
+    private = _configured_private()
+    if private:
+        return _secret_key_from_material(private).get_public_key()
+    if _is_dev_env():
+        return _get_sign_key().get_public_key()
+    raise ValueError(
+        "生产环境必须配置 PASETO_PUBLIC_KEY（Ed25519 公钥 PEM 或 k4.public. PASERK）"
+    )
+
+
+@lru_cache(maxsize=1)
+def _get_local_key() -> SymmetricKey:
+    """legacy v4.local 对称密钥（仅过渡期验签旧令牌，不再用于签发）。
+
+    v1.2.1 P1-7：密钥 <32 字节时 strict_mode 硬 raise，仅 strict_mode=False 回退 \\x00 填充。
     """
     key_bytes = settings.paseto_secret_key.encode()
     if len(key_bytes) < 32:
         if getattr(settings, "paseto_strict_mode", True):
-            # 严格模式：硬失败，拒绝弱密钥（生产默认）
             raise ValueError(
-                "PASETO secret key 长度不足 32 字节（当前 %d 字节），paseto_strict_mode=True 拒绝填充。"
-                "请在 .env 配置强密钥，或设 PASETO_STRICT_MODE=false 临时回退（不推荐生产）。"
+                "PASETO secret key 长度不足 32 字节（当前 %d 字节），legacy v4.local 验签拒绝。"
                 % len(key_bytes)
             )
-        logger.warning(
-            "PASETO secret key 长度不足 32 字节，正在用 \\x00 填充，生产环境必须配置强密钥"
-        )
+        logger.warning("PASETO secret key 长度不足 32 字节，legacy v4.local 回退 \\x00 填充")
         key_bytes = key_bytes.ljust(32, b"\x00")
     return SymmetricKey(key_material=key_bytes[:32], protocol=v4)
 
 
+def _legacy_local_accepted() -> bool:
+    """legacy v4.local 令牌是否仍在接受窗口内（paseto_local_accept_until 为 epoch 秒，0=不接受）。"""
+    try:
+        until = float(getattr(settings, "paseto_local_accept_until", 0) or 0)
+    except (TypeError, ValueError):
+        until = 0.0
+    return until > 0 and time.time() < until
+
+
 def create_token(user_id: str, role: str) -> str:
+    """创建 v4.public 访问令牌（access）。payload 字段与旧版一致（sub/role/iat/exp/jti）。"""
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=settings.paseto_token_expire_minutes)
-
     payload = {
         "sub": user_id,
         "role": role,
         "iat": now.isoformat(),
         "exp": exp.isoformat(),
         # v1.8.1 P1-1: jti 唯一标识，支持 logout 主动撤销。
-        # 旧 token 无此字段，verify_token 视为"不可撤销"通过（向后兼容）。
         "jti": str(uuid.uuid4()),
     }
-    key = _get_key()
-    return cast(str, paseto.create(key=key, purpose="local", claims=payload))
+    key = _get_sign_key()
+    return cast(str, paseto.create(key=key, purpose="public", claims=payload))
+
+
+def create_refresh_token(user_id: str, role: str, jti: str | None = None) -> str:
+    """创建 v4.public 刷新令牌（refresh）。
+
+    刷新令牌与访问令牌同 claim 结构，用 PASETO footer {"typ": "rt"} 区分——
+    footer 经签名认证但不属于 claims，避免改动令牌 claim 契约（本轮约定）。
+    """
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(days=settings.paseto_refresh_token_expire_days)
+    payload = {
+        "sub": user_id,
+        "role": role,
+        "iat": now.isoformat(),
+        "exp": exp.isoformat(),
+        "jti": jti or str(uuid.uuid4()),
+    }
+    key = _get_sign_key()
+    return cast(
+        str,
+        paseto.create(key=key, purpose="public", claims=payload, footer={"typ": "rt"}),
+    )
+
+
+def create_token_pair(user_id: str, role: str, family_id: str | None = None) -> dict:
+    """签发 access + refresh 令牌对。
+
+    Returns: 含 access_token/refresh_token/token_type/expires_in + 内部字段
+    refresh_jti/family_id（返回客户端前须由调用方剥离内部字段）。
+    """
+    fam = family_id or ("fam_" + uuid.uuid4().hex[:12])
+    rt_jti = str(uuid.uuid4())
+    return {
+        "access_token": create_token(user_id, role),
+        "refresh_token": create_refresh_token(user_id, role, jti=rt_jti),
+        "token_type": "Bearer",
+        "expires_in": settings.paseto_token_expire_minutes * 60,
+        "refresh_jti": rt_jti,
+        "family_id": fam,
+    }
+
+
+def _check_exp_and_revocation(payload: dict) -> None:
+    """exp 有效性 + jti 撤销校验（fail-closed）。access/refresh 校验共用。"""
+    exp_str = payload.get("exp")
+    if not exp_str:
+        raise TokenInvalidError("Token 缺少 exp 字段")
+    try:
+        exp = datetime.fromisoformat(str(exp_str).replace("Z", "+00:00"))
+    except (ValueError, TypeError) as e:
+        raise TokenInvalidError(f"Token exp 格式无效: {exp_str!r}") from e
+    if datetime.now(timezone.utc) > exp:
+        raise TokenExpiredError("Token 已过期，请重新登录")
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti):
+        raise TokenInvalidError("Token 已被撤销")
+
+
+def _decode_public(token: str) -> tuple[dict, dict]:
+    """验签 v4.public 令牌，返回 (payload, footer)。"""
+    try:
+        result = paseto.parse(
+            key=_get_verify_key(), token=token, purpose="public", validate=False
+        )
+    except Exception as e:
+        raise TokenInvalidError(f"Token 无效: {e}") from e
+    payload: dict = result["message"]
+    footer: dict = result["footer"] or {}
+    _check_exp_and_revocation(payload)
+    return payload, footer
+
+
+def _decode_legacy_local(token: str) -> dict:
+    """验签 legacy v4.local 令牌（仅过渡窗口内）。"""
+    global _legacy_local_hits
+    _legacy_local_hits += 1
+    logger.warning(
+        "paseto_legacy_local_accepted: 收到旧版 v4.local 令牌（累计 %d 次），请尽快完成迁移",
+        _legacy_local_hits,
+    )
+    try:
+        result = paseto.parse(
+            key=_get_local_key(), token=token, purpose="local", validate=False
+        )
+    except Exception as e:
+        raise TokenInvalidError(f"Token 无效: {e}") from e
+    payload: dict = result["message"]
+    _check_exp_and_revocation(payload)
+    return payload
 
 
 def verify_token(token: str) -> dict:
-    """校验 PASETO token，返回 payload。
+    """校验访问令牌（access），返回 payload。
+
+    - v4.public：验签 + exp + jti 撤销 + 拒绝 footer typ=rt（刷新令牌不可访问）
+    - v4.local / v2.local：仅过渡窗口内接受（legacy 兼容），否则要求重新登录
 
     Raises:
         TokenExpiredError: token 已过期
-        TokenInvalidError: token 无效（签名/格式/密钥错误/exp 缺失或格式错/被撤销）
-
-    v1.8.1 P0-1 修复：原 exp 字段缺失或解析失败时 `except: pass` → fail-open
-    （token 被视为永不过期）。现 fail-closed：exp 缺失或格式错 → TokenInvalidError。
-    v1.8.1 P0-2 新增：jti 在撤销列表中 → TokenInvalidError。
+        TokenInvalidError: token 无效/格式不支持/被撤销/为刷新令牌/legacy 已停用
     """
-    try:
-        key = _get_key()
-        result = paseto.parse(key=key, purpose="local", token=token)
-        payload: dict = result["message"]
-
-        # v1.8.1 P0-1: fail-closed。exp 缺失或格式错 → 拒绝（原 fail-open 视为永不过期）
-        exp_str = payload.get("exp")
-        if not exp_str:
-            raise TokenInvalidError("Token 缺少 exp 字段")
-        try:
-            exp = datetime.fromisoformat(exp_str)
-        except (ValueError, TypeError) as e:
-            raise TokenInvalidError(f"Token exp 格式无效: {exp_str!r}") from e
-        if datetime.now(timezone.utc) > exp:
-            raise TokenExpiredError("Token 已过期，请重新登录")
-
-        # v1.8.1 P0-2: 检查 token 撤销列表（logout 主动失效）
-        jti = payload.get("jti")
-        if jti and is_token_revoked(jti):
-            raise TokenInvalidError("Token 已被撤销")
-
+    if token.startswith("v4.public."):
+        payload, footer = _decode_public(token)
+        if (footer or {}).get("typ") == "rt":
+            raise TokenInvalidError("刷新令牌不可用于访问接口")
         return payload
-    except (TokenExpiredError, TokenInvalidError):
-        raise
-    except Exception as e:
-        raise TokenInvalidError(f"Token 无效: {e}") from e
+    if token.startswith("v4.local.") or token.startswith("v2.local."):
+        if not _legacy_local_accepted():
+            raise TokenInvalidError("旧版对称令牌已停用，请重新登录")
+        return _decode_legacy_local(token)
+    raise TokenInvalidError("不支持的令牌格式")
+
+
+def verify_refresh_token(token: str) -> dict:
+    """校验刷新令牌（refresh），返回 payload；要求 footer typ=rt。
+
+    Raises:
+        TokenExpiredError / TokenInvalidError
+    """
+    if not token.startswith("v4.public."):
+        raise TokenInvalidError("刷新令牌格式无效")
+    payload, footer = _decode_public(token)
+    if (footer or {}).get("typ") != "rt":
+        raise TokenInvalidError("非刷新令牌")
+    return payload

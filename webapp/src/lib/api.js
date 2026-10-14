@@ -6,8 +6,12 @@
  */
 
 const TOKEN_KEY = 'paseto_token'
+// 认证改造 v4.public：refresh 令牌本地键（跨端共享登录态）
+const REFRESH_KEY = 'paseto_refresh_token'
 
 let onUnauthorizedCb = null
+// 单飞刷新：并发 401 共享同一次 /api/auth/refresh，避免 SPA 多组件重复轮换触发族撤销
+let _refreshPromise = null
 
 export function setOnUnauthorized(cb) {
   onUnauthorizedCb = cb
@@ -21,9 +25,51 @@ export function setToken(token) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_KEY) || ''
+}
+
+/** 登录响应统一持久化 access + refresh 令牌。 */
+export function setTokens(accessToken, refreshToken) {
+  if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken)
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken)
+}
+
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
   localStorage.removeItem('user_info')
+}
+
+/**
+ * 刷新令牌（单飞）。成功返回 true 并更新本地令牌；失败返回 false。
+ * 并发调用共享同一次请求，避免多组件同时 401 触发多次轮换（旧 RT 二次使用会被判重放）。
+ */
+export function refreshTokens() {
+  if (_refreshPromise) return _refreshPromise
+  const rt = getRefreshToken()
+  if (!rt) return Promise.resolve(false)
+  _refreshPromise = (async () => {
+    try {
+      const res = await fetch(buildUrl('/api/auth/refresh'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: rt }),
+      })
+      if (!res.ok) return false
+      const data = await res.json().catch(() => undefined)
+      if (data && data.access_token) {
+        setTokens(data.access_token, data.refresh_token)
+        return true
+      }
+      return false
+    } catch {
+      return false
+    } finally {
+      _refreshPromise = null
+    }
+  })()
+  return _refreshPromise
 }
 
 function buildUrl(path) {
@@ -52,30 +98,45 @@ function extractErrorMessage(errorBody, status) {
   return detail || `HTTP ${status}`
 }
 
-/**
- * 统一请求。返回 { isSuccess, status, data, error }。
- * 401 → 清 token + 触发全局未授权回调（跳登录）。
- */
-export async function request(path, options = {}) {
+/** 原始请求（不改写 401，交由 request 统一处理刷新/登出）。 */
+async function doFetch(path, options = {}) {
   const token = getToken()
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) }
   if (token) headers['Authorization'] = `Bearer ${token}`
+  const { retried: _retried, headers: _headers, ...rest } = options
+  const res = await fetch(buildUrl(path), { ...rest, headers })
+  if (res.ok) {
+    const data = await res.json().catch(() => undefined)
+    return { status: res.status, result: { isSuccess: true, status: res.status, data } }
+  }
+  const errorBody = await res.json().catch(() => undefined)
+  return {
+    status: res.status,
+    result: { isSuccess: false, status: res.status, error: extractErrorMessage(errorBody, res.status) },
+  }
+}
+
+/**
+ * 统一请求。返回 { isSuccess, status, data, error }。
+ * 401 → 先单飞 /api/auth/refresh 并重放原请求；仍失败则清 token + 触发未授权回调（跳登录）。
+ */
+export async function request(path, options = {}) {
+  let outcome
   try {
-    const res = await fetch(buildUrl(path), { ...options, headers })
-    if (res.status === 401) {
-      clearToken()
-      if (onUnauthorizedCb) onUnauthorizedCb()
-      return { isSuccess: false, status: 401, error: '认证过期，请重新登录' }
-    }
-    if (res.ok) {
-      const data = await res.json().catch(() => undefined)
-      return { isSuccess: true, status: res.status, data }
-    }
-    const errorBody = await res.json().catch(() => undefined)
-    return { isSuccess: false, status: res.status, error: extractErrorMessage(errorBody, res.status) }
+    outcome = await doFetch(path, options)
   } catch (err) {
     return { isSuccess: false, status: 0, error: err instanceof Error ? err.message : String(err) }
   }
+  if (outcome.status === 401 && !options.retried && !path.startsWith('/api/auth/refresh')) {
+    const refreshed = await refreshTokens()
+    if (refreshed) return request(path, { ...options, retried: true })
+  }
+  if (outcome.status === 401) {
+    clearToken()
+    if (onUnauthorizedCb) onUnauthorizedCb()
+    return { isSuccess: false, status: 401, error: '认证过期，请重新登录' }
+  }
+  return outcome.result
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -88,7 +149,7 @@ export async function login(phone, password) {
     body: JSON.stringify({ phone, password }),
   })
   if (r.isSuccess && r.data && r.data.access_token) {
-    setToken(r.data.access_token)
+    setTokens(r.data.access_token, r.data.refresh_token)
     localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
   }
   return r
@@ -100,7 +161,7 @@ export async function register(phone, name, password, role = 'homeowner') {
     body: JSON.stringify({ phone, name, password, role }),
   })
   if (r.isSuccess && r.data && r.data.access_token) {
-    setToken(r.data.access_token)
+    setTokens(r.data.access_token, r.data.refresh_token)
     localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
   }
   return r
@@ -111,7 +172,12 @@ export async function me() {
 }
 
 export async function logout() {
-  const r = await request('/api/auth/logout', { method: 'POST' })
+  const rt = getRefreshToken()
+  // 携带 refresh_token 让后端撤销整个令牌族（缺省时仅按 access jti 撤销）
+  const r = await request('/api/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify(rt ? { refresh_token: rt } : {}),
+  })
   clearToken()
   return r
 }
@@ -132,7 +198,7 @@ export async function oneClickH5Login(spToken) {
     body: JSON.stringify({ sp_token: spToken }),
   })
   if (r.isSuccess && r.data && r.data.access_token) {
-    setToken(r.data.access_token)
+    setTokens(r.data.access_token, r.data.refresh_token)
     localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
   }
   return r
@@ -171,7 +237,7 @@ export async function wechatLogin(code, state) {
     body: JSON.stringify({ code, state }),
   })
   if (r.isSuccess && r.data && r.data.access_token) {
-    setToken(r.data.access_token)
+    setTokens(r.data.access_token, r.data.refresh_token)
     localStorage.setItem('user_info', JSON.stringify(r.data.user || {}))
   }
   return r
@@ -492,7 +558,7 @@ export async function getCurtainShowroomProducts(filters = {}) {
  * 统一 multipart 上传（PASETO 头，不走 JSON request）。
  * 返回 { isSuccess, status, data, error }，与 request 契约一致。
  */
-async function uploadFormData(path, form) {
+async function uploadFormData(path, form, retried = false) {
   const token = getToken()
   try {
     const res = await fetch(buildUrl(path), {
@@ -500,6 +566,11 @@ async function uploadFormData(path, form) {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,
     })
+    if (res.status === 401 && !retried) {
+      // 先单飞刷新后重放一次原请求
+      const refreshed = await refreshTokens()
+      if (refreshed) return uploadFormData(path, form, true)
+    }
     if (res.status === 401) {
       clearToken()
       if (onUnauthorizedCb) onUnauthorizedCb()

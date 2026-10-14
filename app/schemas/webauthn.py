@@ -69,6 +69,9 @@ class WebAuthnLoginCompleteResponse(BaseModel):
     """登录完成，返回 PASETO Token"""
     access_token: str
     token_type: str = "Bearer"
+    # 认证改造 v4.public：Passkey 登录同样下发 refresh 令牌对
+    refresh_token: str | None = None
+    expires_in: int | None = None
     user: dict
 
 

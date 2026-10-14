@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -13,6 +15,9 @@ from app.schemas.user import (
     H5OneClickLoginRequest,
     WeChatLoginRequest,
     WeChatBindPhoneRequest,
+    RefreshRequest,
+    LogoutRequest,
+    EcosystemLoginRequest,
     TokenResponse,
     UserResponse,
 )
@@ -25,8 +30,15 @@ from app.schemas.webauthn import (
     WebAuthnLoginCompleteResponse,
     WebAuthnCredentialResponse,
 )
-from app.auth.paseto_handler import create_token
+from app.auth.paseto_handler import (
+    create_token,
+    create_token_pair,
+    verify_refresh_token,
+    TokenExpiredError,
+    TokenInvalidError,
+)
 from app.auth import get_current_user
+from app.services import refresh_token_store
 from app.services.user_service import (
     create_user,
     authenticate_user,
@@ -48,6 +60,28 @@ from app.config import get_settings
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 settings = get_settings()
+
+
+def _token_response(user: User, pair: dict) -> TokenResponse:
+    """由令牌对构造响应（剥离内部字段 refresh_jti/family_id）。"""
+    return TokenResponse(
+        access_token=pair["access_token"],
+        token_type=pair["token_type"],
+        refresh_token=pair["refresh_token"],
+        expires_in=pair["expires_in"],
+        user=UserResponse.model_validate(user),
+    )
+
+
+async def _issue_and_persist(db: AsyncSession, user: User) -> dict:
+    """签发 access+refresh 令牌对并持久化 refresh 会话行（调用方负责 commit）。
+
+    认证改造 v4.public：登录/注册等改为下发可轮换的 refresh 令牌对；
+    refresh 会话行落库，作为复用检测与族撤销的 SSOT。
+    """
+    pair = create_token_pair(user.id, user.role)
+    await refresh_token_store.persist_refresh_token(db, pair, user.id)
+    return pair
 
 
 def _client_ip(request: Request) -> str:
@@ -100,7 +134,7 @@ async def register(
         )
 
     user = await create_user(db, data)
-    token = create_token(user.id, user.role)
+    pair = await _issue_and_persist(db, user)
 
     # 审计日志：记录注册事件（失败不影响主流程，受 audit_log_enabled 控制）
     await log_audit_event(
@@ -115,10 +149,7 @@ async def register(
     )
     await db.commit()
 
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse.model_validate(user),
-    )
+    return _token_response(user, pair)
 
 
 @router.post(
@@ -146,7 +177,7 @@ async def login(
             detail="手机号或密码错误",
         )
 
-    token = create_token(user.id, user.role)
+    pair = await _issue_and_persist(db, user)
 
     # 审计日志：记录登录事件（失败不影响主流程，受 audit_log_enabled 控制）
     await log_audit_event(
@@ -161,10 +192,7 @@ async def login(
     )
     await db.commit()
 
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse.model_validate(user),
-    )
+    return _token_response(user, pair)
 
 
 @router.get(
@@ -217,16 +245,18 @@ async def me_permissions(
 )
 async def logout(
     request: Request,
+    body: LogoutRequest | None = Body(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """撤销当前 token（v1.8.1 P0-2）。
+    """撤销当前 token（v1.8.1 P0-2）；认证改造后支持撤销 refresh 令牌族。
 
     流程：
     1. 从 request.state.paseto_payload 读取 jti + exp（中间件已缓存）
     2. revoke_token(jti, exp) 加入撤销列表（TTL = 剩余 exp 时间）
-    3. invalidate_user_cache(user_id) 清除 30s LRU 用户缓存
-    4. 写审计日志
+    3. 若携带 refresh_token → 撤销其整个令牌族（refresh_tokens.revoked=True）
+    4. invalidate_user_cache(user_id) 清除 30s LRU 用户缓存
+    5. 写审计日志
 
     向后兼容：旧 token 无 jti → 跳过 blacklist 写入，但仍清缓存。
     多 worker 限制：blacklist 仅当前 worker 生效（FC 单实例 OK）。
@@ -240,6 +270,16 @@ async def logout(
 
     if jti and exp_iso:
         revoke_token(jti, exp_iso)
+    # 撤销 refresh 令牌族（若客户端携带 refresh_token）
+    if body and body.refresh_token:
+        try:
+            rt_claims = verify_refresh_token(body.refresh_token)
+            rt_jti = rt_claims.get("jti")
+            rec = await refresh_token_store.get_refresh_token(db, rt_jti) if rt_jti else None
+            if rec is not None and rec.user_id == current_user.id:
+                await refresh_token_store.revoke_refresh_token_family(db, rec.family_id)
+        except (TokenExpiredError, TokenInvalidError):
+            pass  # 非法 refresh_token 不阻断登出主流程
     # 无论 jti 是否存在，都清用户缓存（确保被禁用/改密码立即生效）
     invalidate_user_cache(current_user.id)
 
@@ -259,6 +299,160 @@ async def logout(
     return {"detail": "登出成功"}
 
 
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="刷新令牌轮换",
+    description="用登录下发的 refresh_token 换取新的 access+refresh 对（同族轮换 + 复用检测）。",
+    responses={
+        200: {"description": "刷新成功"},
+        401: {"description": "刷新令牌无效/过期/重放"},
+    },
+    tags=["认证"],
+)
+async def refresh_token(
+    data: RefreshRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """刷新令牌轮换（OAuth 2.1 风格，与 suoke_club 对齐）。
+
+    流程：
+    1. 验签 refresh 令牌（要求 footer typ=rt）→ 取 jti
+    2. 查服务端会话行：
+       - 不存在 → 401 刷新令牌不可用
+       - revoked → 重放 → 撤销整族 → 401
+       - used_at 已设：grace 窗口内 → 返回轮换后的令牌（网络抖动重试）；超窗 → 重放 → 撤族
+       - 首次使用 → 同族续签新对 → 200
+    """
+    try:
+        claims = verify_refresh_token(data.refresh_token)
+    except TokenExpiredError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except TokenInvalidError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"刷新令牌无效：{e}",
+        )
+
+    jti = claims.get("jti")
+    user_id = claims.get("sub")
+    if not jti or not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌格式无效")
+
+    rec = await refresh_token_store.get_refresh_token(db, jti)
+    if rec is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="刷新令牌不可用")
+
+    if rec.revoked:
+        await refresh_token_store.revoke_refresh_token_family(db, rec.family_id)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="检测到刷新令牌重放，已撤销整个令牌族",
+        )
+
+    db_user = await db.get(User, user_id)
+    if db_user is None or not db_user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账户不存在或已禁用")
+
+    if rec.used_at is not None:
+        now = datetime.now(timezone.utc)
+        used_at = rec.used_at if rec.used_at.tzinfo else rec.used_at.replace(tzinfo=timezone.utc)
+        if (now - used_at).total_seconds() <= settings.paseto_refresh_grace_seconds:
+            # grace 窗口内：网络抖动重试，返回轮换后的 RT 原文 + 新签 AT，不撤销族
+            next_rec = (
+                await refresh_token_store.get_refresh_token(db, rec.rotated_to)
+                if rec.rotated_to
+                else None
+            )
+            if next_rec is not None and not next_rec.revoked and next_rec.token_text:
+                fresh_access = create_token(db_user.id, db_user.role)
+                await db.commit()
+                return TokenResponse(
+                    access_token=fresh_access,
+                    token_type="Bearer",
+                    refresh_token=next_rec.token_text,
+                    expires_in=settings.paseto_token_expire_minutes * 60,
+                    user=UserResponse.model_validate(db_user),
+                )
+            # rotated_to 缺失/已撤销 → 降级走首次使用路径
+        else:
+            # 超 grace 仍使用旧 RT = 重放，撤销整个族
+            await refresh_token_store.revoke_refresh_token_family(db, rec.family_id)
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="检测到刷新令牌重放，已撤销整个令牌族",
+            )
+
+    # 首次有效使用：同族续签新对并持久化
+    pair = create_token_pair(db_user.id, db_user.role, family_id=rec.family_id)
+    await refresh_token_store.mark_refresh_token_used(
+        db, jti, rotated_to=pair["refresh_jti"], used_at=datetime.now(timezone.utc)
+    )
+    await refresh_token_store.persist_refresh_token(db, pair, db_user.id)
+    await db.commit()
+
+    return _token_response(db_user, pair)
+
+
+# ═══════════════════════════════════════════
+#  生态 SSO（索克生活 suoke_life → 索克家居）
+# ═══════════════════════════════════════════
+
+
+@router.post(
+    "/ecosystem/login",
+    response_model=TokenResponse,
+    summary="生态 SSO 登录（索克生活）",
+    description="用索克生活签发的 v4.public access 令牌换取本系统令牌对（幂等建号，仅 homeowner）。",
+    responses={
+        200: {"description": "登录成功"},
+        401: {"description": "生态令牌无效/过期/类型不符"},
+        503: {"description": "生态公钥未配置"},
+    },
+    tags=["认证"],
+)
+async def ecosystem_login(
+    data: EcosystemLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """生态 SSO：验签索克生活令牌 → 幂等映射本系统用户 → 签发本系统令牌对。
+
+    安全红线：仅映射 homeowner 角色、无任何项目归属；升权限须走本系统自身认证。
+    """
+    from app.auth.ecosystem import (
+        EcosystemAuthError,
+        get_or_create_ecosystem_user,
+        verify_life_token,
+    )
+    from app.services.secret_manager import secret_manager
+
+    public_paserk = await secret_manager.get_ecosystem_public_paserk()
+    try:
+        norm = verify_life_token(data.ecosystem_token, public_paserk)
+    except EcosystemAuthError as e:
+        raise HTTPException(status_code=e.http, detail=e.message)
+
+    user = await get_or_create_ecosystem_user(db, norm)
+    pair = await _issue_and_persist(db, user)
+
+    await log_audit_event(
+        db=db,
+        user_id=user.id,
+        action="ECOSYSTEM_LOGIN",
+        resource_type="user",
+        resource_id=user.id,
+        details={"role": user.role, "source": "suoke-life", "iss": norm.get("iss", "")},
+        request_ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return _token_response(user, pair)
+
+
 # ═══════════════════════════════════════════
 #  运营商一键登录（阿里云号码认证）
 # ═══════════════════════════════════════════
@@ -272,7 +466,7 @@ async def _issue_token_for_phone(
 ) -> TokenResponse:
     """按手机号查找/创建用户，签发 PASETO Token 并写审计日志。"""
     user = await get_or_create_phone_user(db, phone)
-    token = create_token(user.id, user.role)
+    pair = await _issue_and_persist(db, user)
 
     await log_audit_event(
         db=db,
@@ -286,10 +480,7 @@ async def _issue_token_for_phone(
     )
     await db.commit()
 
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse.model_validate(user),
-    )
+    return _token_response(user, pair)
 
 
 @router.post("/oneclick/login", response_model=TokenResponse)
@@ -391,7 +582,7 @@ async def wechat_login(
     avatar_url = profile.get("headimgurl") or None
 
     user = await get_or_create_wechat_user(db, openid, unionid, nickname, avatar_url)
-    token = create_token(user.id, user.role)
+    pair = await _issue_and_persist(db, user)
 
     await log_audit_event(
         db=db,
@@ -405,10 +596,7 @@ async def wechat_login(
     )
     await db.commit()
 
-    return TokenResponse(
-        access_token=token,
-        user=UserResponse.model_validate(user),
-    )
+    return _token_response(user, pair)
 
 
 @router.post("/wechat/bind-phone", response_model=UserResponse)
@@ -538,7 +726,7 @@ async def webauthn_login_finish(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
-    token = create_token(user.id, user.role)
+    pair = await _issue_and_persist(db, user)
 
     # 审计日志：记录 Passkey 登录事件
     await log_audit_event(
@@ -558,7 +746,10 @@ async def webauthn_login_finish(
     await db.commit()
 
     return WebAuthnLoginCompleteResponse(
-        access_token=token,
+        access_token=pair["access_token"],
+        token_type=pair["token_type"],
+        refresh_token=pair["refresh_token"],
+        expires_in=pair["expires_in"],
         user=UserResponse.model_validate(user).model_dump(),
     )
 

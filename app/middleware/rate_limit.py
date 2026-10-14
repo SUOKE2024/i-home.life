@@ -35,6 +35,12 @@ _EXEMPT_PATHS: frozenset[str] = frozenset({
 _AUTH_PATHS: frozenset[str] = frozenset({
     "/api/auth/login",
     "/api/auth/register",
+    "/api/auth/ecosystem/login",
+})
+
+# 刷新端点：独立配额（SPA 多组件并发刷新会瞬时放大，放宽到 rate_limit_refresh_per_minute）
+_REFRESH_PATHS: frozenset[str] = frozenset({
+    "/api/auth/refresh",
 })
 
 # 按需清理的频率：每 N 次请求触发一次过期条目清理
@@ -121,9 +127,12 @@ async def rate_limit_middleware(request: Request, call_next: Callable[[Request],
         return await call_next(request)
 
     # 区分认证端点（更严格）与普通 API
-    if path in _AUTH_PATHS:
-        limit: int = settings.rate_limit_auth_per_minute
-        path_key: str = "auth"
+    if path in _REFRESH_PATHS:
+        limit: int = settings.rate_limit_refresh_per_minute
+        path_key: str = "refresh"
+    elif path in _AUTH_PATHS:
+        limit = settings.rate_limit_auth_per_minute
+        path_key = "auth"
     else:
         limit = settings.rate_limit_per_minute
         path_key = "api"

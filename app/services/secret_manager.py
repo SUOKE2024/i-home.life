@@ -25,6 +25,14 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# ── Vault KV 键名常量（与索克生态对齐）──
+# 认证改造（v4.public）：签发私钥 / 验签公钥；生态互通：suoke_life 侧公开公钥。
+VAULT_KEY_PASETO_PRIVATE = "paseto-private-key"
+VAULT_KEY_PASETO_PUBLIC = "paseto-public-key"
+# 生态公钥存放在 KV 路径 suoke/ecosystem，字段名 suoke-life-public-paserk（与 suoke_club 一致）。
+VAULT_PATH_ECOSYSTEM = "suoke/ecosystem"
+VAULT_FIELD_ECOSYSTEM_PUBLIC = "suoke-life-public-paserk"
+
 
 @lru_cache(maxsize=1)
 def get_paseto_key_fingerprint() -> str:
@@ -120,6 +128,37 @@ class SecretManager:
     def _fetch_from_local(self, key_name: str) -> str | None:
         """从本地 settings 降级获取密钥。"""
         return getattr(settings, key_name, None)
+
+    async def get_ecosystem_public_paserk(self) -> str | None:
+        """获取索克生活侧公开公钥 PASERK（k4.public.），用于生态 SSO 验签。
+
+        取值顺序：
+        1) settings.ecosystem_public_paserk / 环境变量 ECOSYSTEM_PUBLIC_PASERK（公钥可公开）
+        2) Vault KV v2 路径 suoke/ecosystem 的字段 suoke-life-public-paserk（与 suoke_club 对齐）
+
+        注意：生态公钥属公开信息，允许 env 直配；私钥 PII 才必须走 Vault。
+        """
+        import os
+
+        direct = (getattr(settings, "ecosystem_public_paserk", "") or os.getenv("ECOSYSTEM_PUBLIC_PASERK") or "").strip()
+        if direct:
+            return direct
+        if not self.enabled or not self.vault_configured:
+            return None
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5) as client:
+                url = f"{settings.vault_url}/v1/{settings.vault_namespace}/data/{VAULT_PATH_ECOSYSTEM}"
+                resp = await client.get(url, headers={"X-Vault-Token": settings.vault_token})
+                if resp.status_code != 200:
+                    logger.debug("vault_get %s: status=%s", VAULT_PATH_ECOSYSTEM, resp.status_code)
+                    return None
+                body = resp.json().get("data", {}).get("data", {})
+                value = body.get(VAULT_FIELD_ECOSYSTEM_PUBLIC)
+                return value.strip() if isinstance(value, str) and value.strip() else None
+        except Exception as e:
+            logger.warning("vault_fetch 生态公钥失败: %s", e)
+            return None
 
     def get_health_info(self) -> dict[str, Any]:
         """返回密钥管理健康信息（用于 /api/health/detail）。"""

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { getToken, me as apiMe, logout as apiLogout } from './api'
+import { getToken, getRefreshToken, clearToken, me as apiMe, logout as apiLogout } from './api'
 
 const AppContext = createContext(null)
 
@@ -15,7 +15,8 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let on = true
     const boot = async () => {
-      if (!getToken()) {
+      // 任一令牌存在即尝试恢复会话（access 过期时由 request 的 401 单飞刷新兜底）
+      if (!getToken() && !getRefreshToken()) {
         if (on) setBooted(true)
         return
       }
@@ -25,7 +26,7 @@ export function AppProvider({ children }) {
           setUser(r.data)
           setLoggedIn(true)
         } else {
-          localStorage.removeItem('paseto_token')
+          clearToken()
         }
         setBooted(true)
       }

@@ -45,6 +45,24 @@ class WeChatBindPhoneRequest(BaseModel):
     sp_token: str = Field(min_length=1)
 
 
+class RefreshRequest(BaseModel):
+    """刷新令牌请求：refresh_token 由登录响应下发，客户端持久化后调用 /auth/refresh 轮换。"""
+
+    refresh_token: str = Field(min_length=1)
+
+
+class LogoutRequest(BaseModel):
+    """登出请求：可选携带 refresh_token 以撤销其令牌族（缺省时仅按 access jti 撤销）。"""
+
+    refresh_token: str | None = None
+
+
+class EcosystemLoginRequest(BaseModel):
+    """生态 SSO 登录请求：ecosystem_token 为索克生活签发的 v4.public access 令牌。"""
+
+    ecosystem_token: str = Field(min_length=1)
+
+
 class UserResponse(BaseModel):
     id: str
     phone: str | None = None  # 微信登录用户未绑手机前为 None
@@ -62,4 +80,7 @@ class UserResponse(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "Bearer"
+    # 认证改造 v4.public：登录/注册等签发 access+refresh 对，下发轮换用 refresh_token
+    refresh_token: str | None = None
+    expires_in: int | None = None
     user: UserResponse

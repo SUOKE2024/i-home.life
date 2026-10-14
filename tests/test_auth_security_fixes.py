@@ -41,14 +41,17 @@ def _clear_blacklist():
 
 @pytest.mark.asyncio
 async def test_verify_token_missing_exp_raises_invalid():
-    """P0-1: 缺少 exp 字段 → TokenInvalidError（原 fail-open 视为永不过期）"""
-    import paseto
-    from app.auth.paseto_handler import _get_key
+    """P0-1: 缺少 exp 字段 → TokenInvalidError（原 fail-open 视为永不过期）
 
-    key = _get_key()
+    认证改造：改在 v4.public 路径验证（对称 v4.local 已降级为过渡期 legacy）。
+    """
+    import paseto
+    from app.auth.paseto_handler import _get_sign_key
+
+    key = _get_sign_key()
     # 直接构造无 exp 的 token
     token = paseto.create(
-        key=key, purpose="local", claims={"sub": "u1", "role": "homeowner"}
+        key=key, purpose="public", claims={"sub": "u1", "role": "homeowner"}
     )
     with pytest.raises(TokenInvalidError, match="exp"):
         verify_token(token)
@@ -58,18 +61,16 @@ async def test_verify_token_missing_exp_raises_invalid():
 async def test_verify_token_malformed_exp_raises_invalid():
     """P0-1: exp 格式错 → TokenInvalidError（fail-closed）
 
-    注：paseto 库自身在 parse 阶段用 pendulum 解析 exp，格式错会先于
-    我们代码的 fromisoformat 抛 ParserError，被 verify_token 的
-    except Exception 捕获并转 TokenInvalidError。本测试只验证拒绝行为，
-    不绑定具体错误消息（paseto 版本可能变化）。
+    认证改造：v4.public 路径用 validate=False 解析 + 手工 fromisoformat，
+    格式错由本模块抛 TokenInvalidError（不再依赖 paseto 库的 pendulum 校验）。
     """
     import paseto
-    from app.auth.paseto_handler import _get_key
+    from app.auth.paseto_handler import _get_sign_key
 
-    key = _get_key()
+    key = _get_sign_key()
     token = paseto.create(
         key=key,
-        purpose="local",
+        purpose="public",
         claims={"sub": "u1", "role": "homeowner", "exp": "not-a-valid-date"},
     )
     with pytest.raises(TokenInvalidError):

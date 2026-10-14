@@ -28,9 +28,13 @@ class Result<T> {
 
 class ApiClient {
   String? _token;
+  // 认证改造 v4.public：refresh 令牌本地键（与 web/console 同源共享登录态）
+  String? _refreshToken;
   int _retryCount = 0;
   static const int _maxRetries = 3;
   static const Duration _retryBaseDelay = Duration(milliseconds: 500);
+  static const String _tokenKey = 'paseto_token';
+  static const String _refreshKey = 'paseto_refresh_token';
 
   static final ApiClient _instance = ApiClient._();
   factory ApiClient() => _instance;
@@ -39,25 +43,66 @@ class ApiClient {
   /// 外部可设置的未授权回调，收到 401 时触发。
   void Function()? onUnauthorized;
 
+  /// 单飞刷新：并发 401 共享同一次 /auth/refresh，避免重复轮换触发族撤销。
+  Future<bool>? _refreshFuture;
+
   Future<void> loadToken() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('paseto_token');
+    _token = prefs.getString(_tokenKey);
+    _refreshToken = prefs.getString(_refreshKey);
   }
 
-  Future<void> saveToken(String token) async {
+  Future<void> saveToken(String token, {String? refreshToken}) async {
     _token = token;
+    if (refreshToken != null) _refreshToken = refreshToken;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('paseto_token', token);
+    await prefs.setString(_tokenKey, token);
+    if (refreshToken != null) await prefs.setString(_refreshKey, refreshToken);
   }
 
   Future<void> clearToken() async {
     _token = null;
+    _refreshToken = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('paseto_token');
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_refreshKey);
   }
 
   bool get isLoggedIn => _token != null;
   String? get token => _token;
+
+  /// 刷新令牌（单飞）。成功返回 true 并更新本地令牌；失败返回 false。
+  Future<bool> refreshTokens() {
+    final existing = _refreshFuture;
+    if (existing != null) return existing;
+    final rt = _refreshToken;
+    if (rt == null || rt.isEmpty) return Future.value(false);
+    final future = () async {
+      try {
+        final res = await http.post(
+          _uri('/auth/refresh'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'refresh_token': rt}),
+        );
+        if (res.statusCode != 200) return false;
+        final data = jsonDecode(res.body);
+        if (data is Map && data['access_token'] != null) {
+          await saveToken(
+            data['access_token'] as String,
+            refreshToken: data['refresh_token'] as String?,
+          );
+          return true;
+        }
+        return false;
+      } catch (_) {
+        return false;
+      } finally {
+        _refreshFuture = null;
+      }
+    }();
+    _refreshFuture = future;
+    return future;
+  }
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
@@ -106,54 +151,48 @@ class ApiClient {
 
   // ── HTTP 方法（统一返回 Result） ──
 
-  Future<Result<dynamic>> get(String path) async {
+  /// 发送 multipart 请求（builder 每次调用重建请求，支持刷新后重放）。
+  Future<http.Response> _sendMultipart(Future<http.MultipartRequest> Function() build) async {
+    final req = await build();
+    final streamed = await _send(() => req.send());
+    return http.Response.fromStream(streamed);
+  }
+
+  /// 带鉴权重试的请求：401 → 单飞刷新后重放一次，仍 401 走未授权处理。
+  /// 闭包每次重放都重新读取 `_headers`，因此刷新后的新令牌会生效。
+  Future<Result<dynamic>> _requestWithAuth(Future<http.Response> Function() send) async {
     try {
-      final res = await _send(() => http.get(_uri(path), headers: _headers));
+      var res = await _send(send);
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _send(send);
+      }
       return _handleResponse(res);
     } on ApiException catch (e) {
       return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
     }
   }
 
-  Future<Result<dynamic>> post(String path, Map<String, dynamic> body) async {
-    try {
-      final res = await _send(() => http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
-      return _handleResponse(res);
-    } on ApiException catch (e) {
-      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
-    }
-  }
+  Future<Result<dynamic>> get(String path) =>
+      _requestWithAuth(() => http.get(_uri(path), headers: _headers));
 
-  Future<Result<dynamic>> put(String path, Map<String, dynamic> body) async {
-    try {
-      final res = await _send(() => http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
-      return _handleResponse(res);
-    } on ApiException catch (e) {
-      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
-    }
-  }
+  Future<Result<dynamic>> post(String path, Map<String, dynamic> body) =>
+      _requestWithAuth(() => http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
 
-  Future<Result<dynamic>> patch(String path, Map<String, dynamic> body) async {
-    try {
-      final res = await _send(() => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)));
-      return _handleResponse(res);
-    } on ApiException catch (e) {
-      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
-    }
-  }
+  Future<Result<dynamic>> put(String path, Map<String, dynamic> body) =>
+      _requestWithAuth(() => http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
 
-  Future<Result<dynamic>> delete(String path) async {
-    try {
-      final res = await _send(() => http.delete(_uri(path), headers: _headers));
-      return _handleResponse(res);
-    } on ApiException catch (e) {
-      return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
-    }
-  }
+  Future<Result<dynamic>> patch(String path, Map<String, dynamic> body) =>
+      _requestWithAuth(() => http.patch(_uri(path), headers: _headers, body: jsonEncode(body)));
+
+  Future<Result<dynamic>> delete(String path) =>
+      _requestWithAuth(() => http.delete(_uri(path), headers: _headers));
 
   Future<Result<dynamic>> getList(String path, {bool enableCache = true}) async {
     try {
-      final res = await _send(() => http.get(_uri(path), headers: _headers));
+      var res = await _send(() => http.get(_uri(path), headers: _headers));
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _send(() => http.get(_uri(path), headers: _headers));
+      }
       if (res.statusCode == 204) return Result.success([]);
       if (res.statusCode == 401) {
         await _onUnauthorized();
@@ -185,9 +224,8 @@ class ApiClient {
   // ── 文件上传 ──
 
   Future<Result<dynamic>> uploadFile(String path, {required String filePath, String? projectId}) async {
-    try {
-      final uri = _uri(path);
-      final request = http.MultipartRequest('POST', uri);
+    Future<http.MultipartRequest> build() async {
+      final request = http.MultipartRequest('POST', _uri(path));
       if (_token != null) {
         request.headers['Authorization'] = 'Bearer $_token';
       }
@@ -195,8 +233,14 @@ class ApiClient {
       if (projectId != null) {
         request.fields['project_id'] = projectId;
       }
-      final streamed = await _send(() => request.send());
-      final res = await http.Response.fromStream(streamed);
+      return request;
+    }
+
+    try {
+      var res = await _sendMultipart(build);
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _sendMultipart(build);
+      }
       return _handleResponse(res);
     } on ApiException catch (e) {
       return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
@@ -556,7 +600,10 @@ class ApiClient {
     if (result.isSuccess && result.data != null) {
       final data = result.data as Map<String, dynamic>;
       if (data['access_token'] != null) {
-        await saveToken(data['access_token'] as String);
+        await saveToken(
+          data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String?,
+        );
       }
     }
     return result;
@@ -581,7 +628,10 @@ class ApiClient {
     if (result.isSuccess && result.data != null) {
       final data = result.data as Map<String, dynamic>;
       if (data['access_token'] != null) {
-        await saveToken(data['access_token'] as String);
+        await saveToken(
+          data['access_token'] as String,
+          refreshToken: data['refresh_token'] as String?,
+        );
       }
     }
     return result;
@@ -1088,13 +1138,19 @@ class ApiClient {
 
   /// 拍照识别产品（需已认证供应商）
   Future<Result<dynamic>> cameraScan(Uint8List imageBytes, String filename, {String? context}) async {
-    try {
+    Future<http.MultipartRequest> build() async {
       final request = http.MultipartRequest('POST', _uri('/products/camera/scan'));
       if (_token != null) request.headers['Authorization'] = 'Bearer $_token';
       request.files.add(http.MultipartFile.fromBytes('image', imageBytes, filename: filename));
       if (context != null) request.fields['context'] = context;
-      final streamed = await _send(() => request.send());
-      final res = await http.Response.fromStream(streamed);
+      return request;
+    }
+
+    try {
+      var res = await _sendMultipart(build);
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _sendMultipart(build);
+      }
       return _handleResponse(res);
     } on ApiException catch (e) {
       return Result.failure(e.message, statusCode: e.statusCode, isNetworkError: e.isNetwork);
@@ -1848,7 +1904,7 @@ class ApiClient {
     required String filename,
     Map<String, String> fields = const {},
   }) async {
-    try {
+    Future<http.MultipartRequest> build() async {
       final request = http.MultipartRequest('POST', _uri(path));
       if (_token != null) {
         request.headers['Authorization'] = 'Bearer $_token';
@@ -1856,8 +1912,14 @@ class ApiClient {
       request.files
           .add(http.MultipartFile.fromBytes('file', fileBytes, filename: filename));
       request.fields.addAll(fields);
-      final streamed = await _send(() => request.send());
-      final res = await http.Response.fromStream(streamed);
+      return request;
+    }
+
+    try {
+      var res = await _sendMultipart(build);
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _sendMultipart(build);
+      }
       return _handleResponse(res);
     } on ApiException catch (e) {
       return Result.failure(e.message,
@@ -1872,14 +1934,14 @@ class ApiClient {
     required String lodLevel,
   }) async {
     try {
-      final res = await _send(() => http.post(
-            _uri(path),
-            headers: _headers,
-            body: jsonEncode({
-              'include_furniture': includeFurniture,
-              'lod_level': lodLevel,
-            }),
-          ));
+      final body = jsonEncode({
+        'include_furniture': includeFurniture,
+        'lod_level': lodLevel,
+      });
+      var res = await _send(() => http.post(_uri(path), headers: _headers, body: body));
+      if (res.statusCode == 401 && await refreshTokens()) {
+        res = await _send(() => http.post(_uri(path), headers: _headers, body: body));
+      }
       if (res.statusCode == 401) {
         unawaited(_onUnauthorized());
         return Result.failure('未授权，请重新登录', statusCode: 401);

@@ -9,6 +9,8 @@
  */
 
 const TOKEN_KEY = 'paseto_token';
+// 认证改造 v4.public：refresh 令牌本地键（与 webapp/web 同源共享登录态）
+const REFRESH_KEY = 'paseto_refresh_token';
 const BASE_URL = ''; // 同源，Vite proxy /api → localhost:8000
 
 export interface ApiResult<T = unknown> {
@@ -29,17 +31,72 @@ export class ApiClient {
   /** 未授权回调（由应用层设置） */
   onUnauthorized: (() => void) | null = null;
 
+  /** 单飞刷新：并发 401 共享同一次 /api/auth/refresh，避免重复轮换触发族撤销 */
+  private _refreshPromise: Promise<boolean> | null = null;
+
   getToken(): string {
     return localStorage.getItem(TOKEN_KEY) ?? '';
+  }
+
+  getRefreshToken(): string {
+    return localStorage.getItem(REFRESH_KEY) ?? '';
   }
 
   setToken(token: string): void {
     localStorage.setItem(TOKEN_KEY, token);
   }
 
+  /** 登录响应统一持久化 access + refresh 令牌。 */
+  setTokens(accessToken: string, refreshToken?: string | null): void {
+    if (accessToken) localStorage.setItem(TOKEN_KEY, accessToken);
+    if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+  }
+
   clearToken(): void {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem('user_info');
+  }
+
+  /**
+   * 刷新令牌（单飞）。成功返回 true 并更新本地令牌；失败返回 false。
+   * 并发调用共享同一次请求，避免控制台多组件同时 401 触发多次轮换。
+   */
+  refreshTokens(): Promise<boolean> {
+    if (this._refreshPromise) return this._refreshPromise;
+    const rt = this.getRefreshToken();
+    if (!rt) return Promise.resolve(false);
+    this._refreshPromise = (async (): Promise<boolean> => {
+      try {
+        const res = await fetch(this.buildUrl('/api/auth/refresh'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: rt }),
+        });
+        if (!res.ok) return false;
+        const data = await res.json().catch(() => undefined);
+        if (data && data.access_token) {
+          this.setTokens(data.access_token, data.refresh_token);
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      } finally {
+        this._refreshPromise = null;
+      }
+    })();
+    return this._refreshPromise;
+  }
+
+  /** 401 兜底：清 token + 触发未授权回调（跳登录）。 */
+  private _handleUnauthorized(): void {
+    this.clearToken();
+    if (this.onUnauthorized) {
+      this.onUnauthorized();
+    } else {
+      window.location.href = '/login.html?redirect=/console/';
+    }
   }
 
   private buildUrl(path: string): string {
@@ -47,7 +104,11 @@ export class ApiClient {
     return BASE_URL + (path.startsWith('/') ? path : '/' + path);
   }
 
-  async request<T = unknown>(path: string, options: RequestInit = {}): Promise<ApiResult<T>> {
+  async request<T = unknown>(
+    path: string,
+    options: RequestInit = {},
+    _retried = false,
+  ): Promise<ApiResult<T>> {
     const token = this.getToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -60,12 +121,12 @@ export class ApiClient {
     try {
       const res = await fetch(this.buildUrl(path), { ...options, headers });
       if (res.status === 401) {
-        this.clearToken();
-        if (this.onUnauthorized) {
-          this.onUnauthorized();
-        } else {
-          window.location.href = '/login.html?redirect=/console/';
+        // 先单飞刷新后重放一次原请求（刷新端点自身除外）
+        if (!_retried && !path.startsWith('/api/auth/refresh')) {
+          const refreshed = await this.refreshTokens();
+          if (refreshed) return this.request<T>(path, options, true);
         }
+        this._handleUnauthorized();
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       if (res.ok) {
@@ -105,6 +166,7 @@ export class ApiClient {
     path: string,
     file: File,
     extraFields: Record<string, string> = {},
+    _retried = false,
   ): Promise<ApiResult<T>> {
     const token = this.getToken();
     const headers: Record<string, string> = {};
@@ -123,9 +185,11 @@ export class ApiClient {
         body: formData,
       });
       if (res.status === 401) {
-        this.clearToken();
-        if (this.onUnauthorized) this.onUnauthorized();
-        else window.location.href = '/login.html?redirect=/console/';
+        if (!_retried) {
+          const refreshed = await this.refreshTokens();
+          if (refreshed) return this.uploadFile<T>(path, file, extraFields, true);
+        }
+        this._handleUnauthorized();
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       const data = res.ok ? await res.json().catch(() => undefined) : undefined;
@@ -152,6 +216,7 @@ export class ApiClient {
   async downloadBlob(
     path: string,
     body: Record<string, unknown> = {},
+    _retried = false,
   ): Promise<{ isSuccess: boolean; status: number; blob?: Blob; filename?: string; error?: string }> {
     const token = this.getToken();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -164,9 +229,11 @@ export class ApiClient {
         body: JSON.stringify(body),
       });
       if (res.status === 401) {
-        this.clearToken();
-        if (this.onUnauthorized) this.onUnauthorized();
-        else window.location.href = '/login.html?redirect=/console/';
+        if (!_retried) {
+          const refreshed = await this.refreshTokens();
+          if (refreshed) return this.downloadBlob(path, body, true);
+        }
+        this._handleUnauthorized();
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       if (!res.ok) {
@@ -217,6 +284,7 @@ export class ApiClient {
       history?: Array<{ role: string; content: string; agent_type?: string }>;
       sessionId?: string | null;
     } = {},
+    _retried = false,
   ): AsyncGenerator<import('../types/chat').SseEvent, void, unknown> {
     const token = this.getToken();
     const res = await fetch(this.buildUrl('/api/agents/chat/stream'), {
@@ -237,13 +305,15 @@ export class ApiClient {
     });
 
     if (res.status === 401) {
-      this.clearToken();
-      if (this.onUnauthorized) {
-        this.onUnauthorized();
-      } else {
-        // v1.2.7: 带 redirect 参数，登录后回到 /console/（而非旧 workbench.html）
-        window.location.href = '/login.html?redirect=/console/';
+      // 先单飞刷新后重放一次（SSE 流式，失败再跳登录）
+      if (!_retried) {
+        const refreshed = await this.refreshTokens();
+        if (refreshed) {
+          yield* this.streamChat(text, opts, true);
+          return;
+        }
       }
+      this._handleUnauthorized();
       throw new Error('认证过期，请重新登录');
     }
     if (!res.ok || !res.body) {
@@ -2371,6 +2441,7 @@ export class ApiClient {
   /** 下载项目附件（GET /api/files/download/{attachment_id}，返回 blob） */
   async downloadProjectFile(
     attachmentId: string,
+    _retried = false,
   ): Promise<{ isSuccess: boolean; status: number; blob?: Blob; filename?: string; error?: string }> {
     const token = this.getToken();
     const headers: Record<string, string> = {};
@@ -2381,9 +2452,11 @@ export class ApiClient {
         headers,
       });
       if (res.status === 401) {
-        this.clearToken();
-        if (this.onUnauthorized) this.onUnauthorized();
-        else window.location.href = '/login.html?redirect=/console/';
+        if (!_retried) {
+          const refreshed = await this.refreshTokens();
+          if (refreshed) return this.downloadProjectFile(attachmentId, true);
+        }
+        this._handleUnauthorized();
         return { isSuccess: false, status: 401, error: '认证过期，请重新登录' };
       }
       if (!res.ok) {
