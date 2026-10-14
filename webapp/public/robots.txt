@@ -17,3 +17,38 @@ Disallow: /api/
 
 # 站点地图
 Sitemap: https://i-home.life/sitemap.xml
+
+# ── AI 检索类爬虫策略（v1.18.0 生成，可回滚）──
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+User-agent: ClaudeBot
+Allow: /
+Disallow: /api/
+User-agent: Claude-User
+Allow: /
+Disallow: /api/
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /api/
+User-agent: PerplexityBot
+Allow: /
+Disallow: /api/
+User-agent: Perplexity-User
+Allow: /
+Disallow: /api/
+User-agent: Google-Extended
+Allow: /
+Disallow: /api/
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /api/
+User-agent: Bytespider
+Allow: /
+Disallow: /api/
+User-agent: meta-externalagent
+Allow: /
+Disallow: /api/

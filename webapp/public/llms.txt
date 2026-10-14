@@ -1,0 +1,22 @@
+# 索克家居 · i-home.life — AI 智能装修平台
+
+> 索克家居 i-home.life — AI 驱动的全链路智能家居建造平台。覆盖设计→预算→采购→施工→质检→结算全流程，AR 量房、3D 方案、VR 全景。
+
+## 站点页面
+
+- https://i-home.life/（最后更新：2026-08-08）
+- https://i-home.life/auth（最后更新：2026-08-08）
+- https://i-home.life/projects（最后更新：2026-08-08）
+- https://i-home.life/budget（最后更新：2026-08-08）
+- https://i-home.life/construction（最后更新：2026-08-08）
+- https://i-home.life/quality（最后更新：2026-08-08）
+- https://i-home.life/settlement（最后更新：2026-08-08）
+- https://i-home.life/procurement（最后更新：2026-08-08）
+- https://i-home.life/smart-home（最后更新：2026-08-08）
+
+## 说明
+
+本文件由索克家居平台按站点既有公开元数据自动生成，供 AI 检索系统了解站点结构；
+事实性内容以页面正文为准，本文件不新增、不推断任何业务声明。
+
+生成器：app/services/remediation_plan_service.py（内容确定性生成：同一站点产物下重复执行不产生差异）
