@@ -100,10 +100,22 @@ async def test_demo_login_concurrent(client, monkeypatch):
     """并发登录：同一演示账号 8 个并发请求全部成功，Token 互不相同（会话隔离）。
 
     注意：测试库为 SQLite（StaticPool 单连接），并发写会锁冲突，故关闭
-    audit_log 写（login 主路径仅读 + 内存 Token 生成），规避项目已知并发约束。
+    audit_log 写。v4.public 迁移后 login 主路径新增 refresh 会话落库，同样属并发写，
+    一并在此关闭（refresh 落库/轮换/复用检测语义由 test_auth_v4public_refresh_sso.py
+    专项覆盖）；本用例聚焦「并发登录 → Token 互异（jti 隔离）」。
     """
     await _ensure_demo_user()
     monkeypatch.setattr(get_settings(), "audit_log_enabled", False)
+
+    import app.api.auth as auth_module
+
+    async def _noop_persist(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(
+        auth_module.refresh_token_store, "persist_refresh_token", _noop_persist
+    )
+
     responses = await asyncio.gather(*[_login(client) for _ in range(8)])
     assert all(r.status_code == 200 for r in responses), [
         r.status_code for r in responses

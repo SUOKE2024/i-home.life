@@ -75,7 +75,7 @@ async def test_wechat_login_creates_and_reuses_user(client: AsyncClient, db_sess
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["access_token"].startswith("v4.local.")
+    assert data["access_token"].startswith("v4.public.")
     assert data["user"]["role"] == "homeowner"
     assert data["user"]["phone"] is None
     assert data["user"]["name"] == "测试昵称"
