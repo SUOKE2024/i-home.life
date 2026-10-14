@@ -120,7 +120,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2864 passed 不得回退（collect 2870 = 2864 passed + 2 skipped + 4 xfailed，2026-09-24 生产交叉验证修复落地：项目成员授权 18 用例 + 周报/商品/采购口径 4 用例，全量校准，`-n 4` 实测 12 分 50 秒零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2930 passed 不得回退（collect 2936 = 2930 passed + 2 skipped + 4 xfailed，2026-09-25 v1.18.0 站点 AI 可见度落地：AI 可见度审计/修复清单闭环/内容新鲜度 66 用例，全量校准，`-n 4` 实测 11 分 29 秒零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -150,6 +150,16 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **P0 服务商能力档案**（`ai_service_provider_profile_enabled`）：`GET /api/admin/ai-service-provider-profile`（admin）。`app/services/ai_service_provider_profile.py` 按五类服务组织能力条目，**`evidence` 为仓库内真实模块路径，`status` 由文件存在性确定性核验**（`evidenced`/`missing`/`not_evidenced`），禁止编造能力充数；治理证据**复用 `run_governance_audit()`**（OWASP 10 + ATH 5），不重复实现；**`maturity_level` 恒为 `not_assessed`**（GB/T 45907-2025 等级判定须第三方评估机构，平台不得自评）；`disclaimer` 恒带「非第三方认证结论，不构成资源池入库证明」。
 - **P1 Token 计量口径**（`ai_token_metering_enabled`）：`GET /api/ai-usage/tokens`（本人，带 `project_id` 走 `verify_project_access`）+ `GET /api/admin/ai-usage/tokens`（admin）。数据源 `agent_traces` 聚合（`group_by` ∈ agent_name/model/provider，无迁移）；**计量 ≠ 计费**——输出恒带 `metering_only=True` / `billing_ready=False` / billing_note，禁止对外宣称「Token 账单」；`agent_trace_persist_enabled=False` 时标 `data_source_available=False` 并说明，**不得返回 0 伪装无用量**。
 - **P2 FDE 现场服务记录**（`fde_field_service_enabled`）：表 `fde_field_visits`（迁移 `l4d5e6f7a8b9`），`POST/GET/GET{id}/PATCH/DELETE /api/fde-field-visits`（+ `/enums`）。补齐 G3「谁在现场、做了什么、耗时多少、解决与否」（`space_assets` 只有状态机维度）。`service_type` ∈ installation/commissioning/training/maintenance/safety_walkthrough/consulting，`mode` ∈ on_site/remote_support；**`capability_tags` 只声明实际具备的维度**（business/model/security/delivery，允许空），不硬凑四维；`owner_id` 隔离 + `project_id` 走 `verify_project_access`。`resolved` 是现场闭环状态，**不是交付验收结论**。
+
+## 从 Vibe Coding 到 Vibe Business（v1.18.0，站点 AI 可见度与阵地经营）
+
+借鉴数智前线《万小智，让AI从网站生成走向企业经营》（2026-09-24）——「AI 让网站生成变得非常容易，但围绕企业自有阵地的长期经营仍缺解法」「**诊断完成不等于问题得到解决**」。详见 `docs/frontier-borrowing-2026-09-25-vibe-business.md`。三个 flag 默认 True，关闭即 503 诚实降级；全部**确定性实现、零 LLM 成本、零外部网络调用**。
+
+- **P0 站点 AI 可见度（GEO）就绪度审计**（`ai_visibility_audit_enabled`）：`GET /api/ai-visibility`（admin）。四维加权 100 分（可抓取 30 / 可理解 25 / 可引用 25 / 新鲜度 20）共 16 项检查，全部由静态产物（robots.txt / sitemap.xml / index.html / llms.txt）确定性解析，每项附实测 `evidence`。**诚实红线：`model_probing=False`——不调用任何 AI 平台，不构成 AI 引用/收录/排名承诺**（disclaimer + 5 条 limitations 不得移除）；前置产物缺失记 `unknown` 计 0 分不猜为通过。首次实测仓库现状 **70/100**（缺业务实体结构化数据、无公开内容页、sitemap lastmod 冻结 48 天、无 llms.txt）。
+- **P1 修复清单闭环**（`remediation_plan_enabled`）：`/api/remediation-plans/*`（admin），表 `remediation_plans`（迁移 `m7a8b9c0d1e2`），承载「诊断 → 清单 → 确认 → 执行 → 复检 → 回滚」。**`AUTO_REMEDIATION_ACTIONS` 是唯一白名单**（生成 llms.txt / 追加 robots.txt AI 爬虫声明块），新增自动动作须同时满足「可逆 + 不改企业事实 + 可确定性复检」；`_safe_target` 写入根恒为仓库内 `webapp/`（`allowed_root` 仅服务层内部可传，**HTTP 层永不传**）；`apply` 须显式 `confirm=True`（否则 422）；`verify` 默认只复检**已执行**条目；`rollback` 按执行前全文备份还原。tier 由 `classify_tier` 确定性判定：涉及企业事实/品牌承诺/发布权限/经营决策 → `human_only` **只出清单不代做**。
+- **P2 公开内容新鲜度（长草）监测**（`content_freshness_monitor_enabled`）：`GET /api/content-freshness`（admin）。`freshness = 0.5 ** (年龄/半衰期)`，半衰期**复用 `memory_decay_half_life_days`**（不另造口径）；监测项目/空间资产/已发布产品。**只出待更新清单不代写内容**；无数据源记 `insufficient_data` 并标注「不据此判为不合格」，**不返回 0 伪装全部新鲜**。
+- **两条审计不变式（v1.18.0 自查修复，勿回退）**：① `resolve_artifacts` 必须**先定目录、再在该目录内取全部产物**——禁止逐个文件跨候选目录回退（否则读出「robots 取自 dist、llms.txt 取自 public」的**混合产物集**，结论不可信）；`index.html` 回退 `webapp/index.html` 仅当 `public_dir` 就是源码态 `webapp/public`（按目录身份判定，与是否显式传参无关 → 同一 `static_root` 读取恒一致，复检可比）。② 组织实体查找必须**递归**（覆盖 `@graph` / `publisher` / 任意嵌套 / `@type` 数组）并按字段完整度择优——只在顶层找 `@type` 会把标准 `@graph` 写法误报「未找到 Organization 实体」。
+- **填写模板**：`docs/guides/structured-data-template.md`（业务实体 JSON-LD，含占位符）。**模板不得直接粘贴上线**——占位符会让审计把业务实体判为 `pass`，反而掩盖真实缺口；填完须由经营方确认（涉健康声明/补贴/轻资产三红线）后复跑审计验证。
 
 ## 生产 schema 约束对齐（v1.17.4，CHECK 约束回填）
 

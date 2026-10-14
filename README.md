@@ -4,11 +4,23 @@
 >
 > 对外定位：面向云南区域存量空间资源（康养 / 疗愈 / 旅居 / 文旅 / 适老住宅）提供 AI 智能化改造与长期健康运营，是索克生活生态的空间供应链与引流入口。AI 装修全链路（设计→算量→报价→采购→施工→质检→结算）为**交付底座**，不对外主打。轻资产改造服务商定位：不持有房产、不做物业运营、不做房地产经纪。
 >
-> v1.17.4 · AI 应用服务商培育政策落地（工信厅科函〔2026〕414号：服务商能力档案 + Token 计量口径 + FDE 现场服务记录）：v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/
+> v1.18.0 · 从 Vibe Coding 到 Vibe Business（站点 AI 可见度 GEO 审计 + 修复清单闭环 + 内容新鲜度监测）：v1.17.4 · AI 应用服务商培育政策落地（工信厅科函〔2026〕414号：服务商能力档案 + Token 计量口径 + FDE 现场服务记录）：v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/
 健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
-> 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 123 Service + 144 ORM 模型 + 86 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> 核心能力：73 页面 React Web 控制台 + Flutter 58 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 126 Service + 145 ORM 模型 + 87 路由模块 + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
+
+### 2026-09-25 · 从 Vibe Coding 到 Vibe Business（v1.18.0）
+
+- **借鉴来源**：数智前线《万小智，让AI从网站生成走向企业经营》（2026-09-24）——「AI 让网站生成变得非常容易，但围绕企业自有阵地的长期经营仍缺解法」「诊断完成，并不意味着问题得到解决」；评估报告 `docs/frontier-borrowing-2026-09-25-vibe-business.md`。三项均为**确定性实现、零 LLM 成本、零外部网络调用**，flag 默认 True、关闭即 503
+- **P0 站点 AI 可见度（GEO）就绪度审计**（`ai_visibility_audit_enabled`）：`GET /api/ai-visibility`。四维加权 100 分（可抓取 30 / 可理解 25 / 可引用 25 / 新鲜度 20）16 项检查，全部由 robots.txt / sitemap.xml / index.html / llms.txt 确定性解析，每项附实测 `evidence`；**`model_probing=False`——不调用任何 AI 平台、不承诺引用与排名**。首次实测现状 **70/100（部分就绪）**：缺业务实体结构化数据、**无公开内容页**（站点为纯应用外壳）、sitemap `lastmod` 冻结 48 天（长草）、无 `llms.txt`、AI 爬虫仅声明 2 个
+- **P1 修复清单闭环**（`remediation_plan_enabled`）：表 `remediation_plans`（迁移 `m7a8b9c0d1e2`）+ `/api/remediation-plans/*`，打通「诊断 → 清单 → 确认 → 执行 → 复检 → 回滚」；三级边界 `classify_tier`（auto 白名单 / confirm / **human_only：企业事实与品牌承诺只出清单不代做**）；`apply` 须显式 `confirm=True`（否则 422）；越界写拒绝（写入根恒为仓库内 `webapp/`）；复检为重新审计的确定性比对（执行 ≠ 生效）
+- **P2 公开内容新鲜度（长草）监测**（`content_freshness_monitor_enabled`）：`GET /api/content-freshness`，`freshness = 0.5 ** (年龄/半衰期)`（半衰期复用 `memory_decay_half_life_days`）；监测项目/空间资产/已发布产品，**只出清单不代写**；无数据源记 `insufficient_data` 不判不合格
+- **测试**：新增 `tests/test_ai_visibility.py` / `test_remediation_plan.py` / `test_content_freshness.py`（66 用例），全量 pytest **2864 → 2930 passed**（0 failed）；mypy 0 issue；迁移 upgrade/downgrade 双向验证；schema drift 零差异
+- **站点产物与模板**：`webapp/public/llms.txt`（新增）+ robots.txt AI 爬虫声明块（2 → 13 个，既有规则逐字未改）→ 源码态审计 70 → **78 分**；填写模板 `docs/guides/structured-data-template.md`（业务实体 JSON-LD，**含占位符不得直接上线**）
+- **自查修复两处**（影响审计结论可信度）：① 产物跨目录混合（robots 取自 dist、llms 取自 public）→ 先定目录再取全部产物；② `@graph` 下的 Organization 未被识别 → 递归收集 + 字段完整度择优
+- **诚实遗留**：真实 AI 可见度探测（须第三方工具/平台 API）、公开内容生产（承载企业事实，平台不代写）、组织实体第三方佐证（`sameAs` 需人工核实）、第三方站点经营（无授权语义）、GEO 效果度量（未接入监测工具）
+- **版本号** 1.17.4 → 1.18.0 全链路同步（17 处，build 号 69 → 70）
 
 ### 2026-09-23 · AI 应用服务商培育政策落地（v1.17.4）
 
@@ -730,7 +742,7 @@ bash scripts/verify-ac.sh
 # 运行测试套件
 source .venv/bin/activate
 .venv/bin/python -m pytest tests/ -v
-# 当前: 2824 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-23 v1.17.4 基线, -n auto)
+# 当前: 2930 passed, 2 skipped, 4 xfailed, 0 failed (2026-09-25 v1.18.0 基线, -n 4)
 
 # 数据库迁移 (Alembic)
 alembic check        # 检测模型与数据库差异

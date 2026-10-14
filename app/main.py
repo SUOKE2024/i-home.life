@@ -84,6 +84,7 @@ from app.api import agent_handshake  # v1.16.x ATH 握手凭证（flag 门控）
 from app.api import space_assets  # Phase 3 空间资产台账（flag 门控）
 from app.api import ai_usage  # v1.17.4 AI Token 计量口径（flag 门控）
 from app.api import fde_field_service  # v1.17.4 FDE 现场服务记录（flag 门控）
+from app.api import ai_visibility  # v1.18.0 站点 AI 可见度 / 修复清单 / 内容新鲜度（flag 门控）
 from app.api import diagnostics as diagnostics_api  # v1.10.x 全链路诊断管理端
 from app.api import design_flow  # 设计流程编排（风格/预算选供应商 → VR → 可行性分析）
 
@@ -508,6 +509,9 @@ api_router.include_router(space_assets.router)  # /api/space-assets/* (Phase 3 �
 api_router.include_router(ai_usage.router)  # /api/ai-usage/tokens (v1.17.4 Token 计量口径)
 api_router.include_router(ai_usage.admin_router)  # /api/admin/ai-usage/tokens (平台级汇总)
 api_router.include_router(fde_field_service.router)  # /api/fde-field-visits/* (v1.17.4 FDE 现场服务)
+api_router.include_router(ai_visibility.router)  # /api/ai-visibility (v1.18.0 站点 AI 可见度审计)
+api_router.include_router(ai_visibility.remediation_router)  # /api/remediation-plans/* (修复清单闭环)
+api_router.include_router(ai_visibility.freshness_router)  # /api/content-freshness (内容新鲜度)
 api_router.include_router(surveys.router)       # /api/surveys/*
 api_router.include_router(ar_scan.router)       # /api/surveys/ar/* (F1 AR 空间测量)
 api_router.include_router(location.router)      # /api/location/*

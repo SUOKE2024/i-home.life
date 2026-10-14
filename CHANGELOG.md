@@ -2,6 +2,56 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.18.0] - 2026-09-25（从 Vibe Coding 到 Vibe Business：站点 AI 可见度与阵地经营）
+
+借鉴来源：数智前线《万小智，让AI从网站生成走向企业经营》（2026-09-24）+
+`docs/frontier-borrowing-2026-09-25-vibe-business.md`。三个独立 feature flag 灰度，
+**确定性实现、零 LLM 成本、零外部网络调用**，关闭即端点 503 诚实降级。
+本版本不改既有链路行为，仅补「对外可见度 / 修复闭环 / 内容新鲜度」三类缺口。
+
+### P0 站点 AI 可见度（GEO）就绪度审计（`ai_visibility_audit_enabled`，默认 True）
+
+- 新增 `app/services/ai_visibility_service.py`：四维加权 100 分（可抓取 30 / 可理解 25 /
+  可引用 25 / 新鲜度 20）16 个检查项，全部由静态产物（robots.txt / sitemap.xml /
+  index.html / llms.txt）确定性解析，每项附实测 `evidence`
+- `GET /api/ai-visibility`（平台管理员）
+- 实测仓库现状 **70/100（部分就绪）**：可引用 9.5/25、新鲜度 6/20 —— 缺业务实体
+  结构化数据、无公开内容页、sitemap `lastmod` 冻结 48 天（长草）、无 llms.txt
+- 诚实红线：`model_probing=False`（**不调用任何 AI 平台**）+ disclaimer 恒带「不构成
+  任何 AI 引用/收录/排名承诺」+ 5 条 limitations；前置产物缺失记 `unknown` 计 0 分不猜为通过
+
+### P1 修复清单闭环（`remediation_plan_enabled`，默认 True）
+
+- 新增 `app/services/remediation_plan_service.py` + `app/models/remediation_plan.py`
+  （表 `remediation_plans`，迁移 `m7a8b9c0d1e2`）：诊断 → 清单 → 确认 → 执行 → 复检 → 回滚留痕
+- 端点：`POST/GET /api/remediation-plans`、`GET /{id}`、`POST /{id}/apply`（须 `confirm=True`，
+  否则 422）、`POST /{id}/verify`（重新审计逐条比对）、`POST /{id}/rollback`（按全文备份还原）
+- 三级自动化边界 `classify_tier`：`auto`（白名单：生成 llms.txt / 追加 robots.txt AI 爬虫
+  声明块，可逆 + 不改事实 + 可复检）/ `confirm` / `human_only`（企业事实、品牌承诺、发布
+  权限、经营决策一律只出清单不代做）
+- 越界写拒绝：`_safe_target` 限定写入根为仓库内 `webapp/`，用户可控 `static_root` 无法
+  把写入引到仓库外；`rollback_backups` 支持新增文件删除与既有文件还原
+
+### P2 公开内容新鲜度（「长草」）监测（`content_freshness_monitor_enabled`，默认 True）
+
+- 新增 `app/services/content_freshness_service.py`：`freshness = 0.5 ** (年龄/半衰期)`，
+  半衰期复用 `memory_decay_half_life_days`；监测项目 / 空间资产 / 已发布产品
+- `GET /api/content-freshness`（平台管理员）；只出待更新清单**不代写内容**；
+  无数据源记 `insufficient_data` 不判不合格、不返回 0 伪装全部新鲜
+
+### 其他
+
+- 版本号全链路 1.17.4 → 1.18.0（17 处，含 build 号 69 → 70）
+- 新增测试 66 用例：`tests/test_ai_visibility.py` / `test_remediation_plan.py` / `test_content_freshness.py`
+- 新增填写模板 `docs/guides/structured-data-template.md`（业务实体 JSON-LD，含占位符；
+  **模板不得直接上线**——占位符会被审计判为已具备业务实体而掩盖真实缺口）
+- 站点产物：`webapp/public/llms.txt`（新增）+ `webapp/public/robots.txt` 追加 AI 爬虫声明块
+  （既有规则逐字未改）；源码态审计 70 → **78 分**（部署产物集需重建 `webapp/dist` 后同步）
+- **自查修复两处**（影响审计结论可信度）：① `resolve_artifacts` 原按文件跨目录回退，会读出
+  「robots 取自 dist、llms.txt 取自 public」的混合产物集 → 改为先定目录再取全部产物；
+  ② `@graph` 容器下的 Organization 未被识别（原只查顶层 `@type`）→ 改为递归收集 + 按字段
+  完整度择优，使 `@graph` 写法与扁平写法等价；两处各补回归用例
+
 ## [1.17.4] - 2026-09-23（AI 应用服务商培育政策落地）
 
 执行依据：工信厅科函〔2026〕414号《关于开展人工智能应用服务商培育专项行动的通知》
