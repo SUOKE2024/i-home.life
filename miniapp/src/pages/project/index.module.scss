@@ -1,0 +1,269 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 0 $page-padding 48rpx;
+  background: $color-bg-page;
+}
+
+.summaryCard {
+  display: flex;
+  align-items: center;
+  margin-top: 24rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.summaryItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.summaryValue {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1.1;
+}
+
+.summaryLabel {
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.summaryDivider {
+  width: 2rpx;
+  height: 72rpx;
+  background: $color-divider;
+}
+
+.projectCard {
+  margin-top: 24rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.94;
+  }
+}
+
+.projectCover {
+  width: 100%;
+  height: 240rpx;
+  display: block;
+}
+
+.projectBody {
+  padding: 32rpx;
+}
+
+.projectNameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.projectName {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.spaceName {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.stageRow {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 24rpx;
+}
+
+.stageChip {
+  padding: 6rpx 14rpx;
+  margin: 0 10rpx 10rpx 0;
+  border-radius: $radius-xs;
+  background: $color-bg-hover;
+}
+
+.stageChipDone {
+  background: $color-peach;
+}
+
+.stageChipCurrent {
+  background: $gradient-primary;
+}
+
+.stageChipText {
+  font-size: 20rpx;
+  color: $color-text-tertiary;
+  white-space: nowrap;
+}
+
+.stageChipTextDone {
+  color: $color-accent-text;
+}
+
+.stageChipTextCurrent {
+  color: $color-on-primary;
+  font-weight: $font-weight-medium;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  margin-top: 12rpx;
+}
+
+.progressWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.progressText {
+  margin-left: 20rpx;
+  flex-shrink: 0;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+}
+
+.milestoneRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24rpx;
+  padding: 20rpx 24rpx;
+  background: $color-bg-page;
+  border-radius: $radius-md;
+}
+
+.milestoneText {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  @include text-ellipsis;
+}
+
+.milestoneDate {
+  flex-shrink: 0;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+}
+
+.metaRow {
+  display: flex;
+  margin-top: 24rpx;
+}
+
+.metaItem {
+  flex: 1;
+  min-width: 0;
+}
+
+.metaLabel {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.metaValue {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  @include text-ellipsis;
+}
+
+.deliveredCard {
+  margin-top: 24rpx;
+  padding: 0 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.deliveredItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 0;
+  border-bottom: 2rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.deliveredMain {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+}
+
+.deliveredName {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.deliveredMeta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.emptyTip {
+  padding: 40rpx 0;
+  text-align: center;
+}
+
+.emptyTipText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.loading {
+  min-height: 100vh;
+  @include flex-center;
+  background: $color-bg-page;
+}
+
+.loadingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

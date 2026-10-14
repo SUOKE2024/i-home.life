@@ -1,0 +1,430 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 48rpx;
+  background: $color-bg-page;
+}
+
+.hero {
+  padding: 40rpx $page-padding 32rpx;
+  background: $gradient-warm;
+}
+
+.heroTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.greetingWrap {
+  flex: 1;
+  min-width: 0;
+  margin-right: 24rpx;
+}
+
+.greeting {
+  display: block;
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  line-height: $line-height-tight;
+  @include text-ellipsis;
+}
+
+.subGreeting {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.avatarWrap {
+  flex-shrink: 0;
+  transition: opacity $transition-fast;
+
+  &:active {
+    opacity: 0.8;
+  }
+}
+
+.avatar {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: $radius-round;
+  border: 4rpx solid $color-bg-card;
+  box-shadow: $shadow-card;
+  display: block;
+}
+
+.scoreCard {
+  display: flex;
+  align-items: center;
+  margin-top: 32rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.scoreLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.scoreRow {
+  display: flex;
+  align-items: baseline;
+}
+
+.scoreValue {
+  font-size: 72rpx;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1;
+}
+
+.scoreUnit {
+  margin-left: 8rpx;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.scoreLabel {
+  margin-top: 12rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.scoreDelta {
+  margin-top: 16rpx;
+  display: flex;
+}
+
+.deltaText {
+  padding: 4rpx 12rpx;
+  border-radius: $radius-sm;
+  background: $color-care-bg;
+  font-size: $font-size-xs;
+  color: $color-success;
+  white-space: nowrap;
+}
+
+.scoreDivider {
+  width: 2rpx;
+  height: 128rpx;
+  background: $color-divider;
+  margin: 0 32rpx;
+  flex-shrink: 0;
+}
+
+.scoreRight {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.statItem {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 18rpx;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.statValue {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  margin-right: 12rpx;
+}
+
+.statLabel {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  white-space: nowrap;
+}
+
+.section {
+  padding: 0 $page-padding;
+}
+
+.spaceScroll {
+  width: 100%;
+  @include scroll-x-container;
+}
+
+.spaceCard {
+  @include scroll-x-item(560rpx);
+  margin-right: 24rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.92;
+  }
+
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.spaceCover {
+  width: 100%;
+  height: 240rpx;
+  display: block;
+}
+
+.spaceBody {
+  padding: 24rpx;
+}
+
+.spaceName {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.spaceMeta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.spaceFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16rpx;
+}
+
+.spaceScore {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+  white-space: nowrap;
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  padding: 32rpx 8rpx;
+}
+
+.gridItem {
+  width: 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8rpx 0;
+  transition: opacity $transition-fast;
+
+  &:active {
+    opacity: 0.75;
+  }
+}
+
+.gridIcon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  background: $color-peach;
+  @include flex-center;
+}
+
+.gridIconText {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-accent-text;
+}
+
+.gridLabel {
+  margin-top: 16rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.projectCard {
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.94;
+  }
+}
+
+.projectTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.projectName {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.projectProgress {
+  display: flex;
+  align-items: center;
+  margin-top: 24rpx;
+}
+
+.progressWrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.progressText {
+  margin-left: 20rpx;
+  flex-shrink: 0;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+}
+
+.projectBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20rpx;
+}
+
+.milestone {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  @include text-ellipsis;
+}
+
+.milestoneDate {
+  flex-shrink: 0;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.alerts {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  padding: 0 32rpx;
+}
+
+.alertItem {
+  display: flex;
+  align-items: flex-start;
+  padding: 28rpx 0;
+  border-bottom: 2rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.alertDot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: $radius-round;
+  margin-top: 10rpx;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.dotGold {
+  background: $color-primary;
+}
+
+.dotGreen {
+  background: $color-care;
+}
+
+.dotBlue {
+  background: $color-info;
+}
+
+.dotOrange {
+  background: $color-warning;
+}
+
+.alertBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.alertTitle {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.alertTime {
+  flex-shrink: 0;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.alertDesc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  @include text-ellipsis-multi(2);
+}
+
+.loading {
+  min-height: 100vh;
+  @include flex-center;
+  background: $color-bg-page;
+}
+
+.loadingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

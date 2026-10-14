@@ -1,0 +1,51 @@
+@use '@/styles/variables.scss' as *;
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 40rpx 0 24rpx;
+}
+
+.left {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.title {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.subtitle {
+  margin-left: 16rpx;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.extra {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 8rpx 0 8rpx 24rpx;
+  transition: opacity $transition-fast;
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
+.extraText {
+  font-size: $font-size-sm;
+  color: $color-accent-text;
+}
+
+.chevron {
+  margin-left: 4rpx;
+  font-size: $font-size-md;
+  line-height: 1;
+  color: $color-accent-text;
+}

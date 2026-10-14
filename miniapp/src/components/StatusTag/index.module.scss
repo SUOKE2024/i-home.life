@@ -1,0 +1,63 @@
+@use '@/styles/variables.scss' as *;
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rpx 16rpx;
+  border-radius: $radius-sm;
+}
+
+.tagText {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  white-space: nowrap;
+}
+
+.gold {
+  background: $color-peach;
+
+  .tagText {
+    color: $color-accent-text;
+  }
+}
+
+.green {
+  background: $color-care-bg;
+
+  .tagText {
+    color: $color-success;
+  }
+}
+
+.blue {
+  background: #eef2fa;
+
+  .tagText {
+    color: $color-info;
+  }
+}
+
+.orange {
+  background: #faf0e8;
+
+  .tagText {
+    color: $color-warning;
+  }
+}
+
+.red {
+  background: #f9ecec;
+
+  .tagText {
+    color: $color-error;
+  }
+}
+
+.gray {
+  background: $color-bg-hover;
+
+  .tagText {
+    color: $color-text-secondary;
+  }
+}

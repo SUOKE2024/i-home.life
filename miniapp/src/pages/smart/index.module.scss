@@ -1,0 +1,343 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 0 $page-padding 48rpx;
+  background: $color-bg-page;
+}
+
+.spaceChips {
+  width: 100%;
+  padding-top: 24rpx;
+  @include scroll-x-container;
+}
+
+.chip {
+  @include scroll-x-item(auto);
+  padding: 14rpx 32rpx;
+  margin-right: 16rpx;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+  transition: all $transition-fast;
+
+  &:active {
+    opacity: 0.85;
+  }
+
+  &:last-child {
+    margin-right: 0;
+  }
+}
+
+.chipActive {
+  background: $gradient-primary;
+  border-color: transparent;
+}
+
+.chipText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.chipTextActive {
+  color: $color-on-primary;
+  font-weight: $font-weight-medium;
+}
+
+.healthCard {
+  margin-top: 24rpx;
+  padding: 32rpx;
+  border-radius: $radius-lg;
+  background: $color-care-bg;
+}
+
+.healthHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.healthTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.healthUpdate {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.healthGrid {
+  display: flex;
+  margin-top: 28rpx;
+}
+
+.healthItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.healthValueRow {
+  display: flex;
+  align-items: baseline;
+}
+
+.healthValue {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  line-height: 1.1;
+}
+
+.healthUnit {
+  margin-left: 4rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.healthLabel {
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+}
+
+.disclaimer {
+  display: block;
+  margin-top: 24rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  line-height: $line-height-normal;
+}
+
+.deviceGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.deviceCard {
+  width: 335rpx;
+  min-height: 216rpx;
+  margin-bottom: 16rpx;
+  padding: 24rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  display: flex;
+  flex-direction: column;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.94;
+  }
+}
+
+.deviceCardOffline {
+  opacity: 0.5;
+}
+
+.deviceTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deviceBadge {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  background: $color-peach;
+  @include flex-center;
+}
+
+.deviceBadgeText {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-accent-text;
+}
+
+.deviceName {
+  display: block;
+  margin-top: 20rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.deviceValue {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.deviceStatusRow {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 16rpx;
+}
+
+.deviceStatusDot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: $radius-round;
+  margin-right: 10rpx;
+  background: $color-success;
+  flex-shrink: 0;
+}
+
+.deviceStatusDotOff {
+  background: $color-text-disabled;
+}
+
+.deviceStatusText {
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  @include text-ellipsis;
+}
+
+.switchTrack {
+  width: 80rpx;
+  height: 44rpx;
+  border-radius: $radius-button;
+  background: $color-border;
+  padding: 4rpx;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: background $transition-base;
+}
+
+.switchTrackOn {
+  background: $color-primary;
+}
+
+.switchThumb {
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: $radius-round;
+  background: $color-bg-card;
+  transition: transform $transition-base;
+}
+
+.switchThumbOn {
+  transform: translateX(36rpx);
+}
+
+.sceneList {
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  padding: 0 32rpx;
+}
+
+.sceneItem {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 2rpx solid $color-divider;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.sceneMain {
+  flex: 1;
+  min-width: 0;
+  margin-right: 24rpx;
+}
+
+.sceneNameRow {
+  display: flex;
+  align-items: center;
+}
+
+.sceneName {
+  margin-right: 16rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.sceneMeta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  @include text-ellipsis-multi(2);
+}
+
+.sceneBtn {
+  @include button-reset;
+  flex-shrink: 0;
+  height: $button-height-sm;
+  min-width: 128rpx;
+  padding: 0 28rpx;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  transition: all $transition-fast;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.sceneBtnText {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  color: $color-on-primary;
+  white-space: nowrap;
+}
+
+.sceneBtnDisabled {
+  background: $color-bg-hover;
+
+  .sceneBtnText {
+    color: $color-text-disabled;
+  }
+}
+
+.emptyTip {
+  padding: 40rpx 0;
+  text-align: center;
+}
+
+.emptyTipText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.loading {
+  min-height: 100vh;
+  @include flex-center;
+  background: $color-bg-page;
+}
+
+.loadingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,222 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding-bottom: 48rpx;
+  background: $color-bg-page;
+}
+
+.hero {
+  padding: 48rpx $page-padding 40rpx;
+  background: $gradient-warm;
+}
+
+.userRow {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  width: 128rpx;
+  height: 128rpx;
+  border-radius: $radius-round;
+  border: 6rpx solid $color-bg-card;
+  box-shadow: $shadow-card;
+  flex-shrink: 0;
+  display: block;
+}
+
+.userInfo {
+  flex: 1;
+  min-width: 0;
+  margin-left: 28rpx;
+}
+
+.nickname {
+  display: block;
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.userMeta {
+  display: flex;
+  align-items: center;
+  margin-top: 12rpx;
+}
+
+.phone {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.roleTag {
+  margin-left: 16rpx;
+  padding: 4rpx 16rpx;
+  border-radius: $radius-sm;
+  background: $color-peach;
+}
+
+.roleTagText {
+  font-size: $font-size-xs;
+  color: $color-accent-text;
+  white-space: nowrap;
+}
+
+.joinText {
+  display: block;
+  margin-top: 12rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.section {
+  padding: 0 $page-padding;
+}
+
+.statsCard {
+  display: flex;
+  align-items: center;
+  margin-top: -24rpx;
+  padding: 32rpx 0;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.statItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.statValue {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1.1;
+}
+
+.statLabel {
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.statDivider {
+  width: 2rpx;
+  height: 64rpx;
+  background: $color-divider;
+}
+
+.menuCard {
+  margin-top: 24rpx;
+  padding: 0 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  padding: 28rpx 0;
+  border-bottom: 2rpx solid $color-divider;
+  transition: opacity $transition-fast;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
+.menuBadge {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: $color-peach;
+  @include flex-center;
+  flex-shrink: 0;
+}
+
+.menuBadgeText {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $color-accent-text;
+}
+
+.menuMain {
+  flex: 1;
+  min-width: 0;
+  margin-left: 24rpx;
+  margin-right: 16rpx;
+}
+
+.menuTitle {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.menuDesc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.menuChevron {
+  flex-shrink: 0;
+  font-size: $font-size-lg;
+  color: $color-text-disabled;
+  line-height: 1;
+}
+
+.footer {
+  padding: 64rpx 0 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.footerText {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.footerSlogan {
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-disabled;
+}
+
+.loading {
+  min-height: 100vh;
+  @include flex-center;
+  background: $color-bg-page;
+}
+
+.loadingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

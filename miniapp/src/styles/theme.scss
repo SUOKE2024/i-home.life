@@ -1,0 +1,43 @@
+// ============================================
+// 主题配色变量（索克家居 · 空间健康资产运营商）
+// 来源：根目录 DESIGN.md —— C 端业主浅色暖底 + 单一暗金强调色
+// ============================================
+
+// 品牌主题色（暗金）
+$color-primary: #c9973b;
+$color-primary-light: #e0aa4a;
+$color-primary-dark: #8a6415;
+$color-on-primary: #08080f; // 金色按钮上的深色文字（on-accent）
+$color-accent-text: #8a6415; // 浅色底金色文字/链接（AA 4.99:1）
+
+// 功能色
+$color-success: #4a9e6e;
+$color-warning: #c97a3b;
+$color-error: #c94a4a;
+$color-info: #5a7ec9;
+
+// 背景色
+$color-bg-page: #f8f7f4;
+$color-bg-card: #ffffff;
+$color-bg-hover: #f0eee8;
+$color-bg-deep: #08080f;
+
+// 文本色
+$color-text-primary: #1a1814;
+$color-text-secondary: #6b6760;
+$color-text-tertiary: #a09c94;
+$color-text-disabled: #c4c0b8;
+$color-text-white: #ffffff;
+
+// 边框色
+$color-border: #e7e3da;
+$color-divider: #f0eee8;
+
+// 业务色
+$color-peach: #f5efe0; // 暖金标签底
+$color-care: #4a9e6e; // 康养绿
+$color-care-light: #6fbc8e;
+$color-care-bg: #edf5f0;
+$gradient-primary: linear-gradient(135deg, #c9973b 0%, #e0aa4a 100%);
+$gradient-warm: linear-gradient(180deg, #f3ecdd 0%, #f8f7f4 100%);
+$gradient-care: linear-gradient(135deg, #4a9e6e 0%, #6fbc8e 100%);

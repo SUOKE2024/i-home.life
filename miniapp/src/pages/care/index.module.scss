@@ -1,0 +1,363 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  padding: 24rpx $page-padding 48rpx;
+  background: $color-bg-page;
+}
+
+.hero {
+  padding: 40rpx 32rpx;
+  border-radius: $radius-lg;
+  background: $gradient-warm;
+  border: 2rpx solid $color-border;
+}
+
+.heroTitle {
+  display: block;
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+}
+
+.heroDesc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: $line-height-normal;
+}
+
+.heroTags {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 24rpx;
+}
+
+.heroTag {
+  padding: 8rpx 20rpx;
+  margin: 0 16rpx 12rpx 0;
+  border-radius: $radius-sm;
+  background: $color-bg-card;
+  border: 2rpx solid rgba(201, 151, 59, 0.35);
+}
+
+.heroTagText {
+  font-size: $font-size-xs;
+  color: $color-accent-text;
+  white-space: nowrap;
+}
+
+.pkgCard {
+  margin-top: 24rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+}
+
+.pkgCover {
+  width: 100%;
+  height: 260rpx;
+  display: block;
+}
+
+.pkgBody {
+  padding: 32rpx;
+}
+
+.pkgNameRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pkgName {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16rpx;
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.pkgTagline {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  @include text-ellipsis;
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  margin-top: 24rpx;
+}
+
+.price {
+  font-size: 44rpx;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1;
+}
+
+.priceUnit {
+  margin-left: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 20rpx;
+}
+
+.tagPill {
+  padding: 6rpx 16rpx;
+  margin: 0 12rpx 12rpx 0;
+  border-radius: $radius-xs;
+  background: $color-bg-hover;
+}
+
+.tagPillText {
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.dimRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4rpx;
+}
+
+.dimLabel {
+  margin: 0 12rpx 12rpx 0;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  white-space: nowrap;
+}
+
+.dimChip {
+  padding: 6rpx 16rpx;
+  margin: 0 12rpx 12rpx 0;
+  border-radius: $radius-xs;
+  background: $color-peach;
+}
+
+.dimChipText {
+  font-size: $font-size-xs;
+  color: $color-accent-text;
+  white-space: nowrap;
+}
+
+.actionRow {
+  display: flex;
+  align-items: center;
+  margin-top: 16rpx;
+}
+
+.btnGhost {
+  @include button-reset;
+  height: $button-height-md;
+  min-width: 168rpx;
+  padding: 0 28rpx;
+  margin-right: 20rpx;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+  transition: all $transition-fast;
+
+  &:active {
+    opacity: 0.85;
+  }
+}
+
+.btnGhostText {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.btnPrimary {
+  @include button-reset;
+  flex: 1;
+  height: $button-height-md;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  transition: all $transition-fast;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.btnPrimaryText {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  color: $color-on-primary;
+  white-space: nowrap;
+}
+
+.subsidyPanel {
+  margin-top: 24rpx;
+  padding: 28rpx;
+  border-radius: $radius-md;
+  background: $color-peach;
+}
+
+.subsidyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subsidyTitle {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.subsidyRange {
+  display: flex;
+  align-items: baseline;
+  margin-top: 20rpx;
+}
+
+.subsidyValue {
+  font-size: $font-size-xxl;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1;
+}
+
+.subsidyDash {
+  margin: 0 12rpx;
+  font-size: $font-size-lg;
+  color: $color-text-tertiary;
+}
+
+.subsidyBasis {
+  display: block;
+  margin-top: 20rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  line-height: $line-height-normal;
+}
+
+.subsidyWarning {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-warning;
+  line-height: $line-height-normal;
+}
+
+.subsidyDisclaimer {
+  display: block;
+  margin-top: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  line-height: $line-height-normal;
+}
+
+.formatsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.formatCard {
+  width: 335rpx;
+  padding: 28rpx;
+  margin-bottom: 16rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.92;
+  }
+}
+
+.formatTop {
+  display: flex;
+  align-items: center;
+}
+
+.formatBadge {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: $color-care-bg;
+  @include flex-center;
+}
+
+.formatBadgeText {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $color-success;
+}
+
+.formatName {
+  flex: 1;
+  min-width: 0;
+  margin-left: 16rpx;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
+  @include text-ellipsis;
+}
+
+.formatDesc {
+  display: block;
+  margin-top: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  @include text-ellipsis;
+}
+
+.disclosure {
+  display: block;
+  margin-top: 24rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  line-height: $line-height-normal;
+}
+
+.pageNote {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-disabled;
+  line-height: $line-height-normal;
+}
+
+.loading {
+  min-height: 100vh;
+  @include flex-center;
+  background: $color-bg-page;
+}
+
+.loadingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+  animation: loadingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loadingPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,38 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 $page-padding;
+  background: $color-bg-page;
+}
+
+.icon {
+  width: 144rpx;
+  height: 144rpx;
+  border-radius: 40rpx;
+  background: $color-peach;
+  @include flex-center;
+}
+
+.iconText {
+  font-size: 48rpx;
+  font-weight: $font-weight-semibold;
+  color: $color-accent-text;
+}
+
+.title {
+  margin-top: 40rpx;
+  font-size: $font-size-xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.desc {
+  margin-top: 16rpx;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
