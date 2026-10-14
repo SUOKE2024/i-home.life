@@ -216,14 +216,13 @@ def _public_key_from_material(value: str) -> AsymmetricPublicKey:
 def _is_dev_env() -> bool:
     """是否处于 dev/test 环境（未配置密钥时允许自动生成临时 Ed25519 密钥对）。
 
-    判据：debug=True、paseto_strict_mode=False（显式放宽）或 ENVIRONMENT 明确为开发/测试。
+    判据：debug=True 或 ENVIRONMENT/APP_ENV 明确为开发/测试。
+    注意：**不以 `paseto_strict_mode=False` 作为判据**——该 flag 是"放宽密钥强度校验"的
+    回滚开关；生产应急回滚时若据此自动生成临时密钥，会导致多实例/重启间密钥不一致、
+    验签互相失败。开发/测试请显式设 DEBUG=true 或 ENVIRONMENT=test。
     """
     env = (os.getenv("ENVIRONMENT") or os.getenv("APP_ENV") or "").strip().lower()
-    return (
-        settings.debug
-        or not getattr(settings, "paseto_strict_mode", True)
-        or env in {"dev", "development", "test", "local"}
-    )
+    return settings.debug or env in {"dev", "development", "test", "local"}
 
 
 def _configured_private() -> str:
@@ -356,6 +355,32 @@ def create_token_pair(user_id: str, role: str, family_id: str | None = None) -> 
         "refresh_jti": rt_jti,
         "family_id": fam,
     }
+
+
+def create_ops_token(subject: str, role: str, ttl_seconds: int) -> str:
+    """运维专用：签发指定 TTL 的 v4.public access 令牌（如 i-home FC 定时器静态 admin 令牌）。
+
+    ⚠️ 仅供离线运维脚本（scripts/mint_paseto_token.py）调用，**不得由任何 HTTP 端点暴露**——
+    用户 access 令牌 TTL 恒由 paseto_token_expire_minutes 钳制（见 create_token），
+    此函数是唯一的长 TTL 签发口，暴露即等于给全站开长效口子。
+
+    subject 必须是数据库中真实存在且启用的用户 id、且 role 具备目标端点所需权限
+    （get_current_user 会按 sub 查库；admin 走硬编码 bypass）。
+    """
+    ttl = int(ttl_seconds)
+    if ttl <= 0:
+        raise ValueError("ttl_seconds 必须为正整数")
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(seconds=ttl)
+    payload = {
+        "sub": subject,
+        "role": role,
+        "iat": now.isoformat(),
+        "exp": exp.isoformat(),
+        "jti": str(uuid.uuid4()),
+    }
+    key = _get_sign_key()
+    return cast(str, paseto.create(key=key, purpose="public", claims=payload))
 
 
 def _check_exp_and_revocation(payload: dict) -> None:

@@ -222,3 +222,63 @@ async def test_ecosystem_login_missing_key_returns_503(client, monkeypatch):
     monkeypatch.setattr(settings, "secret_manager_enabled", False)
     resp = await client.post("/api/auth/ecosystem/login", json={"ecosystem_token": sign()})
     assert resp.status_code == 503
+
+
+# ═══════════════════════════════════════════
+#  运维专用长效令牌 + 生产密钥校验（修复 1/2）
+# ═══════════════════════════════════════════
+
+
+def test_ops_token_long_ttl_verifiable():
+    """create_ops_token 可签发远超用户 TTL 的 v4.public 令牌（供 FC 定时器等运维用途）。"""
+    from app.auth.paseto_handler import create_ops_token, verify_token
+
+    token = create_ops_token("ops-user-id", "admin", 400 * 86400)
+    assert token.startswith("v4.public.")
+    payload = verify_token(token)
+    assert payload["sub"] == "ops-user-id"
+    assert payload["role"] == "admin"
+
+
+def test_ops_token_rejects_non_positive_ttl():
+    from app.auth.paseto_handler import create_ops_token
+
+    with pytest.raises(ValueError):
+        create_ops_token("u", "admin", 0)
+
+
+def _prod_settings(**overrides):
+    """构造生产态 Settings（strict_mode=True 且 debug=False）；init kwargs 优先于 env。"""
+    from app.config import Settings
+
+    base = {
+        "paseto_strict_mode": True,
+        "debug": False,
+        "paseto_secret_key": "0123456789abcdef0123456789abcdef",  # 32 字节强密钥
+        "paseto_public_key": "k4.public.dummy",
+    }
+    base.update(overrides)
+    return Settings(**base)
+
+
+def test_config_requires_asymmetric_key_in_prod():
+    """生产必须配置 v4.public 非对称密钥。"""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _prod_settings(paseto_public_key="", paseto_private_key="")
+
+
+def test_config_rejects_default_secret_key_in_prod():
+    """对称主密钥为默认值时生产拒绝启动（设备凭据/会话/审计等派生密钥安全）。"""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _prod_settings(paseto_secret_key="change-me-to-a-random-32-byte-key-minimum")
+
+
+def test_config_rejects_short_secret_key_in_prod():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _prod_settings(paseto_secret_key="short")

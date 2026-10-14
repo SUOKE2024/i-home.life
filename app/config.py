@@ -12,16 +12,32 @@ class Settings(BaseSettings):
         # 认证改造（PASETO v4.public）：生产（strict_mode=True 且 debug=False）必须配置
         # Ed25519 非对称密钥——签发侧 PASETO_PRIVATE_KEY、验签侧 PASETO_PUBLIC_KEY 至少其一。
         # dev/test（debug=True 或 strict_mode=False）由 paseto_handler 自动生成临时密钥对，跳过校验。
-        # 对称 paseto_secret_key 仅用于过渡期验签 legacy v4.local 令牌，不再作为唯一密钥来源。
         enforce = self.paseto_strict_mode and not self.debug
         if not enforce:
             return self
+
+        # (1) v4.public 非对称密钥必需
         has_private = bool((self.paseto_private_key or "").strip())
         has_public = bool((self.paseto_public_key or "").strip())
         if not (has_private or has_public):
             raise ValueError(
                 "生产环境必须配置 PASETO_PRIVATE_KEY（Ed25519 私钥，签发）或 "
                 "PASETO_PUBLIC_KEY（Ed25519 公钥，验签）。支持 PEM 或 PASERK（k4.secret./k4.public.）。"
+            )
+
+        # (2) 对称主密钥 paseto_secret_key 必须强且非默认——它仍是多个子系统的派生主密钥
+        #     （设备凭据 AES-256-GCM / 会话加密 / 审计 HMAC / 微信 state / ATH 握手 / 支付意图 HMAC，
+        #     均 SHA-256(paseto_secret_key) 派生），弱密钥会连带拖垮这些子系统。
+        #     保留原 v1.2.1 P0-1 校验（认证改造不得放松）。
+        if self.paseto_secret_key == "change-me-to-a-random-32-byte-key-minimum":
+            raise ValueError(
+                "PASETO_SECRET_KEY 不能使用默认值：它仍是设备凭据加密/会话加密/审计 HMAC 等"
+                "子系统的派生主密钥。请在 .env 设置 >=32 字节强密钥。"
+            )
+        if len(self.paseto_secret_key.encode()) < 32:
+            raise ValueError(
+                "PASETO_SECRET_KEY 长度不足 32 字节（当前 %d 字节）；它仍是多个子系统的派生主密钥，"
+                "生产必须配置强密钥。" % len(self.paseto_secret_key.encode())
             )
         return self
 

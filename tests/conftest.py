@@ -21,10 +21,13 @@ os.environ["RATE_LIMIT_ENABLED"] = "false"
 # conftest 不依赖 .env（CI/fresh clone 无 .env），故显式提供：
 # - PASETO_SECRET_KEY：合法 32+ 字节测试密钥，使 strict_mode 校验通过
 # - PASETO_STRICT_MODE=false：放宽校验，避免任何密钥边缘条件阻断测试
+# - ENVIRONMENT=test：使 paseto_handler._is_dev_env() 判为测试环境，未配置非对称密钥时
+#   自动生成临时 Ed25519 密钥对（认证改造后 _is_dev_env 不再以 strict_mode 为判据）
 # - ALLOW_PLAINTEXT_SESSION=true：Agent 会话测试关注业务逻辑而非加密，
 #   显式允许明文降级（生产禁止）。相关行为由专门的单测覆盖。
 os.environ.setdefault("PASETO_SECRET_KEY", "test-paseto-key-for-pytest-32-bytes!!")
 os.environ.setdefault("PASETO_STRICT_MODE", "false")
+os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("ALLOW_PLAINTEXT_SESSION", "true")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
