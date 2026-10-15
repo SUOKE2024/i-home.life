@@ -2,6 +2,35 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased]
+
+### AI 产品治理 · 契约 1/2 落地（合规分级 + provider 生命周期，2026-10-15）
+
+依据《人工智能拟人化互动服务管理暂行办法》（网信办等五部门令第 21 号，2026-07-15 施行），
+与索克生活/索克俱乐部同口径落地 AI 治理护栏（**未 bump 版本**，口径见 `docs/AI_PRODUCT_GOVERNANCE.md`）。
+
+- **契约 1 · 新增 `app/services/ai_service_compliance.py`（AI 服务合规闸门）**：拟人化红线
+  （自称真人 / 情感陪伴承诺，如「我是真人」「我永远不会离开你」）与金融红线（收益承诺 / 荐股，如
+  「稳赚不赔」「保证年化」「内幕消息」）命中即阻断；caution 词（如「我一直陪着你」）放行并附加标准
+  AI 身份声明 `STANDARD_AI_DISCLOSURE`；含否定语境豁免（免责声明自身不误报）。受新增 flag
+  `settings.ai_service_compliance_enabled`（默认 True）控制，关闭即放行并诚实标注 `gate_enabled=False`。
+  与既有 `health_claim_compliance.py` **正交**：在 `app/agents/care.py` 的输出路径串联
+  （`apply_claim_compliance` → `apply_service_compliance`），健康功效与拟人化/金融边界各司其职。
+- **契约 1 · 工具合规分级**：`AgentTool` 新增 `compliance` 字段（由 `classify_tool(name, category)` 按
+  category 派生，当前 10 个内置 category 均登记）。**暴露层 fail-closed**：未登记 category 的工具
+  虽可注册（不误伤动态探针/测试工具），但不出现于 `_visible_tools()` 与 `get_admin_openai_schemas()`
+  的可见/可调用列表，且注册时记 WARNING。分级结果随工具对象对外可读。
+- **契约 2 · provider 生命周期台账**：`app/agents/base.py` 新增 `PROVIDER_STATUS`
+  （active/disabled/retired）与 `validate_provider_config()`：校验注册表 provider 均已登记状态、
+  active provider 具备 `api_base`/`api_key`/`model`/`chat_path`、降级链仅引用 active provider。
+  外部平台（豆包/千问/元器/扣子/Dify）停服时置 `retired` 并同步从 `DEFAULT_FALLBACK_CHAIN` 摘除。
+- **口径文档**：新增 `assets/legal/ai-service-compliance-notice.md`（对客合规声明）与
+  `docs/AI_PRODUCT_GOVERNANCE.md`（三张台账 + 纪律）；`CLAUDE.md` 补「AI 产品治理」章节。
+- **回归**：新增 `tests/test_ai_service_compliance.py`（12 passed）与 `tests/test_llm_provider_config.py`
+  （5 passed）；`tests/test_mcp_security.py` 既有 32 项 **不受影响**（合计 48 passed）。
+- **未执行 / 边界**：仅改代码与文档，**未部署**、未 bump 版本；未改动认证（PASETO）与部署架构（FC）；
+  本轮顺带收口唯一未跟踪文件 `scripts/gen_production_keys.py`（认证改造产物，生成物 `*.env` 不入库）。
+
 ## [1.18.0] - 2026-09-25（从 Vibe Coding 到 Vibe Business：站点 AI 可见度与阵地经营）
 
 借鉴来源：数智前线《万小智，让AI从网站生成走向企业经营》（2026-09-24）+

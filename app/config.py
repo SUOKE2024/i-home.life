@@ -549,6 +549,13 @@ class Settings(BaseSettings):
     # assets/legal/health-claim-disclaimer.md。关闭即放行并诚实标注未校验。
     health_claim_compliance_enabled: bool = True
 
+    # AI 产品治理 · 契约 1（2026-10-15，《人工智能拟人化互动服务管理暂行办法》2026-07-15 施行）：
+    # AI 服务合规闸门 —— 拟人化互动（自称真人/情感陪伴承诺）与金融边界（收益承诺/荐股）红线，
+    # 命中即阻断；caution 词附加标准 AI 身份声明。词表见
+    # app/services/ai_service_compliance.py，口径见 assets/legal/ai-service-compliance-notice.md。
+    # 关闭即放行并诚实标注未校验。
+    ai_service_compliance_enabled: bool = True
+
     # Phase 3（2026-09-13 存量空间资产化）空间资产台账：
     # /api/space-assets/* —— 康养/疗愈/旅居/文旅/适老住宅存量空间台账，串联
     # 资产评估 → AI 智能化改造 → 交付 → 运营指标。业态枚举与索克生活 lodge

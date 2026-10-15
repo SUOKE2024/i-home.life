@@ -20,6 +20,7 @@ from typing import Any, Callable, Coroutine
 
 from app.config import get_settings
 from app.services import mcp_security
+from app.services.ai_service_compliance import classify_tool
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -38,12 +39,17 @@ class AgentTool:
         handler: Callable[..., Coroutine[Any, Any, Any]] | Callable[..., Any],
         category: str = "general",
         required: list[str] | None = None,
+        compliance: dict | None = None,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.handler = handler
         self.category = category
+        # AI 产品治理 · 契约 1：工具合规分级（拟人化互动/卫生健康/金融边界），按 category 派生。
+        # 未登记 category → classified=False，由 ToolRegistry.register fail-closed 拒绝注册。
+        # 见 docs/AI_PRODUCT_GOVERNANCE.md 与 app/services/ai_service_compliance.py。
+        self.compliance = compliance if compliance is not None else classify_tool(name, category)
         # v1.13.0（2026 前沿对齐）：显式 required 列表，替代把全部参数标为必填。
         # 2026 工具调用指南（TokenMix/MLflow）：required 只声明真正必需的参数，
         # 可选参数标 required 会诱导 LLM 幻觉填充，降低工具选择准确率。
@@ -1039,6 +1045,14 @@ class ToolRegistry:
             self.register(tool)
 
     def register(self, tool: AgentTool):
+        # AI 产品治理 · 契约 1：合规分级缺失仅告警，**不阻断注册**——未分级工具由
+        # _visible_tools / get_admin_openai_schemas 从「可见/可调用」列表剔除，
+        # 在暴露层实现 fail-closed（避免误伤动态注册的探针/测试工具）。
+        if not (tool.compliance or {}).get("classified", False):
+            logger.warning(
+                "tool_compliance_unclassified: name=%s category=%s（将从可见工具列表剔除）",
+                tool.name, tool.category,
+            )
         # v1.8.x MCP 安全硬化：description 防投毒校验（flag 关闭时零回归）
         if settings.mcp_security_hardening_enabled:
             ok, reason = mcp_security.validate_tool_description(tool.description)
@@ -1060,6 +1074,8 @@ class ToolRegistry:
         避免 MCP manifest / Qwen Realtime 广告不可执行的工具（诚实降级）。
         执行路径由 handler 二次门控。"""
         tools = list(self._tools.values())
+        # AI 产品治理 · 契约 1：未登记合规分级的工具不出现在可见/可调用列表（暴露层 fail-closed）
+        tools = [t for t in tools if (t.compliance or {}).get("classified", False)]
         if not settings.voice_agent_orchestration_enabled:
             tools = [t for t in tools if t.category != "orchestration"]
         if not settings.design_proposal_llm_enabled:
@@ -1088,7 +1104,8 @@ class ToolRegistry:
         """
         return [
             t.to_openai_schema()
-            for t in self._tools.values() if t.category == "admin"
+            for t in self._tools.values()
+            if t.category == "admin" and (t.compliance or {}).get("classified", False)
         ]
 
     def get_qwen_schemas(self) -> list[dict]:

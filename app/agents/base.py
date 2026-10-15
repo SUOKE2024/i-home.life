@@ -70,6 +70,51 @@ PROVIDER_REGISTRY = {
 # 受 settings.llm_fallback_enabled feature flag 控制
 DEFAULT_FALLBACK_CHAIN = ["qwen", "glm", "doubao"]
 
+# ── AI 产品治理 · 契约 2：provider 生命周期台账（2026-10-15）──────────────
+# active=在役；disabled=暂停接入（配置保留）；retired=已下线（记录日期）。
+# 外部平台（豆包/千问/元器/扣子/Dify 等）停服时置 retired，并须同时从
+# DEFAULT_FALLBACK_CHAIN 摘除——由 validate_provider_config() 校验。
+PROVIDER_STATUS = {
+    "deepseek": "active",
+    "glm": "active",
+    "qwen": "active",
+    "doubao": "active",
+    "local": "active",
+}
+
+
+def validate_provider_config(registry=None, fallback_chain=None) -> list[str]:
+    """provider 配置一致性校验（契约 2，供测试/健康检查调用）。
+
+    Returns:
+        问题清单（为空即一致）：
+        - 注册表 provider 未登记生命周期状态；
+        - active provider 缺 api_base / api_key / model / chat_path；
+        - 降级链引用 disabled / retired provider 或未注册 provider。
+    """
+    registry = PROVIDER_REGISTRY if registry is None else registry
+    chain = DEFAULT_FALLBACK_CHAIN if fallback_chain is None else fallback_chain
+    findings: list[str] = []
+
+    for name, spec in registry.items():
+        status = PROVIDER_STATUS.get(name)
+        if status is None:
+            findings.append(f"provider '{name}' 未在 PROVIDER_STATUS 登记")
+            continue
+        if status == "active":
+            missing = [k for k in ("api_base", "api_key", "model", "chat_path") if k not in spec]
+            if missing:
+                findings.append(f"active provider '{name}' 缺配置：{', '.join(missing)}")
+
+    for name in chain:
+        status = PROVIDER_STATUS.get(name)
+        if status is None:
+            findings.append(f"降级链引用未注册 provider：'{name}'")
+        elif status != "active":
+            findings.append(f"降级链引用 {status} provider：'{name}'")
+
+    return findings
+
 
 def _accumulate_usage(total_usage: dict, result: str | dict) -> None:
     """v1.13.1（2026 成本追踪）：累计单轮 LLM usage 到 total_usage。

@@ -212,6 +212,23 @@ v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模
 
 `deepseek → qwen → glm → doubao`（`llm_fallback_enabled=True`）。改 LLM 调用走 `BaseAgent._chat()`，勿绕过 fallback。
 
+## AI 产品治理（契约 1 / 契约 2，2026-10-15）
+
+依据《人工智能拟人化互动服务管理暂行办法》（网信办等五部门令第 21 号，2026-07-15 施行），
+落地三张台账（口径见 `docs/AI_PRODUCT_GOVERNANCE.md`）：
+
+- **契约 1 合规分级（AI 服务闸门）**：`app/services/ai_service_compliance.py` —— 拟人化红线
+  （自称真人/情感陪伴承诺）与金融红线（收益承诺/荐股）命中即阻断，caution 词附加 `STANDARD_AI_DISCLOSURE`；
+  受 `settings.ai_service_compliance_enabled` 控制（关闭即诚实标注未校验）。与
+  `health_claim_compliance.py`（健康功效宣称）正交，**同一输出路径串联**（见 `app/agents/care.py`
+  的 `apply_claim_compliance → apply_service_compliance`）。工具分级：`AgentTool.compliance` 按
+  `category` 派生，**未登记 category 的工具不从 `_visible_tools` / admin schemas 暴露**（暴露层 fail-closed，
+  注册不阻断以免误伤动态探针）。
+- **契约 2 provider 生命周期**：`app/agents/base.py::PROVIDER_STATUS`（active/disabled/retired）
+  与 `validate_provider_config()`。外部平台（豆包/千问/元器/扣子/Dify）停服时置 `retired`
+  并同时从 `DEFAULT_FALLBACK_CHAIN` 摘除；测试 `tests/test_llm_provider_config.py` 兜底。
+- **新增能力纪律**：先登记分级再上线；拟人化能力必须显式声明并补齐"非真人/可撤回"告知。
+
 ## 工作目录
 
 - 后端根：`/Users/netsong/Developer/i-home.life`
