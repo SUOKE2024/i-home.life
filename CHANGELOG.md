@@ -4,6 +4,31 @@
 
 ## [Unreleased]
 
+### 生产部署事故与恢复 · AI 治理代码上线（2026-10-16）
+
+**部署**：`c058475`（AI 治理契约 1/2）经 `scripts/deploy-remote.sh backend` 上线 ECS（`root@118.31.223.213`，systemd `ihome`）。
+
+**事故（P0，00:18–00:29 CST，约 11 分钟 502）**：重启后 uvicorn 启动即崩——
+`生产环境必须配置 PASETO_PRIVATE_KEY（Ed25519 私钥，签发）或 PASETO_PUBLIC_KEY（Ed25519 公钥，验签）`。
+
+**根因（订正：并非「部署覆盖了密钥」）**：远端 `.env` 与本机部署后内容、与 9/24 备份 env (`backups/env-v1.17.3-*.bak`)
+**仅差一行**（`APP_VERSION` 1.18.0 vs 1.17.3），证明**未抹除任何密钥**；真实原因是**生产此前运行的是认证迁移前旧码**
+（不校验 PASETO 密钥），本轮新码引入 `paseto_strict_mode=True` 硬校验，而**i-home 生产从未下发过 Ed25519 密钥对**
+——即生产长期滞后于仓库（认证改造只在仓库完成，未在该 ECS 落地）。
+
+**恢复**：用 `scripts/gen_production_keys.py` 生成密钥对（**仅取 `PASETO_PRIVATE_KEY` / `PASETO_PUBLIC_KEY` /
+`PASETO_LOCAL_ACCEPT_UNTIL` 三项，保留既有 `PASETO_SECRET_KEY`**——轮换对称主密钥会破坏设备凭据 AES 解密与
+legacy v4.local 令牌验证），以 600 权限追加至 `/opt/ihome/.env` 后 `systemctl restart ihome`。
+复验：上游 `127.0.0.1:8001/health` **200**；公网 `/`、`/health`、`/api/health`、`/api/docs` 全 **200×3**；
+`/api/health/detail` 指纹 **`90ae90bc`**（新密钥已生效）；`POST /api/agents/orchestrate` **401**（无 5xx，路由已挂载）。
+
+**遗留（须在窗口内处理）**：FC 定时器 `ihome-timer$ihome-timer` 的 `API_TOKEN` 仍为 **`v4.local.`** 旧令牌，
+当前依赖 `PASETO_LOCAL_ACCEPT_UNTIL`（本轮设 +168h → **2026-10-23**）；须在此之前用**新私钥**重签为 v4.public
+（`scripts/mint_paseto_token.py --sub <admin> --role admin`）并回填 FC 环境变量，否则 08:00 定时任务将静默 401。
+
+**加固建议（尚未实施）**：`scripts/deploy-remote.sh` 重启 uvicorn 后应加「远端启动前配置预检
+（`python -c 'from app.config import get_settings'`）+ 健康探针失败即回滚」，当前为「重启后不校验」的盲发布。
+
 ### AI 产品治理 · 契约 1/2 落地（合规分级 + provider 生命周期，2026-10-15）
 
 依据《人工智能拟人化互动服务管理暂行办法》（网信办等五部门令第 21 号，2026-07-15 施行），
