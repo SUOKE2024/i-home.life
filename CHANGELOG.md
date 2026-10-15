@@ -26,7 +26,7 @@
   外部平台（豆包/千问/元器/扣子/Dify）停服时置 `retired` 并同步从 `DEFAULT_FALLBACK_CHAIN` 摘除。
 - **口径文档**：新增 `assets/legal/ai-service-compliance-notice.md`（对客合规声明）与
   `docs/AI_PRODUCT_GOVERNANCE.md`（三张台账 + 纪律）；`CLAUDE.md` 补「AI 产品治理」章节。
-- **回归**：新增 `tests/test_ai_service_compliance.py`（12 passed）与 `tests/test_llm_provider_config.py`
+- **回归**：新增 `tests/test_ai_service_compliance.py`（11 passed）与 `tests/test_llm_provider_config.py`
   （5 passed）；`tests/test_mcp_security.py` 既有 32 项 **不受影响**（合计 48 passed）。
 - **未执行 / 边界**：仅改代码与文档，**未部署**、未 bump 版本；未改动认证（PASETO）与部署架构（FC）；
   本轮顺带收口唯一未跟踪文件 `scripts/gen_production_keys.py`（认证改造产物，生成物 `*.env` 不入库）。
