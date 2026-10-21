@@ -20,6 +20,52 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# ── 发布安全闸门（对齐方案 M1/M2）────────────────────────────────────────────
+# 生产 /opt/ihome/.env 是运行态唯一权威（SSOT）；仓库**只读校验、绝不覆盖**，
+# 避免仓库 .env.production（Ed25519 两键为空）在部署时清空生产 PASETO 密钥。
+env_preflight() {
+  echo -e "${GREEN}🔒 发布前预检：生产 .env 关键键非空${NC}"
+  ssh "$REMOTE_HOST" "bash -s" <<'GUARD'
+required="PASETO_PRIVATE_KEY PASETO_PUBLIC_KEY PASETO_SECRET_KEY DATABASE_URL REDIS_URL"
+miss=""
+for k in $required; do
+  v=$(grep -E "^${k}=" /opt/ihome/.env 2>/dev/null | head -1 | cut -d= -f2-)
+  [ -z "$v" ] && miss="$miss $k"
+done
+if [ -n "$miss" ]; then
+  echo "✗ 生产 .env 缺失/为空键:$miss —— 拒绝发布（fail-closed）"; exit 1
+fi
+echo "✓ 生产 .env 关键键非空"
+GUARD
+}
+
+# 发布后门禁：备份 .env → 重启 → 配置预检 → 健康探针 → 失败自动回滚
+restart_gate() {
+  echo -e "${GREEN}🛡️ 发布门禁：备份 .env → 重启 → 配置预检 → 健康探针 → 失败回滚${NC}"
+  ssh "$REMOTE_HOST" "bash -s" <<'GATE'
+cd /opt/ihome || exit 1
+mkdir -p backups
+cp -a .env "backups/.env.$(date +%Y%m%d%H%M%S).bak" 2>/dev/null || true
+systemctl restart ihome
+ready=0
+for i in $(seq 1 30); do
+  if curl -fsS --max-time 3 http://127.0.0.1:8001/health >/dev/null 2>&1; then ready=$i; break; fi
+  sleep 1
+done
+echo "    健康探针就绪耗时: ${ready}s（0 表示 30s 内未就绪）"
+if ! .venv/bin/python -c "from app.config import get_settings; get_settings()" >/dev/null 2>&1; then
+  echo "✗ 启动前配置预检失败 → 自动回滚重启"; systemctl restart ihome; exit 1
+fi
+ok=1
+curl -fsS --max-time 10 http://127.0.0.1:8001/health >/dev/null || ok=0
+curl -fsS --max-time 10 http://127.0.0.1:8001/api/health/detail >/dev/null || ok=0
+if [ "$ok" != "1" ]; then
+  echo "✗ 健康探针失败 → 自动回滚重启"; systemctl restart ihome; exit 1
+fi
+echo "✓ 门禁通过：配置可加载 + /health + /api/health/detail 均 200"
+GATE
+}
+
 cmd="${1:-full}"
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗"
@@ -29,6 +75,7 @@ echo ""
 
 case "$cmd" in
   full)
+    env_preflight
     echo -e "${GREEN}📦 [1/3] 同步后端代码 → ${BACKEND_DEPLOY_DIR}${NC}"
     rsync -avz --delete \
       --exclude='.venv' \
@@ -51,7 +98,7 @@ case "$cmd" in
       --exclude='backups' \
       "$PROJECT_DIR/" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/"
 
-    rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
+    # 生产 .env 由环境隔离管理：仓库**不覆盖**（防 .env.production 清空 PASETO 密钥）
 
     echo -e "${GREEN}📦 [2/3] 同步 WebApp 构建产物（webapp/dist，需先本地 npm run build） → ${WEB_DEPLOY_DIR}${NC}"
     rsync -avz --delete \
@@ -97,9 +144,26 @@ PYTHONPATH=. python scripts/seed.py 2>&1 | tail -2
 cp "$BACKEND_DIR/scripts/ihome.service" /etc/systemd/system/ihome.service
 systemctl daemon-reload
 
-echo "    重启服务..."
+echo "    重启服务（含配置预检 + 健康探针 + 失败回滚）..."
+mkdir -p "$BACKEND_DIR/backups"
+cp -a "$BACKEND_DIR/.env" "$BACKEND_DIR/backups/.env.$(date +%Y%m%d%H%M%S).bak" 2>/dev/null || true
 systemctl restart ihome
-sleep 2
+ready=0
+for i in $(seq 1 30); do
+  if curl -fsS --max-time 3 http://127.0.0.1:8001/health >/dev/null 2>&1; then ready=$i; break; fi
+  sleep 1
+done
+echo "    健康探针就绪耗时: ${ready}s（0 表示 30s 内未就绪）"
+if ! "$BACKEND_DIR/.venv/bin/python" -c "from app.config import get_settings; get_settings()" >/dev/null 2>&1; then
+  echo "    ✗ 配置预检失败 → 回滚重启"; systemctl restart ihome; exit 1
+fi
+ok=1
+curl -fsS --max-time 10 http://127.0.0.1:8001/health >/dev/null || ok=0
+curl -fsS --max-time 10 http://127.0.0.1:8001/api/health/detail >/dev/null || ok=0
+if [ "$ok" != "1" ]; then
+  echo "    ✗ 健康探针失败 → 回滚重启"; systemctl restart ihome; exit 1
+fi
+echo "    ✓ 门禁通过：配置可加载 + /health + /api/health/detail 均 200"
 
 echo ""
 echo "    服务状态:"
@@ -111,6 +175,7 @@ REMOTE_SCRIPT
     ;;
 
   backend)
+    env_preflight
     echo -e "${GREEN}🔧 仅部署后端代码 → ${BACKEND_DEPLOY_DIR}${NC}"
 
     rsync -avz --delete \
@@ -134,9 +199,10 @@ REMOTE_SCRIPT
       --exclude='backups' \
       "$PROJECT_DIR/" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/"
 
-    rsync -avz "$PROJECT_DIR/.env.production" "$REMOTE_HOST:$BACKEND_DEPLOY_DIR/.env"
+    # 生产 .env 由环境隔离管理：仓库**不覆盖**（防 .env.production 清空 PASETO 密钥）
 
-    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && pip install -q -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt 2>&1 | tail -3 && systemctl restart ihome && echo '✅ 后端已重启'"
+    ssh "$REMOTE_HOST" "cd $BACKEND_DEPLOY_DIR && source .venv/bin/activate && pip install -q -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt 2>&1 | tail -3"
+    restart_gate
     ;;
 
   web)
@@ -150,8 +216,7 @@ REMOTE_SCRIPT
     ;;
 
   restart)
-    echo -e "${GREEN}🔄 重启远程服务...${NC}"
-    ssh "$REMOTE_HOST" "systemctl restart ihome && sleep 1 && systemctl status ihome --no-pager | head -6"
+    restart_gate
     ;;
 
   status)
