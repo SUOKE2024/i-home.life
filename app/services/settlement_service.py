@@ -41,6 +41,87 @@ class SettlementStateError(Exception):
         )
 
 
+class SettlementGateError(Exception):
+    """结算付款门禁未通过（质量未闭环 / 托管未放款）"""
+
+    def __init__(self, detail: dict):
+        self.detail = detail
+        super().__init__(detail.get("message", "结算付款门禁未通过"))
+
+
+async def assess_settlement_gates(db: AsyncSession, project_id: str) -> dict:
+    """标记已付前的确定性门禁（2026-10-21 P0）
+
+    ① 质检：复用 ``quality_service.generate_acceptance_report`` 标准清单比对，
+       存在 open/in_progress 问题（failed > 0）即阻断；
+    ② 托管：项目存在存管账户时，全部 released 才放行，否则阻断。
+
+    无质检数据（checked == 0）或无存管账户时记 ``no_data`` 放行，
+    响应中如实标注，不把「未采集」伪装成「已验收/已放款」。
+    """
+    from app.config import get_settings
+
+    if not get_settings().settlement_gate_enabled:
+        return {"enabled": False}
+
+    from app.services.quality_service import generate_acceptance_report
+
+    report = await generate_acceptance_report(db, project_id)
+    if report.get("source") == "standard_checklist":
+        checked = int(report.get("passed", 0)) + int(report.get("failed", 0))
+        failed = int(report.get("failed", 0))
+    else:
+        checked = int(report.get("total_issues", 0))
+        failed = int(report.get("failed", 0))
+
+    # 标准清单未匹配到的 open/in_progress 问题同样视为未闭环（防清单分类漏网）
+    summary = report.get("issues_summary") or {}
+    by_status = summary.get("by_status") or {}
+    open_issues = (
+        int(by_status.get("open", 0))
+        + int(by_status.get("in_progress", 0))
+        + int(by_status.get("reopened", 0))
+    )
+    total_issues = int(summary.get("total_issues", report.get("total_issues", 0)))
+    checked = max(checked, total_issues)
+    failed = max(failed, open_issues)
+
+    if checked == 0:
+        quality_status = "no_data"
+    elif failed > 0:
+        quality_status = "blocked"
+    else:
+        quality_status = "passed"
+
+    quality = {
+        "status": quality_status,
+        "checked": checked,
+        "failed": failed,
+        "verdict": report.get("verdict"),
+        "verdict_text": report.get("verdict_text"),
+    }
+
+    from app.services.escrow_trustee_service import STATUS_RELEASED, list_accounts_by_project
+
+    accounts = await list_accounts_by_project(db, project_id)
+    unreleased = [acc.id for acc in accounts if acc.status != STATUS_RELEASED]
+    if not accounts:
+        escrow_status = "no_data"
+    elif unreleased:
+        escrow_status = "blocked"
+    else:
+        escrow_status = "passed"
+
+    escrow = {
+        "status": escrow_status,
+        "account_count": len(accounts),
+        "unreleased_count": len(unreleased),
+        "unreleased_account_ids": unreleased[:5],
+    }
+
+    return {"enabled": True, "quality": quality, "escrow": escrow}
+
+
 def _assert_transition(settlement: Settlement, action: str, target: str) -> None:
     """校验状态机：当前状态是否允许转换到 target"""
     allowed = VALID_TRANSITIONS.get(settlement.status, set())
@@ -284,11 +365,22 @@ async def submit_settlement(db: AsyncSession, project_id: str) -> Settlement | N
 
 
 async def mark_settlement_paid(db: AsyncSession, project_id: str) -> Settlement | None:
-    """标记已付款：approved → paid"""
+    """标记已付款：approved → paid（先过质量/托管门禁）"""
     settlement = await get_settlement(db, project_id)
     if not settlement:
         return None
     _assert_transition(settlement, "mark_paid", "paid")
+
+    gates = await assess_settlement_gates(db, project_id)
+    blocked = gates.get("enabled") and (
+        gates["quality"]["status"] == "blocked" or gates["escrow"]["status"] == "blocked"
+    )
+    if blocked:
+        raise SettlementGateError({
+            "message": "结算付款门禁未通过：需先完成质检整改/托管放款",
+            "gates": gates,
+        })
+
     settlement.status = "paid"
     settlement.settled_at = datetime.now(timezone.utc)
     await db.commit()

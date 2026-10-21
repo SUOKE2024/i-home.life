@@ -112,6 +112,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **配置单例**：`get_settings()` 是 `@lru_cache` 单例（`app/config.py`）。测试中**禁止 `get_settings.cache_clear()`**——它使其他模块 import 时的 `settings = get_settings()` 模块级绑定变成陈旧引用，导致跨文件测试隔离失败（曾致 test_v1129 audit + test_webauthn 全量跑失败、单独跑通过）。改 feature flag 用 `monkeypatch.setattr(get_settings(), "flag", value)`，teardown 自动还原。
 - **AI 渲染**：4 级降级链 L0(ControlNet) → L1(mock) → L2(占位) → L3(error)。`ai_render_contract_strict=True` 时客户端 `require_real=True` 且后端不可用 → 503 诚实报错，**禁止移除降级路径**。
 - **会话加密**：`allow_plaintext_session=False`（默认）。PASETO 密钥不可用时拒绝明文存储会话消息，防 PII 泄露。
+- **结算付款门禁**：`settlement_gate_enabled=True`（默认）。`mark-paid` 前确定性校验质检标准清单无 open/in_progress 问题 + 项目托管账户全部 `released`；无质检/托管数据记 `no_data` 放行并在 409 明细中如实标注。**支付/托管仍是内部台账，无第三方资金通道**，不得对外宣称「支付闭环」。
 - **诚实降级**：禁止用硬编码假数据伪装真实能力。不可用就明确 503/占位 + 标注（历史教训：v1.1.31 修复 6 处硬编码假数据）。
 - **健康声明合规**（Phase 0，继承索克生活口径）：康养/疗愈/适老相关文案**禁止疗效词**（治疗/治愈/降压/降糖/控血糖/消炎/抗癌/根治 等，词表见 `app/services/health_claim_compliance.py` `PROHIBITED_CLAIM_WORDS`），命中即阻断（`health_claim_compliance_enabled` 默认 True）。所有健康相关输出必须携带「非医疗诊断」免责口径（`assets/legal/health-claim-disclaimer.md`）。**平台不做医疗诊断/处方/疗效承诺**，CareAgent 等仅做监测与提醒。此红线与索克生活 `assets/legal/fifteenth_five_year_plan_disclaimer.md` + HC-001~HC-010 对齐，改词表须同步索克侧 `wellness_claim_compliance`。
 
@@ -120,7 +121,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2930 passed 不得回退（collect 2936 = 2930 passed + 2 skipped + 4 xfailed，2026-09-25 v1.18.0 站点 AI 可见度落地：AI 可见度审计/修复清单闭环/内容新鲜度 66 用例，全量校准，`-n 4` 实测 11 分 29 秒零失败（本机 IDE 扩展高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2974 passed 不得回退（collect 2980 = 2974 passed + 2 skipped + 4 xfailed，2026-10-21 v1.19.0 生产 schema 对齐 + 结算付款门禁落地：新增 4 用例，全量 `-n 4` 实测 17 分 33 秒零失败（本机 IDE 扩展/外部 pytest 高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
@@ -159,6 +160,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **P1 修复清单闭环**（`remediation_plan_enabled`）：`/api/remediation-plans/*`（admin），表 `remediation_plans`（迁移 `m7a8b9c0d1e2`），承载「诊断 → 清单 → 确认 → 执行 → 复检 → 回滚」。**`AUTO_REMEDIATION_ACTIONS` 是唯一白名单**（生成 llms.txt / 追加 robots.txt AI 爬虫声明块），新增自动动作须同时满足「可逆 + 不改企业事实 + 可确定性复检」；`_safe_target` 写入根恒为仓库内 `webapp/`（`allowed_root` 仅服务层内部可传，**HTTP 层永不传**）；`apply` 须显式 `confirm=True`（否则 422）；`verify` 默认只复检**已执行**条目；`rollback` 按执行前全文备份还原。tier 由 `classify_tier` 确定性判定：涉及企业事实/品牌承诺/发布权限/经营决策 → `human_only` **只出清单不代做**。
 - **P2 公开内容新鲜度（长草）监测**（`content_freshness_monitor_enabled`）：`GET /api/content-freshness`（admin）。`freshness = 0.5 ** (年龄/半衰期)`，半衰期**复用 `memory_decay_half_life_days`**（不另造口径）；监测项目/空间资产/已发布产品。**只出待更新清单不代写内容**；无数据源记 `insufficient_data` 并标注「不据此判为不合格」，**不返回 0 伪装全部新鲜**。
 - **两条审计不变式（v1.18.0 自查修复，勿回退）**：① `resolve_artifacts` 必须**先定目录、再在该目录内取全部产物**——禁止逐个文件跨候选目录回退（否则读出「robots 取自 dist、llms.txt 取自 public」的**混合产物集**，结论不可信）；`index.html` 回退 `webapp/index.html` 仅当 `public_dir` 就是源码态 `webapp/public`（按目录身份判定，与是否显式传参无关 → 同一 `static_root` 读取恒一致，复检可比）。② 组织实体查找必须**递归**（覆盖 `@graph` / `publisher` / 任意嵌套 / `@type` 数组）并按字段完整度择优——只在顶层找 `@type` 会把标准 `@graph` 写法误报「未找到 Organization 实体」。
+- **站点产物发布（v1.19.0）**：`webapp/public/` 的 GEO 产物需 `npm run build` 后才进入 `dist`（再 `npm run build` console），部署以 `dist` 为准；生产 Nginx 系统 `mime.types` 缺 `txt` 映射，`llms.txt`/`robots.txt` 须由 `scripts/nginx-ihome.conf` 的显式 `text/plain; charset=utf-8` location 兜底，**勿删该块**。当前 `dist` 审计 78 分（源码态同分），生产实测 `text/plain`。
 - **填写模板**：`docs/guides/structured-data-template.md`（业务实体 JSON-LD，含占位符）。**模板不得直接粘贴上线**——占位符会让审计把业务实体判为 `pass`，反而掩盖真实缺口；填完须由经营方确认（涉健康声明/补贴/轻资产三红线）后复跑审计验证。
 
 ## 生产 schema 约束对齐（v1.17.4，CHECK 约束回填）
@@ -170,6 +172,7 @@ v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模
 - `scripts/deploy-remote.sh` 两处 rsync 带 `--exclude='backups'`：原 `--delete` 会整目录删除生产 `/opt/ihome/backups`（含部署备份），**勿移除该排除**。
 - 生产实测 32 → 198 条（45 表，`convalidated=t`），越界枚举被拒；`tests/test_schema_constraint_parity.py` 守护冻结清单与模型逐字一致。
 - **IntegrityError 全局转译**（`app/main.py` `integrity_error_handler`）：约束生效后越界写入按类型给出可操作提示——CHECK / NOT NULL / FK → 422、UNIQUE → 409；PG 与 SQLite 文案差异按 `str(exc.orig)` 确定性解析，**不依赖方言专属异常类**。**未识别的约束违反保持 500 兜底**（勿把内部缺陷伪装成用户输入错误）；新增受限枚举写入路径无需各自 try/except。
+- **2026-10-21 生产 schema 追平（v1.19.0）**：生产从 `b8c8d9e0f1a2` 逐个 upgrade 至 head `o1c2d3e4f5a6`（6 个 revision）。**`init_db` 的 `create_all` 只建缺失表、不补列/约束**——本轮实测 `project_members` / `remediation_plans` / `refresh_tokens` 已由 create_all 建出，但 `health_monitors.smart_device_id` 列与 `scene_automations` CHECK 缺失，导致 ORM 查询 `UndefinedColumnError`。**排查「表在但功能 500」先查列/约束，勿只看表是否存在**；改模型列或约束必须配套迁移。
 
 ## i-home FC 定时触发器运维须知（2026-09-24 实勘）
 

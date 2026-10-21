@@ -114,9 +114,9 @@ class TestBuildPlan:
             assert item["tier"] == "human_only"
             assert item["reversible"] is False
 
-    def test_default_audit_has_llms_auto_item(self):
-        """仓库默认站点缺 llms.txt → 清单必含可自动执行的生成条目。"""
-        plan = rps.build_plan()
+    def test_default_audit_has_llms_auto_item(self, site):
+        """站点缺 llms.txt → 清单必含可自动执行的生成条目（用临时站点，避免依赖仓库构建态）"""
+        plan = rps.build_plan(avs.run_ai_visibility_audit(static_root=str(site)))
         auto_actions = [i["action"] for i in plan["items"] if i["auto_executable"]]
         assert "write_llms_txt" in auto_actions
 

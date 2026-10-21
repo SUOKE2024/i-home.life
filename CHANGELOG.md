@@ -2,6 +2,20 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.19.0] - 2026-10-21
+
+### 生产 schema 对齐 + 结算付款门禁（2026-10-21）
+
+- **生产 schema 对齐（P0）**：生产库长期停留 `b8c8d9e0f1a2`，落后 6 个 revision。本轮先 `pg_dump` 备份（`backups/ihome-pre-alembic-head-20261021214706.sql.gz`），再逐个 `alembic upgrade +1` 至 head `o1c2d3e4f5a6`：`project_members` / `scene_automations.scene_type` CHECK / `health_monitors.smart_device_id` / `remediation_plans` / `refresh_tokens` / `suppliers.ecosystem_party_id`。迁移前实测 `health_monitors` ORM 查询因缺列 `UndefinedColumnError`，迁移后恢复；`scripts/check_schema_drift.py` 缺失表 0 / 缺失 CHECK 0。
+- **结算付款门禁（P0）**：新增 `settlement_gate_enabled`（默认 True）。`POST /api/settlements/{id}/mark-paid` 在状态机校验后执行确定性门禁：① `quality_service.generate_acceptance_report` 无 open/in_progress 问题；② 项目托管账户（若有）全部 `released`。未通过返回 409 + `gates` 明细；无质检/托管数据记 `no_data` 放行并如实标注，不伪装已验收/已放款。新增 `tests/test_settlements.py` 2 用例。
+- **能力开关透明化**：`GET /api/config/feature-flags` 新增 `real_ai_render_enabled` / `ai_render_backend_configured` / `real_embedding_enabled` / `real_cv_quality_enabled` / `settlement_gate_enabled`。生产实测 `vector_db_url_configured=False`、`real_ai_render_enabled=False`，前端不得把 `ai_render_enabled` 读作真实 ControlNet 已就绪。
+- **自进化空转可诊断**：`GET /api/admin/skill-evolution` 报告新增 `thresholds.min_cases_per_cluster`（=3）与 `candidate_clusters[]`（含 `case_count` / `shortfall`）。生产恒 0 的根因可一眼定位为「Case 未达阈值」，而非触发器未调用。
+- **GEO 产物落地**：`webapp` 重建后 `dist` 审计由 70 → **78 分**，`llms.txt` 1165B、`robots.txt` 960B（14 个 UA 块）；剩余缺口为企业事实结构化数据、公开内容页、sitemap `lastmod` 新鲜度（属人工/经营侧，不由平台代填）。
+- **Nginx 文本 MIME 修复**：生产系统 `mime.types` 缺 `txt → text/plain` 映射，`llms.txt` / `robots.txt` 原以 `application/octet-stream` 返回；已在 3 个 server 块加 `location = /llms.txt|robots.txt` 显式 `default_type text/plain; charset utf-8`，并同步 `scripts/nginx-ihome.conf`（生产实测 `text/plain; charset=utf-8`）。
+- **测试**：全量 `-n 4` **2974 passed / 2 skipped / 4 xfailed**（2980 collect，17m33s）；基线 `scripts/test_baseline.json` 2930 → **2974**。新增 4 用例（结算门禁 2、能力开关 1、自进化诊断 1）；修正 `test_default_audit_has_llms_auto_item` 依赖仓库构建态的问题（改用临时站点，构建前后均稳定）。
+- **版本号** 1.18.0 → 1.19.0（build 70 → 71），17 处同步。
+- **诚实边界**：支付/托管仍为内部台账，未接第三方资金通道；console 视觉回归 Linux 基线仍缺（`continue-on-error: true`），Flutter analyze 仍非阻塞；小程序 9 页仍为本地演示数据。
+
 ## [Unreleased]
 
 ### 小程序实体页补齐与 Taro 4.3 统一（2026-10-21）

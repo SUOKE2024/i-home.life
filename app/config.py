@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.18.0"
+    app_version: str = "1.19.0"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -812,6 +812,11 @@ class Settings(BaseSettings):
 
     # ── F43 资金托管深化（escrow 对接银行存管/第三方监管，节点验收双向确认放款）──
     escrow_trustee_enabled: bool = True
+
+    # ── 结算付款门禁（2026-10-21 P0）：标记已付前校验
+    #    ① 质检验收无未整改问题（quality_service 标准清单）；② 项目托管账户均已放款。
+    #    无质检/托管数据时记为 no_data 放行并如实标注，不伪造「已验收」。
+    settlement_gate_enabled: bool = True
 
     # ── F44 环保材料库标签（材料 SKU 增加 ENF/E0 环保等级与绿色认证筛选）──
     eco_material_label_enabled: bool = True

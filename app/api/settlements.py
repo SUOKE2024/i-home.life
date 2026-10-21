@@ -356,13 +356,15 @@ async def approve_review(
     "/{project_id}/mark-paid",
     response_model=SettlementResponse,
     summary="标记结算已支付",
-    description="项目结算复核通过后标记已支付（approved → paid），补全结算状态机闭环。",
+    description="项目结算复核通过后标记已支付（approved → paid），补全结算状态机闭环。"
+                "付款前校验质检问题与托管放款状态，未闭环返回 409。",
     response_description="已支付结算单",
     responses={
         200: {"description": "标记成功"},
         401: {"description": "未登录或 Token 无效"},
         403: {"description": "无权访问该项目"},
         404: {"description": "结算单不存在"},
+        409: {"description": "质检存在未整改问题或托管账户未全部放款"},
     },
 )
 async def mark_settlement_paid(
@@ -371,7 +373,13 @@ async def mark_settlement_paid(
     db: AsyncSession = Depends(get_db),
 ):
     await verify_project_access(project_id=project_id, current_user=current_user, db=db)
-    settlement = await settlement_service.mark_settlement_paid(db, project_id)
+    try:
+        settlement = await settlement_service.mark_settlement_paid(db, project_id)
+    except settlement_service.SettlementGateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=exc.detail,
+        ) from exc
     if not settlement:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="结算单不存在")
     resp = SettlementResponse.model_validate(settlement)

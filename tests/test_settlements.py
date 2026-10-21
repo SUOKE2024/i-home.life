@@ -705,3 +705,97 @@ def test_agent_reconciliation_unit():
     # payable = 100000 + 5000 - deduction - 3000
     expected = 102000.0 - result["deduction"]
     assert result["total_payable"] == round(expected, 2)
+
+
+# ── 2026-10-21 P0：结算付款门禁 ──────────────────────────────
+
+
+async def _create_approved_settlement(
+    client: AsyncClient, headers: dict, project_id: str,
+) -> None:
+    """创建结算单并推进到 approved（付款门禁的前置状态）"""
+    await client.post(
+        "/api/settlements",
+        json={
+            "project_id": project_id,
+            "lines": [
+                {"category": "main", "name": "门禁测试", "contract_amount": 30000.0},
+            ],
+        },
+        headers=headers,
+    )
+    await client.post(f"/api/settlements/submit/{project_id}", headers=headers)
+    await client.post(
+        f"/api/settlements/request-review/{project_id}",
+        json={"reason": "付款前复核"},
+        headers=headers,
+    )
+    resp = await client.post(f"/api/settlements/approve-review/{project_id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "approved"
+
+
+@pytest.mark.asyncio
+async def test_mark_paid_blocked_by_open_quality_issue(client: AsyncClient):
+    """存在未整改质量问题时禁止标记已付；整改后放行"""
+    token = await _register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    project_id = await _create_project(client, headers)
+    await _create_approved_settlement(client, headers, project_id)
+
+    issue_resp = await client.post(
+        "/api/construction/quality-issues",
+        json={
+            "project_id": project_id,
+            "phase": "mep",
+            "category": "电气",
+            "description": "插座回路未按图施工",
+            "severity": "high",
+        },
+        headers=headers,
+    )
+    assert issue_resp.status_code == 201
+    issue_id = issue_resp.json()["id"]
+
+    blocked = await client.post(f"/api/settlements/{project_id}/mark-paid", headers=headers)
+    assert blocked.status_code == 409
+    detail = blocked.json()["detail"]
+    assert detail["gates"]["quality"]["status"] == "blocked"
+    assert detail["gates"]["quality"]["failed"] >= 1
+    assert detail["gates"]["escrow"]["status"] == "no_data"
+
+    resolved = await client.patch(
+        f"/api/construction/quality-issues/{issue_id}/status",
+        json={"status": "resolved", "resolution": "已按图整改"},
+        headers=headers,
+    )
+    assert resolved.status_code == 200
+
+    paid = await client.post(f"/api/settlements/{project_id}/mark-paid", headers=headers)
+    assert paid.status_code == 200
+    assert paid.json()["status"] == "paid"
+
+
+@pytest.mark.asyncio
+async def test_mark_paid_blocked_by_unreleased_escrow(
+    client: AsyncClient, db_session, monkeypatch,
+):
+    """存在未放款托管账户时门禁阻断（托管数据通过 stub 注入，不伪造真实账户）"""
+    from types import SimpleNamespace
+
+    import app.services.escrow_trustee_service as escrow_service
+    from app.services.settlement_service import assess_settlement_gates
+
+    token = await _register_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    project_id = await _create_project(client, headers)
+
+    async def _fake_accounts(db, pid):
+        assert pid == project_id
+        return [SimpleNamespace(id="escrow-acc-1", status="active")]
+
+    monkeypatch.setattr(escrow_service, "list_accounts_by_project", _fake_accounts)
+    gates = await assess_settlement_gates(db_session, project_id)
+    assert gates["escrow"]["status"] == "blocked"
+    assert gates["escrow"]["unreleased_count"] == 1
+    assert gates["quality"]["status"] == "no_data"

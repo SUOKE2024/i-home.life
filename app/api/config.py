@@ -31,6 +31,12 @@ async def get_feature_flags():
         # v1.1.12 新增 feature flags
         "mcp_enabled": settings.mcp_enabled,
         "ai_render_enabled": settings.ai_render_enabled,
+        # 2026-10-21：暴露真实能力开关，避免前端把「功能开关」误读为「真机已就绪」
+        "real_ai_render_enabled": settings.real_ai_render_enabled,
+        "ai_render_backend_configured": bool(settings.ai_render_backend_url),
+        "real_embedding_enabled": settings.real_embedding_enabled,
+        "real_cv_quality_enabled": settings.real_cv_quality_enabled,
+        "settlement_gate_enabled": settings.settlement_gate_enabled,
         "voice_emotion_routing_enabled": settings.voice_emotion_routing_enabled,
         "qwen_audio_model": settings.qwen_audio_model,
         "qwen_audio_model_variant": "plus" if settings.qwen_audio_model.endswith("-plus") else "flash",

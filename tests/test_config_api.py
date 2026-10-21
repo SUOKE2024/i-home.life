@@ -69,3 +69,20 @@ async def test_feature_flags_public_access(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert "console_v2_enabled" in data
+
+
+@pytest.mark.asyncio
+async def test_feature_flags_exposes_capability_switches(client: AsyncClient):
+    """2026-10-21：真实能力开关须公开可查，避免把功能开关误读为真机就绪"""
+    resp = await client.get("/api/config/feature-flags")
+    assert resp.status_code == 200
+    data = resp.json()
+    for key in (
+        "real_ai_render_enabled",
+        "ai_render_backend_configured",
+        "real_embedding_enabled",
+        "real_cv_quality_enabled",
+        "settlement_gate_enabled",
+    ):
+        assert key in data
+        assert isinstance(data[key], bool)

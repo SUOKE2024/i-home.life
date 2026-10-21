@@ -73,6 +73,24 @@ async def test_cycle_distills_new_skill(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cycle_reports_threshold_shortfall(db_session, monkeypatch):
+    """未达阈值的 Case 簇在报告中给出候选与缺口数（解释定时任务恒 0）"""
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+    _seed_cases(db_session, count=2, prefix="short")
+
+    report = await run_skill_evolution_cycle(db_session)
+
+    assert report["clusters_found"] == 0
+    assert report["thresholds"]["min_cases_per_cluster"] == 3
+    candidate = next(
+        c for c in report["candidate_clusters"] if c["case_count"] == 2
+    )
+    assert candidate["agent_name"] == "designer"
+    assert candidate["shortfall"] == 1
+
+
+@pytest.mark.asyncio
 async def test_cycle_merges_into_existing_skill(db_session, monkeypatch):
     """已存在同名 Skill → 合并不新建，报告计入 merged_existing"""
     monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)

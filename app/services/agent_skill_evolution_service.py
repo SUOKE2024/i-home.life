@@ -688,6 +688,8 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
         "promoted_draft_to_active": [],
         "archived_low_quality": [],
         "limits": {"max_clusters": _CYCLE_MAX_CLUSTERS, "max_evaluations": _CYCLE_MAX_EVALUATIONS},
+        "thresholds": {"min_cases_per_cluster": _DISTILL_THRESHOLD},
+        "candidate_clusters": [],
         "skipped_reasons": [],
     }
 
@@ -717,6 +719,37 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
         result = await db.execute(cluster_stmt)
         clusters = result.all()
         report["clusters_found"] = len(clusters)
+
+        # 诊断：未达阈值的候选簇（回应「定时任务恒 0」时能直接看出差几条 Case）
+        candidate_stmt = (
+            select(
+                AgentCase.agent_name,
+                AgentCase.owner_id,
+                AgentCase.scope,
+                func.count(AgentCase.id).label("case_count"),
+            )
+            .where(
+                and_(
+                    AgentCase.quality_score >= 0.5,
+                    AgentCase.distilled_to_skill_id.is_(None),
+                    AgentCase.deleted_at.is_(None),
+                )
+            )
+            .group_by(AgentCase.agent_name, AgentCase.owner_id, AgentCase.scope)
+            .order_by(func.count(AgentCase.id).desc())
+            .limit(10)
+        )
+        candidate_rows = (await db.execute(candidate_stmt)).all()
+        report["candidate_clusters"] = [
+            {
+                "agent_name": agent_name,
+                "owner_id": owner_id,
+                "scope": scope,
+                "case_count": case_count,
+                "shortfall": max(0, _DISTILL_THRESHOLD - case_count),
+            }
+            for agent_name, owner_id, scope, case_count in candidate_rows
+        ]
 
         for agent_name, owner_id, scope, _count in clusters:
             skill = await distill_skill_from_cases(
