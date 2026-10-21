@@ -2,37 +2,240 @@
 
 .page {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 $page-padding;
+  padding: 24rpx $page-padding 48rpx;
   background: $color-bg-page;
 }
 
-.icon {
-  width: 144rpx;
-  height: 144rpx;
-  border-radius: 40rpx;
-  background: $color-peach;
-  @include flex-center;
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
 }
 
-.iconText {
-  font-size: 48rpx;
-  font-weight: $font-weight-semibold;
-  color: $color-accent-text;
+.loadingText {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
 }
 
-.title {
-  margin-top: 40rpx;
+.errorCard {
+  margin-top: 120rpx;
+  padding: 48rpx 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  text-align: center;
+}
+
+.errorText {
+  display: block;
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.retryButton {
+  display: inline-block;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  margin-top: 32rpx;
+  padding: 0 48rpx;
+  border: 0;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  color: $color-on-primary;
+  font-size: $font-size-md;
+  white-space: nowrap;
+}
+
+.coverWrap {
+  position: relative;
+  height: 340rpx;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+}
+
+.cover {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.coverMask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 220rpx;
+  background: linear-gradient(180deg, rgba(8, 8, 15, 0) 0%, rgba(8, 8, 15, 0.68) 100%);
+}
+
+.coverContent {
+  position: absolute;
+  left: 32rpx;
+  right: 32rpx;
+  bottom: 28rpx;
+}
+
+.coverTitle {
+  display: block;
   font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-white;
+  @include text-ellipsis;
+}
+
+.coverSub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: rgba(255, 255, 255, 0.82);
+  @include text-ellipsis;
+}
+
+.summaryCard {
+  margin-top: 24rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.summaryHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.scoreWrap {
+  display: flex;
+  align-items: baseline;
+}
+
+.scoreValue {
+  font-size: 44rpx;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1;
+}
+
+.scoreLabel {
+  margin-left: 8rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.metaGrid {
+  display: flex;
+  margin-top: 32rpx;
+  padding-top: 28rpx;
+  border-top: 2rpx solid $color-divider;
+}
+
+.metaItem {
+  flex: 1;
+  text-align: center;
+}
+
+.metaValue {
+  display: block;
+  font-size: $font-size-lg;
   font-weight: $font-weight-semibold;
   color: $color-text-primary;
 }
 
-.desc {
-  margin-top: 16rpx;
-  font-size: $font-size-sm;
+.metaLabel {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
   color: $color-text-tertiary;
+}
+
+.card {
+  margin-top: 16rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.readinessRow {
+  & + & {
+    margin-top: 28rpx;
+  }
+}
+
+.readinessHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.readinessName {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.readinessValue {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 0;
+
+  & + & {
+    border-top: 2rpx solid $color-divider;
+  }
+}
+
+.infoLabel {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+}
+
+.infoValue {
+  max-width: 60%;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+  text-align: right;
+  @include text-ellipsis;
+}
+
+.actions {
+  display: flex;
+  margin-top: 32rpx;
+}
+
+.ghostButton,
+.primaryButton {
+  flex: 1;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  border: 0;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+
+  &:active {
+    opacity: 0.86;
+  }
+}
+
+.ghostButton {
+  margin-right: 16rpx;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+  color: $color-text-secondary;
+}
+
+.primaryButton {
+  background: $gradient-primary;
+  color: $color-on-primary;
 }

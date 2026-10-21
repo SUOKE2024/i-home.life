@@ -2,37 +2,286 @@
 
 .page {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 $page-padding;
+  padding: 24rpx $page-padding 48rpx;
   background: $color-bg-page;
 }
 
-.icon {
-  width: 144rpx;
-  height: 144rpx;
-  border-radius: 40rpx;
-  background: $color-peach;
-  @include flex-center;
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
 }
 
-.iconText {
+.loadingText {
+  font-size: $font-size-md;
+  color: $color-text-tertiary;
+}
+
+.errorCard {
+  margin-top: 120rpx;
+  padding: 48rpx 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+  text-align: center;
+}
+
+.errorText {
+  display: block;
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.retryButton {
+  display: inline-block;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  margin-top: 32rpx;
+  padding: 0 48rpx;
+  border: 0;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  color: $color-on-primary;
+  font-size: $font-size-md;
+  white-space: nowrap;
+}
+
+.coverWrap {
+  position: relative;
+  height: 340rpx;
+  border-radius: $radius-lg;
+  overflow: hidden;
+  box-shadow: $shadow-card;
+}
+
+.cover {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.coverMask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 220rpx;
+  background: linear-gradient(180deg, rgba(8, 8, 15, 0) 0%, rgba(8, 8, 15, 0.68) 100%);
+}
+
+.coverContent {
+  position: absolute;
+  left: 32rpx;
+  right: 32rpx;
+  bottom: 28rpx;
+}
+
+.coverTitle {
+  display: block;
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-white;
+  @include text-ellipsis;
+}
+
+.coverSub {
+  display: block;
+  margin-top: 8rpx;
+  font-size: $font-size-xs;
+  color: rgba(255, 255, 255, 0.82);
+  @include text-ellipsis;
+}
+
+.priceCard {
+  margin-top: 24rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+}
+
+.price {
   font-size: 48rpx;
-  font-weight: $font-weight-semibold;
+  font-weight: $font-weight-bold;
+  color: $color-accent-text;
+  line-height: 1;
+}
+
+.priceUnit {
+  margin-left: 16rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 24rpx;
+}
+
+.tagPill {
+  padding: 8rpx 20rpx;
+  margin: 0 16rpx 12rpx 0;
+  border-radius: $radius-sm;
+  background: $color-peach;
+}
+
+.tagText {
+  font-size: $font-size-xs;
+  color: $color-accent-text;
+  white-space: nowrap;
+}
+
+.card {
+  margin-top: 16rpx;
+  padding: 32rpx;
+  background: $color-bg-card;
+  border-radius: $radius-lg;
+  box-shadow: $shadow-card;
+}
+
+.dimRow {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+}
+
+.dimDot {
+  width: 12rpx;
+  height: 12rpx;
+  margin-right: 16rpx;
+  border-radius: $radius-round;
+  background: $color-care;
+}
+
+.dimText {
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}
+
+.estimateHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.estimateRange {
+  font-size: $font-size-xl;
+  font-weight: $font-weight-bold;
   color: $color-accent-text;
 }
 
-.title {
-  margin-top: 40rpx;
-  font-size: $font-size-xl;
-  font-weight: $font-weight-semibold;
-  color: $color-text-primary;
+.estimateBadge {
+  padding: 6rpx 16rpx;
+  border-radius: $radius-xs;
+  background: $color-bg-hover;
 }
 
-.desc {
-  margin-top: 16rpx;
+.estimateBadgeText {
+  font-size: 20rpx;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.estimateBasis {
+  display: block;
+  margin-top: 20rpx;
   font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: $line-height-normal;
+}
+
+.warningItem {
+  display: block;
+  margin-top: 10rpx;
+  font-size: $font-size-xs;
+  color: $color-warning;
+  line-height: $line-height-normal;
+}
+
+.disclaimer {
+  display: block;
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid $color-divider;
+  font-size: $font-size-xs;
   color: $color-text-tertiary;
+  line-height: $line-height-normal;
+}
+
+.estimateHint {
+  display: block;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: $line-height-normal;
+}
+
+.estimateButton {
+  display: block;
+  width: 100%;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  margin-top: 24rpx;
+  border: 0;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  color: $color-on-primary;
+  font-size: $font-size-md;
+  white-space: nowrap;
+
+  &:active {
+    opacity: 0.86;
+  }
+}
+
+.notice {
+  margin-top: 24rpx;
+  padding: 24rpx 28rpx;
+  border-radius: $radius-md;
+  background: $color-peach;
+}
+
+.noticeText {
+  font-size: $font-size-xs;
+  line-height: $line-height-normal;
+  color: $color-text-secondary;
+}
+
+.actions {
+  display: flex;
+  margin-top: 32rpx;
+}
+
+.ghostButton,
+.primaryButton {
+  flex: 1;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  border: 0;
+  border-radius: $radius-button;
+  font-size: $font-size-md;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+
+  &:active {
+    opacity: 0.86;
+  }
+}
+
+.ghostButton {
+  margin-right: 16rpx;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+  color: $color-text-secondary;
+}
+
+.primaryButton {
+  background: $gradient-primary;
+  color: $color-on-primary;
 }

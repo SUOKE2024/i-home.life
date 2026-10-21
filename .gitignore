@@ -97,6 +97,7 @@ data/*.db-journal
 
 # Node（不加尾斜杠：尾斜杠只匹配目录，会放过符号链接形态的 node_modules）
 node_modules
+.swc/
 
 # Flutter OHOS SDK 副本（外部仓库，不应入库）
 flutter_flutter/

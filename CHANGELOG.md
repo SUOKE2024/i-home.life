@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 小程序实体页补齐与 Taro 4.3 统一（2026-10-21）
+
+- **占位页转实体**：`miniapp/src/pages/` 的 `space-detail`（四维就绪度 + 资产信息）、`project-detail`（六阶段进度 + 项目档案）、`elderly-detail`（套餐详情 + 补贴预估，恒带「非资格认定」）、`ai-consult`（本地示例问答，明确标注演示模式、未接入真实 AI）全部替换 14 行占位页。
+- **路由传参**：首页 / 项目 / 康养 / 我的页跳转详情页时传入 `id`，详情页按 `id` 加载并回退首条，不再出现「点进去都是同一个占位」。
+- **tabBar 微信兼容**：图标由 SVG 改为 `*.png`（81×81，透明底）实际渲染，SVG 保留为规范源。
+- **工程修复**：补 `ajv-keywords@^3` 依赖（原缺失导致构建 `MODULE_NOT_FOUND`）；移除未安装的 `vite-plugin-imp` 引入；`tsconfig` 增 `skipLibCheck`；补齐 `typecheck` 脚本；包名由 `taro_template` 改为 `suoke-home-miniapp`；移除无插件支撑的 swan/rn/qq/jd/quickapp 名义脚本。
+- **Taro 统一**：`miniapp/` 升级至 **4.3.0**，与索克生活 / 索克俱乐部同基线。
+- **验证**：`npm run typecheck` 通过；`npm run build:weapp` 通过（6.11s），`dist/` 含 9 页产物与 10 个 tabBar PNG。
+- **文档**：[miniapp/README.md](miniapp/README.md) 记录页面清单、数据源诚实边界（当前全部为本地演示数据，未接生产后端）与构建命令。
+
 ### 跨品牌供应商主数据映射（2026-10-21）
 
 - **模型/迁移**：`suppliers` 增 `ecosystem_party_id`（String(36)，可空，索引）；迁移 `o1c2d3e4f5a6`（down_revision `n8b9c0d1e2f3`，幂等加列，SQLite downgrade 走 batch）。

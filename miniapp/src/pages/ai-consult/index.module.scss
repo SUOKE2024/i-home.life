@@ -1,38 +1,155 @@
 @use '@/styles/variables.scss' as *;
 
 .page {
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 $page-padding;
+  height: 100vh;
+  padding: 24rpx $page-padding 0;
   background: $color-bg-page;
 }
 
-.icon {
-  width: 144rpx;
-  height: 144rpx;
-  border-radius: 40rpx;
+.demoBanner {
+  padding: 20rpx 24rpx;
+  border-radius: $radius-md;
   background: $color-peach;
-  @include flex-center;
 }
 
-.iconText {
-  font-size: 48rpx;
+.demoBannerText {
+  font-size: $font-size-xs;
+  line-height: $line-height-normal;
+  color: $color-text-secondary;
+}
+
+.messages {
+  flex: 1;
+  margin-top: 24rpx;
+  overflow: hidden;
+}
+
+.userRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24rpx;
+}
+
+.assistantRow {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 24rpx;
+}
+
+.userBubble {
+  max-width: 76%;
+  padding: 20rpx 24rpx;
+  border-radius: $radius-lg;
+  background: $gradient-primary;
+}
+
+.userText {
+  font-size: $font-size-md;
+  line-height: $line-height-normal;
+  color: $color-on-primary;
+}
+
+.assistantBubble {
+  max-width: 86%;
+  padding: 24rpx;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  box-shadow: $shadow-card;
+}
+
+.assistantMeta {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.assistantName {
+  font-size: $font-size-xs;
   font-weight: $font-weight-semibold;
   color: $color-accent-text;
 }
 
-.title {
-  margin-top: 40rpx;
-  font-size: $font-size-xl;
-  font-weight: $font-weight-semibold;
+.demoTag {
+  margin-left: 12rpx;
+  padding: 4rpx 12rpx;
+  border-radius: $radius-xs;
+  background: $color-bg-hover;
+}
+
+.demoTagText {
+  font-size: 20rpx;
+  color: $color-text-tertiary;
+  white-space: nowrap;
+}
+
+.assistantText {
+  font-size: $font-size-md;
+  line-height: $line-height-loose;
   color: $color-text-primary;
 }
 
-.desc {
-  margin-top: 16rpx;
-  font-size: $font-size-sm;
+.quickWrap {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 16rpx 0;
+}
+
+.quickChip {
+  padding: 10rpx 20rpx;
+  margin: 0 12rpx 12rpx 0;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+}
+
+.quickChipText {
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+  white-space: nowrap;
+}
+
+.inputBar {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-top: 2rpx solid $color-divider;
+}
+
+.input {
+  flex: 1;
+  height: $button-height-md;
+  padding: 0 24rpx;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 2rpx solid $color-border;
+  font-size: $font-size-md;
+  color: $color-text-primary;
+}
+
+.sendButton {
+  width: 132rpx;
+  height: $button-height-md;
+  line-height: $button-height-md;
+  margin-left: 16rpx;
+  border: 0;
+  border-radius: $radius-button;
+  background: $gradient-primary;
+  color: $color-on-primary;
+  font-size: $font-size-md;
+  white-space: nowrap;
+
+  &:active {
+    opacity: 0.86;
+  }
+}
+
+.footerNote {
+  display: block;
+  padding: 8rpx 0 24rpx;
+  font-size: 20rpx;
+  line-height: $line-height-normal;
   color: $color-text-tertiary;
+  text-align: center;
 }
