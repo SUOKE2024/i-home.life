@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.models.procurement import Supplier, Quotation, ProcurementOrder, OrderLine
 from app.models.material import BOMItem, Material
 from app.models.construction import ConstructionTask
+from app.services import ecosystem_sync
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ async def create_supplier(db: AsyncSession, data: dict) -> Supplier:
     db.add(supplier)
     await db.commit()
     await db.refresh(supplier)
+    await ecosystem_sync.push_supplier(supplier)
     return supplier
 
 
@@ -65,6 +67,7 @@ async def set_supplier_verified(db: AsyncSession, supplier_id: str, is_verified:
     supplier.is_verified = is_verified
     await db.commit()
     await db.refresh(supplier)
+    await ecosystem_sync.push_supplier(supplier)
     return supplier
 
 
@@ -85,6 +88,7 @@ async def update_supplier(db: AsyncSession, supplier_id: str, data: dict) -> Sup
         setattr(supplier, key, value)
     await db.commit()
     await db.refresh(supplier)
+    await ecosystem_sync.push_supplier(supplier)
     return supplier
 
 

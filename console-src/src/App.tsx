@@ -8,6 +8,8 @@ import NotFoundPage from './pages/NotFoundPage';
 // 路由级懒加载：Workbench（首屏）与 NotFound（404 兜底）保持静态，其余页面按需加载，
 // 避免 70+ 页面全量打进主 bundle 拖慢首次访问
 const SupplierWorkbenchPage = lazy(() => import('./pages/SupplierWorkbenchPage'));
+const SupplierApplyPage = lazy(() => import('./pages/SupplierApplyPage'));
+const SupplierAdminPage = lazy(() => import('./pages/SupplierAdminPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -97,6 +99,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<WorkbenchPage />} />
             <Route path="/supplier" element={<SupplierWorkbenchPage />} />
+            <Route path="/supplier/apply" element={<SupplierApplyPage />} />
+            <Route path="/admin/suppliers" element={<SupplierAdminPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id" element={<ProjectDetailPage />} />

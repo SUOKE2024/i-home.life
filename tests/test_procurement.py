@@ -1,5 +1,7 @@
 """采购订单模块全量测试 — CRUD + 权限校验 + 状态流转"""
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -425,3 +427,24 @@ async def test_create_supplier_with_showroom_panorama(client: AsyncClient):
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["showroom_panorama_id"] == "pano-create-001"
+
+
+@pytest.mark.asyncio
+async def test_admin_binds_ecosystem_party_id(client: AsyncClient):
+    """跨品牌供应商主数据：管理员可绑定 canonical party_id。"""
+    token, headers = await _register_and_login(client, "13900000100")
+    supplier_id = await _create_supplier(client, headers, "跨品牌供应商", "tiles")
+    admin_headers = await _register_admin(client, "13900000101")
+    party_id = str(uuid.uuid4())
+
+    resp = await client.patch(
+        f"/api/procurement/suppliers/{supplier_id}",
+        json={"ecosystem_party_id": party_id},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ecosystem_party_id"] == party_id
+
+    resp = await client.get("/api/procurement/suppliers", headers=headers)
+    match = [s for s in resp.json() if s["id"] == supplier_id]
+    assert match and match[0]["ecosystem_party_id"] == party_id

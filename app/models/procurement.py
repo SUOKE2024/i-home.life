@@ -28,6 +28,8 @@ class Supplier(Base):
     styles: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     # 价格档位：economy / standard / premium（由预算映射，见 design_flow_service）
     price_tier: Mapped[str] = mapped_column(String(20), nullable=False, default="standard")
+    # 跨品牌供应商主数据：索克生活 product-service 签发的 canonical party_id
+    ecosystem_party_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

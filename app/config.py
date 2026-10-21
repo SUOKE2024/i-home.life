@@ -7,6 +7,10 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "allow"}
 
+    # 跨品牌供应商主数据同步（未配置时 helper 静默跳过）
+    ecosystem_sync_url: str = ""
+    ecosystem_sync_key: str = ""
+
     @model_validator(mode="after")
     def _validate_paseto_keys(self):
         # 认证改造（PASETO v4.public）：生产（strict_mode=True 且 debug=False）必须配置

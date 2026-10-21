@@ -45,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '工作台', path: '/', emoji: '🏠' },
       { label: '仪表盘', path: '/dashboard', emoji: '📊' },
       { label: '装企交付', path: '/delivery', emoji: '📦' },
+      { label: '供应商入驻', path: '/supplier/apply', emoji: '🏭' },
       { label: '协作IM', path: '/im-chat', emoji: '💬' },
     ],
   },
@@ -101,6 +102,14 @@ const NAV_GROUPS: NavGroup[] = [
     roles: ['supplier'],
     items: [
       { label: '供应商工作台', path: '/supplier', emoji: '🏭' },
+    ],
+  },
+  {
+    // v1.19.x 平台管理：供应商认证仅 admin 可见（后端 user:write 门禁兜底）
+    title: '平台管理',
+    adminOnly: true,
+    items: [
+      { label: '供应商认证', path: '/admin/suppliers', emoji: '✅' },
     ],
   },
   {

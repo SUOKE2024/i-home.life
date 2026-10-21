@@ -4,6 +4,33 @@
 
 ## [Unreleased]
 
+### 跨品牌供应商主数据映射（2026-10-21）
+
+- **模型/迁移**：`suppliers` 增 `ecosystem_party_id`（String(36)，可空，索引）；迁移 `o1c2d3e4f5a6`（down_revision `n8b9c0d1e2f3`，幂等加列，SQLite downgrade 走 batch）。
+- **API**：`SupplierUpdate` / `SupplierResponse` 增字段；管理员经既有 `PATCH /api/procurement/suppliers/{id}` 绑定/解绑（`require_user_write` 门禁），`GET /suppliers` 回显。
+- **契约**：canonical party 由索克生活 product-service 签发；本端只保存映射键，不复制资质/结算数据；未绑定为空。
+- **自动同步**：新增 `app/services/ecosystem_sync.py`，供应商创建/更新/认证后 best-effort 推送 `brand=ihome` 映射；未配置 `ECOSYSTEM_SYNC_URL/KEY` 时静默跳过，失败只记日志、不阻断主链路。
+- **存量回填**：新增 `scripts/sync_ecosystem_suppliers.py`（`--dry-run` / `--limit` / 分批 200 / 幂等），读取 `suppliers` 表推送 canonical registry；需与生产一致的 PASETO/DB 环境。
+- **生产配置**：`/opt/ihome/.env` 已追加 `ECOSYSTEM_SYNC_KEY`（指纹 `3c697b3eb6f8`）与 `ECOSYSTEM_SYNC_URL=https://product-service-tsmhzphkep.cn-hangzhou.fcapp.run`；备份 `backups/env-pre-ecosystem-sync-20261021.bak`（600），`.env` 权限仍 600、键数 +2；后端已于 2026-10-21 部署并重启，配置通过 `Settings` 读取生效。
+- **验证**：`tests/test_procurement.py -k "ecosystem or supplier"` **9 passed**；`test_supplier_rbac + test_products` **16 passed**；新增 `test_ecosystem_sync.py` **2 passed**；`alembic heads` 单一 head `o1c2d3e4f5a6`。
+- **部署/回填（已执行）**：backend rsync 至 ECS（代码备份 `backups/app-pre-ecosystem-sync-20261021.tar.gz`）；生产 alembic 仍停留 `b8c8d9e0f1a2`，**未跑全量 upgrade**（避免连带未验证迁移），改为幂等 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS`，已验证列存在。`ecosystem_sync` 改为读 `Settings`（systemd 不把 `.env` 注入 `os.environ`，原实现会静默跳过）；`config.py` 增 `ecosystem_sync_url/key`。
+- **发布门禁修复**：原固定 `sleep 3` 对 4-worker 启动过短导致误判回滚，改为最多 30s 健康轮询；实测服务 **11s** 就绪、`/health` 与 `/api/health/detail` 200。供应商列表已回显 `ecosystem_party_id`；回填 **created=12**。
+
+### FC 定时器令牌状态复核（2026-10-21）
+
+- **复核结论**：`ihome-timer$ihome-timer` 的 `API_TOKEN` **已是 v4.public**（`iat=2026-10-16T09:34:53Z`，`exp=2027-04-14T09:34:53Z`，剩余 **175.2 天**），并非 10-16 报告所称"仍为 v4.local、10-23 到期"。**无需重签**。
+- **实测**：今日 08:00 定时触发三端点均 200；12:20 手动 `InvokeFunction` 后 nginx access log 三端点均 200（950/368/968 bytes，UA `ihome-fc-timer/1.0`）。
+- **工具修复**：`scripts/rotate_timer_token.py::_remaining_days` 原直接解码含 64 字节 Ed25519 签名的 v4.public payload，恒返回 `None`；现改为剥离签名后解析，`verify` 可正确显示剩余天数（旧报"协议 v4.public ✅"但无剩余天数即此缺陷）。
+- **未执行**：未重签、未改 FC 环境变量（现有令牌余量充足，避免无谓生产写入）。
+
+### 供应商自助入驻入口（console，2026-10-21）
+
+- **新页面**：`console-src/src/pages/SupplierApplyPage.tsx`（路由 `/supplier/apply`，侧栏「主入口 → 供应商入驻」），调用既有 `POST /api/procurement/suppliers` 提交名称/品类/联系人/电话/地址。
+- **诚实边界**：提交成功后展示 `is_verified=false`「待平台审核」，明确"未认证不支持发布产品与接单、工作台需管理员分配 supplier 角色后可用"，不承诺自动通过。
+- **管理员认证页**：新增 `console-src/src/pages/SupplierAdminPage.tsx`（路由 `/admin/suppliers`，侧栏「平台管理 → 供应商认证」，仅 admin 可见），列出待认证/已认证供应商，经 `PATCH /api/procurement/suppliers/{id}/verify` 授予或撤销认证。
+- **验证**：`tsc --noEmit` 0 错误、`npm run build` 成功（console 产物 `webapp/dist/console`）；后端供应链测试基线 `85 passed`（此前实跑）。
+- **未执行**：真实支付/托管放款、合作方加盟、Matter 配网不在本轮。
+
 ### 生产部署事故与恢复 · AI 治理代码上线（2026-10-16）
 
 **部署**：`c058475`（AI 治理契约 1/2）经 `scripts/deploy-remote.sh backend` 上线 ECS（`root@118.31.223.213`，systemd `ihome`）。

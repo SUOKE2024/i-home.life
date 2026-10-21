@@ -1983,3 +1983,35 @@
   height: 28px;
   font-size: 12px;
 }
+
+/* 供应商自助入驻（v1.19.x） */
+.wb-muted {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 6px 0;
+}
+.wb-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 8px;
+}
+.wb-btn--primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+.wb-field input,
+.wb-field select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-family: var(--font-sans);
+}
+.wb-field input:focus,
+.wb-field select:focus {
+  border-color: var(--accent);
+  outline: none;
+}

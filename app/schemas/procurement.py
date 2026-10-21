@@ -30,6 +30,11 @@ class SupplierUpdate(BaseModel):
     showroom_panorama_id: str | None = None
     styles: list[str] | None = None
     price_tier: str | None = Field(default=None, max_length=20)
+    ecosystem_party_id: str | None = Field(
+        default=None,
+        max_length=36,
+        description="跨品牌 canonical party_id（索克生活签发；空值表示未绑定）",
+    )
 
 
 class SupplierResponse(BaseModel):
@@ -49,6 +54,8 @@ class SupplierResponse(BaseModel):
     styles: list[str] = Field(default_factory=list)
     # 价格档位：economy / standard / premium
     price_tier: str = "standard"
+    # 跨品牌 canonical party_id（未绑定时为空）
+    ecosystem_party_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
