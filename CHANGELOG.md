@@ -11,7 +11,7 @@
 - **契约**：canonical party 由索克生活 product-service 签发；本端只保存映射键，不复制资质/结算数据；未绑定为空。
 - **自动同步**：新增 `app/services/ecosystem_sync.py`，供应商创建/更新/认证后 best-effort 推送 `brand=ihome` 映射；未配置 `ECOSYSTEM_SYNC_URL/KEY` 时静默跳过，失败只记日志、不阻断主链路。
 - **存量回填**：新增 `scripts/sync_ecosystem_suppliers.py`（`--dry-run` / `--limit` / 分批 200 / 幂等），读取 `suppliers` 表推送 canonical registry；需与生产一致的 PASETO/DB 环境。
-- **生产配置**：`/opt/ihome/.env` 已追加 `ECOSYSTEM_SYNC_KEY`（指纹 `3c697b3eb6f8`）与 `ECOSYSTEM_SYNC_URL=https://product-service-tsmhzphkep.cn-hangzhou.fcapp.run`；备份 `backups/env-pre-ecosystem-sync-20261021.bak`（600），`.env` 权限仍 600、键数 +2；后端已于 2026-10-21 部署并重启，配置通过 `Settings` 读取生效。
+- **生产配置**：`/opt/ihome/.env` 已追加 `ECOSYSTEM_SYNC_KEY`（指纹 `8f524a731130`）与 `ECOSYSTEM_SYNC_URL=https://product-service-tsmhzphkep.cn-hangzhou.fcapp.run`；备份 `backups/env-pre-ecosystem-sync-20261021.bak`（600），`.env` 权限仍 600、键数 +2；后端已于 2026-10-21 部署并重启，配置通过 `Settings` 读取生效。
 - **验证**：`tests/test_procurement.py -k "ecosystem or supplier"` **9 passed**；`test_supplier_rbac + test_products` **16 passed**；新增 `test_ecosystem_sync.py` **2 passed**；`alembic heads` 单一 head `o1c2d3e4f5a6`。
 - **部署/回填（已执行）**：backend rsync 至 ECS（代码备份 `backups/app-pre-ecosystem-sync-20261021.tar.gz`）；生产 alembic 仍停留 `b8c8d9e0f1a2`，**未跑全量 upgrade**（避免连带未验证迁移），改为幂等 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS`，已验证列存在。`ecosystem_sync` 改为读 `Settings`（systemd 不把 `.env` 注入 `os.environ`，原实现会静默跳过）；`config.py` 增 `ecosystem_sync_url/key`。
 - **发布门禁修复**：原固定 `sleep 3` 对 4-worker 启动过短导致误判回滚，改为最多 30s 健康轮询；实测服务 **11s** 就绪、`/health` 与 `/api/health/detail` 200。供应商列表已回显 `ecosystem_party_id`；回填 **created=12**。
