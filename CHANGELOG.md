@@ -15,6 +15,7 @@
 - **验证**：`tests/test_procurement.py -k "ecosystem or supplier"` **9 passed**；`test_supplier_rbac + test_products` **16 passed**；新增 `test_ecosystem_sync.py` **2 passed**；`alembic heads` 单一 head `o1c2d3e4f5a6`。
 - **部署/回填（已执行）**：backend rsync 至 ECS（代码备份 `backups/app-pre-ecosystem-sync-20261021.tar.gz`）；生产 alembic 仍停留 `b8c8d9e0f1a2`，**未跑全量 upgrade**（避免连带未验证迁移），改为幂等 `ALTER TABLE ... ADD COLUMN IF NOT EXISTS + CREATE INDEX IF NOT EXISTS`，已验证列存在。`ecosystem_sync` 改为读 `Settings`（systemd 不把 `.env` 注入 `os.environ`，原实现会静默跳过）；`config.py` 增 `ecosystem_sync_url/key`。
 - **发布门禁修复**：原固定 `sleep 3` 对 4-worker 启动过短导致误判回滚，改为最多 30s 健康轮询；实测服务 **11s** 就绪、`/health` 与 `/api/health/detail` 200。供应商列表已回显 `ecosystem_party_id`；回填 **created=12**。
+- **本地键落库（已执行）**：12/12 供应商 PATCH 写入 `ecosystem_party_id`，每次写入触发自动同步；复核 `non_null=12/12`，i-home 日志 `生态同步失败=0`。
 
 ### FC 定时器令牌状态复核（2026-10-21）
 
