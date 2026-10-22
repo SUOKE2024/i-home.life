@@ -84,8 +84,17 @@ async def verify_handshake(
     data: HandshakeVerifyRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """校验握手凭证（ATH ⑤ 智能体核验应用/用户身份）。无状态，不泄露私有数据。"""
+    """校验握手凭证（ATH ⑤ 智能体核验应用/用户身份）。无状态，不泄露私有数据。
+
+    v1.20.x 最小权限：`actor_user_id` 此前由调用方自报，任何登录用户可校验
+    任意 actor 的凭证；现限制为本人（admin 可代查），避免越权探测面。
+    """
     _check_enabled()
+    if data.actor_user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="仅可校验本人发起的握手凭证（admin 可代查）",
+        )
     from app.services.agent_handshake import verify_handshake_credential
 
     return verify_handshake_credential(

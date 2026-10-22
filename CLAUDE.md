@@ -66,6 +66,8 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 ## v1.15.7 第二轮前沿借鉴落地（2026 评估执行，详见 `docs/frontier-borrowing-round2-2026-08-18.md`）
 
 - **ATH/国标信任层审计**：`run_governance_audit` 含 `ath_trust_layer` 独立章节（ATH1-5 五项确定性检查，对齐信通院 ATH 1.0 + 7 项国标）；OWASP 10 项保持独立，改审计勿合并两者（既有测试断言 total=10）。
+- **A2A 归属校验（v1.20.x 安全收口，勿回退）**：`GET /api/a2a/tasks/{id}` 与 `/status` 仅任务发起人可见（admin 可查），非本人返回 404；`POST /api/a2a/tasks/send` 的 `project_id` 必须走 `verify_project_access`（admin + owner 单源），否则任意项目会被写入 Agent Case（`owner_id=project_id`、`scope=project`）；`POST /api/agents/handshake/verify` 的 `actor_user_id` 仅本人可校验（admin 可代查）。`escrow` 买家付款携带 `payment_intent_token` 时 fail-closed（`agent_payment_intent_enabled=False` → 503，不得静默跳过）。
+- **审计 evidence 诚实标注**：ATH1 的 AID 为平台自生成（非官方注册身份码）、应用侧为白名单；ATH2 任务创建即 `working`（`submitted` 未作为独立阶段）；ATH5 的 MRTR/CIMD/RFC 9207 为近似实现。改审计文案不得移除这些标注。
 - **记忆时间衰减**（`memory_time_decay_enabled` 默认 True / `memory_decay_half_life_days=30`）：`search_cases` 排序 = quality × exp(-年龄/半衰期)，候选池 limit×4 供衰减重排；关闭即回退 quality-only 旧排序。
 - **org 共享记忆**：`GET /agents/memory/org` 全平台可读；scope=org 写入仅管理员（403）。team 级因无 Team 实体暂缓（P2，禁止伪称已实现）。
 - **项目周报**（`project_weekly_briefing_enabled` 默认 True）：`GET /agents/projects/{id}/weekly-briefing` 六段确定性数据逐段标注数据源 + AI 建议 economy 档 best-effort；关闭 503。
@@ -121,7 +123,7 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 2974 passed 不得回退（collect 2980 = 2974 passed + 2 skipped + 4 xfailed，2026-10-21 v1.19.0 生产 schema 对齐 + 结算付款门禁落地：新增 4 用例，全量 `-n 4` 实测 17 分 33 秒零失败（本机 IDE 扩展/外部 pytest 高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 **2995 passed** 不得回退（collect 3001 = 2995 passed + 2 skipped + 4 xfailed，2026-10-22 ATH 安全收口：新增 8 用例 + 并行会话 Harness 等改动累计，全量 `-n 4` 实测 44 分 12 秒零失败（本机 IDE 扩展/外部 pytest 高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 

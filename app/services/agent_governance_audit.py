@@ -164,7 +164,9 @@ def _audit_ath_trust_layer() -> dict:
                f"a2a_enabled={settings.a2a_enabled}：/.well-known/agent-card 公开发现端点"
                " + REGISTERED_AGENT_NAMES 能力清单 + 应用侧核验智能体身份"
                "（agent_handshake.verify_agent_identity，ATH ④；23 执行型 Agent）"
-               " + 应用注册表 REGISTERED_APPS（app_id/scope 白名单，三方参与）")
+               " + 应用注册表 REGISTERED_APPS（app_id/scope 白名单，三方参与）。"
+               "诚实标注：AID 为平台自生成 28 位标识（GB/Z 185.2 思路），非官方注册身份码；"
+               "app_id 为白名单校验，未绑定请求来源（无 mTLS/密钥对）")
     else:
         _check(0, "warn",
                f"agent_handshake_enabled={settings.agent_handshake_enabled}："
@@ -174,9 +176,10 @@ def _audit_ath_trust_layer() -> dict:
     # ATH2 状态机 + 握手凭证（ATH ⑤⑦）
     if settings.agent_handshake_enabled:
         _check(1, "pass",
-               f"a2a_enabled={settings.a2a_enabled}：Task Machine 状态机（submitted/working/"
-               "completed/failed）+ 24h TTL 过期清理 + 握手凭证签发/校验"
-               "（agent_handshake，ATH ⑤⑦）已接入 send_task 生产链路"
+               f"a2a_enabled={settings.a2a_enabled}：Task Machine 状态流转 "
+               "working→completed/failed（任务创建即 working；模型默认值 submitted "
+               "未作为独立阶段使用，如实标注）+ 24h TTL 过期清理"
+               " + 握手凭证签发/校验（agent_handshake，ATH ⑤⑦）已接入 send_task 生产链路"
                f"（agent_handshake_required={settings.agent_handshake_required}："
                "True 时缺省凭证即 403 拒绝；false 时放行并 evidence 标注 absent）"
                " + 越权/降级诚实标注")
@@ -190,7 +193,8 @@ def _audit_ath_trust_layer() -> dict:
     if settings.agent_trace_persist_enabled:
         _check(2, "pass",
                "agent_trace_persist_enabled=True + a2a_tasks.trace_id/evidence 证据链"
-               "（v1.15.5）+ agent_traces.tool_calls 轨迹可回放")
+               "（v1.15.5）+ agent_traces.tool_calls 轨迹可回放"
+               " + A2A 任务详情/状态查询按 user_id 归属过滤（v1.20.x，admin 可查全部）")
     else:
         _check(2, "warn",
                f"agent_trace_persist_enabled={settings.agent_trace_persist_enabled}："
@@ -201,7 +205,9 @@ def _audit_ath_trust_layer() -> dict:
     if settings.agent_payment_intent_enabled:
         _check(3, "pass",
                "agent_payment_intent_enabled=True：HMAC-SHA256 意图 token 签发/校验"
-               "端点就绪（诚实标注：escrow 支付链路绑定为 P2 路线图，未绑定前不宣称支付闭环）")
+               "端点就绪 + escrow 买家付款端点携带 token 时强制校验"
+               "（flag 关闭时 503 拒绝，v1.20.x fail-closed，不静默跳过）"
+               "（诚实标注：仅验证不扣款，支付闭环仍为 P2 路线图）")
     else:
         _check(3, "warn",
                f"agent_payment_intent_enabled={settings.agent_payment_intent_enabled}",
@@ -211,7 +217,9 @@ def _audit_ath_trust_layer() -> dict:
     if settings.mcp_security_hardening_enabled:
         _check(4, "pass",
                "app/mcp/ 对齐 2026-07-28 规范 8 项（stateless/discover/header-routing/"
-               "cacheable/MRTR/RFC9207/Tasks/Server Card）+ mcp_security_hardening_enabled=True")
+               "cacheable/MRTR/RFC9207/Tasks/Server Card）+ mcp_security_hardening_enabled=True。"
+               "诚实标注：MRTR 为进程内单实例存储（多实例需 Redis/DB）、"
+               "CIMD 为简化注册、RFC 9207 仅记录外部 issuer 不阻断，属行为近似非完整实现")
     else:
         _check(4, "warn",
                f"mcp_security_hardening_enabled={settings.mcp_security_hardening_enabled}",

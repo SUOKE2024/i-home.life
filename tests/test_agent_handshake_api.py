@@ -282,3 +282,80 @@ async def test_a2a_send_task_gate_disabled_honest(client: AsyncClient, auth_head
     )
     assert resp.status_code == 200
     assert resp.json()["evidence"]["handshake"] == "gate_disabled"
+
+
+# ════════════════════════════════════════════════════════════════
+# v1.20.x 最小权限回归：verify 端点 actor_user_id 不可越权自报
+# ════════════════════════════════════════════════════════════════
+
+
+async def _register_other_user(client: AsyncClient) -> dict:
+    import uuid
+
+    phone = f"139{str(uuid.uuid4().int)[:8]}"
+    resp = await client.post(
+        "/api/auth/register",
+        json={"phone": phone, "name": "其他用户", "password": "test123456"},
+    )
+    assert resp.status_code == 201, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.mark.asyncio
+async def test_verify_rejects_other_actor_403(client: AsyncClient, auth_headers: dict):
+    """非本人 actor 的凭证校验 → 403（此前任何登录用户可代校验任意 actor）。"""
+    issue = await client.post(
+        "/api/agents/handshake/issue",
+        json={"app_id": "flutter", "agent_name": "designer", "scope": "a2a:task"},
+        headers=auth_headers,
+    )
+    data = issue.json()
+    other = await _register_other_user(client)
+    resp = await client.post(
+        "/api/agents/handshake/verify",
+        json={
+            "token": data["token"],
+            "app_id": "flutter",
+            "agent_name": "designer",
+            "actor_user_id": data["actor_user_id"],
+        },
+        headers=other,
+    )
+    assert resp.status_code == 403
+    assert "本人" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_verify_admin_can_check_other_actor(client: AsyncClient, auth_headers: dict):
+    """admin 可代查他人 actor 的凭证（对齐 admin 口径）。"""
+    import uuid
+
+    from app.auth.paseto_handler import create_token
+    from app.database import async_session
+    from app.models.user import User
+
+    issue = await client.post(
+        "/api/agents/handshake/issue",
+        json={"app_id": "flutter", "agent_name": "designer", "scope": "a2a:task"},
+        headers=auth_headers,
+    )
+    data = issue.json()
+    admin_id = str(uuid.uuid4())
+    async with async_session() as db:
+        db.add(User(
+            id=admin_id, phone=f"139{uuid.uuid4().hex[:8]}",
+            name="握手审计管理员", role="admin", hashed_password="x",
+        ))
+        await db.commit()
+    resp = await client.post(
+        "/api/agents/handshake/verify",
+        json={
+            "token": data["token"],
+            "app_id": "flutter",
+            "agent_name": "designer",
+            "actor_user_id": data["actor_user_id"],
+        },
+        headers={"Authorization": f"Bearer {create_token(admin_id, 'admin')}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["valid"] is True

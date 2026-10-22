@@ -1,9 +1,9 @@
 # ATH 可信互联握手能力评估 — 差距自评与报名材料
 
-> 生成时间：2026-09-13；**校准：2026-09-22（v1.17.x，P0 整改 + 官方口径/对标骨架更新）**
+> 生成时间：2026-09-13；**校准：2026-10-22（v1.20.x，ATH 安全收口：A2A 归属校验 + 意图 fail-closed + 审计文案诚实化）**
 > 评估依据：《互联网智能体可信互联握手能力要求》（信通院）+ ATH 1.0（2026-04-29 发起 / 2026-07-08 首批发布）
 > 自检工具：`app/services/agent_governance_audit.py::run_governance_audit()`（暴露于 `GET /api/admin/agent-governance-audit`）
-> 状态：内建自检通过（OWASP 10/10 + ATH 5/5）；两处 P0 差距已于 2026-09-22 整改（见 §1.1）
+> 状态：内建自检通过（本地基线 OWASP 9/10 + ATH 5/5；AG2 在 `auto` posture 下如实 warn）
 > **诚实边界**：「5/5」是控制点存在性自检，**不等于**信通院正式评估通过；官方「九步」逐条条款未公开，本文件九步映射为按官方三阶段 + 6 理念重构（见 §五），正式材料须以标准原文为准。
 
 ---
@@ -12,17 +12,31 @@
 
 | 自检框架 | 结果 | 说明 |
 |---|---|---|
-| OWASP Agentic Skills Top 10 (2026) | **10/10 pass**（0 warn / 0 fail） | 提示注入、过度自主、输出处理、供应链、A2A 通信、资源约束、越权、幻觉输入、信息泄漏、IO 校验全部落地 |
-| ATH/国标信任层 | **5/5 pass**（0 warn / 0 fail） | 身份声明、握手状态机、证据链、可验证意图、MCP 对齐全部落地 |
+| OWASP Agentic Skills Top 10 (2026) | **9/10 pass**（1 warn / 0 fail） | AG2 warn：`agent_security_posture=auto` 时审批状态机不触发（v1.20.x 起不再自证通过） |
+| ATH/国标信任层 | **5/5 pass**（0 warn / 0 fail） | 身份声明、握手状态机、证据链、可验证意图、MCP 对齐；各自带诚实标注 |
 
-### 1.1 2026-09-22 P0 整改（本轮）
+> 生产 1.19.0 的审计接口返回 OWASP 10/10 系旧逻辑（AG2 自证通过），**不可作为基线**；应以本地 v1.20.x 的 9/10 为准，待部署后生产口径一致。
+
+### 1.1 2026-09-22 P0 整改
 
 | 差距 | 整改 | 回滚开关 |
 |---|---|---|
 | **P0-①** 握手凭证「可选携带、缺省放行」，不符 ATH「双向身份验证」强制语义 | A2A `send_task` **强制握手**：`agent_handshake_required=True`（默认）时缺省凭证 **403 拒绝**（不再兼容放行），evidence 状态机新增 `required_missing` | 置 `agent_handshake_required=False`（改 `.env` 即可，无需回滚代码） |
 | **P0-②** 应用侧 `app_id` 由调用方在请求体自报，可伪造 | 新增**应用注册表** `agent_handshake.REGISTERED_APPS`（app_id + scope 白名单）：未登记 app / 越权 scope 在签发端点 **400 拒签**；退登记 app 的存量凭证校验时拒绝（`app_unregistered`） | 同上（`required=False` 时 A2A 下发恢复旧放行路径） |
 
-**核心结论**：项目已具备 ATH 评估的技术底座，主要工作**不在改代码，而在「把既有能力转译成标准条款对标证据 + 补齐握手流程/应用身份的显式说明」**。两处 P0 已闭环，剩余为架构形态差异与材料层差距（见 §四）。
+### 1.2 2026-10-22 ATH 安全收口（v1.20.x，本轮）
+
+系统检查发现审计「存在性自检」未覆盖的运行时越权面，已闭环：
+
+| 项 | 缺陷（实测） | 修复 | 回归用例 |
+|---|---|---|---|
+| **A2A 任务跨用户读取** | `GET /api/a2a/tasks/{id}` 与 `/status` 仅按 task_id 查询，用户 B 读用户 A 任务返回 200（含 result/error/trace_id/evidence） | 按 `user_id` 归属过滤，非本人且非 admin 返回 404（不暴露存在性） | `test_a2a.py::test_task_detail_cross_user_404` / `test_task_detail_admin_can_read` |
+| **A2A 下发未校验项目归属** | `POST /api/a2a/tasks/send` 的 `project_id` 直接透传，任意 UUID 均 200；Case 会以 `owner_id=project_id` 写入项目共享记忆 | 接入 `verify_project_access`（admin + owner 单源），非 owner 403 / 不存在 404 | `test_send_task_non_owner_project_403` / `test_send_task_owner_project_ok` / `test_send_task_nonexistent_project_404` |
+| **ATH4 意图校验 fail-open** | 携带 `payment_intent_token` 但 `agent_payment_intent_enabled=False` 时静默跳过校验并继续付款 | 改为 fail-closed：503 拒绝，调用方不会误以为 token 已验证 | `test_procurement_enhanced.py::test_escrow_pay_intent_flag_off_fail_closed` |
+| **握手 verify 越权探测** | `POST /api/agents/handshake/verify` 的 `actor_user_id` 由请求体自报，任何登录用户可代校验任意 actor | 限制本人（admin 可代查），越权 403 | `test_agent_handshake_api.py::test_verify_rejects_other_actor_403` / `test_verify_admin_can_check_other_actor` |
+| **审计文案与实现不符** | ATH2 声称 `submitted→working→completed/failed`，实际任务创建即 `working`（`submitted` 未作为独立阶段）；ATH1 未提示 AID 为自生成标识；ATH5 未标注 MRTR/CIMD/RFC9207 为近似实现 | 审计 evidence 逐项如实标注（不改变 pass 判定，只修正描述） | `test_frontier_v1157.py`（ATH 5 项断言保持通过） |
+
+**核心结论**：项目已具备 ATH 评估的技术底座，主要工作**不在改代码，而在「把既有能力转译成标准条款对标证据 + 补齐握手流程/应用身份的显式说明」**。两处 2026-09-22 P0 与 2026-10-22 运行时越权面均已闭环，剩余为架构形态差异与材料层差距（见 §四）。
 
 **诚实边界**：5/5 为控制点存在性自检，不等于信通院正式评估通过。相对信通院「身份核验 / 握手交互 / 安全管控」三维度 + 九步握手 + 6 项理念，仍存在架构差异（见 §四.2）。
 
@@ -51,9 +65,9 @@
 
 | 官方维度 | 官方关切 | 本项目控制点 | 证据 | 状态 |
 |---|---|---|---|---|
-| **身份核验** | 身份可信：用户 / 智能体 / 应用三方身份可核验 | 用户 PASETO v4.local（可撤销、Redis 化撤销列表）；智能体 AID(28 位, GB/Z 185) + ACDL 身份卡 + Agent Card 公开发现；**应用侧 `REGISTERED_APPS` 注册表（app_id + scope 白名单）** | `app/auth.py` / `app/services/agent_identity_card.py` / `agent_handshake.REGISTERED_APPS` | ✅ |
+| **身份核验** | 身份可信：用户 / 智能体 / 应用三方身份可核验 | 用户 PASETO v4.local（可撤销、Redis 化撤销列表）；智能体 AID(28 位, GB/Z 185 思路) + ACDL 身份卡 + Agent Card 公开发现；**应用侧 `REGISTERED_APPS` 注册表（app_id + scope 白名单）** | `app/auth.py` / `app/services/agent_identity_card.py` / `agent_handshake.REGISTERED_APPS` | ✅（AID 为自生成、应用侧为白名单，见 §4.2） |
 | **握手交互** | 双向身份验证 + 握手协商 + 会话建立 | ④ 应用核验智能体身份（`verify_agent_identity`）/ ⑤ 智能体核验应用身份（`verify_handshake_credential`）/ ⑦ 凭证签发（HMAC-SHA256，TTL 600s）+ **A2A `send_task` 强制握手（缺省 403）** + Task Machine 会话状态机 | `app/services/agent_handshake.py` + `POST /api/agents/handshake/{issue,verify,verify-agent}` + `app/api/a2a.py` | ✅（中心化签发，见 §4.2） |
-| **安全管控** | 最小权限、授权可控、行为可追溯 | RBAC `verify_project_access`（43 个 API 文件）+ 工具 `required` 契约 + 执行前参数校验 + 凭证 scope 白名单与 `a2a:*` 域校验 + 三档 security posture + 高危工具审批状态机 + MCP 加固 | `app/rbac.py` / `app/services/agent_governance_audit.py` | ✅ |
+| **安全管控** | 最小权限、授权可控、行为可追溯 | RBAC `verify_project_access`（48 个 API 文件）+ **A2A 任务查询按 user_id 归属过滤** + **A2A 下发 project_id 归属校验** + 工具 `required` 契约 + 执行前参数校验 + 凭证 scope 白名单与 `a2a:*` 域校验 + 三档 security posture + 高危工具审批状态机 + MCP 加固 | `app/rbac.py` / `app/api/a2a.py` / `app/services/agent_governance_audit.py` | ✅ |
 
 ### 3.2 六项设计理念
 
@@ -64,7 +78,7 @@
 | 可信握手 | 九步中 ④⑤⑦ 显式实现；`send_task` 强制握手，缺省凭证 403 | ✅ |
 | 去中心化 | **未实现**：模块化单体 + 中心化 HMAC 签发；`agent_handshake.py` 文档字符串已如实标注 | ❌ 架构差异 |
 | 最小权限 | 凭证 scope 白名单（精确匹配）+ `a2a:*` 域校验 + `cache_user_isolation_strict` + 管理工具 `category="admin"` 隐藏 | ✅ |
-| 全程可追溯 | `agent_traces`（`tool_calls` 可回放）+ `a2a_tasks.trace_id/evidence`（含 `handshake` 校验状态） | ✅ |
+| 全程可追溯 | `agent_traces`（`tool_calls` 可回放）+ `a2a_tasks.trace_id/evidence`（含 `handshake` 校验状态）+ A2A 任务仅发起人/admin 可读 | ✅ |
 
 ### 3.3 评估线选择建议
 
@@ -83,21 +97,23 @@
 
 | 项 | 状态 | 实测证据 |
 |---|---|---|
-| ATH1 智能体身份可信声明 | ✅ pass | `a2a_enabled=True` + `/.well-known/agent-card` 公开发现 + **23 执行型 Agent** 清单 + 应用侧核验（`verify_agent_identity`，ATH ④）+ 应用注册表 `REGISTERED_APPS` |
-| ATH2 握手互认与任务状态机 | ✅ pass | A2A Task Machine（submitted→working→completed/failed）+ 24h TTL 过期清理 + 握手凭证签发/校验（ATH ⑤⑦）+ **强制握手**（`agent_handshake_required=True`，缺省 403） |
-| ATH3 执行证据链可回放 | ✅ pass | `agent_trace_persist_enabled=True` + `a2a_tasks.trace_id/evidence` + `agent_traces.tool_calls` 落库 |
-| ATH4 动作可验证意图 | ✅ pass | `agent_payment_intent_enabled=True`（HMAC-SHA256 意图 token，TTL 600s；escrow 买家付款端点已绑定校验；**仅验证不扣款**） |
-| ATH5 MCP 规范对齐 | ✅ pass | `app/mcp/` 对齐 2026-07-28 规范 8 项 + `mcp_security_hardening_enabled=True` |
+| ATH1 智能体身份可信声明 | ✅ pass | `a2a_enabled=True` + `/.well-known/agent-card` 公开发现 + **23 执行型 Agent** 清单 + 应用侧核验（`verify_agent_identity`，ATH ④）+ 应用注册表 `REGISTERED_APPS`；**诚实标注：AID 为平台自生成 28 位标识（非官方注册身份码）、app_id 为白名单未绑定请求来源** |
+| ATH2 握手互认与任务状态机 | ✅ pass | Task Machine 状态流转 `working→completed/failed`（创建即 working，`submitted` 未作为独立阶段）+ 24h TTL 过期清理 + 握手凭证签发/校验（ATH ⑤⑦）+ **强制握手**（`agent_handshake_required=True`，缺省 403） |
+| ATH3 执行证据链可回放 | ✅ pass | `agent_trace_persist_enabled=True` + `a2a_tasks.trace_id/evidence` + `agent_traces.tool_calls` 落库 + **任务详情/状态查询按 user_id 归属过滤（admin 可查）** |
+| ATH4 动作可验证意图 | ✅ pass | `agent_payment_intent_enabled=True`（HMAC-SHA256 意图 token，TTL 600s；escrow 买家付款携带 token 时强制校验，flag 关闭时 503 fail-closed；**仅验证不扣款**） |
+| ATH5 MCP 规范对齐 | ✅ pass | `app/mcp/` 对齐 2026-07-28 规范 8 项 + `mcp_security_hardening_enabled=True`；**诚实标注：MRTR 进程内单实例、CIMD 简化注册、RFC 9207 仅记录不阻断** |
 
-OWASP 10 项对照详见 `app/services/agent_governance_audit.py::run_governance_audit`，全部 `pass`。
+OWASP 10 项对照详见 `app/services/agent_governance_audit.py::run_governance_audit`（本地基线 9/10，AG2 在 `auto` posture 下如实 warn）。
 
 ### 4.2 真实差距（相对信通院正式评估）
 
 | 差距 | 现状 | 整改建议 |
 |---|---|---|
 | **中心化签发 vs ATH 去中心化原则** | 握手凭证由平台 HMAC 中心化签发，仅对齐握手凭证语义（最小权限 + 时效 + 防篡改） | 材料中诚实标注架构形态，不伪装分布式（符合诚实降级红线） |
+| **AID 为平台自生成标识** | 28 位 AID 按 GB/Z 185.2 思路由 `agent_identity_card.generate_aid` **确定性生成**（厂商码为模拟前缀），非官方注册/核发身份码 | 对外材料不得宣称为「官方 AID」；如需注册身份码须走对应机构 |
 | **应用侧身份为白名单而非强身份源** | `REGISTERED_APPS` 校验 app_id + scope，但不校验「该请求确实来自该应用」（无 mTLS / Origin / 密钥对绑定） | 跨主体对接时补应用密钥对或合作伙伴 API Key 绑定（P1） |
-| **九步握手未作为原生协议显式实现** | 当前是「凭证服务 + A2A Task Machine」的等价实现，非独立 ATH 握手协商报文字段 | 材料附九步映射时序图（§五），或诚实标注为「A2A 等价实现」 |
+| **九步握手未作为原生协议显式实现** | 当前是「凭证服务 + A2A Task Machine」的等价实现，非独立 ATH 握手协商报文字段；`submitted` 阶段未落地 | 材料附九步映射时序图（§五），或诚实标注为「A2A 等价实现」 |
+| **MCP 8 项为行为近似** | MRTR 为进程内单实例存储（多实例需 Redis/DB）、CIMD 为简化注册、RFC 9207 仅记录外部 issuer 不阻断 | 多实例部署前补共享存储；不宣称完整实现 |
 | **安全管控维度缺「运行沙盒」映射** | 有 MCP 加固 + 审批状态机，但「运行沙盒」是信通院另一独立标准 | 暂不投沙盒评估线；材料中说明沙盒不适用（§3.3） |
 | **ATH 2.0 多方可信协作未覆盖** | 无大规模多方（>2 参与方）协作与跨主体信任传递 | 关注 ATH 2.0 配套标准发布后再迭代 |
 | **材料层差距** | 能力全在代码 / flag 层面，缺「标准条款逐条对标证据文档」 | 取得标准原文后按 §六 大纲补齐对标证据表 |
@@ -147,10 +163,10 @@ sequenceDiagram
 | ③ | 智能体身份声明 | ✅ 已具备 | `app/services/agent_identity_card.py` AID(28位) + ACDL |
 | ④ | 应用核验智能体身份 | ✅ 已实现（2026-09-13） | `agent_handshake.verify_agent_identity` + `POST /api/agents/handshake/verify-agent`（AID 逐位 compare_digest 比对） |
 | ⑤ | 智能体核验应用/用户身份（双向） | ✅ 已实现（2026-09-13） | `agent_handshake.verify_handshake_credential` + `POST /api/agents/handshake/verify`（app/agent/actor 三方字段逐项比对 + 应用注册表） |
-| ⑥ | 权限协商（最小权限） | ✅ 已具备 | 应用注册表 scope 白名单 + `verify_project_access`（43 个 API 文件）+ RBAC + 审批状态机 |
+| ⑥ | 权限协商（最小权限） | ✅ 已具备 | 应用注册表 scope 白名单 + `verify_project_access`（48 个 API 文件）+ RBAC + 审批状态机 |
 | ⑦ | 握手协商签发凭证 | ✅ 已实现（2026-09-13） | `agent_handshake.create_handshake_credential` + `POST /api/agents/handshake/issue`（HMAC-SHA256 复用 PASETO 主密钥，TTL 600s，payload=app_id\|agent\|actor\|scope\|exp；未登记 app / 越权 scope 400 拒签） |
-| ⑧ | 会话建立 + 任务状态机 | ✅ 已具备 + **强制握手** | A2A Task Machine（`app/api/a2a.py`）：`agent_handshake_required=True` 时缺省凭证 403 |
-| ⑨ | 全程存证可追溯 | ✅ 已具备 | `a2a_tasks.trace_id/evidence`（含 `handshake=verified/absent/gate_disabled`）+ `agent_traces` 回放 |
+| ⑧ | 会话建立 + 任务状态机 | ✅ 已具备 + **强制握手** | A2A Task Machine（`app/api/a2a.py`）：`agent_handshake_required=True` 时缺省凭证 403；任务创建即 `working`（`submitted` 未作为独立阶段，如实标注）；`project_id` 走 `verify_project_access` |
+| ⑨ | 全程存证可追溯 | ✅ 已具备 | `a2a_tasks.trace_id/evidence`（含 `handshake=verified/absent/gate_disabled`）+ `agent_traces` 回放；任务详情/状态查询按 `user_id` 归属过滤（admin 可查） |
 
 **九步全部 ✅（④⑤⑦ 于 2026-09-13 补齐；⑧ 于 2026-09-22 改为强制握手）**。
 
@@ -178,7 +194,7 @@ sequenceDiagram
 - 会话加密（`allow_plaintext_session=False`）+ Agent Card 公开发现 + AID/ACDL 身份卡
 
 ### 3. 安全管控维度（对应最小权限 + 授权可控）
-- 权限模型：RBAC `verify_project_access`（实测覆盖 43 个 API 文件）、工具 `required` 契约 + 执行前参数校验
+- 权限模型：RBAC `verify_project_access`（实测覆盖 48 个 API 文件）、工具 `required` 契约 + 执行前参数校验
 - 最小权限与回收：凭证 scope 白名单（越权 400 拒签）、`cache_user_isolation_strict`、管理工具 `category="admin"` 隐藏
 - MCP 安全加固：描述防投毒 / SSRF 拦截 / 输出清洗
 - 运行时约束：三档 security posture + 高危工具审批状态机
@@ -187,7 +203,7 @@ sequenceDiagram
 - 握手/任务状态机说明（**强制握手闸门** + A2A Task Machine + 24h TTL）
 - 行为审计：`agent_traces` 落库、tool_calls 序列化回放、`a2a_tasks.trace_id/evidence` 证据链
 - 可验证意图：`agent_payment_intent` HMAC 端点（诚实标注：仅验证不扣款）
-- 治理审计报告：附 `run_governance_audit` 输出（OWASP 10/10 + ATH 5/5）
+- 治理审计报告：附 `run_governance_audit` 输出（本地基线 OWASP 9/10 + ATH 5/5；AG2 warn 需按 posture 说明）
 
 ### 5. 技术测评辅助
 - 可访问演示/测试环境、API 文档、关键接口示例
@@ -203,3 +219,4 @@ sequenceDiagram
 2. 将 §三、§四、§五 内容转译为信通院标准条款逐条对标证据表（待标准原文）。
 3. 应用侧身份补强（P1）：跨主体对接补密钥对 / 合作伙伴 API Key 绑定，替代纯白名单校验。
 4. 关注 ATH 2.0 配套标准发布，评估多方可信协作能力补齐路径。
+5. 部署 v1.20.x 后复跑生产审计，使生产 OWASP 口径与本地 9/10 一致（当前生产 1.19.0 仍是 AG2 自证通过的 10/10）。

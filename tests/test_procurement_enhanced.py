@@ -1343,3 +1343,44 @@ async def test_escrow_pay_binds_payment_intent(client: AsyncClient):
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["status"] == "buyer_paid"
+
+
+@pytest.mark.asyncio
+async def test_escrow_pay_intent_flag_off_fail_closed(client: AsyncClient, monkeypatch):
+    """v1.20.x：flag 关闭时携带意图 token → 503 拒绝（不再静默跳过校验）。"""
+    from app.config import get_settings
+
+    token, headers = await _register_and_login(client, "13900009062")
+    project_id = await _create_project(client, headers, "支付意图 fail-closed 测试")
+    supplier_ids = await _create_suppliers(client, headers, "flooring")
+    material_id, _ = await _create_category_material_and_bom(
+        client, headers, project_id,
+        category_code="flooring",
+        material_sku="PE-INTENT-OFF-001",
+        material_name="意图开关关闭测试瓷砖",
+    )
+    order_id = await _create_order(client, headers, project_id, supplier_ids[0], material_id)
+    resp = await client.post(
+        "/api/procurement-enhanced/escrow",
+        json={"order_id": order_id},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    escrow_id = resp.json()["id"]
+
+    monkeypatch.setattr(get_settings(), "agent_payment_intent_enabled", False)
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/pay",
+        json={"payment_intent_token": "any-token"},
+        headers=headers,
+    )
+    assert resp.status_code == 503, resp.text
+    assert "agent_payment_intent_enabled=False" in resp.json()["detail"]
+
+    # 未携带 token 的旧路径不受影响（仍可手动付款）
+    resp = await client.post(
+        f"/api/procurement-enhanced/escrow/{escrow_id}/pay",
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "buyer_paid"

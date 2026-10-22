@@ -27,6 +27,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.a2a_task import A2ATask, A2A_TASK_DEFAULT_TTL_HOURS
 from app.models.user import User
+from app.rbac import verify_project_access
 
 router = APIRouter(prefix="/a2a", tags=["A2A 协议"])
 # A2A v1.0 规范要求 Agent Card 暴露在 /.well-known/agent-card（无 /api 前缀）
@@ -370,6 +371,13 @@ async def send_task(
     if handshake_extra:
         hs_evidence.update(handshake_extra)
 
+    # ── v1.20.x ATH 安全管控：项目归属校验（禁止向任意 project_id 下发/写记忆）──
+    # 项目维度须为 admin 或项目 owner（verify_project_access 单源）；
+    # 此前未校验导致任意用户可对任意项目下发任务，Agent Case 会以
+    # owner_id=project_id、scope=project 写入该项目共享记忆（越权污染面）。
+    if request.project_id:
+        await verify_project_access(request.project_id, current_user, db)
+
     task_id = f"a2a_{uuid.uuid4().hex[:12]}"
     expires_at = datetime.now(timezone.utc) + timedelta(hours=A2A_TASK_DEFAULT_TTL_HOURS)
 
@@ -497,7 +505,12 @@ async def get_task(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """查询任务详情（从数据库读取）。"""
+    """查询任务详情（仅任务发起人；admin 可查全部）。
+
+    v1.20.x 安全修复：此前仅按 task_id 查询，任意登录用户可读他人任务的
+    result/error/trace_id/evidence（跨用户 IDOR）。现按 user_id 归属过滤，
+    非本人且非 admin 返回 404（不暴露任务是否存在）。
+    """
     if not settings.a2a_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -507,7 +520,7 @@ async def get_task(
         select(A2ATask).where(A2ATask.task_id == task_id)
     )
     task = result.scalar_one_or_none()
-    if not task:
+    if not task or (task.user_id != current_user.id and current_user.role != "admin"):
         raise HTTPException(status_code=404, detail="任务不存在")
     return _task_to_dict(task)
 
@@ -518,7 +531,7 @@ async def get_task_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, str]:
-    """查询任务状态（从数据库读取）。"""
+    """查询任务状态（仅任务发起人；admin 可查全部）。"""
     if not settings.a2a_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -528,6 +541,6 @@ async def get_task_status(
         select(A2ATask).where(A2ATask.task_id == task_id)
     )
     task = result.scalar_one_or_none()
-    if not task:
+    if not task or (task.user_id != current_user.id and current_user.role != "admin"):
         raise HTTPException(status_code=404, detail="任务不存在")
     return {"task_id": task_id, "state": task.state}

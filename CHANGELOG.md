@@ -18,6 +18,15 @@
 
 ## [Unreleased]
 
+### ATH 信任层安全收口（2026-10-22）
+
+- **A2A 任务跨用户 IDOR（高）**：`GET /api/a2a/tasks/{id}` 与 `/status` 此前仅按 task_id 查询，任意登录用户可读他人任务的 `result`/`error`/`trace_id`/`evidence`（实测 200）。现按 `user_id` 归属过滤，非本人且非 admin 返回 404（不暴露任务存在性）。
+- **A2A 下发项目归属（高）**：`POST /api/a2a/tasks/send` 的 `project_id` 此前直接透传，任意 UUID 均 200，且 Agent Case 会以 `owner_id=project_id`、`scope=project` 写入该项目共享记忆。现接入 `verify_project_access`（admin + owner 单源），非 owner 403、不存在 404。
+- **意图校验 fail-closed（ATH4）**：`escrow` 买家付款携带 `payment_intent_token` 但 `agent_payment_intent_enabled=False` 时，原实现静默跳过校验继续付款；现改为 503 拒绝并说明原因（未携带 token 的旧路径不受影响）。
+- **握手 verify 最小权限**：`POST /api/agents/handshake/verify` 的 `actor_user_id` 原由请求体自报，任何登录用户可代校验任意 actor；现限制本人（admin 可代查），越权 403。
+- **审计 evidence 诚实化**：ATH1 标注 AID 为平台自生成、应用侧为白名单；ATH2 改为实际状态流转 `working→completed/failed`（`submitted` 未作为独立阶段）；ATH3 标注任务查询归属过滤；ATH4 标注 fail-closed；ATH5 标注 MRTR 单实例/CIMD 简化/RFC 9207 仅记录。pass 判定不变。
+- **测试**：新增 8 用例（A2A 归属 5、握手 verify 2、意图 fail-closed 1）；定向回归 **76 passed**；全量 `-n 4` **2995 passed / 2 skipped / 4 xfailed**（零失败，含并行会话已落地用例），基线 2974 → **2995**（`scripts/test_baseline.json`）。文档同步 `docs/competitions/ath-trust-evaluation.md`（校准 2026-10-22）与 CLAUDE.md。
+
 ### Agent 治理闸门收敛（2026-10-22）
 
 - **posture 枚举硬校验**：`AGENT_SECURITY_POSTURE` 仅接受 `strict` / `auto` / `dangerous`（大小写与空白归一化）；非法值启动即报错，避免拼写错误被 `_check_strict_posture` 当作非 strict 静默放行（fail-open）。

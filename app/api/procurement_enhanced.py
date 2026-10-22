@@ -366,22 +366,29 @@ async def buyer_pay(
     if not project or project.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权访问该项目")
     # v1.15.5 P2 绑定：携带意图 token 时强制校验（仅验证不扣款，诚实红线不变）
+    # v1.20.x：flag 关闭时 fail-closed（503 拒绝），不再静默跳过校验——
+    # 否则调用方以为 token 已验证，实际直接进入扣款台账。
     if data and data.payment_intent_token:
         settings = get_settings()
-        if settings.agent_payment_intent_enabled:
-            from app.services.agent_payment_intent import verify_payment_intent
-
-            result = verify_payment_intent(
-                data.payment_intent_token,
-                order_id=payment.order_id,
-                amount=float(payment.total_amount),
-                actor_user_id=current_user.id,
+        if not settings.agent_payment_intent_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="支付意图校验未启用（agent_payment_intent_enabled=False）："
+                       "已拒绝携带 payment_intent_token 的付款请求，避免校验被静默跳过",
             )
-            if not result["valid"]:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"支付意图校验失败: {result['reason']}",
-                )
+        from app.services.agent_payment_intent import verify_payment_intent
+
+        result = verify_payment_intent(
+            data.payment_intent_token,
+            order_id=payment.order_id,
+            amount=float(payment.total_amount),
+            actor_user_id=current_user.id,
+        )
+        if not result["valid"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"支付意图校验失败: {result['reason']}",
+            )
     try:
         payment = await svc.buyer_pay(db, escrow_id)
     except ValueError as e:
