@@ -18,6 +18,27 @@
 
 ## [Unreleased]
 
+### Agent 治理闸门收敛（2026-10-22）
+
+- **posture 枚举硬校验**：`AGENT_SECURITY_POSTURE` 仅接受 `strict` / `auto` / `dangerous`（大小写与空白归一化）；非法值启动即报错，避免拼写错误被 `_check_strict_posture` 当作非 strict 静默放行（fail-open）。
+- **治理审计 AG2 诚实化**：`auto` 模式下 `AgentApproval` 状态机不触发（仅 strict 生效），审计不再判 pass 自证通过，改为 warn + 整改建议；`strict` 判 pass 并回显高危工具清单，`dangerous` 保持 warn。
+- **AI 服务合规闸门全 Agent 生效**：`ensure_service_compliance`（拟人化/金融红线）从 CareAgent 上移到 `BaseAgent` 出口，覆盖 `think` / `think_with_tools`（含 `_rebuttal_check` 三个返回点）与 `think_stream`；流式采用尾缓冲（12 字符）过滤，红线词未完整下发前即拦截，caution 在流末补 `STANDARD_AI_DISCLOSURE`。红线命中后的安全回复统一为 `SAFE_SERVICE_BLOCK_REPLY`（与 CareAgent 共用单一文案源）。
+- **测试**：新增 10 用例（治理审计 2、posture 配置校验 2、Agent 出口接线 6）：`test_agent_governance_audit.py` / `test_agent_posture.py` / `test_ai_service_compliance.py`；定向回归 **141 passed**（合规/治理审计/posture/工具纪律/编排/Skill/Harness/轨迹），flake8 与 mypy（412 源文件）通过。
+
+### Harness 轨迹数据源收敛（2026-10-22）
+
+- **`GET /api/harness/traces` 默认改读持久化表**：由 harness 进程内 `_traces`（服务重启归零）改为 `agent_traces`（`source=db`，默认），支持 `agent_name` / `status` / `limit` 过滤与 `total` 计数；`source=memory` 保留进程内口径用于排障对比。响应显式返回 `source` + `note`，不伪装数据源。
+- **口径标注**：`GET /api/harness/health` 增 `metrics_scope="process"`、`persistent_trace_source="agent_traces"` 与说明；`GET /api/harness/metrics` 响应增 `metrics_scope`。进程内计数不再被读作持久化统计。
+- **控制台**：`HarnessPage` 展示「指标口径：进程内（重启归零）」与执行轨迹数据源（DB 持久化 / 进程内存）。
+- **测试**：`tests/test_harness_api.py` 新增 3 用例（默认 DB 来源、DB 状态过滤、memory 来源）+ 健康/指标口径断言，**13 passed**；`console-src npm run build`（tsc + vite）通过。
+
+### Skill 进化控制台页（2026-10-22）
+
+- **`GET /api/admin/skill-evolution` 增 `dry_run=true`**：只做确定性诊断（簇计数、候选簇 `shortfall`、失败簇计数、跳过原因），不蒸馏、不评估、不写库（零 LLM 成本），供控制台首屏只读展示；完整周期仍由无参调用 / FC 定时器触发。
+- **新增 `/skill-evolution` 控制台页**（Agent 治理导航）：页面加载执行 `dry_run=true` 只读诊断，点击「运行完整周期」才触发蒸馏/质控；展示周期汇总、候选簇（含 `shortfall`）、跳过原因、阈值与单周期上限。
+- **控制台接线**：`SkillEvolutionPage` + api-client `runSkillEvolution({dryRun})` + domain 类型 + 路由/侧栏 + `p1-qa` 路由冒烟。
+- **测试**：`tests/test_skill_evolution_cycle.py` 补 `candidate_clusters` / `thresholds` 契约断言 + `dry_run` 零副作用用例 + API 透传断言（**10 passed**）；`npm run build` 通过。
+
 ### 小程序实体页补齐与 Taro 4.3 统一（2026-10-21）
 
 - **占位页转实体**：`miniapp/src/pages/` 的 `space-detail`（四维就绪度 + 资产信息）、`project-detail`（六阶段进度 + 项目档案）、`elderly-detail`（套餐详情 + 补贴预估，恒带「非资格认定」）、`ai-consult`（本地示例问答，明确标注演示模式、未接入真实 AI）全部替换 14 行占位页。

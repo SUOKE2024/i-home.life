@@ -34,14 +34,14 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 - **P0 Case 提取**（`agent_case_extraction_enabled`）：`AgentRuntime._maybe_extract_case` 从 `AgentTrace` 自动提取结构化 Case（task_intent + approach + quality_score），过滤非目标导向对话，best-effort 不影响主流程。见 `app/services/agent_case_service.py`。v1.13.2 后全链路闭环：主链路端点直连 `think/think_with_tools` 时由 BaseAgent 内建 hook（`_maybe_persist_execution_case`）用最小 AgentTrace 补沉淀；harness.run 设 `agent._harness_trace` 标记 + `extract_case_from_trace` trace_id 去重防双提取；Case/Skill 提取与注入支持 project scope（空间感知，owner_id=project_id）+ recency 排序键（时间感知，`search_cases` created_at / `get_skill_for_injection` updated_at）。
 - **P1 Skill 蒸馏 + 检索注入**（`agent_skill_distillation_enabled`）：同主题 Case ≥3 条聚类蒸馏为 Skill（`distill_skill_from_cases`，生成前查重合并避免冗余——SkillCorpus 策展）；`BaseAgent.think/think_with_tools` 执行前检索同类 Case + Skill 注入上下文。
 - **P1 Skill 进化 + 诊断归因**（`agent_skill_evolution_enabled`）：`record_skill_outcome` 回写成败计数 → `evaluate_skill_quality` 三维质控（Utility/Robustness/Safety）→ 低质 auto-archive / 高质 DRAFT→ACTIVE；`diagnose_credit_skill_patch` 借鉴 HarnessBank「诊断-归因分离」：LLM 诊断 (WHERE×WHY) 病理 + 确定性代码配对显著性检验（z≥1.96 才采纳），以病理为键而非任务键（抗过拟合）。v1.13.3 起 `record_skill_outcome` 由 BaseAgent 内建 hook `_maybe_record_skill_outcome` 在生产路径真实调用（此前仅 verify 脚本/测试调用，success/fail_count 恒 0 空转）：think/think_with_tools/think_stream 出口注入 Skill 后按确定性判定（reply 非空且非 [mock]/降级占位 → success=True）回写，P1 进化数据层激活；确定性失败（[mock]/思维链泄漏）已回写，语义级失败仍需 LLM 信号（遗留）；v1.15.5 起失败轨迹在 **Case 层**闭环（failure_type 病理分类 + 反模式蒸馏，见「v1.15.5 前沿借鉴落地」节）。
-- **v1.14.1 蒸馏/质控生产触发方**（修复 2026-08-16 评估 P0「孤岛函数」）：`run_skill_evolution_cycle`（agent_skill_evolution_service）编排「聚类发现未蒸馏 Case 簇 → 蒸馏 → 三维质控 → DRAFT→ACTIVE 晋升/低质 archive」，生产端点 `GET /api/admin/skill-evolution`（平台管理员；FC 定时触发器可复用 daily-briefing 模式，单周期上限 50 簇/200 评估）；`get_skill_for_injection` 无 ACTIVE 时回退 DRAFT 试用期注入（打破「无使用记录→无法晋升→只注入 ACTIVE」死锁）。`diagnose_credit_skill_patch` 仍无 patch 生产方（诚实遗留）。
+- **v1.14.1 蒸馏/质控生产触发方**（修复 2026-08-16 评估 P0「孤岛函数」）：`run_skill_evolution_cycle`（agent_skill_evolution_service）编排「聚类发现未蒸馏 Case 簇 → 蒸馏 → 三维质控 → DRAFT→ACTIVE 晋升/低质 archive」，生产端点 `GET /api/admin/skill-evolution`（平台管理员；FC 定时触发器可复用 daily-briefing 模式，单周期上限 50 簇/200 评估）；控制台 `console-src/src/pages/SkillEvolutionPage.tsx`（2026-10-22）提供手动触发与候选簇 `shortfall` 观测（页面加载 `dry_run=true` 只读诊断，按钮才运行完整周期）；`get_skill_for_injection` 无 ACTIVE 时回退 DRAFT 试用期注入（打破「无使用记录→无法晋升→只注入 ACTIVE」死锁）。`diagnose_credit_skill_patch` 仍无 patch 生产方（诚实遗留）。
 - **v1.13.3 全链路闭环**（断点 A–I 全修）：think/think_with_tools/think_stream 与 classify_intent / concierge.generate_response / content_publisher.generate_content_publish_reply 均支持 db/user_id/project_id 透传；`think_stream` 补齐 RAG+进化注入+流后 Case 沉淀（此前流式路径三无）；语音（voice_realtime）、IM 群聊（chat_service harness.run）、产品文案（products/camera_scan/ai_copy）、Skill 实例化（agent_skills）、编排 LLM 分解（agent_orchestration_service `_llm_decompose`）全部纳入注入/沉淀闭环；`_inject_preference_hint` helper 供 /chat 与 /chat/stream 共用 L4 偏好注入。
 - 不引入外部记忆服务（EverOS/Raven），全部在模块化单体内自建；DASH/MSA（模型权重层）不适用 API-based 架构，不硬套。
 - 用户指南见 `assets/guide/ai-self-evolution-guide.md`，隐私声明见 `assets/legal/agent-memory-privacy-notice.md`。
 
 ## Agent 可观测性 + 编排 + 评估（v1.12.x，基于 2026 生产级 Agent 前沿）
 
-- **轨迹落库**：每个 Agent 执行（`harness.run`）按采样率落 `agent_traces` 表（`agent_trace_persist_enabled` 默认 True + `agent_trace_sample_rate`）。`workflow_id` 跨 Agent 传播（同一用户请求的所有 Agent 执行共享），prompt 上下文截断采样防 PII。v1.13.8 起 `tool_calls` 列记录每次工具调用的 tool/arguments/result（arguments 截 200 / result 截 300 字符，整体 4000），实现轨迹可回放（借鉴 DeepSeek Harness「Every run is traceable」，见 `app/agents/harness.py` `_serialize_tool_calls_for_trace`）。
+- **轨迹落库**：每个 Agent 执行（`harness.run`）按采样率落 `agent_traces` 表（`agent_trace_persist_enabled` 默认 True + `agent_trace_sample_rate`）。`workflow_id` 跨 Agent 传播（同一用户请求的所有 Agent 执行共享），prompt 上下文截断采样防 PII。v1.13.8 起 `tool_calls` 列记录每次工具调用的 tool/arguments/result（arguments 截 200 / result 截 300 字符，整体 4000），实现轨迹可回放（借鉴 DeepSeek Harness「Every run is traceable」，见 `app/agents/harness.py` `_serialize_tool_calls_for_trace`）。**2026-10-22 起 `GET /api/harness/traces` 默认读 `agent_traces`（`source=db`，重启不丢），`source=memory` 仅排障对照；`/harness/health` 与 `/harness/metrics` 标注 `metrics_scope="process"`（进程内计数，重启归零）——勿把进程内指标当作持久化统计。**
 - **多智能体编排**：`OrchestratorAgent.plan_and_delegate`（`agent_orchestration_pipeline_enabled` 默认 True）→ LLM 任务分解（规则兜底）→ `validate_dag` 循环检测 → `run_workflow` 拓扑执行（复用 harness 自动落 trace）→ 结构化聚合（`AgentTaskResult` 防 prompt injection）。子任务失败标 failed 不阻断聚合，诚实降级。**API：`POST /api/agents/orchestrate`**（全链路可达，flag 关闭按规则单任务执行并标注 rule_single）。
 - **评估三要素**：`IHomeEval` 新增 FAITHFULNESS/COMPLETENESS/SUFFICIENCY 维度（启发式代理指标，非 LLM judge）+ `per_agent_scores` + `QUALITY_TARGETS` 量化基线。漂移检测 `detect_agent_drift`（基于 `agent_traces` 对比基线，`GET /api/eval/drift`）。
 - **成本优化**：`BaseAgent._chat` 确定性响应缓存（`llm_response_cache_enabled` 默认 True，`with_tools=True` 不缓存）；`cost_tiered_routing_enabled` 默认 True（economy 档 Agent 优先 qwen/glm）；Orchestrator `cost_tier="economy"`。
@@ -227,7 +227,13 @@ v1.17.3 部署核查发现：生产 PG 仅 32 条 CHECK 约束（13 表），模
   `health_claim_compliance.py`（健康功效宣称）正交，**同一输出路径串联**（见 `app/agents/care.py`
   的 `apply_claim_compliance → apply_service_compliance`）。工具分级：`AgentTool.compliance` 按
   `category` 派生，**未登记 category 的工具不从 `_visible_tools` / admin schemas 暴露**（暴露层 fail-closed，
-  注册不阻断以免误伤动态探针）。
+  注册不阻断以免误伤动态探针）。**2026-10-22 起闸门统一挂到 `BaseAgent` 出口**（`think` /
+  `think_with_tools` / `think_stream` 尾缓冲过滤），不再只覆盖 CareAgent；红线命中统一返回
+  `SAFE_SERVICE_BLOCK_REPLY`（单一文案源），新增 Agent 走 `think` 即自动生效，**勿在 Agent 内重复实现**。
+- **Agent 安全 posture**：`AGENT_SECURITY_POSTURE` 仅接受 `strict` / `auto` / `dangerous`（配置层
+  `field_validator` 硬校验，非法值启动即失败）；`AgentApproval` 状态机**仅 strict 生效**，`auto`
+  下高危工具不触发人工批准——治理审计 AG2 对 `auto` 判 warn（不得自证 pass），生产切换 strict 须
+  先配置 `AGENT_STRICT_HIGH_RISK_TOOLS`（清单为空 = 全部工具需批准）。
 - **契约 2 provider 生命周期**：`app/agents/base.py::PROVIDER_STATUS`（active/disabled/retired）
   与 `validate_provider_config()`。外部平台（豆包/千问/元器/扣子/Dify）停服时置 `retired`
   并同时从 `DEFAULT_FALLBACK_CHAIN` 摘除；测试 `tests/test_llm_provider_config.py` 兜底。
