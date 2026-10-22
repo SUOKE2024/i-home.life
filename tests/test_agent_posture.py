@@ -15,8 +15,10 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
+from pydantic import ValidationError
 from sqlalchemy import select
 
+from app.config import Settings
 from app.models.agent_approval import (
     AgentApproval, STATE_PENDING, STATE_APPROVED, STATE_REJECTED, STATE_EXPIRED,
 )
@@ -326,3 +328,28 @@ async def test_api_requires_auth(client: AsyncClient):
     """未认证访问 approvals API → 401"""
     resp = await client.get("/api/agents/approvals")
     assert resp.status_code == 401
+
+
+# ── 配置层 posture 枚举校验（2026-10-22）──
+
+
+def test_settings_rejects_invalid_posture():
+    """拼写错误（如 stirct）必须被配置层拒绝，避免静默 fail-open。"""
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            debug=True,
+            paseto_strict_mode=False,
+            agent_security_posture="stirct",
+        )
+
+
+def test_settings_normalizes_posture_case():
+    """大小写/空白归一化到合法枚举。"""
+    s = Settings(
+        _env_file=None,
+        debug=True,
+        paseto_strict_mode=False,
+        agent_security_posture=" STRICT ",
+    )
+    assert s.agent_security_posture == "strict"

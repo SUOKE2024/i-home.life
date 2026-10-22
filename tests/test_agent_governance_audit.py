@@ -63,6 +63,30 @@ def test_audit_ag2_warn_on_dangerous_posture(monkeypatch):
     assert "dangerous" in ag2["evidence"]
 
 
+def test_audit_ag2_warn_on_auto_posture(monkeypatch):
+    """auto 下审批状态机不触发（仅 strict 生效）→ AG2 warn，不得自证 pass"""
+    monkeypatch.setattr(get_settings(), "agent_security_posture", "auto")
+    monkeypatch.setattr(get_settings(), "agent_strict_high_risk_tools", "")
+    report = run_governance_audit()
+    ag2 = next(f for f in report["findings"] if f["id"] == "AG2")
+    assert ag2["status"] == "warn"
+    assert "auto" in ag2["evidence"]
+    assert ag2["recommendation"]
+
+
+def test_audit_ag2_pass_on_strict_posture(monkeypatch):
+    """strict + 高危清单 → AG2 pass（命中即人工批准）"""
+    monkeypatch.setattr(get_settings(), "agent_security_posture", "strict")
+    monkeypatch.setattr(
+        get_settings(), "agent_strict_high_risk_tools", "update_user_role,list_users",
+    )
+    report = run_governance_audit()
+    ag2 = next(f for f in report["findings"] if f["id"] == "AG2")
+    assert ag2["status"] == "pass"
+    assert "strict" in ag2["evidence"]
+    assert "update_user_role" in ag2["evidence"]
+
+
 def test_audit_ag9_warn_on_plaintext_session(monkeypatch):
     """allow_plaintext_session=True → AG9 敏感信息泄漏 warn"""
     monkeypatch.setattr(get_settings(), "allow_plaintext_session", True)

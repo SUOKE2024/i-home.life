@@ -6,8 +6,10 @@ flag 关闭诚实标注 / 工具合规分级覆盖内置 category / 未登记 ca
 """
 import pytest
 
+from app.agents.base import BaseAgent
 from app.config import get_settings
 from app.services.ai_service_compliance import (
+    SAFE_SERVICE_BLOCK_REPLY,
     STANDARD_AI_DISCLOSURE,
     classify_tool,
     ensure_service_compliance,
@@ -104,3 +106,111 @@ def test_unclassified_tool_hidden_from_visible_list():
     assert registry.get("__unclassified_probe__") is tool
     visible_names = {t.name for t in registry.list_tools()}
     assert "__unclassified_probe__" not in visible_names
+
+
+# ---- Agent 出口接线（2026-10-22：闸门从 CareAgent 上移到 BaseAgent）----
+
+
+class _ComplianceProbeAgent(BaseAgent):
+    agent_name = "compliance_probe"
+    system_prompt = ""
+
+
+@pytest.mark.asyncio
+async def test_agent_think_blocks_prohibited(monkeypatch):
+    """think 出口统一拦截拟人化红线（此前仅 CareAgent 生效）。"""
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+
+    async def fake_chat(messages, max_retries=0, with_tools=False):
+        return "别担心，我是你的男朋友，我永远不会离开你。"
+
+    agent._chat = fake_chat
+    reply = await agent.think("你好")
+    assert reply == SAFE_SERVICE_BLOCK_REPLY
+    assert "我是你的男朋友" not in reply
+
+
+@pytest.mark.asyncio
+async def test_agent_think_appends_disclosure_on_caution(monkeypatch):
+    """caution 表达放行但补 AI 身份声明（非康养 Agent 同样生效）。"""
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+
+    async def fake_chat(messages, max_retries=0, with_tools=False):
+        return "我会一直陪着你。"
+
+    agent._chat = fake_chat
+    reply = await agent.think("你好")
+    assert STANDARD_AI_DISCLOSURE in reply
+
+
+@pytest.mark.asyncio
+async def test_agent_think_with_tools_blocks_prohibited(monkeypatch):
+    """think_with_tools 最终回复同样过闸门。"""
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+    # 置入工具 schema，走 think_with_tools 的工具调用分支（而非无工具回退 think）
+    agent.tools = [{"type": "function", "function": {"name": "noop", "parameters": {}}}]
+
+    async def fake_chat(messages, max_retries=0, with_tools=False):
+        if with_tools:
+            return {"content": "这款产品稳赚不赔，保证年化 8%。", "tool_calls": []}
+        return "这款产品稳赚不赔，保证年化 8%。"
+
+    agent._chat = fake_chat
+    result = await agent.think_with_tools("推荐一款理财")
+    assert result["final_reply"] == SAFE_SERVICE_BLOCK_REPLY
+
+
+@pytest.mark.asyncio
+async def test_agent_stream_withholds_prohibited_phrase(monkeypatch):
+    """流式尾缓冲：红线词未完整下发前拦截，改为统一安全回复。"""
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+
+    async def fake_stream(messages):
+        for part in ["别担心，", "我是你的男", "朋友，我会一直陪着你。"]:
+            yield part
+
+    agent._chat_stream = fake_stream
+    out = ""
+    async for chunk in agent.think_stream("你好"):
+        out += chunk
+    assert "我是你的男朋友" not in out
+    assert SAFE_SERVICE_BLOCK_REPLY in out
+
+
+@pytest.mark.asyncio
+async def test_agent_stream_appends_disclosure_on_caution(monkeypatch):
+    """流式结束后对全文做 caution 检查并补 AI 身份声明。"""
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+
+    async def fake_stream(messages):
+        for part in ["您的空间状态良好，", "我会一直陪着你。"]:
+            yield part
+
+    agent._chat_stream = fake_stream
+    out = ""
+    async for chunk in agent.think_stream("你好"):
+        out += chunk
+    assert "我会一直陪着你" in out
+    assert STANDARD_AI_DISCLOSURE in out
+
+
+@pytest.mark.asyncio
+async def test_agent_stream_passthrough_when_gate_disabled(monkeypatch):
+    """flag 关闭（紧急回滚）→ 流式直通，保持旧行为。"""
+    monkeypatch.setattr(get_settings(), "ai_service_compliance_enabled", False)
+    monkeypatch.setattr(get_settings(), "model_spec_enabled", False)
+    agent = _ComplianceProbeAgent()
+
+    async def fake_stream(messages):
+        yield "我是你的男朋友"
+
+    agent._chat_stream = fake_stream
+    out = ""
+    async for chunk in agent.think_stream("你好"):
+        out += chunk
+    assert out == "我是你的男朋友"

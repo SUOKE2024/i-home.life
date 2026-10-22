@@ -174,13 +174,11 @@ class CareAgent(BaseAgent):
     def apply_service_compliance(reply: str) -> str:
         """AI 服务合规闸门（AI 产品治理 · 契约 1）：拟人化互动（自称真人/情感陪伴承诺）
         与金融边界（收益承诺/荐股）红线命中即阻断，caution 词附加 AI 身份声明。"""
-        from app.services.ai_service_compliance import ensure_service_compliance
+        from app.services.ai_service_compliance import (
+            SAFE_SERVICE_BLOCK_REPLY, ensure_service_compliance,
+        )
 
         result = ensure_service_compliance(reply)
         if result["blocked"]:
-            return (
-                "检测到该回复含拟人化或金融红线表述，已按合规口径拦截。"
-                "本服务为 AI 智能体（非真人），仅提供空间环境与生活方式建议，"
-                "不构成医疗诊断或投资建议；如需专业意见请咨询相应资质的机构或人员。"
-            )
+            return SAFE_SERVICE_BLOCK_REPLY
         return result["text"]

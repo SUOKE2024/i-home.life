@@ -33,6 +33,7 @@ const PAGES = [
   { path: '/console/mcp', name: 'MCP' },
   { path: '/console/harness', name: 'Harness' },
   { path: '/console/eval', name: 'Eval' },
+  { path: '/console/skill-evolution', name: 'SkillEvolution' },
   { path: '/console/governance-audit', name: 'GovernanceAudit' },
   { path: '/console/points', name: 'Points' },
   { path: '/console/ai-image', name: 'AIImage' },

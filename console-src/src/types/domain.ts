@@ -1996,6 +1996,8 @@ export interface HarnessMetrics {
   total_tokens: number;
   trace_count: number;
   registered_agents: string[];
+  /** 2026-10-22：指标口径（process=进程内计数，重启归零） */
+  metrics_scope?: string;
 }
 
 /** 单条执行轨迹（AgentTrace.to_dict，traces 端点返回） */
@@ -2026,12 +2028,19 @@ export interface HarnessTrace {
   project_id: string;
   scope: string;
   context_source: string;
+  /** 2026-10-22：DB 来源补字段（进程内轨迹为空/缺省） */
+  workflow_id?: string;
+  token_budget_hit?: boolean;
+  created_at?: string | null;
 }
 
 /** GET /api/harness/traces 返回 */
 export interface HarnessTracesResponse {
   traces: HarnessTrace[];
   total: number;
+  /** 数据源：db=agent_traces 持久化（默认）/ memory=进程内（重启归零） */
+  source?: 'db' | 'memory';
+  note?: string;
 }
 
 /** GET /api/harness/eval 返回（HarnessEvalResponse） */
@@ -2047,6 +2056,10 @@ export interface HarnessHealthResponse {
   registered_agents: string[];
   trace_count: number;
   total_runs: number;
+  /** 2026-10-22：显式口径标注（process=进程内，重启归零） */
+  metrics_scope?: string;
+  persistent_trace_source?: string;
+  note?: string;
 }
 
 // ── 评估框架（app/api/eval.py + app/eval/ihome_eval.py）──
@@ -2175,6 +2188,48 @@ export interface GovernanceAuditResponse {
   summary: { total: number; pass: number; warn: number; fail: number; score: string };
   findings: GovernanceFinding[];
   recommendations: string[];
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  Skill 进化周期（GET /api/admin/skill-evolution，admin，触发式）
+// ──────────────────────────────────────────────────────────────────
+
+/** 未达蒸馏阈值的候选簇（诊断「定时任务恒 0」用，shortfall=还差几条） */
+export interface SkillEvolutionCandidateCluster {
+  agent_name: string;
+  owner_id: string | null;
+  scope: string | null;
+  case_count: number;
+  shortfall: number;
+}
+
+export interface SkillEvolutionEntry {
+  skill_id: string;
+  name: string;
+  agent: string;
+  failure_type?: string;
+  overall?: number;
+}
+
+/** GET /api/admin/skill-evolution 报告（run_skill_evolution_cycle 返回值） */
+export interface SkillEvolutionReport {
+  cycle: string;
+  dry_run: boolean;
+  distillation_enabled: boolean;
+  evolution_enabled: boolean;
+  failure_learning_enabled: boolean;
+  clusters_found: number;
+  distilled_new: SkillEvolutionEntry[];
+  merged_existing: SkillEvolutionEntry[];
+  failure_clusters_found: number;
+  anti_pattern_distilled: SkillEvolutionEntry[];
+  evaluated: number;
+  promoted_draft_to_active: SkillEvolutionEntry[];
+  archived_low_quality: SkillEvolutionEntry[];
+  limits: { max_clusters: number; max_evaluations: number };
+  thresholds: { min_cases_per_cluster: number };
+  candidate_clusters: SkillEvolutionCandidateCluster[];
+  skipped_reasons: string[];
 }
 
 // ──────────────────────────────────────────────────────────────────

@@ -39,6 +39,7 @@ async def test_harness_metrics_authenticated(auth_headers: dict, client: AsyncCl
     data = resp.json()
     assert "total_runs" in data
     assert "registered_agents" in data
+    assert data["metrics_scope"] == "process"
 
 
 @pytest.mark.asyncio
@@ -57,12 +58,15 @@ async def test_harness_eval_requires_admin(auth_headers: dict, client: AsyncClie
 
 @pytest.mark.asyncio
 async def test_harness_health_structure(client: AsyncClient):
-    """健康检查响应结构正确"""
+    """健康检查响应结构正确（明确标注指标口径为进程内）"""
     resp = await client.get("/api/harness/health")
     data = resp.json()
     assert "registered_agents" in data
     assert "trace_count" in data
     assert "total_runs" in data
+    assert data["metrics_scope"] == "process"
+    assert data["persistent_trace_source"] == "agent_traces"
+    assert "重启归零" in data["note"]
 
 
 async def _register_admin(client: AsyncClient) -> str:
@@ -149,3 +153,78 @@ async def test_trace_replay_malformed_tool_calls(client: AsyncClient, db_session
     resp = await client.get(f"/api/harness/traces/{trace_id}/replay", headers=headers)
     assert resp.status_code == 200
     assert resp.json()["replay"]["tool_calls"] == []
+
+
+# ── 轨迹列表数据源（2026-10-22：默认 DB 持久化，memory 为排障对照）──
+
+
+@pytest.mark.asyncio
+async def test_harness_traces_default_db_source(client: AsyncClient, db_session):
+    """默认 source=db：读 agent_traces 持久化表（重启不丢），非进程内列表"""
+    token = await _register_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    trace_id = str(uuid.uuid4())
+    db_session.add(AgentTraceRecord(
+        id=trace_id,
+        agent_name="designer-db",
+        status="success",
+        workflow_id="wf-db-1",
+        tool_call_count=1,
+        total_tokens=120,
+        latency_ms=88.5,
+        response_preview="已生成方案...",
+    ))
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/harness/traces", params={"agent_name": "designer-db"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "db"
+    assert body["total"] == 1
+    assert body["traces"][0]["trace_id"] == trace_id
+    assert body["traces"][0]["workflow_id"] == "wf-db-1"
+    assert body["traces"][0]["total_tokens"] == 120
+    assert body["traces"][0]["response_truncated"] == "已生成方案..."
+    assert body["traces"][0]["user_message_truncated"] == ""
+    assert "user_message 不落库" in body["note"]
+
+
+@pytest.mark.asyncio
+async def test_harness_traces_db_status_filter(client: AsyncClient, db_session):
+    """DB 来源同样支持 status / agent_name 过滤"""
+    token = await _register_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    db_session.add_all([
+        AgentTraceRecord(id=str(uuid.uuid4()), agent_name="filter-agent", status="success"),
+        AgentTraceRecord(id=str(uuid.uuid4()), agent_name="filter-agent", status="failed"),
+    ])
+    await db_session.commit()
+
+    resp = await client.get(
+        "/api/harness/traces",
+        params={"agent_name": "filter-agent", "status": "failed"},
+        headers=headers,
+    )
+    body = resp.json()
+    assert body["source"] == "db"
+    assert body["total"] == 1
+    assert body["traces"][0]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_harness_traces_memory_source(client: AsyncClient):
+    """显式 source=memory：保留进程内口径并标注重启归零"""
+    token = await _register_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await client.get(
+        "/api/harness/traces", params={"source": "memory"}, headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "memory"
+    assert "重启" in body["note"]

@@ -69,6 +69,7 @@ const MCPPage = lazy(() => import('./pages/MCPPage'));
 const HarnessPage = lazy(() => import('./pages/HarnessPage'));
 const EvalPage = lazy(() => import('./pages/EvalPage'));
 const GovernanceAuditPage = lazy(() => import('./pages/GovernanceAuditPage'));
+const SkillEvolutionPage = lazy(() => import('./pages/SkillEvolutionPage'));
 const SpaceAssetsPage = lazy(() => import('./pages/SpaceAssetsPage'));
 const PointsPage = lazy(() => import('./pages/PointsPage'));
 const AIImagePage = lazy(() => import('./pages/AIImagePage'));
@@ -161,6 +162,7 @@ export default function App() {
             <Route path="/harness" element={<HarnessPage />} />
             <Route path="/eval" element={<EvalPage />} />
             <Route path="/governance-audit" element={<GovernanceAuditPage />} />
+            <Route path="/skill-evolution" element={<SkillEvolutionPage />} />
             <Route path="/space-assets" element={<SpaceAssetsPage />} />
             {/* 积分商城 / AI 图生图 / 身份认证 / 量房-AR 扫描 */}
             <Route path="/points" element={<PointsPage />} />

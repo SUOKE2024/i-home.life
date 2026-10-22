@@ -4,18 +4,65 @@
 """
 
 import logging
+from datetime import timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func, select
 
 from app.agents.harness import AgentRunStatus, get_harness
 from app.auth import get_current_user
 from app.database import get_db
+from app.models.agent_trace import AgentTraceRecord
 from app.models.user import User
 from app.rbac import require_admin
 
 router = APIRouter(prefix="/harness", tags=["Agent Harness"])
 logger = logging.getLogger(__name__)
+
+
+def _serialize_db_trace(record: AgentTraceRecord) -> dict:
+    """把持久化轨迹序列化为与内存轨迹一致的字段（前端 snake_case 契约）。
+
+    诚实边界：user_message 不落库（防 PII），故 user_message_truncated 恒为空；
+    response_preview 为落库时的截断预览。
+    """
+    started = record.started_at
+    finished = None
+    if started is not None:
+        finished = (started + timedelta(milliseconds=record.latency_ms or 0)).isoformat()
+    return {
+        "trace_id": record.id,
+        "agent_name": record.agent_name,
+        "agent_version": record.agent_version or "",
+        "provider": record.provider or "",
+        "model": record.model or "",
+        "started_at": started.isoformat() if started else None,
+        "finished_at": finished,
+        "status": record.status,
+        "user_message_truncated": "",  # 不落库（防 PII）
+        "response_truncated": record.response_preview or "",
+        "prompt_tokens": record.prompt_tokens,
+        "completion_tokens": record.completion_tokens,
+        "total_tokens": record.total_tokens,
+        "tool_call_count": record.tool_call_count,
+        "tool_call_rounds": record.tool_call_rounds,
+        "fallback_used": record.fallback_used,
+        "fallback_reason": record.fallback_reason or "",
+        "retry_count": record.retry_count,
+        "token_budget_hit": record.token_budget_hit,
+        "latency_ms": round(record.latency_ms or 0.0, 2),
+        "first_token_latency_ms": round(record.first_token_latency_ms or 0.0, 2),
+        "error_message": record.error_message or "",
+        "error_type": record.error_type or "",
+        "user_id": record.user_id or "",
+        "project_id": record.project_id or "",
+        "scope": record.scope or "",
+        "workflow_id": record.workflow_id or "",
+        "context_source": record.context_source or "",
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+    }
 
 
 class HarnessMetricsResponse(BaseModel):
@@ -29,6 +76,8 @@ class HarnessMetricsResponse(BaseModel):
     total_tokens: int = 0
     trace_count: int = 0
     registered_agents: list[str] = []
+    # 2026-10-22：指标为进程内计数（重启归零），显式标注口径，避免被读作持久化统计
+    metrics_scope: str = "process"
 
 
 class HarnessEvalResponse(BaseModel):
@@ -47,7 +96,7 @@ async def get_harness_metrics(
     """
     harness = get_harness()
     metrics = harness.get_metrics()
-    return HarnessMetricsResponse(**metrics)
+    return HarnessMetricsResponse(**metrics, metrics_scope="process")
 
 
 @router.get("/traces")
@@ -55,9 +104,19 @@ async def get_traces(
     agent_name: str | None = Query(None, description="Agent 名称过滤"),
     status: str | None = Query(None, description="状态过滤: success/failed/fallback"),
     limit: int = Query(50, ge=1, le=200),
+    source: Literal["db", "memory"] = Query(
+        "db",
+        description="db=持久化轨迹（agent_traces，默认，重启不丢）；memory=进程内轨迹（重启归零）",
+    ),
     current_user: User = Depends(require_admin),
+    db=Depends(get_db),
 ):
-    """查询 Agent 执行轨迹（管理员权限）。"""
+    """查询 Agent 执行轨迹（管理员权限）。
+
+    2026-10-22：默认改读 ``agent_traces`` 持久化表（此前只读 harness 进程内列表，
+    服务重启后管理员看到空列表）；``source=memory`` 保留原进程内口径用于排障对比。
+    两种来源均在响应里显式标注 ``source`` / ``note``，不做数据源伪装。
+    """
     harness = get_harness()
     run_status = None
     if status:
@@ -65,9 +124,37 @@ async def get_traces(
             run_status = AgentRunStatus(status)
         except ValueError:
             pass
+
+    if source == "memory":
+        return {
+            "source": "memory",
+            "traces": harness.get_traces(agent_name=agent_name, status=run_status, limit=limit),
+            "total": len(harness._traces),
+            "note": "进程内轨迹：服务重启后归零；持久化轨迹请用 source=db（默认）",
+        }
+
+    conditions = []
+    if agent_name:
+        conditions.append(AgentTraceRecord.agent_name == agent_name)
+    if run_status is not None:
+        conditions.append(AgentTraceRecord.status == run_status.value)
+
+    stmt = select(AgentTraceRecord)
+    count_stmt = select(func.count()).select_from(AgentTraceRecord)
+    if conditions:
+        stmt = stmt.where(*conditions)
+        count_stmt = count_stmt.where(*conditions)
+    stmt = stmt.order_by(
+        AgentTraceRecord.created_at.desc(), AgentTraceRecord.started_at.desc(),
+    ).limit(limit)
+
+    rows = (await db.execute(stmt)).scalars().all()
+    total = (await db.execute(count_stmt)).scalar() or 0
     return {
-        "traces": harness.get_traces(agent_name=agent_name, status=run_status, limit=limit),
-        "total": len(harness._traces),
+        "source": "db",
+        "traces": [_serialize_db_trace(r) for r in rows],
+        "total": int(total),
+        "note": "持久化轨迹（agent_traces，重启不丢）；user_message 不落库（防 PII）",
     }
 
 
@@ -83,10 +170,6 @@ async def replay_trace(
     诚实边界：user_message 不落库（防 PII），仅回放系统上下文/工具调用/回复预览。
     """
     import json
-
-    from sqlalchemy import select
-
-    from app.models.agent_trace import AgentTraceRecord
 
     result = await db.execute(
         select(AgentTraceRecord).where(AgentTraceRecord.id == trace_id)
@@ -151,4 +234,9 @@ async def harness_health():
         "registered_agents": metrics["registered_agents"],
         "trace_count": metrics["trace_count"],
         "total_runs": metrics["total_runs"],
+        # 2026-10-22：明确口径——健康检查里的计数是进程内指标（重启归零），
+        # 持久化轨迹以 /api/harness/traces（source=db）为准。
+        "metrics_scope": "process",
+        "persistent_trace_source": "agent_traces",
+        "note": "trace_count/total_runs 为进程内计数（重启归零）；持久化轨迹查询 /api/harness/traces",
     }

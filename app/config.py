@@ -1,7 +1,12 @@
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
+
+# Agent 安全 posture 合法枚举（2026-10-22）：拼写错误若按普通 str 放行，会被
+# agent_tool_registry._check_strict_posture 当作非 strict 而静默放行（fail-open），
+# 治理审计亦无法识别。故在配置层硬校验。
+AGENT_SECURITY_POSTURES = frozenset({"strict", "auto", "dangerous"})
 
 
 class Settings(BaseSettings):
@@ -10,6 +15,17 @@ class Settings(BaseSettings):
     # 跨品牌供应商主数据同步（未配置时 helper 静默跳过）
     ecosystem_sync_url: str = ""
     ecosystem_sync_key: str = ""
+
+    @field_validator("agent_security_posture")
+    @classmethod
+    def _validate_agent_security_posture(cls, v: str) -> str:
+        """posture 枚举校验（2026-10-22）：非法值直接拒绝，防拼写错误导致 fail-open。"""
+        normalized = (v or "").strip().lower()
+        if normalized not in AGENT_SECURITY_POSTURES:
+            raise ValueError(
+                "AGENT_SECURITY_POSTURE 仅支持 strict / auto / dangerous（当前：%r）" % v
+            )
+        return normalized
 
     @model_validator(mode="after")
     def _validate_paseto_keys(self):

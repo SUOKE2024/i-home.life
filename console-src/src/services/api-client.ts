@@ -1729,6 +1729,14 @@ export class ApiClient {
     return this.request<T>('/api/admin/agent-governance-audit');
   }
 
+  /** Skill 进化周期（GET /api/admin/skill-evolution，admin；dryRun=true 时只读诊断） */
+  async runSkillEvolution<T = import('../types/domain').SkillEvolutionReport>(
+    options: { dryRun?: boolean } = {},
+  ): Promise<ApiResult<T>> {
+    const query = options.dryRun ? '?dry_run=true' : '';
+    return this.request<T>(`/api/admin/skill-evolution${query}`);
+  }
+
   // ──────────────────────────────────────────────────────────────────
   //  空间资产台账（Phase 3，app/api/space_assets.py，前缀 /api/space-assets）
   // ──────────────────────────────────────────────────────────────────

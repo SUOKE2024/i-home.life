@@ -91,6 +91,29 @@ async def test_cycle_reports_threshold_shortfall(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cycle_dry_run_no_side_effects(db_session, monkeypatch):
+    """dry_run=True：只读诊断（计数 + 候选簇），不蒸馏/不评估/不写 Skill"""
+    monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
+    monkeypatch.setattr(get_settings(), "agent_skill_evolution_enabled", True)
+    _seed_cases(db_session, count=4, prefix="dry")
+
+    report = await run_skill_evolution_cycle(db_session, dry_run=True)
+
+    assert report["dry_run"] is True
+    assert report["clusters_found"] == 1
+    assert report["candidate_clusters"]
+    assert report["distilled_new"] == []
+    assert report["evaluated"] == 0
+    assert all("dry_run=True" in r for r in report["skipped_reasons"])
+
+    from sqlalchemy import func, select
+    skill_count = (
+        await db_session.execute(select(func.count()).select_from(AgentSkill))
+    ).scalar()
+    assert skill_count == 0
+
+
+@pytest.mark.asyncio
 async def test_cycle_merges_into_existing_skill(db_session, monkeypatch):
     """已存在同名 Skill → 合并不新建，报告计入 merged_existing"""
     monkeypatch.setattr(get_settings(), "agent_skill_distillation_enabled", True)
@@ -236,3 +259,14 @@ async def test_skill_evolution_endpoint_admin_report(client: AsyncClient):
                 "skipped_reasons"):
         assert key in data
     assert data["limits"]["max_clusters"] > 0
+    # 控制台 Skill 进化页依赖的诊断字段（v1.19.0 诊断 + 2026-10-22 页面接线）
+    assert data["thresholds"]["min_cases_per_cluster"] >= 1
+    assert isinstance(data["candidate_clusters"], list)
+    assert "failure_clusters_found" in data
+
+    # dry_run=true：只读诊断透传（页面首屏用，不蒸馏不评估）
+    dry = await client.get(
+        "/api/admin/skill-evolution", params={"dry_run": "true"}, headers=headers,
+    )
+    assert dry.status_code == 200
+    assert dry.json()["dry_run"] is True

@@ -440,6 +440,10 @@ async def get_ai_service_provider_profile(
 
 @router.get("/skill-evolution")
 async def run_skill_evolution(
+    dry_run: bool = Query(
+        False,
+        description="true=只读诊断（簇计数/候选簇 shortfall），不蒸馏不评估（零 LLM 成本）",
+    ),
     current_user: User = Depends(require_platform_manage),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -453,9 +457,13 @@ async def run_skill_evolution(
     （周期建议每日/每周一次）。子阶段受各自 feature flag 控制
     （agent_skill_distillation_enabled / agent_skill_evolution_enabled），
     关闭时报告 skipped_reasons 诚实标注。
+
+    2026-10-22：``dry_run=true`` 供控制台页面加载时只读诊断（确定性查询，
+    不蒸馏、不评估、零 LLM 成本），页面按钮才触发完整周期。
     """
     from app.services.agent_skill_evolution_service import run_skill_evolution_cycle
 
-    report = await run_skill_evolution_cycle(db)
-    await db.commit()
+    report = await run_skill_evolution_cycle(db, dry_run=dry_run)
+    if not dry_run:
+        await db.commit()
     return report

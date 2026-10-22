@@ -175,6 +175,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: 'MCP Server', path: '/mcp', emoji: '🔌' },
       { label: 'Harness', path: '/harness', emoji: '⚙️' },
       { label: '评估', path: '/eval', emoji: '📐' },
+      { label: 'Skill 进化', path: '/skill-evolution', emoji: '🧬' },
       { label: '治理安全', path: '/governance-audit', emoji: '🛡' },
     ],
   },

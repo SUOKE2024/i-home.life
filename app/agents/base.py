@@ -12,6 +12,10 @@ from app.config import get_settings
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# 2026-10-22: 流式合规过滤尾缓冲（需大于最长红线词 8 字符），
+# 保证红线词未完整输出前即可拦截，而不是等整段生成完再发现（届时已无法撤回）。
+_STREAM_COMPLIANCE_TAIL = 12
+
 
 def _record_llm_span(agent: str, provider: str, started_at: float, status: str, fallback: bool) -> None:
     """v1.10.x 全链路诊断：记录 LLM/Agent 子 span（best-effort，失败零影响）。"""
@@ -956,6 +960,9 @@ class BaseAgent:
             except Exception as e:
                 logger.debug("%s.think: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
 
+        # 2026-10-22 AI 服务合规闸门（契约 1）：所有 Agent 出口统一过滤（此前仅 CareAgent）
+        reply = self._apply_service_compliance_gate(reply)
+
         # v1.10.x 全链路记忆：端点直连 think 时补 Case 沉淀（best-effort）
         await self._maybe_persist_execution_case(
             user_message, reply, db, user_id, project_id,
@@ -1034,7 +1041,8 @@ class BaseAgent:
         - 自进化经验注入 _inject_evolution_context（Case + Skill）
         - 流结束后 Case 沉淀 + Skill 成败回写（用累积全文）
         流式路径无 Model Spec HC 反驳重生成（诚实标注：生成后才能校验，
-        流式下无法在输出前拦截，保持现状）。
+        流式下无法在输出前拦截，保持现状）；2026-10-22 起出口串联 AI 服务合规闸门
+        （尾缓冲过滤：红线词未完整下发前即拦截，caution 在流末补 AI 身份声明）。
 
         Usage::
 
@@ -1078,7 +1086,7 @@ class BaseAgent:
         # v1.13.3: 累积完整回复，流结束后用于 Case 沉淀 + Skill 成败回写
         stream_started = time.monotonic()
         chunks: list[str] = []
-        async for chunk in self._chat_stream(messages):
+        async for chunk in self._compliance_filtered_stream(self._chat_stream(messages)):
             chunks.append(chunk)
             yield chunk
         reply_text = "".join(chunks)
@@ -1301,31 +1309,119 @@ class BaseAgent:
             "usage": total_usage,
         }
 
+    def _apply_service_compliance_gate(self, reply: Any) -> Any:
+        """AI 服务合规闸门（AI 产品治理 · 契约 1，2026-10-22）。
+
+        拟人化互动（自称真人/情感陪伴承诺）与金融边界（收益承诺/荐股）红线命中即拦截。
+        此前仅 CareAgent 接入，现统一挂到 BaseAgent 出口（think / think_with_tools），
+        覆盖 concierge、content_publisher 等全部走 think 的 Agent。
+        非字符串回复（结构化 JSON）原样返回；闸门异常 best-effort 放行并记录告警。
+        """
+        if not isinstance(reply, str) or not reply:
+            return reply
+        try:
+            from app.services.ai_service_compliance import (
+                SAFE_SERVICE_BLOCK_REPLY, ensure_service_compliance,
+            )
+            result = ensure_service_compliance(reply)
+            if result["blocked"]:
+                logger.info(
+                    "%s: AI 服务合规闸门拦截（%s）",
+                    self.agent_name, result["blocked_reason"],
+                )
+                return SAFE_SERVICE_BLOCK_REPLY
+            return result["text"]
+        except Exception as e:
+            logger.warning("%s: AI 服务合规闸门异常（best-effort 放行）: %s", self.agent_name, e)
+            return reply
+
+    async def _compliance_filtered_stream(self, source):
+        """流式合规过滤（2026-10-22）：保留尾缓冲，红线词未完整输出前拦截。
+
+        流式无法「生成后再拦截」，故保留 ``_STREAM_COMPLIANCE_TAIL`` 字符不立即下发：
+        - 命中 prohibited → 停止继续输出，改发统一安全回复（红线词尚未完整下发）；
+        - 未命中 → 逐段下发，流结束后对全文执行 caution 检查并补 AI 身份声明；
+        - 最终全文仍命中（尾缓冲不足等异常）→ 记录告警，已输出内容不可撤回（诚实标注）。
+        """
+        from app.services.ai_service_compliance import (
+            ensure_service_compliance, is_gate_enabled,
+            SAFE_SERVICE_BLOCK_REPLY, scan_service_claims,
+        )
+
+        # 闸门关闭（紧急回滚）时直通，保持旧行为（零回归）
+        if not is_gate_enabled():
+            async for chunk in source:
+                if chunk:
+                    yield chunk
+            return
+
+        buffer = ""
+        emitted: list[str] = []
+        blocked = False
+        async for chunk in source:
+            if not chunk:
+                continue
+            buffer += chunk
+            if any(
+                c["severity"] == "prohibited" for c in scan_service_claims(buffer)
+            ):
+                blocked = True
+                buffer = ""
+                emitted.append(SAFE_SERVICE_BLOCK_REPLY)
+                yield SAFE_SERVICE_BLOCK_REPLY
+                break
+            safe_len = len(buffer) - _STREAM_COMPLIANCE_TAIL
+            if safe_len > 0:
+                out = buffer[:safe_len]
+                buffer = buffer[safe_len:]
+                emitted.append(out)
+                yield out
+
+        if blocked:
+            return
+        if buffer:
+            emitted.append(buffer)
+            yield buffer
+        text = "".join(emitted)
+        result = ensure_service_compliance(text)
+        if result["blocked"]:
+            logger.warning(
+                "%s: 流式合规漏检（tail=%d），已输出内容不可撤回",
+                self.agent_name, _STREAM_COMPLIANCE_TAIL,
+            )
+            return
+        if result["text"] != text:
+            suffix = result["text"][len(text):]
+            if suffix:
+                yield suffix
+
     async def _rebuttal_check(self, messages: list[dict], reply: str) -> str:
         """v1.1.28: Model Spec HC 硬约束校验 + 反驳重生成（借鉴索克生活 rebuttal_engine）。
 
         v1.1.31 FP-9（S6）：升级为 check_output_with_semantic（关键词预筛 + LLM 语义兜底）。
         输出违规时注入反驳上下文重新调用 _chat 一次。校验失败或无违规时返回原 reply。
+        2026-10-22：返回前统一过 AI 服务合规闸门（契约 1）。
         """
-        if not settings.model_spec_enabled or not isinstance(reply, str):
+        if not isinstance(reply, str):
             return reply
-        try:
-            from app.services.rebuttal_engine import (
-                check_output_with_semantic, build_rebuttal_context,
-            )
-            result = await check_output_with_semantic(self.agent_name, reply, agent=self)
-            if result["violated"]:
-                rebuttal = build_rebuttal_context(result["violations"])
-                logger.info(
-                    "%s: HC 违规 %s，注入反驳重生成",
-                    self.agent_name, [v["constraint_id"] for v in result["violations"]],
+        if settings.model_spec_enabled:
+            try:
+                from app.services.rebuttal_engine import (
+                    check_output_with_semantic, build_rebuttal_context,
                 )
-                messages.append({"role": "assistant", "content": reply})
-                messages.append({"role": "system", "content": rebuttal})
-                return await self._chat(messages)
-        except Exception as e:
-            logger.debug("%s: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
-        return reply
+                result = await check_output_with_semantic(self.agent_name, reply, agent=self)
+                if result["violated"]:
+                    rebuttal = build_rebuttal_context(result["violations"])
+                    logger.info(
+                        "%s: HC 违规 %s，注入反驳重生成",
+                        self.agent_name, [v["constraint_id"] for v in result["violations"]],
+                    )
+                    messages.append({"role": "assistant", "content": reply})
+                    messages.append({"role": "system", "content": rebuttal})
+                    reply = await self._chat(messages)
+            except Exception as e:
+                logger.debug("%s: rebuttal 校验失败（跳过）: %s", self.agent_name, e)
+        return self._apply_service_compliance_gate(reply)
 
     # ── 资源清理 ──────────────────────────────────────────────
 

@@ -655,7 +655,28 @@ async def get_skill_for_injection(
     return draft
 
 
-async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
+async def _distill_success_clusters(
+    db: AsyncSession, report: dict, clusters, *, dry_run: bool,
+) -> None:
+    """蒸馏已达阈值的成功 Case 簇（dry_run 时仅记录跳过原因）。"""
+    if dry_run:
+        report["skipped_reasons"].append("dry_run=True：仅诊断，跳过 Case→Skill 蒸馏")
+        return
+    for agent_name, owner_id, scope, _count in clusters:
+        skill = await distill_skill_from_cases(
+            db, agent_name=agent_name, owner_id=owner_id, scope=scope,
+            created_by=_CYCLE_CREATED_BY,
+        )
+        if skill is None:
+            continue  # LLM 失败/不足阈值（best-effort，已在函数内 log）
+        entry = {"skill_id": skill.id, "name": skill.name, "agent": agent_name}
+        if skill.created_by == _CYCLE_CREATED_BY and skill.version == 1:
+            report["distilled_new"].append(entry)
+        else:
+            report["merged_existing"].append(entry)
+
+
+async def run_skill_evolution_cycle(db: AsyncSession, *, dry_run: bool = False) -> dict:
     """v1.14.1 自进化周期编排：蒸馏未消化 Case 簇 + 三维质控评估存量 Skill。
 
     此前 distill_skill_from_cases / evaluate_skill_quality 在生产代码零调用方
@@ -670,12 +691,17 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
       2. 质控：评估所有 DRAFT/ACTIVE 且有使用记录的 Skill，
          达标 DRAFT→ACTIVE 晋升 / 低质 auto-archive（evaluate_skill_quality 内建）
 
+    Args:
+        dry_run: True 时只做确定性诊断（簇计数 + 候选簇 shortfall + 跳过原因），
+                 不蒸馏、不评估（零 LLM 成本、零写库），供控制台页面加载时只读展示。
+
     Returns:
         结构化周期报告（JSON 可序列化，含诚实降级原因与处理上限标注）
     """
     settings = get_settings()
     report: dict = {
         "cycle": "skill_evolution",
+        "dry_run": dry_run,
         "distillation_enabled": settings.agent_skill_distillation_enabled,
         "evolution_enabled": settings.agent_skill_evolution_enabled,
         "failure_learning_enabled": settings.agent_failure_learning_enabled,
@@ -751,18 +777,7 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
             for agent_name, owner_id, scope, case_count in candidate_rows
         ]
 
-        for agent_name, owner_id, scope, _count in clusters:
-            skill = await distill_skill_from_cases(
-                db, agent_name=agent_name, owner_id=owner_id, scope=scope,
-                created_by=_CYCLE_CREATED_BY,
-            )
-            if skill is None:
-                continue  # LLM 失败/不足阈值（best-effort，已在函数内 log）
-            entry = {"skill_id": skill.id, "name": skill.name, "agent": agent_name}
-            if skill.created_by == _CYCLE_CREATED_BY and skill.version == 1:
-                report["distilled_new"].append(entry)
-            else:
-                report["merged_existing"].append(entry)
+        await _distill_success_clusters(db, report, clusters, dry_run=dry_run)
 
     # ── 1b. v1.15.5 失败学习：失败 Case 簇蒸馏反模式 Skill ──
     if not settings.agent_failure_learning_enabled:
@@ -793,21 +808,26 @@ async def run_skill_evolution_cycle(db: AsyncSession) -> dict:
         failure_clusters = result.all()
         report["failure_clusters_found"] = len(failure_clusters)
 
-        for agent_name, owner_id, scope, failure_type, _count in failure_clusters:
-            skill = await distill_anti_pattern_skill(
-                db, agent_name=agent_name, failure_type=failure_type,
-                owner_id=owner_id, scope=scope,
-                created_by=_CYCLE_CREATED_BY,
-            )
-            if skill is None:
-                continue
-            report["anti_pattern_distilled"].append({
-                "skill_id": skill.id, "name": skill.name,
-                "agent": agent_name, "failure_type": failure_type,
-            })
+        if dry_run:
+            report["skipped_reasons"].append("dry_run=True：仅诊断，跳过反模式蒸馏")
+        else:
+            for agent_name, owner_id, scope, failure_type, _count in failure_clusters:
+                skill = await distill_anti_pattern_skill(
+                    db, agent_name=agent_name, failure_type=failure_type,
+                    owner_id=owner_id, scope=scope,
+                    created_by=_CYCLE_CREATED_BY,
+                )
+                if skill is None:
+                    continue
+                report["anti_pattern_distilled"].append({
+                    "skill_id": skill.id, "name": skill.name,
+                    "agent": agent_name, "failure_type": failure_type,
+                })
 
     # ── 2. 三维质控评估（有使用记录的 DRAFT/ACTIVE）──
-    if not settings.agent_skill_evolution_enabled:
+    if dry_run:
+        report["skipped_reasons"].append("dry_run=True：仅诊断，跳过三维质控评估")
+    elif not settings.agent_skill_evolution_enabled:
         report["skipped_reasons"].append("agent_skill_evolution_enabled=False，跳过质控")
     else:
         eval_stmt = (

@@ -273,13 +273,25 @@ def run_governance_audit() -> dict:
 
     # AG2 过度自主
     posture = settings.agent_security_posture
-    if posture == "dangerous":
+    if posture == "strict":
+        high_risk = [
+            t.strip() for t in (getattr(settings, "agent_strict_high_risk_tools", "") or "").split(",")
+            if t.strip()
+        ]
+        scope = "高危清单：" + ", ".join(high_risk) if high_risk else "清单为空=全部工具需人工批准"
+        _check(AGENTIC_SKILL_RISKS[1], "pass",
+               f"agent_security_posture=strict：{scope}，高危工具命中即创建 pending 审批")
+    elif posture == "dangerous":
         _check(AGENTIC_SKILL_RISKS[1], "warn",
                f"agent_security_posture={posture}：高危工具全放行（无审批拦截）",
                "生产环境建议 agent_security_posture=strict 或 auto")
     else:
-        _check(AGENTIC_SKILL_RISKS[1], "pass",
-               f"agent_security_posture={posture}：strict 高危工具批准 / auto 正常执行")
+        # 2026-10-22：auto 下审批状态机不触发（仅 strict 生效），不能再判 pass 自证通过
+        _check(AGENTIC_SKILL_RISKS[1], "warn",
+               f"agent_security_posture={posture}：高危工具不触发人工批准"
+               "（AgentApproval 状态机仅 strict 模式生效）",
+               "生产建议 agent_security_posture=strict（高危工具人工批准）；"
+               "若接受自动执行，请显式记录该风险并保留本 warn")
 
     # AG3 不安全输出处理
     if settings.model_spec_enabled:

@@ -169,6 +169,18 @@ export default function HarnessPage() {
                 <span>🧵 轨迹 {health.trace_count}</span>
                 <span>▶ 运行 {health.total_runs}</span>
               </div>
+              {health.metrics_scope === 'process' && (
+                <div
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    color: 'var(--text-muted)',
+                    marginTop: 4,
+                  }}
+                  data-testid="wb-harness-health-scope"
+                >
+                  指标口径：进程内计数（重启归零）；持久化轨迹见下方执行轨迹
+                </div>
+              )}
             </div>
           )}
 
@@ -286,6 +298,19 @@ export default function HarnessPage() {
           {/* 执行轨迹 */}
           <div className="wb-section-label" style={{ marginTop: 20 }}>
             执行轨迹（admin · {traces.length}）
+          </div>
+          <div
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--text-muted)',
+              marginBottom: 8,
+            }}
+            data-testid="wb-harness-traces-source"
+          >
+            {tracesResp?.source === 'memory'
+              ? '数据源：进程内轨迹（重启归零，仅排障对照）'
+              : '数据源：agent_traces 持久化（默认，重启不丢）'}
+            {tracesResp?.note ? ` · ${tracesResp.note}` : ''}
           </div>
           <div className="wb-task-filter" role="tablist" aria-label="轨迹状态筛选">
             {STATUS_FILTERS.map((f) => (
