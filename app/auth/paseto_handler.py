@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+_EXPECTED_ISSUER = "i-home-auth"
+_EXPECTED_AUDIENCE = "i-home-app"
+
+
+def _validate_issuer_audience(payload: dict) -> None:
+    """校验本品牌签发者/受众；legacy 令牌无 iss/aud 时放行（过渡期）。"""
+    issuer = payload.get("iss")
+    if issuer and issuer != _EXPECTED_ISSUER:
+        raise TokenInvalidError("令牌签发者不符")
+    audience = payload.get("aud")
+    if audience and audience != _EXPECTED_AUDIENCE:
+        raise TokenInvalidError("令牌受众不符")
+
 
 # ── v1.8.1 P0-2: Token 撤销列表（logout 主动失效） ──────────────────
 # v1.8.2 P2.5: 加 Redis backend（受 paseto_revocation_redis_enabled 控制）
@@ -468,6 +481,7 @@ def verify_token(token: str) -> dict:
     """
     if token.startswith("v4.public."):
         payload, footer = _decode_public(token)
+        _validate_issuer_audience(payload)
         # 刷新令牌不可作访问令牌：footer typ=rt 或 type=refresh（生态契约别名）任一命中即拒
         if (footer or {}).get("typ") == "rt" or payload.get("type") == "refresh":
             raise TokenInvalidError("刷新令牌不可用于访问接口")
@@ -488,6 +502,7 @@ def verify_refresh_token(token: str) -> dict:
     if not token.startswith("v4.public."):
         raise TokenInvalidError("刷新令牌格式无效")
     payload, footer = _decode_public(token)
+    _validate_issuer_audience(payload)
     if (footer or {}).get("typ") != "rt":
         raise TokenInvalidError("非刷新令牌")
     return payload

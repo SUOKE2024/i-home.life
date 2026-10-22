@@ -365,13 +365,18 @@ async def refresh_token(
                 if rec.rotated_to
                 else None
             )
-            if next_rec is not None and not next_rec.revoked and next_rec.token_text:
+            next_token = (
+                await refresh_token_store.read_refresh_token_text(db, next_rec)
+                if next_rec is not None
+                else None
+            )
+            if next_rec is not None and not next_rec.revoked and next_token:
                 fresh_access = create_token(db_user.id, db_user.role)
                 await db.commit()
                 return TokenResponse(
                     access_token=fresh_access,
                     token_type="Bearer",
-                    refresh_token=next_rec.token_text,
+                    refresh_token=next_token,
                     expires_in=settings.paseto_token_expire_minutes * 60,
                     user=UserResponse.model_validate(db_user),
                 )

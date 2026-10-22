@@ -23,7 +23,7 @@ class RefreshToken(Base):
     jti: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     family_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    # 令牌原文（grace 窗口内需回写轮换后的 refresh_token 原文）
+    # 令牌密文（v1. 前缀，AES-GCM；grace 窗口内解密回写轮换后的 refresh_token 原文）
     token_text: Mapped[str] = mapped_column(Text, nullable=False)
     issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
