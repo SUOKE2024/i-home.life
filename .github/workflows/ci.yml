@@ -258,6 +258,63 @@ jobs:
         continue-on-error: true
         run: flutter test --no-pub
 
+  # ── 微信小程序（v1.19.1 新增：typecheck + 生产构建，阻塞门禁）──
+  # 生产构建即验证「演示数据回落默认关闭」这条红线在编译期确实生效：
+  # NODE_ENV=production 下 ALLOW_DEMO_FALLBACK 必须被注入为 false。
+  miniapp-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: miniapp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: miniapp
+        run: npm ci
+
+      - name: Typecheck（tsc --noEmit）
+        working-directory: miniapp
+        run: npm run typecheck
+
+      - name: Production build（weapp）
+        working-directory: miniapp
+        env:
+          TARO_APP_API_BASE: https://i-home.life/api
+          TARO_OUTPUT_DIR: dist
+        run: npm run build:weapp
+
+      - name: Assert demo fallback is build-time controlled
+        working-directory: miniapp
+        run: |
+          # 说明：ALLOW_DEMO_FALLBACK 是编译期常量，生产包内已被内联成字面量，
+          # 无法从产物反查名字，因此这里校验「注入链」而非产物：
+          #   ① env.ts 不得硬编码 true（只允许读构建期注入值）
+          #   ② config/index.ts 必须注入该常量且生产默认为 false
+          set -e
+          if grep -qE '^export const ALLOW_DEMO_FALLBACK = true;' src/config/env.ts; then
+            echo "✗ env.ts 仍把 ALLOW_DEMO_FALLBACK 硬编码为 true"; exit 1
+          fi
+          if ! grep -q "process.env.TARO_APP_ALLOW_DEMO_FALLBACK === 'true'" src/config/env.ts; then
+            echo "✗ env.ts 未从构建期常量读取 ALLOW_DEMO_FALLBACK"; exit 1
+          fi
+          if ! grep -q "TARO_APP_ALLOW_DEMO_FALLBACK" config/index.ts; then
+            echo "✗ config/index.ts 未注入 TARO_APP_ALLOW_DEMO_FALLBACK"; exit 1
+          fi
+          echo "✓ 演示数据回落由构建期常量控制，生产构建默认关闭"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: miniapp-weapp-dist
+          path: miniapp/dist
+          retention-days: 7
+
   # ── 依赖安全审计（v1.1.26 新增）──
   security-audit:
     runs-on: ubuntu-latest

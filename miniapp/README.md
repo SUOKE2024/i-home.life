@@ -13,7 +13,7 @@
 | 构建 | `build:weapp` / `build:h5` 通过（dist 724K） |
 | 类型检查 | `npm run typecheck` 通过 |
 | APPID | `wxe8653cb1e81b6dc1`（索克家居，主体：索克(昆明)联合科技有限责任公司，已写入 `project.config.json`） |
-| 数据源 | **真实后端优先**：`https://i-home.life/api`（生产 v1.19.0）；缺省回落 `src/data/*` 演示数据并在界面标注 |
+| 数据源 | **真实后端优先**：`https://i-home.life/api`（生产 v1.19.1）；**生产构建默认关闭演示数据回落**（`TARO_APP_ALLOW_DEMO_FALLBACK`，开发构建才默认开），关闭时接口故障走页面错误态并在界面标注真实来源 |
 | 登录 | 微信小程序 `wx.login` 静默登录 → `POST /api/auth/miniprogram/login`（**生产已上线并实测**）；手机号走 `getPhoneNumber` code 换号 |
 | AI 管家 | 接 `/api/agents/concierge/chat`（真实 LLM）→ 失败降级 `/api/ai-qa/search`（带引用）→ 再降级本地示例 |
 | 上线 | 后端通道已通；**卡在平台侧：微信认证（未通过）→ ICP 备案 → 服务器域名 → 代码上传密钥** |

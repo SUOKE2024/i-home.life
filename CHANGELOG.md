@@ -25,7 +25,9 @@
 - **后端**：`app/api/miniprogram.py`（静默登录 / 手机号绑定 / 需求提交）+ `app/services/wechat_miniprogram_service.py`（`code2session`、`getuserphonenumber`，未配置 appid/secret 时 fail-closed 而非返回假 token）+ `app/services/ops_alert_service.py`（需求建单后 webhook 提醒运营，手机号日志脱敏，通道故障只告警不阻塞建单）。
 - **前端**：小程序 11 页面全部接真实接口（`services/api.ts` 统一请求层 + `services/session.ts` 会话 + `services/adapters.ts` 字段适配）。数据源策略为**写操作绝不降级、只读接口故障才回退演示数据**，降级时页面显示 `DataSourceBadge` 标注，不伪装成真实数据。
 - **测试**：`tests/test_miniprogram_auth.py` / `test_mp_demand_submit.py` / `test_mp_read_contract.py` / `test_ops_alert.py`。小程序 15 个后端端点 100% 命中，无悬空调用。
-- **诚实边界**：小程序**尚不能发版**——微信认证、ICP 备案、服务器域名登记、上传密钥四道平台侧关口未过；`miniapp` 尚未进 CI（typecheck 靠人手跑）。
+- **诚实边界**：小程序**尚不能发版**——微信认证、ICP 备案、服务器域名登记、上传密钥四道平台侧关口未过。
+- **演示数据回落改为构建期控制**：`ALLOW_DEMO_FALLBACK` 原为源码硬编码 `true`，接口故障时业主会看到"演示项目/演示空间"却以为是自己的真实资产。现由 `config/index.ts` 注入构建期常量，**生产构建默认关闭**（开发构建默认开），需要时显式 `TARO_APP_ALLOW_DEMO_FALLBACK=true` 构建。写操作在任何情况下都不降级。
+- **小程序进 CI**：新增 `miniapp-check` job（`npm ci` → `tsc --noEmit` → `build:weapp` → 校验演示回落注入链），13 个 job 中不再缺小程序，typecheck 不再靠人手跑。
 
 ### 测试
 

@@ -20,7 +20,14 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
     // 构建期注入后端 API 基址：TARO_APP_API_BASE=https://i-home.life/api npm run build:weapp
     // 未注入时由 src/config/env.ts 按平台给默认值（小程序直连生产域名，H5 同源 /api）
     defineConstants: {
-      'process.env.TARO_APP_API_BASE': JSON.stringify(process.env.TARO_APP_API_BASE || '')
+      'process.env.TARO_APP_API_BASE': JSON.stringify(process.env.TARO_APP_API_BASE || ''),
+      // 演示数据回落开关：生产构建默认关。理由——接口故障时如果回退演示数据，
+      // 业主会看到"演示项目/演示空间"却以为是自己的真实资产，属于数据可信度红线。
+      // 关掉后接口故障走页面错误态（如实告知）+ DataSourceBadge 仍标注真实来源。
+      'process.env.TARO_APP_ALLOW_DEMO_FALLBACK': JSON.stringify(
+        process.env.TARO_APP_ALLOW_DEMO_FALLBACK ??
+          (process.env.NODE_ENV === 'development' ? 'true' : 'false')
+      )
     },
     copy: {
       patterns: [],

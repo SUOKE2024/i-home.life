@@ -29,8 +29,17 @@ export const TOKEN_KEY = 'suoke_access_token';
 export const REFRESH_TOKEN_KEY = 'suoke_refresh_token';
 export const USER_KEY = 'suoke_user_info';
 
-/** 允许接口不可用时回落到演示数据（上线前若已接通生产后端可置 false 强制真实数据） */
-export const ALLOW_DEMO_FALLBACK = true;
+/**
+ * 允许接口不可用时回落到演示数据。
+ *
+ * 由构建期常量注入（config/index.ts defineConstants）：
+ *   - 开发构建（NODE_ENV=development）默认 true，方便无后端联调；
+ *   - 生产构建默认 **false**——接口挂了就如实显示错误态，绝不拿演示数据冒充真实资产。
+ * 需要强制打开时显式 `TARO_APP_ALLOW_DEMO_FALLBACK=true npm run build:weapp`。
+ *
+ * 注意：无论此开关如何，**写操作永不降级**（见 services/adapters.ts）。
+ */
+export const ALLOW_DEMO_FALLBACK = process.env.TARO_APP_ALLOW_DEMO_FALLBACK === 'true';
 
 /** 客户端版本号（与 package.json 同步，埋点与反馈用） */
 export const CLIENT_VERSION = '1.1.0';
