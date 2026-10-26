@@ -111,3 +111,8 @@ miniapp/.secrets/
 **/project.private.config.json
 # 本地会话记录（工作笔记，不入库）
 miniapp/.workbuddy/
+.workbuddy/
+# pytest 临时工作目录（--basetemp 产物，不入库）
+.pytest_tmp/
+build-verify/
+.build-verify/

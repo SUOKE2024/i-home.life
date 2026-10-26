@@ -35,8 +35,8 @@
 坏配置被拦且**不重启**、探针失败**触发回滚脚本**、全绿不误回滚。**9 项断言全通过**。
 该缺陷无法靠读代码发现，必须有这个测试。
 - 新增小程序后端测试 4 个文件（认证 / 需求提交 / 只读契约 / 运营提醒）。
-- 全量 `-n 4`：**3034 passed / 2 skipped / 4 xfailed / 0 failed**（3040 collect，31m25s），
-  较 1.19.0 基线 2995 增 39 例且零回退。
+- 全量 `-n 4`：**3035 passed / 2 skipped / 4 xfailed / 0 failed**（3041 collect，12m54s），
+  较 1.19.0 基线 2995 增 40 例且零回退；基线 `scripts/test_baseline.json` 2995 → **3035**。
 - 四端门禁：小程序 `tsc` 0 错误、`flutter analyze` No issues、console/webapp `vite build` 通过。
 - **版本号** 1.19.0 → 1.19.1（Flutter build 71 → 72），全链路 17 处同步。
 

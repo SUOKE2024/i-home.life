@@ -20,7 +20,7 @@
 | 前端四端 | 88 | console 76 页 / webapp 24 页 / Flutter 60 页 / 小程序 11 页，无孤儿页 |
 | 部署运维 | 88 | systemd + Nginx + FC 定时器齐备；本轮补齐真回滚与配置预检（原 78） |
 | 商业闭环 | 60 | 支付/托管仍是内部台账，无第三方资金通道（项目自身已诚实标注，不计为缺陷） |
-| 治理与测试 | 90 | 3034 用例全绿、零回退；缺口是 `structural` 模块无 HTTP 测试 |
+| 治理与测试 | 90 | 3035 用例全绿、零回退；缺口是 `structural` 模块无 HTTP 测试 |
 
 ---
 
@@ -46,7 +46,7 @@
 
 | 门禁 | 结果 |
 |---|---|
-| 全量 pytest（`-n 4`） | **3034 passed / 2 skipped / 4 xfailed / 0 failed**（3040 collect） |
+| 全量 pytest（`-n 4`） | **3035 passed / 2 skipped / 4 xfailed / 0 failed**（3041 collect，12m54s）；基线 2995 → 3035 |
 | 小程序 `tsc --noEmit` | **0 错误** |
 | 小程序 `build:weapp` 生产构建 | **Compiled successfully**（48.75s） |
 | `flutter analyze` | **No issues found** |

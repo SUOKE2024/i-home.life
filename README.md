@@ -14,7 +14,7 @@
 
 - **部署「假回滚」修复**：`scripts/deploy-remote.sh` 探针失败原为 `systemctl restart`（把同一份坏代码再启一次）；改为部署前代码快照 → 配置预检提前到重启前 → 探针失败解包快照回滚 → 30s 内复验，仍不就绪明确要求人工介入；新增 `rollback` 子命令。`scripts/tests/test_deploy_gate.sh` 9 项断言覆盖坏配置不重启、探针失败触发回滚、全绿不误回滚
 - **微信小程序全链路**：静默登录（`/api/auth/miniprogram/login`）+ 手机号绑定 + 需求提交写闭环 + 运营 webhook 提醒（手机号日志脱敏、通道故障不阻塞建单）；11 页面业主端，写操作不降级、只读降级带 `DataSourceBadge` 标注
-- **测试**：全量 `-n 4` **3034 passed / 2 skipped / 4 xfailed**（3040 collect），零失败；新增小程序后端契约测试 4 个文件
+- **测试**：全量 `-n 4` **3035 passed / 2 skipped / 4 xfailed**（3041 collect），零失败；新增小程序后端契约测试 4 个文件
 
 ### 2026-10-21 · 生产 schema 对齐 + 结算付款门禁（v1.19.0）
 
