@@ -35,8 +35,13 @@
 坏配置被拦且**不重启**、探针失败**触发回滚脚本**、全绿不误回滚。**9 项断言全通过**。
 该缺陷无法靠读代码发现，必须有这个测试。
 - 新增小程序后端测试 4 个文件（认证 / 需求提交 / 只读契约 / 运营提醒）。
-- 全量 `-n 4`：**3035 passed / 2 skipped / 4 xfailed / 0 failed**（3041 collect，12m54s），
-  较 1.19.0 基线 2995 增 40 例且零回退；基线 `scripts/test_baseline.json` 2995 → **3035**。
+- 新增 `tests/test_structural_api.py`（70 例）补上最大的 HTTP 层缺口：`structural`
+  42 个端点此前只有 service 层测试。鉴权扫描直接从 `app.main.app` 路由表生成
+  （新增端点自动纳入，不会漏），另覆盖跨用户越权 403、项目不存在 404、
+  422 字段级校验、204 空响应体、承重墙与工程量明细 CRUD 闭环。**88 个 API 模块
+  现在 88 个都有 HTTP 层测试。**
+- 全量 `-n 4`：**3105 passed / 2 skipped / 4 xfailed / 0 failed**（3111 collect，16m11s），
+  较 1.19.0 基线 2995 增 110 例且零回退；基线 `scripts/test_baseline.json` 2995 → **3105**。
 - 四端门禁：小程序 `tsc` 0 错误、`flutter analyze` No issues、console/webapp `vite build` 通过。
 - **版本号** 1.19.0 → 1.19.1（Flutter build 71 → 72），全链路 17 处同步。
 
