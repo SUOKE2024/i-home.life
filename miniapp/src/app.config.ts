@@ -1,4 +1,9 @@
 export default defineAppConfig({
+  // 微信隐私协议：开启后调用隐私接口前必须取得用户同意。
+  // 配套弹窗在 src/services/privacy-gate.ts 注册（wx.onNeedPrivacyAuthorization），
+  // 由 src/app.tsx 启动时安装。
+  // 需在小程序后台「设置 - 服务内容声明 - 用户隐私保护指引」同步勾选收集的信息类型。
+  __usePrivacyCheck__: true,
   pages: [
     'pages/index/index',
     'pages/smart/index',

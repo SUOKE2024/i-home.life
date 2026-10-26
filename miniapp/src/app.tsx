@@ -2,12 +2,17 @@ import { useEffect } from 'react';
 import { useDidShow, useDidHide } from '@tarojs/taro';
 import { callFunction, getDataSource, subscribeDataSource } from '@/services/cloud';
 import { bootstrapSession, subscribeSession } from '@/services/session';
+import { installWeappPrivacyGate } from '@/services/privacy-gate';
 import { useAppStore } from '@/store/useAppStore';
 // 全局样式
 import './app.scss';
 
 function App(props) {
   useEffect(() => {
+    // 隐私授权门：需在调用任何隐私接口前安装（app.json 已开启 __usePrivacyCheck__）。
+    // 非微信端或基础库过低时返回 false，不影响启动。
+    installWeappPrivacyGate();
+
     // 数据来源与数据层解耦：任意页面触发降级，全局状态同步，页面可展示「演示数据」标识
     const offSource = subscribeDataSource((source, reason) => {
       const state = useAppStore.getState();
