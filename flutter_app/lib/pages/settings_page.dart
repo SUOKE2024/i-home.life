@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';  // unawaited
 import '../main.dart' show AuthGate, ThemeState;
+import '../config.dart' show AppConfig;
 import '../theme/suoke_theme.dart';
 import '../services/api.dart';
 import '../services/url_opener.dart';
@@ -281,7 +282,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ListTile(
           leading: Icon(Icons.info_outline, color: SuokeDesignTokens.textSub(context)),
           title: Text('版本', style: TextStyle(color: SuokeDesignTokens.text(context))),
-          trailing: Text('1.19.0', style: TextStyle(color: SuokeDesignTokens.textSub(context))),
+          trailing: Text(AppConfig.appVersion, style: TextStyle(color: SuokeDesignTokens.textSub(context))),
         ),
         Divider(color: SuokeDesignTokens.textSub(context), height: 1),
         ListTile(

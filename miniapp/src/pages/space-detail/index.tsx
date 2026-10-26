@@ -8,6 +8,7 @@ import { callFunction } from '@/services/cloud';
 import { useAppStore } from '@/store/useAppStore';
 import { SPACE_STATUS_LABEL, SPACE_STATUS_TONE } from '@/types/space';
 import type { Space } from '@/types/space';
+import type { ElderlyPackagesResult } from '@/types/elderly';
 import styles from './index.module.scss';
 
 // 就绪度四维满分（与后端 compute_smart_readiness 口径一致）
@@ -23,7 +24,9 @@ const SpaceDetailPage: React.FC = () => {
   const router = useRouter();
   const routeId = router.params.id || '';
   const currentSpaceId = useAppStore((state) => state.currentSpaceId);
+  const setCurrentSpace = useAppStore((state) => state.setCurrentSpace);
   const [space, setSpace] = useState<Space | null>(null);
+  const [packageName, setPackageName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
 
@@ -31,10 +34,28 @@ const SpaceDetailPage: React.FC = () => {
     try {
       const data = await callFunction<{ spaces: Space[] }>('getSpaces');
       const targetId = routeId || currentSpaceId || '';
-      const found = data.spaces.find((item) => item.id === targetId) || data.spaces[0] || null;
+      // 带了 id 就必须命中：回落第一条会让业主看到别人的空间资产
+      const found = targetId
+        ? data.spaces.find((item) => item.id === targetId) || null
+        : data.spaces[0] || null;
       console.info('[SpaceDetailPage] 空间详情加载成功', { targetId, found: found?.id });
       setSpace(found);
-      setError(found ? '' : '暂无可查看的空间资产');
+      setError(
+        found ? '' : targetId ? '该空间不存在或无权查看' : '暂无可查看的空间资产'
+      );
+      // 套餐编码（PKG-ELDERLY-FULL 之类）是内部主键，不能直接甩给业主
+      if (found?.packageCode) {
+        try {
+          const res = await callFunction<ElderlyPackagesResult>('getElderlyPackages');
+          const hit = res.packages.find((item) => item.code === found.packageCode);
+          setPackageName(hit?.name || '');
+        } catch (pkgErr) {
+          console.warn('[SpaceDetailPage] 套餐名称解析失败，回落到通用文案', pkgErr);
+          setPackageName('');
+        }
+      } else {
+        setPackageName('');
+      }
     } catch (err) {
       console.error('[SpaceDetailPage] 空间详情加载失败', err);
       setError('加载失败，请稍后重试');
@@ -147,7 +168,7 @@ const SpaceDetailPage: React.FC = () => {
         {space.packageCode ? (
           <View className={styles.infoRow}>
             <Text className={styles.infoLabel}>适老套餐</Text>
-            <Text className={styles.infoValue}>{space.packageCode}</Text>
+            <Text className={styles.infoValue}>{packageName || '已纳入适老快装套餐'}</Text>
           </View>
         ) : null}
       </View>
@@ -156,7 +177,14 @@ const SpaceDetailPage: React.FC = () => {
         <Button className={styles.ghostButton} onClick={() => Taro.navigateTo({ url: '/pages/ai-consult/index' })}>
           AI 管家咨询
         </Button>
-        <Button className={styles.primaryButton} onClick={() => Taro.switchTab({ url: '/pages/smart/index' })}>
+        <Button
+          className={styles.primaryButton}
+          onClick={() => {
+            // 先把当前空间切到这一处，否则智控页会停在另一处空间上
+            setCurrentSpace(space.id);
+            Taro.switchTab({ url: '/pages/smart/index' });
+          }}
+        >
           进入智能控制
         </Button>
       </View>

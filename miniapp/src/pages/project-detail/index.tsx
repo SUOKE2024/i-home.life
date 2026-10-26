@@ -9,6 +9,7 @@ import { callFunction } from '@/services/cloud';
 import {
   PROJECT_STAGE_LABEL,
   PROJECT_STAGE_ORDER,
+  projectStatusLabel,
   stageIndexOf
 } from '@/types/project';
 import type { RenovationProject } from '@/types/project';
@@ -24,14 +25,15 @@ const ProjectDetailPage: React.FC = () => {
   const loadProject = useCallback(async () => {
     try {
       const data = await callFunction<{ projects: RenovationProject[] }>('getProjects');
-      const found =
-        data.projects.find((item) => item.id === routeId) ||
-        data.projects.find((item) => !item.delivered) ||
-        data.projects[0] ||
-        null;
+      // 带了 id 就必须命中那一条：回落「第一个未交付项目」会让业主打开别人的项目档案
+      const found = routeId
+        ? data.projects.find((item) => item.id === routeId) || null
+        : data.projects.find((item) => !item.delivered) || data.projects[0] || null;
       console.info('[ProjectDetailPage] 项目详情加载成功', { routeId, found: found?.id });
       setProject(found);
-      setError(found ? '' : '暂无可查看的改造项目');
+      setError(
+        found ? '' : routeId ? '该项目不存在或无权查看' : '暂无可查看的改造项目'
+      );
     } catch (err) {
       console.error('[ProjectDetailPage] 项目详情加载失败', err);
       setError('加载失败，请稍后重试');
@@ -85,19 +87,27 @@ const ProjectDetailPage: React.FC = () => {
 
       <View className={styles.summaryCard}>
         <View className={styles.summaryHead}>
-          <StatusTag text={project.delivered ? '已交付' : '交付进行中'} tone={project.delivered ? 'green' : 'gold'} />
+          <StatusTag
+            text={project.delivered ? '已交付' : projectStatusLabel(project)}
+            tone={project.delivered ? 'green' : 'gold'}
+          />
           <Text className={styles.progressValue}>{project.progress}%</Text>
         </View>
         <ProgressBar percent={project.progress} tone={project.delivered ? 'green' : 'gold'} />
-        <Text className={styles.milestone}>下一节点：{project.nextMilestone} · {project.nextDate}</Text>
+        <Text className={styles.milestone}>
+          {project.pending
+            ? `下一步：${project.nextMilestone}`
+            : `下一节点：${project.nextMilestone} · ${project.nextDate}`}
+        </Text>
       </View>
 
       <SectionHeader title='交付进度' subtitle='六阶段透明化交付' />
       <View className={styles.card}>
         <View className={styles.steps}>
           {PROJECT_STAGE_ORDER.map((stage, index) => {
-            const done = index < currentIndex || project.delivered;
-            const active = index === currentIndex && !project.delivered;
+            // 待勘测项目还没进六阶段，不能把「设计」点亮成进行中
+            const done = project.delivered || (!project.pending && index < currentIndex);
+            const active = !project.pending && !project.delivered && index === currentIndex;
             return (
               <View key={stage} className={styles.stepItem}>
                 <View
@@ -128,7 +138,7 @@ const ProjectDetailPage: React.FC = () => {
       <View className={styles.card}>
         <View className={styles.infoRow}>
           <Text className={styles.infoLabel}>当前阶段</Text>
-          <Text className={styles.infoValue}>{PROJECT_STAGE_LABEL[project.stage]}</Text>
+          <Text className={styles.infoValue}>{projectStatusLabel(project)}</Text>
         </View>
         <View className={styles.infoRow}>
           <Text className={styles.infoLabel}>施工方</Text>

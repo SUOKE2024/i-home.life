@@ -2,6 +2,42 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.19.1] - 2026-10-24
+
+### 修复 · 部署门禁的「回滚」其实只是重启
+
+`scripts/deploy-remote.sh` 的门禁在健康探针失败时执行的是 `systemctl restart ihome`
+——把**同一份坏代码**再启一次，并不是回滚。这属于真实的故障恢复缺陷（2026-10-16 那次
+11 分钟 502 就暴露在该形态下）。
+
+三处改动：
+
+1. **新增代码快照**：`code_snapshot()` 在 rsync **之前**把 `app/ migrations/ alembic.ini`
+   打包到 `backups/code-pre-<ts>.tar.gz`，指针写入 `backups/.last-code-snapshot`，只保留最近 5 份。
+2. **配置预检提前到重启之前**：坏配置根本不会触发重启，把"发布事故"降级为"发布被拦"。
+3. **探针失败真正回滚**：`rollback_code()` 解包快照 → 重启 → 30s 内复验 `/health`，
+   仍不就绪则明确要求人工介入（不再假装恢复）。新增 `rollback` 子命令可手动触发。
+
+`full` 分支同样接入（原先在远端脚本里内联了一份同样的假回滚，已删除）。
+
+### 新增 · 微信小程序全链路（业主端）
+
+- **后端**：`app/api/miniprogram.py`（静默登录 / 手机号绑定 / 需求提交）+ `app/services/wechat_miniprogram_service.py`（`code2session`、`getuserphonenumber`，未配置 appid/secret 时 fail-closed 而非返回假 token）+ `app/services/ops_alert_service.py`（需求建单后 webhook 提醒运营，手机号日志脱敏，通道故障只告警不阻塞建单）。
+- **前端**：小程序 11 页面全部接真实接口（`services/api.ts` 统一请求层 + `services/session.ts` 会话 + `services/adapters.ts` 字段适配）。数据源策略为**写操作绝不降级、只读接口故障才回退演示数据**，降级时页面显示 `DataSourceBadge` 标注，不伪装成真实数据。
+- **测试**：`tests/test_miniprogram_auth.py` / `test_mp_demand_submit.py` / `test_mp_read_contract.py` / `test_ops_alert.py`。小程序 15 个后端端点 100% 命中，无悬空调用。
+- **诚实边界**：小程序**尚不能发版**——微信认证、ICP 备案、服务器域名登记、上传密钥四道平台侧关口未过；`miniapp` 尚未进 CI（typecheck 靠人手跑）。
+
+### 测试
+
+- 新增 `scripts/tests/test_deploy_gate.sh`：用假 `ssh`/`rsync`/`curl` 跑三个场景——
+坏配置被拦且**不重启**、探针失败**触发回滚脚本**、全绿不误回滚。**9 项断言全通过**。
+该缺陷无法靠读代码发现，必须有这个测试。
+- 新增小程序后端测试 4 个文件（认证 / 需求提交 / 只读契约 / 运营提醒）。
+- 全量 `-n 4`：**3034 passed / 2 skipped / 4 xfailed / 0 failed**（3040 collect，31m25s），
+  较 1.19.0 基线 2995 增 39 例且零回退。
+- 四端门禁：小程序 `tsc` 0 错误、`flutter analyze` No issues、console/webapp `vite build` 通过。
+- **版本号** 1.19.0 → 1.19.1（Flutter build 71 → 72），全链路 17 处同步。
+
 ## [1.19.0] - 2026-10-21
 
 ### 生产 schema 对齐 + 结算付款门禁（2026-10-21）

@@ -42,7 +42,11 @@ const ProjectPage: React.FC = () => {
 
   const handleDetail = (project: RenovationProject) => {
     console.info('[ProjectPage] 查看项目详情', project.id);
-    Taro.navigateTo({ url: '/pages/project-detail/index' });
+    Taro.navigateTo({ url: `/pages/project-detail/index?id=${project.id}` });
+  };
+
+  const handleCreateDemand = () => {
+    Taro.navigateTo({ url: '/pages/demand/index' });
   };
 
   const activeProjects = projects.filter((item) => !item.delivered);
@@ -70,10 +74,18 @@ const ProjectPage: React.FC = () => {
         </View>
       </View>
 
+      <View className={styles.createCard} onClick={handleCreateDemand}>
+        <View className={styles.createMain}>
+          <Text className={styles.createTitle}>想改造，还没立项？</Text>
+          <Text className={styles.createDesc}>提交需求后可安排上门勘测，进度在这里跟进</Text>
+        </View>
+        <Text className={styles.createArrow}>›</Text>
+      </View>
+
       <SectionHeader title="进行中" subtitle="六阶段透明化交付" />
       {activeProjects.length > 0 ? (
         activeProjects.map((project) => {
-          const currentIndex = stageIndexOf(project.stage);
+          const currentIndex = project.pending ? -1 : stageIndexOf(project.stage);
           return (
             <View key={project.id} className={styles.projectCard} onClick={() => handleDetail(project)}>
               <Image
@@ -85,7 +97,7 @@ const ProjectPage: React.FC = () => {
               <View className={styles.projectBody}>
                 <View className={styles.projectNameRow}>
                   <Text className={styles.projectName}>{project.name}</Text>
-                  <StatusTag text={PROJECT_STAGE_LABEL[project.stage]} tone="gold" />
+                  <StatusTag text={project.statusLabel || PROJECT_STAGE_LABEL[project.stage]} tone="gold" />
                 </View>
                 <Text className={styles.spaceName}>{project.spaceName}</Text>
                 <View className={styles.stageRow}>

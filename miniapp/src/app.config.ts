@@ -8,7 +8,9 @@ export default defineAppConfig({
     'pages/space-detail/index',
     'pages/project-detail/index',
     'pages/elderly-detail/index',
-    'pages/ai-consult/index'
+    'pages/ai-consult/index',
+    'pages/agreement/index',
+    'pages/demand/index'
   ],
   window: {
     backgroundTextStyle: 'dark',

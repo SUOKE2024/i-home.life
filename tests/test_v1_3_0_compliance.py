@@ -32,14 +32,20 @@ from app.services.ai_render_service import (
 
 
 def test_app_version_is_1_14_1():
-    """app_version == 1.19.0"""
-    assert get_settings().app_version == "1.19.0"
+    """app_version == 1.19.1"""
+    assert get_settings().app_version == "1.19.1"
 
 
 def test_mcp_server_version_is_1_14_1():
-    """MCP SERVER_VERSION == 1.19.0"""
+    """MCP SERVER_VERSION == 1.19.1"""
     from app.mcp.server import mcp_server
-    assert mcp_server.SERVER_VERSION == "1.19.0"
+    assert mcp_server.SERVER_VERSION == "1.19.1"
+
+
+def test_backend_and_mcp_version_agree():
+    """后端 app_version 与 MCP SERVER_VERSION 必须一致（防单侧 bump 漂移）"""
+    from app.mcp.server import mcp_server
+    assert get_settings().app_version == mcp_server.SERVER_VERSION
 
 
 # === 新增 feature flag 默认值 ===

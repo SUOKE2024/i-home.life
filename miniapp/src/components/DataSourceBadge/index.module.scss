@@ -1,0 +1,24 @@
+@use '@/styles/variables.scss' as *;
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 6rpx 16rpx;
+  border-radius: $radius-round;
+  background: #faf0e8;
+  border: 1rpx solid #f0dcc7;
+}
+
+.dot {
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: $radius-round;
+  background: $color-warning;
+}
+
+.text {
+  font-size: $font-size-xs;
+  color: $color-warning;
+  line-height: 1.2;
+}

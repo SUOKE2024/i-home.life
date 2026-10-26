@@ -220,3 +220,60 @@
     opacity: 1;
   }
 }
+.avatarFallback {
+  width: 112rpx;
+  height: 112rpx;
+  border-radius: $radius-round;
+  background: $gradient-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatarFallbackText {
+  font-size: 44rpx;
+  font-weight: $font-weight-semibold;
+  color: $color-text-white;
+}
+
+.bindPhoneBtn {
+  @include button-reset;
+  padding: 6rpx 20rpx;
+  border-radius: $radius-round;
+  background: $color-peach;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+}
+
+.sourceBadge {
+  margin-top: 12rpx;
+}
+
+.logoutWrap {
+  margin-top: 32rpx;
+}
+
+.logoutBtn {
+  @include button-reset;
+  width: 100%;
+  height: $button-height-md;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 1rpx solid $color-border;
+  font-size: $font-size-md;
+  color: $color-error;
+}
+
+.serviceBtn {
+  @include button-reset;
+  width: 100%;
+  height: $button-height-md;
+  margin-bottom: 16rpx;
+  border-radius: $radius-button;
+  background: $color-bg-card;
+  border: 1rpx solid $color-border;
+  font-size: $font-size-md;
+  color: $color-text-secondary;
+}

@@ -17,7 +17,11 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
     sourceRoot: 'src',
     outputRoot: process.env.TARO_OUTPUT_DIR || 'dist',
     plugins: ['@tarojs/plugin-html'],
-    defineConstants: {},
+    // 构建期注入后端 API 基址：TARO_APP_API_BASE=https://i-home.life/api npm run build:weapp
+    // 未注入时由 src/config/env.ts 按平台给默认值（小程序直连生产域名，H5 同源 /api）
+    defineConstants: {
+      'process.env.TARO_APP_API_BASE': JSON.stringify(process.env.TARO_APP_API_BASE || '')
+    },
     copy: {
       patterns: [],
       options: {},
@@ -55,6 +59,15 @@ export default defineConfig<'webpack5'>(async (merge, { command, mode }) => {
     h5: {
       publicPath: '/',
       staticDirectory: 'static',
+      // 本地 H5 预览：/api 反代到后端，避免跨域；生产由 nginx 同域反代
+      devServer: {
+        proxy: {
+          '/api': {
+            target: process.env.TARO_APP_DEV_API_TARGET || 'http://127.0.0.1:8000',
+            changeOrigin: true,
+          },
+        },
+      },
       output: {
         filename: 'js/[name].[hash:8].js',
         chunkFilename: 'js/[name].[chunkhash:8].js',

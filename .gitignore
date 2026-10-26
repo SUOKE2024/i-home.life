@@ -105,3 +105,9 @@ flutter_flutter/
 # 用户本地文件（路演材料等，不应入库）
 索克家居路演.pptx
 *.pptx.local
+
+# 小程序：代码上传密钥与本地私有工程配置（仅本地/CI 注入，不入库）
+miniapp/.secrets/
+**/project.private.config.json
+# 本地会话记录（工作笔记，不入库）
+miniapp/.workbuddy/

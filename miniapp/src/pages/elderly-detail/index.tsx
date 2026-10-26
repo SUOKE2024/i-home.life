@@ -12,7 +12,7 @@ import styles from './index.module.scss';
 
 const ElderlyDetailPage: React.FC = () => {
   const router = useRouter();
-  const routeCode = router.params.id || '';
+  const routeCode = router.params.code || router.params.id || '';
   const [pkg, setPkg] = useState<ElderlyPackage | null>(null);
   const [disclosure, setDisclosure] = useState<string>('');
   const [estimate, setEstimate] = useState<SubsidyEstimate | null>(null);
@@ -119,18 +119,42 @@ const ElderlyDetailPage: React.FC = () => {
         ))}
       </View>
 
+      <SectionHeader title='套餐包含' subtitle='一口价内已含项，不含项另行确认' />
+      <View className={styles.card}>
+        {(pkg.inclusions && pkg.inclusions.length > 0
+          ? pkg.inclusions
+          : ['具体施工内容以现场勘测与签约清单为准']
+        ).map((item) => (
+          <View key={item} className={styles.dimRow}>
+            <View className={styles.dimDot} />
+            <Text className={styles.dimText}>{item}</Text>
+          </View>
+        ))}
+        {pkg.excludes && pkg.excludes.length > 0 ? (
+          <Text className={styles.excludeText}>不含：{pkg.excludes.join('、')}</Text>
+        ) : null}
+        {pkg.warranty ? <Text className={styles.excludeText}>质保：{pkg.warranty}</Text> : null}
+      </View>
+
       <SectionHeader title='补贴预估' subtitle='非资格认定 · 以主管部门核定为准' />
       <View className={styles.card}>
         {estimate ? (
           <View>
             <View className={styles.estimateHead}>
               <Text className={styles.estimateRange}>
-                {estimate.minLabel} - {estimate.maxLabel}
+                {estimate.exactLabel
+                  ? `补贴约 ${estimate.exactLabel}`
+                  : `${estimate.minLabel} - ${estimate.maxLabel}`}
               </Text>
               <View className={styles.estimateBadge}>
                 <Text className={styles.estimateBadgeText}>预估 · 非资格认定</Text>
               </View>
             </View>
+            {estimate.netPayableLabel ? (
+              <Text className={styles.estimateBasis}>
+                补贴后个人应付约 {estimate.netPayableLabel}（套餐一口价 {pkg.priceLabel}）
+              </Text>
+            ) : null}
             <Text className={styles.estimateBasis}>{estimate.basisNote}</Text>
             {estimate.warnings.map((warning) => (
               <Text key={warning} className={styles.warningItem}>· {warning}</Text>
@@ -157,8 +181,15 @@ const ElderlyDetailPage: React.FC = () => {
         <Button className={styles.ghostButton} onClick={() => Taro.navigateTo({ url: '/pages/ai-consult/index' })}>
           AI 管家咨询
         </Button>
-        <Button className={styles.primaryButton} onClick={() => Taro.switchTab({ url: '/pages/care/index' })}>
-          返回套餐列表
+        <Button
+          className={styles.primaryButton}
+          onClick={() =>
+            Taro.navigateTo({
+              url: `/pages/demand/index?packageName=${encodeURIComponent(pkg.name)}`
+            })
+          }
+        >
+          预约上门勘测
         </Button>
       </View>
     </View>

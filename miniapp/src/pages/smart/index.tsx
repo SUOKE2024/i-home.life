@@ -5,7 +5,8 @@ import classnames from 'classnames';
 import SectionHeader from '@/components/SectionHeader';
 import StatusTag from '@/components/StatusTag';
 import type { StatusTone } from '@/components/StatusTag';
-import { callFunction } from '@/services/cloud';
+import DataSourceBadge from '@/components/DataSourceBadge';
+import { callFunction, getDataSource } from '@/services/cloud';
 import { useAppStore } from '@/store/useAppStore';
 import type { SmartDevice } from '@/types/device';
 import type { ExecuteSceneResult, SceneAutomation, SceneType } from '@/types/scene';
@@ -29,6 +30,8 @@ const SmartPage: React.FC = () => {
   const [health, setHealth] = useState<HealthRecordsResult | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [controllingId, setControllingId] = useState<string | null>(null);
+  /** 演示态：设备/场景来自本地演示数据，控制按钮必须禁用而不是假装执行成功 */
+  const [demoMode, setDemoMode] = useState<boolean>(false);
   const currentSpaceId = useAppStore((state) => state.currentSpaceId);
   const setCurrentSpace = useAppStore((state) => state.setCurrentSpace);
 
@@ -39,6 +42,7 @@ const SmartPage: React.FC = () => {
     ]);
     setDevices(deviceRes.devices);
     setScenes(sceneRes.scenes);
+    setDemoMode(getDataSource().source === 'demo');
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -88,6 +92,10 @@ const SmartPage: React.FC = () => {
 
   const handleToggleDevice = async (device: SmartDevice) => {
     if (!device.switchable || controllingId === device.id) return;
+    if (demoMode) {
+      Taro.showToast({ title: '演示数据 · 设备未真实接入，无法控制', icon: 'none' });
+      return;
+    }
     setControllingId(device.id);
     try {
       const res = await callFunction<{ device: SmartDevice }>('controlDevice', {
@@ -110,6 +118,10 @@ const SmartPage: React.FC = () => {
   const handleExecuteScene = async (scene: SceneAutomation) => {
     if (!scene.enabled) {
       Taro.showToast({ title: '该场景已停用', icon: 'none' });
+      return;
+    }
+    if (demoMode) {
+      Taro.showToast({ title: '演示数据 · 场景未真实编排，无法执行', icon: 'none' });
       return;
     }
     try {
@@ -152,7 +164,9 @@ const SmartPage: React.FC = () => {
         })}
       </ScrollView>
 
-      {health ? (
+      <DataSourceBadge verbose className={styles.sourceBadge} />
+
+      {health && health.summary.length > 0 ? (
         <View className={styles.healthCard}>
           <View className={styles.healthHeader}>
             <Text className={styles.healthTitle}>健康监测</Text>

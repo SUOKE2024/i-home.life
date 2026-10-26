@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Image, ScrollView } from '@tarojs/components';
-import Taro, { usePullDownRefresh, useDidShow } from '@tarojs/taro';
+import Taro, { usePullDownRefresh, useDidShow, useShareAppMessage } from '@tarojs/taro';
 import classnames from 'classnames';
 import SectionHeader from '@/components/SectionHeader';
 import StatusTag from '@/components/StatusTag';
 import ProgressBar from '@/components/ProgressBar';
+import DataSourceBadge from '@/components/DataSourceBadge';
 import { callFunction } from '@/services/cloud';
 import { useAppStore } from '@/store/useAppStore';
 import { SPACE_STATUS_LABEL, SPACE_STATUS_TONE } from '@/types/space';
@@ -79,6 +80,12 @@ const HomePage: React.FC = () => {
     loadOverview();
   });
 
+  // 运营入口：分享带来源标识，便于统计拉新渠道
+  useShareAppMessage(() => ({
+    title: '索克家居 · 空间健康资产运营，一次改造长期守护',
+    path: '/pages/index/index?from=share'
+  }));
+
   const handleServiceTap = (service: QuickService) => {
     console.info('[HomePage] 快捷服务点击', service.key);
     if (service.isTab) {
@@ -110,6 +117,7 @@ const HomePage: React.FC = () => {
               {getGreeting()}，{overview?.user.nickname ?? '业主'}
             </Text>
             <Text className={styles.subGreeting}>您的空间健康运营已就绪</Text>
+            <DataSourceBadge className={styles.sourceBadge} />
           </View>
           {overview ? (
             <View
@@ -134,9 +142,12 @@ const HomePage: React.FC = () => {
                 <Text className={styles.scoreUnit}>分</Text>
               </View>
               <Text className={styles.scoreLabel}>空间健康指数</Text>
-              <View className={styles.scoreDelta}>
-                <Text className={styles.deltaText}>较上周 +{overview.scoreDelta}</Text>
-              </View>
+              <Text className={styles.scoreCaption}>四维智能就绪度加权</Text>
+              {overview.scoreDelta > 0 ? (
+                <View className={styles.scoreDelta}>
+                  <Text className={styles.deltaText}>较上周 +{overview.scoreDelta}</Text>
+                </View>
+              ) : null}
             </View>
             <View className={styles.scoreDivider} />
             <View className={styles.scoreRight}>
@@ -144,7 +155,7 @@ const HomePage: React.FC = () => {
                 <Text className={styles.statValue}>
                   {overview.stats.deviceOnline}/{overview.stats.deviceTotal}
                 </Text>
-                <Text className={styles.statLabel}>设备在线</Text>
+                <Text className={styles.statLabel}>设备接入</Text>
               </View>
               <View className={styles.statItem}>
                 <Text className={styles.statValue}>{overview.stats.activeProjectCount}</Text>
@@ -157,6 +168,14 @@ const HomePage: React.FC = () => {
             </View>
           </View>
         ) : null}
+      </View>
+
+      <View className={styles.demandBanner} onClick={() => Taro.navigateTo({ url: '/pages/demand/index' })}>
+        <View className={styles.demandMain}>
+          <Text className={styles.demandTitle}>先勘测，再报价</Text>
+          <Text className={styles.demandDesc}>提交改造需求 · 顾问 1 个工作日内联系</Text>
+        </View>
+        <Text className={styles.demandArrow}>›</Text>
       </View>
 
       {overview ? (
@@ -181,7 +200,7 @@ const HomePage: React.FC = () => {
                       text={SPACE_STATUS_LABEL[space.status]}
                       tone={SPACE_STATUS_TONE[space.status]}
                     />
-                    <Text className={styles.spaceScore}>健康 {space.score} 分</Text>
+                    <Text className={styles.spaceScore}>就绪 {space.score} 分</Text>
                   </View>
                 </View>
               </View>
@@ -207,10 +226,13 @@ const HomePage: React.FC = () => {
       {overview?.activeProject ? (
         <View className={styles.section}>
           <SectionHeader title="改造进行中" extraText="全部项目" onExtraClick={() => Taro.switchTab({ url: '/pages/project/index' })} />
-          <View className={styles.projectCard} onClick={() => Taro.navigateTo({ url: '/pages/project-detail/index' })}>
+          <View className={styles.projectCard} onClick={() => Taro.navigateTo({ url: `/pages/project-detail/index?id=${overview.activeProject?.id || ''}` })}>
             <View className={styles.projectTop}>
               <Text className={styles.projectName}>{overview.activeProject.name}</Text>
-              <StatusTag text={PROJECT_STAGE_LABEL[overview.activeProject.stage]} tone="gold" />
+              <StatusTag
+                text={overview.activeProject.statusLabel || PROJECT_STAGE_LABEL[overview.activeProject.stage]}
+                tone="gold"
+              />
             </View>
             <View className={styles.projectProgress}>
               <View className={styles.progressWrap}>

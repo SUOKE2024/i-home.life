@@ -98,6 +98,17 @@
   color: $color-text-secondary;
 }
 
+.scoreCaption {
+  display: block;
+  margin-top: 4rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.sourceBadge {
+  margin-top: 12rpx;
+}
+
 .scoreDelta {
   margin-top: 16rpx;
   display: flex;
@@ -427,4 +438,39 @@
   50% {
     opacity: 1;
   }
+}
+.demandBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: $spacing-lg 0 0;
+  padding: $spacing-md $spacing-lg;
+  border-radius: $radius-lg;
+  background: $gradient-warm;
+  border: 1rpx dashed $color-primary;
+}
+
+.demandMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.demandTitle {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-accent-text;
+}
+
+.demandDesc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: $font-size-xs;
+  color: $color-text-secondary;
+}
+
+.demandArrow {
+  margin-left: $spacing-sm;
+  font-size: $font-size-xl;
+  color: $color-text-tertiary;
 }

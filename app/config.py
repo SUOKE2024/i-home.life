@@ -62,7 +62,7 @@ class Settings(BaseSettings):
         return self
 
     app_name: str = "i-home.life"
-    app_version: str = "1.19.0"
+    app_version: str = "1.19.1"
     # v1.2.1 P0-1：默认 False（生产安全）。开发环境在 .env 设 DEBUG=true。
     # 原默认 True 导致生产误用跳过 PASETO 密钥校验。
     debug: bool = False
@@ -369,6 +369,23 @@ class Settings(BaseSettings):
     wechat_app_secret: str = ""          # AppSecret（仅 .env 注入）
     wechat_redirect_uri: str = ""        # 回调地址，如 https://i-home.life/wechat-callback
     wechat_state_expire_seconds: int = 600  # state 防 CSRF 签名有效期（秒）
+
+    # ── 微信小程序（索克家居业主端，多端入口之一）──
+    # 静默登录 jscode2session：wx.login code → openid → 建号签发 PASETO；
+    # 手机号走 getPhoneNumber code 换号（不再使用 encryptedData 解密链路）。
+    # 小程序 APPID 与「网站应用」APPID 不同，两者不可混用；AppSecret 仅 env 注入。
+    miniprogram_login_enabled: bool = True
+    miniprogram_app_id: str = ""          # 小程序 APPID
+    miniprogram_app_secret: str = ""      # 小程序 AppSecret（仅 .env 注入）
+    miniprogram_phone_enabled: bool = True  # 手机号快速验证开关
+    miniprogram_api_timeout_seconds: int = 10
+
+    # ── 运营提醒：新改造需求外发（业主提交后必须有人知道）──
+    # 未配置 webhook 时只写 WARNING 日志（含脱敏手机号），仍可被巡检发现；
+    # 配置后推送企业微信群机器人，失败绝不阻塞业主提交。
+    ops_alert_enabled: bool = True
+    ops_alert_webhook: str = ""
+    ops_alert_timeout_seconds: float = 3.0
 
     # ── Agent Harness 统一编排（v1.2.0）──
     harness_trace_enabled: bool = True

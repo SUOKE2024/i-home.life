@@ -14,6 +14,7 @@ from app.schemas.project import (
 )
 from app.auth import get_current_user
 from app.rbac import verify_project_access
+from app.services.ops_alert_service import notify_new_demand
 from app.services.project_service import (
     get_user_projects,
     get_project,
@@ -108,6 +109,21 @@ async def create_project_handler(
         await ws_manager.broadcast_to_project(project.id, "project.created", resp.model_dump())
     except Exception:
         _ws_logger.warning("project.created broadcast failed", project_id=project.id, exc_info=True)
+    # 运营侧必须知道有新需求，否则小程序「顾问会联系你」就是空话。
+    # 通知失败不影响建单结果：业主的需求已经落库，不能因为 webhook 挂了就回滚。
+    try:
+        await notify_new_demand(
+            project_id=project.id,
+            name=project.name,
+            project_type=project.project_type,
+            contact_name=project.contact_name,
+            contact_phone=project.contact_phone,
+            address=project.address,
+            total_area=project.total_area,
+            description=project.description,
+        )
+    except Exception:
+        _ws_logger.warning("new demand ops alert failed", project_id=project.id, exc_info=True)
     return resp
 
 

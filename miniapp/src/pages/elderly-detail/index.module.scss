@@ -285,3 +285,11 @@
   background: $gradient-primary;
   color: $color-on-primary;
 }
+
+.excludeText {
+  display: block;
+  margin-top: 12rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  line-height: 1.6;
+}

@@ -51,6 +51,7 @@ from app.api import gaussian_recon  # P1 3DGS 云端重建（前缀 /api/vr/reco
 from app.api import construction_snapshot  # P3 施工进度 3DGS 存档（前缀 /api/construction/*）
 from app.api import identity, products, tasks, points
 from app.api import notifications
+from app.api import miniprogram  # /api/auth/miniprogram/*（业主端小程序静默登录）
 from app.api import admin
 from app.api import product_batch
 from app.api import camera_scan
@@ -482,6 +483,7 @@ async def request_tracking_middleware(request: Request, call_next):
 # ── API 路由（统一 /api 前缀，与前端 JS 中 `const API = '/api'` 对齐） ──
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth.router)          # /api/auth/*
+api_router.include_router(miniprogram.router)   # /api/auth/miniprogram/*（业主端小程序登录）
 api_router.include_router(projects.router)      # /api/projects/*
 api_router.include_router(product_batch.router)  # /api/products/batch/* (must be before products)
 api_router.include_router(camera_scan.router)  # /api/products/camera/* (must be before products)

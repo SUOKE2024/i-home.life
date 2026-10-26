@@ -1,8 +1,8 @@
 {
   "miniprogramRoot": "dist/",
-  "projectname": "taro_template",
-  "description": "taro_template",
-  "appid": "touristappid",
+  "projectname": "suoke-home-miniapp",
+  "description": "索克家居业主端小程序 · 空间健康资产运营商（Taro 4.3 + React 18）",
+  "appid": "wxe8653cb1e81b6dc1",
   "setting": {
     "urlCheck": true,
     "es6": false,
@@ -16,10 +16,59 @@
     "coverView": true,
     "showShadowRootInWxmlPanel": false,
     "scopeDataCheck": false,
-    "useCompilerModule": false
+    "useCompilerModule": false,
+    "checkSiteMap": true,
+    "ignoreUploadUnusedFiles": true
   },
   "compileType": "miniprogram",
   "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},
-  "condition": {}
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "首页",
+          "pathName": "pages/index/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "智控",
+          "pathName": "pages/smart/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "康养",
+          "pathName": "pages/care/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "项目",
+          "pathName": "pages/project/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "我的",
+          "pathName": "pages/mine/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "AI 管家",
+          "pathName": "pages/ai-consult/index",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "隐私保护指引",
+          "pathName": "pages/agreement/index",
+          "query": "type=privacy",
+          "scene": null
+        }
+      ]
+    }
+  }
 }

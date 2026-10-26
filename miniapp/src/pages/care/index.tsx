@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Image } from '@tarojs/components';
-import Taro, { usePullDownRefresh, useDidShow } from '@tarojs/taro';
+import Taro, { usePullDownRefresh, useDidShow, useShareAppMessage } from '@tarojs/taro';
 import SectionHeader from '@/components/SectionHeader';
 import StatusTag from '@/components/StatusTag';
 import { callFunction } from '@/services/cloud';
@@ -54,6 +54,11 @@ const CarePage: React.FC = () => {
     loadPackages();
   });
 
+  useShareAppMessage(() => ({
+    title: '适老改造一口价 · 干法施工 0 搬家，补贴预估可先算',
+    path: '/pages/care/index?from=share'
+  }));
+
   const handleEstimate = async (code: ElderlyPackageCode) => {
     if (estimates[code] || estimatingCode) return;
     setEstimatingCode(code);
@@ -73,7 +78,7 @@ const CarePage: React.FC = () => {
 
   const handleDetail = (pkg: ElderlyPackage) => {
     console.info('[CarePage] 查看套餐详情', pkg.code);
-    Taro.navigateTo({ url: '/pages/elderly-detail/index' });
+    Taro.navigateTo({ url: `/pages/elderly-detail/index?code=${encodeURIComponent(pkg.code)}` });
   };
 
   const handleFormatTap = (format: CareFormat) => {
@@ -153,14 +158,22 @@ const CarePage: React.FC = () => {
               {estimate ? (
                 <View className={styles.subsidyPanel}>
                   <View className={styles.subsidyHeader}>
-                    <Text className={styles.subsidyTitle}>补贴预估区间</Text>
+                    <Text className={styles.subsidyTitle}>
+                      {estimate.exactLabel ? '补贴预估' : '补贴预估区间'}
+                    </Text>
                     <StatusTag text="预估 · 非资格认定" tone="orange" />
                   </View>
-                  <View className={styles.subsidyRange}>
-                    <Text className={styles.subsidyValue}>{estimate.minLabel}</Text>
-                    <Text className={styles.subsidyDash}>–</Text>
-                    <Text className={styles.subsidyValue}>{estimate.maxLabel}</Text>
-                  </View>
+                  {estimate.exactLabel ? (
+                    <View className={styles.subsidyRange}>
+                      <Text className={styles.subsidyValue}>{estimate.exactLabel}</Text>
+                    </View>
+                  ) : (
+                    <View className={styles.subsidyRange}>
+                      <Text className={styles.subsidyValue}>{estimate.minLabel}</Text>
+                      <Text className={styles.subsidyDash}>–</Text>
+                      <Text className={styles.subsidyValue}>{estimate.maxLabel}</Text>
+                    </View>
+                  )}
                   <Text className={styles.subsidyBasis}>{estimate.basisNote}</Text>
                   {estimate.warnings.map((warning) => (
                     <Text key={warning} className={styles.subsidyWarning}>

@@ -153,3 +153,28 @@
   color: $color-text-tertiary;
   text-align: center;
 }
+
+.sourceList {
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid $color-divider;
+}
+
+.sourceItem {
+  display: block;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  line-height: 1.5;
+}
+
+.thinkingBubble {
+  padding: 20rpx 24rpx;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  border: 1rpx solid $color-border;
+}
+
+.thinkingText {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}

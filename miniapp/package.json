@@ -1,8 +1,8 @@
 {
   "name": "suoke-home-miniapp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "索克家居微信小程序（空间健康资产运营商）",
+  "description": "索克家居小程序（空间健康资产运营商 · 微信/支付宝/抖音/H5 多端）",
   "templateInfo": {
     "name": "react",
     "typescript": true,
@@ -18,7 +18,11 @@
     "dev:alipay": "npm run build:alipay -- --watch",
     "dev:tt": "npm run build:tt -- --watch",
     "dev:h5": "npm run build:h5 -- --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare:weapp": "node scripts/prepare-miniprogram.mjs",
+    "upload:weapp": "node scripts/upload-miniprogram.mjs",
+    "release:weapp": "npm run typecheck && npm run prepare:weapp && npm run build:weapp && npm run upload:weapp",
+    "build:all": "npm run build:weapp && npm run build:h5"
   },
   "browserslist": [
     "last 3 versions",

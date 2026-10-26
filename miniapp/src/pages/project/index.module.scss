@@ -267,3 +267,38 @@
     opacity: 1;
   }
 }
+.createCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-lg;
+  padding: $spacing-md $spacing-lg;
+  border-radius: $radius-lg;
+  background: $color-bg-card;
+  border: 1rpx dashed $color-primary;
+}
+
+.createMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.createTitle {
+  display: block;
+  font-size: $font-size-md;
+  font-weight: $font-weight-medium;
+  color: $color-accent-text;
+}
+
+.createDesc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.createArrow {
+  margin-left: $spacing-sm;
+  font-size: $font-size-xl;
+  color: $color-text-tertiary;
+}
