@@ -6,7 +6,7 @@
 >
 > v1.19.1 · 部署门禁真回滚 + 小程序全链路（静默登录/需求闭环/运营提醒）：v1.19.0 · 生产 schema 对齐 + 结算付款门禁（质检/托管）：v1.18.0 · 从 Vibe Coding 到 Vibe Business（站点 AI 可见度 GEO 审计 + 修复清单闭环 + 内容新鲜度监测）：v1.17.4 · AI 应用服务商培育政策落地（工信厅科函〔2026〕414号：服务商能力档案 + Token 计量口径 + FDE 现场服务记录）：v1.17.3 · 智能家居生态全链路接入修复（生态 key 对齐 BridgeFactory + 项目级真实凭据就绪度 + 设备命令生态自动解析 + 三端契约对齐）：v1.17.2 · 业主端接线（WebApp 适老改造/空间资产页 + 控制台台账补测）：v1.17.0 · 政策落地（八部门《促进智能家居消费行动方案》适老化供给）：适老改造套餐产品化（适老卫浴/适老卧室/全屋适老智能化，一口价+干法+0 搬家）+ 适老改造补贴资格预检（成交价 15% 口径确定性估算，诚实标注非资格认定）+ 控制台适老套餐/补贴预检界面 + 适老康养设备类型扩展（跌倒监测雷达/护理床/服务机器人/
 健康监测/紧急呼叫）+ v1.16.0 定位收口「空间健康资产运营商」+ 空间资产台账（康养/疗愈/旅居/文旅/适老住宅存量空间）+ ATH 握手凭证接入 A2A 生产链路 + CareAgent 康养管家 + 健康声明合规闸门 + v1.15.6 供应商每日经营简报（FC 定时触发）+ B2B 端点角色语义 + 供应链/服务商生态 AI 工作台 + 三端 UI/UX 布局系统性修复 + 2026 前沿借鉴（失败学习/协议信任层/语境工程/自适应路由）+ 业务链路全景走查 + 智能体全流程走查 + 微信扫码登录 + 自进化闭环生产触发 + 空间语义底座
-> 核心能力：76 页面 React Web 控制台 + 24 页面业主端 WebApp + Flutter 60 页面 + 微信小程序 11 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 134 Service + 147 ORM 模型 + 89 路由模块（795 API 路由） + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
+> 核心能力：76 页面 React Web 控制台 + 24 页面业主端 WebApp + Flutter 60 页面 + 微信小程序 11 页面 + 27 Agent（22 执行型 + 1 Orchestrator + 4 商业运营）+ 133 Service + 147 ORM 模型 + 88 路由模块（795 API 路由） + L4 偏好学习 + MCP 2026-07-28 规范（stateless/discover/header-routing/cacheable/MRTR/CIMD/Tasks/Server Card）+ Enterprise 扩展（审计/SSO/网关）+ ATH 可信握手凭证 + ControlNet AI 渲染 + Qwen-Audio-3.0-Realtime 实时语音 + iOS/Android/HarmonyOS + PASETO + PWA + A2UI 卡片协议
 
 ## 最近更新
 
