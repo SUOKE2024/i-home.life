@@ -178,3 +178,5 @@ CI 12 → 13 个 job：`npm ci` → `tsc --noEmit` → `build:weapp` → 校验�
 | `7819c8a` | fix(deploy): 探针失败真正回滚代码，而非重启同一份坏代码 |
 | `38873cc` | feat(release): v1.19.1 小程序全链路接入 + 版本号全链路同步 |
 | `d093d86` | chore(ci): 小程序进 CI，演示数据回落改为构建期关闭 |
+| `0c24e40` | docs(report): 全景全链路评估报告 + 修正 README 计数口径 |
+| `7319070` | chore(test): 校准基线至 3035，并忽略 pytest 临时目录 |
