@@ -681,6 +681,26 @@ async def task_state_error_handler(request: Request, exc: TaskStateError):
     )
 
 
+@app.exception_handler(NotImplementedError)
+async def not_implemented_error_handler(request: Request, exc: NotImplementedError):
+    """能力未实现（如 Matter/HomeKit 桥 stub）→ 501 诚实标注，而非 500 伪装成故障。
+
+    各已知调用点（matter/commission、场景同步、设备命令）已各自捕获并归因；
+    本处理器是兜底防线，保证任何遗漏路径也显式 501。Starlette 按异常类精确
+    匹配，NotImplementedError 优先于下方的 Exception 兜底。
+    """
+    logger.warning(f"Not implemented at {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=501,
+        content={
+            "error": True,
+            "detail": f"该能力尚未实现: {exc}",
+            "status_code": 501,
+            "path": request.url.path,
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """未捕获异常兜底处理 — 不泄露堆栈信息"""

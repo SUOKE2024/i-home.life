@@ -117,6 +117,26 @@ async def test_commission_matter_device_stub(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_global_not_implemented_handler(client: AsyncClient):
+    """全局兜底：任何未捕获的 NotImplementedError → 501 诚实标注（而非 500）。
+
+    已知桥调用点各自捕获；该处理器防遗漏路径漏成 500（伪装成服务器故障）。
+    """
+    from app.main import app
+
+    @app.get("/api/_test_not_implemented_probe")
+    async def _probe():  # pragma: no cover - 仅测试期注册
+        raise NotImplementedError("probe stub")
+
+    resp = await client.get("/api/_test_not_implemented_probe")
+    assert resp.status_code == 501
+    body = resp.json()
+    assert body["error"] is True
+    assert body["status_code"] == 501
+    assert "尚未实现" in body["detail"]
+
+
+@pytest.mark.asyncio
 async def test_commission_invalid_passcode(client: AsyncClient):
     """passcode 格式错误返 422"""
     headers = await _auth_headers(client, "13900030013")

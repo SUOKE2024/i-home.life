@@ -2,6 +2,36 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [1.19.2] - 2026-10-27
+
+### 修复 · 「未实现」不再伪装成「故障」——全局 NotImplementedError → 501
+
+既有桥 stub 调用点已各自诚实归因（`matter/commission` 501、`sync_to_ecosystem`
+落库 `not_implemented`、`_bridge_send_command` 标 pending），但全局
+`Exception`→500 兜底会让任何遗漏路径把「能力未实现」伪装成 500 故障。
+`app/main.py` 新增全局 `NotImplementedError` 处理器，统一返回 501 +
+`{error, detail:"该能力尚未实现: ...", status_code:501, path}`；Starlette 按异常类
+精确匹配，优先于 Exception 兜底。新增探针测试 `test_global_not_implemented_handler`。
+
+### 版本同步
+
+17 处清单全链路 bump 1.19.1→1.19.2（build 72→73）；追平历史漏改的
+`.env.production.example`（滞留 1.19.0）；确认 `settings_page.dart` 已漂移为
+`AppConfig.appVersion` 引用式无需改（version-bump.md 该条描述已过时）。
+
+### 部署备忘（教训）
+
+生产 `/opt/ihome/.env` 为运行态 SSOT，rsync 不覆盖——本轮代码已 1.19.2 但 .env 的
+`APP_VERSION` 滞留 1.19.1，`/api/health/detail` 仍报旧版本；服务器侧同步该行 +
+`deploy-remote.sh restart` 方为完整收口。**改版本号须同步生产 .env 的 APP_VERSION。**
+
+### 测试
+
+定向 **99 passed**（test_matter_device / test_v1_3_0_compliance /
+test_mcp_2026_07_28 / test_v1128_suoke_borrowed）；mypy、pre-commit 干净。
+生产复核：`/api/health/detail` → `version: 1.19.2, status: ok`；Matter 两端点
+匿名 401（路由存活、鉴权正常）。
+
 ## [1.19.1] - 2026-10-24
 
 ### 修复 · 部署门禁的「回滚」其实只是重启
