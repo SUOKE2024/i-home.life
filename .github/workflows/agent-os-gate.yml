@@ -1,0 +1,58 @@
+name: Agent OS Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agent-os-gate:
+    name: Agent OS Release Precheck (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout i-home.life
+        uses: actions/checkout@v4
+        with:
+          path: i-home.life
+
+      - name: Checkout agent-os gates
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: SUOKE2024/agent-os-implementation
+          path: agent-os-implementation
+          token: ${{ secrets.CROSS_REPO_PAT || github.token }}
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Probe gate assets
+        id: probe
+        run: |
+          if [ -f agent-os-implementation/release_precheck.sh ]; then
+            echo "gate=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "gate=0" >> "$GITHUB_OUTPUT"
+            echo "::warning::agent-os-implementation 未 checkout（需 secrets.CROSS_REPO_PAT）；降级为仓内门禁"
+          fi
+
+      - name: Agent OS release precheck (CI degraded)
+        if: steps.probe.outputs.gate == '1'
+        run: ./agent-os-implementation/release_precheck.sh "$GITHUB_WORKSPACE" --ci
+        env:
+          RELEASE_PRECHECK_LIFE_PYTEST: "0"
+
+      - name: Repo-local gate fallback
+        if: steps.probe.outputs.gate == '0'
+        working-directory: i-home.life
+        run: |
+          bash -n scripts/deploy-remote.sh
+          python3 -c "import json; json.load(open('console-src/package.json'))"
