@@ -12,6 +12,8 @@
 换用标准别名即 404——外部客户端无法用一套发现路径跨品牌接入。新增 e2e 用例
 `test_e2e_a2a_agent_card_aliases` 断言三路径返回一致。
 
+**生产发布（2026-10-28）**：`bash scripts/deploy-remote.sh backend` 通过发布门禁（配置预检 + `/health` + `/api/health/detail` 双 200，就绪 6s，失败自动回滚）；生产实测三条路径均 **200 且内容一致**，版本 `1.19.2`。
+
 **未做**：Agent Card 签名（家居无卡签名密钥材料，需先定密钥托管方案）；
 官方字段映射（`url/provider/supportedInterfaces/securitySchemes`）仍待对齐。
 
