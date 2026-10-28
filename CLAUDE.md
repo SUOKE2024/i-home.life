@@ -123,11 +123,11 @@ WebApp 主页（Dashboard）底部悬挂 ICP 备案号「滇ICP备2026015233号-
 1. **Think Before Coding** —— 需求有歧义先问，多方案先列选项，禁止默写假设。项目有 21 执行型 + 4 商业运营 Agent / 112 Service，猜错代价高。
 2. **Simplicity First** —— 最小可行实现。不加未要求的功能/抽象/灵活性/异常处理。140 ORM 模型 + 80 路由已够复杂（`app/api/` 磁盘实为 80 个路由模块，main.py 83 处 include_router 含 2 个公开 .well-known + 1 个总 router）。
 3. **Surgical Changes** —— 只动要求改的。禁止顺手重构无关代码、统一风格、删旧注释。每行改动须能追溯到用户请求。
-4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 **2995 passed** 不得回退（collect 3001 = 2995 passed + 2 skipped + 4 xfailed，2026-10-22 ATH 安全收口：新增 8 用例 + 并行会话 Harness 等改动累计，全量 `-n 4` 实测 44 分 12 秒零失败（本机 IDE 扩展/外部 pytest 高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
+4. **Goal-Driven Execution** —— 给可验证目标而非模糊命令。改 bug 先写复现测试；加功能先写验收用例。pytest 基线 **2995 passed** 不得回退（collect 3001 = 2995 passed + 2 skipped + 4 xfailed，2026-10-22 ATH 安全收口：新增 8 用例 + 并行会话 Harness 等改动累计，全量 `-n 4` 实测 44 分 12 秒零失败（本机 IDE 扩展/外部 pytest 高负载时会显著变慢）；本机已装 ifcopenshell，IFC 测试不再 skip，但系统 python 无该库——全量必须用 `.venv/bin/python`）。**2026-10-28 复测**：`-n 8` 实测 **11 分 30 秒**零失败（3114 passed + 2 skipped + 4 xfailed，最慢单测 5.71s，耗时主体为逐测试 setup_db 重建 147 表）——本地全量**不要用串行**（串行数小时即「不收敛」观感根因），用 `-n 8` 或 `-n auto`。基线门禁数字见 `scripts/test_baseline.json`（改 CLAUDE.md 须同步该文件）。
 
 ## 质量门禁（不得绕过）
 
-- `pytest`（全量必须通过，`tests/` 目录；本地 `pytest.ini` 串行执行保异步稳定性，CI 用 `-n auto` 并行见 `.github/workflows/ci.yml`）
+- `pytest`（全量必须通过，`tests/` 目录；本地全量用 `-n 8`（2026-10-28 实测 11 分 30 秒零失败，PID 隔离测试库已保并发安全），串行仅用于调试个别异步用例；CI 用 `-n auto` 并行见 `.github/workflows/ci.yml`）
 - `pre-commit run --all-files`（flake8 max-line-length=120, max-complexity=15；含 `detect-private-key`）
 - `mypy`（`mypy.ini`，改后端代码必跑；v1.14.1 起 CI 阻塞门禁，非 allow-failure）
 - 新增 API 必须补 `tests/test_*.py`（v1.2.5 教训：曾 37 个 API 模块零测试）
