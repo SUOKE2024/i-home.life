@@ -10,6 +10,8 @@
 
 ## 最近更新
 
+> **发布门禁降级声明（2026-10-28）**：GitHub Actions 因账号账单问题当前不可用（`agent-os-gate.yml` 已接入但无成功 run）。CI 恢复前，发布门为**本地** `pre-commit` + `scripts/deploy-remote.sh` 的发布门禁（配置预检 → 快照 → 健康探针 → 失败回滚）+ `release_precheck.sh --ci`；恢复并出现绿色 run 后删除本声明。**未通过 CI 的改动不得对外宣称「已通过 CI」。**
+
 ### 2026-10-28 · 小程序产物重建 + 版本口径追平（v1.19.2）
 
 - 顶部版本号与 CHANGELOG、生产 `/api/health/detail` 对齐到 **1.19.2**。
