@@ -28,6 +28,7 @@ from app.database import get_db
 from app.models.a2a_task import A2ATask, A2A_TASK_DEFAULT_TTL_HOURS
 from app.models.user import User
 from app.rbac import verify_project_access
+from app.services.agent_card_signature import public_key_document, sign_agent_card
 
 router = APIRouter(prefix="/a2a", tags=["A2A 协议"])
 # A2A v1.0 规范要求 Agent Card 暴露在 /.well-known/agent-card（无 /api 前缀）
@@ -207,6 +208,8 @@ class A2AAgentCard(BaseModel):
     capabilities: dict[str, Any] = {}
     skills: list[A2ASkill] = []
     registered_agents: list[str] = []
+    # 2026-10-28: Ed25519 原生签名对象（非 JWS）；未配置密钥时为 None
+    signature: dict[str, Any] | None = None
 
 
 class A2ATaskRequest(BaseModel):
@@ -308,7 +311,7 @@ async def get_agent_card() -> A2AAgentCard:
         A2ASkill(name=name, description=_AGENT_DESCRIPTIONS.get(name, ""))
         for name in REGISTERED_AGENT_NAMES
     ]
-    return A2AAgentCard(
+    card = A2AAgentCard(
         name=settings.app_name,
         version=settings.app_version,
         description="i-home.life 空间健康资产运营平台 A2A 节点 — 23 个专业 Agent 协同",
@@ -320,6 +323,22 @@ async def get_agent_card() -> A2AAgentCard:
         skills=skills,
         registered_agents=REGISTERED_AGENT_NAMES,
     )
+    # 2026-10-28: 配置了 Ed25519 种子即签名（原生签名对象，非 JWS）；未配置保持 None
+    card.signature = sign_agent_card(card.model_dump(mode="json"))
+    return card
+
+
+@public_router.get("/.well-known/agent-card-public-key")
+async def get_agent_card_public_key() -> dict[str, Any]:
+    """Agent Card 验签公钥（公开只读）。
+
+    与索克生活同口径（`/.well-known/agent-card-public-key`）：对外提供 Ed25519
+    公钥与指纹，供对端验签；未配置签名密钥时 **503 如实失败**，不返回空对象。
+    """
+    doc = public_key_document()
+    if doc is None:
+        raise HTTPException(status_code=503, detail="A2A 卡片签名未配置")
+    return doc
 
 
 @router.get("/agents")

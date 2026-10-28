@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 新增 · A2A Agent Card Ed25519 签名（原生签名对象，非 JWS，2026-10-28）
+
+补齐发现层信任：卡片新增 `signature={alg:"Ed25519", kid:<公钥指纹前8位>, sig:<base64url>}`，
+对**剔除 signature 后的规范化 JSON**（键排序、紧凑分隔符）签名；新增公开验签端点
+`GET /.well-known/agent-card-public-key`（返回公钥 + 指纹，未配置时 **503 如实失败**）。
+**刻意不用 JWS/JWT**——遵守本仓「PASETO v4.public，禁止 JWT/JWS」硬约束，签名是普通对象。
+
+- 密钥：`A2A_CARD_ED25519_SEED`（base64 32B）写入生产 `/opt/ihome/.env`（600，SSOT）；未配置时卡片
+  `signature=None` 诚实降级，发现端点仍可用。
+- 验证：单测 6 passed（签名/验签往返、载荷剔除 signature、篡改失败、未配置降级、端点携带可验证签名、
+  无密钥 503）；A2A e2e 12 passed；`scripts/deploy-remote.sh backend` 门禁通过（就绪 6s）。
+- 生产实测：卡片 `signature.alg=Ed25519`、`kid=Ot8YF3-r`，公钥端点 200 且指纹一致，用公钥本地验签通过。
+
 ### 修复 · A2A 发现路径跨品牌对齐（2026-10-28）
 
 `GET /.well-known/agent-card` 之外补 `/.well-known/agent.json` 与
@@ -14,7 +27,7 @@
 
 **生产发布（2026-10-28）**：`bash scripts/deploy-remote.sh backend` 通过发布门禁（配置预检 + `/health` + `/api/health/detail` 双 200，就绪 6s，失败自动回滚）；生产实测三条路径均 **200 且内容一致**，版本 `1.19.2`。
 
-**未做**：Agent Card 签名（家居无卡签名密钥材料，需先定密钥托管方案）；
+**未做**：~~Agent Card 签名~~ → 已于同日落地（见上条「A2A Agent Card Ed25519 签名」）；
 官方字段映射（`url/provider/supportedInterfaces/securitySchemes`）仍待对齐。
 
 ## [1.19.2] - 2026-10-27

@@ -687,6 +687,9 @@ class Settings(BaseSettings):
     # ── A2A 协议（借鉴 Google A2A v1.0）──
     # 启用后 /api/a2a/* 端点可用，发布 Agent Card + Task Machine
     a2a_enabled: bool = True
+    # 2026-10-28: Agent Card Ed25519 签名种子（base64 32 字节）。
+    # 未配置则卡片不签名（诚实降级）；签名是原生签名对象而非 JWS，遵守「禁用 JWT/JWS」硬约束。
+    a2a_card_ed25519_seed: str = ""
 
     # ── PII 全量脱敏（借鉴 pii_masking）──
     # 启用后 audit_log details + agent trace 自动脱敏 8 类 PII
