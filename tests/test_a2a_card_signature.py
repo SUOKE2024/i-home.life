@@ -63,6 +63,17 @@ async def test_card_endpoint_carries_verifiable_signature(client: AsyncClient, s
 
 
 @pytest.mark.asyncio
+async def test_card_exposes_official_a2a_fields(client: AsyncClient):
+    """官方字段映射：对端按标准键名即可发现与接入，且不破坏自有字段。"""
+    card = (await client.get("/.well-known/agent-card")).json()
+    assert card["url"] == "https://i-home.life/api/a2a"
+    assert card["provider"]["organization"] == "索克家居"
+    assert card["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
+    assert card["securitySchemes"]["paseto"]["scheme"] == "bearer"
+    assert card["registered_agents"], "自有字段必须保留"
+
+
+@pytest.mark.asyncio
 async def test_public_key_endpoint_honest_503_without_seed(client: AsyncClient, monkeypatch):
     monkeypatch.setattr(get_settings(), "a2a_card_ed25519_seed", "")
     resp = await client.get("/.well-known/agent-card-public-key")

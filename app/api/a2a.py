@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -201,13 +201,44 @@ class A2ASkill(BaseModel):
 
 
 class A2AAgentCard(BaseModel):
-    """A2A Agent Card — 描述本节点暴露的 Agent 能力"""
+    """A2A Agent Card — 描述本节点暴露的 Agent 能力
+
+    2026-10-28：补官方字段（`url` / `provider` / `supportedInterfaces` / `securitySchemes`），
+    与既有自有字段并存——外部客户端按官方字段接入，仓内既有调用方仍可读 `capabilities` /
+    `skills` / `registered_agents`。**签名按 `by_alias` 序列化后的 JSON 计算**，
+    否则对端看到的键名与验签载荷不一致。
+    """
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str
     version: str
     description: str
     capabilities: dict[str, Any] = {}
     skills: list[A2ASkill] = []
     registered_agents: list[str] = []
+    # 官方字段（camelCase 序列化，供通用 A2A 客户端识别）
+    url: str = "https://i-home.life/api/a2a"
+    provider: dict[str, Any] = Field(
+        default_factory=lambda: {"organization": "索克家居", "url": "https://i-home.life"}
+    )
+    supported_interfaces: list[dict[str, Any]] = Field(
+        default_factory=lambda: [{
+            "url": "https://i-home.life/api/a2a",
+            "protocolBinding": "HTTP+JSON",
+            "protocolVersion": "1.0",
+        }],
+        alias="supportedInterfaces",
+    )
+    security_schemes: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "paseto": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "PASETO v4.public access token（不使用 JWT）",
+            }
+        },
+        alias="securitySchemes",
+    )
     # 2026-10-28: Ed25519 原生签名对象（非 JWS）；未配置密钥时为 None
     signature: dict[str, Any] | None = None
 
@@ -323,8 +354,9 @@ async def get_agent_card() -> A2AAgentCard:
         skills=skills,
         registered_agents=REGISTERED_AGENT_NAMES,
     )
-    # 2026-10-28: 配置了 Ed25519 种子即签名（原生签名对象，非 JWS）；未配置保持 None
-    card.signature = sign_agent_card(card.model_dump(mode="json"))
+    # 2026-10-28: 配置了 Ed25519 种子即签名（原生签名对象，非 JWS）；未配置保持 None。
+    # by_alias=True：签名载荷必须与对端收到的 JSON 键名一致（supportedInterfaces 等为 camelCase）。
+    card.signature = sign_agent_card(card.model_dump(mode="json", by_alias=True))
     return card
 
 

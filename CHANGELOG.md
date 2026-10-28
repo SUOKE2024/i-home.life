@@ -17,6 +17,13 @@
   无密钥 503）；A2A e2e 12 passed；`scripts/deploy-remote.sh backend` 门禁通过（就绪 6s）。
 - 生产实测：卡片 `signature.alg=Ed25519`、`kid=Ot8YF3-r`，公钥端点 200 且指纹一致，用公钥本地验签通过。
 
+### 新增 · Agent Card 官方字段映射（2026-10-28）
+
+卡片补 `url` / `provider` / `supportedInterfaces` / `securitySchemes`（camelCase 序列化），与既有
+`capabilities` / `skills` / `registered_agents` 并存——通用 A2A 客户端按标准键名即可发现，仓内调用方
+不受影响。**签名载荷改用 `by_alias` 序列化**，确保对端收到的键名与验签摘要一致。
+验证：签名套件 **7 passed** + A2A e2e **12 passed**；生产实测四字段齐全、`kid=Ot8YF3-r` 验签通过。
+
 ### 修复 · A2A 发现路径跨品牌对齐（2026-10-28）
 
 `GET /.well-known/agent-card` 之外补 `/.well-known/agent.json` 与
