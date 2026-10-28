@@ -2,6 +2,19 @@
 
 所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
+## [Unreleased]
+
+### 修复 · A2A 发现路径跨品牌对齐（2026-10-28）
+
+`GET /.well-known/agent-card` 之外补 `/.well-known/agent.json` 与
+`/.well-known/agent-card.json` 两个别名（同一处理器、同一张卡片）。索克生活与
+索克俱乐部均以这两个路径暴露发现文档，此前家居对同一客户端只命中 `agent-card`，
+换用标准别名即 404——外部客户端无法用一套发现路径跨品牌接入。新增 e2e 用例
+`test_e2e_a2a_agent_card_aliases` 断言三路径返回一致。
+
+**未做**：Agent Card 签名（家居无卡签名密钥材料，需先定密钥托管方案）；
+官方字段映射（`url/provider/supportedInterfaces/securitySchemes`）仍待对齐。
+
 ## [1.19.2] - 2026-10-27
 
 ### 修复 · 「未实现」不再伪装成「故障」——全局 NotImplementedError → 501

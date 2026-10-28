@@ -292,11 +292,17 @@ def _task_to_dict(task: A2ATask) -> dict[str, Any]:
 
 @router.get("/.well-known/agent-card", response_model=A2AAgentCard)
 @public_router.get("/.well-known/agent-card", response_model=A2AAgentCard)
+@public_router.get("/.well-known/agent.json", response_model=A2AAgentCard)
+@public_router.get("/.well-known/agent-card.json", response_model=A2AAgentCard)
 async def get_agent_card() -> A2AAgentCard:
     """获取 Agent Card（公开端点，无需认证）。
 
     按 A2A v1.0 规范，Agent Card 描述本节点暴露的 Agent 能力，
     供外部系统发现并决定是否下发任务。
+
+    2026-10-28：补 `agent.json` / `agent-card.json` 两个别名——索克生活与索克俱乐部
+    均以这两个路径暴露发现文档，外部客户端用同一套发现路径即可跨品牌接入，
+    无需为家居单独写特殊路径。
     """
     skills = [
         A2ASkill(name=name, description=_AGENT_DESCRIPTIONS.get(name, ""))

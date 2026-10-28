@@ -205,6 +205,21 @@ async def test_e2e_a2a_agent_card_public(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_e2e_a2a_agent_card_aliases(client: AsyncClient):
+    """A2A 发现别名：agent.json / agent-card.json 与 agent-card 返回同一卡片。
+
+    索克生活与俱乐部均用这两个路径暴露发现文档，家居补齐后外部客户端
+    用一套发现路径即可跨品牌接入。
+    """
+    base = await client.get("/.well-known/agent-card")
+    assert base.status_code == 200
+    for path in ("/.well-known/agent.json", "/.well-known/agent-card.json"):
+        resp = await client.get(path)
+        assert resp.status_code == 200, path
+        assert resp.json() == base.json(), path
+
+
+@pytest.mark.asyncio
 async def test_e2e_eval_tool_accuracy_baseline(client: AsyncClient):
     """评估暴露：工具选择确定性基线 ≥90%（QUALITY_TARGETS=60，锁定防回退）"""
     _, headers = await _register(client)
