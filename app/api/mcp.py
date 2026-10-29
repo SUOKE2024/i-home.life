@@ -155,6 +155,41 @@ async def mcp_well_known():
     return mcp_server.get_server_card()
 
 
+@public_router.get("/.well-known/oauth-protected-resource")
+async def oauth_protected_resource(request: Request):
+    """RFC 9728 保护资源元数据（v1.19.3，与索克生活同口径）。
+
+    声明 /api/mcp 为受保护资源、支持的 scope 与 bearer 方式；
+    未自建授权服务器，故不声明 authorization_servers。
+    """
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    base = f"{proto}://{host}"
+    return {
+        "resource": f"{base}/api/mcp",
+        "resource_documentation": f"{base}/api/mcp/manifest",
+        "scopes_supported": ["mcp:tools", "mcp:resources"],
+        "bearer_methods_supported": ["header"],
+        "x-token-types": ["paseto"],
+        "x-credential-issuance": "out-of-band",
+    }
+
+
+@public_router.get("/.well-known/oauth-authorization-server")
+async def oauth_authorization_server():
+    """未对接外部授权服务器时如实返回 404（不伪造授权能力）。"""
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "not_configured",
+            "error_description": (
+                "本 MCP server 未自建 OAuth 授权服务器；鉴权方式见 "
+                "/.well-known/oauth-protected-resource"
+            ),
+        },
+    )
+
+
 @router.post("")
 async def mcp_jsonrpc(
     req: JSONRPCRequest,

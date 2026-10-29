@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 新增 · RFC 9728 保护资源元数据 `/.well-known/oauth-protected-resource`（2026-10-29）
+
+三端 OAuth 发现收口：索克生活、俱乐部已上线，家居域名根此前 **404**。本轮补齐：
+
+- `GET /.well-known/oauth-protected-resource`（公开）：声明 `https://i-home.life/api/mcp`
+  为受保护资源，`resource_documentation` 指向 `/api/mcp/manifest`，scope
+  `mcp:tools`/`mcp:resources`，bearer header，token 类型 `paseto`；
+  **不声明 `authorization_servers`**（未自建授权服务器）。
+- `GET /.well-known/oauth-authorization-server`：未对接外部 AS 时如实 **404 `not_configured`**，
+  不伪造授权能力。
+- 验证：新增 `tests/test_mcp_oauth_metadata.py` **2 passed**；MCP/A2A 相关 **98 passed**；
+  `mypy app/api/mcp.py` Success，无 issue。
+
 ### 新增 · A2A v1.0 JSON-RPC 入口 `POST /api/a2a`（2026-10-29）
 
 此前只有私有 REST `POST /api/a2a/tasks/send`，Card 的 `protocolBinding` 虽为 HTTP+JSON，
