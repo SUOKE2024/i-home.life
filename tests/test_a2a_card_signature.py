@@ -66,9 +66,9 @@ async def test_card_endpoint_carries_verifiable_signature(client: AsyncClient, s
 async def test_card_exposes_official_a2a_fields(client: AsyncClient):
     """官方字段映射：对端按标准键名即可发现与接入，且不破坏自有字段。"""
     card = (await client.get("/.well-known/agent-card")).json()
-    assert card["url"] == "https://i-home.life/api/a2a/tasks/send"
+    assert card["url"] == "https://i-home.life/api/a2a"
     assert card["provider"]["organization"] == "索克家居"
-    assert card["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
+    assert card["supportedInterfaces"][0]["protocolBinding"] == "JSONRPC"
     assert card["supportedInterfaces"][0]["url"] == card["url"]
     assert card["defaultInputModes"] == ["text/plain", "application/json"]
     assert card["defaultOutputModes"] == ["text/plain", "application/json"]

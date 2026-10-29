@@ -217,16 +217,16 @@ class A2AAgentCard(BaseModel):
     skills: list[A2ASkill] = []
     registered_agents: list[str] = []
     # 官方字段（camelCase 序列化，供通用 A2A 客户端识别）
-    # url 必须是真实可 POST 的任务端点：此前声明 /api/a2a，该地址 404，
-    # 外部客户端按 Card 接入必然失败（2026-10-29 契约修复）。
-    url: str = "https://i-home.life/api/a2a/tasks/send"
+    # 2026-10-29：补 JSON-RPC 入口后，Card 指向标准 A2A 端点 /api/a2a；
+    # REST /tasks/send 保留给既有客户端（不写入 Card）。
+    url: str = "https://i-home.life/api/a2a"
     provider: dict[str, Any] = Field(
         default_factory=lambda: {"organization": "索克家居", "url": "https://i-home.life"}
     )
     supported_interfaces: list[dict[str, Any]] = Field(
         default_factory=lambda: [{
-            "url": "https://i-home.life/api/a2a/tasks/send",
-            "protocolBinding": "HTTP+JSON",
+            "url": "https://i-home.life/api/a2a",
+            "protocolBinding": "JSONRPC",
             "protocolVersion": "1.0",
         }],
         alias="supportedInterfaces",
@@ -273,6 +273,14 @@ class A2ATaskRequest(BaseModel):
         default=None,
         description="ATH 握手凭证（POST /api/agents/handshake/issue 签发）；强制握手时必填，缺省 403",
     )
+
+
+class A2AJsonRpcRequest(BaseModel):
+    """A2A v1.0 JSON-RPC 请求（message/send）。"""
+    jsonrpc: str = "2.0"
+    id: Any = None
+    method: str
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 class A2ATaskResponse(BaseModel):
@@ -565,6 +573,90 @@ async def send_task(
             trace_id=getattr(trace, "trace_id", None),
             evidence=ev_exc,
         )
+
+
+def _jsonrpc_error(request_id: Any, code: int, message: str) -> dict[str, Any]:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {"code": code, "message": message},
+    }
+
+
+def _extract_message_text(params: dict[str, Any]) -> str:
+    """兼容 A2A Message 对象（parts[].text）与纯字符串。"""
+    message = params.get("message")
+    if isinstance(message, str):
+        return message.strip()
+    if isinstance(message, dict):
+        texts = [
+            str(part.get("text") or "").strip()
+            for part in (message.get("parts") or [])
+            if isinstance(part, dict) and part.get("text")
+        ]
+        if texts:
+            return "\n".join(texts)
+        return str(message.get("text") or "").strip()
+    return ""
+
+
+@router.post("")
+async def a2a_jsonrpc(
+    request: A2AJsonRpcRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """A2A v1.0 JSON-RPC 入口（message/send）。
+
+    与 REST `/tasks/send` 共用同一任务创建/执行/证据链；REST 保留给既有客户端。
+    Card 的 `supportedInterfaces` 指向本端点，标准 A2A 客户端无需知道仓内私有路径。
+    """
+    if request.jsonrpc != "2.0":
+        return _jsonrpc_error(request.id, -32600, "Invalid Request: jsonrpc must be 2.0")
+    if request.method != "message/send":
+        return _jsonrpc_error(
+            request.id, -32601, f"Method not found: {request.method}（仅支持 message/send）"
+        )
+
+    params = request.params or {}
+    text = _extract_message_text(params)
+    if not text:
+        return _jsonrpc_error(request.id, -32602, "Invalid params: message text is required")
+
+    metadata = params.get("metadata") or {}
+    agent_name = str(
+        metadata.get("agent_name") or params.get("agent_name") or "OrchestratorAgent"
+    )
+    task_request = A2ATaskRequest(
+        agent_name=agent_name,
+        message=text,
+        project_id=metadata.get("project_id") or params.get("project_id"),
+        app_id=metadata.get("app_id") or params.get("app_id"),
+        handshake_token=metadata.get("handshake_token") or params.get("handshake_token"),
+    )
+    try:
+        result = await send_task(task_request, current_user, db)
+    except HTTPException as exc:
+        return _jsonrpc_error(request.id, -32001, str(exc.detail))
+
+    state = result.state.value if hasattr(result.state, "value") else str(result.state)
+    payload: dict[str, Any] = {
+        "id": result.task_id,
+        "task_id": result.task_id,
+        "status": {"state": state},
+        "state": state,
+        "error": result.error,
+        "trace_id": result.trace_id,
+        "evidence": result.evidence,
+    }
+    if result.result:
+        payload["artifacts"] = [
+            {
+                "artifactId": f"{result.task_id}-0",
+                "parts": [{"kind": "text", "text": result.result}],
+            }
+        ]
+    return {"jsonrpc": "2.0", "id": request.id, "result": payload}
 
 
 @router.get("/tasks/{task_id}")

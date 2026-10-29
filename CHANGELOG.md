@@ -4,6 +4,23 @@
 
 ## [Unreleased]
 
+### 新增 · A2A v1.0 JSON-RPC 入口 `POST /api/a2a`（2026-10-29）
+
+此前只有私有 REST `POST /api/a2a/tasks/send`，Card 的 `protocolBinding` 虽为 HTTP+JSON，
+但标准 A2A 客户端无法用统一 JSON-RPC 调用。本轮：
+
+- 新增 `POST /api/a2a`（`message/send`）：兼容 `message.parts[].text` 与纯字符串，
+  `metadata.agent_name/project_id/app_id/handshake_token` 映射到既有任务链；
+  与 REST 共用 `send_task` 的任务创建、ATH 校验、项目归属、证据链。
+- JSON-RPC 错误码：`-32600` 版本非法、`-32601` 方法不支持、`-32602` 缺消息、
+  `-32001` 业务拒绝（如实透传 HTTPException 文案）。
+- Card `url` 与 `supportedInterfaces` 统一指向 `https://i-home.life/api/a2a`
+  （`JSONRPC` 1.0）；REST `/tasks/send` 保留给既有客户端，不写入 Card。
+- 验证：新增 `tests/test_a2a_jsonrpc.py` **7 passed**；A2A 全量 **49 passed**；
+  `deploy-remote.sh backend` 门禁通过（就绪 6s）。
+- 生产复验：Card `protocolBinding=JSONRPC`；`POST /api/a2a` 未认证 **401**、
+  `GET /api/a2a` **405**（路由存在）；`/api/health/detail` 200。
+
 ### 修复 · A2A Card 契约自洽与 v1.0 必填字段（2026-10-29）
 
 此前 Card 声明 `url=https://i-home.life/api/a2a`，该地址 GET **404**（真实任务端点为
