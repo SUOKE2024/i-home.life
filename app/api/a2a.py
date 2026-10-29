@@ -217,17 +217,28 @@ class A2AAgentCard(BaseModel):
     skills: list[A2ASkill] = []
     registered_agents: list[str] = []
     # 官方字段（camelCase 序列化，供通用 A2A 客户端识别）
-    url: str = "https://i-home.life/api/a2a"
+    # url 必须是真实可 POST 的任务端点：此前声明 /api/a2a，该地址 404，
+    # 外部客户端按 Card 接入必然失败（2026-10-29 契约修复）。
+    url: str = "https://i-home.life/api/a2a/tasks/send"
     provider: dict[str, Any] = Field(
         default_factory=lambda: {"organization": "索克家居", "url": "https://i-home.life"}
     )
     supported_interfaces: list[dict[str, Any]] = Field(
         default_factory=lambda: [{
-            "url": "https://i-home.life/api/a2a",
+            "url": "https://i-home.life/api/a2a/tasks/send",
             "protocolBinding": "HTTP+JSON",
             "protocolVersion": "1.0",
         }],
         alias="supportedInterfaces",
+    )
+    # A2A v1.0 必填：缺省输入/输出模态（2026-10-29 补齐）
+    default_input_modes: list[str] = Field(
+        default_factory=lambda: ["text/plain", "application/json"],
+        alias="defaultInputModes",
+    )
+    default_output_modes: list[str] = Field(
+        default_factory=lambda: ["text/plain", "application/json"],
+        alias="defaultOutputModes",
     )
     security_schemes: dict[str, Any] = Field(
         default_factory=lambda: {

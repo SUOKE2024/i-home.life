@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### 修复 · A2A Card 契约自洽与 v1.0 必填字段（2026-10-29）
+
+此前 Card 声明 `url=https://i-home.life/api/a2a`，该地址 GET **404**（真实任务端点为
+`/api/a2a/tasks/send`），外部客户端按 Card 接入必然失败；同时缺 A2A v1.0 必填的
+`defaultInputModes` / `defaultOutputModes`。本轮：
+
+- `url` 与 `supportedInterfaces[].url` 统一改为真实可 POST 的
+  `https://i-home.life/api/a2a/tasks/send`（未认证探测返回 **401**，证明路由存在）。
+- 补 `defaultInputModes` / `defaultOutputModes`（`text/plain` + `application/json`），
+  与生活/俱乐部同口径；签名仍为原生 Ed25519 对象（遵守本仓「禁止 JWT/JWS」硬约束，不伪装 JWS）。
+- 验证：`tests/test_a2a_card_signature.py` **7 passed**（含字段与 url 一致性断言）；
+  `scripts/deploy-remote.sh backend` 发布门禁通过（就绪 6s）；生产实测字段齐全、`version=1.19.2`。
+
 ### 新增 · A2A Agent Card Ed25519 签名（原生签名对象，非 JWS，2026-10-28）
 
 补齐发现层信任：卡片新增 `signature={alg:"Ed25519", kid:<公钥指纹前8位>, sig:<base64url>}`，
