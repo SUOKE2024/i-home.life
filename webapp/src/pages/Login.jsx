@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Logo } from '../components/ui'
 import { useApp } from '../lib/store'
@@ -23,6 +23,24 @@ export default function LoginPage() {
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
   const [demoPhone, setDemoPhone] = useState(null)
+  // 微信扫码登录仅在通道真正可用时展示：后端未配置 APPID/Secret 时
+  // /api/auth/wechat/authorize-url 回 503（「微信登录功能已关闭」），
+  // 展示一个点击必失败的按钮属于假入口，按实测可用性隐藏。
+  const [wechatEnabled, setWechatEnabled] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    wechatAuthorizeUrl()
+      .then((r) => {
+        if (alive) setWechatEnabled(Boolean(r?.isSuccess && r?.data?.url))
+      })
+      .catch(() => {
+        if (alive) setWechatEnabled(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // 登录成功后的跳转目标：仅接受站内绝对路径（/xxx），拒绝外部 URL / 协议相对地址
   const afterAuth = (r, action, accountLabel, fallbackPath = '/') => {
@@ -248,16 +266,18 @@ export default function LoginPage() {
           {busy ? '请稍候…' : '本机号码一键登录'}
         </button>
 
-        {/* 微信扫码登录（开放平台网站应用） */}
-        <button
-          type="button"
-          className="btn btn--wechat"
-          onClick={wechatSubmit}
-          disabled={busy}
-          style={{ marginTop: 12 }}
-        >
-          {busy ? '请稍候…' : '微信扫码登录'}
-        </button>
+        {/* 微信扫码登录（开放平台网站应用）：仅通道可用时展示 */}
+        {wechatEnabled && (
+          <button
+            type="button"
+            className="btn btn--wechat"
+            onClick={wechatSubmit}
+            disabled={busy}
+            style={{ marginTop: 12 }}
+          >
+            {busy ? '请稍候…' : '微信扫码登录'}
+          </button>
+        )}
 
         {err && <div className="auth-err">{err}</div>}
 
