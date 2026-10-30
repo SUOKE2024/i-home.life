@@ -215,6 +215,9 @@ async def test_validation_error_returns_unified_envelope_with_fields(client: Asy
     assert body["status_code"] == 422
     assert {"phone", "password"} <= {f["field"] for f in body["fields"]}
     assert all("input" not in f for f in body["fields"])
+    # detail 保留 FastAPI 既有 {loc,msg,type} 形状（老客户端无需改动），且不回显 input
+    assert all("loc" in item and "msg" in item for item in body["detail"])
+    assert all("input" not in item for item in body["detail"])
 
 
 @pytest.mark.asyncio

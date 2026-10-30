@@ -88,8 +88,11 @@ function extractErrorMessage(errorBody, status) {
     const parts = detail
       .map((d) => {
         if (typeof d === 'string') return d
-        const loc = Array.isArray(d?.loc) ? d.loc.filter((p) => p !== 'body').join('.') : ''
-        return [loc, d?.msg || d?.type || ''].filter(Boolean).join(': ')
+        // 兼容两代 422 详情：旧 FastAPI {loc, msg, type} / 新统一信封 {field, type, message}
+        const loc = Array.isArray(d?.loc)
+          ? d.loc.filter((p) => p !== 'body').join('.')
+          : (typeof d?.field === 'string' ? d.field : '')
+        return [loc, d?.msg || d?.message || d?.type || ''].filter(Boolean).join(': ')
       })
       .filter(Boolean)
     return parts.length ? parts.join('；') : `HTTP ${status}`

@@ -693,19 +693,27 @@ def _message_from_detail(detail, fallback: str) -> str:
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """422 参数校验失败：追加字段级详情（不回显 input 值）。"""
+    """422 参数校验失败：统一信封 + 字段级详情（不回显 input 值）。
+
+    `detail` 保留 FastAPI 既有 `{loc, msg, type}` 形状（剔除 `input`/`ctx`，
+    避免密码等用户输入回显），老客户端无需改动；`fields` 为跨品牌统一字段级详情。
+    """
+    errors = (exc.errors() or [])[:10]
+    legacy_detail = [
+        {k: err.get(k) for k in ("loc", "msg", "type") if k in err} for err in errors
+    ]
     fields = [
         {
             "field": ".".join(str(p) for p in (err.get("loc") or []) if str(p) != "body") or "body",
             "type": str(err.get("type") or ""),
             "message": str(err.get("msg") or ""),
         }
-        for err in (exc.errors() or [])[:10]
+        for err in errors
     ]
     logger.warning(f"请求参数校验失败 {request.method} {request.url.path}: {fields}")
     return JSONResponse(
         status_code=422,
-        content=error_payload(422, "请求参数校验失败", fields, request.url.path, fields=fields),
+        content=error_payload(422, "请求参数校验失败", legacy_detail, request.url.path, fields=fields),
     )
 
 
