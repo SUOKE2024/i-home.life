@@ -154,7 +154,7 @@ async def test_create_wall_requires_required_fields(client: AsyncClient):
     headers = await _headers(client, "13900009106")
     resp = await client.post("/api/structural/walls", json={}, headers=headers)
     assert resp.status_code == 422
-    fields = {err["loc"][-1] for err in resp.json()["detail"]}
+    fields = {err["field"].split(".")[-1] for err in resp.json()["fields"]}
     assert {"project_id", "wall_name"} <= fields
 
 

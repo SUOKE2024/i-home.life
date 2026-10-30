@@ -75,9 +75,15 @@ async def test_handler_maps_status_and_detail(
     scope = {"type": "http", "method": "POST", "path": "/api/smart-home/schemes", "headers": []}
     response = await integrity_error_handler(Request(scope), _make_error(message))
     assert response.status_code == expected_status
-    body = response.body.decode()
-    assert expected_fragment in body
-    assert '"error":true' in body.replace(" ", "")
+    import json
+
+    body = json.loads(response.body.decode())
+    assert body["success"] is False
+    assert body["status_code"] == expected_status
+    assert expected_fragment in body["detail"]
+    assert expected_fragment in body["message"]
+    expected_code = "conflict" if expected_status == 409 else "validation_error"
+    assert body["error"] == expected_code
 
 
 async def test_handler_keeps_500_for_unclassified():

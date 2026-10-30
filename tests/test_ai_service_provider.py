@@ -358,7 +358,10 @@ async def test_fde_rejects_unknown_capability_tag(client: AsyncClient, auth_head
         headers=auth_headers,
     )
     assert resp.status_code == 422
-    assert "hardware" in resp.text
+    # 统一错误体不回显 input 值（避免 PII/敏感输入进入响应），改断言字段路径可定位。
+    assert any(
+        f["field"] == "capability_tags.1" for f in resp.json()["fields"]
+    )
 
 
 @pytest.mark.asyncio
