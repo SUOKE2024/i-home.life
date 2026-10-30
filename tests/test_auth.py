@@ -201,6 +201,23 @@ async def test_login_missing_fields(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_validation_error_returns_unified_envelope_with_fields(client: AsyncClient):
+    """422 统一错误信封 + 字段级详情（2026-10-30 三端对齐）。"""
+    response = await client.post(
+        "/api/auth/register",
+        json={"name": "缺手机号与密码"},
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] == "validation_error"
+    assert body["code"] == 422
+    assert body["status_code"] == 422
+    assert {"phone", "password"} <= {f["field"] for f in body["fields"]}
+    assert all("input" not in f for f in body["fields"])
+
+
+@pytest.mark.asyncio
 async def test_register_token_works_for_me(client: AsyncClient):
     """注册返回的 token 可直接用于 /me（端到端）"""
     register_resp = await client.post(

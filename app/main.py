@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse
@@ -638,18 +639,83 @@ async def cached_openapi_json(request: Request):
 
 # ── 全局异常处理 ──
 
+# HTTP 语义错误码（与索克生活 `shared.fastapi_bootstrap.http_error_code` 同口径）：
+# 跨品牌客户端统一读 `success/error/message`，不再依赖各品牌私有形状。
+_HTTP_ERROR_CODES: dict[int, str] = {
+    400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found",
+    405: "method_not_allowed", 409: "conflict", 413: "payload_too_large",
+    415: "unsupported_media_type", 422: "validation_error", 429: "rate_limited",
+    500: "internal_error", 501: "not_implemented", 502: "bad_gateway",
+    503: "service_unavailable", 504: "gateway_timeout",
+}
+
+
+def http_error_code(status_code: int) -> str:
+    return _HTTP_ERROR_CODES.get(int(status_code), "http_error")
+
+
+def error_payload(
+    status_code: int,
+    message: str,
+    detail,
+    path: str,
+    fields: list | None = None,
+) -> dict:
+    """统一错误体：公共核心（success/error/message/code）+ 家居既有字段（detail/status_code/path）。
+
+    `detail` 保持历史形状（字符串/列表/字典原样透传），避免已有客户端解析失败；
+    `error` 由布尔改为机器可读语义码（历史 `{"error": true}` 与平台契约冲突）。
+    """
+    payload = {
+        "success": False,
+        "error": http_error_code(status_code),
+        "message": message,
+        "code": status_code,
+        "detail": detail,
+        "status_code": status_code,
+        "path": path,
+    }
+    if fields is not None:
+        payload["fields"] = fields
+    return payload
+
+
+def _message_from_detail(detail, fallback: str) -> str:
+    if isinstance(detail, str) and detail:
+        return detail
+    if isinstance(detail, dict):
+        for key in ("message", "detail", "msg"):
+            value = detail.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return fallback
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """422 参数校验失败：追加字段级详情（不回显 input 值）。"""
+    fields = [
+        {
+            "field": ".".join(str(p) for p in (err.get("loc") or []) if str(p) != "body") or "body",
+            "type": str(err.get("type") or ""),
+            "message": str(err.get("msg") or ""),
+        }
+        for err in (exc.errors() or [])[:10]
+    ]
+    logger.warning(f"请求参数校验失败 {request.method} {request.url.path}: {fields}")
+    return JSONResponse(
+        status_code=422,
+        content=error_payload(422, "请求参数校验失败", fields, request.url.path, fields=fields),
+    )
+
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """统一 HTTP 异常响应格式"""
+    message = _message_from_detail(exc.detail, "请求失败")
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": True,
-            "detail": exc.detail,
-            "status_code": exc.status_code,
-            "path": request.url.path,
-        },
+        content=error_payload(exc.status_code, message, exc.detail, request.url.path),
     )
 
 
@@ -658,12 +724,7 @@ async def change_order_state_error_handler(request: Request, exc: ChangeOrderSta
     """变更单非法状态流转 → 409 Conflict（而非 500）"""
     return JSONResponse(
         status_code=409,
-        content={
-            "error": True,
-            "detail": str(exc),
-            "status_code": 409,
-            "path": request.url.path,
-        },
+        content=error_payload(409, str(exc), str(exc), request.url.path),
     )
 
 
@@ -672,12 +733,7 @@ async def task_state_error_handler(request: Request, exc: TaskStateError):
     """任务状态机非法流转（申领/分配/完成/取消越权）→ 409 Conflict（而非 500）"""
     return JSONResponse(
         status_code=409,
-        content={
-            "error": True,
-            "detail": str(exc),
-            "status_code": 409,
-            "path": request.url.path,
-        },
+        content=error_payload(409, str(exc), str(exc), request.url.path),
     )
 
 
@@ -690,14 +746,10 @@ async def not_implemented_error_handler(request: Request, exc: NotImplementedErr
     匹配，NotImplementedError 优先于下方的 Exception 兜底。
     """
     logger.warning(f"Not implemented at {request.method} {request.url.path}: {exc}")
+    detail = f"该能力尚未实现: {exc}"
     return JSONResponse(
         status_code=501,
-        content={
-            "error": True,
-            "detail": f"该能力尚未实现: {exc}",
-            "status_code": 501,
-            "path": request.url.path,
-        },
+        content=error_payload(501, detail, detail, request.url.path),
     )
 
 
@@ -705,14 +757,10 @@ async def not_implemented_error_handler(request: Request, exc: NotImplementedErr
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """未捕获异常兜底处理 — 不泄露堆栈信息"""
     logger.error(f"Unhandled exception at {request.method} {request.url.path}: {exc}", exc_info=True)
+    detail = "服务器内部错误，请稍后重试"
     return JSONResponse(
         status_code=500,
-        content={
-            "error": True,
-            "detail": "服务器内部错误，请稍后重试",
-            "status_code": 500,
-            "path": request.url.path,
-        },
+        content=error_payload(500, detail, detail, request.url.path),
     )
 
 
@@ -774,12 +822,7 @@ async def integrity_error_handler(request: Request, exc: IntegrityError):
         )
     return JSONResponse(
         status_code=status_code,
-        content={
-            "error": True,
-            "detail": detail,
-            "status_code": status_code,
-            "path": request.url.path,
-        },
+        content=error_payload(status_code, detail, detail, request.url.path),
     )
 
 

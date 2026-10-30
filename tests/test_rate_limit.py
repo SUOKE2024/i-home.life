@@ -61,7 +61,8 @@ async def test_exceed_limit_returns_429(client: AsyncClient):
 
     body = resp.json()
     assert body["status_code"] == 429
-    assert body["error"] is True
+    assert body["success"] is False
+    assert body["error"] == "rate_limited"
     assert "频繁" in body["detail"]
 
 

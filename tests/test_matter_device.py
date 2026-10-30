@@ -131,7 +131,8 @@ async def test_global_not_implemented_handler(client: AsyncClient):
     resp = await client.get("/api/_test_not_implemented_probe")
     assert resp.status_code == 501
     body = resp.json()
-    assert body["error"] is True
+    assert body["success"] is False
+    assert body["error"] == "not_implemented"
     assert body["status_code"] == 501
     assert "尚未实现" in body["detail"]
 

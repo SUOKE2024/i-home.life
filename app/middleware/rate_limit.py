@@ -171,14 +171,13 @@ async def rate_limit_middleware(request: Request, call_next: Callable[[Request],
             path_key=path_key,
             retry_after=retry_after,
         )
+        # 惰性导入：app.main 在本模块导入期尚未初始化完成，模块级导入会形成循环依赖。
+        from app.main import error_payload
+
+        detail = "请求过于频繁，请稍后再试"
         return JSONResponse(
             status_code=429,
-            content={
-                "error": True,
-                "detail": "请求过于频繁，请稍后再试",
-                "status_code": 429,
-                "path": path,
-            },
+            content=error_payload(429, detail, detail, path),
             headers={
                 "X-RateLimit-Limit": str(limit),
                 "X-RateLimit-Remaining": "0",
