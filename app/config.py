@@ -740,7 +740,10 @@ class Settings(BaseSettings):
     # ── Matter 智能家居协议桥接（A7）──
     # 启用后 /api/smart-home/matter/* 端点可用，支持 Matter 2.0 设备配网与管理
     # 需配合 BridgeFactory + MatterBridge 使用（当前为 stub, 标注 TODO: need API key）
-    matter_enabled: bool = True
+    # BUG-30：下游 MatterBridge.commission_device 仍抛 NotImplementedError（stub），
+    # 默认 True 会误导「能力已可用」。默认改为 False（诚实禁用）；真机桥接落地后
+    # 由部署环境显式置 true，端点在 flag 关闭时返回 503 + 未实现说明。
+    matter_enabled: bool = False
 
     # ── A1 智能家居能耗监测（v1.2.2）──
     # 启用后 /api/energy/* 端点可用，支持能耗记录、报告生成、节能建议

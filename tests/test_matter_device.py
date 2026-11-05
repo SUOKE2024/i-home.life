@@ -3,7 +3,7 @@
 覆盖端点:
 - GET  /api/smart-home/matter/device-types     (设备类型列表)
 - POST /api/smart-home/matter/placement-plan   (点位规划)
-- POST /api/smart-home/matter/commission       (设备配网 — stub 返 501)
+- POST /api/smart-home/matter/commission       (设备配网 — BUG-30 默认禁用，诚实 503)
 """
 import pytest
 from httpx import AsyncClient
@@ -91,12 +91,12 @@ async def test_placement_plan_unauthorized(client: AsyncClient):
     assert resp.status_code == 401
 
 
-# ── Matter Commissioning (stub 返 501) ──
+# ── Matter Commissioning (stub → 默认禁用，诚实 503) ──
 
 
 @pytest.mark.asyncio
 async def test_commission_matter_device_stub(client: AsyncClient):
-    """Matter 配网 — 桥接层未就绪时返 501 (stub)"""
+    """BUG-30：Matter 桥接仍为 stub，matter_enabled 默认 False → 诚实 503 + 未实现说明"""
     headers = await _auth_headers(client, "13900030012")
     project_id = await _create_project(client, headers)
 
@@ -112,8 +112,8 @@ async def test_commission_matter_device_stub(client: AsyncClient):
         },
         headers=headers,
     )
-    # 桥接层未就绪 → 501
-    assert resp.status_code == 501
+    assert resp.status_code == 503
+    assert "未实现" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

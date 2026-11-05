@@ -4,7 +4,7 @@ import asyncio
 import os
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,11 +42,18 @@ def _safe_filename(base_name: str) -> str:
 )
 async def export_structural_ifc(
     project_id: str,
-    request: IFCExportRequest = Depends(lambda: IFCExportRequest()),
+    request: IFCExportRequest = Body(default=IFCExportRequest()),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """从 structural 模型导出 IFC 文件"""
+    # BUG-21：body 经 Body() 正常接收（此前 Depends(lambda) 恒用默认实例，前端
+    # include_furniture / lod_level 被静默丢弃）。导出服务当前仅消费 project_id，
+    # 选项参数已可核验地接收并留痕；透传至导出服务需单独立项。
+    logger.info(
+        "IFC structural export: project_id=%s include_furniture=%s lod_level=%s",
+        project_id, request.include_furniture, request.lod_level,
+    )
     project = await verify_project_access(
         project_id=project_id, current_user=current_user, db=db
     )
@@ -96,11 +103,16 @@ async def export_structural_ifc(
 )
 async def export_design_ifc(
     plan_id: str,
-    request: IFCExportRequest = Depends(lambda: IFCExportRequest()),
+    request: IFCExportRequest = Body(default=IFCExportRequest()),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """从 FloorPlan 设计数据导出 IFC 文件"""
+    # BUG-21：见 export_structural_ifc，body 参数不再被静默丢弃。
+    logger.info(
+        "IFC design export: plan_id=%s include_furniture=%s lod_level=%s",
+        plan_id, request.include_furniture, request.lod_level,
+    )
     if not _IFCOPENSHELL_AVAILABLE:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,

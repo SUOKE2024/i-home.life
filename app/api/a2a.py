@@ -575,6 +575,39 @@ async def send_task(
         )
 
 
+def _as_text(value: Any) -> str:
+    """把任意对象转成结构化文本（JSON），避免 str(dict/list) 产生 Python repr。
+
+    BUG-31：A2A 边界上的 message / agent_name / error.detail 一旦是 dict/list，
+    str() 会输出 ``{'parts': [...]}`` 这类 Python 字面量，外部客户端无法渲染。
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (dict, list, tuple)):
+        try:
+            return json.dumps(value, ensure_ascii=False, sort_keys=True)
+        except (TypeError, ValueError):
+            return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value).strip()
+
+
+def _message_from_detail(detail: Any, fallback: str) -> str:
+    """HTTPException.detail 转结构化文本（B7）；dict/list 不再经 str() 变 repr。"""
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    if isinstance(detail, dict):
+        for key in ("message", "detail", "msg"):
+            value = detail.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return _as_text(detail)
+    if isinstance(detail, (list, tuple)):
+        return _as_text(detail)
+    return fallback
+
+
 def _jsonrpc_error(request_id: Any, code: int, message: str) -> dict[str, Any]:
     return {
         "jsonrpc": "2.0",
@@ -584,19 +617,21 @@ def _jsonrpc_error(request_id: Any, code: int, message: str) -> dict[str, Any]:
 
 
 def _extract_message_text(params: dict[str, Any]) -> str:
-    """兼容 A2A Message 对象（parts[].text）与纯字符串。"""
+    """兼容 A2A Message 对象（parts[].text）与纯字符串，输出结构化文本。"""
     message = params.get("message")
     if isinstance(message, str):
         return message.strip()
     if isinstance(message, dict):
         texts = [
-            str(part.get("text") or "").strip()
+            _as_text(part.get("text") or "")
             for part in (message.get("parts") or [])
             if isinstance(part, dict) and part.get("text")
         ]
         if texts:
-            return "\n".join(texts)
-        return str(message.get("text") or "").strip()
+            return "\n".join(t for t in texts if t)
+        return _as_text(message.get("text") or "")
+    if isinstance(message, (list, tuple)):
+        return _as_text(message)
     return ""
 
 
@@ -624,9 +659,9 @@ async def a2a_jsonrpc(
         return _jsonrpc_error(request.id, -32602, "Invalid params: message text is required")
 
     metadata = params.get("metadata") or {}
-    agent_name = str(
+    agent_name = _as_text(
         metadata.get("agent_name") or params.get("agent_name") or "OrchestratorAgent"
-    )
+    ) or "OrchestratorAgent"
     task_request = A2ATaskRequest(
         agent_name=agent_name,
         message=text,
@@ -637,7 +672,9 @@ async def a2a_jsonrpc(
     try:
         result = await send_task(task_request, current_user, db)
     except HTTPException as exc:
-        return _jsonrpc_error(request.id, -32001, str(exc.detail))
+        return _jsonrpc_error(
+            request.id, -32001, _message_from_detail(exc.detail, "任务执行失败")
+        )
 
     state = result.state.value if hasattr(result.state, "value") else str(result.state)
     payload: dict[str, Any] = {

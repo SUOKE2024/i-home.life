@@ -695,17 +695,10 @@ async def commission_matter_device(
     # ── 验证项目归属 ──
     await verify_project_access(project_id=body.project_id, current_user=current_user, db=db)
 
-    # ── Feature flag 检查 ──
-    if not settings.matter_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Matter 功能未启用 (matter_enabled=False)",
-        )
-
     import logging
     log = logging.getLogger("ihome.smart_home")
 
-    # ── 参数校验 ──
+    # ── 参数校验 ──（先校验输入，再判能力可用性：非法参数恒 422，不受 flag 影响）
     if body.passcode < 0 or body.passcode > 99999999999:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -715,6 +708,13 @@ async def commission_matter_device(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="discriminator 必须是 0-4095 (12-bit)",
+        )
+
+    # ── Feature flag 检查（BUG-30：Matter 桥仍为 stub，默认禁用，诚实 503）──
+    if not settings.matter_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Matter 桥接尚未实现（MatterBridge.commission_device 为 stub），功能默认禁用 (matter_enabled=False)；真机接入前请勿依赖此端点",
         )
 
     # ── 调用 MatterBridge 发起配网 ──

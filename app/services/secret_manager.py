@@ -150,6 +150,10 @@ class SecretManager:
         2) Vault KV v2 路径 suoke/ecosystem 的字段 suoke-life-public-paserk（与 suoke_club 对齐）
 
         注意：生态公钥属公开信息，允许 env 直配；私钥 PII 才必须走 Vault。
+
+        BUG-27：env 回退判定必须置于 vault_configured 判断之前 —— 此前 Vault
+        未配且 ECOSYSTEM_PUBLIC_PASERK 未声明时提前返回 None，导致
+        app/api/auth.py:437 生态 SSO 验签拿不到公钥。现 Vault 未配仍可走 env。
         """
         import os
 
@@ -173,10 +177,35 @@ class SecretManager:
             logger.warning("vault_fetch 生态公钥失败: %s", e)
             return None
 
+    def get_ecosystem_public_key_source(self) -> str:
+        """BUG-27：生态公钥来源（只回露来源，不回露值）：env / vault / unavailable。
+
+        Vault 未配置时回退读取 ECOSYSTEM_PUBLIC_PASERK 环境变量（公钥可公开），
+        health 据此如实标注，供运维判断生态 SSO 验签链是否具备前置条件。
+        """
+        import os
+
+        direct = (
+            getattr(settings, "ecosystem_public_paserk", "")
+            or os.getenv("ECOSYSTEM_PUBLIC_PASERK")
+            or ""
+        ).strip()
+        if direct:
+            return "env"
+        if self.enabled and self.vault_configured:
+            return "vault"
+        return "unavailable"
+
     def get_health_info(self) -> dict[str, Any]:
-        """返回密钥管理健康信息（用于 /api/health/detail）。"""
+        """返回密钥管理健康信息（用于 /api/health/detail）。
+
+        BUG-31/B5：指纹用 lru_cache 缓存，密钥轮换后若不清理会新旧值并存；
+        health 每次读取前主动清缓存，使暴露的 fingerprint 始终反映当前密钥，
+        也让 clear_fingerprint_cache() 有真实生产调用点。
+        """
         if not self.enabled:
             return {"enabled": False}
+        clear_fingerprint_cache()
         return {
             "enabled": True,
             "vault_configured": self.vault_configured,
@@ -184,6 +213,9 @@ class SecretManager:
             "vault_namespace": settings.vault_namespace if self.vault_configured else None,
             "paseto_key_fingerprint": get_paseto_key_fingerprint(),
             "cached_secret_count": len(self._cached_secrets),
+            # BUG-27：如实标注生态公钥来源与取密钥链是否真的被业务调用，不假装已启用。
+            "ecosystem_public_key_source": self.get_ecosystem_public_key_source(),
+            "secret_manager_active": bool(self._cached_secrets),
         }
 
 

@@ -308,7 +308,11 @@ async def test_matter_placement_plan(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_matter_commission_not_enabled(client: AsyncClient):
-    """Matter 配网：matter_enabled 默认 True，桥接为 stub 时诚实返回 501"""
+    """BUG-30：Matter 桥接为 stub，matter_enabled 默认 False → 诚实 503（不再伪装可用）
+
+    修复前默认 True 会进入 stub 桥接层返 501，让调用方误以为能力已启用；
+    现默认禁用并在响应中说明「桥接尚未实现」。
+    """
     headers = await _auth_headers(client, "13920020012")
     project_id = await _create_project(client, headers)
 
@@ -321,8 +325,8 @@ async def test_matter_commission_not_enabled(client: AsyncClient):
         },
         headers=headers,
     )
-    # matter_enabled 默认 True → 进入桥接层；真实配网未实现（stub）→ 501
-    assert resp.status_code == 501
+    assert resp.status_code == 503
+    assert "未实现" in resp.json()["detail"]
 
 
 # ── 越权校验 ──

@@ -697,8 +697,39 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     `detail` 保留 FastAPI 既有 `{loc, msg, type}` 形状（剔除 `input`/`ctx`，
     避免密码等用户输入回显），老客户端无需改动；`fields` 为跨品牌统一字段级详情。
+
+    BUG-29：A2A JSON-RPC 入口（POST /api/a2a）必须返回 JSON-RPC 2.0 错误对象，
+    而非本处理器默认的私有 HTTP 422 信封。标准 A2A 客户端发缺 method /
+    jsonrpc 非串 / params 非 dict 时，Pydantic 在进入端点前即抛校验异常；
+    此处按错误字段映射为 -32600（Invalid Request）/ -32602（Invalid params）。
     """
     errors = (exc.errors() or [])[:10]
+
+    # A2A JSON-RPC 边界：全局异常处理器按路径分流（FastAPI 的 handler 是 app 级，
+    # 无法只注册到某个 router，故在此按 request.url.path 精确判定）。
+    if request.url.path.rstrip("/") == "/api/a2a" and request.method == "POST":
+        raw_body = getattr(exc, "body", None)
+        request_id = raw_body.get("id") if isinstance(raw_body, dict) else None
+        code = -32600
+        for err in errors:
+            loc = [str(p) for p in (err.get("loc") or [])]
+            if "params" in loc:
+                code = -32602
+                break
+        prefix = "Invalid Request" if code == -32600 else "Invalid params"
+        messages = [str(err.get("msg") or "") for err in errors]
+        logger.warning("A2A JSON-RPC 请求校验失败 %s: %s", request.url.path, messages)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": code,
+                    "message": f"{prefix}: {'; '.join(m for m in messages if m)}",
+                },
+            },
+        )
     legacy_detail = [
         {k: err.get(k) for k in ("loc", "msg", "type") if k in err} for err in errors
     ]
@@ -842,7 +873,20 @@ async def health_check():
 
 @app.get("/api/health/detail")
 async def health_check_detail():
-    """详细健康检查：数据库、Redis（可选）、磁盘空间。"""
+    """详细健康检查：数据库、Redis（可选）、磁盘、密钥管理、意图契约。
+
+    BUG-28：任一子检查异常或配置告警都必须显式置 overall="degraded" 并输出
+    degraded=true，不得只把子检查标 error 却让整体仍为 200 ok（隐瞒降级）。
+
+    收紧（2026-11-05）：降级原因按「是否影响流量接入」分两类，避免把配置缺失
+    做成生产可用性回退（LB 会因 503 摘除实例）：
+    - dependency_error：db / redis / 磁盘探测 / secret_manager / intent_contract
+      等依赖抛异常或不可用 → HTTP 503，readiness_impact=true。
+    - configuration_warning：vault 未配 / 取密钥链无缓存 / 生态公钥不可用 /
+      secret_manager 未激活 / 磁盘容量阈值告警等已知配置态 → 响应体如实保留
+      degraded=true + warnings，但 HTTP 仍 200，readiness_impact=false。
+    /health（liveness）不受本端点影响。
+    """
     import shutil
 
     from sqlalchemy import text
@@ -851,6 +895,10 @@ async def health_check_detail():
 
     checks: dict = {}
     overall = "ok"
+    # 两类原因都汇总进 degraded_reasons（如实），另各存一份用于判定 HTTP 状态。
+    degraded_reasons: list[str] = []
+    dependency_errors: list[str] = []   # → 503，影响 readiness
+    config_warnings: list[str] = []     # → 200，不影响流量接入
 
     # 数据库连接
     try:
@@ -860,6 +908,8 @@ async def health_check_detail():
     except Exception as e:
         checks["database"] = {"status": "error", "detail": str(e)}
         overall = "degraded"
+        dependency_errors.append("database_error")
+        degraded_reasons.append("database_error")
 
     # Redis 连接（仅在配置 redis_url 时检查）
     if settings.redis_url:
@@ -873,6 +923,8 @@ async def health_check_detail():
         except Exception as e:
             checks["redis"] = {"status": "error", "detail": str(e)}
             overall = "degraded"
+            dependency_errors.append("redis_error")
+            degraded_reasons.append("redis_error")
     else:
         checks["redis"] = {"status": "disabled"}
 
@@ -884,9 +936,13 @@ async def health_check_detail():
         free_percent = round(usage.free / usage.total * 100, 2)
         if free_percent < 5:
             disk_status = "critical"
+            config_warnings.append("disk_free_critical")
+            degraded_reasons.append("disk_free_critical")
             overall = "degraded"
         elif free_percent < 15:
             disk_status = "warning"
+            config_warnings.append("disk_free_low")
+            degraded_reasons.append("disk_free_low")
             overall = "degraded"
         else:
             disk_status = "ok"
@@ -899,14 +955,40 @@ async def health_check_detail():
     except Exception as e:
         checks["disk"] = {"status": "error", "detail": str(e)}
         overall = "degraded"
+        dependency_errors.append("disk_check_error")
+        degraded_reasons.append("disk_check_error")
 
     # v1.1.28: 密钥管理健康信息（借鉴索克生活 Vault 指纹机制）
     # 暴露 PASETO key fingerprint 供运维校验密钥轮换状态，永不泄露密钥明文
     try:
         from app.services.secret_manager import secret_manager
-        checks["secret_manager"] = secret_manager.get_health_info()
+        sm_info = secret_manager.get_health_info()
+        checks["secret_manager"] = sm_info
+        # BUG-28/27：vault 未配、取密钥链无缓存、生态公钥不可用、取密钥链未激活
+        # 均如实计入 configuration_warning（degraded=true + warnings），但**不**
+        # 判 503 —— 这些是已知配置态，不影响本实例对外提供流量。
+        if sm_info.get("enabled"):
+            def _warn(reason: str) -> None:
+                nonlocal overall
+                sm_info["status"] = "warning"
+                overall = "degraded"
+                config_warnings.append(reason)
+                degraded_reasons.append(reason)
+
+            if not sm_info.get("vault_configured", False):
+                _warn("vault_not_configured")
+            if not sm_info.get("cached_secret_count", 0):
+                _warn("no_cached_secrets")
+            if sm_info.get("ecosystem_public_key_source") == "unavailable":
+                _warn("ecosystem_public_key_unavailable")
+            if not sm_info.get("secret_manager_active", False):
+                _warn("secret_manager_inactive")
     except Exception as e:
         checks["secret_manager"] = {"status": "error", "detail": str(e)}
+        overall = "degraded"
+        dependency_errors.append("secret_manager_error")
+        degraded_reasons.append("secret_manager_error")
+        logger.warning("/health/detail secret_manager 检查异常: %s", e)
 
     # v1.1.28: 意图契约校验状态
     try:
@@ -923,11 +1005,27 @@ async def health_check_detail():
         }
     except Exception as e:
         checks["intent_contract"] = {"status": "error", "detail": str(e)}
+        overall = "degraded"
+        dependency_errors.append("intent_contract_error")
+        degraded_reasons.append("intent_contract_error")
+        logger.warning("/health/detail intent_contract 检查异常: %s", e)
 
+    degraded = overall != "ok"
+    # 仅真实依赖故障影响流量接入（503）；配置告警如实标注但保持 200。
+    readiness_impact = bool(dependency_errors)
+    if dependency_errors:
+        logger.warning("/health/detail 依赖故障（503）: %s", dependency_errors)
+    if config_warnings:
+        logger.warning("/health/detail 配置告警（不影响接入）: %s", config_warnings)
     return JSONResponse(
-        status_code=200 if overall == "ok" else 503,
+        status_code=503 if readiness_impact else 200,
         content={
             "status": overall,
+            "degraded": degraded,
+            "degraded_reasons": degraded_reasons,
+            "dependency_errors": dependency_errors,
+            "warnings": config_warnings,
+            "readiness_impact": readiness_impact,
             "app": settings.app_name,
             "version": settings.app_version,
             "checks": checks,

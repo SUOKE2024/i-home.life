@@ -8,11 +8,11 @@
  *
  * 后端字段（app/schemas/ifc_export.py）：
  *   IFCExportRequest: include_furniture / lod_level（LOD200/LOD300/LOD350）
- *   注意：后端用 Depends(lambda: IFCExportRequest()) 取默认值，body 字段当前不生效；
- *        前端仍发送完整 body，待后端修复为 Body() 后自动生效。
+ *   BUG-21/B8：后端已改为 Body() 正常接收，前端 body 与后端 schema 字段对齐；
+ *        选项参数当前由后端留痕接收（透传至导出服务需单独立项）。
  *
  * 降级：
- *   501 — ifcopenshell 未安装（ifc_export.py:46），提示安装
+ *   501 — ifcopenshell 未安装（ifc_export.py 501 分支）：隐藏导出入口，保留如实提示
  *   404 — 项目/方案不存在或无结构数据
  */
 
@@ -54,6 +54,9 @@ export default function IFCExportPage() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // BUG-21：收到 501 后隐藏导出入口，避免客户端反复尝试一个明确不可用的能力；
+  // 错误卡片仍保留如实提示（含 ifcopenshell 安装指引）。
+  const [ifcUnavailable, setIfcUnavailable] = useState(false);
 
   const { data: projects } = useAsync<Project[]>(async () => {
     const r = await apiClient.listProjects<Project[]>();
@@ -100,8 +103,10 @@ export default function IFCExportPage() {
       triggerDownload(r.blob, r.filename);
       setSuccess(`✅ 已导出：${r.filename}（${(r.blob.size / 1024).toFixed(1)} KB）`);
     } else {
-      if (r.status === 501) setError('服务端未安装 ifcopenshell，IFC 导出不可用。请联系管理员安装 ifcopenshell>=0.7.0。');
-      else if (r.status === 404) setError('未找到可导出的数据：项目/方案不存在或无结构数据。');
+      if (r.status === 501) {
+        setIfcUnavailable(true);
+        setError('服务端未安装 ifcopenshell，IFC 导出不可用（导出入口已隐藏）。请联系管理员安装 ifcopenshell>=0.7.0。');
+      } else if (r.status === 404) setError('未找到可导出的数据：项目/方案不存在或无结构数据。');
       else setError(r.error ?? `导出失败（HTTP ${r.status}）`);
     }
   };
@@ -139,7 +144,8 @@ export default function IFCExportPage() {
             </div>
           )}
 
-          {/* 导出选项 */}
+          {/* 导出选项（501 后随入口一并隐藏） */}
+          {!ifcUnavailable && (
           <div className="wb-ifc-options" data-testid="wb-ifc-options">
             <label className="wb-ifc-checkbox" data-testid="wb-ifc-furniture">
               <input type="checkbox" checked={includeFurniture} onChange={(e) => setIncludeFurniture(e.target.checked)} />
@@ -152,8 +158,10 @@ export default function IFCExportPage() {
               </select>
             </label>
           </div>
+          )}
 
-          {/* 导出按钮 */}
+          {/* 导出按钮（501 降级后隐藏入口，如实提示仍保留在下方错误卡片） */}
+          {!ifcUnavailable && (
           <button
             type="button"
             className="wb-theme-option wb-theme-option--active wb-upload-action"
@@ -163,6 +171,7 @@ export default function IFCExportPage() {
           >
             {exporting ? '⏳ 导出中…' : `📦 导出 ${mode === 'structural' ? '结构' : '设计'} IFC`}
           </button>
+          )}
 
           {exporting && (
             <div className="wb-state" data-testid="wb-ifc-loading">
