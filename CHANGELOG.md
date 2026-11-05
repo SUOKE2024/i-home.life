@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+### 修复（2026-11-05 P0/P1 落地，基于全景全链路评估）
+
+- **`/health/detail` 降级语义收紧**：降级按是否影响流量接入分两类——**依赖故障**（db/redis/磁盘探测异常/
+  secret_manager/intent_contract 抛错）→ **503 + `readiness_impact=true`**；**配置告警**（vault 未配、
+  无缓存密钥、生态公钥 unavailable、磁盘容量阈值）→ **200 + `degraded=true` + `warnings` +
+  `readiness_impact=false`**。既不再隐瞒降级，也不会让 LB 把健康实例全部摘除。
+- **A2A JSON-RPC 边界**：`POST /api/a2a` 的 `RequestValidationError` 专属分流，统一返回
+  `{jsonrpc,id,error:{code:-32600/-32602,message}}`，不再落到私有 422 信封；A2A message 去掉 Python repr。
+- **IFC 导出入参**：`Depends(lambda: IFCExportRequest())` → `Body(default=...)`，前端 `include_furniture`/
+  `lod_level` 不再被静默丢弃；501 时前端隐藏入口并保留「服务端未安装 ifcopenshell」的如实提示。
+- **生态公钥**：新增 `get_ecosystem_public_key_source()`（`env/vault/unavailable`）；`secret_manager_active=false`
+  如实暴露（`get_secret()` 仍无业务调用，不假装已启用）；`.env.production.example` 补
+  `VAULT_URL`/`VAULT_TOKEN`/`VAULT_NAMESPACE`/`ECOSYSTEM_PUBLIC_PASERK`/`MATTER_ENABLED` **空占位**。
+- **桥接与指纹**：`matter_enabled` 默认由 `True` 改 **`False`**（下游全 stub），503 detail 诚实说明；
+  指纹读取前清 `lru_cache`，轮换后不再新旧并存。
+- **回归**：17 文件 **220 passed**（含 17 条新契约）。
+- **生产状态（11-05 17:0x 更新）**：SSH 推送 7 文件后服务已重启，8001/8081 双 200，无 error/traceback。
+  回滚点 `/opt/ihome/backups/code_20261105_165908.tar.gz`。原「生产待部署」遗留项已闭环。
+
+### 变更（2026-11-05 发现层契约收敛 W-2/W-3/W-4/W-5）
+
+- **Agent Card 改 JWS 信封**：三个别名（`/.well-known/agent-card.json`、`/.well-known/agent.json`、
+  `/.well-known/agent-card`）统一返回 RFC 7515 通用序列化 `{payload, signatures:[{protected, signature}], signed}`，
+  签名输入 `ASCII(protected) || "." || ASCII(payload)`，CANON 为 `sort_keys + 紧凑分隔符`；
+  签名密钥缺失时降级为 `signed:false` 明文卡，不假装已签名。
+- **职责边界澄清**：JWS 只用于卡片完整性，**PASETO 仍是唯一鉴权令牌**（模块 docstring 已写明，防止误用）。
+- **公钥双编码 + 规范 alg/crv**：`alg=EdDSA`（RFC 8037）、`crv=Ed25519`，同时提供 `public_key`（base64 带填充）、
+  `public_key_b64url`（无填充）、`key_encoding`、`fingerprint`。
+- **错误信封补 `trace_id`**：6 处异常处理器（422/HTTPException/409×2/501/500）统一带 `trace_id`，
+  取值优先复用请求头 `x-trace-id`/`x-request-id`/`traceparent`，并回写 `X-Trace-Id` 响应头。
+- **跨端一致**：与 suoke.club、suoke.life 同步，三端巡检基线由 PASS=30/WARN=5 → **PASS=38/WARN=0/FAIL=0**。
+
 ### 补记 · 10-30 四个提交（2026-11-05 补齐，此前 CHANGELOG 滞后）
 
 > 以下提交在 2026-10-30 12:25～21:12 已入库但未写入变更日志；本轮按 git log 补齐，**不改动代码**。
