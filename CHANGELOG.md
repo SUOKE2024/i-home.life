@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+### 修复（2026-11-05 生态 SSO 生产不可用：ECOSYSTEM_PUBLIC_PASERK 从未配置）
+
+- **现象**：生产 `POST /api/auth/ecosystem/login` 恒返回 **503「生态公钥未配置」**，生活用户无法登录家居。
+  查生产 `users` 表 `sub_role='ecosystem_life'` = **0 行**，说明该链路**从未打通过**，不是回归。
+- **根因**：`ECOSYSTEM_PUBLIC_PASERK`（索克生活 v4.public 验签公钥）在 `/opt/ihome/.env` 中**完全没有该行**。
+  上一轮只在 `.env.production.example` 留了空占位，生产一直没填；`get_ecosystem_public_key_source()`
+  如实报 `unavailable`，但没人盯这个字段。
+- **处置**：从规范源 Vault `secret/suoke/ecosystem` 字段 `suoke-life-public-paserk` 取值写入生产 `.env`
+  （生态公钥属公开信息，允许 env 直配），并校验存储指纹与 Vault 记录一致（`68b4f32e`，32 字节 Ed25519）。
+  重启后 `ecosystem_public_key_source` 由 `unavailable` 变 `env`。
+- **验证**：改前 503 → 改后 **401「生态令牌验签失败: Invalid signature」**，说明公钥已加载、pyseto 真在做
+  签名校验（先用假令牌试，未写任何业务数据）。
+  **仍需**：用真实生活账号登录一次，才能证明「签发端密钥 ↔ 本端公钥」确实配对并完成换票建号。
+- **回滚点**：`/opt/ihome/.env.bak.20261105_1727`。
+- **门禁补强**（在 agent-os-implementation 侧）：跨端巡检新增「生态业务链路接入面」B1–B4，
+  把「缺配置导致的 503」判为 **FAIL 而不是降级放行**——这类断链既不在单仓测试里（单仓用临时密钥对自造自验），
+  也不在发现层巡检里，只能靠真实的跨仓接入面探针抓到。
+
 ### 修复（2026-11-05 P0/P1 落地，基于全景全链路评估）
 
 - **`/health/detail` 降级语义收紧**：降级按是否影响流量接入分两类——**依赖故障**（db/redis/磁盘探测异常/
