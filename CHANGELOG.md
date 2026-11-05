@@ -4,6 +4,29 @@
 
 ## [Unreleased]
 
+### 修复（2026-11-05 供应商生态同步「安静空转」：状态不可观测）
+
+- **背景**：上一轮记了一条「家居→俱乐部供应商同步双向都没配」，**这条记错了，特此更正**：
+  生产 `/opt/ihome/.env` 的 `ECOSYSTEM_SYNC_URL`/`ECOSYSTEM_SYNC_KEY` 都在（第 82/83 行），
+  URL 直指生活侧 FC 域（`product-service-tsmhzphkep.cn-hangzhou.fcapp.run`，绕过网关所以要 JWT 那条路不成立），
+  生活侧 `product-service` 的 `ECOSYSTEM_SYNC_KEY` 与本端**同值**（两端 `sha256[:8] = 8f524a73`）。
+- **真问题不是没配，而是「配了也看不出来好不好」**：`push_supplier()` 未配置时只打 `debug` 日志、
+  失败只打 `warning` 后返回 `False`，而调用方（`procurement_service` 三处）全都忽略返回值。
+  供应商照建、页面照显示，canonical registry 空着也没人知道——和生态 SSO 恒 503 同一类形态。
+- **改动**：`app/services/ecosystem_sync.py` 增进程内统计与 `sync_status()`：
+  `status ∈ {unconfigured, idle, ok, degraded}` + `configured/target/key_fingerprint/attempts/ok/failed/
+  skipped_unconfigured/last_ok_at/last_fail_at/last_error/last_local_id`；未配置由 `debug` 升为
+  **首次 `warning`**（不刷屏但不再隐形）；403 单独点明「同步 key 与生活侧不一致」并打指纹，
+  因为它属配置错而非瞬时故障。只暴露 `sha256[:8]` 指纹，不回显密钥。
+- **`/api/health/detail`** 新增 `checks.ecosystem_sync`，`unconfigured`/`degraded` 计入
+  `configuration_warnings` + `overall=degraded`（按既有口径不判 503，不影响接入）。
+- **测试**：`tests/test_ecosystem_sync.py` 5 passed（未配置留痕、成功计数、只暴露指纹、
+  403 标 degraded、网络异常不抛出但记 last_error）。
+- **生产实测**：`/api/health/detail` → `status=idle, configured=true, target=…, key_fingerprint=8f524a73`。
+- **诚实边界**：`idle` 只说明「配好了、本进程还没推过」，**不证明换票/建映射成功**。
+  端到端写入需真实改一次供应商（会写 canonical 映射），没擅自做。
+  跨端巡检 B5 用「无 key 应 403」非破坏性验证通道在且鉴权真拦，已 PASS。
+
 ### 修复（2026-11-05 生态 SSO 生产不可用：ECOSYSTEM_PUBLIC_PASERK 从未配置）
 
 - **现象**：生产 `POST /api/auth/ecosystem/login` 恒返回 **503「生态公钥未配置」**，生活用户无法登录家居。

@@ -1005,6 +1005,27 @@ async def health_check_detail():
         degraded_reasons.append("secret_manager_error")
         logger.warning("/health/detail secret_manager 检查异常: %s", e)
 
+    # 生态供应商同步通道（家居 → 索克生活 canonical registry）
+    # 与生态 SSO 同类：配错了不会报错、只会「安静地不同步」，因此必须在这里可见。
+    try:
+        from app.services.ecosystem_sync import sync_status as _sync_status
+
+        _sync = _sync_status()
+        checks["ecosystem_sync"] = _sync
+        if _sync["status"] == "unconfigured":
+            overall = "degraded"
+            config_warnings.append("ecosystem_sync_unconfigured")
+            degraded_reasons.append("ecosystem_sync_unconfigured")
+        elif _sync["status"] == "degraded":
+            overall = "degraded"
+            config_warnings.append("ecosystem_sync_degraded")
+            degraded_reasons.append("ecosystem_sync_degraded")
+    except Exception as e:
+        checks["ecosystem_sync"] = {"status": "error", "detail": str(e)}
+        overall = "degraded"
+        degraded_reasons.append("ecosystem_sync_check_error")
+        logger.warning("/health/detail ecosystem_sync 检查异常: %s", e)
+
     # v1.1.28: 意图契约校验状态
     try:
         from app.utils.intent_validator import load_contract
