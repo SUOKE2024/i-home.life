@@ -17,6 +17,7 @@ from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +29,7 @@ from app.database import get_db
 from app.models.a2a_task import A2ATask, A2A_TASK_DEFAULT_TTL_HOURS
 from app.models.user import User
 from app.rbac import verify_project_access
-from app.services.agent_card_signature import public_key_document, sign_agent_card
+from app.services.agent_card_signature import public_key_document, sign_agent_card_jws
 
 router = APIRouter(prefix="/a2a", tags=["A2A 协议"])
 # A2A v1.0 规范要求 Agent Card 暴露在 /.well-known/agent-card（无 /api 前缀）
@@ -346,8 +347,8 @@ def _task_to_dict(task: A2ATask) -> dict[str, Any]:
 @router.get("/.well-known/agent-card", response_model=A2AAgentCard)
 @public_router.get("/.well-known/agent-card", response_model=A2AAgentCard)
 @public_router.get("/.well-known/agent.json", response_model=A2AAgentCard)
-@public_router.get("/.well-known/agent-card.json", response_model=A2AAgentCard)
-async def get_agent_card() -> A2AAgentCard:
+@public_router.get("/.well-known/agent-card.json")
+async def get_agent_card():
     """获取 Agent Card（公开端点，无需认证）。
 
     按 A2A v1.0 规范，Agent Card 描述本节点暴露的 Agent 能力，
@@ -356,6 +357,11 @@ async def get_agent_card() -> A2AAgentCard:
     2026-10-28：补 `agent.json` / `agent-card.json` 两个别名——索克生活与索克俱乐部
     均以这两个路径暴露发现文档，外部客户端用同一套发现路径即可跨品牌接入，
     无需为家居单独写特殊路径。
+
+    2026-11-05（W-4 契约收口）：所有发现别名（`agent-card` / `agent.json` / `agent-card.json`）
+    统一返回 **JWS 信封** `{payload, signatures, signed}`，与生活/俱乐部同格式——
+    三条别名给同一份内容，消费方一套验签即通三端（此前三条别名同源但签名承载与另两端不同）。
+    未配置签名种子时降级为裸卡并标 `signed:false`（不伪装已签名）。
     """
     skills = [
         A2ASkill(name=name, description=_AGENT_DESCRIPTIONS.get(name, ""))
@@ -373,10 +379,14 @@ async def get_agent_card() -> A2AAgentCard:
         skills=skills,
         registered_agents=REGISTERED_AGENT_NAMES,
     )
-    # 2026-10-28: 配置了 Ed25519 种子即签名（原生签名对象，非 JWS）；未配置保持 None。
     # by_alias=True：签名载荷必须与对端收到的 JSON 键名一致（supportedInterfaces 等为 camelCase）。
-    card.signature = sign_agent_card(card.model_dump(mode="json", by_alias=True))
-    return card
+    plain = card.model_dump(mode="json", by_alias=True)
+    envelope = sign_agent_card_jws(plain)
+    if envelope:
+        envelope["signed"] = True
+        return JSONResponse(envelope, headers={"Cache-Control": "public, max-age=300"})
+    plain["signed"] = False
+    return JSONResponse(plain, headers={"Cache-Control": "public, max-age=300"})
 
 
 @public_router.get("/.well-known/agent-card-public-key")

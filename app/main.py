@@ -660,11 +660,15 @@ def error_payload(
     detail,
     path: str,
     fields: list | None = None,
+    trace_id: str | None = None,
 ) -> dict:
-    """统一错误体：公共核心（success/error/message/code）+ 家居既有字段（detail/status_code/path）。
+    """统一错误体：公共核心（success/error/message/trace_id）+ 家居既有字段（code/detail/status_code/path）。
 
     `detail` 保持历史形状（字符串/列表/字典原样透传），避免已有客户端解析失败；
     `error` 由布尔改为机器可读语义码（历史 `{"error": true}` 与平台契约冲突）。
+
+    W-2（2026-11-05）：补 `trace_id`——三端必备集统一为
+    `success/error/message/trace_id`，跨端排障才有一致的对账键。
     """
     payload = {
         "success": False,
@@ -674,10 +678,21 @@ def error_payload(
         "detail": detail,
         "status_code": status_code,
         "path": path,
+        "trace_id": trace_id or uuid.uuid4().hex[:16],
     }
     if fields is not None:
         payload["fields"] = fields
     return payload
+
+
+def _trace_id(request: Request) -> str:
+    """优先复用上游追踪头（网关/客户端传入），缺失则本端生成。"""
+    for name in ("x-trace-id", "x-request-id", "traceparent"):
+        value = request.headers.get(name)
+        if value:
+            # traceparent 形如 00-<trace-id>-<span-id>-01，取第二段
+            return value.split("-")[1] if name == "traceparent" and "-" in value else value
+    return uuid.uuid4().hex[:16]
 
 
 def _message_from_detail(detail, fallback: str) -> str:
@@ -744,7 +759,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.warning(f"请求参数校验失败 {request.method} {request.url.path}: {fields}")
     return JSONResponse(
         status_code=422,
-        content=error_payload(422, "请求参数校验失败", legacy_detail, request.url.path, fields=fields),
+        content=error_payload(422, "请求参数校验失败", legacy_detail, request.url.path, fields=fields, trace_id=_trace_id(request)),
     )
 
 
@@ -754,7 +769,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     message = _message_from_detail(exc.detail, "请求失败")
     return JSONResponse(
         status_code=exc.status_code,
-        content=error_payload(exc.status_code, message, exc.detail, request.url.path),
+        content=error_payload(exc.status_code, message, exc.detail, request.url.path, trace_id=_trace_id(request)),
     )
 
 
@@ -763,7 +778,7 @@ async def change_order_state_error_handler(request: Request, exc: ChangeOrderSta
     """变更单非法状态流转 → 409 Conflict（而非 500）"""
     return JSONResponse(
         status_code=409,
-        content=error_payload(409, str(exc), str(exc), request.url.path),
+        content=error_payload(409, str(exc), str(exc), request.url.path, trace_id=_trace_id(request)),
     )
 
 
@@ -772,7 +787,7 @@ async def task_state_error_handler(request: Request, exc: TaskStateError):
     """任务状态机非法流转（申领/分配/完成/取消越权）→ 409 Conflict（而非 500）"""
     return JSONResponse(
         status_code=409,
-        content=error_payload(409, str(exc), str(exc), request.url.path),
+        content=error_payload(409, str(exc), str(exc), request.url.path, trace_id=_trace_id(request)),
     )
 
 
@@ -788,7 +803,7 @@ async def not_implemented_error_handler(request: Request, exc: NotImplementedErr
     detail = f"该能力尚未实现: {exc}"
     return JSONResponse(
         status_code=501,
-        content=error_payload(501, detail, detail, request.url.path),
+        content=error_payload(501, detail, detail, request.url.path, trace_id=_trace_id(request)),
     )
 
 
@@ -799,7 +814,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     detail = "服务器内部错误，请稍后重试"
     return JSONResponse(
         status_code=500,
-        content=error_payload(500, detail, detail, request.url.path),
+        content=error_payload(500, detail, detail, request.url.path, trace_id=_trace_id(request)),
     )
 
 
