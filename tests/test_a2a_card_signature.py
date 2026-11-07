@@ -78,6 +78,12 @@ async def test_card_endpoint_carries_verifiable_jws(client: AsyncClient, signing
     key_doc = (await client.get("/.well-known/agent-card-public-key")).json()
     inner = verify_agent_card_jws(doc, key_doc["public_key_b64url"])
     assert inner["name"] == "索克家居"
+    # GB/Z 185.2 合规声明块：身份码未分配时为 None，不得伪造国标 OID 前缀
+    compliance = inner["compliance"]
+    assert compliance["identity_code_scheme"] == "GB/Z 185.2-2026"
+    assert compliance["identity_code"] is None
+    assert compliance["recall_status"] == "active"
+    assert set(compliance["decision_modes"]) == {"user_only", "user_authorized", "autonomous"}
     assert inner["registered_agents"], "内层必须是完整卡片"
 
 

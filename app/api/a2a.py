@@ -11,6 +11,7 @@
 """
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -253,6 +254,23 @@ class A2AAgentCard(BaseModel):
     )
     # 2026-10-28: Ed25519 原生签名对象（非 JWS）；未配置密钥时为 None
     signature: dict[str, Any] | None = None
+    # 合规声明块（GB/Z 185.2—2026 身份码 / 三部门《实施意见》§6·§11）：
+    # 身份码未获分配时恒为 None，不伪造国标 OID 前缀。
+    compliance: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "identity_code": None,
+            "identity_code_scheme": "GB/Z 185.2-2026",
+            "identity_status": "not_registered",
+            "local_agent_ref": "SUOKE2024/ihome",
+            "risk_tier": "medium",
+            "decision_mode_default": "user_only",
+            "decision_modes": ["user_only", "user_authorized", "autonomous"],
+            "data_permissions": ["project:read_assigned", "space_asset:read_self"],
+            "safety_level": "L1",
+            "filings": {"algorithm": "not_filed", "medical_device": "not_applicable"},
+            "recall_status": "active",
+        }
+    )
 
 
 class A2ATaskRequest(BaseModel):
@@ -442,6 +460,15 @@ async def send_task(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="A2A 协议未启用",
+        )
+
+    # 召回开关（GB/Z 185 / 三部门《实施意见》§11 问题产品召回）：
+    # AGENT_RECALL_IDS 支持单个 Agent 名或 `*`，运维无需发版即可下线。
+    recalled = {x.strip() for x in os.getenv("AGENT_RECALL_IDS", "").split(",") if x.strip()}
+    if "*" in recalled or request.agent_name in recalled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="agent_recalled: 智能体已被召回，暂停对外服务",
         )
 
     # ── v1.16.0 ATH 握手凭证校验（⑤ 双向身份核验 + ⑥ 最小权限 scope）──
