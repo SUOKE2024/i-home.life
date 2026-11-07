@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### 变更（2026-11-08 智能体合规对齐：声明块 + 召回开关）
+
+- **AgentCard 增 `compliance` 块**（随 JWS 信封一起签名）：身份码方案 `GB/Z 185.2-2026`、
+  `identity_code=null`（未分配，不伪造国标 OID 前缀）、`risk_tier=medium`、决策三态枚举、
+  数据权限、备案状态与召回状态；本地互操作标识 `SUOKE2024/ihome`。
+- **召回开关**：`POST /api/a2a/tasks/send` 在建任务前检查 `AGENT_RECALL_IDS`
+  （逗号分隔，`*` 全量；支持按 `agent_name`），命中返回 **503** `agent_recalled`，无需发版。
+- **测试**：`tests/test_a2a_card_signature.py` 11 passed（新增合规块验签后可见断言）。
+- **未执行**：未部署；身份码待注册平台开放后激活。
+
 ### 修复（2026-11-05 供应商生态同步「安静空转」：状态不可观测）
 
 - **背景**：上一轮记了一条「家居→俱乐部供应商同步双向都没配」，**这条记错了，特此更正**：
